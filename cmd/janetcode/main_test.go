@@ -84,16 +84,25 @@ func TestHeadlessEndToEnd(t *testing.T) {
 		t.Fatalf("history length = %d", len(msgs))
 	}
 
-	// Resume the latest session and send another prompt: history is replayed.
+	// Resume the latest session and send another prompt: history is replayed
+	// and piped stdin is attached to the prompt.
 	calls = 10
+	oldIn := os.Stdin
+	rin, win, _ := os.Pipe()
+	io.WriteString(win, "diff --git a/x b/x\n")
+	win.Close()
+	os.Stdin = rin
 	stdout, stderr = captureStd(t)
 	err = run([]string{"-p", "thanks", "--provider", "openai", "--model", "test-model", "--continue"})
+	os.Stdin = oldIn
 	out, errOut = stdout(), stderr()
 	if err != nil {
 		t.Fatalf("resume run: %v\nstderr: %s", err, errOut)
 	}
 	if msgs := lastReq["messages"].([]any); len(msgs) != 8 {
 		t.Fatalf("resumed history length = %d", len(msgs))
+	} else if u := msgs[7].(map[string]any)["content"].(string); !strings.Contains(u, "thanks") || !strings.Contains(u, "<stdin>\ndiff --git a/x b/x\n</stdin>") {
+		t.Fatalf("stdin not attached: %q", u)
 	}
 
 	// Missing model for openai is a clear error, not a request.

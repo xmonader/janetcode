@@ -100,3 +100,24 @@ func TestLatestAndInvalidID(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestSyncOrRotateOnShrink(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := New(dir, "/w", "p", "m")
+	msgs := []llm.Message{llm.TextMessage(llm.RoleUser, "a"), llm.TextMessage(llm.RoleAssistant, "b"), llm.TextMessage(llm.RoleUser, "c")}
+	same, err := s.SyncOrRotate(msgs)
+	if err != nil || same != s {
+		t.Fatalf("grow: %v %v", err, same == s)
+	}
+	compacted := []llm.Message{llm.TextMessage(llm.RoleUser, "summary")}
+	ns, err := s.SyncOrRotate(compacted)
+	if err != nil || ns == s || ns.Meta.Cwd != "/w" {
+		t.Fatalf("rotate: %v same=%v meta=%+v", err, ns == s, ns.Meta)
+	}
+	if _, old, _ := Open(dir, s.Meta.ID); len(old) != 3 {
+		t.Fatalf("old session damaged: %d messages", len(old))
+	}
+	if _, cur, _ := Open(dir, ns.Meta.ID); len(cur) != 1 || cur[0].Text() != "summary" {
+		t.Fatalf("new session = %+v", cur)
+	}
+}

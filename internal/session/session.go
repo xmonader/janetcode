@@ -215,6 +215,23 @@ func firstLine(s string, max int) string {
 // Path is the file backing the session.
 func (s *Session) Path() string { return s.path }
 
+// Persisted reports how many messages are on disk.
+func (s *Session) Persisted() int { return s.persisted }
+
+// SyncOrRotate persists msgs. When the history shrank (compaction replaced
+// it) the old file is left intact and a new session is started for the
+// summarised conversation; the session to keep using is returned.
+func (s *Session) SyncOrRotate(msgs []llm.Message) (*Session, error) {
+	if len(msgs) < s.persisted {
+		ns, err := New(filepath.Dir(s.path), s.Meta.Cwd, s.Meta.Provider, s.Meta.Model)
+		if err != nil {
+			return s, err
+		}
+		return ns, ns.Sync(msgs)
+	}
+	return s, s.Sync(msgs)
+}
+
 // Sync writes any messages not yet on disk. If the last persisted message
 // grew (a user turn merged after a failed call) the file is rewritten.
 func (s *Session) Sync(msgs []llm.Message) error {

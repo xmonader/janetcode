@@ -6,9 +6,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+
+	"golang.org/x/term"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
@@ -146,8 +150,12 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if *promptText != "" {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
+		text := *promptText
+		if extra := pipedStdin(); extra != "" {
+			text += "\n\n<stdin>\n" + extra + "\n</stdin>"
+		}
 		return headless.Run(ctx, headless.Options{
-			Agent: ag, Session: sess, Prompt: *promptText,
+			Agent: ag, Session: sess, Prompt: text,
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
 		})
 	}
@@ -155,6 +163,19 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
 		Resumed: len(history), Version: version, Theme: cfg.Theme,
 	})
+}
+
+// pipedStdin returns piped input (e.g. `git diff | janetcode -p "review"`),
+// or "" when stdin is a terminal or empty. Capped at 1 MB.
+func pipedStdin() string {
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		return ""
+	}
+	data, err := io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 func printSessions() error {

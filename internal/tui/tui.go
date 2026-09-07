@@ -299,7 +299,10 @@ func (m *model) submit(text string) tea.Cmd {
 	m.refresh(false)
 	go func() {
 		err := ag.Run(ctx, text, func(e agent.Event) { send(agentEventMsg{ev: e}) })
-		syncErr := sess.Sync(ag.Messages)
+		ns, syncErr := sess.SyncOrRotate(ag.Messages)
+		if ns != sess {
+			send(sessionSwapMsg{sess: ns})
+		}
 		send(agentDoneMsg{err: err, syncErr: syncErr})
 	}()
 	return m.spinner.Tick
@@ -322,13 +325,11 @@ func (m *model) compact() tea.Cmd {
 		}
 		var syncErr error
 		if err == nil {
-			// Compaction rewrote the history: start a fresh session file so
-			// the old transcript is kept intact on disk.
-			if ns, nerr := session.New(dirOf(sess), m.opts.Cwd, m.opts.Provider, ag.Model); nerr == nil {
-				syncErr = ns.Sync(ag.Messages)
+			// Compaction rewrote the history; the old transcript stays on
+			// disk and a new session file takes over.
+			var ns *session.Session
+			if ns, syncErr = sess.SyncOrRotate(ag.Messages); ns != sess {
 				send(sessionSwapMsg{sess: ns})
-			} else {
-				syncErr = nerr
 			}
 		}
 		send(agentDoneMsg{err: err, syncErr: syncErr})
