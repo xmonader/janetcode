@@ -1,0 +1,265 @@
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/tool"
+)
+
+// fake is a scripted provider. Each Stream call pops the next response and
+// records the request it saw.
+type fake struct {
+	responses []*llm.Response
+	errs      []error
+	requests  []llm.Request
+}
+
+func (f *fake) Name() string { return "fake" }
+func (f *fake) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	f.requests = append(f.requests, req)
+	i := len(f.requests) - 1
+	if i < len(f.errs) && f.errs[i] != nil {
+		return nil, f.errs[i]
+	}
+	if i >= len(f.responses) {
+		return nil, errors.New("fake: no more scripted responses")
+	}
+	r := f.responses[i]
+	for _, b := range r.Message.Blocks {
+		switch b.Type {
+		case llm.BlockText:
+			emit(llm.Event{Type: llm.EventTextDelta, Text: b.Text})
+		case llm.BlockToolUse:
+			bb := b
+			emit(llm.Event{Type: llm.EventToolUseStart, Block: &bb})
+			emit(llm.Event{Type: llm.EventToolUseEnd, Block: &bb})
+		}
+	}
+	return r, nil
+}
+
+func text(s string) *llm.Response {
+	return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, s), StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 1, OutputTokens: 1}}
+}
+
+func toolCall(id, name, input string) *llm.Response {
+	return &llm.Response{
+		Message:    llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: id, Name: name, Input: json.RawMessage(input)}}},
+		StopReason: llm.StopToolUse,
+		Usage:      llm.Usage{InputTokens: 1, OutputTokens: 1},
+	}
+}
+
+type panicTool struct{}
+
+func (panicTool) Name() string                { return "boom" }
+func (panicTool) Description() string         { return "panics" }
+func (panicTool) Schema() json.RawMessage     { return json.RawMessage(`{"type":"object"}`) }
+func (panicTool) Mutating() bool              { return false }
+func (panicTool) Run(context.Context, json.RawMessage) (string, error) { panic("kaboom") }
+
+func newAgent(t *testing.T, f *fake, approver Approver) (*Agent, string) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha\n"), 0o644)
+	return &Agent{
+		Provider: f,
+		Tools:    tool.NewRegistry(tool.ReadFile{Root: root}, tool.WriteFile{Root: root}, panicTool{}),
+		Approver: approver,
+		System:   "sys",
+		Model:    "m",
+	}, root
+}
+
+func collect() (*[]Event, func(Event)) {
+	var evs []Event
+	return &evs, func(e Event) { evs = append(evs, e) }
+}
+
+func TestTextOnlyTurn(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("hi there")}}
+	a, _ := newAgent(t, f, nil)
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "hello", emit); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Messages) != 2 || a.Messages[1].Text() != "hi there" {
+		t.Fatalf("messages = %+v", a.Messages)
+	}
+	req := f.requests[0]
+	if req.System != "sys" || req.Model != "m" || len(req.Tools) != 3 {
+		t.Fatalf("request = %+v", req)
+	}
+	last := (*evs)[len(*evs)-1]
+	if last.Kind != EvTurnDone || last.StopReason != llm.StopEndTurn {
+		t.Fatalf("last event = %+v", last)
+	}
+	if a.Usage.InputTokens != 1 {
+		t.Fatalf("usage = %+v", a.Usage)
+	}
+}
+
+func TestToolLoopReadThenAnswer(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "read_file", `{"path":"a.txt"}`),
+		text("it says alpha"),
+	}}
+	a, _ := newAgent(t, f, nil)
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "read a.txt", emit); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Messages) != 4 {
+		t.Fatalf("expected user/assistant/user(tool_result)/assistant, got %d", len(a.Messages))
+	}
+	tr := a.Messages[2].Blocks[0]
+	if tr.Type != llm.BlockToolResult || tr.ToolUseID != "t1" || tr.IsError || !strings.Contains(tr.Text, "1\talpha") {
+		t.Fatalf("tool result = %+v", tr)
+	}
+	// The second request must carry the whole history.
+	if len(f.requests[1].Messages) != 3 {
+		t.Fatalf("second request messages = %d", len(f.requests[1].Messages))
+	}
+	var kinds []EventKind
+	for _, e := range *evs {
+		kinds = append(kinds, e.Kind)
+	}
+	want := []EventKind{EvToolStart, EvTextBlockDone, EvToolRun, EvToolResult, EvText, EvTextBlockDone, EvTurnDone}
+	if strings.Join(kindStrings(kinds), ",") != strings.Join(kindStrings(want), ",") {
+		t.Fatalf("events = %v", kinds)
+	}
+}
+
+func kindStrings(k []EventKind) []string {
+	s := make([]string, len(k))
+	for i, x := range k {
+		s[i] = string(x)
+	}
+	return s
+}
+
+func TestUnknownToolAndPanicBecomeErrorResults(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "t1", Name: "nope", Input: json.RawMessage(`{}`)},
+			{Type: llm.BlockToolUse, ID: "t2", Name: "boom", Input: json.RawMessage(`{}`)},
+		}}, StopReason: llm.StopToolUse},
+		text("ok"),
+	}}
+	a, _ := newAgent(t, f, nil)
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	res := a.Messages[2].Blocks
+	if len(res) != 2 || !res[0].IsError || !strings.Contains(res[0].Text, `Unknown tool "nope"`) {
+		t.Fatalf("results = %+v", res)
+	}
+	if !res[1].IsError || !strings.Contains(res[1].Text, "panicked: kaboom") {
+		t.Fatalf("panic result = %+v", res[1])
+	}
+}
+
+func TestPermissionDenyAllowSession(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"x","content":"1"}`),
+		toolCall("t2", "write_file", `{"path":"y","content":"2"}`),
+		toolCall("t3", "write_file", `{"path":"z","content":"3"}`),
+		text("done"),
+	}}
+	decisions := []Decision{Deny, AllowSession}
+	asked := 0
+	approver := ApproverFunc(func(ctx context.Context, call ToolCall) (Decision, error) {
+		d := decisions[asked]
+		asked++
+		return d, nil
+	})
+	a, root := newAgent(t, f, approver)
+	if err := a.Run(context.Background(), "write", nil); err != nil {
+		t.Fatal(err)
+	}
+	if asked != 2 {
+		t.Fatalf("asked %d times; AllowSession should skip the third prompt", asked)
+	}
+	if r := a.Messages[2].Blocks[0]; !r.IsError || !strings.Contains(r.Text, "denied") {
+		t.Fatalf("deny result = %+v", r)
+	}
+	if _, err := os.Stat(filepath.Join(root, "x")); err == nil {
+		t.Fatal("denied write happened")
+	}
+	for _, p := range []string{"y", "z"} {
+		if _, err := os.Stat(filepath.Join(root, p)); err != nil {
+			t.Fatalf("%s not written", p)
+		}
+	}
+	// Read-only tools never prompt.
+	f2 := &fake{responses: []*llm.Response{toolCall("t1", "read_file", `{"path":"a.txt"}`), text("ok")}}
+	a2, _ := newAgent(t, f2, ApproverFunc(func(context.Context, ToolCall) (Decision, error) {
+		t.Fatal("read_file should not prompt")
+		return Deny, nil
+	}))
+	if err := a2.Run(context.Background(), "read", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProviderErrorKeepsHistoryConsistent(t *testing.T) {
+	f := &fake{errs: []error{errors.New("boom")}, responses: []*llm.Response{nil, text("recovered")}}
+	a, _ := newAgent(t, f, nil)
+	if err := a.Run(context.Background(), "first", nil); err == nil || err.Error() != "boom" {
+		t.Fatalf("err = %v", err)
+	}
+	if len(a.Messages) != 1 || a.Messages[0].Role != llm.RoleUser {
+		t.Fatalf("messages after failure = %+v", a.Messages)
+	}
+	if err := a.Run(context.Background(), "second", nil); err != nil {
+		t.Fatal(err)
+	}
+	// "second" merged into the pending user message; no user/user adjacency.
+	if len(a.Messages) != 2 || len(a.Messages[0].Blocks) != 2 || a.Messages[0].Text() != "firstsecond" {
+		t.Fatalf("messages = %+v", a.Messages)
+	}
+}
+
+func TestMaxIterations(t *testing.T) {
+	var rs []*llm.Response
+	for i := 0; i < 5; i++ {
+		rs = append(rs, toolCall("t", "read_file", `{"path":"a.txt"}`))
+	}
+	f := &fake{responses: rs}
+	a, _ := newAgent(t, f, nil)
+	a.MaxIterations = 3
+	err := a.Run(context.Background(), "loop", nil)
+	if !errors.Is(err, ErrMaxIterations) {
+		t.Fatalf("err = %v", err)
+	}
+	if last := a.Messages[len(a.Messages)-1]; last.Role != llm.RoleUser || last.Blocks[0].Type != llm.BlockToolResult {
+		t.Fatalf("history should end with tool results, got %+v", last)
+	}
+}
+
+func TestCancelDuringApprovalRecordsResults(t *testing.T) {
+	f := &fake{responses: []*llm.Response{{
+		Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(`{"path":"x","content":"1"}`)},
+			{Type: llm.BlockToolUse, ID: "t2", Name: "write_file", Input: json.RawMessage(`{"path":"y","content":"2"}`)},
+		}}, StopReason: llm.StopToolUse}}}
+	ctx, cancel := context.WithCancel(context.Background())
+	a, _ := newAgent(t, f, ApproverFunc(func(ctx context.Context, call ToolCall) (Decision, error) {
+		cancel()
+		return Deny, ctx.Err()
+	}))
+	err := a.Run(ctx, "write", nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v", err)
+	}
+	res := a.Messages[2].Blocks
+	if len(res) != 2 || res[0].ToolUseID != "t1" || res[1].ToolUseID != "t2" || !res[1].IsError {
+		t.Fatalf("results = %+v", res)
+	}
+}
