@@ -45,8 +45,16 @@ type entry struct {
 	width      int
 	final      bool // rendered from final content, safe to reuse
 	renderedAt time.Time
-	renderedN  int  // text length when rendered
-	verbose    bool // rendered with expanded tool output
+	renderedN  int           // text length when rendered
+	renderCost time.Duration // how long the last render took, for throttling
+	verbose    bool          // rendered with expanded tool output
+	chunks     []mdChunk     // per-paragraph markdown cache
+}
+
+// mdChunk caches the rendering of one markdown block.
+type mdChunk struct {
+	src, out string
+	width    int
 }
 
 // renderOpts carries per-frame state into rendering.
@@ -256,7 +264,9 @@ func (t *transcript) render(o renderOpts) string {
 			sb.WriteByte('\n')
 		}
 		if t.needsRender(e, o, now) {
+			start := time.Now()
 			e.rendered = t.renderEntry(e, width, o)
+			e.renderCost = time.Since(start)
 			e.width = width
 			e.final = e.done
 			e.renderedAt = now
@@ -283,8 +293,17 @@ func (t *transcript) needsRender(e *entry, o renderOpts, now time.Time) bool {
 		if e.done {
 			return true
 		}
-		// Streaming: re-render when text grew and the throttle allows.
-		return len(e.text) != e.renderedN && now.Sub(e.renderedAt) >= liveRenderInterval
+		// Streaming: re-render when text grew and the throttle allows. The
+		// interval stretches with the cost of the last render so a huge
+		// message never monopolises the UI loop.
+		interval := liveRenderInterval
+		if c := 4 * e.renderCost; c > interval {
+			interval = c
+		}
+		if interval > time.Second {
+			interval = time.Second
+		}
+		return len(e.text) != e.renderedN && now.Sub(e.renderedAt) >= interval
 	}
 	return true
 }
@@ -304,38 +323,88 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 	case entryThinking:
 		return styleFaint.Italic(true).Render(wrap.Render(thinkingView(e.text, e.done)))
 	case entryAssistant:
-		return t.renderMarkdown(e.text, width, e.done)
+		return t.renderMarkdown(e, width)
 	case entryTool:
 		return t.renderTool(e, width, o)
 	}
 	return e.text
 }
 
-// renderMarkdown renders through glamour; while streaming it renders the
-// text so far, which glamour handles gracefully for unfinished blocks.
-func (t *transcript) renderMarkdown(text string, width int, done bool) string {
+// renderMarkdown renders through glamour block by block, caching every
+// block whose source has not changed. While streaming only the last block
+// is re-rendered, which keeps the cost proportional to the tail rather than
+// the whole message.
+func (t *transcript) renderMarkdown(e *entry, width int) string {
+	text := e.text
 	if strings.TrimSpace(text) == "" {
-		if done {
+		if e.done {
 			return ""
 		}
 		return styleFaint.Render("▍")
 	}
-	if t.renderer != nil {
-		src := text
-		if !done {
-			// Close an unterminated code fence so the partial block still
-			// gets highlighted instead of swallowing the rest.
-			if strings.Count(src, "```")%2 == 1 {
-				src += "\n```"
-			}
-		}
-		if out, err := t.renderer.Render(src); err == nil {
-			out = strings.TrimRight(out, "\n")
-			// glamour indents by two spaces; keep a consistent left edge.
-			return out
-		}
+	if t.renderer == nil {
+		return lipgloss.NewStyle().Width(width - 2).Render(text)
 	}
-	return lipgloss.NewStyle().Width(width - 2).Render(text)
+	blocks := splitMarkdownBlocks(text)
+	if len(e.chunks) > len(blocks) {
+		e.chunks = e.chunks[:len(blocks)]
+	}
+	var sb strings.Builder
+	for i, src := range blocks {
+		last := i == len(blocks)-1
+		if last && !e.done && strings.Count(src, "```")%2 == 1 {
+			// Close an unterminated fence so the partial code block still
+			// gets highlighted instead of swallowing the rest.
+			src += "\n```"
+		}
+		if i < len(e.chunks) && e.chunks[i].src == src && e.chunks[i].width == width {
+			sb.WriteString(e.chunks[i].out)
+			continue
+		}
+		out, err := t.renderer.Render(src)
+		if err != nil {
+			out = lipgloss.NewStyle().Width(width - 2).Render(src)
+		}
+		out = strings.Trim(out, "\n") + "\n"
+		if i < len(e.chunks) {
+			e.chunks[i] = mdChunk{src, out, width}
+		} else {
+			e.chunks = append(e.chunks, mdChunk{src, out, width})
+		}
+		sb.WriteString(out)
+	}
+	out := strings.TrimRight(sb.String(), "\n")
+	if !e.done {
+		out += styleFaint.Render(" ▍")
+	}
+	return out
+}
+
+// splitMarkdownBlocks splits markdown at blank lines that are outside fenced
+// code blocks, so each piece renders independently.
+func splitMarkdownBlocks(text string) []string {
+	var blocks []string
+	var cur strings.Builder
+	inFence := false
+	flush := func() {
+		if s := strings.TrimRight(cur.String(), "\n"); strings.TrimSpace(s) != "" {
+			blocks = append(blocks, s)
+		}
+		cur.Reset()
+	}
+	for _, line := range strings.SplitAfter(text, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+		}
+		if trimmed == "" && !inFence {
+			flush()
+			continue
+		}
+		cur.WriteString(line)
+	}
+	flush()
+	return blocks
 }
 
 func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {

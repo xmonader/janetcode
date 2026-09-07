@@ -52,6 +52,7 @@ func newHarness(t *testing.T, responses ...*llm.Response) *harness {
 	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"})
 	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
 	m.send = func(msg tea.Msg) { h.msgs <- msg }
+	m.queue.send = m.send
 	m.approver.send = m.send
 	ag.Approver = m.approver
 	h.update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -146,6 +147,7 @@ func TestEscCancelsRunningTurn(t *testing.T) {
 	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root})
 	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
 	m.send = func(msg tea.Msg) { h.msgs <- msg }
+	m.queue.send = m.send
 	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	h.keys("slow")
 	h.enter()
@@ -170,6 +172,7 @@ func TestDoubleCtrlCForcesQuit(t *testing.T) {
 	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root})
 	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
 	m.send = func(msg tea.Msg) { h.msgs <- msg }
+	m.queue.send = m.send
 	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	h.keys("slow")
 	h.enter()
@@ -228,6 +231,7 @@ func TestInitialPromptIsSubmitted(t *testing.T) {
 	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, InitialPrompt: "explain"})
 	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
 	m.send = func(msg tea.Msg) { h.msgs <- msg }
+	m.queue.send = m.send
 	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	if !h.m.running {
 		t.Fatal("initial prompt not submitted")
@@ -261,5 +265,42 @@ func TestTailPath(t *testing.T) {
 	got := tailPath("/very/long/path/to/some/project/dir", 16)
 	if len([]rune(got)) > 16 || !strings.HasPrefix(got, "…/") || !strings.HasSuffix(got, "/dir") {
 		t.Fatalf("long: %q", got)
+	}
+}
+
+// TestStreamingLargeAnswerStaysResponsive feeds a 20 KB markdown answer as
+// hundreds of deltas and checks the UI loop keeps up.
+func TestStreamingLargeAnswerStaysResponsive(t *testing.T) {
+	h := newHarness(t)
+	h.m.startTurn("writing")
+	para := "Paragraph with **bold**, `code`, and a [link](x).\n\n```go\nfunc f() int { return 1 }\n```\n\n"
+	full := strings.Repeat(para, 20000/len(para))
+	start := time.Now()
+	renders := 0
+	for i := 0; i < len(full); i += 40 {
+		end := i + 40
+		if end > len(full) {
+			end = len(full)
+		}
+		h.m.applyEvent(agent.Event{Kind: agent.EvText, Text: full[i:end]})
+		h.m.refresh(false)
+		renders++
+	}
+	h.m.applyEvent(agent.Event{Kind: agent.EvTextBlockDone})
+	h.m.refresh(false)
+	elapsed := time.Since(start)
+	if elapsed > 8*time.Second {
+		t.Fatalf("streaming %d bytes in %d steps took %s", len(full), renders, elapsed)
+	}
+	v := plain(h.m.View())
+	if !strings.Contains(v, "func f() int") {
+		t.Fatalf("final render missing content:\n%s", v)
+	}
+}
+
+func TestSplitMarkdownBlocks(t *testing.T) {
+	got := splitMarkdownBlocks("a\n\nb\n```\nx\n\ny\n```\n\nc")
+	if len(got) != 3 || got[1] != "b\n```\nx\n\ny\n```" || got[2] != "c" {
+		t.Fatalf("got %q", got)
 	}
 }

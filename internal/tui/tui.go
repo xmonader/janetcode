@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -41,6 +42,7 @@ func Run(opts Options) error {
 	m := newModel(opts)
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	m.send = p.Send
+	m.queue.send = p.Send
 	m.approver.send = p.Send
 	opts.Agent.Approver = m.approver
 	_, err := p.Run()
@@ -50,6 +52,7 @@ func Run(opts Options) error {
 // --- messages from the agent goroutine ---
 
 type agentEventMsg struct{ ev agent.Event }
+type flushMsg struct{}
 type agentDoneMsg struct {
 	err     error
 	syncErr error
@@ -60,6 +63,36 @@ type permissionMsg struct {
 	reply chan agent.Decision
 }
 type tickMsg time.Time
+
+// eventQueue coalesces agent events so that one slow render never throttles
+// the model stream: the agent goroutine appends without blocking and the UI
+// drains everything that accumulated on its next wake-up.
+type eventQueue struct {
+	mu        sync.Mutex
+	events    []agent.Event
+	scheduled bool
+	send      func(tea.Msg)
+}
+
+func (q *eventQueue) push(e agent.Event) {
+	q.mu.Lock()
+	q.events = append(q.events, e)
+	wake := !q.scheduled
+	q.scheduled = true
+	q.mu.Unlock()
+	if wake {
+		go q.send(flushMsg{})
+	}
+}
+
+func (q *eventQueue) drain() []agent.Event {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	evs := q.events
+	q.events = nil
+	q.scheduled = false
+	return evs
+}
 
 // tuiApprover bridges agent permission requests into the UI loop.
 type tuiApprover struct{ send func(tea.Msg) }
@@ -101,6 +134,7 @@ type model struct {
 	send func(tea.Msg)
 
 	transcript *transcript
+	queue      *eventQueue
 	viewport   viewport.Model
 	input      textarea.Model
 	spinner    spinner.Model
@@ -108,6 +142,7 @@ type model struct {
 	width, height int
 	ready         bool
 	verbose       bool
+	lastContent   string // last transcript pushed into the viewport
 
 	// history of submitted prompts for up/down recall.
 	history []string
@@ -160,6 +195,7 @@ func newModel(opts Options) *model {
 		opts:       opts,
 		approver:   &tuiApprover{},
 		transcript: newTranscriptStyled(style),
+		queue:      &eventQueue{},
 		input:      ta,
 		spinner:    sp,
 	}
@@ -250,6 +286,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refresh(false)
 		return m, nil
 
+	case flushMsg:
+		m.drainEvents()
+		m.refresh(false)
+		return m, nil
+
 	case sessionSwapMsg:
 		m.opts.Session = msg.sess
 		m.transcript.info("continuing in session " + msg.sess.Meta.ID)
@@ -257,6 +298,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case permissionMsg:
+		m.drainEvents() // the tool entry must exist before the prompt shows
 		m.pending = &msg
 		m.phase = "waiting for your approval"
 		m.refresh(false)
@@ -264,6 +306,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case agentDoneMsg:
+		m.drainEvents()
 		m.finishTurn(msg)
 		m.refresh(false)
 		return m, nil
@@ -280,6 +323,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.viewport, cmd = m.viewport.Update(msg)
 	cmds = append(cmds, cmd)
 	return m, tea.Batch(cmds...)
+}
+
+func (m *model) drainEvents() {
+	for _, ev := range m.queue.drain() {
+		m.applyEvent(ev)
+	}
 }
 
 func (m *model) applyEvent(ev agent.Event) {
@@ -457,11 +506,11 @@ func (m *model) submit(text string) tea.Cmd {
 	m.startTurn("thinking")
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	ag, sess, send := m.opts.Agent, m.opts.Session, m.send
+	ag, sess, send, queue := m.opts.Agent, m.opts.Session, m.send, m.queue
 	m.refresh(false)
 	m.viewport.GotoBottom()
 	go func() {
-		err := ag.Run(ctx, text, func(e agent.Event) { send(agentEventMsg{ev: e}) })
+		err := ag.Run(ctx, text, queue.push)
 		ns, syncErr := sess.SyncOrRotate(ag.Messages)
 		if ns != sess {
 			send(sessionSwapMsg{sess: ns})
@@ -485,11 +534,11 @@ func (m *model) compact() tea.Cmd {
 	m.compacting = true
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	ag, sess, send := m.opts.Agent, m.opts.Session, m.send
+	ag, sess, send, queue := m.opts.Agent, m.opts.Session, m.send, m.queue
 	m.transcript.info(fmt.Sprintf("compacting ~%s tokens of context…", shortTokens(ag.EstimateTokens())))
 	m.refresh(false)
 	go func() {
-		err := ag.Compact(ctx, func(e agent.Event) { send(agentEventMsg{ev: e}) })
+		err := ag.Compact(ctx, queue.push)
 		if errors.Is(err, agent.ErrNothingToCompact) {
 			err = nil
 		}
@@ -707,13 +756,19 @@ func (m *model) refresh(resized bool) {
 		return
 	}
 	atBottom := m.viewport.AtBottom()
-	m.viewport.SetContent(m.transcript.render(renderOpts{
+	content := m.transcript.render(renderOpts{
 		width:   m.width,
 		resized: resized,
 		pending: m.pending,
 		spinner: m.spinner.View(),
 		verbose: m.verbose,
-	}))
+	})
+	if content != m.lastContent || resized {
+		// SetContent re-parses every line; skip it when nothing changed
+		// (spinner ticks with no running tool, key presses, timers).
+		m.viewport.SetContent(content)
+		m.lastContent = content
+	}
 	if atBottom || resized {
 		m.viewport.GotoBottom()
 	}
