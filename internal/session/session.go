@@ -161,6 +161,57 @@ func Latest(dir, cwd string) (string, error) {
 	return "", nil
 }
 
+// Info summarises a stored session.
+type Info struct {
+	Meta     Meta
+	Messages int
+	Preview  string // first user text, trimmed
+}
+
+// List returns the sessions recorded for cwd (all when cwd is ""), newest
+// first. Unreadable files are skipped.
+func List(dir, cwd string) ([]Info, error) {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var out []Info
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".jsonl") {
+			continue
+		}
+		s, msgs, err := Open(dir, strings.TrimSuffix(e.Name(), ".jsonl"))
+		if err != nil || (cwd != "" && s.Meta.Cwd != cwd) {
+			continue
+		}
+		info := Info{Meta: s.Meta, Messages: len(msgs)}
+		for _, m := range msgs {
+			if m.Role == llm.RoleUser {
+				if t := strings.TrimSpace(m.Text()); t != "" {
+					info.Preview = firstLine(t, 60)
+					break
+				}
+			}
+		}
+		out = append(out, info)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Meta.ID > out[j].Meta.ID })
+	return out, nil
+}
+
+func firstLine(s string, max int) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	if len(s) > max {
+		s = s[:max-1] + "…"
+	}
+	return s
+}
+
 // Path is the file backing the session.
 func (s *Session) Path() string { return s.path }
 

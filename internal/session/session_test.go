@@ -2,6 +2,7 @@ package session
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -62,6 +63,23 @@ func TestTornLastLineIsDropped(t *testing.T) {
 	_, got, err := Open(dir, s.Meta.ID)
 	if err != nil || len(got) != 1 {
 		t.Fatalf("err=%v got=%d", err, len(got))
+	}
+}
+
+func TestList(t *testing.T) {
+	dir := t.TempDir()
+	a, _ := New(dir, "/a", "p", "m")
+	a.Sync([]llm.Message{llm.TextMessage(llm.RoleUser, "fix the build\nplease"), llm.TextMessage(llm.RoleAssistant, "ok")})
+	New(dir, "/b", "p", "m")
+	infos, err := List(dir, "/a")
+	if err != nil || len(infos) != 1 || infos[0].Messages != 2 || infos[0].Preview != "fix the build" {
+		t.Fatalf("infos=%+v err=%v", infos, err)
+	}
+	if all, _ := List(dir, ""); len(all) != 2 {
+		t.Fatalf("all = %d", len(all))
+	}
+	if none, err := List(filepath.Join(dir, "missing"), ""); err != nil || none != nil {
+		t.Fatalf("missing dir: %v %v", none, err)
 	}
 }
 
