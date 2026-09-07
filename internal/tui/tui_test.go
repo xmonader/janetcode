@@ -194,6 +194,52 @@ func (b *blocking) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	return nil, ctx.Err()
 }
 
+func TestQueuedPromptSendsAfterTurn(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "first answer"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "second answer"), StopReason: llm.StopEndTurn},
+	)
+	h.keys("one")
+	h.enter()
+	h.keys("two")
+	h.enter()
+	if len(h.m.queued) != 1 || h.m.input.Value() != "" {
+		t.Fatalf("queued = %v input = %q", h.m.queued, h.m.input.Value())
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "queued 1 two") {
+		t.Fatalf("queue not shown:\n%s", v)
+	}
+	h.pump(func() bool { return !h.m.running && len(h.m.queued) == 0 && len(h.m.opts.Agent.Messages) == 4 })
+	v := plain(h.m.View())
+	for _, want := range []string{"❯ one", "first answer", "❯ two", "second answer"} {
+		if !strings.Contains(v, want) {
+			t.Errorf("missing %q in view:\n%s", want, v)
+		}
+	}
+	if strings.Contains(v, "queued") {
+		t.Fatalf("queue line should be gone:\n%s", v)
+	}
+}
+
+func TestQueuedPromptRestoredOnCancel(t *testing.T) {
+	b := &blocking{started: make(chan struct{})}
+	h := newHarness(t)
+	h.m.opts.Agent.Provider = b
+	h.keys("slow")
+	h.enter()
+	<-b.started
+	h.keys("later")
+	h.enter()
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	h.pump(func() bool { return !h.m.running })
+	if got := h.m.input.Value(); got != "later" {
+		t.Fatalf("queued prompt not restored: %q", got)
+	}
+	if len(h.m.queued) != 0 {
+		t.Fatalf("queue = %v", h.m.queued)
+	}
+}
+
 func TestPromptHistoryRecall(t *testing.T) {
 	h := newHarness(t,
 		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "a"), StopReason: llm.StopEndTurn},

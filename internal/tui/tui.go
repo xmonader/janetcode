@@ -158,6 +158,7 @@ type model struct {
 	pending    *permissionMsg
 	status     string
 	lastTurn   string // usage summary of the last turn
+	queued     []string // prompts typed while a turn was running
 	quitting   bool
 	branch     string
 }
@@ -307,9 +308,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case agentDoneMsg:
 		m.drainEvents()
-		m.finishTurn(msg)
+		cmd := m.finishTurn(msg)
 		m.refresh(false)
-		return m, nil
+		return m, cmd
 	}
 
 	var cmd tea.Cmd
@@ -456,23 +457,34 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		if text == "" {
 			return nil, true
 		}
-		if m.running {
-			m.status = "still working — esc to cancel"
+		if m.running && !strings.HasPrefix(text, "/") {
+			// Queue it; finishTurn sends it once the model is done.
+			m.queued = append(m.queued, text)
+			m.remember(text)
+			m.input.Reset()
+			m.layout()
+			m.status = fmt.Sprintf("queued %d · sends when this turn ends · esc cancels the turn and restores it", len(m.queued))
+			m.refresh(false)
 			return nil, true
 		}
 		m.input.Reset()
 		m.layout()
-		if n := len(m.history); n == 0 || m.history[n-1] != text {
-			m.history = append(m.history, text)
-		}
-		m.histIdx = len(m.history)
-		m.draft = ""
+		m.remember(text)
 		if strings.HasPrefix(text, "/") {
 			return m.command(text), true
 		}
 		return m.submit(text), true
 	}
 	return nil, false
+}
+
+// remember adds a submitted prompt to the up/down history.
+func (m *model) remember(text string) {
+	if n := len(m.history); n == 0 || m.history[n-1] != text {
+		m.history = append(m.history, text)
+	}
+	m.histIdx = len(m.history)
+	m.draft = ""
 }
 
 // completions lists slash commands matching the current input.
@@ -565,7 +577,7 @@ func (m *model) cancelTurn() {
 	m.status = "cancelling… (ctrl+c again to force quit)"
 }
 
-func (m *model) finishTurn(msg agentDoneMsg) {
+func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	m.running = false
 	m.cancelling = false
 	compacting := m.compacting
@@ -601,6 +613,24 @@ func (m *model) finishTurn(msg agentDoneMsg) {
 	if msg.syncErr != nil {
 		m.transcript.errorf("could not save session: %v", msg.syncErr)
 	}
+	if len(m.queued) == 0 {
+		return nil
+	}
+	if msg.err != nil {
+		// Do not fire queued prompts into a failed or cancelled turn; hand
+		// them back so nothing typed is lost.
+		text := strings.Join(m.queued, "\n")
+		m.queued = nil
+		if m.input.Value() == "" {
+			m.input.SetValue(text)
+			m.input.CursorEnd()
+			m.layout()
+		}
+		return nil
+	}
+	next := m.queued[0]
+	m.queued = m.queued[1:]
+	return m.submit(next)
 }
 
 // friendlyError turns provider failures into something actionable.
@@ -689,6 +719,7 @@ func helpText() string {
 	sb.WriteString("  enter send · ctrl+j / alt+enter newline · up/down recall prompts · tab complete /command\n")
 	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, twice to force quit · ctrl+d quit\n")
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand tool output · ctrl+l redraw\n")
+	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends\n")
 	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · n deny\n")
 	sb.WriteString("commands\n")
 	for _, c := range commands {
@@ -718,7 +749,7 @@ func (m *model) footerHeight() int {
 	if c := m.completions(); len(c) > 0 {
 		h += min(len(c), 6)
 	}
-	return h
+	return h + len(m.queued)
 }
 
 func (m *model) permissionBoxHeight() int {
@@ -886,6 +917,9 @@ func (m *model) footerView() string {
 		for _, cmd := range c {
 			parts = append(parts, "  "+styleKey.Render(cmd.name)+" "+styleDim.Render(cmd.args)+"  "+styleFaint.Render(cmd.help))
 		}
+	}
+	for i, q := range m.queued {
+		parts = append(parts, "  "+styleFaint.Render(fmt.Sprintf("queued %d ", i+1))+styleDim.Render(truncateLine(strings.ReplaceAll(q, "\n", " "), m.width-14)))
 	}
 	box := styleInputBox
 	if !m.running {
