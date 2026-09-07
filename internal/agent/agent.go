@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -115,9 +116,7 @@ var ErrMaxIterations = errors.New("agent: turn exceeded maximum tool iterations"
 // Run sends userText and drives the loop until the model ends its turn or
 // an error occurs. History stays consistent on every return path.
 func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) error {
-	if emit == nil {
-		emit = func(Event) {}
-	}
+	emit = serialize(emit)
 	if a.Provider == nil {
 		return errors.New("agent: no provider")
 	}
@@ -176,23 +175,90 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 			emit(Event{Kind: EvTurnDone, Usage: resp.Usage, StopReason: llm.StopEndTurn})
 			return nil
 		}
-		results := make([]llm.Block, 0, len(uses))
-		for _, u := range uses {
-			out, isErr, err := a.execute(ctx, u, emit)
-			if err != nil {
-				// Context cancelled mid-turn. Record what we have so the
-				// history has a result for every tool_use, then stop.
-				for _, rest := range uses[len(results):] {
-					results = append(results, llm.ToolResult(rest.ID, "Cancelled by user before the tool ran.", true))
-				}
-				a.Messages = append(a.Messages, llm.ToolResultMessage(results...))
-				return err
-			}
-			results = append(results, llm.ToolResult(u.ID, out, isErr))
-		}
+		results, err := a.executeAll(ctx, uses, emit)
 		a.Messages = append(a.Messages, llm.ToolResultMessage(results...))
+		if err != nil {
+			return err
+		}
 	}
 	return ErrMaxIterations
+}
+
+// MaxParallelTools bounds concurrent read-only tool execution.
+const MaxParallelTools = 8
+
+// executeAll runs the turn's tool calls: read-only tools concurrently, then
+// mutating (permission-gated) tools one at a time in order. It always
+// returns one result per call so the history stays valid, even when ctx is
+// cancelled part-way; the error is then ctx.Err().
+func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Event)) ([]llm.Block, error) {
+	results := make([]llm.Block, len(uses))
+	filled := make([]bool, len(uses))
+	parallel := func(u llm.Block) bool {
+		t, ok := a.Tools.Get(u.Name)
+		return ok && !t.Mutating()
+	}
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, MaxParallelTools)
+	for i, u := range uses {
+		if !parallel(u) {
+			continue
+		}
+		wg.Add(1)
+		go func(i int, u llm.Block) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
+			out, isErr, err := a.execute(ctx, u, emit)
+			if err == nil {
+				results[i] = llm.ToolResult(u.ID, out, isErr)
+				filled[i] = true
+			}
+		}(i, u)
+	}
+	wg.Wait()
+
+	cancelled := func() ([]llm.Block, error) {
+		for i, u := range uses {
+			if !filled[i] {
+				results[i] = llm.ToolResult(u.ID, "Cancelled by user before the tool finished.", true)
+			}
+		}
+		return results, ctx.Err()
+	}
+	if ctx.Err() != nil {
+		return cancelled()
+	}
+	for i, u := range uses {
+		if filled[i] {
+			continue
+		}
+		out, isErr, err := a.execute(ctx, u, emit)
+		if err != nil {
+			return cancelled()
+		}
+		results[i] = llm.ToolResult(u.ID, out, isErr)
+		filled[i] = true
+	}
+	return results, nil
+}
+
+// serialize makes emit safe to call from tool goroutines.
+func serialize(emit func(Event)) func(Event) {
+	if emit == nil {
+		return func(Event) {}
+	}
+	var mu sync.Mutex
+	return func(e Event) {
+		mu.Lock()
+		defer mu.Unlock()
+		emit(e)
+	}
 }
 
 func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, error) {
