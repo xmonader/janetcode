@@ -7,12 +7,16 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	sdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
+
+// RequestTimeout bounds one streamed call end to end.
+const RequestTimeout = 30 * time.Minute
 
 // Config configures the provider.
 type Config struct {
@@ -50,7 +54,12 @@ func New(cfg Config) (*Provider, error) {
 	default:
 		return nil, fmt.Errorf("anthropic: invalid effort %q", cfg.Effort)
 	}
-	opts := []option.RequestOption{option.WithAPIKey(cfg.APIKey), option.WithMaxRetries(cfg.MaxRetries)}
+	opts := []option.RequestOption{
+		option.WithAPIKey(cfg.APIKey),
+		option.WithMaxRetries(cfg.MaxRetries),
+		// Long agentic turns can stream for many minutes on large models.
+		option.WithRequestTimeout(RequestTimeout),
+	}
 	if cfg.BaseURL != "" {
 		opts = append(opts, option.WithBaseURL(cfg.BaseURL))
 	}

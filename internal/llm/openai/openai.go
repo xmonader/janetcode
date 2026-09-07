@@ -21,6 +21,9 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
+// RequestTimeout bounds one streamed call end to end.
+const RequestTimeout = 30 * time.Minute
+
 // Config configures the provider.
 type Config struct {
 	// BaseURL is the API root, e.g. https://api.openai.com/v1.
@@ -64,7 +67,12 @@ func New(cfg Config) (*Provider, error) {
 	}
 	hc := cfg.HTTPClient
 	if hc == nil {
-		hc = &http.Client{Timeout: 10 * time.Minute}
+		// Agentic turns on large models can stream for a long time; bound
+		// the wait for headers, and let ctx cancel a stalled body.
+		hc = &http.Client{
+			Timeout:   RequestTimeout,
+			Transport: &http.Transport{ResponseHeaderTimeout: 2 * time.Minute, Proxy: http.ProxyFromEnvironment},
+		}
 	}
 	return &Provider{cfg: cfg, http: hc}, nil
 }
