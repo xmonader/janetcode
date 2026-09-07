@@ -420,9 +420,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	case "ctrl+l":
 		return tea.ClearScreen, true
 	case "tab":
-		if c := m.completions(); len(c) > 0 {
-			m.input.SetValue(c[0].name + " ")
-			m.input.CursorEnd()
+		if m.complete() {
+			m.layout()
+			m.refresh(false)
 			return nil, true
 		}
 	case "up":
@@ -487,19 +487,85 @@ func (m *model) remember(text string) {
 	m.draft = ""
 }
 
-// completions lists slash commands matching the current input.
+// completions lists slash commands matching the input, or files matching
+// the @path being typed at its end.
 func (m *model) completions() []command {
 	v := m.input.Value()
-	if !strings.HasPrefix(v, "/") || strings.ContainsAny(v, " \n") {
-		return nil
-	}
-	var out []command
-	for _, c := range commands {
-		if strings.HasPrefix(c.name, v) {
-			out = append(out, c)
+	if strings.HasPrefix(v, "/") && !strings.ContainsAny(v, " \n") {
+		var out []command
+		for _, c := range commands {
+			if strings.HasPrefix(c.name, v) {
+				out = append(out, c)
+			}
 		}
+		return out
 	}
-	return out
+	if word, ok := mentionAtEnd(v); ok {
+		var out []command
+		for _, p := range prompt.CompletePath(m.opts.Cwd, word) {
+			help := "file"
+			if strings.HasSuffix(p, "/") {
+				help = "directory"
+			}
+			out = append(out, command{name: "@" + p, help: help})
+		}
+		return out
+	}
+	return nil
+}
+
+// mentionAtEnd returns the partial path of an @mention that ends the input.
+func mentionAtEnd(v string) (string, bool) {
+	i := strings.LastIndexAny(v, " \n\t")
+	word := v[i+1:]
+	if !strings.HasPrefix(word, "@") {
+		return "", false
+	}
+	return word[1:], true
+}
+
+// complete applies the first completion to the input.
+func (m *model) complete() bool {
+	c := m.completions()
+	if len(c) == 0 {
+		return false
+	}
+	v := m.input.Value()
+	if strings.HasPrefix(v, "/") {
+		m.input.SetValue(c[0].name + " ")
+	} else {
+		i := strings.LastIndexAny(v, " \n\t")
+		// Several matches: extend to their common prefix so tab narrows.
+		name := c[0].name
+		for _, o := range c[1:] {
+			name = commonPrefix(name, o.name)
+		}
+		if len(c) == 1 && !strings.HasSuffix(name, "/") {
+			name += " "
+		}
+		m.input.SetValue(v[:i+1] + name)
+	}
+	m.input.CursorEnd()
+	return true
+}
+
+func commonPrefix(a, b string) string {
+	n := min(len(a), len(b))
+	i := 0
+	for i < n && a[i] == b[i] {
+		i++
+	}
+	return a[:i]
+}
+
+func shortBytes(n int64) string {
+	switch {
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1fMB", float64(n)/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.1fKB", float64(n)/(1<<10))
+	}
+	return fmt.Sprintf("%dB", n)
 }
 
 func (m *model) answer(d agent.Decision) {
@@ -515,6 +581,17 @@ func (m *model) answer(d agent.Decision) {
 
 func (m *model) submit(text string) tea.Cmd {
 	m.transcript.user(text)
+	text, atts := prompt.ExpandMentions(m.opts.Cwd, text)
+	if len(atts) > 0 {
+		names := make([]string, len(atts))
+		for i, a := range atts {
+			names[i] = a.Path
+			if !a.Dir {
+				names[i] += " (" + shortBytes(a.Size) + ")"
+			}
+		}
+		m.transcript.info("attached " + strings.Join(names, " · "))
+	}
 	m.startTurn("thinking")
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
@@ -720,6 +797,7 @@ func helpText() string {
 	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, twice to force quit · ctrl+d quit\n")
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand tool output · ctrl+l redraw\n")
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends\n")
+	sb.WriteString("  @path attaches a file or directory listing to the prompt · tab completes the path\n")
 	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · n deny\n")
 	sb.WriteString("commands\n")
 	for _, c := range commands {

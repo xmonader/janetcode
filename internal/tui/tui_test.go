@@ -3,6 +3,8 @@ package tui
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -237,6 +239,36 @@ func TestQueuedPromptRestoredOnCancel(t *testing.T) {
 	}
 	if len(h.m.queued) != 0 {
 		t.Fatalf("queue = %v", h.m.queued)
+	}
+}
+
+func TestMentionCompletionAndAttachment(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+	root := h.m.opts.Cwd
+	os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "main_test.go"), []byte("package main\n"), 0o644)
+	tab := tea.KeyMsg{Type: tea.KeyTab}
+	h.keys("explain @m")
+	h.update(tab)
+	if got := h.m.input.Value(); got != "explain @main" {
+		t.Fatalf("after tab: %q", got)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "@main.go") || !strings.Contains(v, "@main_test.go") {
+		t.Fatalf("completions not shown:\n%s", v)
+	}
+	h.keys("_")
+	h.update(tab)
+	if got := h.m.input.Value(); got != "explain @main_test.go " {
+		t.Fatalf("after second tab: %q", got)
+	}
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	sent := h.m.opts.Agent.Messages[0].Blocks[0].Text
+	if !strings.HasPrefix(sent, "explain @main_test.go") || !strings.Contains(sent, "<attached path=\"main_test.go\">\npackage main") {
+		t.Fatalf("prompt sent = %q", sent)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "attached main_test.go (13B)") || strings.Contains(v, "<attached") {
+		t.Fatalf("view:\n%s", v)
 	}
 }
 

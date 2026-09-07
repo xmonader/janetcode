@@ -162,7 +162,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if *promptText != "" {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		text := *promptText
+		text, atts := prompt.ExpandMentions(cwd, *promptText)
+		for _, a := range atts {
+			fmt.Fprintf(os.Stderr, "[attached] %s\n", a.Path)
+		}
 		if extra := pipedStdin(); extra != "" {
 			text += "\n\n<stdin>\n" + extra + "\n</stdin>"
 		}
