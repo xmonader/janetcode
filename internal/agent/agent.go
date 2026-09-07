@@ -90,6 +90,10 @@ type Agent struct {
 	MaxIterations int
 	// AutoApprove skips the Approver for every tool.
 	AutoApprove bool
+	// CompactAt is the estimated token count that triggers automatic
+	// compaction before a model call. Zero means DefaultCompactAt; negative
+	// disables it.
+	CompactAt int
 
 	// Messages is the conversation history. It is only ever appended to and
 	// always ends in a state a provider will accept.
@@ -98,6 +102,11 @@ type Agent struct {
 	Usage llm.Usage
 
 	allowed map[string]bool
+
+	// Real input size of the last call, and how many messages it covered,
+	// so EstimateTokens only has to guess about what came after.
+	lastInputTokens int
+	lastInputMsgs   int
 }
 
 // ErrMaxIterations is returned when a turn exceeds MaxIterations model calls.
@@ -124,22 +133,34 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 	}
 	a.appendUserText(userText)
 
+	compactAt := a.CompactAt
+	if compactAt == 0 {
+		compactAt = DefaultCompactAt
+	}
 	for iter := 0; iter < maxIter; iter++ {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		resp, err := a.Provider.Stream(ctx, llm.Request{
-			Model:     a.Model,
-			System:    a.System,
-			Messages:  a.Messages,
-			Tools:     a.Tools.Defs(),
-			MaxTokens: a.MaxTokens,
-		}, func(e llm.Event) { forward(e, emit) })
+		if compactAt > 0 && a.EstimateTokens() > compactAt {
+			if err := a.Compact(ctx, emit); err != nil && !errors.Is(err, ErrNothingToCompact) {
+				return err
+			}
+		}
+		resp, err := a.call(ctx, emit)
+		if err != nil && isContextOverflow(err) && compactAt > 0 {
+			// The estimate was wrong; summarise and try once more.
+			if cerr := a.Compact(ctx, emit); cerr != nil && !errors.Is(cerr, ErrNothingToCompact) {
+				return fmt.Errorf("%w (compaction also failed: %v)", err, cerr)
+			}
+			resp, err = a.call(ctx, emit)
+		}
 		if err != nil {
 			// Nothing appended: the trailing user message stays and the next
 			// Run merges into it.
 			return err
 		}
+		a.lastInputTokens = resp.Usage.InputTokens + resp.Usage.CacheReadTokens + resp.Usage.CacheWriteTokens
+		a.lastInputMsgs = len(a.Messages)
 		a.Messages = append(a.Messages, resp.Message)
 		a.Usage.Add(resp.Usage)
 		emit(Event{Kind: EvTextBlockDone})
@@ -172,6 +193,16 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 		a.Messages = append(a.Messages, llm.ToolResultMessage(results...))
 	}
 	return ErrMaxIterations
+}
+
+func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, error) {
+	return a.Provider.Stream(ctx, llm.Request{
+		Model:     a.Model,
+		System:    a.System,
+		Messages:  a.Messages,
+		Tools:     a.Tools.Defs(),
+		MaxTokens: a.MaxTokens,
+	}, func(e llm.Event) { forward(e, emit) })
 }
 
 // appendUserText adds text as a new user message, or into the trailing user

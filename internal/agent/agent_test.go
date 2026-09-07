@@ -23,6 +23,9 @@ type fake struct {
 
 func (f *fake) Name() string { return "fake" }
 func (f *fake) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	if emit == nil {
+		emit = func(llm.Event) {}
+	}
 	f.requests = append(f.requests, req)
 	i := len(f.requests) - 1
 	if i < len(f.errs) && f.errs[i] != nil {
