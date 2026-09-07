@@ -180,8 +180,15 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 
 // pipedStdin returns piped input (e.g. `git diff | janetcode -p "review"`),
 // or "" when stdin is a terminal or empty. Capped at 1 MB.
+// pipedStdin returns text piped or redirected into the process. Only pipes
+// and regular files are read: a terminal is interactive, and a socket or
+// other device held open by a parent process would block forever.
 func pipedStdin() string {
 	if term.IsTerminal(int(os.Stdin.Fd())) {
+		return ""
+	}
+	fi, err := os.Stdin.Stat()
+	if err != nil || (fi.Mode()&os.ModeNamedPipe == 0 && !fi.Mode().IsRegular()) {
 		return ""
 	}
 	data, err := io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
