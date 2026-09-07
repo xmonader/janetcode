@@ -48,9 +48,10 @@ type transcript struct {
 	entries  []*entry
 	renderer *glamour.TermRenderer
 	rWidth   int
+	style    glamour.TermRendererOption
 }
 
-func newTranscript() *transcript { return &transcript{} }
+func newTranscript() *transcript { return &transcript{style: glamour.WithAutoStyle()} }
 
 func (t *transcript) add(e *entry) *entry {
 	t.entries = append(t.entries, e)
@@ -203,7 +204,7 @@ func (t *transcript) render(width int, resized bool, pending *permissionMsg) str
 		width = 20
 	}
 	if t.renderer == nil || t.rWidth != width {
-		r, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithWordWrap(width-2))
+		r, err := glamour.NewTermRenderer(t.style, glamour.WithWordWrap(width-2))
 		if err == nil {
 			t.renderer = r
 			t.rWidth = width
@@ -301,7 +302,7 @@ func summarizeInput(name, raw string, max int) string {
 	if json.Unmarshal([]byte(raw), &m) != nil {
 		return truncateLine(raw, max)
 	}
-	for _, k := range []string{"command", "path", "pattern"} {
+	for _, k := range []string{"command", "pattern", "path"} {
 		if v, ok := m[k].(string); ok {
 			extra := ""
 			if k == "pattern" {

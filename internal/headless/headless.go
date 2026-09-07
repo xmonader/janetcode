@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 
+	"golang.org/x/term"
+
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/session"
 )
@@ -104,6 +106,5 @@ func (a *stdinApprover) Approve(ctx context.Context, call agent.ToolCall) (agent
 }
 
 func isTerminal(f *os.File) bool {
-	st, err := f.Stat()
-	return err == nil && st.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(f.Fd()))
 }
