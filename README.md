@@ -24,12 +24,31 @@ cd your/project
 janetcode
 ```
 
-Or with an OpenAI-compatible backend:
+Or with an OpenAI-compatible backend. Tested live against Alibaba's coding
+endpoint and OpenRouter:
 
 ```sh
-export OPENAI_API_KEY=...
-export OPENAI_BASE_URL=https://api.deepseek.com/v1   # optional, defaults to OpenAI
-janetcode --provider openai --model deepseek-chat
+# Alibaba Model Studio (Qwen coding plan)
+export OPENAI_API_KEY=sk-...
+export OPENAI_BASE_URL=https://coding-intl.dashscope.aliyuncs.com/v1
+janetcode --provider openai --model qwen3.7-plus
+
+# OpenRouter
+export OPENAI_API_KEY=sk-or-...
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1
+janetcode --provider openai --model deepseek/deepseek-v4-flash
+
+# Ollama (any non-empty key)
+export OPENAI_API_KEY=ollama
+export OPENAI_BASE_URL=http://localhost:11434/v1
+janetcode --provider openai --model qwen3-coder
+```
+
+Put `provider`, `model` and the keys in the config file (see below) to skip
+the flags. A prompt given as an argument starts the session with it:
+
+```sh
+janetcode "explain how requests flow through this service"
 ```
 
 One-shot, scriptable mode:
@@ -56,22 +75,31 @@ mutating tools prompt on the terminal, or are denied when stdin is not a TTY.
 All paths are confined to the working directory, symlinks included.
 Read-only tools run concurrently; mutating tools run one at a time, in order.
 
-## Keys and commands
+## The interface
+
+The transcript streams the model's markdown as it arrives, shows each tool
+call on one line with what it did and how long it took, and renders every
+edit as a coloured diff. The status line shows what the agent is doing, the
+elapsed time, and a gauge of how full the context window is. The input box
+grows with your text.
 
 ```
 enter            send        ctrl+j / alt+enter   newline
-up / down        recall earlier prompts
-esc              cancel the running turn
+up / down        recall earlier prompts          tab   complete a /command
+esc              cancel the running turn (or clear the input)
+ctrl+o           expand tool output and diffs    ctrl+l   redraw
 pgup / pgdn      scroll (mouse wheel works)
-ctrl+c           cancel, or quit when idle
+ctrl+c           cancel; twice to force quit; quits when idle
 ```
 
 At a permission prompt: `y` allow once, `a` allow that tool for the session,
-`n` deny.
+`n` deny. Destructive shell commands (recursive deletes, force pushes, sudo,
+piping downloads into a shell) are flagged in the prompt.
 
 ```
 /help      /quit      /clear (new session)     /yolo (toggle auto-approve)
 /model X   /usage     /compact (summarise the context to free the window)
+/verbose
 ```
 
 ## Configuration
