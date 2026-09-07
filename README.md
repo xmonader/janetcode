@@ -31,21 +31,22 @@ endpoint and OpenRouter:
 # Alibaba Model Studio (Qwen coding plan)
 export OPENAI_API_KEY=sk-...
 export OPENAI_BASE_URL=https://coding-intl.dashscope.aliyuncs.com/v1
-janetcode --provider openai --model qwen3.7-plus
+janetcode --model qwen3.7-plus
 
 # OpenRouter
 export OPENAI_API_KEY=sk-or-...
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1
-janetcode --provider openai --model deepseek/deepseek-v4-flash
+janetcode --model deepseek/deepseek-v4-flash
 
 # Ollama (any non-empty key)
 export OPENAI_API_KEY=ollama
 export OPENAI_BASE_URL=http://localhost:11434/v1
-janetcode --provider openai --model qwen3-coder
+janetcode --model qwen3-coder
 ```
 
-Put `provider`, `model` and the keys in the config file (see below) to skip
-the flags. A prompt given as an argument starts the session with it:
+The provider is inferred from whichever key is set (`--provider` overrides
+it). Put `model` and the keys in the config file (see below), or export
+`JANETCODE_MODEL`, to skip the flag. A prompt given as an argument starts the session with it:
 
 ```sh
 janetcode "explain how requests flow through this service"
