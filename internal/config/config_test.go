@@ -70,3 +70,18 @@ func TestThinkingHeuristic(t *testing.T) {
 		t.Fatal("explicit true must win")
 	}
 }
+
+func TestWriteExampleParses(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	p, err := WriteExample()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteExample(); err == nil {
+		t.Fatal("second write should refuse to overwrite")
+	}
+	cfg, err := load(p, env(map[string]string{"ANTHROPIC_API_KEY": "k"}), Overrides{})
+	if err != nil || cfg.CompactAt != 150000 || cfg.Theme != "auto" || cfg.Effort != "high" {
+		t.Fatalf("cfg=%+v err=%v", cfg, err)
+	}
+}

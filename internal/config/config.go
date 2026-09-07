@@ -63,6 +63,46 @@ func Path() (string, error) {
 	return filepath.Join(base, "janetcode", "config.json"), nil
 }
 
+// Example is the config file written by WriteExample.
+const Example = `{
+  "provider": "anthropic",
+  "model": "claude-opus-5",
+  "max_tokens": 16000,
+  "effort": "high",
+  "auto_approve": false,
+  "max_iterations": 50,
+  "compact_at": 150000,
+  "theme": "auto",
+  "anthropic": {
+    "api_key": "",
+    "base_url": ""
+  },
+  "openai": {
+    "api_key": "",
+    "base_url": "https://api.openai.com/v1"
+  }
+}
+`
+
+// WriteExample writes Example to the config path unless a file already
+// exists there. It returns the path.
+func WriteExample() (string, error) {
+	p, err := Path()
+	if err != nil {
+		return "", err
+	}
+	if _, err := os.Stat(p); err == nil {
+		return p, fmt.Errorf("%s already exists", p)
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(p, []byte(Example), 0o600); err != nil {
+		return "", err
+	}
+	return p, nil
+}
+
 // Load reads the config file (if any), applies environment variables, then
 // overrides, and validates the result.
 func Load(ov Overrides) (*Config, error) {

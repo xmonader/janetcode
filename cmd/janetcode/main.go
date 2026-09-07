@@ -58,6 +58,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		cont        = fs.Bool("continue", false, "resume the latest session for this directory")
 		resume      = fs.String("resume", "", "resume the session with this id")
 		showVersion = fs.Bool("version", false, "print version and exit")
+		listSess    = fs.Bool("sessions", false, "list saved sessions for this directory and exit")
+		initCfg     = fs.Bool("init", false, "write an example config file and exit")
 	)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -68,6 +70,17 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if *showVersion {
 		fmt.Println("janetcode", version)
 		return nil
+	}
+	if *initCfg {
+		p, err := config.WriteExample()
+		if err != nil {
+			return err
+		}
+		fmt.Println("wrote", p)
+		return nil
+	}
+	if *listSess {
+		return printSessions()
 	}
 	if fs.NArg() > 0 {
 		return fmt.Errorf("unexpected argument %q (use -p \"prompt\" for a one-shot run)", fs.Arg(0))
@@ -142,6 +155,30 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
 		Resumed: len(history), Version: version, Theme: cfg.Theme,
 	})
+}
+
+func printSessions() error {
+	dir, err := session.Dir()
+	if err != nil {
+		return err
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	infos, err := session.List(dir, cwd)
+	if err != nil {
+		return err
+	}
+	if len(infos) == 0 {
+		fmt.Println("no sessions for", cwd)
+		return nil
+	}
+	for _, in := range infos {
+		fmt.Printf("%s  %s  %-3d msgs  %s/%s  %s\n", in.Meta.ID, in.Meta.Created.Local().Format("2006-01-02 15:04"), in.Messages, in.Meta.Provider, in.Meta.Model, in.Preview)
+	}
+	fmt.Println("\nresume with: janetcode --resume <id>   (or --continue for the newest)")
+	return nil
 }
 
 func buildProvider(cfg *config.Config) (llm.Provider, error) {
