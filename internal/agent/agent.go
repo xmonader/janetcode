@@ -36,6 +36,8 @@ type ToolCall struct {
 	// Preview describes the effect of the call (a diff for edits). Set once
 	// the input is complete, before approval and execution.
 	Preview string
+	// Warning flags a risky input (destructive shell commands).
+	Warning string
 }
 
 // Approver decides whether a mutating tool call may run. Implementations
@@ -298,6 +300,9 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 		} else {
 			call.Preview = "preview unavailable: " + err.Error()
 		}
+	}
+	if w, ok := t.(tool.Warner); ok {
+		call.Warning = w.Warn(u.Input)
 	}
 	if t.Mutating() && !a.AutoApprove && !a.allowed[u.Name] {
 		if a.Approver == nil {

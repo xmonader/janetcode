@@ -66,8 +66,12 @@ func TestTranscriptPermissionAndErrors(t *testing.T) {
 		t.Fatalf("diff should stay visible after completion:\n%s", out)
 	}
 	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &call})
+	call.Warning = "recursive force delete"
 	pending := &permissionMsg{call: call}
 	out := plain(tr.render(80, false, pending))
+	if !strings.Contains(out, "⚠ recursive force delete") {
+		t.Fatalf("warning missing:\n%s", out)
+	}
 	if !strings.Contains(out, "allow bash? [y]es") || !strings.Contains(out, `"command": "rm -rf build"`) {
 		t.Fatalf("permission prompt missing:\n%s", out)
 	}

@@ -86,6 +86,9 @@ func (a *stdinApprover) Approve(ctx context.Context, call agent.ToolCall) (agent
 	if call.Preview != "" {
 		fmt.Fprintf(a.out, "\n%s\n", strings.TrimRight(call.Preview, "\n"))
 	}
+	if call.Warning != "" {
+		fmt.Fprintf(a.out, "\nWARNING: %s\n", call.Warning)
+	}
 	fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways / [n]o: ", call.Name, oneLine(string(call.Input), 200))
 	type res struct {
 		s   string

@@ -19,20 +19,20 @@ type ProviderConfig struct {
 
 // Config is the resolved configuration.
 type Config struct {
-	Provider      string         `json:"provider"`
-	Model         string         `json:"model"`
-	MaxTokens     int            `json:"max_tokens"`
-	Effort        string         `json:"effort,omitempty"`
-	Thinking      *bool          `json:"thinking,omitempty"`
-	AutoApprove   bool           `json:"auto_approve"`
-	MaxIterations int            `json:"max_iterations"`
+	Provider      string `json:"provider"`
+	Model         string `json:"model"`
+	MaxTokens     int    `json:"max_tokens"`
+	Effort        string `json:"effort,omitempty"`
+	Thinking      *bool  `json:"thinking,omitempty"`
+	AutoApprove   bool   `json:"auto_approve"`
+	MaxIterations int    `json:"max_iterations"`
 	// CompactAt is the estimated token count that triggers compaction;
 	// 0 means the default, negative disables.
 	CompactAt int `json:"compact_at,omitempty"`
 	// Theme is dark, light or auto.
-	Theme string `json:"theme,omitempty"`
-	Anthropic     ProviderConfig `json:"anthropic"`
-	OpenAI        ProviderConfig `json:"openai"`
+	Theme     string         `json:"theme,omitempty"`
+	Anthropic ProviderConfig `json:"anthropic"`
+	OpenAI    ProviderConfig `json:"openai"`
 }
 
 // Overrides are command-line values; empty means "not given".

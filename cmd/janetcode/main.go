@@ -41,7 +41,8 @@ func run(args []string) error {
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), `janetcode %s - a terminal coding agent
 
-Usage: janetcode [flags]            interactive session in the current directory
+Usage: janetcode [flags] [prompt]   interactive session in the current directory,
+                                     optionally starting with a prompt
        janetcode -p "prompt" [flags] run one prompt headless and exit
 
 Flags:
@@ -86,8 +87,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if *listSess {
 		return printSessions()
 	}
-	if fs.NArg() > 0 {
-		return fmt.Errorf("unexpected argument %q (use -p \"prompt\" for a one-shot run)", fs.Arg(0))
+	initial := strings.TrimSpace(strings.Join(fs.Args(), " "))
+	if initial != "" && *promptText != "" {
+		return errors.New("give the prompt either with -p or as an argument, not both")
 	}
 
 	cfg, err := config.Load(config.Overrides{Provider: *provider, Model: *model, Effort: *effort, AutoApprove: *yolo})
@@ -162,6 +164,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	return tui.Run(tui.Options{
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
 		Resumed: len(history), Version: version, Theme: cfg.Theme,
+		InitialPrompt: initial,
 	})
 }
 

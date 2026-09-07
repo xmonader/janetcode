@@ -220,3 +220,20 @@ func TestPromptHistoryRecall(t *testing.T) {
 		t.Fatalf("draft not restored: %q", h.m.input.Value())
 	}
 }
+
+func TestInitialPromptIsSubmitted(t *testing.T) {
+	root := t.TempDir()
+	sess, _ := session.New(t.TempDir(), root, "fake", "m")
+	ag := &agent.Agent{Provider: &scripted{[]*llm.Response{{Message: llm.TextMessage(llm.RoleAssistant, "auto"), StopReason: llm.StopEndTurn}}}, Tools: tool.NewRegistry(), Model: "m"}
+	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, InitialPrompt: "explain"})
+	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
+	m.send = func(msg tea.Msg) { h.msgs <- msg }
+	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	if !h.m.running {
+		t.Fatal("initial prompt not submitted")
+	}
+	h.pump(func() bool { return !h.m.running })
+	if v := plain(h.m.View()); !strings.Contains(v, "explain") || !strings.Contains(v, "auto") {
+		t.Fatalf("view:\n%s", v)
+	}
+}

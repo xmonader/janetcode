@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -97,6 +98,44 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		result += fmt.Sprintf("\n[exit code %d]", exit)
 	}
 	return Truncate(result), nil
+}
+
+// dangerPatterns flag commands whose damage is hard to undo. The prompt
+// still decides; this only makes the risk visible.
+var dangerPatterns = []struct {
+	re   *regexp.Regexp
+	note string
+}{
+	{regexp.MustCompile(`\brm\s+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[rR])\b`), "recursive force delete"},
+	{regexp.MustCompile(`\brm\s+-[a-zA-Z]*[rR]\b`), "recursive delete"},
+	{regexp.MustCompile(`\bgit\s+push\b.*(--force|-f\b|\+\S)`), "force push rewrites remote history"},
+	{regexp.MustCompile(`\bgit\s+(reset\s+--hard|clean\s+-[a-zA-Z]*[fdx]|checkout\s+--\s|restore\s)`), "discards uncommitted changes"},
+	{regexp.MustCompile(`\bgit\s+branch\s+-D\b`), "deletes a branch"},
+	{regexp.MustCompile(`\b(sudo|doas)\b`), "runs with elevated privileges"},
+	{regexp.MustCompile(`\b(mkfs|dd\s+if=|fdisk|parted)\b`), "raw disk operation"},
+	{regexp.MustCompile(`\bchmod\s+(-R\s+)?[0-7]*777\b`), "world-writable permissions"},
+	{regexp.MustCompile(`\bcurl\b.*\|\s*(ba)?sh\b`), "pipes a download into a shell"},
+	{regexp.MustCompile(`\b(shutdown|reboot|halt|poweroff)\b`), "power operation"},
+	{regexp.MustCompile(`\bkill\s+-9\s+-1\b|\bpkill\s+-9\b`), "kills processes broadly"},
+	{regexp.MustCompile(`\bDROP\s+(TABLE|DATABASE)\b`), "drops database objects"},
+	{regexp.MustCompile(`>\s*/dev/sd|>\s*/etc/`), "overwrites system files"},
+}
+
+// Warn implements Warner.
+func (Bash) Warn(input json.RawMessage) string {
+	var in struct {
+		Command string `json:"command"`
+	}
+	if json.Unmarshal(input, &in) != nil {
+		return ""
+	}
+	var notes []string
+	for _, d := range dangerPatterns {
+		if d.re.MatchString(in.Command) {
+			notes = append(notes, d.note)
+		}
+	}
+	return strings.Join(notes, "; ")
 }
 
 // secretEnv lists variables that model-run commands must never see: the

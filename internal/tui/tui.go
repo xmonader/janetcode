@@ -21,14 +21,16 @@ import (
 
 // Options configures the UI.
 type Options struct {
-	Agent     *agent.Agent
-	Session   *session.Session
-	Provider  string
-	Cwd       string
-	Resumed   int // messages loaded from a resumed session
-	Version   string
+	Agent    *agent.Agent
+	Session  *session.Session
+	Provider string
+	Cwd      string
+	Resumed  int // messages loaded from a resumed session
+	Version  string
 	// Theme is "dark", "light" or "" for terminal detection.
 	Theme string
+	// InitialPrompt is sent as soon as the UI is ready.
+	InitialPrompt string
 }
 
 // Run starts the interactive UI and blocks until the user quits.
@@ -93,10 +95,10 @@ type model struct {
 	running    bool
 	cancelling bool
 	cancel     context.CancelFunc
-	startedAt time.Time
-	pending   *permissionMsg
-	status    string
-	quitting  bool
+	startedAt  time.Time
+	pending    *permissionMsg
+	status     string
+	quitting   bool
 }
 
 func newModel(opts Options) *model {
@@ -145,9 +147,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		first := !m.ready
 		m.width, m.height = msg.Width, msg.Height
 		m.layout()
 		m.refresh(true)
+		if first && m.opts.InitialPrompt != "" {
+			text := m.opts.InitialPrompt
+			m.opts.InitialPrompt = ""
+			m.history = append(m.history, text)
+			m.histIdx = len(m.history)
+			return m, m.submit(text)
+		}
 		return m, nil
 
 	case tea.KeyMsg:

@@ -221,9 +221,9 @@ func (EditFile) Schema() json.RawMessage {
 }
 
 type editPlan struct {
-	path, display    string
-	before, after    string
-	replacements     int
+	path, display string
+	before, after string
+	replacements  int
 }
 
 func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {

@@ -43,13 +43,13 @@ func TestGlobToRegexp(t *testing.T) {
 func setupTree(t *testing.T) string {
 	root := t.TempDir()
 	files := map[string]string{
-		"main.go":              "package main\nfunc main() { Hello() }\n",
-		"pkg/hello.go":         "package pkg\nfunc Hello() {}\n",
-		"pkg/hello_test.go":    "package pkg\nfunc TestHello(t *T) {}\n",
-		"node_modules/x/i.js":  "Hello",
-		".git/config":          "Hello",
-		"docs/readme.md":       "# Hello world\n",
-		"bin.dat":              "Hello\x00",
+		"main.go":             "package main\nfunc main() { Hello() }\n",
+		"pkg/hello.go":        "package pkg\nfunc Hello() {}\n",
+		"pkg/hello_test.go":   "package pkg\nfunc TestHello(t *T) {}\n",
+		"node_modules/x/i.js": "Hello",
+		".git/config":         "Hello",
+		"docs/readme.md":      "# Hello world\n",
+		"bin.dat":             "Hello\x00",
 	}
 	for p, c := range files {
 		full := filepath.Join(root, p)

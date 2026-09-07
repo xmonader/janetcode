@@ -128,3 +128,9 @@ func fileExists(p string) bool {
 type Previewer interface {
 	Preview(ctx context.Context, input json.RawMessage) (string, error)
 }
+
+// Warner is implemented by tools that can flag risky inputs so the
+// permission prompt can call them out. Empty means nothing to flag.
+type Warner interface {
+	Warn(input json.RawMessage) string
+}

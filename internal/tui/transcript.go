@@ -60,8 +60,8 @@ func (t *transcript) add(e *entry) *entry {
 	return e
 }
 
-func (t *transcript) info(s string)   { t.add(&entry{kind: entryInfo, text: s}) }
-func (t *transcript) user(s string)   { t.add(&entry{kind: entryUser, text: s}) }
+func (t *transcript) info(s string) { t.add(&entry{kind: entryInfo, text: s}) }
+func (t *transcript) user(s string) { t.add(&entry{kind: entryUser, text: s}) }
 func (t *transcript) errorf(f string, a ...any) {
 	t.add(&entry{kind: entryError, text: fmt.Sprintf(f, a...)})
 }
@@ -276,6 +276,9 @@ func (t *transcript) renderTool(e *entry, width int, pending *permissionMsg) str
 		sb.WriteString(styleDim.Render(" " + e.dur))
 	}
 	if pending != nil && pending.call.ID == e.call.ID {
+		if pending.call.Warning != "" {
+			sb.WriteString("\n" + styleErr.Bold(true).Render("  ⚠ "+pending.call.Warning))
+		}
 		sb.WriteString("\n" + styleWarn.Render("  allow "+e.call.Name+"? [y]es · [a]lways · [n]o"))
 		if pending.call.Preview != "" {
 			sb.WriteString("\n" + renderPreview(pending.call.Preview, width, 40))

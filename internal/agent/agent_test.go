@@ -62,10 +62,10 @@ func toolCall(id, name, input string) *llm.Response {
 
 type panicTool struct{}
 
-func (panicTool) Name() string                { return "boom" }
-func (panicTool) Description() string         { return "panics" }
-func (panicTool) Schema() json.RawMessage     { return json.RawMessage(`{"type":"object"}`) }
-func (panicTool) Mutating() bool              { return false }
+func (panicTool) Name() string                                         { return "boom" }
+func (panicTool) Description() string                                  { return "panics" }
+func (panicTool) Schema() json.RawMessage                              { return json.RawMessage(`{"type":"object"}`) }
+func (panicTool) Mutating() bool                                       { return false }
 func (panicTool) Run(context.Context, json.RawMessage) (string, error) { panic("kaboom") }
 
 func newAgent(t *testing.T, f *fake, approver Approver) (*Agent, string) {

@@ -42,11 +42,11 @@ func TestCompactKeepsPendingUserText(t *testing.T) {
 func TestAutoCompactBeforeCallAndOnOverflow(t *testing.T) {
 	big := strings.Repeat("x", 4000) // ~1000 tokens
 	f := &fake{responses: []*llm.Response{
-		text("note A"),      // compaction triggered by estimate
-		text("answer one"),  // real call
-		nil,                 // overflow error (errs below)
-		text("note B"),      // compaction triggered by overflow
-		text("answer two"),  // retry
+		text("note A"),     // compaction triggered by estimate
+		text("answer one"), // real call
+		nil,                // overflow error (errs below)
+		text("note B"),     // compaction triggered by overflow
+		text("answer two"), // retry
 	}, errs: []error{nil, nil, errors.New("400: prompt is too long: 210000 tokens > 200000 maximum")}}
 	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", CompactAt: 500}
 	a.Messages = []llm.Message{llm.TextMessage(llm.RoleUser, big), llm.TextMessage(llm.RoleAssistant, "ok")}
