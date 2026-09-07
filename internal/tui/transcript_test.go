@@ -37,7 +37,7 @@ func TestTranscriptStreamingAndTools(t *testing.T) {
 	tr.apply(agent.Event{Kind: agent.EvTextBlockDone})
 	tr.apply(agent.Event{Kind: agent.EvTurnDone})
 	out = plain(tr.render(80, false, nil))
-	for _, want := range []string{"you", "read a.txt please", "· let me look", "✓ read_file a.txt", "alpha", "beta", "and beta."} {
+	for _, want := range []string{"you", "read a.txt please", "· thought: let me look", "✓ read_file a.txt", "alpha", "beta", "and beta."} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}
@@ -108,5 +108,19 @@ func TestSummarizeInput(t *testing.T) {
 	}
 	if got := summarizeInput("x", `{"k":"`+strings.Repeat("v", 50)+`"}`, 20); len(got) > 22 || !strings.HasSuffix(got, "…") {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestThinkingView(t *testing.T) {
+	if got := thinkingView("", false); got != "· thinking" {
+		t.Fatalf("empty: %q", got)
+	}
+	long := strings.Repeat("line\n", 20) + "last"
+	got := thinkingView(long, false)
+	if !strings.HasPrefix(got, "· thinking… (13 earlier lines)") || !strings.HasSuffix(got, "last") || strings.Count(got, "\n") != 8 {
+		t.Fatalf("streaming tail: %q", got)
+	}
+	if got := thinkingView("plan first\nthen do", true); got != "· thought: plan first (2 lines)" {
+		t.Fatalf("done: %q", got)
 	}
 }

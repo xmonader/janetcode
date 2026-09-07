@@ -90,8 +90,9 @@ type model struct {
 	histIdx int    // == len(history) when not browsing
 	draft   string // input saved while browsing history
 
-	running   bool
-	cancel    context.CancelFunc
+	running    bool
+	cancelling bool
+	cancel     context.CancelFunc
 	startedAt time.Time
 	pending   *permissionMsg
 	status    string
@@ -216,10 +217,11 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	}
 	switch msg.String() {
 	case "ctrl+c":
-		if m.running {
+		if m.running && !m.cancelling {
 			m.cancelTurn()
 			return nil, true
 		}
+		// Idle, or pressed twice while a cancel is still pending: quit.
 		m.quitting = true
 		return tea.Quit, true
 	case "ctrl+d":
@@ -341,11 +343,13 @@ func (m *model) cancelTurn() {
 	if m.cancel != nil {
 		m.cancel()
 	}
-	m.status = "cancelling..."
+	m.cancelling = true
+	m.status = "cancelling... (ctrl+c again to force quit)"
 }
 
 func (m *model) finishTurn(msg agentDoneMsg) {
 	m.running = false
+	m.cancelling = false
 	if m.cancel != nil {
 		m.cancel()
 		m.cancel = nil
@@ -434,7 +438,7 @@ const helpText = `Keys
   enter        send · ctrl+j / alt+enter  newline · up/down  recall earlier prompts
   esc          cancel the running turn
   pgup/pgdn    scroll transcript (mouse wheel works too)
-  ctrl+c       cancel, or quit when idle · ctrl+d quit
+  ctrl+c       cancel (twice to force quit), or quit when idle · ctrl+d quit
 Permission prompt: y allow once · a allow this tool for the session · n deny
 Commands
   /help /quit /clear (new session) /yolo (toggle auto-approve) /model <name>

@@ -244,11 +244,7 @@ func (t *transcript) renderEntry(e *entry, width int, pending *permissionMsg) st
 	case entryUser:
 		return styleUser.Render("you") + "\n" + styleUserBody.Render(wrap.Render(e.text))
 	case entryThinking:
-		txt := strings.TrimSpace(e.text)
-		if txt == "" {
-			return styleDim.Italic(true).Render("· thinking")
-		}
-		return styleDim.Italic(true).Render(wrap.Render("· " + txt))
+		return styleDim.Italic(true).Render(wrap.Render(thinkingView(e.text, e.done)))
 	case entryAssistant:
 		if e.done && t.renderer != nil {
 			if out, err := t.renderer.Render(e.text); err == nil {
@@ -300,6 +296,33 @@ func (t *transcript) renderTool(e *entry, width int, pending *permissionMsg) str
 		sb.WriteString("\n" + style.Render(indent(lipgloss.NewStyle().Width(width-4).Render(out), "  ")))
 	}
 	return sb.String()
+}
+
+// thinkingView shows the tail of the reasoning while it streams and folds
+// it to a single line once the model moves on, so it never swamps the
+// transcript.
+func thinkingView(text string, done bool) string {
+	txt := strings.TrimSpace(text)
+	if txt == "" {
+		return "· thinking"
+	}
+	lines := strings.Split(txt, "\n")
+	if done {
+		first := strings.TrimSpace(lines[0])
+		if len(first) > 100 {
+			first = first[:99] + "…"
+		}
+		if len(lines) > 1 {
+			return fmt.Sprintf("· thought: %s (%d lines)", first, len(lines))
+		}
+		return "· thought: " + first
+	}
+	const tail = 8
+	if len(lines) > tail {
+		lines = append([]string{fmt.Sprintf("· thinking… (%d earlier lines)", len(lines)-tail)}, lines[len(lines)-tail:]...)
+		return strings.Join(lines, "\n")
+	}
+	return "· " + strings.Join(lines, "\n")
 }
 
 // renderPreview colours a unified diff (or shows plain preview text).

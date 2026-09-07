@@ -162,6 +162,26 @@ func TestEscCancelsRunningTurn(t *testing.T) {
 	}
 }
 
+func TestDoubleCtrlCForcesQuit(t *testing.T) {
+	blocker := &blocking{started: make(chan struct{})}
+	root := t.TempDir()
+	sess, _ := session.New(t.TempDir(), root, "fake", "m")
+	ag := &agent.Agent{Provider: blocker, Tools: tool.NewRegistry(), Model: "m"}
+	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root})
+	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
+	m.send = func(msg tea.Msg) { h.msgs <- msg }
+	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	h.keys("slow")
+	h.enter()
+	<-blocker.started
+	if _, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC}); cmd != nil || !h.m.cancelling {
+		t.Fatal("first ctrl+c should cancel, not quit")
+	}
+	if _, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC}); cmd == nil {
+		t.Fatal("second ctrl+c should quit")
+	}
+}
+
 type blocking struct{ started chan struct{} }
 
 func (b *blocking) Name() string { return "blocking" }
