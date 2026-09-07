@@ -19,4 +19,5 @@
 - `internal/agent.Agent.Run` is the loop; `Approver` is the permission hook; `EstimateTokens`/`Compact` handle context size.
 - TUI never touches agent state while a turn runs; the agent goroutine sends `agentEventMsg`/`agentDoneMsg`/`permissionMsg` through `model.send`.
 - Terminal background is detected once before the program starts (`lipgloss.HasDarkBackground`); creating glamour renderers with AutoStyle later would re-query the terminal and eat keystrokes.
+- Rendering cost: glamour takes ~95 ms per 2 KB and ~0.9 s per 20 KB, so the transcript renders markdown per blank-line-separated block with a per-entry cache (only the streaming tail re-renders), agent events are coalesced through `eventQueue` so rendering never blocks the model stream, and `refresh` skips `viewport.SetContent` when the content string is unchanged. Regression guard: `TestStreamingLargeAnswerStaysResponsive`.
 - Testing a TUI under a real pty: `scratchpad/smoke/drive.py` pattern — reply to OSC 11 (`\e]11;rgb:…\e\\`) and DSR (`\e[1;1R`) or bubbletea/termenv blocks for 5 s.
