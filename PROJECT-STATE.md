@@ -2,7 +2,9 @@
 
 ## Current State
 - Done: Go terminal coding agent. Providers: Anthropic (official SDK, adaptive thinking, effort, prompt caching) and OpenAI-compatible (hand-rolled, streaming, tool calls, dialect fallbacks). Tools: read_file, write_file, edit_file, list_dir, glob, grep, bash (path-confined, diff previews, non-interactive env, credential scrubbing). Agent loop with permissions (allow / deny / allow-for-session), parallel read-only tools, automatic and manual context compaction. JSONL sessions with resume, listing, rotation on compaction. Bubbletea TUI with streaming markdown, coloured diffs, prompt history, /commands. Headless `-p` mode with piped stdin. All tests offline against fake servers; `make race` green.
-- Next: real-API verification (no key available in the build environment), then cost display per model, dangerous-command highlighting for bash, MCP client, sub-agents, web fetch.
+- Verified live (2026-09-08): Alibaba Dashscope `qwen3.7-plus` and OpenRouter `deepseek/deepseek-v4-flash`, headless and in the TUI under a pty: parallel reads, edit with diff approval, bash build/run, correct answers, cache reads reported. TUI adds no measurable latency (`JANETCODE_DEBUG` timelines match headless).
+- TUI redesign done: live markdown while streaming, adaptive light/dark palette, permission box in the footer with warnings, context gauge, phase/elapsed status, prompt history, tab completion of /commands, ctrl+o verbose tool output, growing input box.
+- Next: Anthropic path is verified only against a fake server (no Anthropic key here); cost display per model; MCP client; sub-agents; web fetch.
 - Blocked: nothing.
 
 ## Key Decisions
