@@ -210,3 +210,50 @@ func TestContextCancelDuringStream(t *testing.T) {
 		t.Fatal("expected error on cancel")
 	}
 }
+
+func TestDialectFallbacks(t *testing.T) {
+	var bodies []map[string]any
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		var b map[string]any
+		json.Unmarshal(raw, &b)
+		bodies = append(bodies, b)
+		switch {
+		case b["max_tokens"] != nil:
+			w.WriteHeader(400)
+			io.WriteString(w, `{"error":{"message":"Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead."}}`)
+		case b["stream_options"] != nil:
+			w.WriteHeader(400)
+			io.WriteString(w, `{"error":{"message":"Unrecognized request argument supplied: stream_options"}}`)
+		default:
+			io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+		}
+	})
+	req := llm.Request{Model: "m", MaxTokens: 50, Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}
+	resp, err := p.Stream(context.Background(), req, nil)
+	if err != nil || resp.Message.Text() != "ok" {
+		t.Fatalf("err=%v resp=%+v", err, resp)
+	}
+	if len(bodies) != 3 {
+		t.Fatalf("expected 3 attempts, got %d", len(bodies))
+	}
+	if bodies[1]["max_completion_tokens"].(float64) != 50 || bodies[1]["max_tokens"] != nil {
+		t.Fatalf("second attempt = %v", bodies[1])
+	}
+	if bodies[2]["stream_options"] != nil {
+		t.Fatalf("third attempt still has stream_options: %v", bodies[2])
+	}
+	// Learned quirks persist: the next call goes straight through.
+	bodies = nil
+	if _, err := p.Stream(context.Background(), req, nil); err != nil || len(bodies) != 1 {
+		t.Fatalf("err=%v attempts=%d", err, len(bodies))
+	}
+	// An unrelated 400 is not retried.
+	p2 := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(400)
+		io.WriteString(w, `{"error":{"message":"model not found"}}`)
+	})
+	if _, err := p2.Stream(context.Background(), req, nil); err == nil || !strings.Contains(err.Error(), "model not found") {
+		t.Fatalf("err = %v", err)
+	}
+}

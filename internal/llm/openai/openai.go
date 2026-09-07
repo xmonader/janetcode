@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -38,6 +39,12 @@ type Config struct {
 type Provider struct {
 	cfg  Config
 	http *http.Client
+
+	// Dialect quirks learned from 400 responses, kept for the provider's
+	// lifetime so each is paid for at most once.
+	mu               sync.Mutex
+	useMaxCompletion bool // send max_completion_tokens instead of max_tokens
+	noStreamOptions  bool // server rejects stream_options
 }
 
 // New validates cfg and builds a provider.
@@ -93,12 +100,16 @@ type wireTool struct {
 }
 
 type wireRequest struct {
-	Model         string        `json:"model"`
-	Messages      []wireMessage `json:"messages"`
-	Tools         []wireTool    `json:"tools,omitempty"`
-	MaxTokens     int           `json:"max_tokens,omitempty"`
-	Stream        bool          `json:"stream"`
-	StreamOptions *struct {
+	Model    string        `json:"model"`
+	Messages []wireMessage `json:"messages"`
+	Tools    []wireTool    `json:"tools,omitempty"`
+	// Newer OpenAI models reject max_tokens and want max_completion_tokens;
+	// most other servers only know max_tokens. Which one is sent is decided
+	// per provider by dialect detection (see Provider.useMaxCompletion).
+	MaxTokens           int  `json:"max_tokens,omitempty"`
+	MaxCompletionTokens int  `json:"max_completion_tokens,omitempty"`
+	Stream              bool `json:"stream"`
+	StreamOptions       *struct {
 		IncludeUsage bool `json:"include_usage"`
 	} `json:"stream_options,omitempty"`
 }
@@ -228,15 +239,20 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if err != nil {
 		return nil, err
 	}
-	body, err := json.Marshal(w)
-	if err != nil {
-		return nil, err
-	}
 	var resp *http.Response
 	for attempt := 0; ; attempt++ {
+		body, err := json.Marshal(p.applyDialect(w))
+		if err != nil {
+			return nil, err
+		}
 		resp, err = p.do(ctx, body)
 		if err == nil {
 			break
+		}
+		if p.learnDialect(err) {
+			// A parameter the server rejects was dropped or renamed; resend
+			// immediately without counting it as a retry.
+			continue
 		}
 		if attempt >= p.cfg.MaxRetries || !retryable(err) || ctx.Err() != nil {
 			return nil, err
@@ -249,6 +265,40 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	}
 	defer resp.Body.Close()
 	return readStream(resp.Body, emit)
+}
+
+// applyDialect adjusts the request for quirks learned so far.
+func (p *Provider) applyDialect(w wireRequest) wireRequest {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.useMaxCompletion {
+		w.MaxCompletionTokens, w.MaxTokens = w.MaxTokens, 0
+	}
+	if p.noStreamOptions {
+		w.StreamOptions = nil
+	}
+	return w
+}
+
+// learnDialect inspects a 400 for a parameter complaint we can work around.
+// It returns true when the request should be resent.
+func (p *Provider) learnDialect(err error) bool {
+	var ae *APIError
+	if !errors.As(err, &ae) || ae.Status != 400 {
+		return false
+	}
+	msg := strings.ToLower(ae.Message)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	switch {
+	case !p.useMaxCompletion && strings.Contains(msg, "max_completion_tokens") && strings.Contains(msg, "max_tokens"):
+		p.useMaxCompletion = true
+		return true
+	case !p.noStreamOptions && strings.Contains(msg, "stream_options"):
+		p.noStreamOptions = true
+		return true
+	}
+	return false
 }
 
 func (p *Provider) do(ctx context.Context, body []byte) (*http.Response, error) {
