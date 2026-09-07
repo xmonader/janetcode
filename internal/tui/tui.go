@@ -33,7 +33,8 @@ type Options struct {
 func Run(opts Options) error {
 	m := newModel(opts)
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
-	m.approver.p = p
+	m.send = p.Send
+	m.approver.send = p.Send
 	opts.Agent.Approver = m.approver
 	_, err := p.Run()
 	return err
@@ -52,11 +53,11 @@ type permissionMsg struct {
 }
 
 // tuiApprover bridges agent permission requests into the UI loop.
-type tuiApprover struct{ p *tea.Program }
+type tuiApprover struct{ send func(tea.Msg) }
 
 func (a *tuiApprover) Approve(ctx context.Context, call agent.ToolCall) (agent.Decision, error) {
 	reply := make(chan agent.Decision, 1)
-	a.p.Send(permissionMsg{call: call, reply: reply})
+	a.send(permissionMsg{call: call, reply: reply})
 	select {
 	case d := <-reply:
 		return d, nil
@@ -70,6 +71,8 @@ func (a *tuiApprover) Approve(ctx context.Context, call agent.ToolCall) (agent.D
 type model struct {
 	opts     Options
 	approver *tuiApprover
+	// send delivers messages from background goroutines into the loop.
+	send func(tea.Msg)
 
 	transcript *transcript
 	viewport   viewport.Model
@@ -99,10 +102,16 @@ func newModel(opts Options) *model {
 
 	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(styleAccent))
 
+	// Detect the background once, before the program starts: the query
+	// talks to the terminal and must not race with key input later.
+	style := "light"
+	if lipgloss.HasDarkBackground() {
+		style = "dark"
+	}
 	m := &model{
 		opts:       opts,
 		approver:   &tuiApprover{},
-		transcript: newTranscript(),
+		transcript: newTranscriptStyled(style),
 		input:      ta,
 		spinner:    sp,
 	}
@@ -244,12 +253,12 @@ func (m *model) submit(text string) tea.Cmd {
 	m.status = ""
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	ag, sess, p := m.opts.Agent, m.opts.Session, m.approver.p
+	ag, sess, send := m.opts.Agent, m.opts.Session, m.send
 	m.refresh(false)
 	go func() {
-		err := ag.Run(ctx, text, func(e agent.Event) { p.Send(agentEventMsg{ev: e}) })
+		err := ag.Run(ctx, text, func(e agent.Event) { send(agentEventMsg{ev: e}) })
 		syncErr := sess.Sync(ag.Messages)
-		p.Send(agentDoneMsg{err: err, syncErr: syncErr})
+		send(agentDoneMsg{err: err, syncErr: syncErr})
 	}()
 	return m.spinner.Tick
 }
@@ -307,7 +316,7 @@ func (m *model) command(text string) tea.Cmd {
 		}
 		m.opts.Session = sess
 		m.opts.Agent.Messages = nil
-		m.transcript = newTranscript()
+		m.transcript = newTranscriptStyled(m.transcript.styleName)
 		m.transcript.info("new session " + sess.Meta.ID)
 	case "/yolo":
 		m.opts.Agent.AutoApprove = !m.opts.Agent.AutoApprove

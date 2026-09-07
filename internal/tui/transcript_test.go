@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/glamour"
-
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -19,7 +17,6 @@ func plain(s string) string { return ansi.ReplaceAllString(s, "") }
 
 func TestTranscriptStreamingAndTools(t *testing.T) {
 	tr := newTranscript()
-	tr.style = glamour.WithStandardStyle("dark")
 	tr.user("read a.txt please")
 	call := &agent.ToolCall{ID: "t1", Name: "read_file"}
 	tr.apply(agent.Event{Kind: agent.EvThinking, Text: "let me "})
@@ -59,6 +56,15 @@ func TestTranscriptStreamingAndTools(t *testing.T) {
 func TestTranscriptPermissionAndErrors(t *testing.T) {
 	tr := newTranscript()
 	call := agent.ToolCall{ID: "t9", Name: "bash", Input: json.RawMessage(`{"command":"rm -rf build"}`)}
+	edit := agent.ToolCall{ID: "t8", Name: "edit_file", Input: json.RawMessage(`{"path":"f"}`), Preview: "--- f\n+++ f\n@@ -1,1 +1,1 @@\n-old line\n+new line\n"}
+	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &edit})
+	if out := plain(tr.render(80, false, &permissionMsg{call: edit})); !strings.Contains(out, "-old line\n") || !strings.Contains(out, "+new line") || strings.Contains(out, "+++ f") {
+		t.Fatalf("diff preview missing:\n%s", out)
+	}
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &edit, Output: "Edited f"})
+	if out := plain(tr.render(80, false, nil)); !strings.Contains(out, "+new line") {
+		t.Fatalf("diff should stay visible after completion:\n%s", out)
+	}
 	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &call})
 	pending := &permissionMsg{call: call}
 	out := plain(tr.render(80, false, pending))

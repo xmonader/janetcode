@@ -45,13 +45,15 @@ type entry struct {
 
 // transcript is the ordered list of things shown in the viewport.
 type transcript struct {
-	entries  []*entry
-	renderer *glamour.TermRenderer
-	rWidth   int
-	style    glamour.TermRendererOption
+	entries   []*entry
+	renderer  *glamour.TermRenderer
+	rWidth    int
+	styleName string // glamour standard style: "dark" or "light"
 }
 
-func newTranscript() *transcript { return &transcript{style: glamour.WithAutoStyle()} }
+func newTranscript() *transcript { return newTranscriptStyled("dark") }
+
+func newTranscriptStyled(style string) *transcript { return &transcript{styleName: style} }
 
 func (t *transcript) add(e *entry) *entry {
 	t.entries = append(t.entries, e)
@@ -96,10 +98,13 @@ func (t *transcript) apply(ev agent.Event) {
 			e.input.WriteString(ev.Text)
 		}
 	case agent.EvToolRun:
-		if e := t.findTool(ev.Call.ID); e != nil {
-			e.call = *ev.Call
-			e.running = true
+		e := t.findTool(ev.Call.ID)
+		if e == nil {
+			t.closeOpen()
+			e = t.add(&entry{kind: entryTool})
 		}
+		e.call = *ev.Call
+		e.running = true
 	case agent.EvToolResult:
 		e := t.findTool(ev.Call.ID)
 		if e == nil {
@@ -204,7 +209,7 @@ func (t *transcript) render(width int, resized bool, pending *permissionMsg) str
 		width = 20
 	}
 	if t.renderer == nil || t.rWidth != width {
-		r, err := glamour.NewTermRenderer(t.style, glamour.WithWordWrap(width-2))
+		r, err := glamour.NewTermRenderer(glamour.WithStandardStyle(t.styleName), glamour.WithWordWrap(width-2))
 		if err == nil {
 			t.renderer = r
 			t.rWidth = width
@@ -273,10 +278,15 @@ func (t *transcript) renderTool(e *entry, width int, pending *permissionMsg) str
 	}
 	if pending != nil && pending.call.ID == e.call.ID {
 		sb.WriteString("\n" + styleWarn.Render("  allow "+e.call.Name+"? [y]es · [a]lways · [n]o"))
-		if full := prettyInput(e.inputJSON()); full != "" {
+		if pending.call.Preview != "" {
+			sb.WriteString("\n" + renderPreview(pending.call.Preview, width, 40))
+		} else if full := prettyInput(e.inputJSON()); full != "" {
 			sb.WriteString("\n" + styleDim.Render(indent(clip(full, 30), "  ")))
 		}
 		return sb.String()
+	}
+	if e.done && !e.isError && e.call.Preview != "" && !e.denied {
+		sb.WriteString("\n" + renderPreview(e.call.Preview, width, 20))
 	}
 	if e.done && e.output != "" {
 		out := clip(strings.TrimRight(e.output, "\n"), 12)
@@ -287,6 +297,37 @@ func (t *transcript) renderTool(e *entry, width int, pending *permissionMsg) str
 		sb.WriteString("\n" + style.Render(indent(lipgloss.NewStyle().Width(width-4).Render(out), "  ")))
 	}
 	return sb.String()
+}
+
+// renderPreview colours a unified diff (or shows plain preview text).
+func renderPreview(preview string, width, maxLines int) string {
+	lines := strings.Split(strings.TrimRight(preview, "\n"), "\n")
+	var out []string
+	shown := 0
+	for _, l := range lines {
+		if strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ ") {
+			continue
+		}
+		if shown >= maxLines {
+			out = append(out, styleDim.Render(fmt.Sprintf("  … (%d more lines)", len(lines)-shown-2)))
+			break
+		}
+		shown++
+		if len(l) > width-4 {
+			l = l[:width-5] + "…"
+		}
+		switch {
+		case strings.HasPrefix(l, "+"):
+			out = append(out, "  "+styleOK.Render(l))
+		case strings.HasPrefix(l, "-"):
+			out = append(out, "  "+styleErr.Render(l))
+		case strings.HasPrefix(l, "@@"):
+			out = append(out, "  "+styleAccent.Render(l))
+		default:
+			out = append(out, "  "+styleDim.Render(l))
+		}
+	}
+	return strings.Join(out, "\n")
 }
 
 func (e *entry) inputJSON() string {
