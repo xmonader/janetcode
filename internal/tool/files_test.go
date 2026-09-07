@@ -56,7 +56,7 @@ func TestWriteAndEdit(t *testing.T) {
 	root := t.TempDir()
 	w := WriteFile{Root: root}
 	out, err := w.Run(context.Background(), raw(`{"path":"sub/dir/f.go","content":"package x\n\nfunc A() {}\nfunc B() {}\n"}`))
-	if err != nil || !strings.HasPrefix(out, "Created") {
+	if err != nil || out != "Created sub/dir/f.go (4 lines)" {
 		t.Fatalf("write: %v %q", err, out)
 	}
 	e := EditFile{Root: root}
@@ -69,8 +69,15 @@ func TestWriteAndEdit(t *testing.T) {
 	if _, err := e.Run(context.Background(), raw(`{"path":"sub/dir/f.go","old_string":"func ","new_string":"fn "}`)); err == nil || !strings.Contains(err.Error(), "2 times") {
 		t.Fatalf("expected ambiguity error, got %v", err)
 	}
-	if _, err := e.Run(context.Background(), raw(`{"path":"sub/dir/f.go","old_string":"func A","new_string":"func Alpha"}`)); err != nil {
-		t.Fatal(err)
+	prev, err := e.Preview(context.Background(), raw(`{"path":"sub/dir/f.go","old_string":"func A","new_string":"func Alpha"}`))
+	if err != nil || !strings.Contains(prev, "-func A() {}\n+func Alpha() {}\n") {
+		t.Fatalf("preview: %v\n%s", err, prev)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "sub/dir/f.go")); strings.Contains(string(got), "Alpha") {
+		t.Fatal("preview must not modify the file")
+	}
+	if out, err := e.Run(context.Background(), raw(`{"path":"sub/dir/f.go","old_string":"func A","new_string":"func Alpha"}`)); err != nil || out != "Edited sub/dir/f.go (1 replacement(s), +1 -1 lines)" {
+		t.Fatalf("edit: %v %q", err, out)
 	}
 	if _, err := e.Run(context.Background(), raw(`{"path":"sub/dir/f.go","old_string":"() {}","new_string":"() { return }","replace_all":true}`)); err != nil {
 		t.Fatal(err)
@@ -82,7 +89,13 @@ func TestWriteAndEdit(t *testing.T) {
 	}
 	// Overwrite preserves mode.
 	os.Chmod(filepath.Join(root, "sub/dir/f.go"), 0o755)
-	if out, err := w.Run(context.Background(), raw(`{"path":"sub/dir/f.go","content":"x"}`)); err != nil || !strings.HasPrefix(out, "Overwrote") {
+	if prev, err := w.Preview(context.Background(), raw(`{"path":"sub/dir/f.go","content":"x"}`)); err != nil || !strings.Contains(prev, "-package x\n") || !strings.Contains(prev, "+x\n") {
+		t.Fatalf("write preview: %v\n%s", err, prev)
+	}
+	if prev, err := w.Preview(context.Background(), raw(`{"path":"brand/new.txt","content":"a\nb\n"}`)); err != nil || prev != "--- brand/new.txt\n+++ brand/new.txt\n@@ -1,0 +1,2 @@\n+a\n+b\n" {
+		t.Fatalf("new file preview: %v\n%q", err, prev)
+	}
+	if out, err := w.Run(context.Background(), raw(`{"path":"sub/dir/f.go","content":"x"}`)); err != nil || out != "Overwrote sub/dir/f.go (+1 -4 lines)" {
 		t.Fatalf("overwrite: %v %q", err, out)
 	}
 	st, _ := os.Stat(filepath.Join(root, "sub/dir/f.go"))

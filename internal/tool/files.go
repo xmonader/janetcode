@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/diff"
 )
 
 // ReadFile reads a file with optional line window.
@@ -116,15 +118,55 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return "", err
 	}
-	existed := fileExists(p)
+	old, readErr := os.ReadFile(p)
+	existed := readErr == nil
 	if err := atomicWrite(p, []byte(in.Content)); err != nil {
 		return "", err
 	}
-	verb := "Created"
-	if existed {
-		verb = "Overwrote"
+	if !existed {
+		return fmt.Sprintf("Created %s (%d lines)", in.Path, countLines(in.Content)), nil
 	}
-	return fmt.Sprintf("%s %s (%d bytes)", verb, in.Path, len(in.Content)), nil
+	added, removed := diff.Stats(string(old), in.Content)
+	return fmt.Sprintf("Overwrote %s (+%d -%d lines)", in.Path, added, removed), nil
+}
+
+// Preview implements Previewer: a diff against the existing file, or the
+// head of a new file.
+func (t WriteFile) Preview(_ context.Context, input json.RawMessage) (string, error) {
+	var in struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	if err := decode(input, &in); err != nil {
+		return "", err
+	}
+	p, err := resolvePath(t.Root, in.Path)
+	if err != nil {
+		return "", err
+	}
+	old, err := os.ReadFile(p)
+	if err != nil {
+		return diff.Unified(in.Path, "", in.Content, 0), nil
+	}
+	if isBinary(old) {
+		return fmt.Sprintf("(replacing binary file %s, %d bytes)", in.Path, len(old)), nil
+	}
+	d := diff.Unified(in.Path, string(old), in.Content, 3)
+	if d == "" {
+		return "(no change: content is identical)", nil
+	}
+	return d, nil
+}
+
+func countLines(s string) int {
+	if s == "" {
+		return 0
+	}
+	n := strings.Count(s, "\n")
+	if !strings.HasSuffix(s, "\n") {
+		n++
+	}
+	return n
 }
 
 // atomicWrite writes via a temp file + rename so a crash mid-write never
@@ -178,7 +220,13 @@ func (EditFile) Schema() json.RawMessage {
 "required":["path","old_string","new_string"],"additionalProperties":false}`)
 }
 
-func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) {
+type editPlan struct {
+	path, display    string
+	before, after    string
+	replacements     int
+}
+
+func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 	var in struct {
 		Path       string `json:"path"`
 		Old        string `json:"old_string"`
@@ -186,29 +234,29 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 		ReplaceAll bool   `json:"replace_all"`
 	}
 	if err := decode(input, &in); err != nil {
-		return "", err
+		return nil, err
 	}
 	if in.Old == "" {
-		return "", fmt.Errorf("old_string must not be empty")
+		return nil, fmt.Errorf("old_string must not be empty")
 	}
 	if in.Old == in.New {
-		return "", fmt.Errorf("old_string and new_string are identical")
+		return nil, fmt.Errorf("old_string and new_string are identical")
 	}
 	p, err := resolvePath(t.Root, in.Path)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	data, err := os.ReadFile(p)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	content := string(data)
 	n := strings.Count(content, in.Old)
 	switch {
 	case n == 0:
-		return "", fmt.Errorf("old_string not found in %s", in.Path)
+		return nil, fmt.Errorf("old_string not found in %s", in.Path)
 	case n > 1 && !in.ReplaceAll:
-		return "", fmt.Errorf("old_string matches %d times in %s; make it unique or set replace_all", n, in.Path)
+		return nil, fmt.Errorf("old_string matches %d times in %s; make it unique or set replace_all", n, in.Path)
 	}
 	var updated string
 	if in.ReplaceAll {
@@ -216,10 +264,28 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	} else {
 		updated = strings.Replace(content, in.Old, in.New, 1)
 	}
-	if err := atomicWrite(p, []byte(updated)); err != nil {
+	return &editPlan{path: p, display: in.Path, before: content, after: updated, replacements: n}, nil
+}
+
+func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) {
+	pl, err := t.plan(input)
+	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Edited %s (%d replacement(s))", in.Path, n), nil
+	if err := atomicWrite(pl.path, []byte(pl.after)); err != nil {
+		return "", err
+	}
+	added, removed := diff.Stats(pl.before, pl.after)
+	return fmt.Sprintf("Edited %s (%d replacement(s), +%d -%d lines)", pl.display, pl.replacements, added, removed), nil
+}
+
+// Preview implements Previewer with a unified diff of the edit.
+func (t EditFile) Preview(_ context.Context, input json.RawMessage) (string, error) {
+	pl, err := t.plan(input)
+	if err != nil {
+		return "", err
+	}
+	return diff.Unified(pl.display, pl.before, pl.after, 3), nil
 }
 
 // ListDir lists a directory.

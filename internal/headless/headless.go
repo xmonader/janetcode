@@ -78,6 +78,9 @@ func (a *stdinApprover) Approve(ctx context.Context, call agent.ToolCall) (agent
 		fmt.Fprintf(a.out, "[permission] %s denied: stdin is not a terminal (use --yolo to auto-approve)\n", call.Name)
 		return agent.Deny, nil
 	}
+	if call.Preview != "" {
+		fmt.Fprintf(a.out, "\n%s\n", strings.TrimRight(call.Preview, "\n"))
+	}
 	fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways / [n]o: ", call.Name, oneLine(string(call.Input), 200))
 	type res struct {
 		s   string

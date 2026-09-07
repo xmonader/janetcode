@@ -121,3 +121,10 @@ func fileExists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
 }
+
+// Previewer is implemented by tools that can describe what Run would do
+// without doing it, for permission prompts. An empty string means there is
+// nothing useful to show beyond the input itself.
+type Previewer interface {
+	Preview(ctx context.Context, input json.RawMessage) (string, error)
+}

@@ -32,6 +32,9 @@ type ToolCall struct {
 	ID    string
 	Name  string
 	Input json.RawMessage
+	// Preview describes the effect of the call (a diff for edits). Set once
+	// the input is complete, before approval and execution.
+	Preview string
 }
 
 // Approver decides whether a mutating tool call may run. Implementations
@@ -191,6 +194,13 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 		msg := fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames())
 		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
 		return msg, true, nil
+	}
+	if pv, ok := t.(tool.Previewer); ok {
+		if p, err := pv.Preview(ctx, u.Input); err == nil {
+			call.Preview = p
+		} else {
+			call.Preview = "preview unavailable: " + err.Error()
+		}
 	}
 	if t.Mutating() && !a.AutoApprove && !a.allowed[u.Name] {
 		if a.Approver == nil {
