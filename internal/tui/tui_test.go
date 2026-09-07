@@ -268,6 +268,10 @@ func TestTailPath(t *testing.T) {
 	}
 }
 
+// raceEnabled is set by race_on_test.go; the race detector slows rendering
+// roughly tenfold, so timing bounds scale with it.
+var raceEnabled bool
+
 // TestStreamingLargeAnswerStaysResponsive feeds a 20 KB markdown answer as
 // hundreds of deltas and checks the UI loop keeps up.
 func TestStreamingLargeAnswerStaysResponsive(t *testing.T) {
@@ -289,7 +293,11 @@ func TestStreamingLargeAnswerStaysResponsive(t *testing.T) {
 	h.m.applyEvent(agent.Event{Kind: agent.EvTextBlockDone})
 	h.m.refresh(false)
 	elapsed := time.Since(start)
-	if elapsed > 8*time.Second {
+	limit := 8 * time.Second
+	if raceEnabled {
+		limit = 60 * time.Second
+	}
+	if elapsed > limit {
 		t.Fatalf("streaming %d bytes in %d steps took %s", len(full), renders, elapsed)
 	}
 	v := plain(h.m.View())
