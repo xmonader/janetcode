@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
@@ -21,6 +22,7 @@ const (
 	entryAssistant
 	entryThinking
 	entryTool
+	entryBanner
 )
 
 type entry struct {
@@ -36,11 +38,24 @@ type entry struct {
 	running bool
 	denied  bool
 	dur     string
+	started time.Time
 
 	// render cache
-	rendered string
-	width    int
-	final    bool // rendered from final content (markdown), safe to cache
+	rendered   string
+	width      int
+	final      bool // rendered from final content, safe to reuse
+	renderedAt time.Time
+	renderedN  int  // text length when rendered
+	verbose    bool // rendered with expanded tool output
+}
+
+// renderOpts carries per-frame state into rendering.
+type renderOpts struct {
+	width   int
+	resized bool
+	pending *permissionMsg
+	spinner string // current spinner frame for running tools
+	verbose bool   // expand tool output
 }
 
 // transcript is the ordered list of things shown in the viewport.
@@ -51,6 +66,9 @@ type transcript struct {
 	styleName string // glamour standard style: "dark" or "light"
 }
 
+// liveRenderInterval throttles markdown rendering of streaming text.
+const liveRenderInterval = 80 * time.Millisecond
+
 func newTranscript() *transcript { return newTranscriptStyled("dark") }
 
 func newTranscriptStyled(style string) *transcript { return &transcript{styleName: style} }
@@ -60,8 +78,9 @@ func (t *transcript) add(e *entry) *entry {
 	return e
 }
 
-func (t *transcript) info(s string) { t.add(&entry{kind: entryInfo, text: s}) }
-func (t *transcript) user(s string) { t.add(&entry{kind: entryUser, text: s}) }
+func (t *transcript) info(s string)   { t.add(&entry{kind: entryInfo, text: s}) }
+func (t *transcript) banner(s string) { t.add(&entry{kind: entryBanner, text: s}) }
+func (t *transcript) user(s string)   { t.add(&entry{kind: entryUser, text: s}) }
 func (t *transcript) errorf(f string, a ...any) {
 	t.add(&entry{kind: entryError, text: fmt.Sprintf(f, a...)})
 }
@@ -105,6 +124,7 @@ func (t *transcript) apply(ev agent.Event) {
 		}
 		e.call = *ev.Call
 		e.running = true
+		e.started = time.Now()
 	case agent.EvToolResult:
 		e := t.findTool(ev.Call.ID)
 		if e == nil {
@@ -116,7 +136,7 @@ func (t *transcript) apply(ev agent.Event) {
 		e.output = ev.Output
 		e.isError = ev.IsError
 		if ev.Duration > 0 {
-			e.dur = ev.Duration.Round(1e6).String()
+			e.dur = shortDuration(ev.Duration)
 		}
 	case agent.EvTextBlockDone:
 		t.closeOpen()
@@ -150,7 +170,7 @@ func (t *transcript) findTool(id string) *entry {
 }
 
 // closeOpen marks streaming text/thinking entries finished so the next delta
-// starts a new entry and the finished one gets rendered as markdown.
+// starts a new entry and the finished one gets rendered as final markdown.
 func (t *transcript) closeOpen() {
 	for i := len(t.entries) - 1; i >= 0; i-- {
 		e := t.entries[i]
@@ -169,6 +189,16 @@ func (t *transcript) closeOpen() {
 }
 
 func (t *transcript) finishTurn() { t.closeOpen() }
+
+// dropEmptyTrailing removes a streaming assistant entry that never got text
+// (e.g. a cancelled turn) so no blank block lingers.
+func (t *transcript) dropEmptyTrailing() {
+	if n := len(t.entries); n > 0 {
+		if e := t.entries[n-1]; e.kind == entryAssistant && strings.TrimSpace(e.text) == "" {
+			t.entries = t.entries[:n-1]
+		}
+	}
+}
 
 func (t *transcript) permissionAnswered(call agent.ToolCall, d agent.Decision) {
 	if e := t.findTool(call.ID); e != nil && d == agent.Deny {
@@ -207,7 +237,8 @@ func (t *transcript) loadHistory(msgs []llm.Message) {
 
 // --- rendering ---
 
-func (t *transcript) render(width int, resized bool, pending *permissionMsg) string {
+func (t *transcript) render(o renderOpts) string {
+	width := o.width
 	if width < 20 {
 		width = 20
 	}
@@ -218,15 +249,19 @@ func (t *transcript) render(width int, resized bool, pending *permissionMsg) str
 			t.rWidth = width
 		}
 	}
+	now := time.Now()
 	var sb strings.Builder
 	for i, e := range t.entries {
 		if i > 0 {
 			sb.WriteByte('\n')
 		}
-		if e.rendered == "" || e.width != width || !e.final || !e.done {
-			e.rendered = t.renderEntry(e, width, pending)
+		if t.needsRender(e, o, now) {
+			e.rendered = t.renderEntry(e, width, o)
 			e.width = width
 			e.final = e.done
+			e.renderedAt = now
+			e.renderedN = len(e.text)
+			e.verbose = o.verbose
 		}
 		sb.WriteString(e.rendered)
 		sb.WriteByte('\n')
@@ -234,31 +269,76 @@ func (t *transcript) render(width int, resized bool, pending *permissionMsg) str
 	return sb.String()
 }
 
-func (t *transcript) renderEntry(e *entry, width int, pending *permissionMsg) string {
+func (t *transcript) needsRender(e *entry, o renderOpts, now time.Time) bool {
+	if e.rendered == "" || e.width != o.width || e.verbose != o.verbose {
+		return true
+	}
+	if e.done && e.final {
+		return e.kind == entryTool && o.pending != nil && o.pending.call.ID == e.call.ID
+	}
+	switch e.kind {
+	case entryTool:
+		return true // running: spinner/elapsed changes each frame
+	case entryAssistant, entryThinking:
+		if e.done {
+			return true
+		}
+		// Streaming: re-render when text grew and the throttle allows.
+		return len(e.text) != e.renderedN && now.Sub(e.renderedAt) >= liveRenderInterval
+	}
+	return true
+}
+
+func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 	wrap := lipgloss.NewStyle().Width(width - 2)
 	switch e.kind {
+	case entryBanner:
+		return styleDim.Render(wrap.Render(e.text))
 	case entryInfo:
 		return styleDim.Render(wrap.Render(e.text))
 	case entryError:
 		return styleErr.Render(wrap.Render("✗ " + e.text))
 	case entryUser:
-		return styleUser.Render("you") + "\n" + styleUserBody.Render(wrap.Render(e.text))
+		body := lipgloss.NewStyle().Width(width - 4).Render(e.text)
+		return styleUser.Render("❯ ") + styleUserBody.Render(strings.ReplaceAll(body, "\n", "\n  "))
 	case entryThinking:
-		return styleDim.Italic(true).Render(wrap.Render(thinkingView(e.text, e.done)))
+		return styleFaint.Italic(true).Render(wrap.Render(thinkingView(e.text, e.done)))
 	case entryAssistant:
-		if e.done && t.renderer != nil {
-			if out, err := t.renderer.Render(e.text); err == nil {
-				return strings.TrimRight(out, "\n")
-			}
-		}
-		return wrap.Render(e.text)
+		return t.renderMarkdown(e.text, width, e.done)
 	case entryTool:
-		return t.renderTool(e, width, pending)
+		return t.renderTool(e, width, o)
 	}
 	return e.text
 }
 
-func (t *transcript) renderTool(e *entry, width int, pending *permissionMsg) string {
+// renderMarkdown renders through glamour; while streaming it renders the
+// text so far, which glamour handles gracefully for unfinished blocks.
+func (t *transcript) renderMarkdown(text string, width int, done bool) string {
+	if strings.TrimSpace(text) == "" {
+		if done {
+			return ""
+		}
+		return styleFaint.Render("▍")
+	}
+	if t.renderer != nil {
+		src := text
+		if !done {
+			// Close an unterminated code fence so the partial block still
+			// gets highlighted instead of swallowing the rest.
+			if strings.Count(src, "```")%2 == 1 {
+				src += "\n```"
+			}
+		}
+		if out, err := t.renderer.Render(src); err == nil {
+			out = strings.TrimRight(out, "\n")
+			// glamour indents by two spaces; keep a consistent left edge.
+			return out
+		}
+	}
+	return lipgloss.NewStyle().Width(width - 2).Render(text)
+}
+
+func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 	var sb strings.Builder
 	icon := styleTool.Render("⚙")
 	switch {
@@ -268,31 +348,47 @@ func (t *transcript) renderTool(e *entry, width int, pending *permissionMsg) str
 		icon = styleErr.Render("✗")
 	case e.done:
 		icon = styleOK.Render("✓")
+	case e.running && o.spinner != "":
+		icon = styleAccent.Render(o.spinner)
 	case e.running:
 		icon = styleAccent.Render("▶")
 	}
-	sb.WriteString(icon + " " + styleTool.Bold(true).Render(e.call.Name) + " " + styleDim.Render(summarizeInput(e.call.Name, e.inputJSON(), width-len(e.call.Name)-6)))
-	if e.dur != "" {
-		sb.WriteString(styleDim.Render(" " + e.dur))
-	}
-	if pending != nil && pending.call.ID == e.call.ID {
-		if pending.call.Warning != "" {
-			sb.WriteString("\n" + styleErr.Bold(true).Render("  ⚠ "+pending.call.Warning))
+	name := styleTool.Bold(true).Render(e.call.Name)
+	summary := summarizeInput(e.call.Name, e.inputJSON(), width-len(e.call.Name)-14)
+	sb.WriteString(icon + " " + name + " " + styleDim.Render(summary))
+	switch {
+	case e.dur != "":
+		sb.WriteString(styleFaint.Render(" " + e.dur))
+	case e.running && !e.started.IsZero():
+		if el := time.Since(e.started); el > time.Second {
+			sb.WriteString(styleFaint.Render(" " + shortDuration(el)))
 		}
-		sb.WriteString("\n" + styleWarn.Render("  allow "+e.call.Name+"? [y]es · [a]lways · [n]o"))
-		if pending.call.Preview != "" {
-			sb.WriteString("\n" + renderPreview(pending.call.Preview, width, 40))
-		} else if full := prettyInput(e.inputJSON()); full != "" {
+	}
+	if o.pending != nil && o.pending.call.ID == e.call.ID {
+		if o.pending.call.Preview != "" {
+			sb.WriteString("\n" + renderPreview(o.pending.call.Preview, width, 60))
+		} else if full := prettyInput(e.inputJSON()); full != "" && e.call.Name != "bash" {
 			sb.WriteString("\n" + styleDim.Render(indent(clip(full, 30), "  ")))
 		}
 		return sb.String()
 	}
 	if e.done && !e.isError && e.call.Preview != "" && !e.denied {
-		sb.WriteString("\n" + renderPreview(e.call.Preview, width, 20))
+		max := 12
+		if o.verbose {
+			max = 200
+		}
+		sb.WriteString("\n" + renderPreview(e.call.Preview, width, max))
 	}
 	if e.done && e.output != "" {
-		out := clip(strings.TrimRight(e.output, "\n"), 12)
-		style := styleDim
+		max := 4
+		if o.verbose {
+			max = 60
+		}
+		if e.isError {
+			max = 8
+		}
+		out := clip(strings.TrimRight(e.output, "\n"), max)
+		style := styleFaint
 		if e.isError {
 			style = styleErr
 		}
@@ -338,7 +434,7 @@ func renderPreview(preview string, width, maxLines int) string {
 			continue
 		}
 		if shown >= maxLines {
-			out = append(out, styleDim.Render(fmt.Sprintf("  … (%d more lines)", len(lines)-shown-2)))
+			out = append(out, styleFaint.Render(fmt.Sprintf("  … (%d more lines, ctrl+o to expand)", len(lines)-shown-2)))
 			break
 		}
 		shown++
@@ -347,9 +443,9 @@ func renderPreview(preview string, width, maxLines int) string {
 		}
 		switch {
 		case strings.HasPrefix(l, "+"):
-			out = append(out, "  "+styleOK.Render(l))
+			out = append(out, "  "+styleDiffAdd.Render(l))
 		case strings.HasPrefix(l, "-"):
-			out = append(out, "  "+styleErr.Render(l))
+			out = append(out, "  "+styleDiffDel.Render(l))
 		case strings.HasPrefix(l, "@@"):
 			out = append(out, "  "+styleAccent.Render(l))
 		default:
@@ -378,6 +474,11 @@ func summarizeInput(name, raw string, max int) string {
 			if k == "pattern" {
 				if p, ok := m["path"].(string); ok && p != "" {
 					extra = " in " + p
+				}
+			}
+			if k == "path" {
+				if off, ok := m["offset"].(float64); ok && off > 1 {
+					extra = fmt.Sprintf(" from line %d", int(off))
 				}
 			}
 			return truncateLine(v+extra, max)
@@ -414,9 +515,34 @@ func clip(s string, lines int) string {
 	if len(parts) <= lines {
 		return s
 	}
-	return strings.Join(parts[:lines], "\n") + fmt.Sprintf("\n… (%d more lines)", len(parts)-lines)
+	return strings.Join(parts[:lines], "\n") + fmt.Sprintf("\n… (%d more lines, ctrl+o to expand)", len(parts)-lines)
 }
 
 func indent(s, prefix string) string {
 	return prefix + strings.ReplaceAll(s, "\n", "\n"+prefix)
+}
+
+func shortDuration(d time.Duration) string {
+	switch {
+	case d < time.Millisecond:
+		return "<1ms"
+	case d < time.Second:
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	case d < time.Minute:
+		return fmt.Sprintf("%.1fs", d.Seconds())
+	default:
+		return d.Round(time.Second).String()
+	}
+}
+
+func shortTokens(n int) string {
+	switch {
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
+	case n >= 10_000:
+		return fmt.Sprintf("%dk", n/1000)
+	case n >= 1_000:
+		return fmt.Sprintf("%.1fk", float64(n)/1000)
+	}
+	return fmt.Sprint(n)
 }

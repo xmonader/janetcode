@@ -124,10 +124,17 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 		return "", err
 	}
 	if !existed {
-		return fmt.Sprintf("Created %s (%d lines)", in.Path, countLines(in.Content)), nil
+		return fmt.Sprintf("Created %s (%s)", in.Path, plural(countLines(in.Content), "line")), nil
 	}
 	added, removed := diff.Stats(string(old), in.Content)
 	return fmt.Sprintf("Overwrote %s (+%d -%d lines)", in.Path, added, removed), nil
+}
+
+func plural(n int, unit string) string {
+	if n == 1 {
+		return "1 " + unit
+	}
+	return fmt.Sprintf("%d %ss", n, unit)
 }
 
 // Preview implements Previewer: a diff against the existing file, or the
@@ -276,7 +283,7 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 		return "", err
 	}
 	added, removed := diff.Stats(pl.before, pl.after)
-	return fmt.Sprintf("Edited %s (%d replacement(s), +%d -%d lines)", pl.display, pl.replacements, added, removed), nil
+	return fmt.Sprintf("Edited %s (%s, +%d -%d lines)", pl.display, plural(pl.replacements, "replacement"), added, removed), nil
 }
 
 // Preview implements Previewer with a unified diff of the edit.

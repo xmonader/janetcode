@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 )
 
@@ -56,6 +59,7 @@ type permissionMsg struct {
 	call  agent.ToolCall
 	reply chan agent.Decision
 }
+type tickMsg time.Time
 
 // tuiApprover bridges agent permission requests into the UI loop.
 type tuiApprover struct{ send func(tea.Msg) }
@@ -69,6 +73,23 @@ func (a *tuiApprover) Approve(ctx context.Context, call agent.ToolCall) (agent.D
 	case <-ctx.Done():
 		return agent.Deny, ctx.Err()
 	}
+}
+
+// --- slash commands ---
+
+type command struct {
+	name, args, help string
+}
+
+var commands = []command{
+	{"/help", "", "keys and commands"},
+	{"/compact", "", "summarise the conversation to free context"},
+	{"/clear", "", "start a new session"},
+	{"/yolo", "", "toggle auto-approve for tools"},
+	{"/model", "<name>", "switch model on the same provider"},
+	{"/usage", "", "token usage for this session"},
+	{"/verbose", "", "toggle expanded tool output (ctrl+o)"},
+	{"/quit", "", "exit"},
 }
 
 // --- model ---
@@ -86,6 +107,7 @@ type model struct {
 
 	width, height int
 	ready         bool
+	verbose       bool
 
 	// history of submitted prompts for up/down recall.
 	history []string
@@ -94,21 +116,33 @@ type model struct {
 
 	running    bool
 	cancelling bool
+	compacting bool
 	cancel     context.CancelFunc
 	startedAt  time.Time
+	phase      string // what the agent is doing right now
 	pending    *permissionMsg
 	status     string
+	lastTurn   string // usage summary of the last turn
 	quitting   bool
+	branch     string
 }
+
+const (
+	minInputLines = 1
+	maxInputLines = 6
+)
 
 func newModel(opts Options) *model {
 	ta := textarea.New()
-	ta.Placeholder = "Ask janetcode anything. Enter to send, ctrl+j for a newline, /help for commands."
-	ta.Prompt = "> "
+	ta.Placeholder = "Ask for a change, a fix, or an explanation…  (/ for commands)"
+	ta.Prompt = ""
 	ta.ShowLineNumbers = false
 	ta.CharLimit = 0
-	ta.SetHeight(3)
+	ta.MaxHeight = maxInputLines
+	ta.SetHeight(minInputLines)
 	ta.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("ctrl+j", "alt+enter"))
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
+	ta.BlurredStyle.CursorLine = lipgloss.NewStyle()
 	ta.Focus()
 
 	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(styleAccent))
@@ -129,18 +163,43 @@ func newModel(opts Options) *model {
 		input:      ta,
 		spinner:    sp,
 	}
-	m.transcript.info(fmt.Sprintf("janetcode %s · %s/%s · %s", opts.Version, opts.Provider, opts.Agent.Model, opts.Cwd))
+	if b, ok := prompt.GitBranch(opts.Cwd); ok {
+		m.branch = b
+		if b == "" {
+			m.branch = "git"
+		}
+	}
+	m.transcript.banner(m.welcome())
 	if opts.Resumed > 0 {
-		m.transcript.info(fmt.Sprintf("resumed session %s (%d messages)", opts.Session.Meta.ID, opts.Resumed))
+		m.transcript.info(fmt.Sprintf("resumed session %s · %d messages", opts.Session.Meta.ID, opts.Resumed))
 		m.transcript.loadHistory(opts.Agent.Messages)
-	} else {
-		m.transcript.info("session " + opts.Session.Meta.ID + " · type /help for keys and commands")
 	}
 	return m
 }
 
+func (m *model) welcome() string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "janetcode %s · %s · %s\n", m.opts.Version, m.opts.Provider, m.opts.Agent.Model)
+	fmt.Fprintf(&sb, "working in %s", tailPath(shortPath(m.opts.Cwd), 70))
+	if m.branch != "" {
+		fmt.Fprintf(&sb, " on %s", m.branch)
+	}
+	sb.WriteString("\n")
+	if m.opts.Agent.AutoApprove {
+		sb.WriteString("auto-approve is ON: tools run without asking\n")
+	} else {
+		sb.WriteString("edits and commands ask first and show a diff · y allow · a always · n deny\n")
+	}
+	sb.WriteString("enter sends · ctrl+j newline · esc cancels · /help for more")
+	return sb.String()
+}
+
 func (m *model) Init() tea.Cmd {
-	return tea.Batch(textarea.Blink, m.spinner.Tick)
+	return tea.Batch(textarea.Blink, m.spinner.Tick, tick())
+}
+
+func tick() tea.Cmd {
+	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -170,29 +229,38 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport, cmd = m.viewport.Update(msg)
 		return m, cmd
 
+	case tickMsg:
+		// Keeps elapsed timers and throttled live markdown moving even when
+		// no event arrives.
+		if m.running {
+			m.refresh(false)
+		}
+		return m, tick()
+
 	case spinner.TickMsg:
 		if m.running {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			cmds = append(cmds, cmd)
+			m.refresh(false)
 		}
 
 	case agentEventMsg:
-		m.transcript.apply(msg.ev)
-		if msg.ev.Kind == agent.EvTurnDone {
-			m.status = usageLine(msg.ev)
-		}
+		m.applyEvent(msg.ev)
 		m.refresh(false)
 		return m, nil
 
 	case sessionSwapMsg:
 		m.opts.Session = msg.sess
 		m.transcript.info("continuing in session " + msg.sess.Meta.ID)
+		m.refresh(false)
 		return m, nil
 
 	case permissionMsg:
 		m.pending = &msg
+		m.phase = "waiting for your approval"
 		m.refresh(false)
+		m.viewport.GotoBottom()
 		return m, nil
 
 	case agentDoneMsg:
@@ -202,11 +270,44 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
+	before := m.input.LineCount()
 	m.input, cmd = m.input.Update(msg)
 	cmds = append(cmds, cmd)
+	if m.input.LineCount() != before {
+		m.layout()
+		m.refresh(false)
+	}
 	m.viewport, cmd = m.viewport.Update(msg)
 	cmds = append(cmds, cmd)
 	return m, tea.Batch(cmds...)
+}
+
+func (m *model) applyEvent(ev agent.Event) {
+	m.transcript.apply(ev)
+	switch ev.Kind {
+	case agent.EvThinking:
+		m.phase = "thinking"
+	case agent.EvText:
+		m.phase = "writing"
+	case agent.EvToolStart:
+		m.phase = "preparing " + ev.Call.Name
+	case agent.EvToolRun:
+		m.phase = "running " + ev.Call.Name
+	case agent.EvToolResult:
+		m.phase = "thinking"
+	case agent.EvCompacted:
+		m.phase = "thinking"
+	case agent.EvTurnDone:
+		u := ev.Usage
+		s := fmt.Sprintf("%s in · %s out", shortTokens(u.InputTokens+u.CacheReadTokens+u.CacheWriteTokens), shortTokens(u.OutputTokens))
+		if u.CacheReadTokens > 0 {
+			s += fmt.Sprintf(" · %s cached", shortTokens(u.CacheReadTokens))
+		}
+		if ev.StopReason != "" && ev.StopReason != "end_turn" {
+			s += " · stopped: " + string(ev.StopReason)
+		}
+		m.lastTurn = s
+	}
 }
 
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
@@ -222,6 +323,13 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		case "ctrl+c":
 			m.answer(agent.Deny)
 			m.cancelTurn()
+		case "ctrl+o":
+			m.verbose = !m.verbose
+			m.refresh(false)
+		case "pgup", "pgdown":
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			return cmd, true
 		}
 		return nil, true
 	}
@@ -235,11 +343,36 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		m.quitting = true
 		return tea.Quit, true
 	case "ctrl+d":
-		m.quitting = true
-		return tea.Quit, true
+		if m.input.Value() == "" {
+			m.quitting = true
+			return tea.Quit, true
+		}
 	case "esc":
 		if m.running {
 			m.cancelTurn()
+			return nil, true
+		}
+		if m.input.Value() != "" {
+			m.input.Reset()
+			m.layout()
+			m.refresh(false)
+			return nil, true
+		}
+	case "ctrl+o":
+		m.verbose = !m.verbose
+		if m.verbose {
+			m.status = "verbose tool output on"
+		} else {
+			m.status = "verbose tool output off"
+		}
+		m.refresh(false)
+		return nil, true
+	case "ctrl+l":
+		return tea.ClearScreen, true
+	case "tab":
+		if c := m.completions(); len(c) > 0 {
+			m.input.SetValue(c[0].name + " ")
+			m.input.CursorEnd()
 			return nil, true
 		}
 	case "up":
@@ -250,6 +383,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.histIdx--
 			m.input.SetValue(m.history[m.histIdx])
 			m.input.CursorEnd()
+			m.layout()
 			return nil, true
 		}
 	case "down":
@@ -261,6 +395,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 				m.input.SetValue(m.history[m.histIdx])
 			}
 			m.input.CursorEnd()
+			m.layout()
 			return nil, true
 		}
 	case "pgup", "pgdown", "ctrl+u", "ctrl+b", "ctrl+f":
@@ -273,10 +408,11 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		if m.running {
-			m.status = "still working; press esc to cancel"
+			m.status = "still working — esc to cancel"
 			return nil, true
 		}
 		m.input.Reset()
+		m.layout()
 		if n := len(m.history); n == 0 || m.history[n-1] != text {
 			m.history = append(m.history, text)
 		}
@@ -290,6 +426,21 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	return nil, false
 }
 
+// completions lists slash commands matching the current input.
+func (m *model) completions() []command {
+	v := m.input.Value()
+	if !strings.HasPrefix(v, "/") || strings.ContainsAny(v, " \n") {
+		return nil
+	}
+	var out []command
+	for _, c := range commands {
+		if strings.HasPrefix(c.name, v) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 func (m *model) answer(d agent.Decision) {
 	if m.pending == nil {
 		return
@@ -297,18 +448,18 @@ func (m *model) answer(d agent.Decision) {
 	m.pending.reply <- d
 	m.transcript.permissionAnswered(m.pending.call, d)
 	m.pending = nil
+	m.phase = "thinking"
 	m.refresh(false)
 }
 
 func (m *model) submit(text string) tea.Cmd {
 	m.transcript.user(text)
-	m.running = true
-	m.startedAt = time.Now()
-	m.status = ""
+	m.startTurn("thinking")
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	ag, sess, send := m.opts.Agent, m.opts.Session, m.send
 	m.refresh(false)
+	m.viewport.GotoBottom()
 	go func() {
 		err := ag.Run(ctx, text, func(e agent.Event) { send(agentEventMsg{ev: e}) })
 		ns, syncErr := sess.SyncOrRotate(ag.Messages)
@@ -320,15 +471,22 @@ func (m *model) submit(text string) tea.Cmd {
 	return m.spinner.Tick
 }
 
+func (m *model) startTurn(phase string) {
+	m.running = true
+	m.cancelling = false
+	m.startedAt = time.Now()
+	m.status = ""
+	m.phase = phase
+}
+
 // compact summarises the history in the background like a turn.
 func (m *model) compact() tea.Cmd {
-	m.running = true
-	m.startedAt = time.Now()
-	m.status = "compacting context..."
+	m.startTurn("compacting context")
+	m.compacting = true
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	ag, sess, send := m.opts.Agent, m.opts.Session, m.send
-	m.transcript.info(fmt.Sprintf("compacting ~%d tokens of context...", ag.EstimateTokens()))
+	m.transcript.info(fmt.Sprintf("compacting ~%s tokens of context…", shortTokens(ag.EstimateTokens())))
 	m.refresh(false)
 	go func() {
 		err := ag.Compact(ctx, func(e agent.Event) { send(agentEventMsg{ev: e}) })
@@ -354,33 +512,41 @@ func (m *model) cancelTurn() {
 		m.cancel()
 	}
 	m.cancelling = true
-	m.status = "cancelling... (ctrl+c again to force quit)"
+	m.phase = "cancelling"
+	m.status = "cancelling… (ctrl+c again to force quit)"
 }
 
 func (m *model) finishTurn(msg agentDoneMsg) {
 	m.running = false
 	m.cancelling = false
+	compacting := m.compacting
+	m.compacting = false
 	if m.cancel != nil {
 		m.cancel()
 		m.cancel = nil
 	}
 	m.pending = nil
-	elapsed := time.Since(m.startedAt).Round(100 * time.Millisecond)
+	m.phase = ""
+	elapsed := shortDuration(time.Since(m.startedAt))
+	m.transcript.finishTurn()
 	switch {
 	case errors.Is(msg.err, context.Canceled):
+		m.transcript.dropEmptyTrailing()
 		m.transcript.errorf("cancelled after %s", elapsed)
 		m.status = "cancelled"
 	case errors.Is(msg.err, agent.ErrMaxIterations):
-		m.transcript.errorf("stopped: too many tool iterations in one turn (%d). Send a message to continue.", m.opts.Agent.MaxIterations)
+		m.transcript.errorf("stopped after %d tool rounds in one turn. Send a message to continue.", m.opts.Agent.MaxIterations)
+		m.status = "stopped"
 	case msg.err != nil:
-		m.transcript.errorf("%v", msg.err)
+		m.transcript.dropEmptyTrailing()
+		m.transcript.errorf("%s", friendlyError(msg.err, m.opts.Provider))
 		m.status = "error"
+	case compacting:
+		m.status = "compacted in " + elapsed
 	default:
-		m.transcript.finishTurn()
-		if m.status == "" {
-			m.status = fmt.Sprintf("done in %s", elapsed)
-		} else {
-			m.status += fmt.Sprintf(" · %s", elapsed)
+		m.status = "done in " + elapsed
+		if m.lastTurn != "" {
+			m.status += " · " + m.lastTurn
 		}
 	}
 	if msg.syncErr != nil {
@@ -388,11 +554,34 @@ func (m *model) finishTurn(msg agentDoneMsg) {
 	}
 }
 
+// friendlyError turns provider failures into something actionable.
+func friendlyError(err error, provider string) string {
+	s := err.Error()
+	l := strings.ToLower(s)
+	switch {
+	case strings.Contains(l, "connection refused") || strings.Contains(l, "no such host") || strings.Contains(l, "dial tcp"):
+		hint := "check ANTHROPIC_BASE_URL and your network"
+		if provider == "openai" {
+			hint = "check OPENAI_BASE_URL and your network"
+		}
+		return "cannot reach the API: " + s + "\n  " + hint
+	case strings.Contains(l, "http 401") || strings.Contains(l, "authentication") || strings.Contains(l, "invalid x-api-key") || strings.Contains(l, "incorrect api key"):
+		return "authentication failed: " + s + "\n  check the API key for provider " + provider
+	case strings.Contains(l, "http 429") || strings.Contains(l, "rate limit") || strings.Contains(l, "quota"):
+		return "rate limited or out of quota: " + s + "\n  wait and resend, or switch model with /model"
+	case strings.Contains(l, "http 404") || strings.Contains(l, "model not found") || strings.Contains(l, "not_found"):
+		return "model not available: " + s + "\n  pick another with /model <name>"
+	case strings.Contains(l, "deadline exceeded") || strings.Contains(l, "timeout"):
+		return "the request timed out: " + s
+	}
+	return s
+}
+
 func (m *model) command(text string) tea.Cmd {
 	fields := strings.Fields(text)
 	switch fields[0] {
 	case "/help", "/?":
-		m.transcript.info(helpText)
+		m.transcript.info(helpText())
 	case "/quit", "/exit", "/q":
 		m.quitting = true
 		return tea.Quit
@@ -405,21 +594,25 @@ func (m *model) command(text string) tea.Cmd {
 		m.opts.Session = sess
 		m.opts.Agent.Messages = nil
 		m.transcript = newTranscriptStyled(m.transcript.styleName)
+		m.transcript.banner(m.welcome())
 		m.transcript.info("new session " + sess.Meta.ID)
 	case "/yolo":
 		m.opts.Agent.AutoApprove = !m.opts.Agent.AutoApprove
 		if m.opts.Agent.AutoApprove {
 			m.transcript.info("auto-approve ON: tools run without asking")
 		} else {
-			m.transcript.info("auto-approve OFF")
+			m.transcript.info("auto-approve OFF: edits and commands ask first")
 		}
+	case "/verbose":
+		m.verbose = !m.verbose
+		m.transcript.info(fmt.Sprintf("verbose tool output: %v", m.verbose))
 	case "/model":
 		if len(fields) < 2 {
-			m.transcript.info("model: " + m.opts.Agent.Model)
+			m.transcript.info("model: " + m.opts.Agent.Model + " (" + m.opts.Provider + ")")
 			break
 		}
 		m.opts.Agent.Model = fields[1]
-		m.transcript.info("model set to " + fields[1] + " (same provider)")
+		m.transcript.info("model set to " + fields[1] + " on " + m.opts.Provider)
 	case "/compact":
 		if m.running {
 			m.transcript.errorf("wait for the current turn to finish before compacting")
@@ -428,7 +621,8 @@ func (m *model) command(text string) tea.Cmd {
 		return m.compact()
 	case "/usage":
 		u := m.opts.Agent.Usage
-		m.transcript.info(fmt.Sprintf("session tokens: in %d · out %d · cache read %d · cache write %d", u.InputTokens, u.OutputTokens, u.CacheReadTokens, u.CacheWriteTokens))
+		m.transcript.info(fmt.Sprintf("session tokens · in %s · out %s · cache read %s · cache write %s · context now ~%s",
+			shortTokens(u.InputTokens), shortTokens(u.OutputTokens), shortTokens(u.CacheReadTokens), shortTokens(u.CacheWriteTokens), shortTokens(m.opts.Agent.EstimateTokens())))
 	default:
 		m.transcript.errorf("unknown command %s (try /help)", fields[0])
 	}
@@ -437,32 +631,61 @@ func (m *model) command(text string) tea.Cmd {
 }
 
 func dirOf(s *session.Session) string {
-	p := s.Path()
-	if i := strings.LastIndex(p, "/"); i >= 0 {
-		return p[:i]
-	}
-	return "."
+	return filepath.Dir(s.Path())
 }
 
-const helpText = `Keys
-  enter        send · ctrl+j / alt+enter  newline · up/down  recall earlier prompts
-  esc          cancel the running turn
-  pgup/pgdn    scroll transcript (mouse wheel works too)
-  ctrl+c       cancel (twice to force quit), or quit when idle · ctrl+d quit
-Permission prompt: y allow once · a allow this tool for the session · n deny
-Commands
-  /help /quit /clear (new session) /yolo (toggle auto-approve) /model <name>
-  /usage (tokens) /compact (summarise context to free the window)`
+func helpText() string {
+	var sb strings.Builder
+	sb.WriteString("keys\n")
+	sb.WriteString("  enter send · ctrl+j / alt+enter newline · up/down recall prompts · tab complete /command\n")
+	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, twice to force quit · ctrl+d quit\n")
+	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand tool output · ctrl+l redraw\n")
+	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · n deny\n")
+	sb.WriteString("commands\n")
+	for _, c := range commands {
+		fmt.Fprintf(&sb, "  %-10s %-7s %s\n", c.name, c.args, c.help)
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
 
 // --- layout & view ---
 
-const inputHeight = 3
+func (m *model) inputHeight() int {
+	n := m.input.LineCount()
+	if n < minInputLines {
+		n = minInputLines
+	}
+	if n > maxInputLines {
+		n = maxInputLines
+	}
+	return n
+}
+
+func (m *model) footerHeight() int {
+	if m.pending != nil {
+		return m.permissionBoxHeight()
+	}
+	h := m.inputHeight() + 2 // border
+	if c := m.completions(); len(c) > 0 {
+		h += min(len(c), 6)
+	}
+	return h
+}
+
+func (m *model) permissionBoxHeight() int {
+	lines := 2 // tool line + keys line
+	if m.pending != nil && m.pending.call.Warning != "" {
+		lines++
+	}
+	return lines + 2 // border
+}
 
 func (m *model) layout() {
 	if m.width == 0 {
 		return
 	}
-	vh := m.height - inputHeight - 3 // header, status, input border
+	m.input.SetHeight(m.inputHeight())
+	vh := m.height - 1 - 1 - m.footerHeight() // header, status
 	if vh < 3 {
 		vh = 3
 	}
@@ -474,7 +697,7 @@ func (m *model) layout() {
 		m.viewport.Width = m.width
 		m.viewport.Height = vh
 	}
-	m.input.SetWidth(m.width - 2)
+	m.input.SetWidth(m.width - 4)
 }
 
 // refresh re-renders the transcript into the viewport. When the viewport was
@@ -484,7 +707,13 @@ func (m *model) refresh(resized bool) {
 		return
 	}
 	atBottom := m.viewport.AtBottom()
-	m.viewport.SetContent(m.transcript.render(m.width, resized, m.pending))
+	m.viewport.SetContent(m.transcript.render(renderOpts{
+		width:   m.width,
+		resized: resized,
+		pending: m.pending,
+		spinner: m.spinner.View(),
+		verbose: m.verbose,
+	}))
 	if atBottom || resized {
 		m.viewport.GotoBottom()
 	}
@@ -492,55 +721,151 @@ func (m *model) refresh(resized bool) {
 
 func (m *model) View() string {
 	if !m.ready {
-		return "loading..."
+		return "loading…"
 	}
 	if m.quitting {
 		return ""
 	}
-	header := styleHeader.Width(m.width).Render(fmt.Sprintf(" janetcode · %s/%s · %s", m.opts.Provider, m.opts.Agent.Model, m.opts.Session.Meta.ID))
-	var status string
-	switch {
-	case m.pending != nil:
-		status = styleWarn.Render(" permission needed: y allow · a always · n deny")
-	case m.running:
-		status = " " + m.spinner.View() + " " + styleDim.Render(fmt.Sprintf("working %s · esc to cancel", time.Since(m.startedAt).Round(time.Second)))
-	default:
-		status = " " + styleDim.Render(m.status)
-	}
-	auto := ""
-	if m.opts.Agent.AutoApprove {
-		auto = styleWarn.Render(" [yolo]")
-	}
-	statusLine := lipgloss.NewStyle().Width(m.width).Render(status + auto)
 	return lipgloss.JoinVertical(lipgloss.Left,
-		header,
+		m.headerView(),
 		m.viewport.View(),
-		statusLine,
-		styleInputBorder.Width(m.width-2).Render(m.input.View()),
+		m.statusView(),
+		m.footerView(),
 	)
 }
 
-func usageLine(e agent.Event) string {
-	u := e.Usage
-	s := fmt.Sprintf("in %d · out %d", u.InputTokens, u.OutputTokens)
-	if u.CacheReadTokens > 0 {
-		s += fmt.Sprintf(" · cached %d", u.CacheReadTokens)
+func (m *model) headerView() string {
+	left := styleHeaderHi.Render(" ◆ janetcode ") + styleHeader.Render(m.opts.Provider+"/"+m.opts.Agent.Model)
+	suffix := ""
+	if m.branch != "" {
+		suffix = " ⎇ " + m.branch
 	}
-	if e.StopReason != "" && e.StopReason != "end_turn" {
-		s += " · stop: " + string(e.StopReason)
+	prefix := ""
+	if m.opts.Agent.AutoApprove {
+		prefix = "YOLO · "
 	}
-	return s
+	avail := m.width - lipgloss.Width(left) - lipgloss.Width(prefix) - lipgloss.Width(suffix) - 3
+	right := styleHeader.Render(prefix + tailPath(shortPath(m.opts.Cwd), avail) + suffix + " ")
+	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 1 {
+		gap = 1
+	}
+	line := left + styleHeader.Render(strings.Repeat(" ", gap)) + right
+	return styleHeader.Width(m.width).MaxHeight(1).Render(line)
 }
 
-var (
-	styleAccent      = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
-	styleDim         = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
-	styleWarn        = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	styleErr         = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
-	styleOK          = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
-	styleHeader      = lipgloss.NewStyle().Background(lipgloss.Color("236")).Foreground(lipgloss.Color("252")).Bold(true)
-	styleUser        = lipgloss.NewStyle().Foreground(lipgloss.Color("81")).Bold(true)
-	styleUserBody    = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	styleTool        = lipgloss.NewStyle().Foreground(lipgloss.Color("141"))
-	styleInputBorder = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(lipgloss.Color("240"))
-)
+// tailPath keeps the end of a path so it fits in max columns.
+func tailPath(p string, max int) string {
+	if max < 8 {
+		max = 8
+	}
+	if lipgloss.Width(p) <= max {
+		return p
+	}
+	r := []rune(p)
+	r = r[len(r)-(max-1):]
+	if i := strings.IndexRune(string(r), '/'); i >= 0 && i < len(r)-1 {
+		r = r[i:]
+	}
+	return "…" + string(r)
+}
+
+func (m *model) statusView() string {
+	var left string
+	switch {
+	case m.pending != nil:
+		left = styleWarn.Render("● approval needed")
+	case m.running:
+		el := shortDuration(time.Since(m.startedAt))
+		left = m.spinner.View() + " " + styleDim.Render(m.phase+" · "+el+" · esc to cancel")
+	case m.status != "":
+		left = styleDim.Render(m.status)
+	default:
+		left = styleFaint.Render("ready")
+	}
+	right := m.contextGauge()
+	if !m.viewport.AtBottom() {
+		right = styleWarn.Render("↓ pgdn for latest") + "  " + right
+	}
+	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 2
+	if gap < 1 {
+		gap = 1
+	}
+	return " " + left + strings.Repeat(" ", gap) + right + " "
+}
+
+// contextGauge shows how full the context window is relative to the
+// compaction threshold.
+func (m *model) contextGauge() string {
+	est := m.opts.Agent.EstimateTokens()
+	limit := m.opts.Agent.CompactThreshold()
+	if limit <= 0 {
+		return styleFaint.Render("ctx " + shortTokens(est))
+	}
+	pct := est * 100 / limit
+	if pct > 100 {
+		pct = 100
+	}
+	const cells = 10
+	filled := pct * cells / 100
+	bar := strings.Repeat("▰", filled) + strings.Repeat("▱", cells-filled)
+	style := styleFaint
+	switch {
+	case pct >= 85:
+		style = styleErr
+	case pct >= 60:
+		style = styleWarn
+	}
+	return style.Render(fmt.Sprintf("ctx %s %d%%", bar, pct))
+}
+
+func (m *model) footerView() string {
+	if m.pending != nil {
+		return m.permissionView()
+	}
+	var parts []string
+	if c := m.completions(); len(c) > 0 {
+		if len(c) > 6 {
+			c = c[:6]
+		}
+		for _, cmd := range c {
+			parts = append(parts, "  "+styleKey.Render(cmd.name)+" "+styleDim.Render(cmd.args)+"  "+styleFaint.Render(cmd.help))
+		}
+	}
+	box := styleInputBox
+	if !m.running {
+		box = styleInputHot
+	}
+	prompt := styleAccent.Render("❯ ")
+	if m.running {
+		prompt = styleFaint.Render("❯ ")
+	}
+	lines := strings.Split(m.input.View(), "\n")
+	for i := range lines {
+		if i == 0 {
+			lines[i] = prompt + lines[i]
+		} else {
+			lines[i] = "  " + lines[i]
+		}
+	}
+	parts = append(parts, box.Width(m.width-2).Render(strings.Join(lines, "\n")))
+	return strings.Join(parts, "\n")
+}
+
+func (m *model) permissionView() string {
+	c := m.pending.call
+	var sb strings.Builder
+	sb.WriteString(styleWarn.Bold(true).Render("allow ") + styleTool.Bold(true).Render(c.Name) + " " + styleDim.Render(summarizeInput(c.Name, string(c.Input), m.width-len(c.Name)-16)))
+	if c.Warning != "" {
+		sb.WriteString("\n" + styleErr.Bold(true).Render("⚠ "+c.Warning))
+	}
+	sb.WriteString("\n" + styleKey.Render("y") + styleDim.Render(" allow once   ") + styleKey.Render("a") + styleDim.Render(" always for "+c.Name+"   ") + styleKey.Render("n") + styleDim.Render(" deny   ") + styleFaint.Render("(diff shown above · ctrl+o expands)"))
+	return stylePermBox.Width(m.width - 2).Render(sb.String())
+}
+
+func shortPath(p string) string {
+	if home, err := os.UserHomeDir(); err == nil && home != "" && strings.HasPrefix(p, home) {
+		return "~" + strings.TrimPrefix(p, home)
+	}
+	return p
+}

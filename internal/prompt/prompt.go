@@ -47,16 +47,35 @@ func System(cwd string) string {
 }
 
 func gitInfo(cwd string) string {
-	if _, err := os.Stat(filepath.Join(cwd, ".git")); err != nil {
+	branch, ok := GitBranch(cwd)
+	switch {
+	case !ok:
 		return ""
+	case branch == "":
+		return "- Git repository: yes\n"
+	default:
+		return fmt.Sprintf("- Git repository: yes (branch %s)\n", branch)
+	}
+}
+
+// GitBranch reports the checked-out branch of the repository at cwd. ok is
+// false when cwd is not a git work tree; a detached HEAD yields a short hash.
+func GitBranch(cwd string) (branch string, ok bool) {
+	if _, err := os.Stat(filepath.Join(cwd, ".git")); err != nil {
+		return "", false
 	}
 	head, err := os.ReadFile(filepath.Join(cwd, ".git", "HEAD"))
 	if err != nil {
-		return "- Git repository: yes\n"
+		return "", true
 	}
 	ref := strings.TrimSpace(string(head))
-	ref = strings.TrimPrefix(ref, "ref: refs/heads/")
-	return fmt.Sprintf("- Git repository: yes (branch %s)\n", ref)
+	if strings.HasPrefix(ref, "ref: refs/heads/") {
+		return strings.TrimPrefix(ref, "ref: refs/heads/"), true
+	}
+	if len(ref) >= 7 {
+		return ref[:7], true
+	}
+	return ref, true
 }
 
 func projectInstructions(cwd string) (string, string) {

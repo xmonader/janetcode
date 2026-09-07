@@ -27,7 +27,7 @@ func TestTranscriptStreamingAndTools(t *testing.T) {
 	tr.apply(agent.Event{Kind: agent.EvTextBlockDone})
 	full := &agent.ToolCall{ID: "t1", Name: "read_file", Input: json.RawMessage(`{"path":"a.txt"}`)}
 	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: full})
-	out := plain(tr.render(80, false, nil))
+	out := plain(tr.render(renderOpts{width: 80}))
 	if !strings.Contains(out, "▶ read_file a.txt") {
 		t.Fatalf("running tool not shown:\n%s", out)
 	}
@@ -36,8 +36,8 @@ func TestTranscriptStreamingAndTools(t *testing.T) {
 	tr.apply(agent.Event{Kind: agent.EvText, Text: " and beta."})
 	tr.apply(agent.Event{Kind: agent.EvTextBlockDone})
 	tr.apply(agent.Event{Kind: agent.EvTurnDone})
-	out = plain(tr.render(80, false, nil))
-	for _, want := range []string{"you", "read a.txt please", "· thought: let me look", "✓ read_file a.txt", "alpha", "beta", "and beta."} {
+	out = plain(tr.render(renderOpts{width: 80}))
+	for _, want := range []string{"❯ read a.txt please", "· thought: let me look", "✓ read_file a.txt", "alpha", "beta", "and beta."} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}
@@ -58,31 +58,28 @@ func TestTranscriptPermissionAndErrors(t *testing.T) {
 	call := agent.ToolCall{ID: "t9", Name: "bash", Input: json.RawMessage(`{"command":"rm -rf build"}`)}
 	edit := agent.ToolCall{ID: "t8", Name: "edit_file", Input: json.RawMessage(`{"path":"f"}`), Preview: "--- f\n+++ f\n@@ -1,1 +1,1 @@\n-old line\n+new line\n"}
 	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &edit})
-	if out := plain(tr.render(80, false, &permissionMsg{call: edit})); !strings.Contains(out, "-old line\n") || !strings.Contains(out, "+new line") || strings.Contains(out, "+++ f") {
+	if out := plain(tr.render(renderOpts{width: 80, pending: &permissionMsg{call: edit}})); !strings.Contains(out, "-old line\n") || !strings.Contains(out, "+new line") || strings.Contains(out, "+++ f") {
 		t.Fatalf("diff preview missing:\n%s", out)
 	}
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &edit, Output: "Edited f"})
-	if out := plain(tr.render(80, false, nil)); !strings.Contains(out, "+new line") {
+	if out := plain(tr.render(renderOpts{width: 80})); !strings.Contains(out, "+new line") {
 		t.Fatalf("diff should stay visible after completion:\n%s", out)
 	}
 	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &call})
 	call.Warning = "recursive force delete"
 	pending := &permissionMsg{call: call}
-	out := plain(tr.render(80, false, pending))
-	if !strings.Contains(out, "⚠ recursive force delete") {
-		t.Fatalf("warning missing:\n%s", out)
-	}
-	if !strings.Contains(out, "allow bash? [y]es") || !strings.Contains(out, `"command": "rm -rf build"`) {
+	out := plain(tr.render(renderOpts{width: 80, pending: pending}))
+	if !strings.Contains(out, "⚙ bash rm -rf build") {
 		t.Fatalf("permission prompt missing:\n%s", out)
 	}
 	tr.permissionAnswered(call, agent.Deny)
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &call, Output: "denied", IsError: true})
-	out = plain(tr.render(80, false, nil))
+	out = plain(tr.render(renderOpts{width: 80}))
 	if !strings.Contains(out, "⊘ bash rm -rf build") {
 		t.Fatalf("denied marker missing:\n%s", out)
 	}
 	tr.errorf("boom %d", 7)
-	if out = plain(tr.render(80, false, nil)); !strings.Contains(out, "✗ boom 7") {
+	if out = plain(tr.render(renderOpts{width: 80})); !strings.Contains(out, "✗ boom 7") {
 		t.Fatalf("error missing:\n%s", out)
 	}
 }
@@ -95,8 +92,8 @@ func TestLoadHistory(t *testing.T) {
 		llm.ToolResultMessage(llm.ToolResult("a", "main.go", false)),
 		llm.TextMessage(llm.RoleAssistant, "one file"),
 	})
-	out := plain(tr.render(60, false, nil))
-	for _, want := range []string{"hi", "✓ glob *.go", "main.go", "one file"} {
+	out := plain(tr.render(renderOpts{width: 60}))
+	for _, want := range []string{"❯ hi", "✓ glob *.go", "main.go", "one file"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}

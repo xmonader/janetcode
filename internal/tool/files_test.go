@@ -76,7 +76,7 @@ func TestWriteAndEdit(t *testing.T) {
 	if got, _ := os.ReadFile(filepath.Join(root, "sub/dir/f.go")); strings.Contains(string(got), "Alpha") {
 		t.Fatal("preview must not modify the file")
 	}
-	if out, err := e.Run(context.Background(), raw(`{"path":"sub/dir/f.go","old_string":"func A","new_string":"func Alpha"}`)); err != nil || out != "Edited sub/dir/f.go (1 replacement(s), +1 -1 lines)" {
+	if out, err := e.Run(context.Background(), raw(`{"path":"sub/dir/f.go","old_string":"func A","new_string":"func Alpha"}`)); err != nil || out != "Edited sub/dir/f.go (1 replacement, +1 -1 lines)" {
 		t.Fatalf("edit: %v %q", err, out)
 	}
 	if _, err := e.Run(context.Background(), raw(`{"path":"sub/dir/f.go","old_string":"() {}","new_string":"() { return }","replace_all":true}`)); err != nil {

@@ -186,6 +186,18 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 	return ErrMaxIterations
 }
 
+// CompactThreshold is the effective token count at which compaction runs,
+// or 0 when disabled.
+func (a *Agent) CompactThreshold() int {
+	switch {
+	case a.CompactAt < 0:
+		return 0
+	case a.CompactAt == 0:
+		return DefaultCompactAt
+	}
+	return a.CompactAt
+}
+
 // MaxParallelTools bounds concurrent read-only tool execution.
 const MaxParallelTools = 8
 

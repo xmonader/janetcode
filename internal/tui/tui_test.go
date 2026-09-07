@@ -96,7 +96,7 @@ func TestSubmitAndStreamResponse(t *testing.T) {
 	}
 	h.pump(func() bool { return !h.m.running })
 	v := plain(h.m.View())
-	for _, want := range []string{"hi there", "hello back", "in 7 · out 2"} {
+	for _, want := range []string{"❯ hi there", "hello back", "7 in · 2 out"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("missing %q in view:\n%s", want, v)
 		}
@@ -108,7 +108,7 @@ func TestSubmitAndStreamResponse(t *testing.T) {
 	h.enter()
 	h.keys("/usage")
 	h.enter()
-	if v := plain(h.m.View()); !strings.Contains(v, "session tokens: in 7") {
+	if v := plain(h.m.View()); !strings.Contains(v, "session tokens · in 7") {
 		t.Fatalf("usage missing:\n%s", v)
 	}
 }
@@ -122,7 +122,7 @@ func TestPermissionPromptAllow(t *testing.T) {
 	h.enter()
 	h.pump(func() bool { return h.m.pending != nil })
 	v := plain(h.m.View())
-	if !strings.Contains(v, "allow write_file?") || !strings.Contains(v, "+x") || !strings.Contains(v, "permission needed") {
+	if !strings.Contains(v, "allow write_file") || !strings.Contains(v, "+x") || !strings.Contains(v, "approval needed") || !strings.Contains(v, "always for write_file") {
 		t.Fatalf("prompt not shown:\n%s", v)
 	}
 	// Typing while the prompt is up must not go into the textarea.
@@ -235,5 +235,31 @@ func TestInitialPromptIsSubmitted(t *testing.T) {
 	h.pump(func() bool { return !h.m.running })
 	if v := plain(h.m.View()); !strings.Contains(v, "explain") || !strings.Contains(v, "auto") {
 		t.Fatalf("view:\n%s", v)
+	}
+}
+
+func TestPermissionBoxShowsWarning(t *testing.T) {
+	h := newHarness(t)
+	h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "b1", Name: "bash", Input: json.RawMessage(`{"command":"rm -rf build"}`), Warning: "recursive force delete"}, reply: make(chan agent.Decision, 1)}
+	h.m.layout()
+	v := plain(h.m.View())
+	for _, want := range []string{"allow bash rm -rf build", "⚠ recursive force delete", "always for bash", "approval needed"} {
+		if !strings.Contains(v, want) {
+			t.Errorf("missing %q in view:\n%s", want, v)
+		}
+	}
+	h.keys("n")
+	if h.m.pending != nil {
+		t.Fatal("n should answer the prompt")
+	}
+}
+
+func TestTailPath(t *testing.T) {
+	if got := tailPath("/a/b", 20); got != "/a/b" {
+		t.Fatalf("short: %q", got)
+	}
+	got := tailPath("/very/long/path/to/some/project/dir", 16)
+	if len([]rune(got)) > 16 || !strings.HasPrefix(got, "…/") || !strings.HasSuffix(got, "/dir") {
+		t.Fatalf("long: %q", got)
 	}
 }
