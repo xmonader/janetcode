@@ -50,7 +50,8 @@ Flags:
 		fs.PrintDefaults()
 		fmt.Fprintf(fs.Output(), `
 Environment: ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL,
-             JANETCODE_PROVIDER, JANETCODE_MODEL, JANETCODE_EFFORT
+             JANETCODE_PROVIDER, JANETCODE_MODEL, JANETCODE_EFFORT, JANETCODE_THEME
+             JANETCODE_DEBUG=<file> appends a timestamped event log
 Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode/config.json)
 `)
 	}
@@ -147,6 +148,15 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		AutoApprove:   cfg.AutoApprove,
 		CompactAt:     cfg.CompactAt,
 		Messages:      history,
+	}
+
+	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+		if err != nil {
+			return fmt.Errorf("JANETCODE_DEBUG: %w", err)
+		}
+		defer f.Close()
+		ag.Debug = f
 	}
 
 	if *promptText != "" {

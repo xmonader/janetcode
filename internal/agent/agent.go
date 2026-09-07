@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -97,6 +98,8 @@ type Agent struct {
 	// compaction before a model call. Zero means DefaultCompactAt; negative
 	// disables it.
 	CompactAt int
+	// Debug, when set, receives a timestamped line per event and model call.
+	Debug io.Writer
 
 	// Messages is the conversation history. It is only ever appended to and
 	// always ends in a state a provider will accept.
@@ -118,7 +121,7 @@ var ErrMaxIterations = errors.New("agent: turn exceeded maximum tool iterations"
 // Run sends userText and drives the loop until the model ends its turn or
 // an error occurs. History stays consistent on every return path.
 func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) error {
-	emit = serialize(emit)
+	emit = serialize(a.traced(emit))
 	if a.Provider == nil {
 		return errors.New("agent: no provider")
 	}
@@ -276,13 +279,46 @@ func serialize(emit func(Event)) func(Event) {
 }
 
 func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, error) {
-	return a.Provider.Stream(ctx, llm.Request{
+	start := time.Now()
+	a.debugf("call start: %d messages, ~%d tokens", len(a.Messages), a.EstimateTokens())
+	resp, err := a.Provider.Stream(ctx, llm.Request{
 		Model:     a.Model,
 		System:    a.System,
 		Messages:  a.Messages,
 		Tools:     a.Tools.Defs(),
 		MaxTokens: a.MaxTokens,
 	}, func(e llm.Event) { forward(e, emit) })
+	if err != nil {
+		a.debugf("call failed after %s: %v", time.Since(start).Round(time.Millisecond), err)
+	} else {
+		a.debugf("call done in %s: stop=%s usage=%+v", time.Since(start).Round(time.Millisecond), resp.StopReason, resp.Usage)
+	}
+	return resp, err
+}
+
+func (a *Agent) debugf(format string, args ...any) {
+	if a.Debug == nil {
+		return
+	}
+	fmt.Fprintf(a.Debug, "%s "+format+"\n", append([]any{time.Now().Format("15:04:05.000")}, args...)...)
+}
+
+// traced wraps emit with debug logging of every event.
+func (a *Agent) traced(emit func(Event)) func(Event) {
+	if a.Debug == nil {
+		return emit
+	}
+	if emit == nil {
+		emit = func(Event) {}
+	}
+	return func(e Event) {
+		name := ""
+		if e.Call != nil {
+			name = " " + e.Call.Name
+		}
+		a.debugf("event %s%s len=%d", e.Kind, name, len(e.Text)+len(e.Output))
+		emit(e)
+	}
 }
 
 // appendUserText adds text as a new user message, or into the trailing user
