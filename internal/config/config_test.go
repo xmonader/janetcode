@@ -24,8 +24,27 @@ func TestDefaultsFromEnvOnly(t *testing.T) {
 	}
 }
 
+func TestProviderInferredFromKey(t *testing.T) {
+	cfg, err := load(filepath.Join(t.TempDir(), "missing.json"), env(map[string]string{"OPENAI_API_KEY": "k", "JANETCODE_MODEL": "m"}), Overrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Provider != "openai" || cfg.Model != "m" {
+		t.Fatalf("cfg = %+v", cfg)
+	}
+	// Both keys present: Anthropic stays the default.
+	cfg, err = load(filepath.Join(t.TempDir(), "missing.json"), env(map[string]string{"OPENAI_API_KEY": "k", "ANTHROPIC_API_KEY": "a"}), Overrides{})
+	if err != nil || cfg.Provider != "anthropic" {
+		t.Fatalf("cfg = %+v, err = %v", cfg, err)
+	}
+	// An explicit provider is never overridden by inference.
+	if _, err := load(filepath.Join(t.TempDir(), "missing.json"), env(map[string]string{"OPENAI_API_KEY": "k", "JANETCODE_PROVIDER": "anthropic"}), Overrides{}); err == nil || !strings.Contains(err.Error(), "no API key") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestMissingKeyErrors(t *testing.T) {
-	if _, err := load(filepath.Join(t.TempDir(), "x.json"), env(nil), Overrides{}); err == nil || !strings.Contains(err.Error(), "ANTHROPIC_API_KEY") {
+	if _, err := load(filepath.Join(t.TempDir(), "x.json"), env(nil), Overrides{}); err == nil || !strings.Contains(err.Error(), "ANTHROPIC_API_KEY") || !strings.Contains(err.Error(), "OPENAI_API_KEY") {
 		t.Fatalf("err = %v", err)
 	}
 	if _, err := load(filepath.Join(t.TempDir(), "x.json"), env(map[string]string{"OPENAI_API_KEY": "k"}), Overrides{Provider: "openai"}); err == nil || !strings.Contains(err.Error(), "needs a model") {

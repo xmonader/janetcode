@@ -113,9 +113,17 @@ func Load(ov Overrides) (*Config, error) {
 	return load(p, os.Getenv, ov)
 }
 
+// inferProvider picks a backend when none was configured: the one whose key
+// is present, Anthropic when both or neither are.
+func inferProvider(cfg *Config) string {
+	if cfg.Anthropic.APIKey == "" && cfg.OpenAI.APIKey != "" {
+		return "openai"
+	}
+	return DefaultProvider
+}
+
 func load(path string, getenv func(string) string, ov Overrides) (*Config, error) {
 	cfg := &Config{
-		Provider:      DefaultProvider,
 		Model:         "",
 		MaxTokens:     DefaultMaxTokens,
 		MaxIterations: DefaultMaxIter,
@@ -161,23 +169,24 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	}
 
 	cfg.Provider = strings.ToLower(strings.TrimSpace(cfg.Provider))
+	if cfg.Provider == "" {
+		cfg.Provider = inferProvider(cfg)
+	}
 	switch cfg.Provider {
 	case "anthropic":
 		if cfg.Model == "" {
 			cfg.Model = DefaultModel
 		}
 		if cfg.Anthropic.APIKey == "" {
-			return nil, fmt.Errorf("no Anthropic API key: set ANTHROPIC_API_KEY or anthropic.api_key in %s", path)
+			return nil, fmt.Errorf("no API key: set ANTHROPIC_API_KEY, or OPENAI_API_KEY with JANETCODE_MODEL for an OpenAI-compatible backend, or run janetcode --init and edit %s", path)
 		}
 	case "openai":
 		if cfg.Model == "" {
-			return nil, errors.New("openai provider needs a model: pass --model, set JANETCODE_MODEL, or set model in the config file")
+			return nil, errors.New("openai provider needs a model: pass --model, set JANETCODE_MODEL, or set model in the config file (for example JANETCODE_MODEL=deepseek/deepseek-v4-flash)")
 		}
 		if cfg.OpenAI.APIKey == "" {
 			return nil, fmt.Errorf("no OpenAI-compatible API key: set OPENAI_API_KEY or openai.api_key in %s", path)
 		}
-	case "":
-		return nil, errors.New("provider is empty")
 	default:
 		return nil, fmt.Errorf("unknown provider %q (want anthropic or openai)", cfg.Provider)
 	}
