@@ -57,3 +57,17 @@ func TestBashContextCancel(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestBashHidesAgentCredentials(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "sk-secret")
+	t.Setenv("OPENAI_API_KEY", "sk-secret2")
+	t.Setenv("GITHUB_TOKEN", "gh-keep")
+	b := Bash{Root: t.TempDir()}
+	out, err := b.Run(context.Background(), raw(`{"command":"echo A=$ANTHROPIC_API_KEY O=$OPENAI_API_KEY G=$GITHUB_TOKEN"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "A= O= G=gh-keep\n" {
+		t.Fatalf("got %q", out)
+	}
+}

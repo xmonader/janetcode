@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -62,6 +63,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 
 	cmd := exec.CommandContext(ctx, "bash", "-c", in.Command)
 	cmd.Dir = t.Root
+	cmd.Env = scrubEnv(os.Environ())
 	setProcessGroup(cmd)
 	cmd.WaitDelay = 2 * time.Second
 	var out bytes.Buffer
@@ -95,4 +97,24 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		result += fmt.Sprintf("\n[exit code %d]", exit)
 	}
 	return Truncate(result), nil
+}
+
+// secretEnv lists variables that model-run commands must never see: the
+// agent's own credentials. Anything else the user exported stays available.
+var secretEnv = map[string]bool{
+	"ANTHROPIC_API_KEY":    true,
+	"ANTHROPIC_AUTH_TOKEN": true,
+	"OPENAI_API_KEY":       true,
+}
+
+func scrubEnv(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		if secretEnv[name] {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
 }
