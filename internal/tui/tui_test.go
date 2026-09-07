@@ -170,3 +170,33 @@ func (b *blocking) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	<-ctx.Done()
 	return nil, ctx.Err()
 }
+
+func TestPromptHistoryRecall(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "a"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "b"), StopReason: llm.StopEndTurn},
+	)
+	h.keys("first prompt")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	h.keys("second prompt")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	h.keys("dra")
+	up := tea.KeyMsg{Type: tea.KeyUp}
+	down := tea.KeyMsg{Type: tea.KeyDown}
+	h.update(up)
+	if h.m.input.Value() != "second prompt" {
+		t.Fatalf("after up: %q", h.m.input.Value())
+	}
+	h.update(up)
+	if h.m.input.Value() != "first prompt" {
+		t.Fatalf("after up up: %q", h.m.input.Value())
+	}
+	h.update(up) // at the oldest entry; stays
+	h.update(down)
+	h.update(down)
+	if h.m.input.Value() != "dra" {
+		t.Fatalf("draft not restored: %q", h.m.input.Value())
+	}
+}

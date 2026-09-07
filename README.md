@@ -1,0 +1,152 @@
+# janetcode
+
+A terminal coding agent in a single Go binary. It reads and edits code, runs
+commands, and iterates on the result, with every mutating action shown to you
+as a diff before it happens. Works with Anthropic's Messages API and any
+OpenAI-compatible endpoint (OpenAI, xAI, Qwen, DeepSeek, OpenRouter, vLLM,
+Ollama).
+
+## Install
+
+```sh
+git clone https://github.com/xmonader/janetcode
+cd janetcode
+make install        # puts janetcode on your $GOPATH/bin
+```
+
+Requires Go 1.25+.
+
+## Quick start
+
+```sh
+export ANTHROPIC_API_KEY=sk-ant-...
+cd your/project
+janetcode
+```
+
+Or with an OpenAI-compatible backend:
+
+```sh
+export OPENAI_API_KEY=...
+export OPENAI_BASE_URL=https://api.deepseek.com/v1   # optional, defaults to OpenAI
+janetcode --provider openai --model deepseek-chat
+```
+
+One-shot, scriptable mode:
+
+```sh
+janetcode -p "add a --verbose flag to cmd/server" --yolo
+```
+
+Assistant text goes to stdout, tool activity to stderr. Without `--yolo`,
+mutating tools prompt on the terminal, or are denied when stdin is not a TTY.
+
+## What it can do
+
+| Tool | Purpose | Asks permission |
+|------|---------|-----------------|
+| `read_file` | Read a file with line numbers, windowed | no |
+| `list_dir` | List a directory | no |
+| `glob` | Find files by pattern (`**/*.go`) | no |
+| `grep` | Search file contents with a regex | no |
+| `edit_file` | Replace an exact string in a file | yes, shows a diff |
+| `write_file` | Create or overwrite a file | yes, shows a diff |
+| `bash` | Run a shell command with a timeout | yes |
+
+All paths are confined to the working directory, symlinks included.
+Read-only tools run concurrently; mutating tools run one at a time, in order.
+
+## Keys and commands
+
+```
+enter            send        ctrl+j / alt+enter   newline
+up / down        recall earlier prompts
+esc              cancel the running turn
+pgup / pgdn      scroll (mouse wheel works)
+ctrl+c           cancel, or quit when idle
+```
+
+At a permission prompt: `y` allow once, `a` allow that tool for the session,
+`n` deny.
+
+```
+/help      /quit      /clear (new session)     /yolo (toggle auto-approve)
+/model X   /usage     /compact (summarise the context to free the window)
+```
+
+## Configuration
+
+Precedence: command-line flags > environment > config file.
+
+```sh
+janetcode --init     # writes ~/.config/janetcode/config.json
+```
+
+```json
+{
+  "provider": "anthropic",
+  "model": "claude-opus-5",
+  "max_tokens": 16000,
+  "effort": "high",
+  "auto_approve": false,
+  "max_iterations": 50,
+  "compact_at": 150000,
+  "theme": "auto",
+  "anthropic": { "api_key": "", "base_url": "" },
+  "openai":    { "api_key": "", "base_url": "https://api.openai.com/v1" }
+}
+```
+
+Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `OPENAI_API_KEY`,
+`OPENAI_BASE_URL`, `JANETCODE_PROVIDER`, `JANETCODE_MODEL`, `JANETCODE_EFFORT`,
+`JANETCODE_THEME`.
+
+`effort` (Anthropic only) is `low`, `medium`, `high`, `xhigh` or `max`.
+Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
+`"thinking": false` to override.
+
+### Project instructions
+
+If the working directory contains `JANETCODE.md`, `AGENTS.md` or `CLAUDE.md`
+(first found wins), its contents are added to the system prompt.
+
+## Sessions
+
+Every conversation is saved as append-only JSONL under
+`~/.local/share/janetcode/sessions/`.
+
+```sh
+janetcode --sessions        # list sessions for this directory
+janetcode --continue        # resume the newest one
+janetcode --resume <id>
+```
+
+When the context grows past `compact_at` tokens, or the model reports the
+prompt is too long, the history is summarised into a handoff note and the
+conversation continues in a new session file. `/compact` does this on demand.
+
+## Development
+
+```sh
+make build     # bin/janetcode
+make test
+make race
+make lint
+```
+
+Layout:
+
+```
+cmd/janetcode         flags and wiring
+internal/llm          provider-neutral messages, tools, streaming events
+internal/llm/anthropic  Messages API via the official SDK
+internal/llm/openai   chat-completions client (hand-rolled, dialect-tolerant)
+internal/tool         tool interface, registry, and the built-in tools
+internal/agent        the model/tool loop, permissions, compaction
+internal/session      JSONL persistence
+internal/tui          bubbletea interface
+internal/headless     one-shot runner
+internal/diff         unified diffs for previews
+```
+
+All tests run against fake servers; no network or API key is needed.
