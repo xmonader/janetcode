@@ -1,0 +1,436 @@
+// Package openai implements llm.Provider over the OpenAI chat-completions
+// wire format, which OpenAI, xAI, Qwen, DeepSeek, OpenRouter, vLLM and Ollama
+// all speak. The client is hand-rolled so it stays tolerant of the small
+// dialect differences between those servers.
+package openai
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/xmonader/janetcode/internal/llm"
+)
+
+// Config configures the provider.
+type Config struct {
+	// BaseURL is the API root, e.g. https://api.openai.com/v1.
+	BaseURL string
+	APIKey  string
+	// Name is the label shown to users (default "openai").
+	Name string
+	// HTTPClient overrides the default client (tests).
+	HTTPClient *http.Client
+	// MaxRetries for connection errors, 429 and 5xx before any bytes are
+	// streamed. Default 2.
+	MaxRetries int
+}
+
+// Provider is an OpenAI-compatible chat backend.
+type Provider struct {
+	cfg  Config
+	http *http.Client
+}
+
+// New validates cfg and builds a provider.
+func New(cfg Config) (*Provider, error) {
+	if cfg.APIKey == "" {
+		return nil, llm.ErrNoAPIKey
+	}
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = "https://api.openai.com/v1"
+	}
+	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
+	if cfg.Name == "" {
+		cfg.Name = "openai"
+	}
+	if cfg.MaxRetries == 0 {
+		cfg.MaxRetries = 2
+	}
+	hc := cfg.HTTPClient
+	if hc == nil {
+		hc = &http.Client{Timeout: 10 * time.Minute}
+	}
+	return &Provider{cfg: cfg, http: hc}, nil
+}
+
+func (p *Provider) Name() string { return p.cfg.Name }
+
+// --- wire types ---
+
+type wireMessage struct {
+	Role       string         `json:"role"`
+	Content    string         `json:"content"`
+	ToolCalls  []wireToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string         `json:"tool_call_id,omitempty"`
+}
+
+type wireToolCall struct {
+	Index    int    `json:"index,omitempty"`
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	} `json:"function"`
+}
+
+type wireTool struct {
+	Type     string `json:"type"`
+	Function struct {
+		Name        string          `json:"name"`
+		Description string          `json:"description"`
+		Parameters  json.RawMessage `json:"parameters"`
+	} `json:"function"`
+}
+
+type wireRequest struct {
+	Model         string        `json:"model"`
+	Messages      []wireMessage `json:"messages"`
+	Tools         []wireTool    `json:"tools,omitempty"`
+	MaxTokens     int           `json:"max_tokens,omitempty"`
+	Stream        bool          `json:"stream"`
+	StreamOptions *struct {
+		IncludeUsage bool `json:"include_usage"`
+	} `json:"stream_options,omitempty"`
+}
+
+type wireChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content"`
+			Reasoning        string `json:"reasoning"`
+			ToolCalls        []struct {
+				Index    *int   `json:"index"`
+				ID       string `json:"id"`
+				Function struct {
+					Name      string `json:"name"`
+					Arguments string `json:"arguments"`
+				} `json:"function"`
+			} `json:"tool_calls"`
+		} `json:"delta"`
+		FinishReason *string `json:"finish_reason"`
+	} `json:"choices"`
+	Usage *struct {
+		PromptTokens        int `json:"prompt_tokens"`
+		CompletionTokens    int `json:"completion_tokens"`
+		PromptTokensDetails *struct {
+			CachedTokens int `json:"cached_tokens"`
+		} `json:"prompt_tokens_details"`
+	} `json:"usage"`
+	Error *wireError `json:"error"`
+}
+
+type wireError struct {
+	Message string `json:"message"`
+	Type    string `json:"type"`
+	Code    any    `json:"code"`
+}
+
+// APIError is a non-2xx response from the server.
+type APIError struct {
+	Status  int
+	Message string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("%s (HTTP %d)", e.Message, e.Status)
+}
+
+// --- request building ---
+
+func buildRequest(req llm.Request) (wireRequest, error) {
+	if err := req.Validate(); err != nil {
+		return wireRequest{}, err
+	}
+	w := wireRequest{Model: req.Model, MaxTokens: req.MaxTokens, Stream: true}
+	w.StreamOptions = &struct {
+		IncludeUsage bool `json:"include_usage"`
+	}{true}
+	if req.System != "" {
+		w.Messages = append(w.Messages, wireMessage{Role: "system", Content: req.System})
+	}
+	for _, m := range req.Messages {
+		switch m.Role {
+		case llm.RoleUser:
+			// Tool results and plain text can both sit in a user turn; emit
+			// tool results as "tool" messages and text as a "user" message.
+			var text strings.Builder
+			for _, b := range m.Blocks {
+				switch b.Type {
+				case llm.BlockToolResult:
+					content := b.Text
+					if b.IsError {
+						content = "Error: " + content
+					}
+					w.Messages = append(w.Messages, wireMessage{Role: "tool", ToolCallID: b.ToolUseID, Content: content})
+				case llm.BlockText:
+					text.WriteString(b.Text)
+				}
+			}
+			if text.Len() > 0 {
+				w.Messages = append(w.Messages, wireMessage{Role: "user", Content: text.String()})
+			}
+		case llm.RoleAssistant:
+			am := wireMessage{Role: "assistant"}
+			var text strings.Builder
+			for _, b := range m.Blocks {
+				switch b.Type {
+				case llm.BlockText:
+					text.WriteString(b.Text)
+				case llm.BlockToolUse:
+					tc := wireToolCall{ID: b.ID, Type: "function"}
+					tc.Function.Name = b.Name
+					tc.Function.Arguments = string(b.Input)
+					if tc.Function.Arguments == "" {
+						tc.Function.Arguments = "{}"
+					}
+					am.ToolCalls = append(am.ToolCalls, tc)
+				}
+			}
+			am.Content = text.String()
+			w.Messages = append(w.Messages, am)
+		default:
+			return wireRequest{}, fmt.Errorf("openai: unsupported role %q", m.Role)
+		}
+	}
+	for _, t := range req.Tools {
+		var wt wireTool
+		wt.Type = "function"
+		wt.Function.Name = t.Name
+		wt.Function.Description = t.Description
+		wt.Function.Parameters = t.InputSchema
+		if len(wt.Function.Parameters) == 0 {
+			wt.Function.Parameters = json.RawMessage(`{"type":"object","properties":{}}`)
+		}
+		w.Tools = append(w.Tools, wt)
+	}
+	return w, nil
+}
+
+// --- streaming ---
+
+// Stream implements llm.Provider.
+func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	if emit == nil {
+		emit = func(llm.Event) {}
+	}
+	w, err := buildRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	body, err := json.Marshal(w)
+	if err != nil {
+		return nil, err
+	}
+	var resp *http.Response
+	for attempt := 0; ; attempt++ {
+		resp, err = p.do(ctx, body)
+		if err == nil {
+			break
+		}
+		if attempt >= p.cfg.MaxRetries || !retryable(err) || ctx.Err() != nil {
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Duration(500*(1<<attempt)) * time.Millisecond):
+		}
+	}
+	defer resp.Body.Close()
+	return readStream(resp.Body, emit)
+}
+
+func (p *Provider) do(ctx context.Context, body []byte) (*http.Response, error) {
+	hreq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.cfg.BaseURL+"/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	hreq.Header.Set("Content-Type", "application/json")
+	hreq.Header.Set("Accept", "text/event-stream")
+	hreq.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
+	resp, err := p.http.Do(hreq)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode/100 != 2 {
+		defer resp.Body.Close()
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		msg := strings.TrimSpace(string(raw))
+		var env struct {
+			Error *wireError `json:"error"`
+		}
+		if json.Unmarshal(raw, &env) == nil && env.Error != nil && env.Error.Message != "" {
+			msg = env.Error.Message
+		}
+		if msg == "" {
+			msg = http.StatusText(resp.StatusCode)
+		}
+		return nil, &APIError{Status: resp.StatusCode, Message: msg}
+	}
+	return resp, nil
+}
+
+func retryable(err error) bool {
+	var ae *APIError
+	if errors.As(err, &ae) {
+		return ae.Status == 429 || ae.Status == 408 || ae.Status >= 500
+	}
+	// Connection-level failures.
+	return !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)
+}
+
+// toolAcc accumulates a streamed tool call.
+type toolAcc struct {
+	id, name string
+	args     strings.Builder
+	started  bool
+}
+
+func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
+	var (
+		text     strings.Builder
+		thinking strings.Builder
+		tools    = map[int]*toolAcc{}
+		order    []int
+		finish   string
+		usage    llm.Usage
+		gotDone  bool
+		gotChunk bool
+	)
+	// Blocks are emitted in the order: thinking, text, tool calls, matching how
+	// the model produced them well enough for history replay.
+	for sc.Scan() {
+		line := sc.Text()
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "[DONE]" {
+			gotDone = true
+			break
+		}
+		var ch wireChunk
+		if err := json.Unmarshal([]byte(data), &ch); err != nil {
+			return nil, fmt.Errorf("openai: bad stream chunk: %w", err)
+		}
+		if ch.Error != nil {
+			return nil, &APIError{Status: 200, Message: ch.Error.Message}
+		}
+		gotChunk = true
+		if ch.Usage != nil {
+			usage.InputTokens = ch.Usage.PromptTokens
+			usage.OutputTokens = ch.Usage.CompletionTokens
+			if ch.Usage.PromptTokensDetails != nil {
+				usage.CacheReadTokens = ch.Usage.PromptTokensDetails.CachedTokens
+			}
+		}
+		for _, c := range ch.Choices {
+			if c.FinishReason != nil && *c.FinishReason != "" {
+				finish = *c.FinishReason
+			}
+			d := c.Delta
+			if d.ReasoningContent != "" || d.Reasoning != "" {
+				rc := d.ReasoningContent + d.Reasoning
+				thinking.WriteString(rc)
+				emit(llm.Event{Type: llm.EventThinkingDelta, Text: rc})
+			}
+			if d.Content != "" {
+				text.WriteString(d.Content)
+				emit(llm.Event{Type: llm.EventTextDelta, Text: d.Content})
+			}
+			for i, tc := range d.ToolCalls {
+				idx := i
+				if tc.Index != nil {
+					idx = *tc.Index
+				}
+				acc, ok := tools[idx]
+				if !ok {
+					acc = &toolAcc{}
+					tools[idx] = acc
+					order = append(order, idx)
+				}
+				if tc.ID != "" {
+					acc.id = tc.ID
+				}
+				if tc.Function.Name != "" {
+					acc.name += tc.Function.Name
+				}
+				if !acc.started && acc.name != "" {
+					acc.started = true
+					if acc.id == "" {
+						acc.id = fmt.Sprintf("call_%d_%d", time.Now().UnixNano(), idx)
+					}
+					emit(llm.Event{Type: llm.EventToolUseStart, Block: &llm.Block{Type: llm.BlockToolUse, ID: acc.id, Name: acc.name}})
+				}
+				if tc.Function.Arguments != "" {
+					acc.args.WriteString(tc.Function.Arguments)
+					emit(llm.Event{Type: llm.EventToolUseDelta, Text: tc.Function.Arguments})
+				}
+			}
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("openai: stream read: %w", err)
+	}
+	if !gotChunk {
+		return nil, errors.New("openai: empty stream from server")
+	}
+	if !gotDone && finish == "" {
+		return nil, errors.New("openai: stream ended without finish_reason")
+	}
+
+	msg := llm.Message{Role: llm.RoleAssistant}
+	if thinking.Len() > 0 {
+		msg.Blocks = append(msg.Blocks, llm.Block{Type: llm.BlockThinking, Text: thinking.String()})
+	}
+	if text.Len() > 0 {
+		msg.Blocks = append(msg.Blocks, llm.Block{Type: llm.BlockText, Text: text.String()})
+	}
+	sort.Ints(order)
+	for _, idx := range order {
+		acc := tools[idx]
+		args := strings.TrimSpace(acc.args.String())
+		if args == "" {
+			args = "{}"
+		}
+		if !json.Valid([]byte(args)) {
+			return nil, fmt.Errorf("openai: tool call %s has invalid JSON arguments: %.200s", acc.name, args)
+		}
+		b := llm.Block{Type: llm.BlockToolUse, ID: acc.id, Name: acc.name, Input: json.RawMessage(args)}
+		if !acc.started {
+			emit(llm.Event{Type: llm.EventToolUseStart, Block: &b})
+		}
+		emit(llm.Event{Type: llm.EventToolUseEnd, Block: &b})
+		msg.Blocks = append(msg.Blocks, b)
+	}
+	if len(msg.Blocks) == 0 {
+		msg.Blocks = []llm.Block{{Type: llm.BlockText, Text: ""}}
+	}
+	stop := llm.StopEndTurn
+	switch {
+	case len(order) > 0:
+		stop = llm.StopToolUse
+	case finish == "length":
+		stop = llm.StopMaxTokens
+	case finish == "content_filter":
+		stop = llm.StopRefusal
+	case finish == "stop", finish == "":
+		stop = llm.StopEndTurn
+	default:
+		stop = llm.StopOther
+	}
+	return &llm.Response{Message: msg, StopReason: stop, Usage: usage}, nil
+}
