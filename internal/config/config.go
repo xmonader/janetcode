@@ -26,6 +26,11 @@ type Config struct {
 	Thinking      *bool          `json:"thinking,omitempty"`
 	AutoApprove   bool           `json:"auto_approve"`
 	MaxIterations int            `json:"max_iterations"`
+	// CompactAt is the estimated token count that triggers compaction;
+	// 0 means the default, negative disables.
+	CompactAt int `json:"compact_at,omitempty"`
+	// Theme is dark, light or auto.
+	Theme string `json:"theme,omitempty"`
 	Anthropic     ProviderConfig `json:"anthropic"`
 	OpenAI        ProviderConfig `json:"openai"`
 }
@@ -100,6 +105,7 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	setIf(&cfg.Provider, "JANETCODE_PROVIDER")
 	setIf(&cfg.Model, "JANETCODE_MODEL")
 	setIf(&cfg.Effort, "JANETCODE_EFFORT")
+	setIf(&cfg.Theme, "JANETCODE_THEME")
 
 	if ov.Provider != "" {
 		cfg.Provider = ov.Provider
@@ -139,6 +145,11 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	case "", "low", "medium", "high", "xhigh", "max":
 	default:
 		return nil, fmt.Errorf("invalid effort %q (want low, medium, high, xhigh or max)", cfg.Effort)
+	}
+	switch cfg.Theme {
+	case "", "auto", "dark", "light":
+	default:
+		return nil, fmt.Errorf("invalid theme %q (want auto, dark or light)", cfg.Theme)
 	}
 	if cfg.MaxTokens <= 0 {
 		cfg.MaxTokens = DefaultMaxTokens

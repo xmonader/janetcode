@@ -45,6 +45,8 @@ func Run(ctx context.Context, opts Options) error {
 				tag = "error"
 			}
 			fmt.Fprintf(opts.Stderr, "[tool %s] %s\n", tag, oneLine(e.Output, 300))
+		case agent.EvCompacted:
+			fmt.Fprintf(opts.Stderr, "[compacted] %s\n", e.Text)
 		case agent.EvTurnDone:
 			fmt.Fprintln(opts.Stdout)
 			fmt.Fprintf(opts.Stderr, "[usage] in=%d out=%d cache_read=%d stop=%s\n", e.Usage.InputTokens, e.Usage.OutputTokens, e.Usage.CacheReadTokens, e.StopReason)

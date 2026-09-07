@@ -126,6 +126,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		MaxTokens:     cfg.MaxTokens,
 		MaxIterations: cfg.MaxIterations,
 		AutoApprove:   cfg.AutoApprove,
+		CompactAt:     cfg.CompactAt,
 		Messages:      history,
 	}
 
@@ -139,7 +140,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	return tui.Run(tui.Options{
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
-		Resumed: len(history), Version: version,
+		Resumed: len(history), Version: version, Theme: cfg.Theme,
 	})
 }
 

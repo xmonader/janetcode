@@ -122,6 +122,9 @@ func (t *transcript) apply(ev agent.Event) {
 		t.closeOpen()
 	case agent.EvTurnDone:
 		t.closeOpen()
+	case agent.EvCompacted:
+		t.closeOpen()
+		t.info("⇣ " + ev.Text)
 	}
 }
 

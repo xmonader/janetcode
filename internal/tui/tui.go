@@ -27,6 +27,8 @@ type Options struct {
 	Cwd       string
 	Resumed   int // messages loaded from a resumed session
 	Version   string
+	// Theme is "dark", "light" or "" for terminal detection.
+	Theme string
 }
 
 // Run starts the interactive UI and blocks until the user quits.
@@ -47,6 +49,7 @@ type agentDoneMsg struct {
 	err     error
 	syncErr error
 }
+type sessionSwapMsg struct{ sess *session.Session }
 type permissionMsg struct {
 	call  agent.ToolCall
 	reply chan agent.Decision
@@ -104,9 +107,12 @@ func newModel(opts Options) *model {
 
 	// Detect the background once, before the program starts: the query
 	// talks to the terminal and must not race with key input later.
-	style := "light"
-	if lipgloss.HasDarkBackground() {
-		style = "dark"
+	style := opts.Theme
+	if style != "dark" && style != "light" {
+		style = "light"
+		if lipgloss.HasDarkBackground() {
+			style = "dark"
+		}
 	}
 	m := &model{
 		opts:       opts,
@@ -161,6 +167,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = usageLine(msg.ev)
 		}
 		m.refresh(false)
+		return m, nil
+
+	case sessionSwapMsg:
+		m.opts.Session = msg.sess
+		m.transcript.info("continuing in session " + msg.sess.Meta.ID)
 		return m, nil
 
 	case permissionMsg:
@@ -263,6 +274,37 @@ func (m *model) submit(text string) tea.Cmd {
 	return m.spinner.Tick
 }
 
+// compact summarises the history in the background like a turn.
+func (m *model) compact() tea.Cmd {
+	m.running = true
+	m.startedAt = time.Now()
+	m.status = "compacting context..."
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+	ag, sess, send := m.opts.Agent, m.opts.Session, m.send
+	m.transcript.info(fmt.Sprintf("compacting ~%d tokens of context...", ag.EstimateTokens()))
+	m.refresh(false)
+	go func() {
+		err := ag.Compact(ctx, func(e agent.Event) { send(agentEventMsg{ev: e}) })
+		if errors.Is(err, agent.ErrNothingToCompact) {
+			err = nil
+		}
+		var syncErr error
+		if err == nil {
+			// Compaction rewrote the history: start a fresh session file so
+			// the old transcript is kept intact on disk.
+			if ns, nerr := session.New(dirOf(sess), m.opts.Cwd, m.opts.Provider, ag.Model); nerr == nil {
+				syncErr = ns.Sync(ag.Messages)
+				send(sessionSwapMsg{sess: ns})
+			} else {
+				syncErr = nerr
+			}
+		}
+		send(agentDoneMsg{err: err, syncErr: syncErr})
+	}()
+	return m.spinner.Tick
+}
+
 func (m *model) cancelTurn() {
 	if m.cancel != nil {
 		m.cancel()
@@ -332,6 +374,12 @@ func (m *model) command(text string) tea.Cmd {
 		}
 		m.opts.Agent.Model = fields[1]
 		m.transcript.info("model set to " + fields[1] + " (same provider)")
+	case "/compact":
+		if m.running {
+			m.transcript.errorf("wait for the current turn to finish before compacting")
+			break
+		}
+		return m.compact()
 	case "/usage":
 		u := m.opts.Agent.Usage
 		m.transcript.info(fmt.Sprintf("session tokens: in %d · out %d · cache read %d · cache write %d", u.InputTokens, u.OutputTokens, u.CacheReadTokens, u.CacheWriteTokens))
@@ -357,7 +405,8 @@ const helpText = `Keys
   ctrl+c       cancel, or quit when idle · ctrl+d quit
 Permission prompt: y allow once · a allow this tool for the session · n deny
 Commands
-  /help /quit /clear (new session) /yolo (toggle auto-approve) /model <name> /usage`
+  /help /quit /clear (new session) /yolo (toggle auto-approve) /model <name>
+  /usage (tokens) /compact (summarise context to free the window)`
 
 // --- layout & view ---
 
