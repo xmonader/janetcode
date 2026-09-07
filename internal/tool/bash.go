@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -63,11 +62,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 
 	cmd := exec.CommandContext(ctx, "bash", "-c", in.Command)
 	cmd.Dir = t.Root
-	// New process group so cancellation kills children (pipelines, servers).
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error {
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	}
+	setProcessGroup(cmd)
 	cmd.WaitDelay = 2 * time.Second
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -87,7 +82,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		case errors.As(err, &ee):
 			exit = ee.ExitCode()
 			if exit == -1 {
-				exit = 128 + int(ee.Sys().(syscall.WaitStatus).Signal())
+				exit = signalExitCode(ee)
 			}
 		default:
 			return "", fmt.Errorf("start bash: %w", err)
