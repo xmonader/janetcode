@@ -134,7 +134,12 @@ func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
 			}
 		}
 		if len(blocks) == 0 {
-			return sdk.MessageNewParams{}, fmt.Errorf("anthropic: message %d has no sendable content", i)
+			// The API rejects empty content; keep the history replayable.
+			if m.Role == llm.RoleAssistant {
+				blocks = append(blocks, sdk.NewTextBlock("(empty response)"))
+			} else {
+				return sdk.MessageNewParams{}, fmt.Errorf("anthropic: message %d has no sendable content", i)
+			}
 		}
 		if m.Role == llm.RoleAssistant {
 			params.Messages = append(params.Messages, sdk.NewAssistantMessage(blocks...))

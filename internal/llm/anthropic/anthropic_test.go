@@ -194,3 +194,21 @@ func TestStreamRefusalAndEndTurn(t *testing.T) {
 		t.Fatalf("resp = %+v", resp)
 	}
 }
+
+func TestEmptyAssistantMessageIsReplayable(t *testing.T) {
+	params, err := buildParams(llm.Request{Model: "m", Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, "hi"),
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockText, Text: ""}}},
+		llm.TextMessage(llm.RoleUser, "again"),
+	}}, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(params.Messages[1])
+	if !strings.Contains(string(raw), "(empty response)") {
+		t.Fatalf("assistant message = %s", raw)
+	}
+	if _, err := buildParams(llm.Request{Model: "m", Messages: []llm.Message{{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockText}}}}}, Config{}); err == nil {
+		t.Fatal("empty user message should be rejected")
+	}
+}
