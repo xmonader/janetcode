@@ -85,6 +85,11 @@ type model struct {
 	width, height int
 	ready         bool
 
+	// history of submitted prompts for up/down recall.
+	history []string
+	histIdx int    // == len(history) when not browsing
+	draft   string // input saved while browsing history
+
 	running   bool
 	cancel    context.CancelFunc
 	startedAt time.Time
@@ -225,6 +230,27 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.cancelTurn()
 			return nil, true
 		}
+	case "up":
+		if m.input.Line() == 0 && len(m.history) > 0 && m.histIdx > 0 {
+			if m.histIdx == len(m.history) {
+				m.draft = m.input.Value()
+			}
+			m.histIdx--
+			m.input.SetValue(m.history[m.histIdx])
+			m.input.CursorEnd()
+			return nil, true
+		}
+	case "down":
+		if m.histIdx < len(m.history) && m.input.Line() == m.input.LineCount()-1 {
+			m.histIdx++
+			if m.histIdx == len(m.history) {
+				m.input.SetValue(m.draft)
+			} else {
+				m.input.SetValue(m.history[m.histIdx])
+			}
+			m.input.CursorEnd()
+			return nil, true
+		}
 	case "pgup", "pgdown", "ctrl+u", "ctrl+b", "ctrl+f":
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(msg)
@@ -239,6 +265,11 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		m.input.Reset()
+		if n := len(m.history); n == 0 || m.history[n-1] != text {
+			m.history = append(m.history, text)
+		}
+		m.histIdx = len(m.history)
+		m.draft = ""
 		if strings.HasPrefix(text, "/") {
 			return m.command(text), true
 		}
@@ -399,7 +430,7 @@ func dirOf(s *session.Session) string {
 }
 
 const helpText = `Keys
-  enter        send · ctrl+j / alt+enter  newline
+  enter        send · ctrl+j / alt+enter  newline · up/down  recall earlier prompts
   esc          cancel the running turn
   pgup/pgdn    scroll transcript (mouse wheel works too)
   ctrl+c       cancel, or quit when idle · ctrl+d quit
