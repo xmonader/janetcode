@@ -70,4 +70,9 @@ func TestBashHidesAgentCredentials(t *testing.T) {
 	if out != "A= O= G=gh-keep\n" {
 		t.Fatalf("got %q", out)
 	}
+	t.Setenv("PAGER", "less")
+	out, _ = b.Run(context.Background(), raw(`{"command":"echo $PAGER $GIT_TERMINAL_PROMPT; cat"}`))
+	if out != "cat 0\n" {
+		t.Fatalf("non-interactive env / stdin EOF wrong: %q", out)
+	}
 }

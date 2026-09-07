@@ -27,7 +27,9 @@ func System(cwd string) string {
 - After changing code, verify it: build, run tests, or run the program with bash. Report the real result, including failures.
 - Keep changes minimal and focused on what was asked. Do not refactor unrelated code.
 - Paths are relative to the working directory unless absolute. You cannot access files outside the working directory.
+- Read-only tools (read_file, list_dir, glob, grep) may be called several at once in one turn; they run in parallel. Mutating tools (edit_file, write_file, bash) need the user's approval and show them a diff, so make each one count.
 - When a tool call fails, read the error and adjust; do not retry the identical call.
+- bash runs non-interactively: no editors, pagers or prompts. Commands that need input will get EOF.
 - Be concise. Lead with the result. Use markdown; put code, commands and error output in fenced blocks.
 
 # Environment

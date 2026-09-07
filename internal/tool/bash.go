@@ -107,14 +107,31 @@ var secretEnv = map[string]bool{
 	"OPENAI_API_KEY":       true,
 }
 
+// nonInteractiveEnv stops common tools from waiting on a human: no pagers,
+// no editors, no credential prompts. Commands get EOF on stdin regardless.
+var nonInteractiveEnv = []string{
+	"PAGER=cat",
+	"GIT_PAGER=cat",
+	"GIT_EDITOR=true",
+	"GIT_TERMINAL_PROMPT=0",
+	"DEBIAN_FRONTEND=noninteractive",
+	"CI=true",
+	"NO_COLOR=1",
+}
+
 func scrubEnv(env []string) []string {
-	out := make([]string, 0, len(env))
+	out := make([]string, 0, len(env)+len(nonInteractiveEnv))
+	forced := map[string]bool{}
+	for _, kv := range nonInteractiveEnv {
+		name, _, _ := strings.Cut(kv, "=")
+		forced[name] = true
+	}
 	for _, kv := range env {
 		name, _, _ := strings.Cut(kv, "=")
-		if secretEnv[name] {
+		if secretEnv[name] || forced[name] {
 			continue
 		}
 		out = append(out, kv)
 	}
-	return out
+	return append(out, nonInteractiveEnv...)
 }
