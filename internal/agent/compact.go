@@ -265,6 +265,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	a.lastInputMsgs = 0
 	a.integ.shrunkOK = true
 	after := a.EstimateTokens()
+	a.stats.compacted()
 	emit(Event{Kind: EvCompacted, Text: fmt.Sprintf("context compacted: ~%d → ~%d tokens (%d recent messages kept)", before, after, len(tail))})
 	return nil
 }

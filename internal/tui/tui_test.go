@@ -1254,6 +1254,29 @@ func TestFooterShowsCacheRate(t *testing.T) {
 	}
 }
 
+func TestStatsCommand(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "r1", Name: "read_file", Input: json.RawMessage(`{"path":"missing.txt"}`)}}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "gone"), StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 1200, OutputTokens: 30}},
+	)
+	h.keys("/stats")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "0 turn(s) · 0 model call(s)") || !strings.Contains(v, "no tool calls yet") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("read missing")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	h.keys("/stats")
+	h.enter()
+	v := plain(h.m.View())
+	for _, want := range []string{"1 turn(s) · 2 model call(s)", "1 tool call(s), 1 failed:", "read_file", "1 failed", "tokens · in 1.2k · out 30"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("missing %q in view:\n%s", want, v)
+		}
+	}
+}
+
 func TestJobsCommandAndIdleNotice(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
 	h.keys("/jobs")

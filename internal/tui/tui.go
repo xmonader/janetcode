@@ -737,6 +737,7 @@ var commands = []command{
 	{"/title", "<text>", "name this session (titles are generated after the first turn)"},
 	{"/history", "<words>", "find earlier sessions in any directory whose conversation mentions the words"},
 	{"/find", "<text>", "jump to the next line matching text; repeat to continue"},
+	{"/stats", "", "session statistics: turns, model calls, tool calls per tool, tokens, cost"},
 	{"/undo", "[preview]", "revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it"},
 	{"/redo", "", "reapply what the last /undo reverted (until the next change)"},
 	{"/mcp", "[trust]", "MCP servers and their tools; trust starts the project's .mcp.json servers"},
@@ -1954,6 +1955,8 @@ func (m *model) command(text string) tea.Cmd {
 			path = strings.Join(fields[1:], " ")
 		}
 		m.export(path)
+	case "/stats":
+		m.statsCommand()
 	case "/usage", "/cost":
 		u := m.opts.Agent.Usage
 		line := fmt.Sprintf("session tokens · in %s · out %s · cache read %s · cache write %s · context now ~%s",
@@ -2551,4 +2554,60 @@ func (m *model) undoCommand(cmd string, preview bool) {
 	}
 	m.opts.Agent.AddContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
 	m.status = fmt.Sprintf("undid %d file change(s) · %d more turn(s) can be undone · /redo reapplies", len(done), len(m.opts.Agent.Checkpoints()))
+}
+
+// statsCommand prints cumulative counters for this process: what the
+// model did, what it cost and which tools carried the work.
+func (m *model) statsCommand() {
+	ag := m.opts.Agent
+	st := ag.Stats()
+	u := ag.Usage
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "session %s · up %s · %d turn(s) · %d model call(s)", m.opts.Session.Label(), shortDuration(time.Since(m.startedAt)), st.Turns, st.ModelCalls)
+	if st.ModelErrors > 0 {
+		fmt.Fprintf(&sb, " (%d failed)", st.ModelErrors)
+	}
+	if st.ModelCalls > 0 {
+		fmt.Fprintf(&sb, " · %s waiting on the model (avg %s)", shortDuration(st.ModelTime), shortDuration(st.ModelTime/time.Duration(st.ModelCalls)))
+	}
+	fmt.Fprintf(&sb, "\ntokens · in %s · out %s · cache read %s · cache write %s", shortTokens(u.InputTokens), shortTokens(u.OutputTokens), shortTokens(u.CacheReadTokens), shortTokens(u.CacheWriteTokens))
+	if pct, ok := ag.CacheRate(); ok {
+		fmt.Fprintf(&sb, " · cache hit %d%%", pct)
+	}
+	if usd, ok := u.Cost(ag.Price); ok {
+		sb.WriteString(" · cost " + llm.FormatUSD(usd))
+	}
+	fmt.Fprintf(&sb, "\ncontext ~%s of %s · %d compaction(s) · %d undoable turn(s)", shortTokens(ag.EstimateTokens()), tokensOrUnknown(ag.CompactThreshold()), st.Compactions, len(ag.Checkpoints()))
+	if m.opts.Jobs != nil {
+		if jobs := m.opts.Jobs.List(); len(jobs) > 0 {
+			running := 0
+			for _, j := range jobs {
+				if !j.Done {
+					running++
+				}
+			}
+			fmt.Fprintf(&sb, " · %d background job(s), %d running", len(jobs), running)
+		}
+	}
+	calls, errs := st.ToolCalls()
+	if calls == 0 {
+		sb.WriteString("\nno tool calls yet")
+	} else {
+		fmt.Fprintf(&sb, "\n%d tool call(s), %d failed:", calls, errs)
+		for _, t := range st.Tools {
+			fmt.Fprintf(&sb, "\n  %-14s %4d call(s)", t.Name, t.Calls)
+			if t.Errors > 0 {
+				fmt.Fprintf(&sb, "  %d failed", t.Errors)
+			}
+			fmt.Fprintf(&sb, "  %s total", shortDuration(t.Time))
+		}
+	}
+	m.transcript.info(sb.String())
+}
+
+func tokensOrUnknown(n int) string {
+	if n <= 0 {
+		return "no limit"
+	}
+	return shortTokens(n) + " compact threshold"
 }

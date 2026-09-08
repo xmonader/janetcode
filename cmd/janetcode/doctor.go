@@ -8,13 +8,21 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/skill"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 // doctor prints what janetcode found on this machine and whether it can
@@ -129,6 +137,8 @@ func doctor(w io.Writer, ov config.Overrides) error {
 			row(true, "mcp "+name, detail)
 		}
 	}
+	trust := mcp.TrustStore{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
+	doctorProject(w, row, warn, cfg, cwd, filepath.Dir(cfgPath), sessDir, trust)
 	fmt.Fprintln(w)
 	if failed > 0 {
 		return fmt.Errorf("%d check(s) failed", failed)
@@ -166,4 +176,131 @@ func writable(dir string) error {
 	name := f.Name()
 	f.Close()
 	return os.Remove(name)
+}
+
+// doctorProject reports the per-project extras: hooks, verification
+// commands, permission rules, skills, memory and language servers. Rows
+// fail only for broken files; a missing feature is a note.
+func doctorProject(w io.Writer, row func(bool, string, string), warn func(string, string), cfg *config.Config, cwd, cfgDir, sessDir string, trust mcp.TrustStore) {
+	plural := func(n int, what string) string {
+		if n == 1 {
+			return "1 " + what
+		}
+		return fmt.Sprintf("%d %s", n, strings.TrimSuffix(what, "y")+map[bool]string{true: "ies", false: "s"}[strings.HasSuffix(what, "y")])
+	}
+	trustNote := func(trusted bool, cmd string) string {
+		if trusted {
+			return "trusted"
+		}
+		return "not trusted yet (" + cmd + " in the TUI)"
+	}
+
+	global := 0
+	if cfg != nil {
+		for _, hs := range cfg.Hooks {
+			global += len(hs)
+		}
+	}
+	if hooks, hash, err := hook.LoadProject(cwd); err != nil {
+		row(false, "hooks", err.Error())
+	} else {
+		n := 0
+		for _, hs := range hooks {
+			n += len(hs)
+		}
+		switch {
+		case n > 0:
+			row(true, "hooks", fmt.Sprintf("%s in %s · %s · %d global", plural(n, "hook"), hook.ProjectFile, trustNote(trust.Trusted(hookTrustKey(cwd), hash), "/hooks trust"), global))
+		case global > 0:
+			row(true, "hooks", fmt.Sprintf("%d global, none in %s", global, hook.ProjectFile))
+		default:
+			warn("hooks", "none configured (config \"hooks\" or "+hook.ProjectFile+")")
+		}
+	}
+
+	if vc, hash, err := verify.Load(cwd); err != nil {
+		row(false, "verify", err.Error())
+	} else if len(vc.Commands) == 0 {
+		warn("verify", "no verification commands ("+verify.ProjectFile+"; /verify set <cmd> adds one)")
+	} else {
+		row(true, "verify", fmt.Sprintf("%s in %s · %s", plural(len(vc.Commands), "command"), verify.ProjectFile, trustNote(trust.Trusted(cwd+"#verify", hash), "/verify trust")))
+	}
+
+	if rules, hash, err := perm.LoadProject(cwd); err != nil {
+		row(false, "permissions", err.Error())
+	} else if len(rules.Allow)+len(rules.Deny) == 0 {
+		n := 0
+		if cfg != nil {
+			n = len(cfg.Permissions.Allow) + len(cfg.Permissions.Deny)
+		}
+		if n > 0 {
+			row(true, "permissions", fmt.Sprintf("%s in the config, none in %s", plural(n, "rule"), perm.ProjectFile))
+		} else {
+			warn("permissions", "no rules; every mutating tool asks (or use --yolo)")
+		}
+	} else {
+		detail := fmt.Sprintf("%d allow / %d deny in %s", len(rules.Allow), len(rules.Deny), perm.ProjectFile)
+		if len(rules.Allow) > 0 {
+			detail += " · allow rules " + trustNote(trust.Trusted(cwd+"#permissions", hash), "/permissions trust")
+		}
+		row(true, "permissions", detail)
+	}
+
+	skills := skill.Load(cwd, cfgDir)
+	if len(skills) == 0 {
+		warn("skills", "none found (.janetcode/skills, "+filepath.Join(cfgDir, "skills")+", .claude/skills)")
+	} else {
+		by := map[string]int{}
+		for _, sk := range skills {
+			by[sk.Source]++
+		}
+		row(true, "skills", fmt.Sprintf("%s (%d project, %d global, %d claude)", plural(len(skills), "skill"), by["project"], by["global"], by["claude"]))
+	}
+	if profiles := skill.LoadProfiles(cwd, cfgDir); len(profiles) > 0 {
+		row(true, "profiles", plural(len(profiles), "subagent profile"))
+	}
+
+	mem := memory.Open(filepath.Dir(sessDir), cwd)
+	if err := writable(mem.Root); err != nil {
+		row(false, "memory", mem.Root+": "+err.Error())
+	} else {
+		entries := mem.Entries()
+		scope := map[string]int{}
+		for _, e := range entries {
+			scope[e.Scope]++
+		}
+		detail := fmt.Sprintf("%s (%d project, %d global) in %s", plural(len(entries), "memory entry"), scope["project"], scope["global"], mem.Root)
+		if cfg != nil && cfg.EmbeddingModel != "" {
+			detail += " · semantic recall with " + cfg.EmbeddingModel
+		} else {
+			detail += " · lexical recall only (set embedding_model for semantic)"
+		}
+		row(true, "memory", detail)
+	}
+
+	var lc lsp.Config
+	if cfg != nil {
+		lc = cfg.LSP
+	}
+	if lc.Disabled {
+		warn("lsp", "diagnostics disabled in the config")
+		return
+	}
+	active := lc.Active()
+	names := make([]string, 0, len(active))
+	for n := range active {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		srv := active[n]
+		if len(srv.Command) == 0 {
+			continue
+		}
+		if path, err := exec.LookPath(srv.Command[0]); err == nil {
+			row(true, "lsp "+n, path+" · "+strings.Join(srv.Extensions, " "))
+		} else {
+			warn("lsp "+n, srv.Command[0]+" not on PATH; "+strings.Join(srv.Extensions, " ")+" edits get no diagnostics")
+		}
+	}
 }

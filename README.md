@@ -91,7 +91,12 @@ janetcode --watch "go build ./... && go test ./..." --yolo -p "keep the tests gr
 
 `janetcode --doctor` checks the config file, every configured provider's
 keys, a live call to the selected model, the sessions directory, git, local
-tools and MCP servers, and exits non-zero when something is broken.
+tools, MCP servers, the project's hooks, verification commands and
+permission rules (and whether they are trusted), skills, the memory store
+and which language servers are installed. It exits non-zero when
+something is broken; a missing optional feature is only a warning.
+`/stats` in the TUI shows the session's turns, model calls and wait time,
+tool calls per tool with failures, tokens, cache hit rate and cost.
 
 ## What it can do
 
@@ -143,7 +148,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /plan <request> (plan mode: explore, write a plan; /plan approve executes it)
 /readonly  (toggle read-only: the model can inspect but change nothing)
 /connect   /model     /compact (summarise the context to free the window)
-/usage
+/usage     /stats (turns, model calls, tool calls per tool, tokens, cost)
 /resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)
 /undo [preview]  /redo  /find X    /cost      /mcp [trust]
 /fork [title]  /title <text>  /history <words> (search every saved session)

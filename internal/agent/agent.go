@@ -103,6 +103,8 @@ type Event struct {
 
 // Agent holds one conversation and the machinery to advance it.
 type Agent struct {
+	stats statsCounter
+
 	Provider llm.Provider
 	Tools    *tool.Registry
 	Approver Approver
@@ -213,6 +215,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	if a.Provider == nil {
 		return errors.New("agent: no provider")
 	}
+	a.stats.turn()
 	if a.Tools == nil {
 		a.Tools = tool.NewRegistry()
 	}
@@ -431,6 +434,7 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 		Tools:     defs,
 		MaxTokens: a.MaxTokens,
 	}, func(e llm.Event) { forward(e, emit) })
+	a.stats.model(time.Since(start), err != nil)
 	if err != nil {
 		a.debugf("call failed after %s: %v", time.Since(start).Round(time.Millisecond), err)
 	} else {
@@ -486,6 +490,13 @@ func (a *Agent) appendUserBlocks(blocks ...llm.Block) {
 // execute runs one tool call. The returned error is non-nil only for
 // context cancellation; tool failures come back as (message, true, nil).
 func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (string, bool, error) {
+	start := time.Now()
+	out, isErr, err := a.executeTool(ctx, u, emit)
+	a.stats.tool(u.Name, time.Since(start), isErr || err != nil)
+	return out, isErr, err
+}
+
+func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) (string, bool, error) {
 	call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
 	t, ok := a.Tools.Get(u.Name)
 	if !ok {

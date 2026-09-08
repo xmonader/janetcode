@@ -87,7 +87,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		showVersion = fs.Bool("version", false, "print version and exit")
 		listSess    = fs.Bool("sessions", false, "list saved sessions for this directory and exit")
 		initCfg     = fs.Bool("init", false, "write an example config file and exit")
-		runDoctor   = fs.Bool("doctor", false, "check config, credentials, a live model call, directories and MCP servers, then exit")
+		runDoctor   = fs.Bool("doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
 	)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
