@@ -731,6 +731,8 @@ var commands = []command{
 	{"/compact", "", "summarise the conversation to free context"},
 	{"/clear", "", "start a new session"},
 	{"/resume", "[n|id]", "list earlier sessions here, or reopen one"},
+	{"/open", "<path[:line]>", "show a file inline, centred on a line"},
+	{"/diff", "[path|revert path:n]", "changes against HEAD; a file's hunks; revert one hunk"},
 	{"/fork", "[title]", "branch this conversation into a new session and continue there"},
 	{"/title", "<text>", "name this session (titles are generated after the first turn)"},
 	{"/history", "<words>", "find earlier sessions in any directory whose conversation mentions the words"},
@@ -1880,6 +1882,10 @@ func (m *model) command(text string) tea.Cmd {
 		m.lspCommand()
 	case "/jobs":
 		m.jobsCommand(fields[1:])
+	case "/open":
+		m.openCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/diff":
+		m.diffCommand(fields[1:])
 	case "/fork":
 		m.forkSession(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/title":

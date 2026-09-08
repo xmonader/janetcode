@@ -18,6 +18,7 @@ type entryKind int
 
 const (
 	entryInfo entryKind = iota
+	entryCode           // verbatim lines: file views and diffs, coloured by prefix
 	entryError
 	entryUser
 	entryAssistant
@@ -88,6 +89,7 @@ func (t *transcript) add(e *entry) *entry {
 }
 
 func (t *transcript) info(s string)   { t.add(&entry{kind: entryInfo, text: s}) }
+func (t *transcript) code(s string)   { t.add(&entry{kind: entryCode, text: s}) }
 func (t *transcript) banner(s string) { t.add(&entry{kind: entryBanner, text: s}) }
 func (t *transcript) user(s string)   { t.add(&entry{kind: entryUser, text: s}) }
 func (t *transcript) errorf(f string, a ...any) {
@@ -319,6 +321,8 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 		return styleDim.Render(wrap.Render(e.text))
 	case entryInfo:
 		return styleDim.Render(wrap.Render(e.text))
+	case entryCode:
+		return renderCode(e.text, width)
 	case entryError:
 		return styleErr.Render(wrap.Render("✗ " + e.text))
 	case entryUser:
@@ -616,4 +620,33 @@ func shortTokens(n int) string {
 		return fmt.Sprintf("%.1fk", float64(n)/1000)
 	}
 	return fmt.Sprint(n)
+}
+
+// renderCode shows lines verbatim with diff colouring by prefix and no
+// wrapping; long lines are cut at the width.
+func renderCode(text string, width int) string {
+	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	out := make([]string, 0, len(lines))
+	for _, l := range lines {
+		if width > 6 && lipgloss.Width(l) > width-2 {
+			l = truncateLine(l, width-3) + "…"
+		}
+		switch {
+		case strings.HasPrefix(l, "+++ ") || strings.HasPrefix(l, "--- "):
+			out = append(out, styleDim.Render(l))
+		case strings.HasPrefix(l, "+"):
+			out = append(out, styleDiffAdd.Render(l))
+		case strings.HasPrefix(l, "-"):
+			out = append(out, styleDiffDel.Render(l))
+		case strings.HasPrefix(l, "@@"):
+			out = append(out, styleAccent.Render(l))
+		case strings.HasPrefix(l, "▶"):
+			out = append(out, styleAccent.Render(l))
+		case strings.HasPrefix(l, "#"):
+			out = append(out, styleKey.Bold(true).Render(l))
+		default:
+			out = append(out, l)
+		}
+	}
+	return strings.Join(out, "\n")
 }

@@ -89,7 +89,6 @@ without prompts, which is what you want here:
 janetcode --watch "go build ./... && go test ./..." --yolo -p "keep the tests green; never edit *_test.go"
 ```
 
-
 `janetcode --doctor` checks the config file, every configured provider's
 keys, a live call to the selected model, the sessions directory, git, local
 tools and MCP servers, and exits non-zero when something is broken.
@@ -148,6 +147,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)
 /undo      /find X    /cost      /mcp [trust]
 /fork [title]  /title <text>  /history <words> (search every saved session)
+/open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)
 /context   (what fills the window)   /pin <note or @file>   /unpin <n>
 /export [file.md] (write the conversation as a Markdown transcript)
 ```
@@ -328,6 +328,15 @@ blocks rather than by editing the prompt. Pins, plan mode and read-only
 mode do change the prompt, and each change costs one cache miss. The
 footer shows the session's cache hit rate (`cache 87%`) whenever the
 provider reports cached tokens.
+
+### File viewer and hunk review
+
+`/open internal/x/x.go:120` shows the file inline with line numbers,
+centred on the line. `/diff` lists what differs from HEAD (files with
+hunk counts, new and deleted files); `/diff path` shows that file's
+hunks, numbered; `/diff revert path:2` puts one hunk back the way HEAD
+has it, leaving the rest of the file's changes in place. `/undo` still
+reverts a whole turn at once.
 
 ### Context inspector and pins
 

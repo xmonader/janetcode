@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -1314,5 +1315,81 @@ func TestForkTitleAndSearchCommands(t *testing.T) {
 	h.enter()
 	if v := plain(h.m.View()); !strings.Contains(v, "Rate limiting for the API") {
 		t.Fatalf("resume list lacks the title:\n%s", v)
+	}
+}
+
+func gitInitTUI(t *testing.T, root string) {
+	t.Helper()
+	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}, {"commit", "-q", "-m", "init"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+}
+
+func TestOpenAndDiffCommands(t *testing.T) {
+	h := newHarness(t)
+	root := h.m.opts.Cwd
+	var lines []string
+	for i := 1; i <= 30; i++ {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	h.keys("/diff")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "/diff needs a git repository") {
+		t.Fatalf("view:\n%s", v)
+	}
+	gitInitTUI(t, root)
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 120}) // whole listings must fit the viewport
+	h.keys("/open a.txt:10")
+	h.enter()
+	v := plain(h.m.View())
+	if !strings.Contains(v, "# a.txt  lines 1-30 of 30") || !strings.Contains(v, "▶10 │ line 10") || !strings.Contains(v, " 9 │ line 9") {
+		t.Fatalf("open view:\n%s", v)
+	}
+	// Two separate hunks: change line 2 and line 28; plus an untracked file.
+	lines[1] = "line 2 changed"
+	lines[27] = "line 28 changed"
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "new.txt"), []byte("x\ny\n"), 0o644)
+	h.keys("/diff")
+	h.enter()
+	v = plain(h.m.View())
+	if !strings.Contains(v, "a.txt  (2 hunks, +2 -2)") || !strings.Contains(v, "+ new.txt  (new, 2 lines)") {
+		t.Fatalf("diff list:\n%s", v)
+	}
+	h.keys("/diff a.txt")
+	h.enter()
+	v = plain(h.m.View())
+	if !strings.Contains(v, "@@ hunk 1/2") || !strings.Contains(v, "@@ hunk 2/2") || !strings.Contains(v, "-line 28") || !strings.Contains(v, "+line 28 changed") {
+		t.Fatalf("file diff:\n%s", v)
+	}
+	h.keys("/diff revert a.txt:2")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "reverted hunk 2 of a.txt (1 left)") {
+		t.Fatalf("revert view:\n%s", v)
+	}
+	got, _ := os.ReadFile(filepath.Join(root, "a.txt"))
+	if s := string(got); !strings.Contains(s, "line 2 changed\n") || strings.Contains(s, "line 28 changed") || !strings.Contains(s, "\nline 28\n") {
+		t.Fatalf("after revert:\n%s", s)
+	}
+	h.keys("/diff revert a.txt:5")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "a.txt has 1 hunks") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/diff revert new.txt:1")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "no tracked changes to revert") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/open missing.txt")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "open: ") {
+		t.Fatalf("view:\n%s", v)
 	}
 }
