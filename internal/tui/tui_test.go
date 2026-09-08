@@ -165,7 +165,7 @@ func TestPermissionDenyWithReason(t *testing.T) {
 		t.Fatalf("tool result = %q", res.Text)
 	}
 	v := plain(h.m.View())
-	if !strings.Contains(v, "told the model: wrong directory") || !strings.Contains(v, "understood") || h.m.input.Value() != "" {
+	if !strings.Contains(v, "The user said: wrong directory") || !strings.Contains(v, "understood") || h.m.input.Value() != "" || h.m.input.Placeholder != defaultPlaceholder {
 		t.Fatalf("view:\n%s", v)
 	}
 	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "n.txt")); err == nil {

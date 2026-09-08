@@ -195,11 +195,13 @@ type model struct {
 const (
 	minInputLines = 1
 	maxInputLines = 6
+
+	defaultPlaceholder = "Ask for a change, a fix, or an explanation…  (/ for commands)"
 )
 
 func newModel(opts Options) *model {
 	ta := textarea.New()
-	ta.Placeholder = "Ask for a change, a fix, or an explanation…  (/ for commands)"
+	ta.Placeholder = defaultPlaceholder
 	ta.Prompt = ""
 	ta.ShowLineNumbers = false
 	ta.CharLimit = 0
@@ -436,6 +438,8 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			// Ask why so the model can adapt; enter with nothing skips.
 			m.denying = true
 			m.input.Reset()
+			m.input.Placeholder = "why? the model reads this (optional)"
+			m.phase = "waiting for your reason"
 			m.layout()
 			m.refresh(false)
 		case "esc":
@@ -662,11 +666,9 @@ func (m *model) answer(d agent.Decision, reason string) {
 	}
 	m.pending.reply <- verdict{d: d, reason: reason}
 	m.transcript.permissionAnswered(m.pending.call, d)
-	if d == agent.Deny && reason != "" {
-		m.transcript.info("told the model: " + reason)
-	}
 	m.pending = nil
 	m.denying = false
+	m.input.Placeholder = defaultPlaceholder
 	m.phase = "thinking"
 	m.refresh(false)
 }
