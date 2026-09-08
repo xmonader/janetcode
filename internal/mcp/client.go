@@ -56,6 +56,11 @@ type Client struct {
 		Version string `json:"version"`
 	}
 	Protocol string
+	// Capabilities the server declared: which optional features it has.
+	Capabilities struct {
+		Resources bool
+		Prompts   bool
+	}
 
 	tr     transport
 	nextID atomic.Int64
@@ -63,7 +68,8 @@ type Client struct {
 	pendMu  sync.Mutex
 	pending map[int64]chan rpcMessage
 
-	tools []ToolInfo
+	tools   []ToolInfo
+	prompts []PromptInfo
 
 	root  string // reported to roots/list
 	debug io.Writer
@@ -170,13 +176,27 @@ func (c *Client) handshake(ctx context.Context, version string) error {
 			Name    string `json:"name"`
 			Version string `json:"version"`
 		} `json:"serverInfo"`
+		Capabilities struct {
+			Resources *json.RawMessage `json:"resources"`
+			Prompts   *json.RawMessage `json:"prompts"`
+		} `json:"capabilities"`
 	}
 	if err := json.Unmarshal(res, &init); err != nil {
 		return fmt.Errorf("initialize: bad result: %w", err)
 	}
 	c.Protocol = init.ProtocolVersion
 	c.ServerInfo = init.ServerInfo
-	return c.notify(ctx, "notifications/initialized", map[string]any{})
+	c.Capabilities.Resources = init.Capabilities.Resources != nil
+	c.Capabilities.Prompts = init.Capabilities.Prompts != nil
+	if err := c.notify(ctx, "notifications/initialized", map[string]any{}); err != nil {
+		return err
+	}
+	if c.Capabilities.Prompts {
+		if err := c.loadPrompts(ctx); err != nil {
+			c.logf("prompts/list failed, continuing without prompts: %v", err)
+		}
+	}
+	return nil
 }
 
 func (c *Client) loadTools(ctx context.Context) error {
@@ -208,6 +228,177 @@ func (c *Client) loadTools(ctx context.Context) error {
 	}
 	c.tools = all
 	return nil
+}
+
+// PromptInfo is a prompt template the server offers.
+type PromptInfo struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Arguments   []struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Required    bool   `json:"required"`
+	} `json:"arguments"`
+}
+
+func (c *Client) loadPrompts(ctx context.Context) error {
+	var (
+		all    []PromptInfo
+		cursor string
+	)
+	for {
+		params := map[string]any{}
+		if cursor != "" {
+			params["cursor"] = cursor
+		}
+		res, err := c.call(ctx, "prompts/list", params)
+		if err != nil {
+			return err
+		}
+		var page struct {
+			Prompts    []PromptInfo `json:"prompts"`
+			NextCursor string       `json:"nextCursor"`
+		}
+		if err := json.Unmarshal(res, &page); err != nil {
+			return fmt.Errorf("bad prompts/list result: %w", err)
+		}
+		all = append(all, page.Prompts...)
+		if page.NextCursor == "" || page.NextCursor == cursor {
+			break
+		}
+		cursor = page.NextCursor
+	}
+	c.prompts = all
+	return nil
+}
+
+// Prompts lists the server's prompt templates.
+func (c *Client) Prompts() []PromptInfo { return append([]PromptInfo(nil), c.prompts...) }
+
+// GetPrompt renders a prompt template with the given arguments and returns
+// its messages flattened to text, ready to send as the user's turn.
+func (c *Client) GetPrompt(ctx context.Context, name string, args map[string]string) (string, error) {
+	params := map[string]any{"name": name}
+	if len(args) > 0 {
+		params["arguments"] = args
+	}
+	res, err := c.call(ctx, "prompts/get", params)
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		Description string `json:"description"`
+		Messages    []struct {
+			Role    string `json:"role"`
+			Content struct {
+				Type     string `json:"type"`
+				Text     string `json:"text"`
+				Resource *struct {
+					URI  string `json:"uri"`
+					Text string `json:"text"`
+				} `json:"resource"`
+			} `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(res, &out); err != nil {
+		return "", fmt.Errorf("bad prompts/get result: %w", err)
+	}
+	var sb strings.Builder
+	for _, m := range out.Messages {
+		text := m.Content.Text
+		if m.Content.Type == "resource" && m.Content.Resource != nil {
+			text = fmt.Sprintf("<resource uri=%q>\n%s\n</resource>", m.Content.Resource.URI, m.Content.Resource.Text)
+		}
+		if text == "" {
+			continue
+		}
+		if m.Role == "assistant" {
+			// A prompt may seed an assistant turn; keep it as context.
+			fmt.Fprintf(&sb, "<assistant>\n%s\n</assistant>\n", text)
+			continue
+		}
+		sb.WriteString(text)
+		sb.WriteString("\n")
+	}
+	return strings.TrimRight(sb.String(), "\n"), nil
+}
+
+// ResourceInfo is one resource or template the server exposes.
+type ResourceInfo struct {
+	URI         string `json:"uri"`
+	URITemplate string `json:"uriTemplate"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	MimeType    string `json:"mimeType"`
+}
+
+// ListResources returns the server's resources and resource templates.
+func (c *Client) ListResources(ctx context.Context) ([]ResourceInfo, error) {
+	var all []ResourceInfo
+	for _, method := range []string{"resources/list", "resources/templates/list"} {
+		cursor := ""
+		for {
+			params := map[string]any{}
+			if cursor != "" {
+				params["cursor"] = cursor
+			}
+			res, err := c.call(ctx, method, params)
+			if err != nil {
+				if method == "resources/templates/list" {
+					break // optional
+				}
+				return nil, err
+			}
+			var page struct {
+				Resources  []ResourceInfo `json:"resources"`
+				Templates  []ResourceInfo `json:"resourceTemplates"`
+				NextCursor string         `json:"nextCursor"`
+			}
+			if err := json.Unmarshal(res, &page); err != nil {
+				return nil, fmt.Errorf("bad %s result: %w", method, err)
+			}
+			all = append(all, page.Resources...)
+			all = append(all, page.Templates...)
+			if page.NextCursor == "" || page.NextCursor == cursor {
+				break
+			}
+			cursor = page.NextCursor
+		}
+	}
+	return all, nil
+}
+
+// ReadResource fetches a resource's text contents; binary blobs are
+// described rather than returned.
+func (c *Client) ReadResource(ctx context.Context, uri string) (string, error) {
+	res, err := c.call(ctx, "resources/read", map[string]any{"uri": uri})
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		Contents []struct {
+			URI      string `json:"uri"`
+			MimeType string `json:"mimeType"`
+			Text     string `json:"text"`
+			Blob     string `json:"blob"`
+		} `json:"contents"`
+	}
+	if err := json.Unmarshal(res, &out); err != nil {
+		return "", fmt.Errorf("bad resources/read result: %w", err)
+	}
+	var sb strings.Builder
+	for _, part := range out.Contents {
+		if len(out.Contents) > 1 {
+			fmt.Fprintf(&sb, "--- %s (%s)\n", part.URI, part.MimeType)
+		}
+		if part.Text != "" {
+			sb.WriteString(part.Text)
+		} else if part.Blob != "" {
+			fmt.Fprintf(&sb, "[binary %s, %d bytes base64]", part.MimeType, len(part.Blob))
+		}
+		sb.WriteString("\n")
+	}
+	return strings.TrimRight(sb.String(), "\n"), nil
 }
 
 // Tools lists what the server offers, as reported at startup.

@@ -141,7 +141,10 @@ never has to be written into the file:
 ```
 
 Server tools appear as `mcp__<server>__<tool>`. They ask for permission
-unless the server marks them read-only. `/mcp` shows status and tools.
+unless the server marks them read-only. Servers that publish resources get
+`mcp__<server>__list_resources` and `read_resource` tools, and every prompt
+a server offers becomes a slash command: `/mcp__<server>__<prompt> args`.
+`/mcp` shows status, tools and prompts.
 
 ### Custom commands
 

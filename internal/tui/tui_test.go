@@ -525,8 +525,25 @@ func TestMCPTrustFlow(t *testing.T) {
 	h.keys("/mcp")
 	h.enter()
 	v := plain(h.m.View())
-	if !strings.Contains(v, "✓ proj · 4 tools") || !strings.Contains(v, "mcp__proj__echo") || !strings.Contains(v, "mcp proj ready · 4 tools") {
+	if !strings.Contains(v, "✓ proj · 4 tools") || !strings.Contains(v, "mcp__proj__echo") || !strings.Contains(v, "mcp proj ready · 4 tools · 1 prompts") || !strings.Contains(v, "/mcp__proj__greet  (prompt)") {
 		t.Fatalf("status after trust:\n%s", v)
+	}
+	// The server's prompt is a slash command with completion and arguments.
+	h.keys("/mcp__proj__gr")
+	if v := plain(h.m.View()); !strings.Contains(v, "/mcp__proj__greet <who>") {
+		t.Fatalf("prompt completion missing:\n%s", v)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyTab})
+	h.enter() // no argument: the required one is reported
+	if v := plain(h.m.View()); !strings.Contains(v, "needs <who>") {
+		t.Fatalf("missing-arg error absent:\n%s", v)
+	}
+	h.m.opts.Agent.Provider = &scripted{[]*llm.Response{{Message: llm.TextMessage(llm.RoleAssistant, "hello there"), StopReason: llm.StopEndTurn}}}
+	h.keys("/mcp__proj__greet the team")
+	h.enter()
+	h.pump(func() bool { return !h.m.running && len(h.m.opts.Agent.Messages) == 2 })
+	if sent := h.m.opts.Agent.Messages[0].Text(); sent != "Say hello to the team" {
+		t.Fatalf("prompt sent = %q", sent)
 	}
 	mgr.Close()
 }

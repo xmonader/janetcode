@@ -78,6 +78,13 @@ type mcpDoneMsg struct {
 	err   error
 }
 
+// mcpPromptMsg carries a rendered MCP prompt to submit.
+type mcpPromptMsg struct {
+	command string
+	text    string
+	err     error
+}
+
 // --- messages from the agent goroutine ---
 
 type agentEventMsg struct{ ev agent.Event }
@@ -407,11 +414,25 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.GotoBottom()
 		return m, nil
 
+	case mcpPromptMsg:
+		m.running = false
+		m.phase = ""
+		if msg.err != nil {
+			m.transcript.errorf("%s: %v", msg.command, msg.err)
+			m.refresh(false)
+			return m, nil
+		}
+		return m, m.submit(msg.text)
+
 	case mcpDoneMsg:
 		if msg.err != nil {
 			m.transcript.errorf("mcp %s: %v", msg.name, msg.err)
 		} else {
-			m.transcript.info(fmt.Sprintf("mcp %s ready · %d tools (see /mcp)", msg.name, msg.tools))
+			line := fmt.Sprintf("mcp %s ready · %d tools", msg.name, msg.tools)
+			if n := len(m.mcpPrompts(msg.name)); n > 0 {
+				line += fmt.Sprintf(" · %d prompts as /mcp__%s__<name>", n, msg.name)
+			}
+			m.transcript.info(line + " (see /mcp)")
 		}
 		if m.status == "starting MCP servers…" {
 			m.status = ""
@@ -701,7 +722,8 @@ func (m *model) completions() []command {
 	return nil
 }
 
-// allCommands is the built-in table followed by the user's custom commands.
+// allCommands is the built-in table followed by the user's custom commands
+// and the prompts MCP servers offer.
 func (m *model) allCommands() []command {
 	out := append([]command(nil), commands...)
 	names := make([]string, 0, len(m.custom))
@@ -713,7 +735,85 @@ func (m *model) allCommands() []command {
 		c := m.custom[n]
 		out = append(out, command{name: n, args: "[args]", help: c.Help + " · " + shortPath(c.Path)})
 	}
+	if m.opts.MCP != nil && m.opts.MCP.Manager != nil {
+		for _, st := range m.opts.MCP.Manager.Status() {
+			for _, p := range st.Prompts {
+				args := make([]string, 0, len(p.Arguments))
+				for _, a := range p.Arguments {
+					if a.Required {
+						args = append(args, "<"+a.Name+">")
+					} else {
+						args = append(args, "["+a.Name+"]")
+					}
+				}
+				help := strings.TrimSpace(p.Description)
+				if help == "" {
+					help = "prompt from " + st.Name
+				}
+				out = append(out, command{name: "/" + mcp.ToolName(st.Name, p.Name), args: strings.Join(args, " "), help: help + " · MCP " + st.Name})
+			}
+		}
+	}
 	return out
+}
+
+// mcpPrompts lists the prompts one server offers.
+func (m *model) mcpPrompts(server string) []mcp.PromptInfo {
+	if m.opts.MCP == nil || m.opts.MCP.Manager == nil {
+		return nil
+	}
+	c, ok := m.opts.MCP.Manager.Client(server)
+	if !ok {
+		return nil
+	}
+	return c.Prompts()
+}
+
+// runMCPPrompt resolves "/mcp__server__prompt arg1 arg2" against the servers:
+// positional words fill the prompt's declared arguments in order, the last
+// one taking the rest of the line. The rendered text is submitted as the
+// user's turn.
+func (m *model) runMCPPrompt(name string, rest string) (tea.Cmd, bool) {
+	if m.opts.MCP == nil || m.opts.MCP.Manager == nil || !strings.HasPrefix(name, "/mcp__") {
+		return nil, false
+	}
+	for _, st := range m.opts.MCP.Manager.Status() {
+		for _, p := range st.Prompts {
+			if "/"+mcp.ToolName(st.Name, p.Name) != name {
+				continue
+			}
+			c, ok := m.opts.MCP.Manager.Client(st.Name)
+			if !ok {
+				return nil, false
+			}
+			args := map[string]string{}
+			words := strings.Fields(rest)
+			for i, a := range p.Arguments {
+				switch {
+				case i >= len(words):
+					if a.Required {
+						m.transcript.errorf("%s needs <%s>", name, a.Name)
+						m.refresh(false)
+						return nil, true
+					}
+				case i == len(p.Arguments)-1:
+					args[a.Name] = strings.Join(words[i:], " ")
+				default:
+					args[a.Name] = words[i]
+				}
+			}
+			m.startTurn("rendering prompt from " + st.Name)
+			send, promptName := m.send, p.Name
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+				defer cancel()
+				text, err := c.GetPrompt(ctx, promptName, args)
+				send(mcpPromptMsg{command: name, text: text, err: err})
+			}()
+			return m.spinner.Tick, true
+		}
+	}
+	return nil, false
 }
 
 // mentionAtEnd returns the partial path of an @mention that ends the input.
@@ -1101,6 +1201,9 @@ func (m *model) command(text string) tea.Cmd {
 			args := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
 			return m.submit(c.Expand(args))
 		}
+		if cmd, ok := m.runMCPPrompt(fields[0], strings.TrimPrefix(text, fields[0])); ok {
+			return cmd
+		}
 		m.transcript.errorf("unknown command %s (try /help)", fields[0])
 	}
 	m.refresh(false)
@@ -1198,6 +1301,9 @@ func (m *model) mcpCommand(args []string) {
 			fmt.Fprintf(&sb, "  ✓ %s · %d tools\n", s.Name, len(s.Tools))
 			for _, t := range s.Tools {
 				fmt.Fprintf(&sb, "      %s\n", t)
+			}
+			for _, p := range s.Prompts {
+				fmt.Fprintf(&sb, "      /%s  (prompt)\n", mcp.ToolName(s.Name, p.Name))
 			}
 		}
 	}

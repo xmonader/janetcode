@@ -23,8 +23,17 @@ type Manager struct {
 type ServerStatus struct {
 	Name     string
 	Tools    []string
+	Prompts  []PromptInfo
 	Err      error
 	Starting bool
+}
+
+// Client returns a running server by name.
+func (m *Manager) Client(name string) (*Client, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c, ok := m.clients[name]
+	return c, ok
 }
 
 // Start launches one server in the background. onDone runs when it is up
@@ -89,6 +98,7 @@ func (m *Manager) Status() []ServerStatus {
 		for _, t := range c.AgentTools() {
 			st.Tools = append(st.Tools, t.Name())
 		}
+		st.Prompts = c.Prompts()
 		out = append(out, st)
 	}
 	for name, err := range m.errs {

@@ -45,9 +45,41 @@ func fakeServer() {
 		case "initialize":
 			send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{
 				"protocolVersion": "2024-11-05",
-				"capabilities":    map[string]any{"tools": map[string]any{}},
+				"capabilities":    map[string]any{"tools": map[string]any{}, "resources": map[string]any{}, "prompts": map[string]any{}},
 				"serverInfo":      map[string]any{"name": "fake", "version": "0.1"},
 			}})
+		case "prompts/list":
+			send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{"prompts": []map[string]any{
+				{"name": "review", "description": "Review code", "arguments": []map[string]any{{"name": "file", "required": true}, {"name": "focus"}}},
+			}}})
+		case "prompts/get":
+			var p struct {
+				Name      string            `json:"name"`
+				Arguments map[string]string `json:"arguments"`
+			}
+			json.Unmarshal(msg.Params, &p)
+			send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{"messages": []map[string]any{
+				{"role": "user", "content": map[string]any{"type": "text", "text": "Please review " + p.Arguments["file"] + " focusing on " + p.Arguments["focus"]}},
+				{"role": "assistant", "content": map[string]any{"type": "text", "text": "Sure."}},
+			}}})
+		case "resources/list":
+			send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{"resources": []map[string]any{
+				{"uri": "file:///notes.txt", "name": "notes", "mimeType": "text/plain", "description": "Team notes"},
+			}}})
+		case "resources/templates/list":
+			send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{"resourceTemplates": []map[string]any{
+				{"uriTemplate": "file:///{path}", "name": "any file"},
+			}}})
+		case "resources/read":
+			var p struct{ URI string }
+			json.Unmarshal(msg.Params, &p)
+			if p.URI != "file:///notes.txt" {
+				send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "error": map[string]any{"code": -32002, "message": "not found"}})
+				continue
+			}
+			send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{"contents": []map[string]any{
+				{"uri": p.URI, "mimeType": "text/plain", "text": "remember the milk"},
+			}}})
 		case "notifications/initialized":
 			// Server-initiated request: the client must answer it.
 			send(map[string]any{"jsonrpc": "2.0", "id": "srv-1", "method": "ping"})
@@ -139,7 +171,7 @@ func TestHandshakeAndToolList(t *testing.T) {
 	for _, at := range agentTools {
 		names = append(names, at.Name())
 	}
-	if strings.Join(names, ",") != "mcp__fake_srv__echo,mcp__fake_srv__write_thing,mcp__fake_srv__fail,mcp__fake_srv__slow" {
+	if strings.Join(names, ",") != "mcp__fake_srv__echo,mcp__fake_srv__write_thing,mcp__fake_srv__fail,mcp__fake_srv__slow,mcp__fake_srv__list_resources,mcp__fake_srv__read_resource" {
 		t.Fatalf("names = %v", names)
 	}
 	if agentTools[0].Mutating() || !agentTools[1].Mutating() {
@@ -265,11 +297,53 @@ func TestManagerRegistersTools(t *testing.T) {
 		t.Fatal("tool not registered")
 	}
 	st := m.Status()
-	if len(st) != 2 || st[0].Name != "bad" || st[0].Err == nil || st[1].Name != "good" || len(st[1].Tools) != 4 {
+	if len(st) != 2 || st[0].Name != "bad" || st[0].Err == nil || st[1].Name != "good" || len(st[1].Tools) != 6 {
 		t.Fatalf("status = %+v", st)
 	}
 	m.Close()
 	if _, ok := reg.Get("mcp__good__echo"); ok {
 		t.Fatal("tool not removed on close")
+	}
+}
+
+func TestResourcesAndPrompts(t *testing.T) {
+	c := startFake(t)
+	if !c.Capabilities.Resources || !c.Capabilities.Prompts {
+		t.Fatalf("capabilities = %+v", c.Capabilities)
+	}
+	names := []string{}
+	for _, at := range c.AgentTools() {
+		names = append(names, at.Name())
+	}
+	if !strings.Contains(strings.Join(names, ","), "mcp__fake_srv__list_resources,mcp__fake_srv__read_resource") {
+		t.Fatalf("resource tools missing: %v", names)
+	}
+	tools := c.AgentTools()
+	list := tools[len(tools)-2]
+	out, err := list.Run(context.Background(), nil)
+	if err != nil || !strings.Contains(out, "file:///notes.txt · notes · text/plain\n    Team notes") || !strings.Contains(out, "file:///{path} (template) · any file") {
+		t.Fatalf("list = %q %v", out, err)
+	}
+	read := tools[len(tools)-1]
+	if out, err := read.Run(context.Background(), json.RawMessage(`{"uri":"file:///notes.txt"}`)); err != nil || out != "remember the milk" {
+		t.Fatalf("read = %q %v", out, err)
+	}
+	if _, err := read.Run(context.Background(), json.RawMessage(`{"uri":"file:///nope"}`)); err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("missing resource err = %v", err)
+	}
+	if _, err := read.Run(context.Background(), json.RawMessage(`{}`)); err == nil {
+		t.Fatal("empty uri accepted")
+	}
+	if list.Mutating() || read.Mutating() {
+		t.Fatal("resource tools are read-only")
+	}
+
+	ps := c.Prompts()
+	if len(ps) != 1 || ps[0].Name != "review" || len(ps[0].Arguments) != 2 || !ps[0].Arguments[0].Required {
+		t.Fatalf("prompts = %+v", ps)
+	}
+	text, err := c.GetPrompt(context.Background(), "review", map[string]string{"file": "a.go", "focus": "errors"})
+	if err != nil || text != "Please review a.go focusing on errors\n<assistant>\nSure.\n</assistant>" {
+		t.Fatalf("prompt = %q %v", text, err)
 	}
 }

@@ -33,9 +33,21 @@ func Run() {
 		switch m.Method {
 		case "initialize":
 			send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{
-				"protocolVersion": "2024-11-05", "capabilities": map[string]any{"tools": map[string]any{}},
+				"protocolVersion": "2024-11-05", "capabilities": map[string]any{"tools": map[string]any{}, "prompts": map[string]any{}},
 				"serverInfo": map[string]any{"name": "fake", "version": "0.1"},
 			}})
+		case "prompts/list":
+			send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{"prompts": []map[string]any{
+				{"name": "greet", "description": "Say hello", "arguments": []map[string]any{{"name": "who", "required": true}}},
+			}}})
+		case "prompts/get":
+			var p struct {
+				Arguments map[string]string `json:"arguments"`
+			}
+			json.Unmarshal(m.Params, &p)
+			send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{"messages": []map[string]any{
+				{"role": "user", "content": map[string]any{"type": "text", "text": "Say hello to " + p.Arguments["who"]}},
+			}}})
 		case "tools/list":
 			send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{"tools": []map[string]any{
 				{"name": "echo", "description": "Echo text back", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{"text": map[string]any{"type": "string"}}}, "annotations": map[string]any{"readOnlyHint": true}},
