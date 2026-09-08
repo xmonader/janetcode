@@ -407,7 +407,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tick()
 
 	case spinner.TickMsg:
-		if m.running {
+		if m.running || (m.connect != nil && m.connect.loading) {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			cmds = append(cmds, cmd)
@@ -1544,9 +1544,6 @@ func (m *model) footerHeight() int {
 	if m.denying {
 		h++
 	}
-	if m.connect != nil {
-		h += m.connectHeight()
-	}
 	return h + len(m.queued)
 }
 
@@ -1610,9 +1607,13 @@ func (m *model) View() string {
 	if m.quitting {
 		return ""
 	}
+	body := m.viewport.View()
+	if m.connect != nil {
+		body = m.connectView(m.viewport.Height)
+	}
 	return lipgloss.JoinVertical(lipgloss.Left,
 		m.headerView(),
-		m.viewport.View(),
+		body,
 		m.statusView(),
 		m.footerView(),
 	)
@@ -1731,9 +1732,6 @@ func (m *model) footerView() string {
 			parts = append(parts, styleFaint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))
 		}
 	}
-	if m.connect != nil {
-		parts = append(parts, m.connectView()...)
-	}
 	for i, q := range m.queued {
 		parts = append(parts, "  "+styleFaint.Render(fmt.Sprintf("queued %d ", i+1))+styleDim.Render(truncateLine(strings.ReplaceAll(q, "\n", " "), m.width-14)))
 	}
@@ -1746,14 +1744,6 @@ func (m *model) footerView() string {
 		prompt = styleFaint.Render("❯ ")
 	}
 	lines := strings.Split(m.input.View(), "\n")
-	if m.connect != nil && m.connect.step == stepKeys {
-		// Keys never appear on screen.
-		masked := maskedInput(m.input.Value())
-		if masked == "" {
-			masked = styleFaint.Render(m.input.Placeholder)
-		}
-		lines = strings.Split(masked+"▌", "\n")
-	}
 	for i := range lines {
 		if i == 0 {
 			lines[i] = prompt + lines[i]

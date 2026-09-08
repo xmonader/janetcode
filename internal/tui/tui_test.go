@@ -770,10 +770,22 @@ func (l *listing) ListModels(ctx context.Context) ([]llm.ModelInfo, error) { ret
 func (h *harness) updateCmd(msg tea.Msg) {
 	mm, cmd := h.m.Update(msg)
 	h.m = mm.(*model)
-	if cmd != nil {
-		if out := cmd(); out != nil {
-			h.update(out)
+	h.runCmd(cmd)
+}
+
+// runCmd executes a command (or batch) and feeds what it produces back.
+func (h *harness) runCmd(cmd tea.Cmd) {
+	if cmd == nil {
+		return
+	}
+	switch out := cmd().(type) {
+	case nil:
+	case tea.BatchMsg:
+		for _, c := range out {
+			h.runCmd(c)
 		}
+	default:
+		h.update(out)
 	}
 }
 
@@ -799,13 +811,13 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 	if h.m.connect == nil || h.m.connect.step != stepPick {
 		t.Fatalf("dialog not open: %+v", h.m.connect)
 	}
-	if v := plain(h.m.View()); !strings.Contains(v, "choose a provider") || !strings.Contains(v, "✓ fake") || !strings.Contains(v, "OpenRouter") {
+	if v := plain(h.m.View()); !strings.Contains(v, "Connect to a provider") || !strings.Contains(v, "CONFIGURED") || !strings.Contains(v, "fake") || !strings.Contains(v, "OpenRouter") {
 		t.Fatalf("view:\n%s", v)
 	}
 	h.keys("openrouter")
 	h.enter()
-	if h.m.connect.step != stepURL || h.m.input.Value() != "https://openrouter.ai/api/v1" {
-		t.Fatalf("step %d url %q", h.m.connect.step, h.m.input.Value())
+	if h.m.connect.step != stepURL || h.m.connect.field.Value() != "https://openrouter.ai/api/v1" {
+		t.Fatalf("step %d url %q", h.m.connect.step, h.m.connect.field.Value())
 	}
 	h.enter() // keep the preset URL
 	if h.m.connect.step != stepKeys {
@@ -816,12 +828,12 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 		t.Fatalf("step %d view:\n%s", h.m.connect.step, plain(h.m.View()))
 	}
 	h.keys("sk-one, sk-two")
-	if v := plain(h.m.View()); strings.Contains(v, "sk-one") || !strings.Contains(v, "••") {
+	if v := plain(h.m.View()); strings.Contains(v, "sk-one") || !strings.Contains(v, "••") || !strings.Contains(v, "2 key(s) entered") {
 		t.Fatalf("key visible:\n%s", v)
 	}
 	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter}) // runs the model fetch
 	if h.m.connect.step != stepModel || h.m.connect.loading || len(h.m.connect.models) != 2 {
-		t.Fatalf("connect = %+v", h.m.connect)
+		t.Fatalf("step %d loading %v models %d", h.m.connect.step, h.m.connect.loading, len(h.m.connect.models))
 	}
 	if built == nil || built.Provider != "openrouter" || strings.Join(built.Active().Keys(), ",") != "sk-one,sk-two" {
 		t.Fatalf("list built with %+v", built)
@@ -841,7 +853,7 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 	if h.m.opts.Agent.Model != "deepseek/deepseek-v4-flash" || h.m.opts.Agent.Provider != lister || h.m.opts.Provider != "openrouter" || cfg.Provider != "openrouter" {
 		t.Fatalf("agent %s/%v opts %s cfg %s", h.m.opts.Agent.Model, h.m.opts.Agent.Provider, h.m.opts.Provider, cfg.Provider)
 	}
-	if !strings.Contains(plain(h.m.View()), "connected to openrouter · model deepseek/deepseek-v4-flash") {
+	if !strings.Contains(plain(h.m.View()), "connected to openrouter · deepseek/deepseek-v4-flash") {
 		t.Fatalf("view:\n%s", plain(h.m.View()))
 	}
 	raw, err := os.ReadFile(path)
@@ -855,7 +867,7 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 	h.keys("/model")
 	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter})
 	if h.m.connect == nil || h.m.connect.step != stepModel || h.m.connect.name != "openrouter" {
-		t.Fatalf("connect = %+v", h.m.connect)
+		t.Fatalf("step %d loading %v models %d", h.m.connect.step, h.m.connect.loading, len(h.m.connect.models))
 	}
 	h.keys("custom/model")
 	h.enter()
@@ -907,16 +919,18 @@ func TestFirstRunOpensConnectDialog(t *testing.T) {
 	if v := plain(h.m.View()); !strings.Contains(v, "not connected to a provider yet: run /connect") {
 		t.Fatalf("view:\n%s", v)
 	}
-	// Ollama needs no key: URL and key steps pass with empty input.
+	// Ollama needs no key: the key step is skipped after the URL.
 	h.inputReset()
 	h.keys("/connect")
 	h.enter()
 	h.keys("ollama")
 	h.enter()
-	h.enter()
+	if h.m.connect.step != stepURL {
+		t.Fatalf("step = %d", h.m.connect.step)
+	}
 	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter})
 	if h.m.connect == nil || h.m.connect.step != stepModel || len(h.m.connect.models) != 1 {
-		t.Fatalf("connect = %+v", h.m.connect)
+		t.Fatalf("step %d loading %v models %d", h.m.connect.step, h.m.connect.loading, len(h.m.connect.models))
 	}
 	h.enter()
 	if h.m.opts.Agent.Provider != lister || h.m.opts.Agent.Model != "llama3" || !strings.Contains(plain(h.m.View()), "ollama/llama3") {

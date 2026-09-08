@@ -3,20 +3,22 @@ package tui
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
-// The connect dialog lives in the footer: a list above the input box that
-// the input filters, walked with the arrow keys. It goes provider → base
-// URL → API keys → model, and /model with no argument starts at the last
-// step for the current provider.
+// The connect dialog is a modal drawn over the transcript with its own
+// search field: provider → base URL → API keys → model. /model with no
+// argument opens only the model step for the current provider.
 
 type connectStep int
 
@@ -28,30 +30,36 @@ const (
 	stepModel
 )
 
-const dialogRows = 10
+const (
+	dialogRows  = 12
+	dialogWidth = 88
+)
 
-// connectRow is one choice in the provider list.
-type connectRow struct {
-	name, label, detail string
-	prov                config.Provider
-	configured          bool
-	custom              bool // ask for a name
+// row is one selectable line; section groups rows under a heading.
+type row struct {
+	section string
+	key     string // matched by the search field
+	cells   []string
+	tag     string
+	prov    config.Provider
+	name    string
+	custom  bool
 }
 
 type connect struct {
 	step      connectStep
+	modelOnly bool // opened by /model: only the last step, esc closes
 	name      string
 	prov      config.Provider
-	rows      []connectRow
-	models    []llm.ModelInfo
+	field     textinput.Model
+	providers []row
+	models    []row
 	loading   bool
 	loadErr   string
 	idx       int
-	idxFor    string // input value the highlight belongs to
-	draft     string // input text saved while the dialog is open
-	modelOnly bool   // opened by /model: esc closes instead of stepping back
-	problem   string // shown under the title until the next key
-	gen       int    // ignore model lists from an abandoned dialog
+	idxFor    string // search text the highlight belongs to
+	problem   string
+	gen       int // ignores model lists from an abandoned dialog
 }
 
 // modelsMsg carries the asynchronously fetched model list.
@@ -61,9 +69,8 @@ type modelsMsg struct {
 	err    error
 }
 
-// openConnect starts the dialog at step and returns the command that
-// fetches models when it starts at the model step. It refuses while a turn
-// runs because the agent's provider is swapped in place.
+// openConnect starts the dialog at step. It refuses while a turn runs
+// because the agent's provider is swapped in place.
 func (m *model) openConnect(step connectStep) tea.Cmd {
 	if m.opts.Config == nil || m.opts.Build == nil {
 		m.transcript.errorf("provider switching is not available in this build")
@@ -73,94 +80,105 @@ func (m *model) openConnect(step connectStep) tea.Cmd {
 		m.transcript.errorf("wait for the current turn to finish first")
 		return nil
 	}
-	c := &connect{step: step, draft: m.input.Value(), gen: m.connectGen + 1}
+	c := &connect{gen: m.connectGen + 1, field: textinput.New()}
+	c.field.Prompt = ""
+	c.field.Focus()
 	m.connectGen = c.gen
 	m.connect = c
-	cfg := m.opts.Config
+	m.input.Blur()
+	c.providers = m.providerRows()
 	if step == stepModel {
-		c.name, c.prov, c.modelOnly = cfg.Provider, cfg.Active(), true
+		c.name, c.prov, c.modelOnly = m.opts.Config.Provider, m.opts.Config.Active(), true
 	}
-	c.rows = m.connectRows()
-	m.input.Reset()
-	m.histIdx = len(m.history)
-	m.enterStep(step)
-	if step == stepModel {
-		return m.fetchModels()
-	}
-	return nil
+	return m.enterStep(step)
 }
 
-// connectRows lists configured providers, then presets, then custom.
-func (m *model) connectRows() []connectRow {
+// providerRows lists usable configured providers, then presets, then the
+// custom options.
+func (m *model) providerRows() []row {
 	cfg := m.opts.Config
-	var rows []connectRow
+	var rows []row
 	for _, n := range cfg.ProviderNames() {
 		p := cfg.Providers[n]
 		if len(p.Keys()) == 0 && p.NeedsKey() {
-			continue // a bare entry (or preset picked on the command line): not usable yet
+			continue // an entry without credentials is not usable yet
 		}
-		label := n
+		label := p.Type + " compatible"
 		if pre, ok := config.FindPreset(n); ok {
 			label = pre.Label
 		}
-		detail := p.Type
-		if p.BaseURL != "" {
-			detail += " · " + p.BaseURL
-		}
+		detail := hostOf(p.BaseURL)
 		if p.Model != "" {
-			detail += " · " + p.Model
+			detail = p.Model
 		}
 		if k := len(p.Keys()); k > 1 {
-			detail += fmt.Sprintf(" · %d keys", k)
+			detail += fmt.Sprintf("  (%d keys)", k)
 		}
-		rows = append(rows, connectRow{name: n, label: label, detail: detail, prov: p, configured: true})
+		tag := ""
+		if n == cfg.Provider && m.opts.Agent.Provider != nil {
+			tag = "current"
+		}
+		rows = append(rows, row{section: "configured", key: n + " " + label, cells: []string{n, label, detail}, tag: tag, prov: p, name: n})
 	}
 	for _, pre := range config.Presets {
 		if p, ok := cfg.Providers[pre.Name]; ok && (len(p.Keys()) > 0 || !p.NeedsKey()) {
 			continue
 		}
-		rows = append(rows, connectRow{name: pre.Name, label: pre.Label, detail: pre.BaseURL, prov: config.Provider{Type: pre.Type, BaseURL: pre.BaseURL}})
+		rows = append(rows, row{section: "add a provider", key: pre.Name + " " + pre.Label, cells: []string{pre.Name, pre.Label, hostOf(pre.BaseURL)},
+			prov: config.Provider{Type: pre.Type, BaseURL: pre.BaseURL}, name: pre.Name})
 	}
 	rows = append(rows,
-		connectRow{name: "custom-openai", label: "Custom OpenAI-compatible API", detail: "any /v1/chat/completions server", prov: config.Provider{Type: "openai"}, custom: true},
-		connectRow{name: "custom-anthropic", label: "Custom Anthropic-compatible API", detail: "any /v1/messages server", prov: config.Provider{Type: "anthropic"}, custom: true},
+		row{section: "add a provider", key: "custom openai compatible", cells: []string{"custom", "OpenAI-compatible API", "any /chat/completions server"}, prov: config.Provider{Type: "openai"}, custom: true},
+		row{section: "add a provider", key: "custom anthropic compatible", cells: []string{"custom", "Anthropic-compatible API", "any /messages server"}, prov: config.Provider{Type: "anthropic"}, custom: true},
 	)
 	return rows
 }
 
-// enterStep prepares the input for a step.
-func (m *model) enterStep(step connectStep) {
+func hostOf(u string) string {
+	if u == "" {
+		return ""
+	}
+	if p, err := url.Parse(u); err == nil && p.Host != "" {
+		return p.Host
+	}
+	return u
+}
+
+// enterStep prepares the field for a step and returns the command that
+// loads its data.
+func (m *model) enterStep(step connectStep) tea.Cmd {
 	c := m.connect
 	c.step, c.idx, c.idxFor, c.problem = step, 0, "", ""
-	m.input.Reset()
+	c.field.EchoMode = textinput.EchoNormal
+	c.field.SetValue("")
+	var cmd tea.Cmd
 	switch step {
 	case stepPick:
-		m.input.Placeholder = "type to filter providers · enter picks · esc cancels"
+		c.field.Placeholder = "search providers"
 	case stepName:
-		m.input.Placeholder = "a short name for this provider, e.g. myserver"
+		c.field.Placeholder = "name, e.g. myserver"
 	case stepURL:
-		m.input.SetValue(c.prov.BaseURL)
+		c.field.SetValue(c.prov.BaseURL)
+		c.field.CursorEnd()
 		if c.prov.Type == "anthropic" {
-			m.input.Placeholder = "base URL · empty uses https://api.anthropic.com"
+			c.field.Placeholder = "https://api.anthropic.com (default)"
 		} else {
-			m.input.Placeholder = "base URL ending in /v1"
+			c.field.Placeholder = "https://host/v1"
 		}
 	case stepKeys:
-		n := len(c.prov.Keys())
-		switch {
-		case n > 0:
-			m.input.Placeholder = fmt.Sprintf("API key(s) · empty keeps the %d configured · separate several with commas", n)
-		case !c.prov.NeedsKey():
-			m.input.Placeholder = "API key (optional for a local server) · separate several with commas"
-		default:
-			m.input.Placeholder = "API key · separate several with commas to rotate on rate limits"
+		c.field.EchoMode = textinput.EchoPassword
+		c.field.EchoCharacter = '•'
+		c.field.Placeholder = "paste one key, or several separated by commas"
+		if len(c.prov.Keys()) > 0 {
+			c.field.Placeholder = "leave empty to keep the configured keys"
 		}
 	case stepModel:
-		m.input.Placeholder = "type to filter models, or a model id · enter picks · esc back"
+		c.field.Placeholder = "search models, or type a model id"
 		c.models, c.loadErr, c.loading = nil, "", true
+		cmd = tea.Batch(m.fetchModels(), m.spinner.Tick)
 	}
-	m.layout()
 	m.refresh(false)
+	return cmd
 }
 
 // fetchModels lists the provider's models in the background.
@@ -205,83 +223,64 @@ func (m *model) handleModels(msg modelsMsg) {
 	c.loading = false
 	switch {
 	case msg.err != nil:
-		c.loadErr = "could not list models: " + msg.err.Error() + " · type a model id"
+		c.loadErr = "could not list models: " + msg.err.Error()
 	case len(msg.models) == 0:
-		c.loadErr = "the server lists no models · type a model id"
+		c.loadErr = "the server lists no models"
 	default:
-		sort.Slice(msg.models, func(i, j int) bool { return msg.models[i].ID < msg.models[j].ID })
-		c.models = msg.models
+		current := ""
+		if c.name == m.opts.Config.Provider {
+			current = m.opts.Agent.Model
+		}
+		sort.SliceStable(msg.models, func(i, j int) bool {
+			if (msg.models[i].ID == current) != (msg.models[j].ID == current) {
+				return msg.models[i].ID == current
+			}
+			return msg.models[i].ID < msg.models[j].ID
+		})
+		for _, mi := range msg.models {
+			name := ""
+			if mi.Name != "" && mi.Name != mi.ID {
+				name = mi.Name
+			}
+			r := row{key: mi.ID + " " + mi.Name, cells: []string{mi.ID, name}, name: mi.ID}
+			if mi.ID == current {
+				r.tag = "current"
+			}
+			c.models = append(c.models, r)
+		}
 	}
-	m.layout()
 	m.refresh(false)
 }
 
-// connectList returns the rows to show, filtered by the input.
-func (m *model) connectList() ([]string, []string, int) {
+// visible returns the rows matching the search field and the highlight.
+func (m *model) visible() ([]row, int) {
 	c := m.connect
-	q := strings.ToLower(strings.TrimSpace(m.input.Value()))
-	var names, details []string
+	var src []row
 	switch c.step {
 	case stepPick:
-		for _, r := range c.rows {
-			if q != "" && !strings.Contains(strings.ToLower(r.name+" "+r.label+" "+r.detail), q) {
-				continue
-			}
-			label := r.label
-			if r.configured {
-				label = "✓ " + r.name
-				if r.label != r.name {
-					label += "  " + r.label
-				}
-			}
-			names, details = append(names, label), append(details, r.detail)
-		}
+		src = c.providers
 	case stepModel:
-		for _, mi := range c.models {
-			if q != "" && !strings.Contains(strings.ToLower(mi.ID+" "+mi.Name), q) {
-				continue
-			}
-			d := ""
-			if mi.Name != "" && mi.Name != mi.ID {
-				d = mi.Name
-			}
-			names, details = append(names, mi.ID), append(details, d)
-		}
+		src = c.models
 	default:
-		return nil, nil, 0
+		return nil, 0
 	}
-	if v := m.input.Value(); v != c.idxFor {
+	q := strings.ToLower(strings.TrimSpace(c.field.Value()))
+	var out []row
+	for _, r := range src {
+		if q == "" || strings.Contains(strings.ToLower(r.key), q) {
+			out = append(out, r)
+		}
+	}
+	if v := c.field.Value(); v != c.idxFor {
 		c.idxFor, c.idx = v, 0
 	}
-	if c.idx >= len(names) {
-		c.idx = max(len(names)-1, 0)
+	if c.idx >= len(out) {
+		c.idx = max(len(out)-1, 0)
 	}
-	return names, details, c.idx
+	return out, c.idx
 }
 
-// pickedRow maps the highlighted list entry back to its source.
-func (m *model) pickedRow() (connectRow, bool) {
-	c := m.connect
-	names, _, idx := m.connectList()
-	if len(names) == 0 {
-		return connectRow{}, false
-	}
-	// Re-run the filter to find the idx-th surviving row.
-	q := strings.ToLower(strings.TrimSpace(m.input.Value()))
-	i := 0
-	for _, r := range c.rows {
-		if q != "" && !strings.Contains(strings.ToLower(r.name+" "+r.label+" "+r.detail), q) {
-			continue
-		}
-		if i == idx {
-			return r, true
-		}
-		i++
-	}
-	return connectRow{}, false
-}
-
-// handleConnectKey drives the dialog; it reports whether it consumed the key.
+// handleConnectKey drives the dialog; every key is consumed.
 func (m *model) handleConnectKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	c := m.connect
 	c.problem = ""
@@ -290,120 +289,116 @@ func (m *model) handleConnectKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		m.closeConnect("")
 		return nil, true
 	case "esc":
-		switch c.step {
-		case stepPick:
+		switch {
+		case c.step == stepPick, c.modelOnly:
 			m.closeConnect("")
-		case stepName:
-			m.enterStep(stepPick)
-		case stepURL:
-			m.enterStep(stepPick)
-		case stepKeys:
-			m.enterStep(stepURL)
-		case stepModel:
-			if c.modelOnly {
-				m.closeConnect("")
-			} else {
-				m.enterStep(stepKeys)
-			}
+		case c.step == stepModel && !c.prov.NeedsKey():
+			return m.enterStep(stepURL), true
+		default:
+			return m.enterStep(c.step - 1), true
 		}
 		return nil, true
-	case "up", "down":
-		names, _, idx := m.connectList()
-		if len(names) > 0 {
+	case "up", "down", "ctrl+p", "ctrl+n":
+		rows, idx := m.visible()
+		if len(rows) > 0 {
 			d := 1
-			if msg.String() == "up" {
+			if msg.String() == "up" || msg.String() == "ctrl+p" {
 				d = -1
 			}
-			c.idx = (idx + d + len(names)) % len(names)
-			c.idxFor = m.input.Value()
+			c.idx = (idx + d + len(rows)) % len(rows)
+			c.idxFor = c.field.Value()
 			m.refresh(false)
 		}
 		return nil, true
-	case "tab":
-		if c.step == stepModel {
-			names, _, idx := m.connectList()
-			if len(names) > 0 {
-				m.input.SetValue(names[idx])
-				c.idxFor, c.idx = names[idx], 0
-				m.refresh(false)
+	case "pgup", "pgdown":
+		rows, idx := m.visible()
+		if len(rows) > 0 {
+			if msg.String() == "pgup" {
+				c.idx = max(idx-dialogRows, 0)
+			} else {
+				c.idx = min(idx+dialogRows, len(rows)-1)
 			}
+			c.idxFor = c.field.Value()
+			m.refresh(false)
 		}
 		return nil, true
 	case "enter":
 		return m.connectEnter(), true
 	}
-	return nil, false // the textarea takes it and filters the list
+	var cmd tea.Cmd
+	c.field, cmd = c.field.Update(msg)
+	m.refresh(false)
+	return cmd, true
+}
+
+func (m *model) fail(msg string) tea.Cmd {
+	m.connect.problem = msg
+	m.refresh(false)
+	return nil
 }
 
 func (m *model) connectEnter() tea.Cmd {
 	c := m.connect
-	v := strings.TrimSpace(m.input.Value())
+	v := strings.TrimSpace(c.field.Value())
 	switch c.step {
 	case stepPick:
-		r, ok := m.pickedRow()
-		if !ok {
-			c.problem = "nothing matches"
-			m.refresh(false)
-			return nil
+		rows, idx := m.visible()
+		if len(rows) == 0 {
+			return m.fail("no provider matches")
 		}
+		r := rows[idx]
 		c.name, c.prov = r.name, r.prov
 		if r.custom {
-			m.enterStep(stepName)
-		} else {
-			m.enterStep(stepURL)
+			return m.enterStep(stepName)
 		}
+		return m.enterStep(stepURL)
 	case stepName:
 		v = strings.ToLower(v)
 		if v == "" || strings.ContainsAny(v, " \t/\\") {
-			c.problem = "give a short name without spaces"
-			m.refresh(false)
-			return nil
+			return m.fail("give a short name without spaces")
 		}
 		if p, ok := m.opts.Config.Providers[v]; ok {
 			c.prov = p
 		}
 		c.name = v
-		m.enterStep(stepURL)
+		return m.enterStep(stepURL)
 	case stepURL:
 		if c.prov.Type == "openai" && v == "" {
-			c.problem = "an OpenAI-compatible server needs a base URL"
-			m.refresh(false)
-			return nil
+			return m.fail("an OpenAI-compatible server needs a base URL")
 		}
 		if v != "" && !strings.HasPrefix(v, "http://") && !strings.HasPrefix(v, "https://") {
-			c.problem = "the base URL must start with http:// or https://"
-			m.refresh(false)
-			return nil
+			return m.fail("the base URL must start with http:// or https://")
 		}
 		c.prov.BaseURL = strings.TrimRight(v, "/")
-		m.enterStep(stepKeys)
+		if !c.prov.NeedsKey() && len(c.prov.Keys()) == 0 {
+			return m.enterStep(stepModel) // local server: no key to ask for
+		}
+		return m.enterStep(stepKeys)
 	case stepKeys:
-		keys := strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == ' ' || r == '\n' || r == '\t' })
-		if len(keys) > 0 {
+		if keys := splitKeys(v); len(keys) > 0 {
 			c.prov.SetKeys(keys)
 		} else if len(c.prov.Keys()) == 0 && c.prov.NeedsKey() {
-			c.problem = "this provider needs an API key"
-			m.refresh(false)
-			return nil
+			return m.fail("this provider needs an API key")
 		}
-		m.enterStep(stepModel)
-		return m.fetchModels()
+		return m.enterStep(stepModel)
 	case stepModel:
-		// The highlighted row wins while it still matches what was typed;
+		// The highlighted row wins while it still matches the search;
 		// otherwise the typed text is the model id.
-		names, _, idx := m.connectList()
-		model := v
-		if len(names) > 0 && strings.Contains(strings.ToLower(names[idx]), strings.ToLower(v)) {
-			model = names[idx]
+		rows, idx := m.visible()
+		id := v
+		if len(rows) > 0 {
+			id = rows[idx].name
 		}
-		if model == "" {
-			c.problem = "type a model id"
-			m.refresh(false)
-			return nil
+		if id == "" {
+			return m.fail("type a model id")
 		}
-		m.applyConnect(model)
+		m.applyConnect(id)
 	}
 	return nil
+}
+
+func splitKeys(v string) []string {
+	return strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == ' ' || r == '\n' || r == '\t' || r == ';' })
 }
 
 // applyConnect swaps the agent's provider, persists the choice and closes
@@ -414,8 +409,7 @@ func (m *model) applyConnect(modelID string) {
 	prov, err := m.opts.Build(cfg)
 	if err != nil {
 		m.enterStep(stepKeys)
-		c.problem = err.Error()
-		m.refresh(false)
+		m.fail(err.Error())
 		return
 	}
 	*m.opts.Config = *cfg
@@ -423,7 +417,7 @@ func (m *model) applyConnect(modelID string) {
 	m.opts.Agent.Model = modelID
 	m.opts.Agent.Price = cfg.PriceFor(modelID)
 	m.opts.Provider = c.name
-	note := "connected to " + c.name + " · model " + modelID
+	note := "connected to " + c.name + " · " + modelID
 	if m.opts.ConfigPath != "" {
 		if err := config.Update(m.opts.ConfigPath, c.name, c.prov, modelID); err != nil {
 			m.transcript.errorf("saving config: %v", err)
@@ -435,97 +429,248 @@ func (m *model) applyConnect(modelID string) {
 }
 
 func (m *model) closeConnect(note string) {
-	c := m.connect
 	m.connect = nil
-	m.input.Reset()
-	m.input.SetValue(c.draft)
-	m.input.Placeholder = defaultPlaceholder
+	m.input.Focus()
 	if note != "" {
 		m.transcript.info(note)
 	}
-	m.layout()
 	m.refresh(false)
 }
 
-// connectHeight is the footer space above the input box.
-func (m *model) connectHeight() int {
-	names, _, _ := m.connectList()
-	h := 2 // title + hint
-	if m.connect.problem != "" {
-		h++
+// --- rendering ---
+
+var (
+	styleDialog   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(colBorderA).Padding(0, 1)
+	styleSection  = lipgloss.NewStyle().Foreground(colFaint).Bold(true)
+	styleSelected = lipgloss.NewStyle().Foreground(colAccent).Bold(true)
+	styleTag      = lipgloss.NewStyle().Foreground(colOK)
+)
+
+// connectView draws the modal centred in the body area.
+func (m *model) connectView(height int) string {
+	c := m.connect
+	w := min(dialogWidth, m.width-4)
+	inner := w - 4 // border + padding
+	c.field.Width = inner - 3
+	var lines []string
+	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
+
+	add(styleKey.Render(m.dialogTitle()) + "  " + m.breadcrumb())
+	if ctx := m.dialogContext(); ctx != "" {
+		add(styleDim.Render(ctx))
 	}
-	if n := len(names); n > 0 {
-		h += min(n, dialogRows)
-	} else if m.connect.step == stepModel {
-		h++ // loading / error line
+	add("")
+	add(styleAccent.Render("› ") + c.field.View())
+	add(styleFaint.Render(strings.Repeat("─", inner)))
+	if c.problem != "" {
+		add(styleErr.Render("✗ " + c.problem))
 	}
-	return h
+	switch c.step {
+	case stepPick, stepModel:
+		lines = append(lines, m.listLines(inner)...)
+	case stepName:
+		add(styleDim.Render("Used as the provider's name in the config file and in --provider."))
+	case stepURL:
+		add(styleDim.Render("Edit the URL if your server lives elsewhere; enter keeps it."))
+	case stepKeys:
+		n := len(splitKeys(c.field.Value()))
+		have := len(c.prov.Keys())
+		switch {
+		case n > 0:
+			add(styleDim.Render(fmt.Sprintf("%d key(s) entered · several keys are rotated when one is rate limited", n)))
+		case have > 0:
+			add(styleDim.Render(fmt.Sprintf("%d key(s) already configured · enter keeps them, or paste new ones", have)))
+		default:
+			add(styleDim.Render("Keys are hidden while typing and stored in " + shortPath(m.opts.ConfigPath)))
+		}
+	}
+	add("")
+	add(styleFaint.Render(m.dialogHelp()))
+	box := styleDialog.Width(w - 2).Render(strings.Join(lines, "\n"))
+	return lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box)
 }
 
-func (m *model) connectView() []string {
+func (m *model) dialogTitle() string {
 	c := m.connect
-	var parts []string
-	title := map[connectStep]string{
-		stepPick:  "connect · choose a provider",
-		stepName:  "connect · name the provider",
-		stepURL:   "connect · " + c.name + " · base URL",
-		stepKeys:  "connect · " + c.name + " · API keys",
-		stepModel: "connect · " + c.name + " · choose a model",
-	}[c.step]
-	parts = append(parts, "  "+styleKey.Render(title))
-	if c.problem != "" {
-		parts = append(parts, "  "+styleErr.Render(c.problem))
+	switch {
+	case c.modelOnly:
+		return "Choose a model"
+	case c.step == stepPick:
+		return "Connect to a provider"
+	default:
+		return "Connect · " + c.name
 	}
-	names, details, idx := m.connectList()
-	if len(names) == 0 && c.step == stepModel {
-		switch {
-		case c.loading:
-			parts = append(parts, "  "+styleDim.Render(m.spinner.View()+" listing models…"))
-		case c.loadErr != "":
-			parts = append(parts, "  "+styleWarn.Render(truncateLine(c.loadErr, m.width-4)))
-		default:
-			parts = append(parts, "  "+styleDim.Render("no model matches · enter uses what you typed"))
+}
+
+func (m *model) breadcrumb() string {
+	c := m.connect
+	if c.modelOnly {
+		return ""
+	}
+	steps := []struct {
+		s connectStep
+		l string
+	}{{stepPick, "provider"}, {stepURL, "url"}, {stepKeys, "keys"}, {stepModel, "model"}}
+	var parts []string
+	for _, st := range steps {
+		cur := st.s == c.step || (st.s == stepPick && c.step == stepName)
+		if cur {
+			parts = append(parts, styleAccent.Bold(true).Render(st.l))
+		} else {
+			parts = append(parts, styleFaint.Render(st.l))
 		}
+	}
+	return strings.Join(parts, styleFaint.Render(" › "))
+}
+
+// dialogContext summarises what has been chosen so far.
+func (m *model) dialogContext() string {
+	c := m.connect
+	if c.step == stepPick || c.step == stepName {
+		return ""
+	}
+	parts := []string{c.prov.Type + " API"}
+	if c.step > stepURL && c.prov.BaseURL != "" {
+		parts = append(parts, c.prov.BaseURL)
+	}
+	if c.step > stepKeys {
+		switch n := len(c.prov.Keys()); {
+		case n == 1:
+			parts = append(parts, "1 key")
+		case n > 1:
+			parts = append(parts, fmt.Sprintf("%d keys", n))
+		default:
+			parts = append(parts, "no key")
+		}
+	}
+	return strings.Join(parts, " · ")
+}
+
+func (m *model) listLines(inner int) []string {
+	c := m.connect
+	rows, idx := m.visible()
+	var out []string
+	if len(rows) == 0 {
+		switch {
+		case c.step == stepModel && c.loading:
+			out = append(out, "  "+styleDim.Render(m.spinner.View()+" fetching models from "+hostOf(c.prov.BaseURL)+"…"))
+		case c.step == stepModel && c.loadErr != "":
+			out = append(out, "  "+styleWarn.Render(truncateLine(c.loadErr, inner-2)))
+			out = append(out, "  "+styleDim.Render("type the model id and press enter"))
+		case c.field.Value() != "":
+			out = append(out, "  "+styleDim.Render("nothing matches"))
+		}
+		return out
 	}
 	start := 0
 	if idx >= dialogRows {
 		start = idx - dialogRows + 1
 	}
-	for i := start; i < min(len(names), start+dialogRows); i++ {
-		row := "  " + styleKey.Render(names[i]) + "  " + styleFaint.Render(details[i])
+	end := min(len(rows), start+dialogRows)
+	section := ""
+	if start > 0 {
+		section = rows[start-1].section
+	}
+	widths := columnWidths(rows, inner-4)
+	for i := start; i < end; i++ {
+		r := rows[i]
+		if r.section != "" && r.section != section {
+			section = r.section
+			out = append(out, styleSection.Render(strings.ToUpper(section)))
+		}
+		// The last column takes what is left after the tag.
+		last := inner - 2
+		for _, w := range widths[:len(widths)-1] {
+			last -= w + 2
+		}
+		if r.tag != "" {
+			last -= lipgloss.Width(r.tag) + 2
+		}
+		var cells []string
+		for j, cell := range r.cells {
+			if j < len(widths)-1 {
+				cell = pad(cell, widths[j])
+			} else {
+				cell = pad(cell, max(last, 4))
+			}
+			switch {
+			case i == idx && j == 0:
+				cell = styleSelected.Render(cell)
+			case j == 0:
+				cell = styleKey.Render(cell)
+			case j == len(r.cells)-1:
+				cell = styleFaint.Render(cell)
+			}
+			cells = append(cells, cell)
+		}
+		line := strings.Join(cells, "  ")
+		if r.tag != "" {
+			line += "  " + styleTag.Render(r.tag)
+		}
 		if i == idx {
-			row = styleAccent.Render("▸ ") + styleKey.Bold(true).Render(names[i]) + "  " + styleDim.Render(details[i])
+			line = styleAccent.Render("▸ ") + line
+		} else {
+			line = "  " + line
 		}
-		parts = append(parts, truncateLine(row, m.width-1))
+		out = append(out, truncateLine(line, inner))
 	}
-	hint := "enter continues · esc back"
-	switch c.step {
-	case stepPick, stepModel:
-		hint = fmt.Sprintf("↑↓ choose · %d of %d · enter picks · esc back", min(idx+1, len(names)), len(names))
-		if c.step == stepModel {
-			hint += " · tab copies the highlighted id"
-		}
-	case stepKeys:
-		hint = "keys are stored in the config file · enter continues · esc back"
+	if len(rows) > dialogRows {
+		out = append(out, styleFaint.Render(fmt.Sprintf("  %d of %d", idx+1, len(rows))))
 	}
-	parts = append(parts, "  "+styleFaint.Render(hint))
-	return parts
+	return out
 }
 
-// maskedInput renders the input box contents with every key hidden.
-func maskedInput(v string) string {
-	if v == "" {
-		return ""
+// columnWidths sizes every column but the last to its widest cell, capped
+// so the row fits.
+func columnWidths(rows []row, avail int) []int {
+	if len(rows) == 0 {
+		return nil
 	}
-	var b strings.Builder
-	for _, r := range v {
-		if r == ',' || r == ' ' || r == '\n' {
-			b.WriteRune(r)
-		} else {
-			b.WriteRune('•')
+	n := len(rows[0].cells)
+	widths := make([]int, n)
+	for _, r := range rows {
+		for j, c := range r.cells {
+			if j < n-1 {
+				widths[j] = max(widths[j], lipgloss.Width(c))
+			}
 		}
 	}
-	return b.String()
+	cap := avail / max(n, 1)
+	for j := range widths {
+		widths[j] = min(widths[j], cap)
+	}
+	return widths
+}
+
+func pad(s string, w int) string {
+	s = truncateLine(s, w)
+	if d := w - lipgloss.Width(s); d > 0 {
+		s += strings.Repeat(" ", d)
+	}
+	return s
+}
+
+func (m *model) dialogHelp() string {
+	c := m.connect
+	switch c.step {
+	case stepPick:
+		return "↑↓ move · enter select · esc close"
+	case stepModel:
+		rows, idx := m.visible()
+		back := "esc back"
+		if c.modelOnly {
+			back = "esc close"
+		}
+		if len(rows) == 0 && strings.TrimSpace(c.field.Value()) != "" {
+			return fmt.Sprintf("enter uses %q as the model id · %s", strings.TrimSpace(c.field.Value()), back)
+		}
+		if len(rows) > 0 {
+			return "↑↓ move · enter uses " + rows[idx].name + " · " + back
+		}
+		return "↑↓ move · enter select · " + back
+	default:
+		return "enter continue · esc back"
+	}
 }
 
 // headerModel labels the active backend in the header.
