@@ -162,6 +162,34 @@ Repeat it to go back further (up to 30 turns); it still works after
 `--continue` or `/resume`. If you committed or checked out in between, the
 git snapshot is not applied and only file-tool changes are reverted.
 
+### Permission rules
+
+Approval is normally per call (`y`), or per tool for the session (`a`).
+Press `r` at a prompt to save a rule instead, so matching calls never ask
+again in any session; the prompt shows the rule it would save, such as
+`bash(go test *)`, `edit_file(internal/agent/*)` or
+`fetch_url(https://pkg.go.dev/*)`. Rules live under `"permissions"` in the
+config file:
+
+```json
+"permissions": {
+  "allow": ["read_file", "bash(go test *)", "bash(make *)", "edit_file(internal/*)"],
+  "deny":  ["bash(git push*)", "bash(rm -rf *)"]
+}
+```
+
+A rule is `tool` or `tool(pattern)`; `*` spans anything and `?` one
+character, matched against the command for `bash`, the path for file
+tools and the URL for `fetch_url`. Deny wins over allow; a denied call is
+refused without a prompt and the model is told which rule did it.
+Guarded commands (ones that reach outside the workspace) still ask.
+`/permissions` lists rules, `/permissions allow <rule>` and `/permissions
+deny <rule>` add one. A project can ship `.janetcode/permissions.json`
+with the same shape: its deny rules always apply, its allow rules only
+after `/permissions trust`. Headless runs take `--allow` and `--deny`
+with comma-separated rules, and a `pre_tool` hook can answer
+`{"decision":"allow"}` to approve a call itself.
+
 ### Memory
 
 janetcode remembers across sessions. Each entry is a small markdown file

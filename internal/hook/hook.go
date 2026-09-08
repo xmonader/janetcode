@@ -124,7 +124,8 @@ type Input struct {
 // Output is what a hook may print on stdout, as JSON. Plain text on
 // stdout is taken as a note.
 type Output struct {
-	// Decision "deny" blocks the tool call (pre_tool) with Reason.
+	// Decision "deny" blocks the tool call (pre_tool) with Reason; "allow"
+	// runs it without asking the user (guarded calls still ask).
 	Decision string `json:"decision,omitempty"`
 	Reason   string `json:"reason,omitempty"`
 	// Input replaces the tool input (pre_tool).
@@ -140,6 +141,8 @@ type Output struct {
 type Result struct {
 	Denied bool
 	Reason string
+	// Allowed means a pre_tool hook approved the call on the user's behalf.
+	Allowed bool
 	// Input is the final tool input after rewrites (pre_tool).
 	Input json.RawMessage
 	// Notes collects notes from every hook.
@@ -217,6 +220,9 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 			}
 			res.Denied, res.Reason = true, o.Reason
 			return res
+		}
+		if o.Decision == "allow" || o.Decision == "approve" {
+			res.Allowed = true
 		}
 		if len(o.Input) > 0 && in.Event == PreTool {
 			if !json.Valid(o.Input) {

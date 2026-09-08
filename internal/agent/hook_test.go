@@ -9,15 +9,22 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // seesApprover records the inputs it was asked to approve.
-type seesApprover struct{ inputs []string }
+type seesApprover struct {
+	inputs   []string
+	decision Decision
+}
 
 func (s *seesApprover) Approve(_ context.Context, c ToolCall) (Decision, error) {
 	s.inputs = append(s.inputs, string(c.Input))
-	return Allow, nil
+	if s.decision == Deny {
+		return Allow, nil
+	}
+	return s.decision, nil
 }
 
 func TestHooksDenyRewriteAnnotateAndContinue(t *testing.T) {
@@ -101,5 +108,53 @@ func TestPreCompactHookNoteLandsInHandoff(t *testing.T) {
 	}
 	if got := a.Messages[0].Text(); !strings.Contains(got, "[From a pre_compact hook:]\ntokens were ") {
 		t.Fatalf("note = %q", got)
+	}
+}
+
+func TestPermissionRulesAllowDenyAndAlways(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"go test ./..."}`),          // allowed by rule: no prompt
+		toolCall("t2", "bash", `{"command":"git push origin"}`),        // denied by rule: no prompt
+		toolCall("t3", "bash", `{"command":"make build"}`),             // asks; user answers AllowAlways
+		toolCall("t4", "bash", `{"command":"make test"}`),              // covered by the new rule
+		toolCall("t5", "write_file", `{"path":"h.txt","content":"x"}`), // approved by a hook
+		text("done"),
+	}}
+	ap := &seesApprover{}
+	ap.decision = AllowAlways
+	a, root := newAgent(t, f, ap)
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root})
+	r1, _ := perm.Parse("bash(go test *)")
+	r2, _ := perm.Parse("bash(git push*)")
+	a.Rules = perm.Rules{Allow: []perm.Rule{r1}, Deny: []perm.Rule{r2}}
+	var saved []perm.Rule
+	a.SaveRule = func(r perm.Rule) error { saved = append(saved, r); return nil }
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{hook.PreTool: {{Match: "write_file", Command: `echo '{"decision":"allow"}'`}}}}
+	var notices []string
+	if err := a.Run(context.Background(), "go", func(e Event) {
+		if e.Kind == EvNotice {
+			notices = append(notices, e.Text)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res := func(i int) llm.Block { return a.Messages[i].Blocks[0] }
+	if r := res(2); r.IsError || strings.Contains(r.Text, "denied") {
+		t.Fatalf("allowed call failed: %+v", r)
+	}
+	if r := res(4); !r.IsError || !strings.Contains(r.Text, "Denied by permission rule bash(git push*)") {
+		t.Fatalf("deny result = %+v", r)
+	}
+	if len(ap.inputs) != 1 || !strings.Contains(ap.inputs[0], "make build") {
+		t.Fatalf("approver asked for %q, want only 'make build'", ap.inputs)
+	}
+	if len(saved) != 1 || saved[0].String() != "bash(make *)" || len(notices) != 1 || !strings.Contains(notices[0], "saved permission rule: bash(make *)") {
+		t.Fatalf("saved=%v notices=%q", saved, notices)
+	}
+	if r := res(8); r.IsError {
+		t.Fatalf("make test should be covered by the saved rule: %+v", r)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "h.txt")); string(data) != "x" {
+		t.Fatal("hook-approved write did not run")
 	}
 }

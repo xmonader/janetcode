@@ -28,6 +28,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
@@ -41,6 +42,7 @@ type Options struct {
 	// MCP, when set, describes the servers to start.
 	MCP      *MCPOptions
 	Hooks    *HookOptions
+	Perms    *PermOptions
 	Agent    *agent.Agent
 	Session  *session.Session
 	Provider string
@@ -196,6 +198,74 @@ func (m *model) memoryCommand(cmd, arg string) {
 		}
 		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 	}
+}
+
+// PermOptions describes the permission rules in effect for /permissions.
+type PermOptions struct {
+	Project        perm.Rules
+	ProjectHash    string
+	ProjectTrusted bool
+	Trust          mcp.TrustStore
+	// Save persists a rule to the config file.
+	Save func(kind string, r perm.Rule) error
+}
+
+// permissionsCommand lists rules, adds one, or trusts the project file.
+func (m *model) permissionsCommand(args []string) {
+	o := m.opts.Perms
+	ag := m.opts.Agent
+	if len(args) >= 2 && (args[0] == "allow" || args[0] == "deny") {
+		r, err := perm.Parse(strings.Join(args[1:], " "))
+		if err != nil {
+			m.transcript.errorf("%v", err)
+			return
+		}
+		v := perm.Allowed
+		if args[0] == "deny" {
+			v = perm.Denied
+		}
+		ag.Rules.Add(v, r)
+		if o != nil && o.Save != nil {
+			if err := o.Save(args[0], r); err != nil {
+				m.transcript.errorf("save rule: %v", err)
+				return
+			}
+		}
+		m.transcript.info("rule saved: " + args[0] + " " + r.String())
+		return
+	}
+	if len(args) > 0 && args[0] == "trust" {
+		switch {
+		case o == nil || len(o.Project.Allow) == 0 && len(o.Project.Deny) == 0:
+			m.transcript.errorf("no %s in %s", perm.ProjectFile, shortPath(m.opts.Cwd))
+		case o.ProjectTrusted:
+			m.transcript.info("project rules are already trusted")
+		default:
+			if err := o.Trust.Trust(m.opts.Cwd+"#permissions", o.ProjectHash); err != nil {
+				m.transcript.errorf("record trust: %v", err)
+				return
+			}
+			o.ProjectTrusted = true
+			ag.Rules = perm.Merge(ag.Rules, o.Project)
+			m.transcript.info("trusted " + perm.ProjectFile + " · its allow rules are active")
+		}
+		return
+	}
+	var sb strings.Builder
+	if len(ag.Rules.Allow) == 0 && len(ag.Rules.Deny) == 0 {
+		sb.WriteString("no permission rules yet\n")
+	}
+	for _, r := range ag.Rules.Deny {
+		sb.WriteString("deny   " + r.String() + "\n")
+	}
+	for _, r := range ag.Rules.Allow {
+		sb.WriteString("allow  " + r.String() + "\n")
+	}
+	if o != nil && len(o.Project.Allow) > 0 && !o.ProjectTrusted {
+		sb.WriteString(perm.ProjectFile + " has allow rules that are not trusted yet; run /permissions trust to enable them\n")
+	}
+	sb.WriteString("/permissions allow bash(go test *) adds a rule (deny likewise); press r at a prompt to save one for that call")
+	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 }
 
 // hooksCommand lists hooks or trusts the project's hook file.
@@ -365,6 +435,7 @@ var commands = []command{
 	{"/undo", "", "revert everything the last turn changed (git snapshot; file copies outside git)"},
 	{"/mcp", "[trust]", "MCP servers and their tools; trust starts the project's .mcp.json servers"},
 	{"/hooks", "[trust]", "hooks in effect; trust enables the project's .janetcode/hooks.json"},
+	{"/permissions", "[allow|deny <rule>|trust]", "permission rules; add one, or trust the project's .janetcode/permissions.json"},
 	{"/memory", "", "what janetcode remembers about this project"},
 	{"/skills", "", "skill files available to the model"},
 	{"/remember", "<fact>", "add a fact to the project memory"},
@@ -763,6 +834,8 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.answer(agent.Allow, "")
 		case "a", "A":
 			m.answer(agent.AllowSession, "")
+		case "r", "R":
+			m.answer(agent.AllowAlways, "")
 		case "n", "N":
 			// Ask why so the model can adapt; enter with nothing skips.
 			m.denying = true
@@ -1453,6 +1526,8 @@ func (m *model) command(text string) tea.Cmd {
 		m.mcpCommand(fields[1:])
 	case "/hooks":
 		m.hooksCommand(fields[1:])
+	case "/permissions", "/perms":
+		m.permissionsCommand(fields[1:])
 	case "/skills":
 		skills := skill.Load(m.opts.Cwd, m.opts.ConfigDir)
 		if len(skills) == 0 {
@@ -1775,7 +1850,7 @@ func (m *model) helpText() string {
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends\n")
 	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
-	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · n deny (then type why, or enter to skip) · esc deny\n")
+	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · r save a rule so matching calls never ask again · n deny (then type why, or enter to skip) · esc deny\n")
 	sb.WriteString("commands\n")
 	for _, c := range m.allCommands() {
 		fmt.Fprintf(&sb, "  %-10s %-7s %s\n", c.name, c.args, c.help)
@@ -2029,7 +2104,8 @@ func (m *model) permissionView() string {
 	if c.Warning != "" {
 		sb.WriteString("\n" + styleErr.Bold(true).Render("⚠ "+c.Warning))
 	}
-	sb.WriteString("\n" + styleKey.Render("y") + styleDim.Render(" allow once   ") + styleKey.Render("a") + styleDim.Render(" always for "+c.Name+"   ") + styleKey.Render("n") + styleDim.Render(" deny (and say why)   ") + styleFaint.Render("(diff shown above · ctrl+o expands)"))
+	rule := perm.Suggest(c.Name, perm.Subject(c.Name, c.Input)).String()
+	sb.WriteString("\n" + styleKey.Render("y") + styleDim.Render(" allow once   ") + styleKey.Render("a") + styleDim.Render(" always for "+c.Name+" this session   ") + styleKey.Render("r") + styleDim.Render(" save rule "+rule+"   ") + styleKey.Render("n") + styleDim.Render(" deny (and say why)   ") + styleFaint.Render("(ctrl+o expands)"))
 	return stylePermBox.Width(m.width - 2).Render(sb.String())
 }
 

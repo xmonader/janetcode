@@ -19,6 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/mcp/testserver"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -1021,6 +1022,37 @@ func TestMemoryCommandsAndAutoExtraction(t *testing.T) {
 	h.keys("/forget 9")
 	h.enter()
 	if v := plain(h.m.View()); !strings.Contains(v, "no memory entry 9") {
+		t.Fatalf("view:\n%s", v)
+	}
+}
+
+func TestPermissionPromptRuleKeySavesRule(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(`{"path":"docs/a.md","content":"1"}`)}}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "wrote"), StopReason: llm.StopEndTurn},
+	)
+	var saved []string
+	h.m.opts.Agent.SaveRule = func(r perm.Rule) error { saved = append(saved, r.String()); return nil }
+	h.m.opts.Perms = &PermOptions{Save: func(kind string, r perm.Rule) error { saved = append(saved, kind+" "+r.String()); return nil }}
+	h.keys("write it")
+	h.enter()
+	h.pump(func() bool { return h.m.pending != nil })
+	if v := plain(h.m.View()); !strings.Contains(v, "save rule write_file(docs/*)") {
+		t.Fatalf("prompt view:\n%s", v)
+	}
+	h.keys("r")
+	h.pump(func() bool { return !h.m.running })
+	if len(saved) != 1 || saved[0] != "write_file(docs/*)" || len(h.m.opts.Agent.Rules.Allow) != 1 {
+		t.Fatalf("saved = %v rules = %+v", saved, h.m.opts.Agent.Rules)
+	}
+	h.keys("/permissions deny bash(git push*)")
+	h.enter()
+	if len(saved) != 2 || saved[1] != "deny bash(git push*)" || len(h.m.opts.Agent.Rules.Deny) != 1 {
+		t.Fatalf("saved = %v", saved)
+	}
+	h.keys("/permissions")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "deny   bash(git push*)") || !strings.Contains(v, "allow  write_file(docs/*)") {
 		t.Fatalf("view:\n%s", v)
 	}
 }

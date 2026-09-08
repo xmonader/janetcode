@@ -1,7 +1,9 @@
 package config
 
 import (
+	"encoding/json"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/perm"
 
 	"os"
 	"path/filepath"
@@ -226,5 +228,40 @@ func TestUpdateEditsOnlyProviderKeys(t *testing.T) {
 	raw, _ = os.ReadFile(p)
 	if strings.Contains(string(raw), "secret") || !strings.Contains(string(raw), "file-k") {
 		t.Fatalf("file = %s", raw)
+	}
+}
+
+func TestAddPermissionKeepsOtherKeys(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(p, []byte("{\n  \"model\": \"m\",\n  \"providers\": {\"x\": {\"type\": \"openai\", \"api_key\": \"k\"}}\n}\n"), 0o600)
+	r, _ := perm.Parse("bash(go test *)")
+	if err := AddPermission(p, "allow", r); err != nil {
+		t.Fatal(err)
+	}
+	if err := AddPermission(p, "allow", r); err != nil { // idempotent
+		t.Fatal(err)
+	}
+	d, _ := perm.Parse("bash(git push*)")
+	if err := AddPermission(p, "deny", d); err != nil {
+		t.Fatal(err)
+	}
+	if err := AddPermission(p, "maybe", d); err == nil {
+		t.Fatal("bad kind accepted")
+	}
+	data, _ := os.ReadFile(p)
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	perms := raw["permissions"].(map[string]any)
+	if raw["model"] != "m" || len(perms["allow"].([]any)) != 1 || perms["allow"].([]any)[0] != "bash(go test *)" || perms["deny"].([]any)[0] != "bash(git push*)" {
+		t.Fatalf("config = %s", data)
+	}
+	if info, _ := os.Stat(p); info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode = %v", info.Mode())
+	}
+	// A fresh file works too.
+	if err := AddPermission(filepath.Join(t.TempDir(), "new.json"), "allow", r); err != nil {
+		t.Fatal(err)
 	}
 }

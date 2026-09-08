@@ -24,6 +24,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm/openai"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
@@ -69,6 +70,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		model       = fs.String("model", "", "model id (default claude-opus-5 for anthropic)")
 		effort      = fs.String("effort", "", "anthropic effort: low, medium, high, xhigh, max")
 		yolo        = fs.Bool("yolo", false, "auto-approve every tool call")
+		allow       = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
+		deny        = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
 		cont        = fs.Bool("continue", false, "resume the latest session for this directory")
 		resume      = fs.String("resume", "", "resume the session with this id")
 		showVersion = fs.Bool("version", false, "print version and exit")
@@ -213,6 +216,37 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	} else if len(hooksCfg) > 0 && *promptText != "" {
 		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
 	}
+	rules, _ := cfg.Permissions.Rules() // validated by config.Load
+	projRules, permHash, err := perm.LoadProject(cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v (project permissions ignored)\n", err)
+	}
+	permTrusted := len(projRules.Allow) > 0 && trust.Trusted(cwd+"#permissions", permHash)
+	if permTrusted {
+		rules = perm.Merge(rules, projRules)
+	} else {
+		rules = perm.Merge(rules, perm.Rules{Deny: projRules.Deny}) // deny rules need no trust
+		if len(projRules.Allow) > 0 && *promptText != "" {
+			fmt.Fprintf(os.Stderr, "[permissions] %s has allow rules that are not trusted yet; open the TUI and run /permissions trust\n", perm.ProjectFile)
+		}
+	}
+	for _, spec := range []struct {
+		flag string
+		v    perm.Verdict
+	}{{*allow, perm.Allowed}, {*deny, perm.Denied}} {
+		for _, part := range strings.Split(spec.flag, ",") {
+			if strings.TrimSpace(part) == "" {
+				continue
+			}
+			r, err := perm.Parse(part)
+			if err != nil {
+				return err
+			}
+			rules.Add(spec.v, r)
+		}
+	}
+	ag.Rules = rules
+	ag.SaveRule = func(r perm.Rule) error { return config.AddPermission(cfgPath, "allow", r) }
 	projectTrusted := len(projectServers) > 0 && trust.Trusted(cwd, projectHash)
 
 	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {
@@ -270,6 +304,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			Project: projectServers, ProjectHash: projectHash, ProjectTrusted: projectTrusted, Trust: trust,
 		},
 		Hooks: &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
+		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: trust,
+			Save: func(kind string, r perm.Rule) error { return config.AddPermission(cfgPath, kind, r) }},
 	})
 }
 

@@ -17,6 +17,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -31,6 +32,9 @@ const (
 	Allow
 	// AllowSession permits this call and every later call of the same tool.
 	AllowSession
+	// AllowAlways permits this call and saves a rule (see perm.Suggest) so
+	// matching calls never ask again, in this or any later session.
+	AllowAlways
 )
 
 // ToolCall is a pending invocation shown to the user for approval.
@@ -109,6 +113,11 @@ type Agent struct {
 	MaxIterations int
 	// AutoApprove skips the Approver for every tool.
 	AutoApprove bool
+	// Rules are persistent permission rules consulted before the Approver:
+	// a deny refuses the call outright, an allow skips the prompt.
+	Rules perm.Rules
+	// SaveRule, when set, persists a rule the user created with AllowAlways.
+	SaveRule func(perm.Rule) error
 	// CompactAt is the estimated token count that triggers automatic
 	// compaction before a model call. Zero means DefaultCompactAt; negative
 	// disables it.
@@ -441,6 +450,7 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 		return msg, true, nil
 	}
 	var hookNotes []string
+	hookAllowed := false
 	if a.Hooks.Has(hook.PreTool) {
 		res := a.Hooks.Run(ctx, hook.Input{Event: hook.PreTool, Cwd: a.Hooks.Cwd, Tool: u.Name, Input: u.Input})
 		if res.Denied {
@@ -448,6 +458,7 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
 			return msg, true, nil
 		}
+		hookAllowed = res.Allowed
 		if !bytes.Equal(res.Input, u.Input) {
 			// The rewritten input is what gets previewed, approved and run.
 			u.Input = res.Input
@@ -477,7 +488,20 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 			}
 		}
 	}
-	if t.Mutating() && (mustAsk || !a.AutoApprove && !a.allowed[u.Name]) {
+	subject := perm.Subject(u.Name, u.Input)
+	verdict, rule := a.Rules.Decide(u.Name, subject)
+	if verdict == perm.Denied {
+		msg := fmt.Sprintf("Denied by permission rule %s. Do not retry this call; choose another approach or ask the user to change the rule.", rule)
+		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+		return msg, true, nil
+	}
+	switch {
+	case verdict == perm.Allowed:
+		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by rule "+rule.String(), "; ")
+	case hookAllowed:
+		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by a hook", "; ")
+	}
+	if t.Mutating() && (mustAsk || !a.AutoApprove && !a.allowed[u.Name] && verdict != perm.Allowed && !hookAllowed) {
 		if a.Approver == nil {
 			msg := "Permission denied: no approver configured for mutating tools."
 			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
@@ -500,6 +524,18 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 		case AllowSession:
 			if !mustAsk {
 				a.allowed[u.Name] = true
+			}
+		case AllowAlways:
+			if !mustAsk {
+				r := perm.Suggest(u.Name, subject)
+				a.Rules.Add(perm.Allowed, r)
+				if a.SaveRule != nil {
+					if err := a.SaveRule(r); err != nil {
+						emit(Event{Kind: EvNotice, Text: "could not save permission rule " + r.String() + ": " + err.Error()})
+					} else {
+						emit(Event{Kind: EvNotice, Text: "saved permission rule: " + r.String()})
+					}
+				}
 			}
 		case Allow:
 		default:

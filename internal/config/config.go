@@ -13,6 +13,7 @@ import (
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/perm"
 )
 
 // ProviderConfig is the legacy "anthropic"/"openai" section; it is folded
@@ -50,6 +51,10 @@ type Config struct {
 	// Hooks run for every project. Project-specific ones go in
 	// <project>/.janetcode/hooks.json and need a one-time approval.
 	Hooks hook.Config `json:"hooks,omitempty"`
+	// Permissions are persistent allow/deny rules, e.g. "bash(go test *)".
+	// Project rules go in <project>/.janetcode/permissions.json; its allow
+	// rules need a one-time approval, its deny rules always apply.
+	Permissions perm.File `json:"permissions,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on. /remember always works.
 	Memory *bool `json:"memory,omitempty"`
@@ -332,6 +337,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	}
 	if err := cfg.Hooks.Validate(); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	if _, err := cfg.Permissions.Rules(); err != nil {
+		return nil, fmt.Errorf("%s: permissions: %w", path, err)
 	}
 	return cfg, nil
 }

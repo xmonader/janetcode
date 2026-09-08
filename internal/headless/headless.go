@@ -17,6 +17,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -197,7 +198,7 @@ func (a *stdinApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 	if call.Warning != "" {
 		fmt.Fprintf(a.out, "\nWARNING: %s\n", call.Warning)
 	}
-	fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways / [n]o (add a reason after n): ", call.Name, oneLine(string(call.Input), 200))
+	fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways this session / [r]ule %s saved for good / [n]o (add a reason after n): ", call.Name, oneLine(string(call.Input), 200), perm.Suggest(call.Name, perm.Subject(call.Name, call.Input)))
 	type res struct {
 		s   string
 		err error
@@ -220,6 +221,8 @@ func (a *stdinApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 			return agent.Allow, "", nil
 		case "a", "always":
 			return agent.AllowSession, "", nil
+		case "r", "rule":
+			return agent.AllowAlways, "", nil
 		}
 		return agent.Deny, strings.TrimSpace(rest), nil
 	}

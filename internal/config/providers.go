@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/perm"
 	"os"
 	"path/filepath"
 	"sort"
@@ -210,4 +211,46 @@ func writePrivate(path string, data []byte) error {
 		return cleanup(err)
 	}
 	return nil
+}
+
+// AddPermission appends a rule under "permissions" in the config file,
+// touching no other key. kind is "allow" or "deny".
+func AddPermission(path, kind string, rule perm.Rule) error {
+	if kind != "allow" && kind != "deny" {
+		return fmt.Errorf("bad permission kind %q", kind)
+	}
+	raw := map[string]json.RawMessage{}
+	if data, err := os.ReadFile(path); err == nil {
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return fmt.Errorf("config %s: %w", path, err)
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	var f perm.File
+	if r, ok := raw["permissions"]; ok && len(r) > 0 {
+		if err := json.Unmarshal(r, &f); err != nil {
+			return fmt.Errorf("config %s: permissions: %w", path, err)
+		}
+	}
+	list := &f.Allow
+	if kind == "deny" {
+		list = &f.Deny
+	}
+	for _, e := range *list {
+		if e == rule.String() {
+			return nil
+		}
+	}
+	*list = append(*list, rule.String())
+	enc, err := json.Marshal(f)
+	if err != nil {
+		return err
+	}
+	raw["permissions"] = enc
+	out, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writePrivate(path, append(out, '\n'))
 }
