@@ -110,6 +110,7 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `write_file` | Create or overwrite a file | yes, shows a diff |
 | `bash` | Run a shell command with a timeout | yes |
 | `fetch_url` | Fetch a web page or API response as text | yes |
+| `web_search` | Search the web (DuckDuckGo, or Brave Search with a key) for titles, URLs and snippets | yes |
 | `task` | Delegate a read-only job to a subagent with its own context; several run in parallel | no |
 
 All paths are confined to the working directory, symlinks included.
@@ -525,6 +526,11 @@ janetcode --init     # writes ~/.config/janetcode/config.json
   }
 }
 ```
+
+`web_search` scrapes DuckDuckGo's HTML endpoint by default, which needs no
+key but can rate-limit heavy use. For the Brave Search API set
+`"search": {"provider": "brave", "key": "${BRAVE_API_KEY}"}`; `url`
+overrides either endpoint (a proxy or a mock).
 
 `providers` holds any number of backends by name; `provider` selects one.
 `type` is `anthropic` or `openai` (any OpenAI-compatible server). A preset

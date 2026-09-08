@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
@@ -131,6 +132,6 @@ func htmlToText(s string) string {
 	return strings.TrimSpace(s)
 }
 
-var entities = strings.NewReplacer("&amp;", "&", "&lt;", "<", "&gt;", ">", "&quot;", "\"", "&#39;", "'", "&apos;", "'", "&nbsp;", " ", "&#160;", " ")
-
-func unescape(s string) string { return entities.Replace(s) }
+// unescape decodes every HTML entity, then folds the non-breaking spaces
+// pages use for layout into plain ones.
+func unescape(s string) string { return strings.ReplaceAll(html.UnescapeString(s), "\u00a0", " ") }

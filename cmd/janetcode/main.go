@@ -199,6 +199,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			tool.Bash{Root: cwd, Cache: &tool.ShellCache{}, Jobs: jobs},
 			tool.JobTool{Jobs: jobs},
 			tool.FetchURL{},
+			tool.WebSearch{Config: cfg.Search},
 			&agent.ExpandOutput{Archive: archive},
 			task,
 		),

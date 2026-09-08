@@ -15,6 +15,7 @@ import (
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // ProviderConfig is the legacy "anthropic"/"openai" section; it is folded
@@ -64,6 +65,9 @@ type Config struct {
 	EmbeddingModel string `json:"embedding_model,omitempty"`
 	// LSP configures language servers for diagnostics after edits.
 	LSP lsp.Config `json:"lsp,omitempty"`
+	// Search selects the web_search backend: DuckDuckGo by default, or
+	// Brave Search with a key.
+	Search tool.SearchConfig `json:"search,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on. /remember always works.
 	Memory *bool `json:"memory,omitempty"`
@@ -384,6 +388,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		return nil, fmt.Errorf("%s: permissions: %w", path, err)
 	}
 	if err := cfg.LSP.Validate(); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	if err := cfg.Search.Validate(); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return cfg, nil
