@@ -1,0 +1,12 @@
+{
+  "name": "08-shell-script",
+  "prompt": "Write count.sh that prints the number of lines in input.txt and nothing else.",
+  "files": {
+    "input.txt": "one\ntwo\nthree\n"
+  },
+  "check": "test \"$(bash count.sh | tr -d \" \")\" = \"3\"",
+  "tags": [
+    "shell",
+    "create"
+  ]
+}

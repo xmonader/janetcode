@@ -1,0 +1,12 @@
+{
+  "name": "17-csv-sort",
+  "prompt": "Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+  "files": {
+    "data.csv": "name,score\nann,7\nbob,9\ncid,3\n"
+  },
+  "check": "test \"$(cat sorted.csv)\" = \"$(printf \"name,score\\nbob,9\\nann,7\\ncid,3\")\"",
+  "tags": [
+    "data",
+    "create"
+  ]
+}

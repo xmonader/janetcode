@@ -1,0 +1,13 @@
+{
+  "name": "12-python-bugfix",
+  "prompt": "python3 test_stats.py fails. Fix the bug in stats.py.",
+  "files": {
+    "stats.py": "def mean(xs):\n    return sum(xs) / (len(xs) - 1)\n",
+    "test_stats.py": "import unittest\nfrom stats import mean\n\nclass T(unittest.TestCase):\n    def test_mean(self):\n        self.assertEqual(mean([2, 4]), 3)\n        self.assertEqual(mean([5]), 5)\n\nif __name__ == '__main__':\n    unittest.main()\n"
+  },
+  "check": "python3 test_stats.py && grep -q 'assertEqual(mean(\\[5\\]), 5)' test_stats.py",
+  "tags": [
+    "python",
+    "debug"
+  ]
+}

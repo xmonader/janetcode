@@ -1,0 +1,14 @@
+{
+  "name": "11-go-return-error",
+  "prompt": "Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+  "files": {
+    "go.mod": "module example.com/m\n\ngo 1.22\n",
+    "parse.go": "package m\n\nimport \"strconv\"\n\nfunc Parse(s string) int {\n\tn, _ := strconv.Atoi(s)\n\treturn n\n}\n",
+    "parse_test.go": "package m\n\nimport \"testing\"\n\nfunc TestParseBad(t *testing.T) {\n\tif _, err := Parse(\"x\"); err == nil {\n\t\tt.Fatal(\"want error\")\n\t}\n\tif n, err := Parse(\"7\"); err != nil || n != 7 {\n\t\tt.Fatal(\"want 7\")\n\t}\n}\n"
+  },
+  "check": "go vet ./... && go test ./...",
+  "tags": [
+    "go",
+    "edit"
+  ]
+}

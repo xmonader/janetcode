@@ -17,6 +17,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/eval"
 	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -73,6 +74,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		effort      = fs.String("effort", "", "anthropic effort: low, medium, high, xhigh, max")
 		yolo        = fs.Bool("yolo", false, "auto-approve every tool call")
 		readonly    = fs.Bool("readonly", false, "read-only: no edits or commands, the model can only inspect")
+		evalPath    = fs.String("eval", "", "run the eval tasks in this file or directory against the configured provider and exit")
+		evalJobs    = fs.Int("eval-jobs", 2, "eval tasks to run at once")
+		evalOnly    = fs.String("eval-only", "", "comma-separated task names or tags to run")
+		evalJSON    = fs.String("eval-json", "", "write eval results to this JSON file")
+		evalKeep    = fs.Bool("eval-keep", false, "keep eval work directories")
 		allow       = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
 		deny        = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
 		cont        = fs.Bool("continue", false, "resume the latest session for this directory")
@@ -130,6 +136,14 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
+	}
+	if *evalPath != "" {
+		if prov == nil {
+			return errors.New("--eval needs a configured provider")
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return runEval(ctx, cfg, prov, evalOptions{path: *evalPath, jobs: *evalJobs, only: *evalOnly, jsonOut: *evalJSON, keep: *evalKeep})
 	}
 
 	sessDir, err := session.Dir()
@@ -394,6 +408,56 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 		})
 	}
 	return nil, fmt.Errorf("provider %q has unknown type %q", cfg.Provider, p.Type)
+}
+
+type evalOptions struct {
+	path, only, jsonOut string
+	jobs                int
+	keep                bool
+}
+
+// runEval runs the eval tasks with fresh, minimal agents (core tools, no
+// hooks, memory or MCP) so results reflect the model and the prompts.
+func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalOptions) error {
+	tasks, err := eval.Load(o.path)
+	if err != nil {
+		return err
+	}
+	if o.only != "" {
+		tasks = eval.Filter(tasks, strings.Split(o.only, ","))
+		if len(tasks) == 0 {
+			return fmt.Errorf("no tasks match %q", o.only)
+		}
+	}
+	fmt.Fprintf(os.Stderr, "running %d eval tasks with %s/%s (%d at a time)\n", len(tasks), cfg.Provider, cfg.Model, o.jobs)
+	r := &eval.Runner{Jobs: o.jobs, Keep: o.keep, Log: os.Stderr, NewAgent: func(root string) (*agent.Agent, error) {
+		return &agent.Agent{
+			Provider: prov,
+			Price:    cfg.PriceFor(cfg.Model),
+			Tools: tool.NewRegistry(
+				tool.ReadFile{Root: root}, tool.WriteFile{Root: root}, tool.EditFile{Root: root},
+				tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root},
+				tool.Bash{Root: root, Cache: &tool.ShellCache{}},
+			),
+			System:        prompt.System(root),
+			Model:         cfg.Model,
+			MaxTokens:     cfg.MaxTokens,
+			MaxIterations: cfg.MaxIterations,
+			CompactAt:     cfg.CompactAt,
+		}, nil
+	}}
+	results := r.Run(ctx, tasks)
+	passed := eval.Report(os.Stdout, results)
+	if o.jsonOut != "" {
+		if err := eval.WriteJSON(o.jsonOut, results); err != nil {
+			return err
+		}
+		fmt.Fprintln(os.Stderr, "wrote", o.jsonOut)
+	}
+	if passed < len(results) {
+		return fmt.Errorf("%d of %d eval tasks failed", len(results)-passed, len(results))
+	}
+	return nil
 }
 
 // diagnoseNote turns language-server diagnostics for a just-edited file

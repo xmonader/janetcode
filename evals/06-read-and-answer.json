@@ -1,0 +1,14 @@
+{
+  "name": "06-read-and-answer",
+  "prompt": "What does Compute(3) return? Reply with just the number.",
+  "files": {
+    "go.mod": "module example.com/m\n\ngo 1.22\n",
+    "util.go": "package m\n\nfunc Compute(n int) int {\n\tr := 1\n\tfor i := 0; i < n; i++ {\n\t\tr = r*2 + 1\n\t}\n\treturn r\n}\n"
+  },
+  "check": "tail -1 \"$EVAL_OUTPUT\" | grep -qw 15",
+  "max_tool_calls": 6,
+  "tags": [
+    "read",
+    "answer"
+  ]
+}

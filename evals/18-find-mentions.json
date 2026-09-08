@@ -1,0 +1,15 @@
+{
+  "name": "18-find-mentions",
+  "prompt": "Which files mention 'flux capacitor'? List only the file names.",
+  "files": {
+    "docs/a.txt": "nothing here\n",
+    "docs/b.txt": "the flux capacitor needs 1.21 GW\n",
+    "notes.md": "flux capacitor maintenance log\n"
+  },
+  "check": "grep -q \"b.txt\" \"$EVAL_OUTPUT\" && grep -q \"notes.md\" \"$EVAL_OUTPUT\" && ! grep -q \"a.txt\" \"$EVAL_OUTPUT\"",
+  "max_tool_calls": 6,
+  "tags": [
+    "read",
+    "search"
+  ]
+}

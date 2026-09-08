@@ -1,0 +1,13 @@
+{
+  "name": "07-json-config-edit",
+  "prompt": "In config.json change the port to 8080. Keep every other key exactly as it is.",
+  "files": {
+    "config.json": "{\n  \"name\": \"svc\",\n  \"port\": 3000,\n  \"debug\": false,\n  \"hosts\": [\"a\", \"b\"]\n}\n"
+  },
+  "check": "python3 -c 'import json; c=json.load(open(\"config.json\")); assert c[\"port\"]==8080, c; assert c[\"name\"]==\"svc\" and c[\"debug\"] is False and c[\"hosts\"]==[\"a\",\"b\"], c'",
+  "max_tool_calls": 5,
+  "tags": [
+    "edit",
+    "json"
+  ]
+}

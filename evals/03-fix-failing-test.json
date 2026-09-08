@@ -1,0 +1,14 @@
+{
+  "name": "03-fix-failing-test",
+  "prompt": "go test fails. Find the bug and fix it in the implementation, not the test.",
+  "files": {
+    "go.mod": "module example.com/m\n\ngo 1.22\n",
+    "sum.go": "package m\n\n// SumTo returns 1+2+...+n.\nfunc SumTo(n int) int {\n\ts := 0\n\tfor i := 1; i < n; i++ {\n\t\ts += i\n\t}\n\treturn s\n}\n",
+    "sum_test.go": "package m\n\nimport \"testing\"\n\nfunc TestSumTo(t *testing.T) {\n\tif got := SumTo(4); got != 10 {\n\t\tt.Fatalf(\"SumTo(4) = %d, want 10\", got)\n\t}\n}\n"
+  },
+  "check": "go test ./... && grep -q \"got != 10\" sum_test.go",
+  "tags": [
+    "go",
+    "debug"
+  ]
+}

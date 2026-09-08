@@ -1,0 +1,13 @@
+{
+  "name": "16-readme",
+  "prompt": "Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+  "files": {
+    "go.mod": "module example.com/m\n\ngo 1.22\n",
+    "main.go": "// Command wc2 counts words in the files given as arguments.\npackage main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nfunc main() {\n\tn := 0\n\tfor _, p := range os.Args[1:] {\n\t\tb, _ := os.ReadFile(p)\n\t\tn += len(strings.Fields(string(b)))\n\t}\n\tfmt.Println(n)\n}\n"
+  },
+  "check": "grep -q '^# ' README.md && grep -qi 'usage' README.md && grep -q 'wc2' README.md",
+  "tags": [
+    "docs",
+    "create"
+  ]
+}

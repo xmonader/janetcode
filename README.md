@@ -492,6 +492,29 @@ their names in the `tool_search` description and loads the ones it needs
 by keyword, after which they stay available. The `task` subagent tool takes
 an optional `tools` list so a narrow job gets a narrow toolset.
 
+## Evals
+
+`make eval` runs the tasks in `evals/*.json` against the configured
+provider and prints pass/fail, time, tool calls and cost per task:
+
+```
+     task                             time  tools       cost
+PASS 01-create-file                  4.2s      1    $0.0004
+FAIL 03-fix-failing-test            31.0s      9    $0.0031
+     check failed: exit status 1: --- FAIL: TestSumTo
+…
+18/20 passed · 71 tool calls · 4m12s · cost $0.06
+```
+
+A task is a prompt, optional setup files, and a shell `check` that must
+exit 0 in the work directory (`EVAL_OUTPUT` names a file with the model's
+final text); `max_tool_calls` fails tasks that flail. `EVAL_ONLY=go,files`
+narrows by name or tag, `EVAL_JOBS=4` runs more at once, and
+`--eval-json` (written to `evals/last-results.json` by `make eval`) keeps
+the numbers for comparison. Evals use minimal agents: core tools, no hooks,
+memory, skills or MCP, so a change in results comes from the model or the
+prompts. They cost real money and are not part of `make test`.
+
 ## Development
 
 ```sh

@@ -1,0 +1,12 @@
+{
+  "name": "20-env-default",
+  "prompt": "Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+  "files": {
+    "go.mod": "module example.com/m\n\ngo 1.22\n"
+  },
+  "check": "test \"$(PORT=9 go run .)\" = \"9\" && test \"$(env -u PORT go run .)\" = \"3000\"",
+  "tags": [
+    "go",
+    "create"
+  ]
+}

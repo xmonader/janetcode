@@ -1,0 +1,13 @@
+{
+  "name": "19-write-test",
+  "prompt": "Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+  "files": {
+    "go.mod": "module example.com/m\n\ngo 1.22\n",
+    "rev.go": "package m\n\nfunc Reverse(s string) string {\n\tr := []rune(s)\n\tfor i, j := 0, len(r)-1; i < j; i, j = i+1, j-1 {\n\t\tr[i], r[j] = r[j], r[i]\n\t}\n\treturn string(r)\n}\n"
+  },
+  "check": "go test ./... && grep -q \"func TestReverse\" *_test.go && grep -q \"héllo\" *_test.go",
+  "tags": [
+    "go",
+    "test"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "01-create-file",
+  "prompt": "Create a file named hello.txt containing exactly the text: hello world",
+  "check": "test \"$(cat hello.txt)\" = \"hello world\"",
+  "max_tool_calls": 4,
+  "tags": [
+    "files",
+    "basic"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "15-yes-no-question",
+  "prompt": "Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+  "files": {
+    "go.mod": "module example.com/m\n\ngo 1.22\n",
+    "a.go": "package main\n\nimport \"fmt\"\n\nfunc main() { fmt.Println(\"hi\") }\n",
+    "b.go": "package main\n\nfunc helper() int { return 1 }\n"
+  },
+  "check": "grep -qi \"yes\" \"$EVAL_OUTPUT\" && grep -q \"a.go\" \"$EVAL_OUTPUT\"",
+  "max_tool_calls": 6,
+  "tags": [
+    "read",
+    "answer"
+  ]
+}

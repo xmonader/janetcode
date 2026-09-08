@@ -1,0 +1,13 @@
+{
+  "name": "10-append-preserve",
+  "prompt": "Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+  "files": {
+    "list.txt": "one\ntwo\nthree\n"
+  },
+  "check": "test \"$(printf \"one\\ntwo\\nthree\\nfour\")\" = \"$(cat list.txt)\"",
+  "max_tool_calls": 4,
+  "tags": [
+    "edit",
+    "files"
+  ]
+}

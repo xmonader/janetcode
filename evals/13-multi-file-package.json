@@ -1,0 +1,12 @@
+{
+  "name": "13-multi-file-package",
+  "prompt": "Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+  "files": {
+    "go.mod": "module example.com/m\n\ngo 1.22\n"
+  },
+  "check": "go test ./stack/ && test -f stack/stack_test.go",
+  "tags": [
+    "go",
+    "create"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "04-python-fizzbuzz",
+  "prompt": "Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+  "check": "test \"$(python3 fizzbuzz.py 15 | tail -1)\" = \"FizzBuzz\" && test \"$(python3 fizzbuzz.py 15 | sed -n 3p)\" = \"Fizz\" && test \"$(python3 fizzbuzz.py 15 | wc -l)\" = \"15\"",
+  "tags": [
+    "python",
+    "create"
+  ]
+}

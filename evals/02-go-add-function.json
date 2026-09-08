@@ -1,0 +1,14 @@
+{
+  "name": "02-go-add-function",
+  "prompt": "math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+  "files": {
+    "go.mod": "module example.com/m\n\ngo 1.22\n",
+    "math.go": "package m\n\nfunc Add(a, b int) int { return a + b }\n",
+    "math_test.go": "package m\n\nimport \"testing\"\n\nfunc TestMul(t *testing.T) {\n\tif Mul(3, 4) != 12 {\n\t\tt.Fatal(\"Mul(3,4)\")\n\t}\n}\n"
+  },
+  "check": "go test ./... 2>&1 | tail -3 && go test ./...",
+  "tags": [
+    "go",
+    "edit"
+  ]
+}

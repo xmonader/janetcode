@@ -1,0 +1,13 @@
+{
+  "name": "14-gitignore",
+  "prompt": "Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+  "files": {
+    ".gitignore": "*.log\n"
+  },
+  "check": "grep -q '^node_modules/' .gitignore && grep -q '^dist/' .gitignore && grep -q '^\\*.log' .gitignore",
+  "max_tool_calls": 4,
+  "tags": [
+    "edit",
+    "files"
+  ]
+}

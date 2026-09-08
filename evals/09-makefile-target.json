@@ -1,0 +1,13 @@
+{
+  "name": "09-makefile-target",
+  "prompt": "Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+  "files": {
+    "Makefile": "build:\n\techo building\n\ntest:\n\techo testing\n"
+  },
+  "check": "make -s greet | grep -q hi && make -s build | grep -q building",
+  "max_tool_calls": 8,
+  "tags": [
+    "edit",
+    "make"
+  ]
+}
