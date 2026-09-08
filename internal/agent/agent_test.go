@@ -325,3 +325,33 @@ func TestGuardedToolAsksEvenWithAutoApprove(t *testing.T) {
 		t.Fatalf("err=%v asked=%d", err, asked)
 	}
 }
+
+func TestEditCoaching(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("1", "edit_file", `{"path":"a.txt","old_string":"nope","new_string":"x"}`),
+		toolCall("2", "edit_file", `{"path":"a.txt","old_string":"nope2","new_string":"x"}`),
+		toolCall("3", "edit_file", `{"path":"a.txt","old_string":"alpha","new_string":"beta"}`),
+		toolCall("4", "edit_file", `{"path":"a.txt","old_string":"nope3","new_string":"x"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, ApproverFunc(func(context.Context, ToolCall) (Decision, error) { return Allow, nil }))
+	a.Tools.Add(tool.EditFile{Root: root})
+	if err := a.Run(context.Background(), "edit", nil); err != nil {
+		t.Fatal(err)
+	}
+	result := func(i int) string {
+		return a.Messages[i].Blocks[0].Text
+	}
+	// Unread file: the first failure inlines the content.
+	if r := result(2); !strings.Contains(r, "without reading it first") || !strings.Contains(r, "1\talpha") {
+		t.Fatalf("first failure: %q", r)
+	}
+	// Second failure in a row escalates; content is not repeated.
+	if r := result(4); !strings.Contains(r, "failure 2 in a row") || strings.Contains(r, "without reading") {
+		t.Fatalf("second failure: %q", r)
+	}
+	// Success resets the streak, so the next failure is a plain error.
+	if r := result(8); strings.Contains(r, "in a row") || strings.Contains(r, "without reading") {
+		t.Fatalf("after success: %q", r)
+	}
+}

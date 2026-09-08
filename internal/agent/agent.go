@@ -127,6 +127,8 @@ type Agent struct {
 
 	allowed map[string]bool
 	cp      checkpointer
+	coach   coach
+	coachMu sync.Mutex // read_file runs in parallel goroutines
 
 	// Real input size of the last call, and how many messages it covered,
 	// so EstimateTokens only has to guess about what came after.
@@ -449,6 +451,13 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	}
 	if out == "" {
 		out = "(no output)"
+	}
+	if t.Mutating() { // edit coaching only touches serial (mutating) calls, so no lock is needed
+		out += a.coach.after(ctx, a.Tools, u.Name, u.Input, isErr)
+	} else if u.Name == "read_file" {
+		a.coachMu.Lock()
+		a.coach.after(ctx, a.Tools, u.Name, u.Input, isErr)
+		a.coachMu.Unlock()
 	}
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
 	return out, isErr, nil
