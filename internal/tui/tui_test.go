@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -362,6 +363,34 @@ func TestResumePicker(t *testing.T) {
 	h.enter()
 	if v := plain(h.m.View()); !strings.Contains(v, "no session numbered 9") {
 		t.Fatalf("bad index:\n%s", v)
+	}
+}
+
+func TestCustomSlashCommand(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "reviewed"), StopReason: llm.StopEndTurn})
+	dir := filepath.Join(h.m.opts.Cwd, ".janetcode", "commands")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "review.md"), []byte("# Careful review\nReview $ARGUMENTS for bugs."), 0o644)
+	// Commands load at construction; rebuild the model against the same dir.
+	h.m.custom = map[string]prompt.Custom{}
+	for _, c := range prompt.CustomCommands(h.m.opts.Cwd, "") {
+		h.m.custom["/"+c.Name] = c
+	}
+	h.keys("/rev")
+	if v := plain(h.m.View()); !strings.Contains(v, "/review") || !strings.Contains(v, "Careful review") {
+		t.Fatalf("completion missing:\n%s", v)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyTab})
+	h.keys("main.go")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	if sent := h.m.opts.Agent.Messages[0].Text(); sent != "# Careful review\nReview main.go for bugs." {
+		t.Fatalf("sent = %q", sent)
+	}
+	h.keys("/help")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "/review") {
+		t.Fatalf("help lacks custom command:\n%s", v)
 	}
 }
 

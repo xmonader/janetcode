@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,12 +30,14 @@ import (
 
 // Options configures the UI.
 type Options struct {
-	Agent    *agent.Agent
-	Session  *session.Session
-	Provider string
-	Cwd      string
-	Resumed  int // messages loaded from a resumed session
-	Version  string
+	// ConfigDir holds global custom commands under commands/*.md.
+	ConfigDir string
+	Agent     *agent.Agent
+	Session   *session.Session
+	Provider  string
+	Cwd       string
+	Resumed   int // messages loaded from a resumed session
+	Version   string
 	// Theme is "dark", "light" or "" for terminal detection.
 	Theme string
 	// InitialPrompt is sent as soon as the UI is ready.
@@ -182,8 +185,9 @@ type model struct {
 	pending    *permissionMsg
 	denying    bool // the input box is collecting a reason for a denial
 	status     string
-	lastTurn   string // usage summary of the last turn
-	queued     []string // prompts typed while a turn was running
+	lastTurn   string                   // usage summary of the last turn
+	queued     []string                 // prompts typed while a turn was running
+	custom     map[string]prompt.Custom // user-defined slash commands
 	quitting   bool
 	branch     string
 }
@@ -230,6 +234,10 @@ func newModel(opts Options) *model {
 		if b == "" {
 			m.branch = "git"
 		}
+	}
+	m.custom = map[string]prompt.Custom{}
+	for _, c := range prompt.CustomCommands(opts.Cwd, opts.ConfigDir) {
+		m.custom["/"+c.Name] = c
 	}
 	m.transcript.banner(m.welcome())
 	if opts.Resumed > 0 {
@@ -558,7 +566,7 @@ func (m *model) completions() []command {
 	v := m.input.Value()
 	if strings.HasPrefix(v, "/") && !strings.ContainsAny(v, " \n") {
 		var out []command
-		for _, c := range commands {
+		for _, c := range m.allCommands() {
 			if strings.HasPrefix(c.name, v) {
 				out = append(out, c)
 			}
@@ -577,6 +585,21 @@ func (m *model) completions() []command {
 		return out
 	}
 	return nil
+}
+
+// allCommands is the built-in table followed by the user's custom commands.
+func (m *model) allCommands() []command {
+	out := append([]command(nil), commands...)
+	names := make([]string, 0, len(m.custom))
+	for n := range m.custom {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		c := m.custom[n]
+		out = append(out, command{name: n, args: "[args]", help: c.Help + " · " + shortPath(c.Path)})
+	}
+	return out
 }
 
 // mentionAtEnd returns the partial path of an @mention that ends the input.
@@ -862,7 +885,7 @@ func (m *model) command(text string) tea.Cmd {
 	fields := strings.Fields(text)
 	switch fields[0] {
 	case "/help", "/?":
-		m.transcript.info(helpText())
+		m.transcript.info(m.helpText())
 	case "/quit", "/exit", "/q":
 		m.quitting = true
 		return tea.Quit
@@ -915,6 +938,10 @@ func (m *model) command(text string) tea.Cmd {
 		m.transcript.info(fmt.Sprintf("session tokens · in %s · out %s · cache read %s · cache write %s · context now ~%s",
 			shortTokens(u.InputTokens), shortTokens(u.OutputTokens), shortTokens(u.CacheReadTokens), shortTokens(u.CacheWriteTokens), shortTokens(m.opts.Agent.EstimateTokens())))
 	default:
+		if c, ok := m.custom[fields[0]]; ok {
+			args := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
+			return m.submit(c.Expand(args))
+		}
 		m.transcript.errorf("unknown command %s (try /help)", fields[0])
 	}
 	m.refresh(false)
@@ -1006,7 +1033,7 @@ func dirOf(s *session.Session) string {
 	return filepath.Dir(s.Path())
 }
 
-func helpText() string {
+func (m *model) helpText() string {
 	var sb strings.Builder
 	sb.WriteString("keys\n")
 	sb.WriteString("  enter send · ctrl+j / alt+enter newline · up/down recall prompts · tab complete /command\n")
@@ -1017,10 +1044,11 @@ func helpText() string {
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
 	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · n deny (then type why, or enter to skip) · esc deny\n")
 	sb.WriteString("commands\n")
-	for _, c := range commands {
+	for _, c := range m.allCommands() {
 		fmt.Fprintf(&sb, "  %-10s %-7s %s\n", c.name, c.args, c.help)
 	}
-	return strings.TrimRight(sb.String(), "\n")
+	sb.WriteString("custom commands: drop prompt templates in .janetcode/commands/<name>.md (or the config dir); $ARGUMENTS is replaced")
+	return sb.String()
 }
 
 // --- layout & view ---

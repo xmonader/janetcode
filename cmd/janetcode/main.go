@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -140,6 +141,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			tool.Glob{Root: cwd},
 			tool.Grep{Root: cwd},
 			tool.Bash{Root: cwd},
+			tool.FetchURL{},
 		),
 		System:        prompt.System(cwd),
 		Model:         cfg.Model,
@@ -174,8 +176,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
 		})
 	}
+	cfgPath, _ := config.Path()
 	return tui.Run(tui.Options{
-		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
+		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: filepath.Dir(cfgPath),
 		Resumed: len(history), Version: version, Theme: cfg.Theme,
 		InitialPrompt: initial,
 	})
