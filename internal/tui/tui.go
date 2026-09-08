@@ -221,6 +221,8 @@ type model struct {
 	queued     []string                 // prompts typed while a turn was running
 	custom     map[string]prompt.Custom // user-defined slash commands
 	clipboard  func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
+	compIdx    int                      // highlighted row of the completion menu
+	compFor    string                   // input value the highlight belongs to
 	lastFind   string                   // last /find query, for repeats
 	lastFindAt int                      // line of the last hit, so repeats advance past it
 	quitting   bool
@@ -607,6 +609,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 	case "up":
+		if m.moveMenu(-1) {
+			return nil, true
+		}
 		if m.input.Line() == 0 && len(m.history) > 0 && m.histIdx > 0 {
 			if m.histIdx == len(m.history) {
 				m.draft = m.input.Value()
@@ -618,6 +623,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 	case "down":
+		if m.moveMenu(1) {
+			return nil, true
+		}
 		if m.histIdx < len(m.history) && m.input.Line() == m.input.LineCount()-1 {
 			m.histIdx++
 			if m.histIdx == len(m.history) {
@@ -634,6 +642,15 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		m.viewport, cmd = m.viewport.Update(msg)
 		return cmd, true
 	case "enter":
+		if c, idx := m.menu(); len(c) > 0 && strings.TrimSpace(m.input.Value()) != c[idx].name {
+			m.complete()
+			m.layout()
+			m.refresh(false)
+			if c[idx].args != "" || !strings.HasPrefix(c[idx].name, "/") {
+				return nil, true // needs arguments or a path: let the user continue
+			}
+			m.input.SetValue(c[idx].name)
+		}
 		text := strings.TrimSpace(m.input.Value())
 		if text == "" {
 			return nil, true
@@ -826,28 +843,66 @@ func mentionAtEnd(v string) (string, bool) {
 	return word[1:], true
 }
 
-// complete applies the first completion to the input.
-func (m *model) complete() bool {
+const menuRows = 8
+
+// menu returns the completion rows and the highlighted index, resetting
+// the highlight whenever the input changed since it was set.
+func (m *model) menu() ([]command, int) {
 	c := m.completions()
+	if len(c) == 0 {
+		return nil, 0
+	}
+	if v := m.input.Value(); v != m.compFor {
+		m.compFor, m.compIdx = v, 0
+	}
+	if m.compIdx >= len(c) {
+		m.compIdx = len(c) - 1
+	}
+	return c, m.compIdx
+}
+
+// moveMenu shifts the highlight; it reports whether a menu was open.
+func (m *model) moveMenu(delta int) bool {
+	c, idx := m.menu()
+	if len(c) == 0 {
+		return false
+	}
+	m.compIdx = (idx + delta + len(c)) % len(c)
+	m.compFor = m.input.Value()
+	m.layout()
+	m.refresh(false)
+	return true
+}
+
+// complete applies the highlighted completion to the input. For paths with
+// several matches and no explicit choice it extends to the common prefix so
+// repeated tabs narrow the list.
+func (m *model) complete() bool {
+	c, idx := m.menu()
 	if len(c) == 0 {
 		return false
 	}
 	v := m.input.Value()
 	if strings.HasPrefix(v, "/") {
-		m.input.SetValue(c[0].name + " ")
+		m.input.SetValue(c[idx].name + " ")
 	} else {
 		i := strings.LastIndexAny(v, " \n\t")
-		// Several matches: extend to their common prefix so tab narrows.
-		name := c[0].name
-		for _, o := range c[1:] {
-			name = commonPrefix(name, o.name)
+		name := c[idx].name
+		if idx == 0 && len(c) > 1 {
+			for _, o := range c[1:] {
+				name = commonPrefix(name, o.name)
+			}
+			if name == v[i+1:] { // nothing to extend: take the highlighted one
+				name = c[idx].name
+			}
 		}
-		if len(c) == 1 && !strings.HasSuffix(name, "/") {
+		if !strings.HasSuffix(name, "/") && (len(c) == 1 || name == c[idx].name) {
 			name += " "
 		}
 		m.input.SetValue(v[:i+1] + name)
 	}
 	m.input.CursorEnd()
+	m.compFor, m.compIdx = m.input.Value(), 0
 	return true
 }
 
@@ -1402,7 +1457,7 @@ func dirOf(s *session.Session) string {
 func (m *model) helpText() string {
 	var sb strings.Builder
 	sb.WriteString("keys\n")
-	sb.WriteString("  enter send · ctrl+j / alt+enter newline · up/down recall prompts · tab complete /command\n")
+	sb.WriteString("  enter send · ctrl+j / alt+enter newline · up/down recall prompts, or move in an open menu · tab/enter accept a menu row\n")
 	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, twice to force quit · ctrl+d quit\n")
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand tool output · ctrl+l redraw\n")
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends\n")
@@ -1436,7 +1491,10 @@ func (m *model) footerHeight() int {
 	}
 	h := m.inputHeight() + 2 // border
 	if c := m.completions(); len(c) > 0 {
-		h += min(len(c), 6)
+		h += min(len(c), menuRows)
+		if len(c) > menuRows {
+			h++
+		}
 	}
 	if m.denying {
 		h++
@@ -1605,12 +1663,24 @@ func (m *model) footerView() string {
 	if m.denying {
 		parts = append(parts, "  "+styleWarn.Bold(true).Render("denied "+m.pending.call.Name)+styleDim.Render(" · tell the model why (optional) · enter sends · esc skips"))
 	}
-	if c := m.completions(); len(c) > 0 {
-		if len(c) > 6 {
-			c = c[:6]
+	if c, idx := m.menu(); len(c) > 0 {
+		start := 0
+		if idx >= menuRows {
+			start = idx - menuRows + 1
 		}
-		for _, cmd := range c {
-			parts = append(parts, "  "+styleKey.Render(cmd.name)+" "+styleDim.Render(cmd.args)+"  "+styleFaint.Render(cmd.help))
+		end := min(len(c), start+menuRows)
+		for i := start; i < end; i++ {
+			cmd := c[i]
+			row := styleKey.Render(cmd.name) + " " + styleDim.Render(cmd.args) + "  " + styleFaint.Render(cmd.help)
+			if i == idx {
+				row = styleAccent.Render("▸ ") + styleKey.Bold(true).Render(cmd.name) + " " + styleDim.Render(cmd.args) + "  " + styleDim.Render(cmd.help)
+			} else {
+				row = "  " + row
+			}
+			parts = append(parts, truncateLine(row, m.width-1))
+		}
+		if len(c) > menuRows {
+			parts = append(parts, styleFaint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))
 		}
 	}
 	for i, q := range m.queued {

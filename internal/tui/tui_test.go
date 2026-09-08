@@ -573,6 +573,65 @@ func TestCtrlVPastesClipboardImage(t *testing.T) {
 	}
 }
 
+func TestMenuNavigation(t *testing.T) {
+	h := newHarness(t)
+	up := tea.KeyMsg{Type: tea.KeyUp}
+	down := tea.KeyMsg{Type: tea.KeyDown}
+	h.keys("/")
+	c, idx := h.m.menu()
+	if len(c) < 5 || idx != 0 {
+		t.Fatalf("menu = %d rows idx %d", len(c), idx)
+	}
+	h.update(down)
+	h.update(down)
+	if _, idx := h.m.menu(); idx != 2 {
+		t.Fatalf("idx after two downs = %d", idx)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "▸ "+c[2].name) {
+		t.Fatalf("highlight missing:\n%s", v)
+	}
+	h.update(up)
+	h.update(up)
+	h.update(up) // wraps to the last row
+	if _, idx := h.m.menu(); idx != len(c)-1 {
+		t.Fatalf("wrap idx = %d", idx)
+	}
+	// Typing resets the highlight; enter on a no-arg command runs it.
+	h.keys("he")
+	c, idx = h.m.menu()
+	if idx != 0 || c[0].name != "/help" {
+		t.Fatalf("after typing: %v %d", c, idx)
+	}
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "commands") || h.m.input.Value() != "" {
+		t.Fatalf("/help did not run from the menu: input %q\n%s", h.m.input.Value(), v)
+	}
+	// A command that takes arguments is filled in, not run.
+	h.keys("/mod")
+	h.enter()
+	if h.m.input.Value() != "/model " {
+		t.Fatalf("input = %q", h.m.input.Value())
+	}
+	h.inputReset()
+	// Path menus: down selects the second file, enter fills it in.
+	os.WriteFile(filepath.Join(h.m.opts.Cwd, "alpha.go"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(h.m.opts.Cwd, "beta.go"), []byte("x"), 0o644)
+	h.keys("see @")
+	h.update(down)
+	h.enter()
+	if h.m.input.Value() != "see @beta.go " {
+		t.Fatalf("input = %q", h.m.input.Value())
+	}
+	if _, idx := h.m.menu(); idx != 0 {
+		t.Fatalf("menu should be closed or reset, idx = %d", idx)
+	}
+}
+
+func (h *harness) inputReset() {
+	h.m.input.Reset()
+	h.m.layout()
+}
+
 func TestPromptHistoryRecall(t *testing.T) {
 	h := newHarness(t,
 		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "a"), StopReason: llm.StopEndTurn},
