@@ -162,28 +162,45 @@ Repeat it to go back further (up to 30 turns); it still works after
 `--continue` or `/resume`. If you committed or checked out in between, the
 git snapshot is not applied and only file-tool changes are reverted.
 
-### Project memory
+### Memory
 
-janetcode keeps a short list of durable facts per project in
-`~/.local/share/janetcode/memory/<project>.md` and puts it in the system
-prompt of every session: conventions you asked for, decisions and their
-reasons, commands that work, environment quirks. The project is identified
-by `.janetcode/project` (any string; commit it so every checkout shares
-one memory), else by the git origin URL, else by the directory path.
+janetcode remembers across sessions. Each entry is a small markdown file
+with frontmatter (`name`, `description`, `type`, `source`, `uses`, dates)
+under `~/.local/share/janetcode/memory/`: a project scope keyed by project
+identity (`.janetcode/project` if present, else the git origin URL, else
+the path) and a global scope (`_global/`) for things about you that hold
+everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
 
-- After a turn that changed something, a cheap extra model call asks what
-  this turn *decided* (not what it did) and appends new facts; you see
-  `remembered: …` lines. `"memory": false` in the config turns this off.
-- `/memory` lists the facts, `/remember <fact>` adds one, `/forget <n>`
-  removes one. The file is plain markdown you can edit by hand.
+- **Index in the prompt.** Names and one-line descriptions of every
+  entry go into the system prompt (8 KB budget). Bodies do not, so the
+  prompt stays small no matter how much is remembered.
+- **Recall per turn.** Entries whose names, descriptions or bodies overlap
+  the request clearly are attached to that turn (up to four, 6 KB); you
+  see `memory recalled: …`. Recalled entries count as used, and the least
+  used, oldest entries are the ones trimmed past 200 per scope.
+- **The model has a `memory` tool**: `recall` by query, `remember` when
+  you tell it something worth keeping (it picks type and scope), `forget`.
+- **Automatic extraction.** After a turn that changed something, or one
+  where you gave feedback ("never…", "always…", "prefer…"), a cheap extra
+  call asks what the conversation *established*, as typed JSON entries
+  that may also replace an entry that became wrong. Duplicates and
+  near-duplicates merge instead of piling up. `"memory": false` turns it
+  off; `/remember` and the tool still work.
+- `/memory` lists entries, `/memory <words>` recalls, `/memory show <name>`
+  prints one, `/remember [-g] <fact>` adds (`-g` global), `/forget
+  <name|number>` removes. Files are plain markdown you can edit by hand.
 
 ### Skills
 
 A skill is a markdown file with instructions for one kind of task
 (`.janetcode/skills/<name>/SKILL.md` or `.janetcode/skills/<name>.md` in
 the project, `skills/` under the config directory for all projects;
-`.claude/skills` is read too). Optional frontmatter gives `name`,
-`description` and comma-separated `keywords`:
+`.claude/skills` is read too). A directory skill can ship scripts and
+reference files next to `SKILL.md`; they are listed with absolute paths
+when the skill is attached so the model can read or run them. Optional
+frontmatter gives `name`, `description`, comma-separated `keywords` (or
+`tags`), `disable-model-invocation: true` (only you can invoke it) and
+`user-invocable: false` (only the model can):
 
 ```markdown
 ---
@@ -193,12 +210,15 @@ keywords: release, ship
 1. `make test` must pass ...
 ```
 
-Every skill is listed by name and description in the system prompt. When
-a request clearly matches one (its name or a keyword in the text, or
-several words of its description), the file is attached to that turn
-(up to five, not re-attached while still fresh in the context) and you see
-`skills attached: …`. For anything else the model can read a skill with
-the `skill` tool. `/skills` lists what is installed.
+Every model-invocable skill is listed by name and description in the
+system prompt. When a request clearly matches one (its name or a keyword
+in the text, or several words of its description and headings), the file
+is attached to that turn (up to five, not re-attached while still fresh
+in the context) and you see `skills attached: …`. For anything else the
+model can read a skill with the `skill` tool. You can run one yourself as
+`/<name> args` (`$ARGUMENTS` in the body is replaced), and `/skills`
+lists what is installed. Skills are re-read from disk every turn, so
+editing one takes effect immediately.
 
 ### Custom agents
 

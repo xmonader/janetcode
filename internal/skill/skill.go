@@ -18,6 +18,8 @@ import (
 	"sync"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/md"
+	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -29,7 +31,19 @@ type Skill struct {
 	Body        string
 	Path        string
 	Source      string // "project", "global" or "claude"
+	// Files are the supporting files of a directory skill (scripts,
+	// references), relative to Dir; the model reads or runs them by path.
+	Dir   string
+	Files []string
+	// UserInvocable allows "/name args" in the TUI (default true).
+	UserInvocable bool
+	// ModelInvocable allows automatic attachment and the skill tool
+	// (default true; frontmatter disable-model-invocation: true turns it off).
+	ModelInvocable bool
 }
+
+// maxFiles bounds the supporting files listed per skill.
+const maxFiles = 40
 
 // MaxSelected bounds how many skills one request can pull in.
 const MaxSelected = 5
@@ -69,10 +83,11 @@ func readDir(dir, source string) []Skill {
 	}
 	var out []Skill
 	for _, e := range entries {
-		var p, name string
+		var p, name, sdir string
 		switch {
 		case e.IsDir():
-			p, name = filepath.Join(dir, e.Name(), "SKILL.md"), e.Name()
+			sdir = filepath.Join(dir, e.Name())
+			p, name = filepath.Join(sdir, "SKILL.md"), e.Name()
 		case strings.HasSuffix(e.Name(), ".md"):
 			p, name = filepath.Join(dir, e.Name()), strings.TrimSuffix(e.Name(), ".md")
 		default:
@@ -82,7 +97,7 @@ func readDir(dir, source string) []Skill {
 		if err != nil {
 			continue
 		}
-		meta, body := Frontmatter(string(data))
+		meta, body := md.Parse(string(data))
 		body = strings.TrimSpace(body)
 		if body == "" {
 			continue
@@ -90,51 +105,65 @@ func readDir(dir, source string) []Skill {
 		if n := strings.TrimSpace(meta["name"]); n != "" {
 			name = n
 		}
-		s := Skill{Name: name, Description: strings.TrimSpace(meta["description"]), Body: body, Path: p, Source: source}
-		for _, k := range strings.Split(meta["keywords"], ",") {
-			if k = strings.ToLower(strings.TrimSpace(k)); k != "" {
-				s.Keywords = append(s.Keywords, k)
-			}
+		s := Skill{Name: name, Description: strings.TrimSpace(meta["description"]), Body: body, Path: p, Source: source, Dir: sdir,
+			UserInvocable:  !isTrue(meta["disable-user-invocation"]) && meta["user-invocable"] != "false",
+			ModelInvocable: !isTrue(meta["disable-model-invocation"])}
+		for _, k := range md.List(meta["keywords"]) {
+			s.Keywords = append(s.Keywords, strings.ToLower(k))
+		}
+		for _, k := range md.List(meta["tags"]) {
+			s.Keywords = append(s.Keywords, strings.ToLower(k))
 		}
 		if s.Description == "" {
 			s.Description = firstLine(body)
+		}
+		if sdir != "" {
+			s.Files = supportingFiles(sdir)
 		}
 		out = append(out, s)
 	}
 	return out
 }
 
-// Frontmatter splits a leading "---" block of key: value lines from the
-// body. Values may be quoted. Anything else is left in the body.
-func Frontmatter(text string) (map[string]string, string) {
-	meta := map[string]string{}
-	text = strings.TrimPrefix(text, "\ufeff")
-	if !strings.HasPrefix(text, "---\n") && !strings.HasPrefix(text, "---\r\n") {
-		return meta, text
-	}
-	rest := text[strings.Index(text, "\n")+1:]
-	end := strings.Index(rest, "\n---")
-	if end < 0 {
-		return meta, text
-	}
-	for _, line := range strings.Split(rest[:end], "\n") {
-		k, v, ok := strings.Cut(line, ":")
-		if !ok {
-			continue
+func isTrue(v string) bool { return v == "true" || v == "yes" || v == "1" }
+
+// supportingFiles lists the files under a skill directory besides
+// SKILL.md, relative to it, hidden files skipped.
+func supportingFiles(dir string) []string {
+	var out []string
+	filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		if err != nil || len(out) >= maxFiles {
+			return nil
 		}
-		v = strings.TrimSpace(v)
-		if len(v) >= 2 && (v[0] == '"' && v[len(v)-1] == '"' || v[0] == '\'' && v[len(v)-1] == '\'') {
-			v = v[1 : len(v)-1]
+		name := d.Name()
+		if strings.HasPrefix(name, ".") && p != dir {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
-		meta[strings.ToLower(strings.TrimSpace(k))] = v
+		if d.IsDir() || name == "SKILL.md" {
+			return nil
+		}
+		rel, _ := filepath.Rel(dir, p)
+		out = append(out, rel)
+		return nil
+	})
+	return out
+}
+
+// Expand fills a skill body for a "/name args" invocation: $ARGUMENTS is
+// replaced, or the arguments are appended.
+func (s Skill) Expand(args string) string {
+	args = strings.TrimSpace(args)
+	body := s.Block().Text
+	if strings.Contains(body, "$ARGUMENTS") {
+		return strings.ReplaceAll(body, "$ARGUMENTS", args)
 	}
-	body := rest[end+4:]
-	if i := strings.Index(body, "\n"); i >= 0 {
-		body = body[i+1:]
-	} else {
-		body = ""
+	if args == "" {
+		return body
 	}
-	return meta, body
+	return body + "\n\n" + args
 }
 
 func firstLine(s string) string {
@@ -191,6 +220,9 @@ func Select(skills []Skill, text string, max int) []Skill {
 	}
 	var hits []scored
 	for _, s := range skills {
+		if !s.ModelInvocable {
+			continue
+		}
 		score := 0
 		name := strings.ToLower(s.Name)
 		if strings.Contains(lower, name) || strings.Contains(lower, strings.ReplaceAll(name, "-", " ")) {
@@ -203,6 +235,12 @@ func Select(skills []Skill, text string, max int) []Skill {
 		}
 		seen := map[string]bool{}
 		for _, w := range words(s.Description) {
+			if have[w] && !seen[w] && !stop[w] {
+				seen[w] = true
+				score++
+			}
+		}
+		for _, w := range words(headings(s.Body)) {
 			if have[w] && !seen[w] && !stop[w] {
 				seen[w] = true
 				score++
@@ -231,26 +269,50 @@ var stop = map[string]bool{
 	"add": true, "all": true, "any": true, "can": true, "not": true, "but": true, "its": true,
 }
 
-// Index renders the skill list for the system prompt, or "" without skills.
-func Index(skills []Skill) string {
-	if len(skills) == 0 {
-		return ""
-	}
+// headings returns the markdown headings of a body, which name what the
+// skill is about better than its prose.
+func headings(body string) string {
 	var sb strings.Builder
-	sb.WriteString("\n# Skills\nSkill files hold instructions for specific kinds of task. Relevant ones are attached to a request automatically; for any other, call the skill tool with its name before starting work that matches it.\n")
-	for _, s := range skills {
-		fmt.Fprintf(&sb, "- %s: %s\n", s.Name, s.Description)
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(line, "#") {
+			sb.WriteString(strings.TrimLeft(line, "# ") + " ")
+		}
 	}
 	return sb.String()
 }
 
-// Block renders a skill for injection into the user turn.
-func Block(s Skill) llm.Block {
+// Index renders the skill list for the system prompt, or "" without
+// model-invocable skills.
+func Index(skills []Skill) string {
+	var sb strings.Builder
+	for _, s := range skills {
+		if s.ModelInvocable {
+			fmt.Fprintf(&sb, "- %s: %s\n", s.Name, s.Description)
+		}
+	}
+	if sb.Len() == 0 {
+		return ""
+	}
+	return "\n# Skills\nSkill files hold instructions for specific kinds of task. Relevant ones are attached to a request automatically; for any other, call the skill tool with its name before starting work that matches it.\n" + sb.String()
+}
+
+// Block renders a skill for injection into the user turn, listing its
+// supporting files so the model can read or run them.
+func (s Skill) Block() llm.Block {
 	body := s.Body
 	if len(body) > MaxBody {
 		body = body[:MaxBody] + "\n[skill truncated]"
 	}
-	return llm.Block{Type: llm.BlockText, Text: fmt.Sprintf("<skill name=%q source=%q>\n%s\n</skill>", s.Name, s.Path, body)}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "<skill name=%q source=%q>\n%s\n", s.Name, s.Path, body)
+	if len(s.Files) > 0 {
+		fmt.Fprintf(&sb, "\nFiles shipped with this skill (under %s):\n", s.Dir)
+		for _, f := range s.Files {
+			fmt.Fprintf(&sb, "- %s\n", filepath.Join(s.Dir, f))
+		}
+	}
+	sb.WriteString("</skill>")
+	return llm.Block{Type: llm.BlockText, Text: sb.String()}
 }
 
 // Injector attaches matching skills to user turns and avoids re-attaching
@@ -293,7 +355,7 @@ func (in *Injector) Prepare(blocks []llm.Block) ([]llm.Block, []string) {
 			continue
 		}
 		in.last[s.Name] = in.turn
-		blocks = append(blocks, Block(s))
+		blocks = append(blocks, s.Block())
 		names = append(names, s.Name)
 	}
 	return blocks, names
@@ -322,8 +384,11 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	var names []string
 	for _, s := range t.Skills() {
+		if !s.ModelInvocable {
+			continue
+		}
 		if strings.EqualFold(s.Name, strings.TrimSpace(in.Name)) {
-			return tool.Truncate(Block(s).Text), nil
+			return tool.Truncate(s.Block().Text), nil
 		}
 		names = append(names, s.Name)
 	}
@@ -331,4 +396,46 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		return "", fmt.Errorf("no skills are installed")
 	}
 	return "", fmt.Errorf("no skill named %q; available: %s", in.Name, strings.Join(names, ", "))
+}
+
+// TurnPrep combines skill attachment and memory recall into one Prepare
+// function for the agent: matching skills and the most relevant memory
+// entries are appended to the user's turn, and a note names them.
+func TurnPrep(in *Injector, mem *memory.Store) func([]llm.Block) ([]llm.Block, string) {
+	return func(blocks []llm.Block) ([]llm.Block, string) {
+		var text string
+		for _, b := range blocks {
+			if b.Type == llm.BlockText {
+				text += b.Text + "\n"
+			}
+		}
+		var notes []string
+		blocks, names := in.Prepare(blocks)
+		if len(names) > 0 {
+			notes = append(notes, "skills attached: "+strings.Join(names, ", "))
+		}
+		if mem != nil {
+			hits := mem.Recall(text, memory.MaxRecall)
+			var used []memory.Entry
+			size := 0
+			for _, e := range hits {
+				r := memory.Render(e)
+				if size+len(r) > memory.RecallBudget {
+					break
+				}
+				size += len(r)
+				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: r})
+				used = append(used, e)
+			}
+			if len(used) > 0 {
+				mem.Touch(used...)
+				var ns []string
+				for _, e := range used {
+					ns = append(ns, e.Name)
+				}
+				notes = append(notes, "memory recalled: "+strings.Join(ns, ", "))
+			}
+		}
+		return blocks, strings.Join(notes, " · ")
+	}
 }

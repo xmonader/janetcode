@@ -976,13 +976,23 @@ func TestMemoryCommandsAndAutoExtraction(t *testing.T) {
 	h.m.opts.Agent.AutoApprove = true
 	h.keys("/remember   Always run make test before committing ")
 	h.enter()
-	if e := store.Entries(); len(e) != 1 || e[0] != "Always run make test before committing" {
-		t.Fatalf("entries = %q", e)
+	if e := store.Entries(); len(e) != 1 || e[0].Name != "always-test-before-committing" || e[0].Type != memory.TypeFeedback || e[0].Source != "user" {
+		t.Fatalf("entries = %+v", e)
+	}
+	h.keys("/remember -g I prefer replies under ten lines")
+	h.enter()
+	if e, ok := store.Get("prefer-replies-under-ten-lines"); !ok || e.Scope != "global" || len(store.Entries()) != 2 {
+		t.Fatalf("global entry = %+v", store.Entries())
 	}
 	h.keys("/memory")
 	h.enter()
-	if v := plain(h.m.View()); !strings.Contains(v, " 1. Always run make test before committing") {
+	if v := plain(h.m.View()); !strings.Contains(v, "memory: 2 entries") || !strings.Contains(v, "(feedback): Always run make test before committing") || !strings.Contains(v, "(project, global)") && !strings.Contains(v, ", global)") {
 		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/memory make test")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "    Always run make test before committing") {
+		t.Fatalf("recall view:\n%s", v)
 	}
 	h.keys("write x")
 	h.enter()
@@ -992,18 +1002,21 @@ func TestMemoryCommandsAndAutoExtraction(t *testing.T) {
 		t.Fatal("turn not mutated")
 	}
 	h.runCmd(h.m.extractMemory())
-	if e := store.Entries(); len(e) != 2 || e[1] != "The x file is hand-maintained." {
-		t.Fatalf("entries after extraction = %q", e)
+	if e, ok := store.Get("hand-maintained"); !ok || e.Source != "auto" {
+		t.Fatalf("entries after extraction = %+v", store.Entries())
 	}
-	if v := plain(h.m.View()); !strings.Contains(v, "remembered: The x file is hand-maintained.") {
+	if v := plain(h.m.View()); !strings.Contains(v, "remembered hand-maintained (project): The x file is hand-maintained.") {
 		t.Fatalf("view:\n%s", v)
 	}
-	// The system prompt of the next call carries the memory.
-	h.m.opts.Agent.SystemExtra = store.Section
+	h.keys("/forget hand-maintained")
+	h.enter()
+	if _, ok := store.Get("hand-maintained"); ok {
+		t.Fatal("forget by name failed")
+	}
 	h.keys("/forget 1")
 	h.enter()
-	if e := store.Entries(); len(e) != 1 || e[0] != "The x file is hand-maintained." {
-		t.Fatalf("entries after forget = %q", e)
+	if e := store.Entries(); len(e) != 1 {
+		t.Fatalf("entries after forget = %+v", e)
 	}
 	h.keys("/forget 9")
 	h.enter()

@@ -104,23 +104,25 @@ func (m *model) extractMemory() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		facts, err := memory.Extract(ctx, ag.Provider, ag.Model, msgs, store.Entries())
+		xs, err := memory.Extract(ctx, ag.Provider, ag.Model, msgs, store.Entries())
 		if err != nil {
 			return memoryMsg{err: err}
 		}
-		var added []string
-		for _, f := range facts {
-			if ok, err := store.Add(f); err != nil {
-				return memoryMsg{added: added, err: err}
-			} else if ok {
-				added = append(added, f)
-			}
-		}
-		return memoryMsg{added: added}
+		changed, err := store.Apply(xs)
+		return memoryMsg{added: changed, err: err}
 	}
 }
 
-// memoryCommand implements /memory, /remember and /forget.
+func memoryLine(e memory.Entry) string {
+	scope := ""
+	if e.Scope == "global" {
+		scope = ", global"
+	}
+	return fmt.Sprintf("%s (%s%s): %s", e.Name, e.Type, scope, e.Description)
+}
+
+// memoryCommand implements /memory [query|show <name>], /remember [-g] and
+// /forget.
 func (m *model) memoryCommand(cmd, arg string) {
 	store := m.opts.Memory
 	if store == nil {
@@ -129,41 +131,68 @@ func (m *model) memoryCommand(cmd, arg string) {
 	}
 	switch cmd {
 	case "/remember":
+		scope := "project"
+		for _, flag := range []string{"-g ", "--global "} {
+			if strings.HasPrefix(arg, flag) {
+				scope, arg = "global", strings.TrimSpace(strings.TrimPrefix(arg, flag))
+			}
+		}
 		if arg == "" {
-			m.transcript.errorf("usage: /remember <fact about this project>")
+			m.transcript.errorf("usage: /remember [-g] <what to keep>   (-g: about you, for every project)")
 			return
 		}
-		ok, err := store.Add(arg)
+		e, status, err := store.Put(memory.Entry{Body: arg, Scope: scope, Source: "user"})
 		switch {
 		case err != nil:
 			m.transcript.errorf("remember: %v", err)
-		case !ok:
-			m.transcript.info("already remembered")
+		case status == memory.Unchanged:
+			m.transcript.info("already remembered as " + e.Name)
+		case status == memory.Updated:
+			m.transcript.info("🧠 updated " + memoryLine(e))
 		default:
-			m.transcript.info("🧠 remembered: " + memory.Clean(arg))
+			m.transcript.info("🧠 remembered " + memoryLine(e))
 		}
 	case "/forget":
-		n, err := strconv.Atoi(arg)
-		if err != nil {
-			m.transcript.errorf("usage: /forget <n>  (numbers as shown by /memory)")
+		if arg == "" {
+			m.transcript.errorf("usage: /forget <name or number from /memory>")
 			return
 		}
-		gone, err := store.Remove(n)
+		gone, err := store.Remove(arg)
 		if err != nil {
 			m.transcript.errorf("forget: %v", err)
 			return
 		}
-		m.transcript.info("forgot: " + gone)
+		m.transcript.info("forgot " + gone.Name + ": " + gone.Description)
 	default:
 		entries := store.Entries()
 		if len(entries) == 0 {
-			m.transcript.info("nothing remembered yet for this project (" + store.Key + "). /remember <fact> adds one; facts are also extracted automatically after turns that change something.")
+			m.transcript.info("nothing remembered yet (project " + store.Key + "). /remember <fact> adds one, -g for something about you; facts are also extracted automatically after turns that change something or give feedback.")
 			return
 		}
 		var sb strings.Builder
-		fmt.Fprintf(&sb, "project memory (%s, %s):\n", store.Key, shortPath(store.Path))
-		for i, e := range entries {
-			fmt.Fprintf(&sb, "%2d. %s\n", i+1, e)
+		switch {
+		case strings.HasPrefix(arg, "show "):
+			e, ok := store.Get(strings.TrimSpace(strings.TrimPrefix(arg, "show ")))
+			if !ok {
+				m.transcript.errorf("no memory entry named %q", strings.TrimSpace(strings.TrimPrefix(arg, "show ")))
+				return
+			}
+			fmt.Fprintf(&sb, "%s\n%s\nsource %s · used %d× · %s\n", memoryLine(e), e.Body, e.Source, e.Uses, shortPath(e.Path))
+		case arg != "":
+			hits := store.Search(arg, 8)
+			if len(hits) == 0 {
+				m.transcript.info("nothing remembered matches " + strconv.Quote(arg))
+				return
+			}
+			for _, e := range hits {
+				fmt.Fprintf(&sb, "%s\n    %s\n", memoryLine(e), strings.ReplaceAll(e.Body, "\n", "\n    "))
+			}
+		default:
+			fmt.Fprintf(&sb, "memory: %d entries (%s)\n", len(entries), shortPath(store.Root))
+			for i, e := range entries {
+				fmt.Fprintf(&sb, "%3d. %s\n", i+1, memoryLine(e))
+			}
+			sb.WriteString("/memory <words> recalls, /memory show <name> prints one, /forget <name|number> removes")
 		}
 		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 	}
@@ -243,7 +272,7 @@ type agentEventMsg struct{ ev agent.Event }
 
 // memoryMsg reports what automatic extraction remembered.
 type memoryMsg struct {
-	added []string
+	added []memory.Entry
 	err   error
 }
 type flushMsg struct{}
@@ -370,8 +399,10 @@ type model struct {
 
 	// history of submitted prompts for up/down recall.
 	history []string
-	histIdx int    // == len(history) when not browsing
-	draft   string // input saved while browsing history
+	// lastUserText is the prompt of the running or last turn.
+	lastUserText string
+	histIdx      int    // == len(history) when not browsing
+	draft        string // input saved while browsing history
 
 	running    bool
 	cancelling bool
@@ -635,7 +666,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case agentDoneMsg:
 		m.drainEvents()
 		cmd := m.finishTurn(msg)
-		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && m.opts.Agent.LastTurnMutated() {
+		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && (m.opts.Agent.LastTurnMutated() || memory.LooksLikeFeedback(m.lastUserText)) {
 			cmd = tea.Batch(cmd, m.extractMemory())
 		}
 		m.refresh(false)
@@ -644,8 +675,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.transcript.info("memory: extraction failed: " + msg.err.Error())
 		}
-		for _, f := range msg.added {
-			m.transcript.info("🧠 remembered: " + f)
+		for _, e := range msg.added {
+			m.transcript.info("🧠 remembered " + memoryLine(e))
 		}
 		m.refresh(false)
 		return m, nil
@@ -957,6 +988,11 @@ func (m *model) allCommands() []command {
 		c := m.custom[n]
 		out = append(out, command{name: n, args: "[args]", help: c.Help + " · " + shortPath(c.Path)})
 	}
+	for _, sk := range skill.Load(m.opts.Cwd, m.opts.ConfigDir) {
+		if sk.UserInvocable && m.custom["/"+sk.Name].Name == "" {
+			out = append(out, command{name: "/" + sk.Name, args: "[args]", help: sk.Description + " · skill"})
+		}
+	}
 	if m.opts.MCP != nil && m.opts.MCP.Manager != nil {
 		for _, st := range m.opts.MCP.Manager.Status() {
 			for _, p := range st.Prompts {
@@ -1150,6 +1186,7 @@ func (m *model) submit(text string) tea.Cmd {
 		return nil
 	}
 	m.transcript.user(text)
+	m.lastUserText = text
 	text, atts := prompt.ExpandMentions(m.opts.Cwd, text)
 	if len(atts) > 0 {
 		names := make([]string, len(atts))
@@ -1503,6 +1540,12 @@ func (m *model) command(text string) tea.Cmd {
 		if c, ok := m.custom[fields[0]]; ok {
 			args := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
 			return m.submit(c.Expand(args))
+		}
+		for _, sk := range skill.Load(m.opts.Cwd, m.opts.ConfigDir) {
+			if sk.UserInvocable && "/"+sk.Name == fields[0] {
+				m.transcript.info("running skill " + sk.Name + " (" + shortPath(sk.Path) + ")")
+				return m.submit(sk.Expand(strings.TrimPrefix(text, fields[0])))
+			}
 		}
 		if cmd, ok := m.runMCPPrompt(fields[0], strings.TrimPrefix(text, fields[0])); ok {
 			return cmd

@@ -183,15 +183,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	skills := func() []skill.Skill { return skill.Load(cwd, cfgDir) }
 	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(cwd, cfgDir) }
 	ag.Tools.Add(&skill.Tool{Skills: skills})
-	ag.SystemExtra = func() string { return mem.Section() + skill.Index(skills()) }
-	injector := &skill.Injector{Skills: skills}
-	ag.Prepare = func(blocks []llm.Block) ([]llm.Block, string) {
-		blocks, names := injector.Prepare(blocks)
-		if len(names) == 0 {
-			return blocks, ""
-		}
-		return blocks, "skills attached: " + strings.Join(names, ", ")
-	}
+	ag.Tools.Add(&memory.Tool{Store: mem})
+	ag.SystemExtra = func() string { return mem.Index() + skill.Index(skills()) }
+	ag.Prepare = skill.TurnPrep(&skill.Injector{Skills: skills}, mem)
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools})
 	ag.UndoPath = sess.UndoPath()
 	if repo, err := snapshot.Open(cwd); err == nil {

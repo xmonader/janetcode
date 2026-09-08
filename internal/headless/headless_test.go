@@ -123,10 +123,10 @@ func TestAutoMemoryAfterMutatingTurn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e := store.Entries(); len(e) != 1 || e[0] != "Files under x are generated; edit the templates instead." {
-		t.Fatalf("entries = %q\nstderr: %s", e, errOut.String())
+	if e := store.Entries(); len(e) != 1 || e[0].Description != "Files under x are generated; edit the templates instead." || e[0].Source != "auto" {
+		t.Fatalf("entries = %+v\nstderr: %s", e, errOut.String())
 	}
-	if !strings.Contains(errOut.String(), "[memory] remembered: Files under x") {
+	if !strings.Contains(errOut.String(), "[memory] remembered ") || !strings.Contains(errOut.String(), "Files under x are generated") {
 		t.Fatalf("stderr = %q", errOut.String())
 	}
 	if len(f.responses) != 0 {

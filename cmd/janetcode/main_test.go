@@ -83,14 +83,14 @@ func TestHeadlessEndToEnd(t *testing.T) {
 	if calls != 4 { // read, write, answer, memory extraction
 		t.Fatalf("model calls = %d", calls)
 	}
-	if !strings.Contains(errOut, "[memory] remembered: out.txt is generated from hello.txt.") {
+	if !strings.Contains(errOut, "[memory] remembered out.txt-generated-hello.txt (project, project): out.txt is generated from hello.txt.") {
 		t.Fatalf("stderr = %q", errOut)
 	}
-	if sys := memReq["messages"].([]any)[0].(map[string]any); !strings.Contains(sys["content"].(string), "memory file") {
+	if sys := memReq["messages"].([]any)[0].(map[string]any); !strings.Contains(sys["content"].(string), "long-term memory") {
 		t.Fatalf("extraction system prompt = %v", sys)
 	}
-	memFiles, _ := filepath.Glob(filepath.Join(home, ".local", "share", "janetcode", "memory", "*.md"))
-	if len(memFiles) != 1 {
+	memFiles, _ := filepath.Glob(filepath.Join(home, ".local", "share", "janetcode", "memory", "*", "*.md"))
+	if len(memFiles) != 1 || filepath.Base(memFiles[0]) != "out.txt-generated-hello.txt.md" {
 		t.Fatalf("memory files = %v", memFiles)
 	}
 	// The last request carried the system prompt with the working directory
@@ -133,7 +133,7 @@ func TestHeadlessEndToEnd(t *testing.T) {
 		t.Fatalf("resumed history length = %d", len(msgs))
 	} else if u := msgs[7].(map[string]any)["content"].(string); !strings.Contains(u, "thanks") || !strings.Contains(u, "<stdin>\ndiff --git a/x b/x\n</stdin>") {
 		t.Fatalf("stdin not attached: %q", u)
-	} else if sys := msgs[0].(map[string]any)["content"].(string); !strings.Contains(sys, "# Project memory") || !strings.Contains(sys, "- out.txt is generated from hello.txt.") {
+	} else if sys := msgs[0].(map[string]any)["content"].(string); !strings.Contains(sys, "# Memory") || !strings.Contains(sys, "- out.txt-generated-hello.txt (project): out.txt is generated from hello.txt.") {
 		t.Fatalf("memory missing from resumed system prompt: %q", sys)
 	}
 

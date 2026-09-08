@@ -1,6 +1,7 @@
 package skill
 
 import (
+	"github.com/xmonader/janetcode/internal/md"
 	"os"
 	"path/filepath"
 	"sort"
@@ -48,7 +49,7 @@ func LoadProfiles(cwd, configDir string) []Profile {
 			if err != nil {
 				continue
 			}
-			meta, body := Frontmatter(string(data))
+			meta, body := md.Parse(string(data))
 			body = strings.TrimSpace(body)
 			if body == "" {
 				continue
@@ -60,11 +61,7 @@ func LoadProfiles(cwd, configDir string) []Profile {
 			if pr.Description == "" {
 				pr.Description = firstLine(body)
 			}
-			for _, t := range strings.FieldsFunc(meta["tools"], func(r rune) bool { return r == ',' || r == ' ' || r == '[' || r == ']' }) {
-				if t = strings.Trim(t, "\"'"); t != "" {
-					pr.Tools = append(pr.Tools, t)
-				}
-			}
+			pr.Tools = md.List(meta["tools"])
 			byName[pr.Name] = pr
 		}
 	}

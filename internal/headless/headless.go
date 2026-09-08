@@ -87,17 +87,17 @@ func remember(ctx context.Context, opts Options) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	ag := opts.Agent
-	facts, err := memory.Extract(ctx, ag.Provider, ag.Model, ag.Messages, opts.Memory.Entries())
+	xs, err := memory.Extract(ctx, ag.Provider, ag.Model, ag.Messages, opts.Memory.Entries())
 	if err != nil {
 		fmt.Fprintf(opts.Stderr, "[memory] extraction failed: %v\n", err)
 		return
 	}
-	for _, f := range facts {
-		if ok, err := opts.Memory.Add(f); err != nil {
-			fmt.Fprintf(opts.Stderr, "[memory] %v\n", err)
-		} else if ok {
-			fmt.Fprintf(opts.Stderr, "[memory] remembered: %s\n", f)
-		}
+	changed, err := opts.Memory.Apply(xs)
+	if err != nil {
+		fmt.Fprintf(opts.Stderr, "[memory] %v\n", err)
+	}
+	for _, e := range changed {
+		fmt.Fprintf(opts.Stderr, "[memory] remembered %s (%s, %s): %s\n", e.Name, e.Type, e.Scope, e.Description)
 	}
 }
 
@@ -146,7 +146,7 @@ func turn(ctx context.Context, opts Options, blocks []llm.Block) error {
 			fmt.Fprintln(opts.Stderr)
 		}
 	})
-	if err == nil && opts.Memory != nil && opts.AutoMemory && ag.LastTurnMutated() {
+	if err == nil && opts.Memory != nil && opts.AutoMemory && (ag.LastTurnMutated() || memory.LooksLikeFeedback(llm.Message{Blocks: blocks}.Text())) {
 		remember(ctx, opts)
 	}
 	if opts.Session != nil {
