@@ -151,11 +151,16 @@ are refused outright, seen through `sudo`, `env`, `timeout`, `sh -c` and
 (`rm ../x`, `cp a ~/b`, `> /etc/hosts`) always ask. Everything else follows
 the permission mode.
 
-`/undo` restores every file the last turn changed through `edit_file` or
-`write_file` (files it created are removed) and tells the model. Repeat it to
-go back further, and it still works after `--continue` or `/resume` because
-checkpoints are saved next to the session file. Changes made by shell
-commands are not tracked.
+`/undo` puts the work tree back to how it was before the last turn that
+changed anything, and tells the model. Inside a git repository the whole
+tree is snapshotted before the first mutating tool of a turn (a hidden
+commit under `refs/janetcode/cp/`, taken through a temporary index so
+HEAD, your index and your branches are never touched), so changes made by
+shell commands, generated files and deletions all revert. Outside git the
+files changed through `edit_file`/`write_file` are restored from copies.
+Repeat it to go back further (up to 30 turns); it still works after
+`--continue` or `/resume`. If you committed or checked out in between, the
+git snapshot is not applied and only file-tool changes are reverted.
 
 ### MCP servers
 

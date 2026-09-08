@@ -24,6 +24,7 @@ import (
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/tui"
 )
@@ -175,6 +176,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	task.Parent = ag
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools})
 	ag.UndoPath = sess.UndoPath()
+	if repo, err := snapshot.Open(cwd); err == nil {
+		ag.Snapshots = repo
+	}
 	if err := ag.LoadUndo(); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}

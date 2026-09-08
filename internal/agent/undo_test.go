@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -99,5 +102,102 @@ func TestUndoPersistsAcrossAgents(t *testing.T) {
 	os.WriteFile(a.UndoPath, []byte("{bad"), 0o644)
 	if err := b.LoadUndo(); err == nil {
 		t.Fatal("corrupt undo file accepted")
+	}
+}
+
+func gitInit(t *testing.T, root string) {
+	t.Helper()
+	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}, {"commit", "-q", "-m", "init"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+}
+
+func TestUndoRevertsShellChangesThroughGit(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		// turn 1: a shell command that only reads leaves no checkpoint
+		toolCall("t0", "bash", `{"command":"cat a.txt"}`),
+		text("read"),
+		// turn 2: shell creates, edits and deletes; then a file tool edits
+		toolCall("t1", "bash", `{"command":"echo made > made.txt; echo changed > a.txt; rm b.txt"}`),
+		toolCall("t2", "write_file", `{"path":"w.txt","content":"w"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	os.WriteFile(filepath.Join(root, "b.txt"), []byte("b\n"), 0o644)
+	gitInit(t, root)
+	repo, err := snapshot.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Snapshots = repo
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root})
+	for _, p := range []string{"look", "change"} {
+		if err := a.Run(context.Background(), p, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cps := a.Checkpoints()
+	if len(cps) != 1 || cps[0].Snap == nil || len(cps[0].Files) != 1 {
+		t.Fatalf("checkpoints = %+v", cps)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "changed\n" {
+		t.Fatalf("a.txt = %q", data)
+	}
+	done, err := a.Undo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(done, "\n")
+	for _, want := range []string{"removed " + filepath.Join(root, "made.txt"), "restored " + filepath.Join(root, "a.txt"), "restored " + filepath.Join(root, "b.txt"), "removed " + filepath.Join(root, "w.txt")} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing %q in:\n%s", want, joined)
+		}
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "alpha\n" {
+		t.Fatalf("a.txt after undo = %q", data)
+	}
+	if _, err := os.Stat(filepath.Join(root, "made.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("made.txt still there")
+	}
+	if _, err := a.Undo(); !errors.Is(err, ErrNothingToUndo) {
+		t.Fatalf("second undo err = %v", err)
+	}
+	cmd := exec.Command("git", "for-each-ref", snapshot.RefPrefix)
+	cmd.Dir = root
+	if out, _ := cmd.Output(); len(out) != 0 {
+		t.Fatalf("snapshot refs left behind: %s", out)
+	}
+}
+
+func TestUndoFallsBackToFileCopiesWhenHeadMoved(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"echo shell > s.txt"}`),
+		toolCall("t2", "write_file", `{"path":"a.txt","content":"edited"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	gitInit(t, root)
+	a.Snapshots, _ = snapshot.Open(root)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root})
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	gitInit(t, root) // the user commits: HEAD moves
+	done, err := a.Undo()
+	if !errors.Is(err, snapshot.ErrHeadMoved) || len(done) != 1 {
+		t.Fatalf("done=%v err=%v", done, err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "alpha\n" {
+		t.Fatalf("a.txt = %q", data)
+	}
+	if _, err := os.Stat(filepath.Join(root, "s.txt")); err != nil {
+		t.Fatal("shell file should be left alone when HEAD moved")
 	}
 }

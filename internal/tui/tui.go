@@ -184,7 +184,7 @@ var commands = []command{
 	{"/clear", "", "start a new session"},
 	{"/resume", "[n|id]", "list earlier sessions here, or reopen one"},
 	{"/find", "<text>", "jump to the next line matching text; repeat to continue"},
-	{"/undo", "", "revert the files changed by the last turn"},
+	{"/undo", "", "revert everything the last turn changed (git snapshot; file copies outside git)"},
 	{"/mcp", "[trust]", "MCP servers and their tools; trust starts the project's .mcp.json servers"},
 	{"/yolo", "", "toggle auto-approve for tools"},
 	{"/connect", "", "connect to a provider (preset or custom API) and pick a model"},
@@ -1255,7 +1255,7 @@ func (m *model) command(text string) tea.Cmd {
 		}
 		done, err := m.opts.Agent.Undo()
 		if errors.Is(err, agent.ErrNothingToUndo) {
-			m.transcript.errorf("nothing to undo: no turn has changed files through edit_file or write_file (shell changes are not tracked)")
+			m.transcript.errorf("nothing to undo: no turn has changed anything yet")
 			break
 		}
 		for _, d := range done {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -127,6 +128,9 @@ type Agent struct {
 	// Archive, when set, keeps full tool outputs longer than InlineOutput
 	// on disk so the model can page through them with expand_output.
 	Archive *Archive
+	// Snapshots, when set, snapshots the git work tree before the first
+	// mutating tool of each turn so Undo also reverts shell changes.
+	Snapshots *snapshot.Repo
 
 	allowed map[string]bool
 	cp      checkpointer
@@ -171,7 +175,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}
 	a.appendUserBlocks(blocks...)
 	a.cp.beginTurn()
-	defer a.saveUndoIfDirty()
+	defer a.endTurn()
 	a.loops.reset()
 	a.integ.userText = ""
 	for _, b := range blocks {
@@ -463,7 +467,7 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
 	if t.Mutating() {
-		a.cp.snapshot(t, u.Input)
+		a.cp.snapshot(a.Snapshots, t, u.Input)
 	}
 	start := time.Now()
 	out, err := runSafely(ctx, t, u.Input)
