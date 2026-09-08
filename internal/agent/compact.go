@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -117,10 +118,13 @@ func (a *Agent) Prune() int {
 	return saved
 }
 
-// pruneTo replaces old tool results, oldest first, with one-line
-// placeholders until the estimate is at or under target tokens, or the
-// recent tail is reached. Full outputs go to the archive first. It returns
-// how many results were replaced.
+// pruneTo replaces old tool results with one-line placeholders until the
+// estimate is at or under target tokens, or the recent tail is reached.
+// Results go in attention order, least attended first: a result the model
+// never referred to again (a grep it moved on from) goes before a file it
+// kept editing, and a command that was re-run later goes first of all
+// since its output is stale. Full outputs go to the archive first. It
+// returns how many results were replaced.
 func (a *Agent) pruneTo(target int) int {
 	if target <= 0 || a.EstimateTokens() <= target {
 		return 0
@@ -134,7 +138,12 @@ func (a *Agent) pruneTo(target int) int {
 			}
 		}
 	}
-	replaced := 0
+	type candidate struct {
+		i, j    int
+		use     llm.Block
+		lastRef int
+	}
+	var cands []candidate
 	for i := 0; i < tail && i < len(a.Messages); i++ {
 		for j, b := range a.Messages[i].Blocks {
 			if b.Type != llm.BlockToolResult || strings.HasPrefix(b.Text, prunedPrefix) || b.Text == superseded {
@@ -144,26 +153,95 @@ func (a *Agent) pruneTo(target int) int {
 			if !ok {
 				continue
 			}
-			id := ""
-			if a.Archive != nil {
-				if id = a.Archive.IDFor(b.ToolUseID); id == "" {
-					id, _ = a.Archive.Put(b.ToolUseID, u.Name, b.Text)
-				}
+			cands = append(cands, candidate{i: i, j: j, use: u, lastRef: a.lastReference(i, u)})
+		}
+	}
+	sort.SliceStable(cands, func(x, y int) bool {
+		if cands[x].lastRef != cands[y].lastRef {
+			return cands[x].lastRef < cands[y].lastRef
+		}
+		return cands[x].i < cands[y].i
+	})
+	replaced := 0
+	for _, c := range cands {
+		b := a.Messages[c.i].Blocks[c.j]
+		id := ""
+		if a.Archive != nil {
+			if id = a.Archive.IDFor(b.ToolUseID); id == "" {
+				id, _ = a.Archive.Put(b.ToolUseID, c.use.Name, b.Text)
 			}
-			ph := placeholder(u.Name, u.Input, b.Text, id)
-			if len(ph) >= len(b.Text) {
-				continue
-			}
-			a.Messages[i].Blocks[j].Text = ph
-			replaced++
-			a.lastInputTokens, a.lastInputMsgs = 0, 0
-			a.integ.shrunkOK = true
-			if a.EstimateTokens() <= target {
-				return replaced
-			}
+		}
+		ph := placeholder(c.use.Name, c.use.Input, b.Text, id)
+		if len(ph) >= len(b.Text) {
+			continue
+		}
+		a.Messages[c.i].Blocks[c.j].Text = ph
+		replaced++
+		a.lastInputTokens, a.lastInputMsgs = 0, 0
+		a.integ.shrunkOK = true
+		if a.EstimateTokens() <= target {
+			return replaced
 		}
 	}
 	return replaced
+}
+
+// lastReference is the index of the last message after at (the result's
+// position) whose assistant text or tool inputs mention what the call at
+// `use` was about: its path, pattern or command. A result nothing came
+// back to keeps its own index; a bash command repeated verbatim later
+// gets -1 because the earlier output is stale.
+func (a *Agent) lastReference(at int, use llm.Block) int {
+	subjects := subjectsOf(use.Name, use.Input)
+	if len(subjects) == 0 {
+		return at
+	}
+	last := at
+	for i := len(a.Messages) - 1; i > at; i-- {
+		m := a.Messages[i]
+		for _, b := range m.Blocks {
+			var text string
+			switch b.Type {
+			case llm.BlockToolUse:
+				if use.Name == "bash" && b.Name == "bash" && canonical(b.Input) == canonical(use.Input) {
+					return -1
+				}
+				text = string(b.Input)
+			case llm.BlockText:
+				if m.Role != llm.RoleAssistant {
+					continue
+				}
+				text = b.Text
+			default:
+				continue
+			}
+			for _, s := range subjects {
+				if strings.Contains(text, s) {
+					return i
+				}
+			}
+		}
+	}
+	return last
+}
+
+// subjectsOf names what a tool call was about, for reference matching.
+func subjectsOf(name string, input json.RawMessage) []string {
+	var in map[string]any
+	json.Unmarshal(input, &in)
+	var out []string
+	for _, k := range []string{"path", "pattern", "command", "symbol", "query", "url"} {
+		v, _ := in[k].(string)
+		v = strings.TrimSpace(v)
+		if len(v) < 3 || v == "." {
+			continue
+		}
+		if k == "path" {
+			v = strings.TrimSuffix(v, "/")
+		}
+		out = append(out, v)
+	}
+	return out
 }
 
 // summaryCooldown is how long compaction stops asking the model for a

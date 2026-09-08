@@ -262,6 +262,49 @@ func TestPruneToCondensesOldestResultsFirst(t *testing.T) {
 	}
 }
 
+func TestPruneToFollowsAttention(t *testing.T) {
+	root := t.TempDir()
+	reg := tool.NewRegistry(tool.ReadFile{Root: root}, tool.EditFile{Root: root}, tool.Bash{Root: root})
+	long := strings.Repeat("line of output\n", 400)
+	use := func(id, name, input string) llm.Message {
+		return llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: id, Name: name, Input: json.RawMessage(input)}}}
+	}
+	res := func(id, text string) llm.Message { return llm.ToolResultMessage(llm.ToolResult(id, text, false)) }
+	a := &Agent{Provider: &fake{}, Tools: reg, Archive: NewArchive(t.TempDir()), Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, "go"),
+		use("1", "bash", `{"command":"go test ./..."}`), res("1", long+"FAIL\n[exit code 1]"),
+		use("2", "read_file", `{"path":"pkg/a.go"}`), res("2", long),
+		use("3", "grep", `{"pattern":"TODO","path":"."}`), res("3", long),
+		use("4", "edit_file", `{"path":"pkg/a.go","old_string":"x","new_string":"y"}`), res("4", "edited"),
+		use("5", "bash", `{"command":"go test ./..."}`), res("5", long+"ok\n[exit code 0]"),
+		llm.TextMessage(llm.RoleAssistant, "done"),
+		llm.TextMessage(llm.RoleUser, "next"),
+	}}
+	get := func(i int) string { return a.Messages[i].Blocks[0].Text }
+	// One step at a time: the stale first test run goes first, then the
+	// grep nothing came back to; the read of the file that was edited
+	// afterwards is the most attended and goes last.
+	step := func() { a.pruneTo(a.EstimateTokens() - 1_000) }
+	step()
+	if !strings.HasPrefix(get(2), "[pruned: bash") || strings.HasPrefix(get(4), "[pruned") || strings.HasPrefix(get(6), "[pruned") {
+		t.Fatalf("after 1: %q / %q / %q", get(2)[:30], get(4)[:20], get(6)[:20])
+	}
+	step()
+	if !strings.HasPrefix(get(6), "[pruned: grep") || strings.HasPrefix(get(4), "[pruned") {
+		t.Fatalf("after 2: %q / %q", get(6)[:30], get(4)[:20])
+	}
+	step()
+	if !strings.HasPrefix(get(4), "[pruned: read_file") {
+		t.Fatalf("after 3: %q", get(4)[:30])
+	}
+	if strings.HasPrefix(get(10), "[pruned") {
+		t.Fatal("the latest test run is still current and should be pruned last")
+	}
+	if got := subjectsOf("read_file", json.RawMessage(`{"path":"src/","limit":3}`)); len(got) != 1 || got[0] != "src" {
+		t.Fatalf("subjects = %v", got)
+	}
+}
+
 func TestCompactCooldownAfterFailedSummary(t *testing.T) {
 	f := &fake{errs: []error{errors.New("429 rate limited")}}
 	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", CompactAt: 1_000}

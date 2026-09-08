@@ -638,8 +638,9 @@ real limit lowers the threshold for the rest of the session. `/compact`
 does this on demand.
 
 A summary is the last resort. Before paying for one, old tool results are
-deduplicated and trimmed, and then condensed oldest-first into one-line
-placeholders that still say what the call was and how it went (`bash "go
+deduplicated and trimmed, and then condensed into one-line
+placeholders in attention order (a command re-run later goes first, then
+results nothing came back to, and a file the model kept editing last) that still say what the call was and how it went (`bash "go
 test ./..." → exit 1; last line: FAIL pkg`, `read_file a.go: 400 lines
 were shown`) with the archive id for the full text, until the history is
 down to half the threshold. Most of the time that is enough and no model
