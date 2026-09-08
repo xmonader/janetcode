@@ -169,7 +169,7 @@ func TestCompactKeepsRecentTail(t *testing.T) {
 
 func TestOverflowLowersCompactThreshold(t *testing.T) {
 	for msg, want := range map[string]int{
-		"400: prompt is too long: 210000 tokens > 200000 maximum":                 200000,
+		"400: prompt is too long: 210000 tokens > 200000 maximum":                           200000,
 		"This model's maximum context length is 32768 tokens. However, you requested 40000": 32768,
 		"rate limited": 0,
 	} {

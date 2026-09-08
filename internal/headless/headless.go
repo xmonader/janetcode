@@ -41,7 +41,7 @@ type Options struct {
 	// each turn that changed something.
 	Memory     *memory.Store
 	AutoMemory bool
-	Cwd         string
+	Cwd        string
 }
 
 // DefaultUntilRounds bounds the re-loops when --until keeps failing.
