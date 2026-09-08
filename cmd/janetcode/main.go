@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/term"
 
@@ -87,6 +88,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		showVersion = fs.Bool("version", false, "print version and exit")
 		listSess    = fs.Bool("sessions", false, "list saved sessions for this directory and exit")
 		initCfg     = fs.Bool("init", false, "write an example config file and exit")
+		mcpAuth     = fs.String("mcp-auth", "", "log in to the named remote MCP server with OAuth (browser flow) and exit")
 		runDoctor   = fs.Bool("doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
 	)
 	if err := fs.Parse(args); err != nil {
@@ -244,6 +246,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		return err
 	}
 	trust := mcp.TrustStore{Path: filepath.Join(cfgDir, "mcp-trust.json")}
+	tokens := &mcp.TokenStore{Path: filepath.Join(cfgDir, "mcp-auth.json")}
+	servers.Options.Tokens = tokens
+	if *mcpAuth != "" {
+		return authorizeMCP(*mcpAuth, cfg.MCPServers, projectServers, tokens)
+	}
 	hooksCfg, hooksHash, err := hook.LoadProject(cwd)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v (project hooks ignored)\n", err)
@@ -351,6 +358,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		MCP: &tui.MCPOptions{
 			Manager: &servers, Global: cfg.MCPServers,
 			Project: projectServers, ProjectHash: projectHash, ProjectTrusted: projectTrusted, Trust: trust,
+			Tokens: tokens,
 		},
 		Hooks:     &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
 		LSP:       diag,
@@ -507,3 +515,31 @@ func diagnoseNote(m *lsp.Manager) func(context.Context, string) string {
 // hookTrustKey keeps hook approvals apart from MCP approvals in the same
 // trust store.
 func hookTrustKey(cwd string) string { return cwd + "#hooks" }
+
+// authorizeMCP runs the OAuth flow for a remote server from the command
+// line, printing the URL in case no browser can be opened.
+func authorizeMCP(name string, global, project map[string]mcp.ServerConfig, tokens *mcp.TokenStore) error {
+	cfg, ok := global[name]
+	if !ok {
+		cfg, ok = project[name]
+	}
+	if !ok {
+		return fmt.Errorf("no MCP server named %q in the config or %s", name, mcp.ProjectFile)
+	}
+	if cfg.URL == "" {
+		return fmt.Errorf("mcp %s runs locally; only remote servers use OAuth", name)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	_, err := mcp.Authorize(ctx, mcp.AuthOptions{
+		ServerURL: cfg.URL, Store: tokens,
+		ClientID: cfg.ClientID, ClientSecret: os.ExpandEnv(cfg.ClientSecret), Scope: cfg.Scope,
+		OpenURL: mcp.OpenBrowser,
+		Notify:  func(s string) { fmt.Fprintln(os.Stderr, "[mcp auth] "+s) },
+	})
+	if err != nil {
+		return fmt.Errorf("mcp auth %s: %w", name, err)
+	}
+	fmt.Printf("mcp %s: authorized; token stored in %s\n", name, tokens.Path)
+	return nil
+}

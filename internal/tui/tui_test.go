@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/mcp/mcptest"
 	"github.com/xmonader/janetcode/internal/mcp/testserver"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
@@ -549,6 +551,80 @@ func TestFakeMCPServerProcess(t *testing.T) {
 		t.Skip("helper process only")
 	}
 	testserver.Run()
+}
+
+func TestMCPAuthCommand(t *testing.T) {
+	srv, fake := mcptest.NewAuthServer(t)
+	defer srv.Close()
+	h := newHarness(t)
+	reg := h.m.opts.Agent.Tools
+	tokens := &mcp.TokenStore{Path: filepath.Join(t.TempDir(), "mcp-auth.json")}
+	mgr := &mcp.Manager{Options: mcp.Options{Root: h.m.opts.Cwd, HandshakeTimeout: 10 * time.Second, Tokens: tokens}, Registry: reg}
+	secure := mcp.ServerConfig{URL: srv.URL + "/mcp"}
+	opened := make(chan string, 1)
+	h.m.opts.MCP = &MCPOptions{
+		Manager: mgr, Global: map[string]mcp.ServerConfig{"secure": secure, "local": {Command: "true"}}, Tokens: tokens,
+		OpenURL: func(u string) error {
+			opened <- u
+			go func() {
+				if resp, err := http.Get(u); err == nil {
+					resp.Body.Close()
+				}
+			}()
+			return nil
+		},
+	}
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 120}) // the printed URL is long
+	// The server fails to start without a token and says how to fix it.
+	mgr.Start(context.Background(), "secure", secure, func(name string, c *mcp.Client, err error) {
+		h.msgs <- mcpDoneMsg{name: name, err: err}
+	})
+	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "authorization required") })
+
+	h.keys("/mcp auth local")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "runs locally") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/mcp auth nope")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, `no MCP server named "nope"`) {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/mcp logout secure")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "no token stored") {
+		t.Fatalf("view:\n%s", v)
+	}
+
+	h.keys("/mcp auth secure")
+	h.enter()
+	h.pump(func() bool { _, ok := reg.Get("mcp__secure__whoami"); return ok })
+	select {
+	case u := <-opened:
+		if !strings.Contains(u, "/auth/authorize?") {
+			t.Fatalf("opened %q", u)
+		}
+	default:
+		t.Fatal("browser not opened")
+	}
+	v := plain(h.m.View())
+	for _, want := range []string{"registered client " + fake.ClientID, "authorized · restarting the server", "mcp secure ready · 1 tools"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("missing %q in:\n%s", want, v)
+		}
+	}
+	if tok, ok := tokens.Get(secure.URL); !ok || tok.AccessToken != "at-1" {
+		t.Fatalf("token = %+v %v", tok, ok)
+	}
+	h.keys("/mcp logout secure")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "token forgotten") {
+		t.Fatalf("view:\n%s", v)
+	}
+	if _, ok := tokens.Get(secure.URL); ok {
+		t.Fatal("token still stored after logout")
+	}
 }
 
 func TestMCPTrustFlow(t *testing.T) {

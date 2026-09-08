@@ -88,6 +88,25 @@ func (m *Manager) Start(ctx context.Context, name string, cfg ServerConfig, onDo
 	}()
 }
 
+// Stop closes one server and removes its tools, so Start can bring it
+// back (after /mcp auth, for instance).
+func (m *Manager) Stop(name string) {
+	m.mu.Lock()
+	c := m.clients[name]
+	delete(m.clients, name)
+	delete(m.errs, name)
+	m.mu.Unlock()
+	if c == nil {
+		return
+	}
+	if m.Registry != nil {
+		for _, t := range c.AgentTools() {
+			m.Registry.Remove(t.Name())
+		}
+	}
+	c.Close()
+}
+
 // StartAll launches every server and waits for all of them.
 func (m *Manager) StartAll(ctx context.Context, servers map[string]ServerConfig, onDone func(name string, c *Client, err error)) {
 	var wg sync.WaitGroup

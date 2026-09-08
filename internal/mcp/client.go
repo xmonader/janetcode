@@ -33,6 +33,12 @@ type ServerConfig struct {
 	Headers map[string]string `json:"headers,omitempty"`
 	// Type may say "stdio", "http" or "sse"; it is inferred when empty.
 	Type string `json:"type,omitempty"`
+	// ClientID and ClientSecret are for remote servers that do not offer
+	// dynamic client registration; ClientSecret expands ${ENV_VARS}.
+	// Scope narrows what /mcp auth asks for.
+	ClientID     string `json:"client_id,omitempty"`
+	ClientSecret string `json:"client_secret,omitempty"`
+	Scope        string `json:"scope,omitempty"`
 }
 
 // ToolInfo is one tool the server offers.
@@ -115,6 +121,8 @@ type Options struct {
 	Version string
 	// HandshakeTimeout bounds initialize plus tools/list. Zero means 60s.
 	HandshakeTimeout time.Duration
+	// Tokens holds OAuth tokens for remote servers (see Authorize).
+	Tokens *TokenStore
 }
 
 // Start launches or connects to the server, completes the handshake and
@@ -130,7 +138,7 @@ func Start(ctx context.Context, name string, cfg ServerConfig, opts Options) (*C
 	var err error
 	switch {
 	case strings.TrimSpace(cfg.URL) != "":
-		c.tr, err = newHTTPTransport(c, cfg)
+		c.tr, err = newHTTPTransport(c, cfg, opts.Tokens)
 	case strings.TrimSpace(cfg.Command) != "":
 		c.tr, err = newStdioTransport(c, cfg, opts.Root)
 	default:

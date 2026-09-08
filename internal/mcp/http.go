@@ -26,6 +26,9 @@ type httpTransport struct {
 	url     string
 	headers map[string]string
 	mode    string // "", "http" or "sse" once known
+	tokens  *TokenStore
+	// authMeta is the resource_metadata a 401 pointed at.
+	authMeta string
 
 	mu        sync.Mutex
 	sessionID string // Streamable HTTP session
@@ -36,7 +39,7 @@ type httpTransport struct {
 	sseReady  chan error
 }
 
-func newHTTPTransport(c *Client, cfg ServerConfig) (*httpTransport, error) {
+func newHTTPTransport(c *Client, cfg ServerConfig, tokens *TokenStore) (*httpTransport, error) {
 	u, err := url.Parse(cfg.URL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return nil, fmt.Errorf("bad url %q", cfg.URL)
@@ -55,8 +58,40 @@ func newHTTPTransport(c *Client, cfg ServerConfig) (*httpTransport, error) {
 		url:     cfg.URL,
 		headers: headers,
 		mode:    mode,
+		tokens:  tokens,
 		closed:  make(chan struct{}),
 	}, nil
+}
+
+// bearer returns the stored OAuth token for this server, refreshed when
+// expired (or when force is set after a 401). An explicit Authorization
+// header in the config wins.
+func (t *httpTransport) bearer(ctx context.Context, force bool) (string, error) {
+	if t.tokens == nil {
+		return "", nil
+	}
+	for k := range t.headers {
+		if strings.EqualFold(k, "Authorization") {
+			return "", nil
+		}
+	}
+	tok, ok, err := t.tokens.Bearer(ctx, t.client, t.url, force)
+	if !ok {
+		return "", nil
+	}
+	return tok, err
+}
+
+// unauthorized turns a 401 into ErrAuthRequired with a hint for the user,
+// remembering where the server said its metadata lives.
+func (t *httpTransport) unauthorized(resp *http.Response) error {
+	hint := resourceMetadataHint(resp.Header.Get("WWW-Authenticate"))
+	t.mu.Lock()
+	if hint != "" {
+		t.authMeta = hint
+	}
+	t.mu.Unlock()
+	return &AuthError{Server: t.c.Name, ResourceMetadata: hint}
 }
 
 func (t *httpTransport) send(ctx context.Context, msg rpcMessage) error {
@@ -86,6 +121,38 @@ func (t *httpTransport) send(ctx context.Context, msg rpcMessage) error {
 	return err
 }
 
+// do sends a request; on 401 with a stored token it refreshes the token
+// and retries once (rebuilt by again), and turns a final 401 into
+// ErrAuthRequired.
+func (t *httpTransport) do(ctx context.Context, req *http.Request, again func() (*http.Request, error)) (*http.Response, error) {
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		return resp, nil
+	}
+	if req.Header.Get("Authorization") != "" && t.tokens != nil {
+		resp.Body.Close()
+		if _, rerr := t.bearer(ctx, true); rerr == nil {
+			if req, err = again(); err != nil {
+				return nil, err
+			}
+			if resp, err = t.client.Do(req); err != nil {
+				return nil, err
+			}
+			if resp.StatusCode != http.StatusUnauthorized {
+				return resp, nil
+			}
+		} else {
+			return nil, rerr
+		}
+	}
+	err = t.unauthorized(resp)
+	resp.Body.Close()
+	return nil, err
+}
+
 type statusError struct {
 	code int
 	body string
@@ -106,6 +173,11 @@ func (t *httpTransport) newRequest(ctx context.Context, method, target string, b
 	for k, v := range t.headers {
 		req.Header.Set(k, v)
 	}
+	if tok, err := t.bearer(ctx, false); err != nil {
+		return nil, err
+	} else if tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
+	}
 	t.mu.Lock()
 	if t.sessionID != "" {
 		req.Header.Set("Mcp-Session-Id", t.sessionID)
@@ -125,7 +197,7 @@ func (t *httpTransport) sendStreamable(ctx context.Context, msg rpcMessage) erro
 	if err != nil {
 		return err
 	}
-	resp, err := t.client.Do(req)
+	resp, err := t.do(ctx, req, func() (*http.Request, error) { return t.newRequest(ctx, http.MethodPost, t.url, data) })
 	if err != nil {
 		return err
 	}
@@ -196,7 +268,7 @@ func (t *httpTransport) sendLegacy(ctx context.Context, msg rpcMessage) error {
 	if err != nil {
 		return err
 	}
-	resp, err := t.client.Do(req)
+	resp, err := t.do(ctx, req, func() (*http.Request, error) { return t.newRequest(ctx, http.MethodPost, endpoint, data) })
 	if err != nil {
 		return err
 	}
@@ -250,7 +322,13 @@ func (t *httpTransport) openSSE() {
 		return
 	}
 	req.Header.Set("Accept", "text/event-stream")
-	resp, err := t.client.Do(req)
+	resp, err := t.do(ctx, req, func() (*http.Request, error) {
+		r, err := t.newRequest(ctx, http.MethodGet, t.url, nil)
+		if r != nil {
+			r.Header.Set("Accept", "text/event-stream")
+		}
+		return r, err
+	})
 	if err != nil {
 		t.sseReady <- err
 		return

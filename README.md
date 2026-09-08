@@ -151,7 +151,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /connect   /model     /compact (summarise the context to free the window)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost)
 /resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)
-/undo [preview]  /redo  /find X    /cost      /mcp [trust]
+/undo [preview]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
 /fork [title]  /title <text>  /history <words> (search every saved session)
 /open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)
 /context   (what fills the window)   /pin <note or @file>   /unpin <n>
@@ -485,6 +485,17 @@ never has to be written into the file:
 ```json
 {"mcpServers": {"docs": {"url": "https://example.com/mcp", "headers": {"Authorization": "Bearer ${DOCS_TOKEN}"}}}}
 ```
+
+Servers that answer 401 want OAuth. `/mcp auth <server>` (or
+`janetcode --mcp-auth <server>` outside the TUI) discovers the
+authorization server, registers janetcode as a client dynamically, opens
+the browser for the authorization-code flow with PKCE, receives the
+redirect on a loopback port and stores the token, with the refresh token,
+in `mcp-auth.json` next to the config file (mode 0600). Expired tokens
+are refreshed before requests; a 401 with a stored token triggers one
+refresh and retry. Servers without dynamic registration take
+`"client_id"`, `"client_secret"` (env references expand) and `"scope"` in
+their config. `/mcp logout <server>` forgets the token.
 
 Server tools appear as `mcp__<server>__<tool>`. They ask for permission
 unless the server marks them read-only. Servers that publish resources get

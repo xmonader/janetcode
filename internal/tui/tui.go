@@ -97,6 +97,10 @@ type MCPOptions struct {
 	ProjectHash    string
 	ProjectTrusted bool
 	Trust          mcp.TrustStore
+	// Tokens stores OAuth tokens for /mcp auth; nil disables it.
+	Tokens *mcp.TokenStore
+	// OpenURL opens the browser for /mcp auth; nil uses mcp.OpenBrowser.
+	OpenURL func(string) error
 }
 
 // HookOptions describes the hooks in effect for /hooks.
@@ -622,6 +626,14 @@ func (m *model) hooksCommand(args []string) {
 	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 }
 
+// mcpAuthMsg carries progress of /mcp auth; done marks the end.
+type mcpAuthMsg struct {
+	name string
+	text string
+	done bool
+	err  error
+}
+
 // mcpDoneMsg reports a server that came up or failed.
 type mcpDoneMsg struct {
 	name  string
@@ -740,7 +752,7 @@ var commands = []command{
 	{"/stats", "", "session statistics: turns, model calls, tool calls per tool, tokens, cost"},
 	{"/undo", "[preview]", "revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it"},
 	{"/redo", "", "reapply what the last /undo reverted (until the next change)"},
-	{"/mcp", "[trust]", "MCP servers and their tools; trust starts the project's .mcp.json servers"},
+	{"/mcp", "[trust|auth <server>|logout <server>]", "MCP servers and their tools; trust starts the project's .mcp.json servers; auth logs in to a remote server with OAuth"},
 	{"/hooks", "[trust]", "hooks in effect; trust enables the project's .janetcode/hooks.json"},
 	{"/permissions", "[allow|deny <rule>|trust]", "permission rules; add one, or trust the project's .janetcode/permissions.json"},
 	{"/verify", "[set <cmd>|clear|trust]", "run the project's checks now; set adds one to .janetcode/verify.json"},
@@ -1036,9 +1048,22 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.submit(msg.text)
 
+	case mcpAuthMsg:
+		switch {
+		case !msg.done:
+			m.transcript.info("mcp " + msg.name + ": " + msg.text)
+		case msg.err != nil:
+			m.transcript.errorf("mcp %s: authorization failed: %v", msg.name, msg.err)
+		default:
+			m.transcript.info("mcp " + msg.name + ": authorized · restarting the server")
+			m.restartMCP(msg.name)
+		}
+		m.refresh(false)
+		return m, nil
+
 	case mcpDoneMsg:
 		if msg.err != nil {
-			m.transcript.errorf("mcp %s: %v", msg.name, msg.err)
+			m.transcript.errorf("mcp %s: %s", msg.name, strings.TrimPrefix(msg.err.Error(), "mcp "+msg.name+": "))
 		} else {
 			line := fmt.Sprintf("mcp %s ready · %d tools", msg.name, msg.tools)
 			if n := len(m.mcpPrompts(msg.name)); n > 0 {
@@ -2056,6 +2081,10 @@ func (m *model) mcpCommand(args []string) {
 		m.transcript.info("MCP is not configured: add servers under \"mcp_servers\" in the config file or a .mcp.json in the project")
 		return
 	}
+	if len(args) > 0 && (args[0] == "auth" || args[0] == "logout") {
+		m.mcpAuth(args)
+		return
+	}
 	if len(args) > 0 && args[0] == "trust" {
 		switch {
 		case len(o.Project) == 0:
@@ -2610,4 +2639,84 @@ func tokensOrUnknown(n int) string {
 		return "no limit"
 	}
 	return shortTokens(n) + " compact threshold"
+}
+
+// mcpAuth handles /mcp auth <server> and /mcp logout <server>.
+func (m *model) mcpAuth(args []string) {
+	o := m.opts.MCP
+	if len(args) != 2 {
+		m.transcript.errorf("usage: /mcp %s <server>", args[0])
+		return
+	}
+	name := args[1]
+	cfg, ok := o.Global[name]
+	if !ok {
+		cfg, ok = o.Project[name]
+	}
+	switch {
+	case !ok:
+		m.transcript.errorf("no MCP server named %q in the config or %s", name, mcp.ProjectFile)
+		return
+	case cfg.URL == "":
+		m.transcript.errorf("mcp %s runs locally (a command); only remote servers use OAuth", name)
+		return
+	case o.Tokens == nil:
+		m.transcript.errorf("OAuth is not available in this session (no token store)")
+		return
+	}
+	if args[0] == "logout" {
+		if _, had := o.Tokens.Get(cfg.URL); !had {
+			m.transcript.info("mcp " + name + ": no token stored")
+			return
+		}
+		if err := o.Tokens.Delete(cfg.URL); err != nil {
+			m.transcript.errorf("forget token: %v", err)
+			return
+		}
+		m.transcript.info("mcp " + name + ": token forgotten · the server will need /mcp auth again")
+		return
+	}
+	// A failed start may have told us where the server's metadata lives.
+	var meta string
+	for _, st := range o.Manager.Status() {
+		var ae *mcp.AuthError
+		if st.Name == name && errors.As(st.Err, &ae) {
+			meta = ae.ResourceMetadata
+		}
+	}
+	openURL := o.OpenURL
+	if openURL == nil {
+		openURL = mcp.OpenBrowser
+	}
+	m.transcript.info("mcp " + name + ": starting authorization · the browser will open; the URL is also printed here")
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		_, err := mcp.Authorize(ctx, mcp.AuthOptions{
+			ServerURL: cfg.URL, Store: o.Tokens, ResourceMetadata: meta,
+			ClientID: cfg.ClientID, ClientSecret: os.ExpandEnv(cfg.ClientSecret), Scope: cfg.Scope,
+			OpenURL: openURL,
+			Notify:  func(s string) { m.send(mcpAuthMsg{name: name, text: s}) },
+		})
+		m.send(mcpAuthMsg{name: name, done: true, err: err})
+	}()
+}
+
+// restartMCP stops a server and starts it again with the current tokens.
+func (m *model) restartMCP(name string) {
+	o := m.opts.MCP
+	cfg, ok := o.Global[name]
+	if !ok {
+		if cfg, ok = o.Project[name]; !ok || !o.ProjectTrusted {
+			return
+		}
+	}
+	o.Manager.Stop(name)
+	o.Manager.Start(context.Background(), name, cfg, func(name string, c *mcp.Client, err error) {
+		n := 0
+		if c != nil {
+			n = len(c.Tools())
+		}
+		m.send(mcpDoneMsg{name: name, tools: n, err: err})
+	})
 }
