@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -353,5 +354,74 @@ func TestEditCoaching(t *testing.T) {
 	// Success resets the streak, so the next failure is a plain error.
 	if r := result(8); strings.Contains(r, "in a row") || strings.Contains(r, "without reading") {
 		t.Fatalf("after success: %q", r)
+	}
+}
+
+func TestLoopDetectionNudgesThenStops(t *testing.T) {
+	var responses []*llm.Response
+	for i := 0; i < 6; i++ {
+		responses = append(responses, toolCall(fmt.Sprint(i), "read_file", `{"path":"a.txt"}`))
+	}
+	responses = append(responses, text("done"))
+	f := &fake{responses: responses}
+	a, _ := newAgent(t, f, nil)
+	var notices []string
+	err := a.Run(context.Background(), "loop", func(e Event) {
+		if e.Kind == EvNotice {
+			notices = append(notices, e.Text)
+		}
+	})
+	if !errors.Is(err, ErrStuck) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(f.requests) != loopStopAt {
+		t.Fatalf("model called %d times, want %d", len(f.requests), loopStopAt)
+	}
+	third := a.Messages[2*loopNudgeAt].Blocks[0].Text
+	if !strings.Contains(third, "[harness] This is the 3rd identical read_file call") {
+		t.Fatalf("no nudge on the third call: %q", third)
+	}
+	if len(notices) != 1 || !strings.Contains(notices[0], "turn stopped") {
+		t.Fatalf("notices = %v", notices)
+	}
+	// The history is still valid: it ends with the tool results, so the
+	// user's next message merges in and the model can continue.
+	if last := a.Messages[len(a.Messages)-1]; last.Role != llm.RoleUser || last.Blocks[0].Type != llm.BlockToolResult {
+		t.Fatalf("history ends with %+v", last)
+	}
+	// Failing calls are called out sooner.
+	f2 := &fake{responses: []*llm.Response{
+		toolCall("1", "read_file", `{"path":"missing.txt"}`),
+		toolCall("2", "read_file", `{"path":"missing.txt"}`),
+		text("gave up"),
+	}}
+	a2, _ := newAgent(t, f2, nil)
+	if err := a2.Run(context.Background(), "x", nil); err != nil {
+		t.Fatal(err)
+	}
+	if r := a2.Messages[4].Blocks[0].Text; !strings.Contains(r, "failed 2 times with the same input") {
+		t.Fatalf("second failure: %q", r)
+	}
+}
+
+func TestIntegrityCheckFlagsShrunkHistory(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("one"), text("two")}}
+	a, _ := newAgent(t, f, nil)
+	var notices []string
+	emit := func(e Event) {
+		if e.Kind == EvNotice {
+			notices = append(notices, e.Text)
+		}
+	}
+	if err := a.Run(context.Background(), "first request", emit); err != nil {
+		t.Fatal(err)
+	}
+	// Something outside the agent truncates the history behind its back.
+	a.Messages = nil
+	if err := a.Run(context.Background(), "second", emit); err != nil {
+		t.Fatal(err)
+	}
+	if len(notices) != 1 || !strings.Contains(notices[0], "shrank") {
+		t.Fatalf("notices = %v", notices)
 	}
 }

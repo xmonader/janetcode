@@ -129,6 +129,10 @@ type Agent struct {
 	cp      checkpointer
 	coach   coach
 	coachMu sync.Mutex // read_file runs in parallel goroutines
+	loops   loopDetector
+	loopMu  sync.Mutex
+	stuck   bool
+	integ   integrity
 
 	// Real input size of the last call, and how many messages it covered,
 	// so EstimateTokens only has to guess about what came after.
@@ -165,6 +169,14 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	a.appendUserBlocks(blocks...)
 	a.cp.beginTurn()
 	defer a.saveUndoIfDirty()
+	a.loops.reset()
+	a.integ.userText = ""
+	for _, b := range blocks {
+		if b.Type == llm.BlockText && b.Text != "" {
+			a.integ.userText = b.Text
+			break
+		}
+	}
 
 	compactAt := a.CompactAt
 	if compactAt == 0 {
@@ -179,6 +191,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 				return err
 			}
 		}
+		a.checkIntegrity(emit)
 		resp, err := a.call(ctx, emit)
 		if err != nil && isContextOverflow(err) && compactAt > 0 {
 			// The estimate was wrong; summarise and try once more.
@@ -195,6 +208,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		a.lastInputTokens = resp.Usage.InputTokens + resp.Usage.CacheReadTokens + resp.Usage.CacheWriteTokens
 		a.lastInputMsgs = len(a.Messages)
 		a.Messages = append(a.Messages, resp.Message)
+		a.integ.lastLen = len(a.Messages)
 		a.Usage.Add(resp.Usage)
 		emit(Event{Kind: EvTextBlockDone})
 
@@ -213,6 +227,11 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		a.Messages = append(a.Messages, llm.ToolResultMessage(results...))
 		if err != nil {
 			return err
+		}
+		if a.stuck {
+			a.stuck = false
+			emit(Event{Kind: EvNotice, Text: "turn stopped: the model repeated the same tool call " + fmt.Sprint(loopStopAt) + " times"})
+			return ErrStuck
 		}
 	}
 	return ErrMaxIterations
@@ -459,6 +478,13 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 		a.coach.after(ctx, a.Tools, u.Name, u.Input, isErr)
 		a.coachMu.Unlock()
 	}
+	a.loopMu.Lock()
+	note, stop := a.loops.record(u.Name, u.Input, isErr)
+	if stop {
+		a.stuck = true
+	}
+	a.loopMu.Unlock()
+	out += note
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
 	return out, isErr, nil
 }

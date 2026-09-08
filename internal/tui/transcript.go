@@ -154,6 +154,9 @@ func (t *transcript) apply(ev agent.Event) {
 	case agent.EvCompacted:
 		t.closeOpen()
 		t.info("⇣ " + ev.Text)
+	case agent.EvNotice:
+		t.closeOpen()
+		t.info("⚑ " + ev.Text)
 	}
 }
 
