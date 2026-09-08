@@ -144,7 +144,13 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 `/connect` walks through provider → base URL → API keys → model with
 arrow-key lists that filter as you type; `/model` alone opens just the model
 list for the current provider (`/model name` sets one directly). Both write
-the choice to the config file.
+the choice to the config file. When the provider's model list carries a
+context length and prices (OpenRouter does), the list shows them
+(`128k ctx · $0.15/$0.6 per M`) and the choice is saved under `"models"`
+in the config, so cost estimates work without a `"prices"` entry and
+compaction runs at three quarters of the model's window (capped at 200k
+tokens) instead of the 80k default. Explicit `"prices"` and `compact_at`
+still win; Claude and GPT windows are known without a listing.
 
 Safety rules that apply in every mode, including `--yolo`: commands that
 would destroy the machine (deleting `/` or the home directory, formatting,

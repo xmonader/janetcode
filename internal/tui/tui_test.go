@@ -826,7 +826,7 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 		"fake": {Type: "openai", BaseURL: "http://fake", APIKey: "k0"},
 	}}
 	var built *config.Config
-	lister := &listing{models: []llm.ModelInfo{{ID: "zeta/z"}, {ID: "deepseek/deepseek-v4-flash", Name: "DeepSeek V4 Flash"}}}
+	lister := &listing{models: []llm.ModelInfo{{ID: "zeta/z"}, {ID: "deepseek/deepseek-v4-flash", Name: "DeepSeek V4 Flash", ContextWindow: 128000, Price: &llm.Price{Input: 0.15, Output: 0.6}}}}
 	path := h.withConfig(t, cfg, func(c *config.Config) (llm.Provider, error) { built = c; return lister, nil })
 	esc := tea.KeyMsg{Type: tea.KeyEsc}
 	down := tea.KeyMsg{Type: tea.KeyDown}
@@ -884,6 +884,15 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 	raw, err := os.ReadFile(path)
 	if err != nil || !strings.Contains(string(raw), `"sk-two"`) || !strings.Contains(string(raw), `"provider": "openrouter"`) || !strings.Contains(string(raw), `"model": "deepseek/deepseek-v4-flash"`) {
 		t.Fatalf("saved config: %s %v", raw, err)
+	}
+	if !strings.Contains(string(raw), `"context_window": 128000`) || !strings.Contains(string(raw), `"models"`) {
+		t.Fatalf("model metadata not saved: %s", raw)
+	}
+	if ag := h.m.opts.Agent; ag.ContextWindow != 128000 || ag.Price == nil || ag.Price.Output != 0.6 || ag.CompactThreshold() != 96000 {
+		t.Fatalf("agent window=%d price=%+v threshold=%d", ag.ContextWindow, ag.Price, ag.CompactThreshold())
+	}
+	if !strings.Contains(plain(h.m.View()), "128k ctx · $0.15/$0.6 per M") {
+		t.Fatalf("details missing from view:\n%s", plain(h.m.View()))
 	}
 
 	// /model alone opens the picker for the current provider; a typed id

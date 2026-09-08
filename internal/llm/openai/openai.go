@@ -12,9 +12,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -146,8 +148,15 @@ func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 	}
 	var out struct {
 		Data []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
+			ID            string `json:"id"`
+			Name          string `json:"name"`
+			ContextLength int    `json:"context_length"`
+			MaxModelLen   int    `json:"max_model_len"` // vLLM
+			TopProvider   struct {
+				ContextLength       int `json:"context_length"`
+				MaxCompletionTokens int `json:"max_completion_tokens"`
+			} `json:"top_provider"`
+			Pricing map[string]json.RawMessage `json:"pricing"` // OpenRouter: USD per token, as strings
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
@@ -155,9 +164,20 @@ func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 	}
 	var models []llm.ModelInfo
 	for _, m := range out.Data {
-		if m.ID != "" {
-			models = append(models, llm.ModelInfo{ID: m.ID, Name: m.Name})
+		if m.ID == "" {
+			continue
 		}
+		mi := llm.ModelInfo{ID: m.ID, Name: m.Name, ContextWindow: m.ContextLength, MaxOutput: m.TopProvider.MaxCompletionTokens}
+		if mi.ContextWindow == 0 {
+			mi.ContextWindow = m.TopProvider.ContextLength
+		}
+		if mi.ContextWindow == 0 {
+			mi.ContextWindow = m.MaxModelLen
+		}
+		if p, ok := parsePricing(m.Pricing); ok {
+			mi.Price = &p
+		}
+		models = append(models, mi)
 	}
 	sort.Slice(models, func(i, j int) bool { return models[i].ID < models[j].ID })
 	return models, nil
@@ -248,6 +268,43 @@ type wireError struct {
 	Message string `json:"message"`
 	Type    string `json:"type"`
 	Code    any    `json:"code"`
+}
+
+// parsePricing reads OpenRouter's per-token USD strings into a per-million
+// Price. It reports false when no prompt or completion price is present.
+func parsePricing(pricing map[string]json.RawMessage) (llm.Price, bool) {
+	get := func(k string) (float64, bool) {
+		r, ok := pricing[k]
+		if !ok {
+			return 0, false
+		}
+		var s string
+		var f float64
+		switch {
+		case json.Unmarshal(r, &s) == nil:
+			v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+			if err != nil {
+				return 0, false
+			}
+			f = v
+		case json.Unmarshal(r, &f) == nil:
+		default:
+			return 0, false
+		}
+		if f < 0 {
+			return 0, false
+		}
+		return math.Round(f*1e6*1e6) / 1e6, true // per million, 6 decimals
+	}
+	in, okIn := get("prompt")
+	out, okOut := get("completion")
+	if !okIn && !okOut {
+		return llm.Price{}, false
+	}
+	p := llm.Price{Input: in, Output: out}
+	p.CacheRead, _ = get("input_cache_read")
+	p.CacheWrite, _ = get("input_cache_write")
+	return p, true
 }
 
 // APIError is a non-2xx response from the server.

@@ -46,6 +46,9 @@ type Config struct {
 	// Prices per million tokens by model name, used to estimate spend when
 	// the provider does not report it. A key may be a prefix ("claude-opus").
 	Prices map[string]llm.Price `json:"prices,omitempty"`
+	// Models holds what /connect learned about models: context window,
+	// output limit and prices. A key may be a prefix like Prices.
+	Models map[string]ModelMeta `json:"models,omitempty"`
 	// MCPServers are started for every project. Project-specific ones go
 	// in <project>/.mcp.json and need a one-time approval.
 	MCPServers map[string]mcp.ServerConfig `json:"mcp_servers,omitempty"`
@@ -66,6 +69,36 @@ type Config struct {
 // AutoMemory reports whether memory is extracted automatically.
 func (c *Config) AutoMemory() bool { return c.Memory == nil || *c.Memory }
 
+// ModelMeta is what a provider's model list said about one model.
+type ModelMeta struct {
+	ContextWindow int        `json:"context_window,omitempty"`
+	MaxOutput     int        `json:"max_output,omitempty"`
+	Price         *llm.Price `json:"price,omitempty"`
+}
+
+// MetaFor returns the stored metadata for a model, by exact name or the
+// longest prefix, with the context window guessed for known families.
+func (c *Config) MetaFor(model string) ModelMeta {
+	var meta ModelMeta
+	if m, ok := c.Models[model]; ok {
+		meta = m
+	} else {
+		best := ""
+		for k := range c.Models {
+			if strings.HasPrefix(model, k) && len(k) > len(best) {
+				best = k
+			}
+		}
+		if best != "" {
+			meta = c.Models[best]
+		}
+	}
+	if meta.ContextWindow == 0 {
+		meta.ContextWindow = llm.KnownWindow(model)
+	}
+	return meta
+}
+
 // PriceFor returns the configured price for model: an exact key first, then
 // the longest key that prefixes the model name.
 func (c *Config) PriceFor(model string) *llm.Price {
@@ -79,6 +112,9 @@ func (c *Config) PriceFor(model string) *llm.Price {
 		}
 	}
 	if best == "" {
+		if m := c.MetaFor(model); m.Price != nil {
+			return m.Price
+		}
 		return nil
 	}
 	p := c.Prices[best]

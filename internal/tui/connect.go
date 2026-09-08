@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,6 +55,7 @@ type connect struct {
 	field     textinput.Model
 	providers []row
 	models    []row
+	meta      map[string]llm.ModelInfo // listed models by id, for details on select
 	loading   bool
 	loadErr   string
 	idx       int
@@ -203,6 +205,57 @@ func (m *model) fetchModels() tea.Cmd {
 	}
 }
 
+// rememberModel stores what the provider's list said about a model in
+// the config, so prices and the context window are known next start.
+func (m *model) rememberModel(mi llm.ModelInfo) {
+	meta := config.MetaOf(mi)
+	if m.opts.Config != nil {
+		if m.opts.Config.Models == nil {
+			m.opts.Config.Models = map[string]config.ModelMeta{}
+		}
+		m.opts.Config.Models[mi.ID] = meta
+	}
+	if m.opts.ConfigPath != "" {
+		if err := config.SaveModelMeta(m.opts.ConfigPath, mi.ID, meta); err != nil {
+			m.transcript.errorf("saving model details: %v", err)
+		}
+	}
+}
+
+// applyModelMeta sets the agent's price and context window for a model.
+func (m *model) applyModelMeta(modelID string) {
+	ag := m.opts.Agent
+	if m.opts.Config == nil {
+		ag.ContextWindow = llm.KnownWindow(modelID)
+		return
+	}
+	ag.Price = m.opts.Config.PriceFor(modelID)
+	ag.ContextWindow = m.opts.Config.MetaFor(modelID).ContextWindow
+}
+
+// modelDetails renders "128k ctx · $0.15/$0.60 per M" for a listing row.
+func modelDetails(mi llm.ModelInfo) string {
+	var parts []string
+	if mi.ContextWindow > 0 {
+		parts = append(parts, shortTokens(mi.ContextWindow)+" ctx")
+	}
+	if mi.Price != nil && (mi.Price.Input > 0 || mi.Price.Output > 0) {
+		parts = append(parts, fmt.Sprintf("$%s/$%s per M", trimFloat(mi.Price.Input), trimFloat(mi.Price.Output)))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func trimFloat(f float64) string {
+	s := strconv.FormatFloat(f, 'f', 2, 64)
+	if strings.Contains(s, ".") {
+		s = strings.TrimRight(strings.TrimRight(s, "0"), ".")
+	}
+	if s == "" {
+		s = "0"
+	}
+	return s
+}
+
 // connectConfig is a copy of the config with the dialog's provider selected.
 func (m *model) connectConfig(model string) *config.Config {
 	c := m.connect
@@ -237,10 +290,15 @@ func (m *model) handleModels(msg modelsMsg) {
 			}
 			return msg.models[i].ID < msg.models[j].ID
 		})
+		c.meta = map[string]llm.ModelInfo{}
 		for _, mi := range msg.models {
+			c.meta[mi.ID] = mi
 			name := ""
 			if mi.Name != "" && mi.Name != mi.ID {
 				name = mi.Name
+			}
+			if d := modelDetails(mi); d != "" {
+				name = strings.TrimSpace(name + "  " + d)
 			}
 			r := row{key: mi.ID + " " + mi.Name, cells: []string{mi.ID, name}, name: mi.ID}
 			if mi.ID == current {
@@ -415,9 +473,15 @@ func (m *model) applyConnect(modelID string) {
 	*m.opts.Config = *cfg
 	m.opts.Agent.Provider = prov
 	m.opts.Agent.Model = modelID
-	m.opts.Agent.Price = cfg.PriceFor(modelID)
 	m.opts.Provider = c.name
 	note := "connected to " + c.name + " · " + modelID
+	if mi, ok := c.meta[modelID]; ok {
+		m.rememberModel(mi)
+	}
+	m.applyModelMeta(modelID)
+	if d := modelDetails(llm.ModelInfo{ContextWindow: m.opts.Agent.ContextWindow, Price: m.opts.Agent.Price}); d != "" {
+		note += " · " + d
+	}
 	if m.opts.ConfigPath != "" {
 		if err := config.Update(m.opts.ConfigPath, c.name, c.prov, modelID); err != nil {
 			m.transcript.errorf("saving config: %v", err)

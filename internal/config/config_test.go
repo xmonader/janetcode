@@ -265,3 +265,47 @@ func TestAddPermissionKeepsOtherKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestModelMetaSaveAndLookup(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(p, []byte("{\n  \"model\": \"m\"\n}\n"), 0o600)
+	meta := ModelMeta{ContextWindow: 131072, MaxOutput: 8192, Price: &llm.Price{Input: 0.15, Output: 0.6}}
+	if err := SaveModelMeta(p, "deepseek/deepseek-v4-flash", meta); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveModelMeta(p, "deepseek/deepseek-v4-flash", meta); err != nil { // unchanged: no-op
+		t.Fatal(err)
+	}
+	if err := SaveModelMeta(p, "empty", ModelMeta{}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(p)
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	models := raw["models"].(map[string]any)
+	if raw["model"] != "m" || len(models) != 1 || models["deepseek/deepseek-v4-flash"].(map[string]any)["context_window"].(float64) != 131072 {
+		t.Fatalf("config = %s", data)
+	}
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if m := cfg.MetaFor("deepseek/deepseek-v4-flash"); m.ContextWindow != 131072 || m.Price == nil || m.Price.Output != 0.6 {
+		t.Fatalf("meta = %+v", m)
+	}
+	if got := cfg.PriceFor("deepseek/deepseek-v4-flash"); got == nil || got.Input != 0.15 {
+		t.Fatalf("PriceFor via models = %+v", got)
+	}
+	cfg.Prices = map[string]llm.Price{"deepseek/": {Input: 9}}
+	if got := cfg.PriceFor("deepseek/deepseek-v4-flash"); got == nil || got.Input != 9 {
+		t.Fatal("explicit prices must win over listed ones")
+	}
+	if m := cfg.MetaFor("claude-opus-5"); m.ContextWindow != 200_000 {
+		t.Fatalf("known window = %+v", m)
+	}
+	if m := cfg.MetaFor("mystery"); m.ContextWindow != 0 || m.Price != nil {
+		t.Fatalf("unknown = %+v", m)
+	}
+}

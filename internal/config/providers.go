@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/xmonader/janetcode/internal/perm"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/perm"
 )
 
 // Provider is one configured backend. Type picks the wire protocol
@@ -253,4 +255,45 @@ func AddPermission(path, kind string, rule perm.Rule) error {
 		return err
 	}
 	return writePrivate(path, append(out, '\n'))
+}
+
+// SaveModelMeta records what a model list said about a model, rewriting
+// only the "models" key of the config file.
+func SaveModelMeta(path, model string, meta ModelMeta) error {
+	if model == "" || (meta.ContextWindow == 0 && meta.MaxOutput == 0 && meta.Price == nil) {
+		return nil
+	}
+	raw := map[string]json.RawMessage{}
+	if data, err := os.ReadFile(path); err == nil {
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return fmt.Errorf("config %s: %w", path, err)
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	models := map[string]ModelMeta{}
+	if r, ok := raw["models"]; ok && len(r) > 0 {
+		if err := json.Unmarshal(r, &models); err != nil {
+			return fmt.Errorf("config %s: models: %w", path, err)
+		}
+	}
+	if old, ok := models[model]; ok && old == meta {
+		return nil
+	}
+	models[model] = meta
+	enc, err := json.Marshal(models)
+	if err != nil {
+		return err
+	}
+	raw["models"] = enc
+	out, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writePrivate(path, append(out, '\n'))
+}
+
+// MetaOf converts a listed model into stored metadata.
+func MetaOf(mi llm.ModelInfo) ModelMeta {
+	return ModelMeta{ContextWindow: mi.ContextWindow, MaxOutput: mi.MaxOutput, Price: mi.Price}
 }

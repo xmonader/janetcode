@@ -127,6 +127,10 @@ type Agent struct {
 	PlanMode bool
 	// Pins are user notes kept in the system prompt across compaction.
 	Pins []string
+	// ContextWindow is the model's input limit when known; with CompactAt
+	// unset, compaction runs at three quarters of it (capped, see
+	// CompactThreshold) instead of DefaultCompactAt.
+	ContextWindow int
 	// Diagnose, when set, is called with the path a file tool just wrote
 	// and returns a note (language-server diagnostics) appended to the
 	// tool result, or "".
@@ -236,10 +240,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		}
 	}
 
-	compactAt := a.CompactAt
-	if compactAt == 0 {
-		compactAt = DefaultCompactAt
-	}
+	compactAt := a.CompactThreshold()
 	stops := 0
 	gate := gateState{}
 	for iter := 0; iter < maxIter; iter++ {
@@ -314,11 +315,25 @@ func (a *Agent) CompactThreshold() int {
 	switch {
 	case a.CompactAt < 0:
 		return 0
-	case a.CompactAt == 0:
-		return DefaultCompactAt
+	case a.CompactAt > 0:
+		return a.CompactAt
+	case a.ContextWindow > 0:
+		t := a.ContextWindow * 3 / 4
+		if t > MaxAutoCompactAt {
+			t = MaxAutoCompactAt
+		}
+		if t < 8_000 {
+			t = 8_000
+		}
+		return t
 	}
-	return a.CompactAt
+	return DefaultCompactAt
 }
+
+// MaxAutoCompactAt caps the window-derived threshold: past it, long
+// histories cost more and models attend worse, so compaction runs
+// earlier than the model strictly requires unless compact_at says so.
+const MaxAutoCompactAt = 200_000
 
 // MaxParallelTools bounds concurrent read-only tool execution.
 const MaxParallelTools = 8

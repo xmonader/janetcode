@@ -221,6 +221,25 @@ type Provider interface {
 type ModelInfo struct {
 	ID   string
 	Name string // display name when the provider gives one
+	// ContextWindow is the model's input limit in tokens; 0 when unknown.
+	ContextWindow int
+	// MaxOutput is the largest completion the model can produce; 0 when unknown.
+	MaxOutput int
+	// Price per million tokens when the provider lists it.
+	Price *Price
+}
+
+// KnownWindow guesses the context window of well-known model families
+// whose listings do not include it. It returns 0 for anything else.
+func KnownWindow(model string) int {
+	m := strings.ToLower(model)
+	switch {
+	case strings.Contains(m, "claude"):
+		return 200_000
+	case strings.HasPrefix(m, "gpt-4o"), strings.HasPrefix(m, "gpt-4.1"), strings.HasPrefix(m, "gpt-5"), strings.HasPrefix(m, "o1"), strings.HasPrefix(m, "o3"), strings.HasPrefix(m, "o4"):
+		return 128_000
+	}
+	return 0
 }
 
 // ModelLister is implemented by providers that can enumerate their models.

@@ -286,7 +286,7 @@ func TestKeyRotationAndListModels(t *testing.T) {
 				io.WriteString(w, `{"error":{"message":"bad key"}}`)
 				return
 			}
-			io.WriteString(w, `{"data":[{"id":"zeta"},{"id":"alpha","name":"Alpha"}]}`)
+			io.WriteString(w, `{"data":[{"id":"zeta","context_length":32000,"pricing":{"prompt":"0.00000015","completion":"0.0000006","input_cache_read":"0.00000005"}},{"id":"alpha","name":"Alpha","top_provider":{"context_length":8192,"max_completion_tokens":1024},"pricing":{"prompt":"-1","completion":"-1"}}]}`)
 			return
 		}
 		keysSeen = append(keysSeen, key)
@@ -323,6 +323,11 @@ func TestKeyRotationAndListModels(t *testing.T) {
 		t.Fatalf("second call keys = %v err = %v", keysSeen, err)
 	}
 	models, err := p.ListModels(context.Background())
+	if err == nil && len(models) == 2 {
+		if a, z := models[0], models[1]; a.ContextWindow != 8192 || a.MaxOutput != 1024 || a.Price != nil || z.ContextWindow != 32000 || z.Price == nil || z.Price.Input != 0.15 || z.Price.Output != 0.6 || z.Price.CacheRead != 0.05 {
+			t.Fatalf("metadata: alpha=%+v zeta=%+v", a, z)
+		}
+	}
 	if err != nil || len(models) != 2 || models[0].ID != "alpha" || models[0].Name != "Alpha" || models[1].ID != "zeta" {
 		t.Fatalf("models = %+v err = %v", models, err)
 	}

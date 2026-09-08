@@ -200,6 +200,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		CompactAt:     cfg.CompactAt,
 		Messages:      history,
 		Pins:          sess.Meta.Pins,
+		ContextWindow: cfg.MetaFor(cfg.Model).ContextWindow,
 	}
 	task.Parent = ag
 	skills := func() []skill.Skill { return skill.Load(cwd, cfgDir) }

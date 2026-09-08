@@ -188,3 +188,20 @@ func TestOverflowLowersCompactThreshold(t *testing.T) {
 		t.Fatalf("CompactAt = %d", a.CompactAt)
 	}
 }
+
+func TestCompactThresholdFromWindow(t *testing.T) {
+	cases := []struct{ at, window, want int }{
+		{0, 0, DefaultCompactAt},
+		{0, 128_000, 96_000},
+		{0, 1_000_000, MaxAutoCompactAt},
+		{0, 4_000, 8_000},
+		{50_000, 1_000_000, 50_000},
+		{-1, 128_000, 0},
+	}
+	for _, c := range cases {
+		a := &Agent{CompactAt: c.at, ContextWindow: c.window}
+		if got := a.CompactThreshold(); got != c.want {
+			t.Errorf("CompactAt=%d window=%d: got %d want %d", c.at, c.window, got, c.want)
+		}
+	}
+}

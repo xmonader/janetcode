@@ -1711,9 +1711,9 @@ func (m *model) command(text string) tea.Cmd {
 			return m.openConnect(stepModel)
 		}
 		m.opts.Agent.Model = fields[1]
+		m.applyModelMeta(fields[1])
 		if cfg := m.opts.Config; cfg != nil {
 			cfg.Model = fields[1]
-			m.opts.Agent.Price = cfg.PriceFor(fields[1])
 			if m.opts.ConfigPath != "" {
 				if err := config.Update(m.opts.ConfigPath, cfg.Provider, cfg.Active(), fields[1]); err != nil {
 					m.transcript.errorf("saving config: %v", err)
