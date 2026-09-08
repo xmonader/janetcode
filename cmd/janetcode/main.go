@@ -60,6 +60,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	var (
 		promptText  = fs.String("p", "", "run this prompt headless and exit")
+		until       = fs.String("until", "", "with -p: shell command that must exit 0 before the run is done (re-loops up to 5 times)")
 		provider    = fs.String("provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")
 		model       = fs.String("model", "", "model id (default claude-opus-5 for anthropic)")
 		effort      = fs.String("effort", "", "anthropic effort: low, medium, high, xhigh, max")
@@ -94,6 +95,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	initial := strings.TrimSpace(strings.Join(fs.Args(), " "))
 	if initial != "" && *promptText != "" {
 		return errors.New("give the prompt either with -p or as an argument, not both")
+	}
+	if *until != "" && *promptText == "" {
+		return errors.New("--until needs a headless prompt (-p)")
 	}
 
 	cfg, err := config.Load(config.Overrides{Provider: *provider, Model: *model, Effort: *effort, AutoApprove: *yolo})
@@ -219,6 +223,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		return headless.Run(ctx, headless.Options{
 			Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
+			Until: *until, Cwd: cwd,
 		})
 	}
 	return tui.Run(tui.Options{

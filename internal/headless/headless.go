@@ -4,16 +4,20 @@ package headless
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // Options configures a headless run.
@@ -27,7 +31,19 @@ type Options struct {
 	Stderr io.Writer
 	// Stdin is used for permission prompts when it is a terminal.
 	Stdin *os.File
+	// Until is a shell command that must exit 0 for the run to be done.
+	// After each turn it is run in Cwd; on failure its output goes back to
+	// the model and another turn starts, up to UntilRounds times.
+	Until       string
+	UntilRounds int
+	Cwd         string
 }
+
+// DefaultUntilRounds bounds the re-loops when --until keeps failing.
+const DefaultUntilRounds = 5
+
+// ErrUntilFailed reports that the check command never passed.
+var ErrUntilFailed = errors.New("the --until check did not pass")
 
 // Run executes the prompt, streaming assistant text to Stdout and tool
 // activity to Stderr. It returns the agent's error, if any.
@@ -37,6 +53,50 @@ func Run(ctx context.Context, opts Options) error {
 		ag.Approver = &stdinApprover{in: opts.Stdin, out: opts.Stderr}
 	}
 	blocks := append([]llm.Block{{Type: llm.BlockText, Text: opts.Prompt}}, opts.Images...)
+	rounds := opts.UntilRounds
+	if rounds <= 0 {
+		rounds = DefaultUntilRounds
+	}
+	for round := 1; ; round++ {
+		if err := turn(ctx, opts, blocks); err != nil {
+			return err
+		}
+		if opts.Until == "" {
+			return nil
+		}
+		out, exit := check(ctx, opts.Cwd, opts.Until)
+		if exit == 0 {
+			fmt.Fprintf(opts.Stderr, "[until] passed: %s\n", opts.Until)
+			return nil
+		}
+		fmt.Fprintf(opts.Stderr, "[until] round %d/%d failed (exit %d): %s\n", round, rounds, exit, oneLine(out, 200))
+		if round >= rounds {
+			return fmt.Errorf("%w after %d rounds: %s", ErrUntilFailed, rounds, oneLine(out, 300))
+		}
+		blocks = []llm.Block{{Type: llm.BlockText, Text: fmt.Sprintf("The check command has not passed yet.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nKeep working until this command exits 0, then stop.", opts.Until, exit, tool.TruncateTo(strings.TrimSpace(out), 4000))}}
+	}
+}
+
+// check runs the --until command and returns its output and exit code.
+func check(ctx context.Context, cwd, command string) (string, int) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "bash", "-c", command)
+	cmd.Dir = cwd
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		return string(out), 0
+	}
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return string(out), ee.ExitCode()
+	}
+	return string(out) + err.Error(), 1
+}
+
+// turn runs one agent turn and syncs the session.
+func turn(ctx context.Context, opts Options, blocks []llm.Block) error {
+	ag := opts.Agent
 	err := ag.RunBlocks(ctx, blocks, func(e agent.Event) {
 		switch e.Kind {
 		case agent.EvText:

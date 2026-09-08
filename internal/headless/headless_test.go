@@ -2,6 +2,7 @@ package headless
 
 import (
 	"bytes"
+	"errors"
 	"context"
 	"encoding/json"
 	"os"
@@ -63,5 +64,41 @@ func TestRunStreamsTextAndDeniesWithoutTTY(t *testing.T) {
 	_, msgs, err := session.Open(filepath.Dir(sess.Path()), sess.Meta.ID)
 	if err != nil || len(msgs) != 4 {
 		t.Fatalf("session: err=%v n=%d", err, len(msgs))
+	}
+}
+
+func TestUntilReloopsUntilCheckPasses(t *testing.T) {
+	root := t.TempDir()
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.TextMessage(llm.RoleAssistant, "first try"), StopReason: llm.StopEndTurn},
+		{Message: llm.TextMessage(llm.RoleAssistant, "second try"), StopReason: llm.StopEndTurn},
+	}}
+	ag := &agent.Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", AutoApprove: true}
+	var out, errOut bytes.Buffer
+	// The check fails once and passes on its second run.
+	check := "test -f flag || { touch flag; echo 'not yet'; exit 3; }"
+	err := Run(context.Background(), Options{Agent: ag, Prompt: "do it", Stdout: &out, Stderr: &errOut, Until: check, Cwd: root})
+	if err != nil {
+		t.Fatalf("err = %v\n%s", err, errOut.String())
+	}
+	if !strings.Contains(out.String(), "first try") || !strings.Contains(out.String(), "second try") {
+		t.Fatalf("stdout = %q", out.String())
+	}
+	if !strings.Contains(errOut.String(), "round 1/5 failed (exit 3)") || !strings.Contains(errOut.String(), "[until] passed") {
+		t.Fatalf("stderr = %q", errOut.String())
+	}
+	// The failure went back to the model as the next user message.
+	if got := ag.Messages[2].Text(); !strings.Contains(got, "Exit code: 3") || !strings.Contains(got, "not yet") {
+		t.Fatalf("second prompt = %q", got)
+	}
+	// A check that never passes stops after the round limit.
+	f2 := &fake{responses: []*llm.Response{
+		{Message: llm.TextMessage(llm.RoleAssistant, "a"), StopReason: llm.StopEndTurn},
+		{Message: llm.TextMessage(llm.RoleAssistant, "b"), StopReason: llm.StopEndTurn},
+	}}
+	ag2 := &agent.Agent{Provider: f2, Tools: tool.NewRegistry(), Model: "m"}
+	err = Run(context.Background(), Options{Agent: ag2, Prompt: "x", Stdout: &out, Stderr: &errOut, Until: "false", UntilRounds: 2, Cwd: root})
+	if !errors.Is(err, ErrUntilFailed) {
+		t.Fatalf("err = %v", err)
 	}
 }
