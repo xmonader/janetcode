@@ -104,6 +104,7 @@ func Filter(tasks []Task, words []string) []Task {
 // Result is the outcome of one task.
 type Result struct {
 	Name      string        `json:"name"`
+	Run       int           `json:"run"` // 0-based repetition index
 	Passed    bool          `json:"passed"`
 	Reason    string        `json:"reason,omitempty"`
 	Duration  time.Duration `json:"duration"`
@@ -127,29 +128,45 @@ type Runner struct {
 	Log io.Writer
 	// Jobs is how many tasks run at once; zero means 1.
 	Jobs int
+	// Runs repeats every task this many times; zero means 1. Repeats
+	// turn a coin flip into a rate.
+	Runs int
 }
 
-// Run executes every task and returns results in task order.
+// Run executes every task (Runs times each) and returns results in task
+// order, repetitions of a task adjacent.
 func (r *Runner) Run(ctx context.Context, tasks []Task) []Result {
 	jobs := r.Jobs
 	if jobs <= 0 {
 		jobs = 1
 	}
-	results := make([]Result, len(tasks))
+	runs := r.Runs
+	if runs <= 0 {
+		runs = 1
+	}
+	results := make([]Result, len(tasks)*runs)
 	sem := make(chan struct{}, jobs)
 	var wg sync.WaitGroup
 	for i, t := range tasks {
-		wg.Add(1)
-		go func(i int, t Task) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			results[i] = r.one(ctx, t)
-			r.logf("%s %s (%s, %d tool calls, %s)", mark(results[i].Passed), t.Name, results[i].Duration.Round(100*time.Millisecond), results[i].ToolCalls, costString(results[i]))
-			if !results[i].Passed {
-				r.logf("    %s", firstLine(results[i].Reason))
-			}
-		}(i, t)
+		for run := 0; run < runs; run++ {
+			wg.Add(1)
+			go func(idx, run int, t Task) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				res := r.one(ctx, t)
+				res.Run = run
+				results[idx] = res
+				label := t.Name
+				if runs > 1 {
+					label = fmt.Sprintf("%s #%d", t.Name, run+1)
+				}
+				r.logf("%s %s (%s, %d tool calls, %s)", mark(res.Passed), label, res.Duration.Round(100*time.Millisecond), res.ToolCalls, costString(res))
+				if !res.Passed {
+					r.logf("    %s", firstLine(res.Reason))
+				}
+			}(i*runs+run, run, t)
+		}
 	}
 	wg.Wait()
 	return results
@@ -248,39 +265,51 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 
 // Report prints a table and totals; it returns how many passed.
 func Report(w io.Writer, results []Result) (passed int) {
-	var totalCost float64
-	costKnown := true
-	var totalDur time.Duration
-	tools := 0
+	s := Summarize(results)
+	if s.Runs > 1 {
+		fmt.Fprintf(w, "%-5s %-28s %8s %6s %10s\n", "pass", "task", "time", "tools", "cost")
+		for _, tr := range s.ByTask {
+			var dur time.Duration
+			tools, cost, known := 0, 0.0, true
+			var reasons []string
+			for _, r := range results {
+				if r.Name != tr.Name {
+					continue
+				}
+				dur += r.Duration
+				tools += r.ToolCalls
+				cost += r.CostUSD
+				known = known && r.CostKnown
+				if !r.Passed {
+					reasons = append(reasons, firstLine(r.Reason))
+				}
+			}
+			costStr := "?"
+			if known {
+				costStr = llm.FormatUSD(cost)
+			}
+			fmt.Fprintf(w, "%d/%-3d %-28s %8s %6d %10s\n", tr.Passed, tr.Runs, trunc(tr.Name, 28), (dur / time.Duration(tr.Runs)).Round(100*time.Millisecond), tools, costStr)
+			for _, why := range reasons {
+				fmt.Fprintf(w, "      %s\n", trunc(why, 100))
+			}
+		}
+		fmt.Fprintf(w, "\n%s\n", summaryLine(s))
+		return s.Passed
+	}
 	fmt.Fprintf(w, "%-4s %-28s %8s %6s %10s\n", "", "task", "time", "tools", "cost")
 	for _, r := range results {
-		if r.Passed {
-			passed++
-		}
-		totalCost += r.CostUSD
-		costKnown = costKnown && r.CostKnown
-		totalDur += r.Duration
-		tools += r.ToolCalls
 		fmt.Fprintf(w, "%-4s %-28s %8s %6d %10s\n", mark(r.Passed), trunc(r.Name, 28), r.Duration.Round(100*time.Millisecond), r.ToolCalls, costString(r))
 		if !r.Passed {
 			fmt.Fprintf(w, "     %s\n", trunc(firstLine(r.Reason), 100))
 		}
 	}
-	cost := "cost unknown (no prices for this model)"
-	if costKnown {
-		cost = "cost " + llm.FormatUSD(totalCost)
-	}
-	fmt.Fprintf(w, "\n%d/%d passed · %d tool calls · %s · %s\n", passed, len(results), tools, totalDur.Round(time.Second), cost)
-	return passed
+	fmt.Fprintf(w, "\n%s\n", summaryLine(s))
+	return s.Passed
 }
 
-// WriteJSON saves the results for later comparison.
+// WriteJSON saves bare results; WriteFile records the run's identity too.
 func WriteJSON(path string, results []Result) error {
-	data, err := json.MarshalIndent(results, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return WriteFile(path, File{Results: results})
 }
 
 func (r *Runner) logf(format string, args ...any) {

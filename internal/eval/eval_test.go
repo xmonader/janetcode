@@ -83,9 +83,88 @@ func TestLoadFilterAndRun(t *testing.T) {
 	if err := WriteJSON(out, results); err != nil {
 		t.Fatal(err)
 	}
-	var back []Result
-	if data, _ := os.ReadFile(out); json.Unmarshal(data, &back) != nil || len(back) != 4 {
-		t.Fatal("results.json unreadable")
+	back, err := ReadFile(out)
+	if err != nil || len(back.Results) != 4 || back.Runs != 1 {
+		t.Fatalf("results.json unreadable: %v %+v", err, back)
+	}
+	// The old bare-array format still loads.
+	os.WriteFile(out, []byte(`[{"name":"x","passed":true},{"name":"x","run":1,"passed":false}]`), 0o644)
+	if old, err := ReadFile(out); err != nil || len(old.Results) != 2 || old.Runs != 2 {
+		t.Fatalf("old format: %v %+v", err, old)
+	}
+}
+
+func TestRepeatedRunsAndSummary(t *testing.T) {
+	calls := 0
+	r := &Runner{Runs: 3, NewAgent: func(root string) (*agent.Agent, error) {
+		calls++
+		return &agent.Agent{Provider: &scripted{}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", Price: &llm.Price{Input: 1, Output: 2}}, nil
+	}}
+	res := r.Run(context.Background(), []Task{
+		{Name: "a", Prompt: "p", Check: "test -f hello.txt"},
+		{Name: "b", Prompt: "p", Check: "test -f nope.txt"},
+	})
+	if len(res) != 6 || calls != 6 {
+		t.Fatalf("%d results, %d agents", len(res), calls)
+	}
+	if res[0].Name != "a" || res[2].Run != 2 || res[3].Name != "b" || res[5].Run != 2 {
+		t.Fatalf("order: %+v", res)
+	}
+	s := Summarize(res)
+	if s.Tasks != 2 || s.Runs != 3 || s.Passed != 3 || s.Total != 6 || s.PassRate != 0.5 || !s.CostKnown || s.CostPerSolved <= 0 {
+		t.Fatalf("summary = %+v", s)
+	}
+	if s.Lo >= 0.5 || s.Hi <= 0.5 || s.Lo < 0.18 || s.Hi > 0.82 {
+		t.Fatalf("wilson interval = [%.2f, %.2f]", s.Lo, s.Hi)
+	}
+	if s.ByTask[0].Rate != 1 || s.ByTask[1].Rate != 0 {
+		t.Fatalf("by task = %+v", s.ByTask)
+	}
+	var buf bytes.Buffer
+	if passed := Report(&buf, res); passed != 3 || !strings.Contains(buf.String(), "3/3   a") || !strings.Contains(buf.String(), "0/3   b") || !strings.Contains(buf.String(), "2 task(s) × 3 run(s)") {
+		t.Fatalf("passed=%d report:\n%s", passed, buf.String())
+	}
+}
+
+func TestCompareIsPairedByTask(t *testing.T) {
+	mk := func(name string, run int, passed bool, cost float64) Result {
+		return Result{Name: name, Run: run, Passed: passed, CostUSD: cost, CostKnown: true}
+	}
+	base := []Result{mk("a", 0, true, 1), mk("a", 1, true, 1), mk("b", 0, false, 1), mk("b", 1, false, 1), mk("c", 0, true, 1), mk("c", 1, false, 1), mk("gone", 0, true, 1)}
+	cur := []Result{mk("a", 0, true, 1), mk("a", 1, true, 1), mk("b", 0, true, 1), mk("b", 1, true, 1), mk("c", 0, false, 1), mk("c", 1, false, 1), mk("new", 0, true, 1)}
+	c := Compare(base, cur)
+	if c.Shared != 3 || c.Delta < 0.16 || c.Delta > 0.17 { // (0 + 1 − 0.5) / 3
+		t.Fatalf("comparison = %+v", c)
+	}
+	if strings.Join(c.Improved, ",") != "b" || strings.Join(c.Regressed, ",") != "c" || strings.Join(c.OnlyBase, ",") != "gone" || strings.Join(c.OnlyCurrent, ",") != "new" {
+		t.Fatalf("lists: %+v", c)
+	}
+	if c.Lo > c.Delta || c.Hi < c.Delta || c.Significant() {
+		t.Fatalf("interval [%.2f, %.2f] around %.2f should include 0 with three tasks", c.Lo, c.Hi, c.Delta)
+	}
+	if !c.CostKnown || c.CostDelta == 0 {
+		t.Fatalf("cost delta = %+v", c)
+	}
+	// Twenty tasks that all flip to passing is a clear signal.
+	var b2, c2 []Result
+	for i := 0; i < 20; i++ {
+		name := string(rune('a' + i))
+		b2 = append(b2, mk(name, 0, i%2 == 0, 1))
+		c2 = append(c2, mk(name, 0, true, 1))
+	}
+	if c := Compare(b2, c2); !c.Significant() || c.Lo <= 0 {
+		t.Fatalf("clear improvement not significant: %+v", c)
+	}
+	// Deterministic intervals.
+	if lo1, hi1 := bootstrapCI([]float64{0, 1, -0.5, 0.5}, 500, 1); true {
+		if lo2, hi2 := bootstrapCI([]float64{0, 1, -0.5, 0.5}, 500, 1); lo1 != lo2 || hi1 != hi2 {
+			t.Fatal("bootstrap not reproducible")
+		}
+	}
+	var buf bytes.Buffer
+	WriteComparison(&buf, c)
+	if out := buf.String(); !strings.Contains(out, "pass-rate delta +16.7%") || !strings.Contains(out, "improved:  b") || !strings.Contains(out, "regressed: c") {
+		t.Fatalf("report:\n%s", out)
 	}
 }
 

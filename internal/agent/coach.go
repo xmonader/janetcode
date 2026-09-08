@@ -25,6 +25,8 @@ const (
 type coach struct {
 	fails map[string]int
 	read  map[string]bool
+	// noSyntax skips the post-edit syntax check (ablation).
+	noSyntax bool
 }
 
 // absPath asks a Toucher for the file it changed.
@@ -66,7 +68,7 @@ func (c *coach) after(ctx context.Context, tools *tool.Registry, t tool.Tool, na
 	case "write_file":
 		if !isErr {
 			c.read[p] = true
-			return editFeedback(ctx, absPath(t, input))
+			return c.feedback(ctx, t, input)
 		}
 		return ""
 	case "edit_file":
@@ -76,7 +78,7 @@ func (c *coach) after(ctx context.Context, tools *tool.Registry, t tool.Tool, na
 	if !isErr {
 		delete(c.fails, p)
 		c.read[p] = true
-		return editFeedback(ctx, absPath(t, input))
+		return c.feedback(ctx, t, input)
 	}
 	c.fails[p]++
 	var notes []string
@@ -96,4 +98,11 @@ func (c *coach) after(ctx context.Context, tools *tool.Registry, t tool.Tool, na
 		return ""
 	}
 	return "\n\n" + strings.Join(notes, "\n\n")
+}
+
+func (c *coach) feedback(ctx context.Context, t tool.Tool, input json.RawMessage) string {
+	if c.noSyntax {
+		return ""
+	}
+	return editFeedback(ctx, absPath(t, input))
 }

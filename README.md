@@ -660,6 +660,25 @@ the numbers for comparison. Evals use minimal agents: core tools, no hooks,
 memory, skills or MCP, so a change in results comes from the model or the
 prompts. They cost real money and are not part of `make test`.
 
+One run of twenty tasks is a coin flip per task, so the harness is built
+to measure differences rather than single numbers. `EVAL_RUNS=3` repeats
+every task and reports rates (`2/3  05-rename-symbol`) with a 95%
+interval on the total. `make eval-baseline` keeps the last results as
+`evals/baseline.json`; a later `EVAL_COMPARE=evals/baseline.json make
+eval` pairs the two runs by task and prints the pass-rate delta with a
+bootstrap interval, which tasks improved or regressed, and cost per
+solved task:
+
+```
+pass-rate delta +8.3% [+1.7%, +15.0%] over 20 shared task(s) · significant improvement
+cost per solved task $0.0031 → $0.0027 (-$0.0004)
+improved:  05-rename-symbol, 13-multi-file-package
+```
+
+`EVAL_OFF=coach,prune` runs an ablation with named behaviours disabled
+(`coach`, `syntax`, `loops`, `prune`, `verify`); the variant name is
+recorded in the results file so a comparison says what it compared.
+
 ## Development
 
 ```sh

@@ -244,7 +244,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	}
 	before := a.EstimateTokens()
 	limit := a.CompactThreshold()
-	if !force {
+	if !force && !a.Off["prune"] {
 		// Free the window without paying for a summary: dedupe and trim
 		// first, then condense the oldest results to placeholders down to
 		// half the threshold so the next few turns fit too.

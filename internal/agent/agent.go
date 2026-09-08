@@ -121,6 +121,12 @@ type Agent struct {
 	// Rules are persistent permission rules consulted before the Approver:
 	// a deny refuses the call outright, an allow skips the prompt.
 	Rules perm.Rules
+	// Off disables named behaviours for ablation runs: "coach" (edit
+	// coaching), "syntax" (syntax check and covering-test pointer after
+	// edits), "loops" (loop nudges and stuck detection), "prune"
+	// (condensing old tool results before a summary), "verify" (the
+	// verification gate). Unknown names are ignored.
+	Off map[string]bool
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
@@ -218,6 +224,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		return errors.New("agent: no provider")
 	}
 	a.stats.turn()
+	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {
 		a.Tools = tool.NewRegistry()
 	}
@@ -291,7 +298,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			if more := a.stopHook(ctx, resp.Message.Text(), &stops, emit); more {
 				continue
 			}
-			if more := a.verifyGate(ctx, &gate, emit); more {
+			if more := !a.Off["verify"] && a.verifyGate(ctx, &gate, emit); more {
 				continue
 			}
 			emit(Event{Kind: EvTurnDone, Usage: resp.Usage, StopReason: resp.StopReason})
@@ -643,20 +650,24 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	for _, n := range hookNotes {
 		out += "\n[hook: " + n + "]"
 	}
-	if t.Mutating() { // edit coaching only touches serial (mutating) calls, so no lock is needed
+	if a.Off["coach"] {
+		// still record edits so the syntax check runs when only coaching is off
+	} else if t.Mutating() { // edit coaching only touches serial (mutating) calls, so no lock is needed
 		out += a.coach.after(ctx, a.Tools, t, u.Name, u.Input, isErr)
 	} else if u.Name == "read_file" {
 		a.coachMu.Lock()
 		a.coach.after(ctx, a.Tools, t, u.Name, u.Input, isErr)
 		a.coachMu.Unlock()
 	}
-	a.loopMu.Lock()
-	note, stop := a.loops.record(u.Name, u.Input, isErr)
-	if stop {
-		a.stuck = true
+	if !a.Off["loops"] {
+		a.loopMu.Lock()
+		note, stop := a.loops.record(u.Name, u.Input, isErr)
+		if stop {
+			a.stuck = true
+		}
+		a.loopMu.Unlock()
+		out += note
 	}
-	a.loopMu.Unlock()
-	out += note
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
 	return out, isErr, nil
 }

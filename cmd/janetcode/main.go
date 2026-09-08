@@ -81,6 +81,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalOnly    = fs.String("eval-only", "", "comma-separated task names or tags to run")
 		evalJSON    = fs.String("eval-json", "", "write eval results to this JSON file")
 		evalKeep    = fs.Bool("eval-keep", false, "keep eval work directories")
+		evalRuns    = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips)")
+		evalCompare = fs.String("eval-compare", "", "results file of a baseline run to compare against (paired by task, bootstrap interval)")
+		evalOff     = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify")
+		evalLabel   = fs.String("eval-label", "", "name recorded in the results file for this variant")
 		allow       = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
 		deny        = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
 		cont        = fs.Bool("continue", false, "resume the latest session for this directory")
@@ -149,7 +153,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		return runEval(ctx, cfg, prov, evalOptions{path: *evalPath, jobs: *evalJobs, only: *evalOnly, jsonOut: *evalJSON, keep: *evalKeep})
+		return runEval(ctx, cfg, prov, evalOptions{path: *evalPath, jobs: *evalJobs, only: *evalOnly, jsonOut: *evalJSON, keep: *evalKeep,
+			runs: *evalRuns, compare: *evalCompare, off: *evalOff, label: *evalLabel})
 	}
 
 	sessDir, err := session.Dir()
@@ -442,8 +447,9 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 
 type evalOptions struct {
 	path, only, jsonOut string
-	jobs                int
+	jobs, runs          int
 	keep                bool
+	compare, off, label string
 }
 
 // runEval runs the eval tasks with fresh, minimal agents (core tools, no
@@ -459,10 +465,37 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			return fmt.Errorf("no tasks match %q", o.only)
 		}
 	}
-	fmt.Fprintf(os.Stderr, "running %d eval tasks with %s/%s (%d at a time)\n", len(tasks), cfg.Provider, cfg.Model, o.jobs)
-	r := &eval.Runner{Jobs: o.jobs, Keep: o.keep, Log: os.Stderr, NewAgent: func(root string) (*agent.Agent, error) {
+	off := map[string]bool{}
+	for _, f := range strings.Split(o.off, ",") {
+		if f = strings.TrimSpace(f); f != "" {
+			if !agent.KnownSwitch(f) {
+				return fmt.Errorf("--eval-off: unknown behaviour %q (coach, syntax, loops, prune, verify)", f)
+			}
+			off[f] = true
+		}
+	}
+	variant := o.label
+	if variant == "" && len(off) > 0 {
+		variant = "off:" + o.off
+	}
+	var baseline *eval.File
+	if o.compare != "" {
+		f, err := eval.ReadFile(o.compare)
+		if err != nil {
+			return err
+		}
+		baseline = &f
+	}
+	runs := max(o.runs, 1)
+	fmt.Fprintf(os.Stderr, "running %d eval tasks × %d with %s/%s (%d at a time)", len(tasks), runs, cfg.Provider, cfg.Model, o.jobs)
+	if variant != "" {
+		fmt.Fprintf(os.Stderr, " · variant %s", variant)
+	}
+	fmt.Fprintln(os.Stderr)
+	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, NewAgent: func(root string) (*agent.Agent, error) {
 		return &agent.Agent{
 			Provider: prov,
+			Off:      off,
 			Price:    cfg.PriceFor(cfg.Model),
 			Tools: tool.NewRegistry(
 				tool.ReadFile{Root: root}, tool.WriteFile{Root: root}, tool.EditFile{Root: root},
@@ -478,8 +511,16 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	}}
 	results := r.Run(ctx, tasks)
 	passed := eval.Report(os.Stdout, results)
+	if baseline != nil {
+		label := baseline.Variant
+		if label == "" {
+			label = o.compare
+		}
+		fmt.Fprintf(os.Stdout, "\ncompared with %s (%s):\n", label, baseline.When.Format("2006-01-02 15:04"))
+		eval.WriteComparison(os.Stdout, eval.Compare(baseline.Results, results))
+	}
 	if o.jsonOut != "" {
-		if err := eval.WriteJSON(o.jsonOut, results); err != nil {
+		if err := eval.WriteFile(o.jsonOut, eval.File{Model: cfg.Provider + "/" + cfg.Model, Variant: variant, Results: results}); err != nil {
 			return err
 		}
 		fmt.Fprintln(os.Stderr, "wrote", o.jsonOut)

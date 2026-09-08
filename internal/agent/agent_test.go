@@ -561,3 +561,32 @@ func TestContextReportAndPins(t *testing.T) {
 		t.Fatal("pins section present with no pins")
 	}
 }
+
+func TestOffSwitchesDisableCoachAndLoops(t *testing.T) {
+	// Five identical failing calls trip the loop ladder unless loops are off;
+	// an edit on an unread file gets coaching unless coach is off.
+	var responses []*llm.Response
+	for i := 0; i < 5; i++ {
+		responses = append(responses, toolCall(fmt.Sprintf("t%d", i), "edit_file", `{"path":"a.txt","old_string":"zzz","new_string":"y"}`))
+	}
+	responses = append(responses, text("done"))
+	f := &fake{responses: responses}
+	a, root := newAgent(t, f, nil)
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("hello\n"), 0o644)
+	a.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, tool.EditFile{Root: root})
+	a.AutoApprove = true
+	a.Off = map[string]bool{"coach": true, "loops": true}
+	if err := a.Run(context.Background(), "edit", nil); err != nil {
+		t.Fatalf("run with switches off: %v", err)
+	}
+	for _, m := range a.Messages {
+		for _, b := range m.Blocks {
+			if b.Type == llm.BlockToolResult && (strings.Contains(b.Text, "without reading it first") || strings.Contains(b.Text, "identical")) {
+				t.Fatalf("coaching or loop note present with switches off: %q", b.Text)
+			}
+		}
+	}
+	if !KnownSwitch("prune") || KnownSwitch("bogus") {
+		t.Fatal("KnownSwitch")
+	}
+}
