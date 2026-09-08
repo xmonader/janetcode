@@ -149,7 +149,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			tool.ListDir{Root: cwd},
 			tool.Glob{Root: cwd},
 			tool.Grep{Root: cwd},
-			tool.Bash{Root: cwd},
+			tool.Bash{Root: cwd, Cache: &tool.ShellCache{}},
 			tool.FetchURL{},
 			task,
 		),

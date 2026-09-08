@@ -20,6 +20,8 @@ type Bash struct {
 	DefaultTimeout time.Duration
 	// MaxTimeout caps what the model may request. Zero means 10 minutes.
 	MaxTimeout time.Duration
+	// Cache, when set, replays identical commands on an unchanged tree.
+	Cache *ShellCache
 }
 
 func (Bash) Name() string { return "bash" }
@@ -47,6 +49,10 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	if risk, why := Classify(in.Command, t.Root); risk == RiskCatastrophic {
 		return "", fmt.Errorf("refused: this command %s. janetcode never runs it, not even with auto-approve; do not retry it in another form", why)
+	}
+	cacheKey := t.Cache.key(t.Root, in.Command)
+	if out, age, ok := t.Cache.get(cacheKey); ok {
+		return out + fmt.Sprintf("\n[cached: this exact command ran %s ago on an identical tree and nothing has changed since; append '%s' to force a rerun]", age.Round(time.Second), noCacheMarker), nil
 	}
 	def, max := t.DefaultTimeout, t.MaxTimeout
 	if def == 0 {
@@ -100,7 +106,9 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if exit != 0 {
 		result += fmt.Sprintf("\n[exit code %d]", exit)
 	}
-	return Truncate(result), nil
+	result = Truncate(result)
+	t.Cache.put(cacheKey, result)
+	return result, nil
 }
 
 // dangerPatterns flag commands whose damage is hard to undo. The prompt
