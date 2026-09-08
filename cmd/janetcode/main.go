@@ -84,7 +84,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalKeep    = fs.Bool("eval-keep", false, "keep eval work directories")
 		evalRuns    = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips)")
 		evalCompare = fs.String("eval-compare", "", "results file of a baseline run to compare against (paired by task, bootstrap interval)")
-		evalOff     = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify, repomap, working")
+		evalOff     = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify, repomap, working, plan")
 		evalLabel   = fs.String("eval-label", "", "name recorded in the results file for this variant")
 		allow       = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
 		deny        = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
@@ -238,6 +238,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	ag.SystemExtra = func() string { return mem.Index() + skill.Index(skills()) }
 	repo := &repomap.Cache{Root: cwd}
 	ag.Tools.Add(repomap.Tool{Cache: repo})
+	ag.PlanCheck = repo.CheckPlan
 	ag.Prepare = chainPrep(skill.TurnPrep(&skill.Injector{Skills: skills}, mem), repomap.TurnPrep(repo, 0))
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools})
 	ag.UndoPath = sess.UndoPath()
@@ -473,7 +474,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	for _, f := range strings.Split(o.off, ",") {
 		if f = strings.TrimSpace(f); f != "" {
 			if !agent.KnownSwitch(f) {
-				return fmt.Errorf("--eval-off: unknown behaviour %q (coach, syntax, loops, prune, verify, repomap, working)", f)
+				return fmt.Errorf("--eval-off: unknown behaviour %q (coach, syntax, loops, prune, verify, repomap, working, plan)", f)
 			}
 			off[f] = true
 		}
@@ -497,20 +498,22 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	}
 	fmt.Fprintln(os.Stderr)
 	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, NewAgent: func(root string) (*agent.Agent, error) {
+		repo := &repomap.Cache{Root: root}
 		var prep func([]llm.Block) ([]llm.Block, string)
 		if !off["repomap"] {
-			prep = repomap.TurnPrep(&repomap.Cache{Root: root}, 0)
+			prep = repomap.TurnPrep(repo, 0)
 		}
 		return &agent.Agent{
-			Provider: prov,
-			Off:      off,
-			Prepare:  prep,
-			Price:    cfg.PriceFor(cfg.Model),
+			Provider:  prov,
+			Off:       off,
+			Prepare:   prep,
+			PlanCheck: repo.CheckPlan,
+			Price:     cfg.PriceFor(cfg.Model),
 			Tools: tool.NewRegistry(
 				tool.ReadFile{Root: root}, tool.WriteFile{Root: root}, tool.EditFile{Root: root},
 				tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root},
 				tool.Bash{Root: root, Cache: &tool.ShellCache{}},
-				repomap.Tool{Cache: &repomap.Cache{Root: root}},
+				repomap.Tool{Cache: repo},
 			),
 			System:        prompt.System(root),
 			Model:         cfg.Model,

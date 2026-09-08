@@ -129,7 +129,8 @@ type Agent struct {
 	// (condensing old tool results before a summary), "verify" (the
 	// verification gate), "repomap" (honoured by the caller that installs
 	// the Prepare hook), "working" (the typed working-memory record; off
-	// means a prose handoff note). Unknown names are ignored.
+	// means a prose handoff note), "plan" (checking the names in the
+	// model's plan against the repository). Unknown names are ignored.
 	Off map[string]bool
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
@@ -148,6 +149,10 @@ type Agent struct {
 	// unset, compaction runs at three quarters of it (capped, see
 	// CompactThreshold) instead of DefaultCompactAt.
 	ContextWindow int
+	// PlanCheck, when set, is given the text the model wrote before a
+	// batch of tool calls (its plan) and returns a note about names in
+	// it the repository does not have, or "".
+	PlanCheck func(ctx context.Context, text string) string
 	// Diagnose, when set, is called with the path a file tool just wrote
 	// and returns a note (language-server diagnostics) appended to the
 	// tool result, or "".
@@ -315,7 +320,17 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			emit(Event{Kind: EvTurnDone, Usage: resp.Usage, StopReason: llm.StopEndTurn})
 			return nil
 		}
+		planNote := ""
+		if a.PlanCheck != nil && !a.Off["plan"] {
+			if text := strings.TrimSpace(resp.Message.Text()); text != "" {
+				planNote = a.PlanCheck(ctx, text)
+			}
+		}
 		results, err := a.executeAll(ctx, uses, emit)
+		if planNote != "" && len(results) > 0 {
+			results[len(results)-1].Text += "\n\n[harness] " + planNote
+			emit(Event{Kind: EvNotice, Text: planNote})
+		}
 		a.Messages = append(a.Messages, llm.ToolResultMessage(results...))
 		if err != nil {
 			return err

@@ -409,6 +409,17 @@ again) is named in a note after three rounds and ends the turn after
 six. A loop that converges never has a failing last step and is never
 flagged.
 
+Plans are checked against the repository before they are acted on.
+When the model writes text and then calls tools, the names in that text
+written in backticks are looked up in the repository map: a path that
+does not exist, or a symbol that is neither defined nor used anywhere,
+is reported in a note after the tool results (and in the footer), unless
+the sentence says the name is to be added, created or written. Symbols
+are matched by exact name, by bare method name and by dotted suffix, so
+`http.Client` passes when the code already uses it and `Handler.Flush`
+is flagged when nothing defines or calls a Flush. The eval switch is
+`plan`.
+
 ### Context inspector and pins
 
 `/context` shows where the window goes: system prompt, memory and skill
@@ -751,7 +762,7 @@ improved:  05-rename-symbol, 13-multi-file-package
 ```
 
 `EVAL_OFF=coach,prune` runs an ablation with named behaviours disabled
-(`coach`, `syntax`, `loops`, `prune`, `verify`, `repomap`, `working`); the variant name is
+(`coach`, `syntax`, `loops`, `prune`, `verify`, `repomap`, `working`, `plan`); the variant name is
 recorded in the results file so a comparison says what it compared.
 
 ## Development

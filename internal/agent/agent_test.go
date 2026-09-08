@@ -590,3 +590,45 @@ func TestOffSwitchesDisableCoachAndLoops(t *testing.T) {
 		t.Fatal("KnownSwitch")
 	}
 }
+
+func TestPlanCheckNoteFollowsToolResults(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "I will read `a.txt` and then `Frob`."},
+			{Type: llm.BlockToolUse, ID: "r1", Name: "read_file", Input: []byte(`{"path":"a.txt"}`)},
+		}}, StopReason: llm.StopToolUse},
+		text("done"),
+	}}
+	a, _ := newAgent(t, f, nil)
+	var seen []string
+	a.PlanCheck = func(_ context.Context, text string) string {
+		seen = append(seen, text)
+		return "plan check: `Frob` is neither defined nor used anywhere in the repository"
+	}
+	var notices []string
+	if err := a.Run(context.Background(), "go", func(e Event) {
+		if e.Kind == EvNotice {
+			notices = append(notices, e.Text)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 1 || !strings.HasPrefix(seen[0], "I will read") {
+		t.Fatalf("plan text = %q", seen)
+	}
+	res := a.Messages[2].Blocks[0].Text
+	if !strings.Contains(res, "alpha") || !strings.Contains(res, "\n\n[harness] plan check: `Frob`") {
+		t.Fatalf("result = %q", res)
+	}
+	if len(notices) != 1 || !strings.HasPrefix(notices[0], "plan check") {
+		t.Fatalf("notices = %v", notices)
+	}
+	// The switch turns it off.
+	f2 := &fake{responses: []*llm.Response{f.responses[0], text("done")}}
+	b, _ := newAgent(t, f2, nil)
+	b.Off = map[string]bool{"plan": true}
+	b.PlanCheck = func(context.Context, string) string { t.Fatal("called with plan off"); return "" }
+	if err := b.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+}
