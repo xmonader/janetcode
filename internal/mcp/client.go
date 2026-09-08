@@ -4,14 +4,11 @@
 package mcp
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -25,11 +22,17 @@ const ProtocolVersion = "2025-06-18"
 // ServerConfig describes how to launch a stdio server. It matches the
 // "mcpServers" entries Claude Code and others use in .mcp.json.
 type ServerConfig struct {
-	Command string            `json:"command"`
+	Command string            `json:"command,omitempty"`
 	Args    []string          `json:"args,omitempty"`
 	Env     map[string]string `json:"env,omitempty"`
 	// Cwd is the directory the server runs in; empty means the project.
 	Cwd string `json:"cwd,omitempty"`
+	// URL selects a remote server instead of a command: Streamable HTTP,
+	// with automatic fallback to the older SSE transport.
+	URL     string            `json:"url,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+	// Type may say "stdio", "http" or "sse"; it is inferred when empty.
+	Type string `json:"type,omitempty"`
 }
 
 // ToolInfo is one tool the server offers.
@@ -54,23 +57,29 @@ type Client struct {
 	}
 	Protocol string
 
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	writeMu sync.Mutex
-	nextID  atomic.Int64
+	tr     transport
+	nextID atomic.Int64
 
 	pendMu  sync.Mutex
 	pending map[int64]chan rpcMessage
 
 	tools []ToolInfo
 
-	root   string // reported to roots/list
-	debug  io.Writer
-	stderr *ringBuffer
+	root  string // reported to roots/list
+	debug io.Writer
 
 	closeOnce sync.Once
 	done      chan struct{}
 	exitErr   error
+}
+
+// transport moves JSON-RPC messages to and from a server. Inbound messages
+// are handed to Client.dispatch by the transport itself.
+type transport interface {
+	send(ctx context.Context, msg rpcMessage) error
+	close()
+	// hint is diagnostic context for a failed handshake (stderr, last HTTP status).
+	hint() string
 }
 
 type rpcMessage struct {
@@ -102,48 +111,28 @@ type Options struct {
 	HandshakeTimeout time.Duration
 }
 
-// Start launches the server, completes the handshake and lists its tools.
+// Start launches or connects to the server, completes the handshake and
+// lists its tools.
 func Start(ctx context.Context, name string, cfg ServerConfig, opts Options) (*Client, error) {
-	if strings.TrimSpace(cfg.Command) == "" {
-		return nil, fmt.Errorf("mcp %s: command is empty", name)
-	}
-	cmd := exec.Command(cfg.Command, cfg.Args...)
-	cmd.Dir = cfg.Cwd
-	if cmd.Dir == "" {
-		cmd.Dir = opts.Root
-	}
-	cmd.Env = os.Environ()
-	for k, v := range cfg.Env {
-		cmd.Env = append(cmd.Env, k+"="+os.ExpandEnv(v))
-	}
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, err
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
 	c := &Client{
 		Name:    name,
-		cmd:     cmd,
-		stdin:   stdin,
 		pending: map[int64]chan rpcMessage{},
 		root:    opts.Root,
 		debug:   opts.Debug,
-		stderr:  &ringBuffer{max: 4096},
 		done:    make(chan struct{}),
 	}
-	cmd.Stderr = c.stderr
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("mcp %s: start %q: %w", name, cfg.Command, err)
+	var err error
+	switch {
+	case strings.TrimSpace(cfg.URL) != "":
+		c.tr, err = newHTTPTransport(c, cfg)
+	case strings.TrimSpace(cfg.Command) != "":
+		c.tr, err = newStdioTransport(c, cfg, opts.Root)
+	default:
+		err = errors.New("needs a command or a url")
 	}
-	go c.readLoop(stdout)
-	go func() {
-		c.exitErr = cmd.Wait()
-		c.failPending(fmt.Errorf("server exited: %v", c.exitErr))
-		c.closeOnce.Do(func() { close(c.done) })
-	}()
+	if err != nil {
+		return nil, fmt.Errorf("mcp %s: %w", name, err)
+	}
 
 	timeout := opts.HandshakeTimeout
 	if timeout == 0 {
@@ -153,11 +142,11 @@ func Start(ctx context.Context, name string, cfg ServerConfig, opts Options) (*C
 	defer cancel()
 	if err := c.handshake(hctx, opts.Version); err != nil {
 		c.Close()
-		return nil, fmt.Errorf("mcp %s: %w%s", name, err, c.stderrHint())
+		return nil, fmt.Errorf("mcp %s: %w%s", name, err, c.tr.hint())
 	}
 	if err := c.loadTools(hctx); err != nil {
 		c.Close()
-		return nil, fmt.Errorf("mcp %s: list tools: %w%s", name, err, c.stderrHint())
+		return nil, fmt.Errorf("mcp %s: list tools: %w%s", name, err, c.tr.hint())
 	}
 	return c, nil
 }
@@ -187,7 +176,7 @@ func (c *Client) handshake(ctx context.Context, version string) error {
 	}
 	c.Protocol = init.ProtocolVersion
 	c.ServerInfo = init.ServerInfo
-	return c.notify("notifications/initialized", map[string]any{})
+	return c.notify(ctx, "notifications/initialized", map[string]any{})
 }
 
 func (c *Client) loadTools(ctx context.Context) error {
@@ -278,18 +267,19 @@ func (c *Client) CallTool(ctx context.Context, name string, args json.RawMessage
 	return CallResult{Text: strings.TrimRight(sb.String(), "\n"), IsError: out.IsError}, nil
 }
 
-// Close stops the server. It is safe to call more than once.
+// Close stops the server or connection. It is safe to call more than once.
 func (c *Client) Close() error {
-	c.stdin.Close()
-	select {
-	case <-c.done:
-	case <-time.After(3 * time.Second):
-		if c.cmd.Process != nil {
-			c.cmd.Process.Kill()
-		}
-		<-c.done
-	}
+	c.tr.close()
+	c.failPending(errors.New("connection closed"))
+	c.closeOnce.Do(func() { close(c.done) })
 	return nil
+}
+
+// exited is called by a transport when the server went away.
+func (c *Client) exited(err error) {
+	c.exitErr = err
+	c.failPending(fmt.Errorf("server exited: %v", err))
+	c.closeOnce.Do(func() { close(c.done) })
 }
 
 // Done is closed when the server process has exited.
@@ -309,7 +299,7 @@ func (c *Client) call(ctx context.Context, method string, params any) (json.RawM
 	c.pendMu.Unlock()
 
 	rawID := json.RawMessage(fmt.Sprint(id))
-	if err := c.send(rpcMessage{JSONRPC: "2.0", ID: &rawID, Method: method, Params: mustJSON(params)}); err != nil {
+	if err := c.send(ctx, rpcMessage{JSONRPC: "2.0", ID: &rawID, Method: method, Params: mustJSON(params)}); err != nil {
 		c.dropPending(id)
 		return nil, err
 	}
@@ -327,56 +317,53 @@ func (c *Client) call(ctx context.Context, method string, params any) (json.RawM
 	}
 }
 
-func (c *Client) notify(method string, params any) error {
-	return c.send(rpcMessage{JSONRPC: "2.0", Method: method, Params: mustJSON(params)})
+func (c *Client) notify(ctx context.Context, method string, params any) error {
+	return c.send(ctx, rpcMessage{JSONRPC: "2.0", Method: method, Params: mustJSON(params)})
 }
 
-func (c *Client) send(msg rpcMessage) error {
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return err
+func (c *Client) send(ctx context.Context, msg rpcMessage) error {
+	if c.debug != nil {
+		data, _ := json.Marshal(msg)
+		c.logf("-> %s", data)
 	}
-	c.logf("-> %s", data)
-	c.writeMu.Lock()
-	defer c.writeMu.Unlock()
-	_, err = c.stdin.Write(append(data, '\n'))
-	return err
+	return c.tr.send(ctx, msg)
 }
 
-func (c *Client) readLoop(r io.Reader) {
-	sc := bufio.NewScanner(r)
-	sc.Buffer(make([]byte, 1<<16), 64<<20)
-	for sc.Scan() {
-		line := sc.Bytes()
-		if len(strings.TrimSpace(string(line))) == 0 {
-			continue
+// dispatchRaw parses one frame from the server and routes it.
+func (c *Client) dispatchRaw(line []byte) {
+	if len(strings.TrimSpace(string(line))) == 0 {
+		return
+	}
+	c.logf("<- %s", line)
+	var msg rpcMessage
+	if err := json.Unmarshal(line, &msg); err != nil {
+		c.logf("bad frame: %v", err)
+		return
+	}
+	c.dispatch(msg)
+}
+
+// dispatch routes a response to its caller, answers a server request, and
+// ignores notifications.
+func (c *Client) dispatch(msg rpcMessage) {
+	switch {
+	case msg.Method != "" && msg.ID != nil:
+		go c.handleRequest(msg)
+	case msg.Method != "":
+		// notification (progress, log, list_changed): nothing to do
+	case msg.ID != nil:
+		var id int64
+		if err := json.Unmarshal(*msg.ID, &id); err != nil {
+			return
 		}
-		c.logf("<- %s", line)
-		var msg rpcMessage
-		if err := json.Unmarshal(line, &msg); err != nil {
-			c.logf("bad frame: %v", err)
-			continue
-		}
-		switch {
-		case msg.Method != "" && msg.ID != nil:
-			go c.handleRequest(msg)
-		case msg.Method != "":
-			// notification (progress, log, list_changed): nothing to do
-		case msg.ID != nil:
-			var id int64
-			if err := json.Unmarshal(*msg.ID, &id); err != nil {
-				continue
-			}
-			c.pendMu.Lock()
-			ch := c.pending[id]
-			delete(c.pending, id)
-			c.pendMu.Unlock()
-			if ch != nil {
-				ch <- msg
-			}
+		c.pendMu.Lock()
+		ch := c.pending[id]
+		delete(c.pending, id)
+		c.pendMu.Unlock()
+		if ch != nil {
+			ch <- msg
 		}
 	}
-	c.failPending(errors.New("server closed its output"))
 }
 
 // handleRequest answers the few requests a server may send us.
@@ -394,7 +381,9 @@ func (c *Client) handleRequest(req rpcMessage) {
 	default:
 		reply.Error = &rpcError{Code: -32601, Message: "method not supported by janetcode: " + req.Method}
 	}
-	c.send(reply)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	c.send(ctx, reply)
 }
 
 func (c *Client) dropPending(id int64) {
@@ -413,13 +402,6 @@ func (c *Client) failPending(err error) {
 	c.pending = nil
 }
 
-func (c *Client) stderrHint() string {
-	if s := strings.TrimSpace(c.stderr.String()); s != "" {
-		return "\nserver stderr:\n" + s
-	}
-	return ""
-}
-
 func (c *Client) logf(format string, args ...any) {
 	if c.debug != nil {
 		fmt.Fprintf(c.debug, "[mcp %s] "+format+"\n", append([]any{c.Name}, args...)...)
@@ -435,27 +417,4 @@ func mustJSON(v any) json.RawMessage {
 		panic(err)
 	}
 	return data
-}
-
-// ringBuffer keeps the tail of a stream for error messages.
-type ringBuffer struct {
-	mu  sync.Mutex
-	buf []byte
-	max int
-}
-
-func (r *ringBuffer) Write(p []byte) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.buf = append(r.buf, p...)
-	if len(r.buf) > r.max {
-		r.buf = r.buf[len(r.buf)-r.max:]
-	}
-	return len(p), nil
-}
-
-func (r *ringBuffer) String() string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return string(r.buf)
 }

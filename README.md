@@ -131,6 +131,15 @@ asks again, because the file can run any command on your machine.
 {"mcpServers": {"fs": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]}}}
 ```
 
+Remote servers use `"url"` instead of `"command"`; janetcode speaks
+Streamable HTTP and falls back to the older SSE transport on its own.
+`"headers"` adds request headers and expands `${ENV_VARS}`, so a token
+never has to be written into the file:
+
+```json
+{"mcpServers": {"docs": {"url": "https://example.com/mcp", "headers": {"Authorization": "Bearer ${DOCS_TOKEN}"}}}}
+```
+
 Server tools appear as `mcp__<server>__<tool>`. They ask for permission
 unless the server marks them read-only. `/mcp` shows status and tools.
 
