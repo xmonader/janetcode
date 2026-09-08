@@ -78,6 +78,18 @@ exit code, never the model's opinion.
 janetcode -p "make the flaky TestSync deterministic" --yolo --until "go test -count=3 ./internal/sync/"
 ```
 
+`--watch "<command>"` is the reverse: janetcode stays running, re-runs the
+command whenever files under the directory change (you edit in your own
+editor), and when it fails sends the output to the model to fix. A pass
+prints `✓`; five failed fixes in a row make it wait for your next change.
+`-p` adds standing instructions for the fixes; `--yolo` lets it edit
+without prompts, which is what you want here:
+
+```sh
+janetcode --watch "go build ./... && go test ./..." --yolo -p "keep the tests green; never edit *_test.go"
+```
+
+
 `janetcode --doctor` checks the config file, every configured provider's
 keys, a live call to the selected model, the sessions directory, git, local
 tools and MCP servers, and exits non-zero when something is broken.

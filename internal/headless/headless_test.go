@@ -8,7 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -132,4 +134,73 @@ func TestAutoMemoryAfterMutatingTurn(t *testing.T) {
 	if len(f.responses) != 0 {
 		t.Fatalf("%d responses unused", len(f.responses))
 	}
+}
+
+func TestWatchRerunsOnChangesAndAsksForFixes(t *testing.T) {
+	root := t.TempDir()
+	fix := func(id string) *llm.Response {
+		return &llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: id, Name: "write_file", Input: json.RawMessage(`{"path":"ok.txt","content":"fixed"}`)},
+		}}, StopReason: llm.StopToolUse}
+	}
+	done := func(text string) *llm.Response {
+		return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, text), StopReason: llm.StopEndTurn}
+	}
+	f := &fake{responses: []*llm.Response{fix("t1"), done("fixed once"), fix("t2"), done("fixed twice")}}
+	ag := &agent.Agent{Provider: f, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", AutoApprove: true}
+	var out, errOut syncBuffer
+	ctx, cancel := context.WithCancel(context.Background())
+	finished := make(chan error, 1)
+	go func() {
+		finished <- Run(ctx, Options{Agent: ag, Prompt: "keep ok.txt present", Stdout: &out, Stderr: &errOut, Cwd: root, Watch: "test -f ok.txt", WatchInterval: 20 * time.Millisecond, WatchRounds: 3})
+	}()
+	waitFor := func(what string, n int) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for strings.Count(errOut.String()+out.String(), what) < n {
+			if time.Now().After(deadline) {
+				t.Fatalf("waiting for %d× %q; stderr:\n%s\nstdout:\n%s", n, what, errOut.String(), out.String())
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	waitFor("[watch] ✓ test -f ok.txt", 1)
+	if got, _ := os.ReadFile(filepath.Join(root, "ok.txt")); string(got) != "fixed" {
+		t.Fatalf("ok.txt = %q", got)
+	}
+	if first := ag.Messages[0].Text(); !strings.HasPrefix(first, "keep ok.txt present") || !strings.Contains(first, "fix attempt 1 of 3") {
+		t.Fatalf("first prompt = %q", first)
+	}
+	// The user deletes the file: the watcher notices, the check fails, the model fixes again.
+	os.Remove(filepath.Join(root, "ok.txt"))
+	waitFor("fixed twice", 1)
+	waitFor("[watch] ✓ test -f ok.txt", 2)
+	if strings.Count(errOut.String(), "asking the model to fix it (1/3)") != 2 { // the counter resets after a pass
+		t.Fatalf("stderr:\n%s", errOut.String())
+	}
+	cancel()
+	if err := <-finished; err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(errOut.String(), "[watch] ✓"); n != 2 {
+		t.Fatalf("passes = %d; stderr:\n%s", n, errOut.String())
+	}
+}
+
+// syncBuffer is a bytes.Buffer safe for use from the watcher goroutine.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
 }

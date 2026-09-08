@@ -69,6 +69,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	var (
 		promptText  = fs.String("p", "", "run this prompt headless and exit")
 		until       = fs.String("until", "", "with -p: shell command that must exit 0 before the run is done (re-loops up to 5 times)")
+		watchCmd    = fs.String("watch", "", "watch mode: re-run this shell command whenever files change and have the model fix failures (use with --yolo)")
 		provider    = fs.String("provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")
 		model       = fs.String("model", "", "model id (default claude-opus-5 for anthropic)")
 		effort      = fs.String("effort", "", "anthropic effort: low, medium, high, xhigh, max")
@@ -118,6 +119,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	if *until != "" && *promptText == "" {
 		return errors.New("--until needs a headless prompt (-p)")
+	}
+	if *watchCmd != "" && *until != "" {
+		return errors.New("--watch and --until cannot be combined")
 	}
 
 	cfg, err := config.Load(config.Overrides{Provider: *provider, Model: *model, Effort: *effort, AutoApprove: *yolo})
@@ -303,7 +307,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		servers.Options.Debug = f
 	}
 
-	if *promptText != "" {
+	if *promptText != "" || *watchCmd != "" {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		text, atts := prompt.ExpandMentions(cwd, *promptText)
@@ -334,7 +338,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		return headless.Run(ctx, headless.Options{
 			Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
-			Until: *until, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
+			Until: *until, Watch: *watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
 		})
 	}
 	return tui.Run(tui.Options{

@@ -43,6 +43,13 @@ type Options struct {
 	Memory     *memory.Store
 	AutoMemory bool
 	Cwd        string
+	// Watch is a shell command re-run whenever files under Cwd change; a
+	// failure is sent to the model to fix. Run returns only when ctx ends.
+	Watch string
+	// WatchInterval is the poll interval; zero means 1s.
+	WatchInterval time.Duration
+	// WatchRounds bounds consecutive fix attempts per failure; zero means 5.
+	WatchRounds int
 }
 
 // DefaultUntilRounds bounds the re-loops when --until keeps failing.
@@ -57,6 +64,9 @@ func Run(ctx context.Context, opts Options) error {
 	ag := opts.Agent
 	if ag.Approver == nil {
 		ag.Approver = &stdinApprover{in: opts.Stdin, out: opts.Stderr}
+	}
+	if opts.Watch != "" {
+		return watch(ctx, opts)
 	}
 	blocks := append([]llm.Block{{Type: llm.BlockText, Text: opts.Prompt}}, opts.Images...)
 	rounds := opts.UntilRounds
@@ -80,6 +90,62 @@ func Run(ctx context.Context, opts Options) error {
 			return fmt.Errorf("%w after %d rounds: %s", ErrUntilFailed, rounds, oneLine(out, 300))
 		}
 		blocks = []llm.Block{{Type: llm.BlockText, Text: fmt.Sprintf("The check command has not passed yet.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nKeep working until this command exits 0, then stop.", opts.Until, exit, tool.TruncateTo(strings.TrimSpace(out), 4000))}}
+	}
+}
+
+// watch re-runs the watched command whenever the tree changes and asks
+// the model to fix failures. It ends when ctx does.
+func watch(ctx context.Context, opts Options) error {
+	interval := opts.WatchInterval
+	if interval <= 0 {
+		interval = time.Second
+	}
+	rounds := opts.WatchRounds
+	if rounds <= 0 {
+		rounds = DefaultUntilRounds
+	}
+	fmt.Fprintf(opts.Stderr, "[watch] %s · runs when files under %s change · ctrl+c stops\n", opts.Watch, opts.Cwd)
+	last := ""
+	fixes := 0
+	for {
+		fp := tool.TreeFingerprint(opts.Cwd)
+		if fp == last {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(interval):
+			}
+			continue
+		}
+		last = fp
+		out, exit := check(ctx, opts.Cwd, opts.Watch)
+		if ctx.Err() != nil {
+			return nil
+		}
+		if exit == 0 {
+			fmt.Fprintf(opts.Stderr, "[watch] ✓ %s\n", opts.Watch)
+			fixes = 0
+			continue
+		}
+		fmt.Fprintf(opts.Stderr, "[watch] ✗ exit %d: %s\n", exit, oneLine(out, 200))
+		if fixes >= rounds {
+			fmt.Fprintf(opts.Stderr, "[watch] %d fixes did not make it pass; waiting for your change\n", fixes)
+			continue
+		}
+		fixes++
+		var sb strings.Builder
+		if opts.Prompt != "" && len(opts.Agent.Messages) == 0 {
+			sb.WriteString(opts.Prompt + "\n\n")
+		}
+		fmt.Fprintf(&sb, "The watched command failed after files changed.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nFind the cause and fix it (fix attempt %d of %d). Do not weaken the check itself.", opts.Watch, exit, tool.TruncateTo(strings.TrimSpace(out), 4000), fixes, rounds)
+		fmt.Fprintf(opts.Stderr, "[watch] asking the model to fix it (%d/%d)\n", fixes, rounds)
+		if err := turn(ctx, opts, []llm.Block{{Type: llm.BlockText, Text: sb.String()}}); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			fmt.Fprintf(opts.Stderr, "[watch] model turn failed: %v\n", err)
+		}
+		last = "" // re-check right away: the fix changed the tree
 	}
 }
 
