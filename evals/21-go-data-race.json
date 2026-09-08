@@ -1,0 +1,18 @@
+{
+  "name": "21-go-data-race",
+  "prompt": "`go test -race ./...` fails in this repository. Fix package counter so the race detector is happy and all tests pass. Do not modify counter_test.go.",
+  "files": {
+    "go.mod": "module example.com/counter\n\ngo 1.22\n",
+    "counter.go": "package counter\n\n// Counter counts occurrences of string keys.\ntype Counter struct {\n\tm map[string]int\n}\n\n// New returns an empty counter.\nfunc New() *Counter { return &Counter{m: map[string]int{}} }\n\n// Inc adds one to k.\nfunc (c *Counter) Inc(k string) { c.m[k]++ }\n\n// Get returns the count for k.\nfunc (c *Counter) Get(k string) int { return c.m[k] }\n\n// Snapshot returns the current counts.\nfunc (c *Counter) Snapshot() map[string]int { return c.m }\n",
+    "counter_test.go": "package counter\n\nimport (\n\t\"sync\"\n\t\"testing\"\n)\n\nfunc TestConcurrentInc(t *testing.T) {\n\tc := New()\n\tvar wg sync.WaitGroup\n\tfor i := 0; i < 50; i++ {\n\t\twg.Add(1)\n\t\tgo func() {\n\t\t\tdefer wg.Done()\n\t\t\tfor j := 0; j < 100; j++ {\n\t\t\t\tc.Inc(\"k\")\n\t\t\t}\n\t\t}()\n\t}\n\twg.Wait()\n\tif got := c.Get(\"k\"); got != 5000 {\n\t\tt.Fatalf(\"got %d, want 5000\", got)\n\t}\n}\n\nfunc TestSnapshotIsACopy(t *testing.T) {\n\tc := New()\n\tc.Inc(\"a\")\n\ts := c.Snapshot()\n\ts[\"a\"] = 99\n\ts[\"b\"] = 1\n\tif c.Get(\"a\") != 1 || c.Get(\"b\") != 0 {\n\t\tt.Fatal(\"Snapshot must not share the counter's storage\")\n\t}\n\tif len(c.Snapshot()) != 1 {\n\t\tt.Fatal(\"snapshot changed the counter\")\n\t}\n}\n\nfunc TestGetMissingIsZero(t *testing.T) {\n\tif New().Get(\"nope\") != 0 {\n\t\tt.Fatal(\"missing key must read as 0\")\n\t}\n}\n",
+    ".eval/counter_test.go": "package counter\n\nimport (\n\t\"sync\"\n\t\"testing\"\n)\n\nfunc TestConcurrentInc(t *testing.T) {\n\tc := New()\n\tvar wg sync.WaitGroup\n\tfor i := 0; i < 50; i++ {\n\t\twg.Add(1)\n\t\tgo func() {\n\t\t\tdefer wg.Done()\n\t\t\tfor j := 0; j < 100; j++ {\n\t\t\t\tc.Inc(\"k\")\n\t\t\t}\n\t\t}()\n\t}\n\twg.Wait()\n\tif got := c.Get(\"k\"); got != 5000 {\n\t\tt.Fatalf(\"got %d, want 5000\", got)\n\t}\n}\n\nfunc TestSnapshotIsACopy(t *testing.T) {\n\tc := New()\n\tc.Inc(\"a\")\n\ts := c.Snapshot()\n\ts[\"a\"] = 99\n\ts[\"b\"] = 1\n\tif c.Get(\"a\") != 1 || c.Get(\"b\") != 0 {\n\t\tt.Fatal(\"Snapshot must not share the counter's storage\")\n\t}\n\tif len(c.Snapshot()) != 1 {\n\t\tt.Fatal(\"snapshot changed the counter\")\n\t}\n}\n\nfunc TestGetMissingIsZero(t *testing.T) {\n\tif New().Get(\"nope\") != 0 {\n\t\tt.Fatal(\"missing key must read as 0\")\n\t}\n}\n"
+  },
+  "check": "cmp counter_test.go .eval/counter_test.go && go vet ./... && go test -race ./... >/dev/null 2>&1",
+  "timeout": 300,
+  "max_tool_calls": 30,
+  "tags": [
+    "go",
+    "hard",
+    "concurrency"
+  ]
+}

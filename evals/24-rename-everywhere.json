@@ -1,0 +1,21 @@
+{
+  "name": "24-rename-everywhere",
+  "prompt": "Rename the function LoadConfig to ReadConfig everywhere in this repository: code, tests, documentation, the Makefile comment and the shell script's usage text. Nothing may still say LoadConfig (in any letter case) when you are done, and the module must still build and pass its tests.",
+  "files": {
+    "go.mod": "module example.com/cfg\n\ngo 1.22\n",
+    "config.go": "package cfg\n\nimport (\n\t\"encoding/json\"\n\t\"os\"\n)\n\n// Config is the application configuration.\ntype Config struct {\n\tName string `json:\"name\"`\n\tPort int    `json:\"port\"`\n}\n\n// LoadConfig reads a JSON config file.\nfunc LoadConfig(path string) (*Config, error) {\n\tdata, err := os.ReadFile(path)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvar c Config\n\tif err := json.Unmarshal(data, &c); err != nil {\n\t\treturn nil, err\n\t}\n\treturn &c, nil\n}\n",
+    "config_test.go": "package cfg\n\nimport (\n\t\"os\"\n\t\"path/filepath\"\n\t\"testing\"\n)\n\nfunc TestLoadConfig(t *testing.T) {\n\tp := filepath.Join(t.TempDir(), \"c.json\")\n\tos.WriteFile(p, []byte(`{\"name\":\"x\",\"port\":8}`), 0o644)\n\tc, err := LoadConfig(p)\n\tif err != nil || c.Name != \"x\" || c.Port != 8 {\n\t\tt.Fatalf(\"LoadConfig = %+v, %v\", c, err)\n\t}\n}\n",
+    "cmd/app/main.go": "package main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\n\t\"example.com/cfg\"\n)\n\nfunc main() {\n\tc, err := cfg.LoadConfig(os.Args[1])\n\tif err != nil {\n\t\tfmt.Fprintln(os.Stderr, \"loadconfig:\", err)\n\t\tos.Exit(1)\n\t}\n\tfmt.Println(c.Name, c.Port)\n}\n",
+    "README.md": "# cfg\n\nCall `cfg.LoadConfig(path)` to read a JSON file into a `Config`.\n\n## Example\n\n```go\nc, err := cfg.LoadConfig(\"app.json\")\n```\n",
+    "Makefile": "# Builds the app; the app calls LoadConfig on the file given as its argument.\nbuild:\n\tgo build ./...\n",
+    "run.sh": "#!/bin/sh\n# usage: run.sh app.json  (LoadConfig will read it)\ngo run ./cmd/app \"$1\"\n"
+  },
+  "check": "! grep -rIi loadconfig . --exclude-dir=.git --exclude-dir=.eval --exclude=.eval-output.txt && grep -q ReadConfig README.md && grep -q ReadConfig Makefile && grep -q ReadConfig run.sh && grep -q 'func TestReadConfig' config_test.go && go vet ./... && go test ./... >/dev/null 2>&1",
+  "timeout": 300,
+  "max_tool_calls": 40,
+  "tags": [
+    "go",
+    "hard",
+    "rename"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "22-go-interface-refactor",
+  "prompt": "In package store, FileStore keeps values as files in the current directory. Refactor: (1) add an interface named Store with exactly the methods Put(key string, value []byte) error, Get(key string) ([]byte, error) and Delete(key string) error; (2) make *FileStore implement it; (3) add an in-memory MemStore type (pointer receiver) implementing it, where Get of a missing key and Delete of a missing key return errors; (4) add func NewStore(kind string) (Store, error) returning a *FileStore for \"file\", a *MemStore for \"mem\", and an error for anything else. Keep the existing behaviour of FileStore. Make sure `go vet ./...` passes.",
+  "files": {
+    "go.mod": "module example.com/store\n\ngo 1.22\n",
+    "file.go": "package store\n\nimport (\n\t\"errors\"\n\t\"os\"\n)\n\n// FileStore keeps each value in a file named after its key.\ntype FileStore struct{}\n\nfunc (f *FileStore) Put(key string, value []byte) error {\n\treturn os.WriteFile(key, value, 0o644)\n}\n\nfunc (f *FileStore) Get(key string) ([]byte, error) {\n\tdata, err := os.ReadFile(key)\n\tif errors.Is(err, os.ErrNotExist) {\n\t\treturn nil, errors.New(\"not found: \" + key)\n\t}\n\treturn data, err\n}\n\nfunc (f *FileStore) Delete(key string) error {\n\tif err := os.Remove(key); errors.Is(err, os.ErrNotExist) {\n\t\treturn errors.New(\"not found: \" + key)\n\t} else if err != nil {\n\t\treturn err\n\t}\n\treturn nil\n}\n"
+  },
+  "check": "cat > zz_hidden_test.go <<'HIDDEN_EOF'\npackage store\n\nimport (\n\t\"os\"\n\t\"path/filepath\"\n\t\"testing\"\n)\n\nfunc exercise(t *testing.T, s Store) {\n\tt.Helper()\n\tif err := s.Put(\"k\", []byte(\"v\")); err != nil {\n\t\tt.Fatal(err)\n\t}\n\tgot, err := s.Get(\"k\")\n\tif err != nil || string(got) != \"v\" {\n\t\tt.Fatalf(\"Get = %q, %v\", got, err)\n\t}\n\tif err := s.Delete(\"k\"); err != nil {\n\t\tt.Fatal(err)\n\t}\n\tif _, err := s.Get(\"k\"); err == nil {\n\t\tt.Fatal(\"Get after Delete must fail\")\n\t}\n\tif err := s.Delete(\"k\"); err == nil {\n\t\tt.Fatal(\"Delete of a missing key must fail\")\n\t}\n}\n\nfunc TestBothBackends(t *testing.T) {\n\tdir := t.TempDir()\n\tos.Chdir(dir)\n\tf, err := NewStore(\"file\")\n\tif err != nil {\n\t\tt.Fatal(err)\n\t}\n\texercise(t, f)\n\tm, err := NewStore(\"mem\")\n\tif err != nil {\n\t\tt.Fatal(err)\n\t}\n\texercise(t, m)\n\tif _, err := NewStore(\"bogus\"); err == nil {\n\t\tt.Fatal(\"unknown kind must be an error\")\n\t}\n\tvar _ Store = &FileStore{}\n\tvar _ Store = &MemStore{}\n\tif _, err := os.Stat(filepath.Join(dir, \"k\")); err == nil {\n\t\tt.Fatal(\"file backend should have removed the key's file\")\n\t}\n}\nHIDDEN_EOF\ngo vet ./... && go test ./... >/dev/null 2>&1",
+  "timeout": 300,
+  "max_tool_calls": 30,
+  "tags": [
+    "go",
+    "hard",
+    "refactor"
+  ]
+}

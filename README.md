@@ -431,8 +431,14 @@ separate. Once `critic.json` exists in the config directory, the live
 turn is scored every five tool calls, and the first time the chance of
 success falls under 35% the model gets one note naming the features
 pulling it down (`tool_errors=8, tests=0`) and is asked to step back.
-The eval switch is `critic`. As of this writing the bundled tasks all
-pass, so the trainer refuses on them: harder tasks are the next step.
+The eval switch is `critic`. A critic that scores no better than
+guessing the majority outcome is not saved. The bundled set has six
+harder tasks tagged `hard` (a data race, an interface refactor with a
+hidden test, an INI parser against hidden edge cases, a rename across
+code, docs, Makefile and script, pagination bugs, a log-summary script)
+that a small model fails some of the time; 35 live runs with 3 failures
+were not enough to beat the baseline, so more failing runs are needed
+before the critic earns its place.
 
 ### Context inspector and pins
 

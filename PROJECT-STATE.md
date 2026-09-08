@@ -13,7 +13,7 @@
 
 - Provenance (2026-09-08): internal/agent/provenance.go records Before/After per file per tool call with the model's intent (own Myers line diff in linediff.go); /changes, /blame, /undo n in the TUI; persisted in the undo file (bounded 400 changes / 16MB). Shell changes are not hunk-tracked.
 
-- Trajectory critic (2026-09-08): failing-cycle detection in loop.go; plan check (repomap/plan.go) flags backticked paths/symbols the repo lacks; trajectory features recorded per eval run, `--eval-train`/`make eval-train` fits a logistic predictor into <config>/critic.json, loaded at startup, scores every 5 tool calls, one note per turn under 35%. Switches: plan, critic. Blocked on data: all bundled eval tasks pass, so training refuses (one class). Next: harder eval tasks that fail sometimes.
+- Trajectory critic (2026-09-08): failing-cycle detection in loop.go; plan check (repomap/plan.go) flags backticked paths/symbols the repo lacks; trajectory features recorded per eval run, `--eval-train`/`make eval-train` fits a logistic predictor into <config>/critic.json, loaded at startup, scores every 5 tool calls, one note per turn under 35%. Switches: plan, critic. Six hard tasks added (21–26, tag hard); live on deepseek-v4-flash: 8/12 then 2/3 on the clarified INI task. 35 clean runs / 3 failures train to 86% vs 91% baseline → not saved. Next: more runs of the hard set (EVAL_RUNS=5) to get enough failures, then measure the critic and the other switches with --eval-compare.
 
 ## Key Decisions
 - Go + bubbletea; product name is janetcode, not the Janet language (2026-09-07).

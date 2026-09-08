@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -278,6 +279,9 @@ func (p *Predictor) Explain(f map[string]float64, n int) string {
 func (p *Predictor) Save(path string) error {
 	data, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)

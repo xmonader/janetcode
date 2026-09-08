@@ -40,7 +40,7 @@ func TestTrainScoreAndPersistPredictor(t *testing.T) {
 	if why := p.Explain(map[string]float64{"tool_calls": 12, "tool_errors": 8, "tests": 0, "error_rate": 0.6}, 2); !strings.Contains(why, "tool_errors=8") && !strings.Contains(why, "error_rate=0.6") && !strings.Contains(why, "tests=0") {
 		t.Fatalf("explain = %q", why)
 	}
-	path := filepath.Join(t.TempDir(), "p.json")
+	path := filepath.Join(t.TempDir(), "new", "dir", "p.json") // Save creates the directory
 	if err := p.Save(path); err != nil {
 		t.Fatal(err)
 	}

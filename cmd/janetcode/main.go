@@ -589,16 +589,16 @@ func trainCritic(paths []string, out string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := p.Save(out); err != nil {
-		return err
-	}
 	fmt.Fprintf(w, "trajectory critic trained on %d runs (%d passed, %d failed) from %d file(s)\n", p.Samples, p.Positives, p.Negatives, files)
 	fmt.Fprintf(w, "cross-validated accuracy %.0f%% (always guessing the majority: %.0f%%)\n", p.Accuracy*100, p.Baseline*100)
 	if p.Accuracy <= p.Baseline {
-		fmt.Fprintf(w, "warning: the critic is no better than the baseline; it will still be loaded from %s, delete the file to disable it\n", out)
-	} else {
-		fmt.Fprintf(w, "saved to %s\n", out)
+		fmt.Fprintf(w, "not saved: the critic is no better than guessing; more failing runs are needed before it can help\n")
+		return nil
 	}
+	if err := p.Save(out); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "saved to %s\n", out)
 	return nil
 }
 
