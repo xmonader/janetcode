@@ -72,6 +72,7 @@ mutating tools prompt on the terminal, or are denied when stdin is not a TTY.
 | `edit_file` | Replace an exact string in a file | yes, shows a diff |
 | `write_file` | Create or overwrite a file | yes, shows a diff |
 | `bash` | Run a shell command with a timeout | yes |
+| `fetch_url` | Fetch a web page or API response as text | yes |
 
 All paths are confined to the working directory, symlinks included.
 Read-only tools run concurrently; mutating tools run one at a time, in order.
@@ -94,14 +95,27 @@ ctrl+c           cancel; twice to force quit; quits when idle
 ```
 
 At a permission prompt: `y` allow once, `a` allow that tool for the session,
-`n` deny. Destructive shell commands (recursive deletes, force pushes, sudo,
-piping downloads into a shell) are flagged in the prompt.
+`n` deny and type why (the reason goes to the model, enter skips it), `esc`
+deny silently. Destructive shell commands (recursive deletes, force pushes,
+sudo, piping downloads into a shell) are flagged in the prompt.
+
+Typing while the model is working queues the message; it is sent as soon as
+the turn ends. Cancelling a turn hands queued text back to the input.
 
 ```
+@path            attach a file (or a directory listing) to the prompt; tab completes
+!command         run a shell command here; its output is shown and shared with the model
 /help      /quit      /clear (new session)     /yolo (toggle auto-approve)
 /model X   /usage     /compact (summarise the context to free the window)
-/verbose
+/resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)
 ```
+
+### Custom commands
+
+Drop a prompt template at `.janetcode/commands/<name>.md` in the project (or
+`~/.config/janetcode/commands/<name>.md` for every project) and `/<name> args`
+submits it with `$ARGUMENTS` replaced. The first line is the help text shown
+in tab completion.
 
 ## Configuration
 
@@ -149,6 +163,9 @@ janetcode --sessions        # list sessions for this directory
 janetcode --continue        # resume the newest one
 janetcode --resume <id>
 ```
+
+Inside the TUI, `/resume` lists the sessions for the directory and
+`/resume 2` reopens one.
 
 When the context grows past `compact_at` tokens, or the model reports the
 prompt is too long, the history is summarised into a handoff note and the
