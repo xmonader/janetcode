@@ -162,9 +162,12 @@ type Agent struct {
 	// Hooks, when set, runs user commands around tool calls, compaction
 	// and turn end (see package hook). Nil means no hooks.
 	Hooks *hook.Runner
-	// SystemExtra, when set, is appended to System on every call; it lets
-	// memory and skills change between turns without rebuilding System.
+	// SystemExtra, when set, is appended to System. It is evaluated once
+	// and reused until compaction or RefreshExtra, so the cached prompt
+	// prefix stays valid while memory and skills change underneath.
 	SystemExtra func() string
+	extraText   string
+	extraFrozen bool
 	// Prepare, when set, may add blocks to a user turn before it is sent
 	// (skills attach themselves this way). The returned note, if any, is
 	// emitted as a notice.

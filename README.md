@@ -268,6 +268,19 @@ tools: read_file, grep, glob
 You are a strict reviewer. Report concrete defects with file:line ...
 ```
 
+### Prompt caching
+
+The request prefix is laid out to stay byte-identical between calls, so
+providers that cache prompts (Anthropic explicitly, OpenRouter and others
+automatically) serve most of the history from cache: the system prompt is
+fixed for the session, the memory and skill indexes inside it are evaluated
+once and refreshed only at compaction (or with `/reload`), tool definitions
+are static and sorted, and skills and recalled memory are attached as user
+blocks rather than by editing the prompt. Pins, plan mode and read-only
+mode do change the prompt, and each change costs one cache miss. The
+footer shows the session's cache hit rate (`cache 87%`) whenever the
+provider reports cached tokens.
+
 ### Context inspector and pins
 
 `/context` shows where the window goes: system prompt, memory and skill

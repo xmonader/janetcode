@@ -257,6 +257,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 		note += "\n\n[The previous turn was interrupted mid-task by compaction. Continue the work described above.]"
 	}
 	a.Messages = append([]llm.Message{llm.TextMessage(llm.RoleUser, note)}, tail...)
+	a.RefreshExtra() // the prefix is rebuilt anyway; pick up new memory and skills
 	if pending != nil {
 		a.appendUserBlocks(pending.Blocks...)
 	}

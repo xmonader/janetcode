@@ -616,6 +616,7 @@ var commands = []command{
 	{"/verify", "[set <cmd>|clear|trust]", "run the project's checks now; set adds one to .janetcode/verify.json"},
 	{"/lsp", "", "language servers and the diagnostics they reported"},
 	{"/context", "", "what fills the context window: prompt, tools, messages, largest tool results"},
+	{"/reload", "", "rebuild the memory and skill indexes in the prompt now instead of at compaction"},
 	{"/pin", "[note or @file]", "keep a note in the system prompt for the whole session; alone lists pins"},
 	{"/unpin", "<n>", "remove a pin"},
 	{"/plan", "[request|approve|off]", "plan mode: the model explores and writes a plan; approve executes it"},
@@ -1728,6 +1729,9 @@ func (m *model) command(text string) tea.Cmd {
 		m.permissionsCommand(fields[1:])
 	case "/lsp":
 		m.lspCommand()
+	case "/reload":
+		m.opts.Agent.RefreshExtra()
+		m.transcript.info("memory and skill indexes will be rebuilt for the next call (one cache miss); they also refresh at compaction")
 	case "/context", "/ctx":
 		m.contextCommand()
 	case "/pin":
@@ -2226,6 +2230,9 @@ func (m *model) statusView() string {
 		left = styleFaint.Render("ready")
 	}
 	right := m.contextGauge()
+	if pct, ok := m.opts.Agent.CacheRate(); ok {
+		right = styleFaint.Render(fmt.Sprintf("cache %d%%", pct)) + "  " + right
+	}
 	if !m.viewport.AtBottom() {
 		right = styleWarn.Render("↓ pgdn for latest") + "  " + right
 	}

@@ -12,10 +12,7 @@ import (
 // systemPrompt is the full system text sent with a request: the base
 // prompt, the dynamic extra (memory and skill indexes), pins and modes.
 func (a *Agent) systemPrompt() string {
-	system := a.System
-	if a.SystemExtra != nil {
-		system += a.SystemExtra()
-	}
+	system := a.System + a.extra()
 	if len(a.Pins) > 0 {
 		var sb strings.Builder
 		sb.WriteString("\n\n# Pinned by the user\nThese notes stay in context for the whole session, including after compaction.\n")
@@ -31,6 +28,34 @@ func (a *Agent) systemPrompt() string {
 		}
 	}
 	return system
+}
+
+// extra returns the frozen SystemExtra text, evaluating it on first use.
+func (a *Agent) extra() string {
+	if a.SystemExtra == nil {
+		return ""
+	}
+	if !a.extraFrozen {
+		a.extraText, a.extraFrozen = a.SystemExtra(), true
+	}
+	return a.extraText
+}
+
+// RefreshExtra re-evaluates SystemExtra on the next call. Compaction does
+// this itself, since the history is rewritten anyway; call it after
+// editing skills or memory when the model should see the change now, at
+// the cost of one cache miss.
+func (a *Agent) RefreshExtra() { a.extraFrozen = false }
+
+// CacheRate is the share of session input tokens served from the
+// provider's prompt cache, and whether the provider reported any.
+func (a *Agent) CacheRate() (pct int, ok bool) {
+	u := a.Usage
+	total := u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
+	if total == 0 || u.CacheReadTokens+u.CacheWriteTokens == 0 {
+		return 0, false
+	}
+	return u.CacheReadTokens * 100 / total, true
 }
 
 // ContextReport breaks the context window down by what fills it.
@@ -64,9 +89,7 @@ func (a *Agent) Context() ContextReport {
 		r.CompactAt = DefaultCompactAt
 	}
 	r.System = len(a.System) / 4
-	if a.SystemExtra != nil {
-		r.Extra = len(a.SystemExtra()) / 4
-	}
+	r.Extra = len(a.extra()) / 4
 	for _, p := range a.Pins {
 		r.Pins += len(p)/4 + 4
 	}

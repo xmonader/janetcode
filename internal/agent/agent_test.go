@@ -453,8 +453,45 @@ func TestSystemExtraAndLastTurnMutated(t *testing.T) {
 	if !a.LastTurnMutated() {
 		t.Fatal("mutating turn not reported")
 	}
-	if got := f.requests[1].System; !strings.Contains(got, "fact two") {
-		t.Fatalf("extra not re-evaluated: %q", got)
+	if got := f.requests[1].System; !strings.Contains(got, "fact one") || strings.Contains(got, "fact two") {
+		t.Fatalf("extra re-evaluated mid-session (cache prefix would change): %q", got)
+	}
+	a.RefreshExtra()
+	f.responses = append(f.responses, text("ok"))
+	if err := a.Run(context.Background(), "again", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.requests[3].System; !strings.Contains(got, "fact two") {
+		t.Fatalf("extra not refreshed: %q", got)
+	}
+	a.Usage = llm.Usage{InputTokens: 200, CacheReadTokens: 700, CacheWriteTokens: 100}
+	if pct, ok := a.CacheRate(); !ok || pct != 70 {
+		t.Fatalf("cache rate = %d %v", pct, ok)
+	}
+	a.Usage = llm.Usage{InputTokens: 200}
+	if _, ok := a.CacheRate(); ok {
+		t.Fatal("cache rate reported without cache traffic")
+	}
+}
+
+func TestCompactionRefreshesExtra(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("SUMMARY"), text("after")}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, "first"), llm.TextMessage(llm.RoleAssistant, "ok"),
+	}}
+	extra := "\n# index v1"
+	a.SystemExtra = func() string { return extra }
+	_ = a.extra()
+	extra = "\n# index v2"
+	if err := a.ForceCompact(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Run(context.Background(), "next", nil); err != nil {
+		t.Fatal(err)
+	}
+	last := f.requests[len(f.requests)-1]
+	if !strings.Contains(last.System, "index v2") {
+		t.Fatalf("system after compaction = %q", last.System)
 	}
 }
 

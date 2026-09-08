@@ -1199,3 +1199,21 @@ func TestContextAndPinCommands(t *testing.T) {
 		t.Fatalf("view:\n%s", v)
 	}
 }
+
+func TestFooterShowsCacheRate(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hi"), StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 100, CacheReadTokens: 900}})
+	if strings.Contains(plain(h.m.View()), "cache ") {
+		t.Fatal("cache rate shown before any call")
+	}
+	h.keys("hello")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	if v := plain(h.m.View()); !strings.Contains(v, "cache 90%") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/reload")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "rebuilt for the next call") {
+		t.Fatalf("view:\n%s", v)
+	}
+}
