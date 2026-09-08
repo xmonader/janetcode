@@ -181,6 +181,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	task.Parent = ag
 	skills := func() []skill.Skill { return skill.Load(cwd, cfgDir) }
+	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(cwd, cfgDir) }
 	ag.Tools.Add(&skill.Tool{Skills: skills})
 	ag.SystemExtra = func() string { return mem.Section() + skill.Index(skills()) }
 	injector := &skill.Injector{Skills: skills}

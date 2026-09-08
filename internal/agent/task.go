@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -19,21 +20,40 @@ type Task struct {
 	Parent *Agent
 	// MaxIterations bounds the child's tool rounds. Zero means 25.
 	MaxIterations int
+	// Profiles, when set, supplies custom subagent definitions selectable
+	// with the agent parameter.
+	Profiles func() []skill.Profile
 
 	mu    sync.Mutex
 	usage llm.Usage
 }
 
 func (*Task) Name() string { return "task" }
-func (*Task) Description() string {
-	return "Delegate a self-contained read-only job to a subagent that has its own context window: exploring an unfamiliar area of the codebase, tracing how something works, or gathering facts across many files. It can read, list, glob, grep and fetch URLs but cannot edit files or run commands. Give it a complete brief with what to find and what to report back; it returns only its final report. Call several in one turn to work in parallel. Pass tools to restrict it to a few named tools when the job is narrow (fewer schemas, cheaper and more focused)."
+func (t *Task) Description() string {
+	d := "Delegate a self-contained read-only job to a subagent that has its own context window: exploring an unfamiliar area of the codebase, tracing how something works, or gathering facts across many files. It can read, list, glob, grep and fetch URLs but cannot edit files or run commands. Give it a complete brief with what to find and what to report back; it returns only its final report. Call several in one turn to work in parallel. Pass tools to restrict it to a few named tools when the job is narrow (fewer schemas, cheaper and more focused)."
+	if ps := t.profiles(); len(ps) > 0 {
+		var names []string
+		for _, p := range ps {
+			names = append(names, p.Name+" ("+p.Description+")")
+		}
+		d += " Custom agents, selectable with agent: " + strings.Join(names, "; ") + "."
+	}
+	return d
+}
+
+func (t *Task) profiles() []skill.Profile {
+	if t.Profiles == nil {
+		return nil
+	}
+	return t.Profiles()
 }
 func (*Task) Mutating() bool { return false }
 func (*Task) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
 "description":{"type":"string","description":"Short label for what the subagent is doing (shown to the user)"},
 "prompt":{"type":"string","description":"The full brief: goal, where to look, and exactly what to report"},
-"tools":{"type":"array","items":{"type":"string"},"description":"Optional: only these read-only tools are given to the subagent, e.g. [\"grep\",\"read_file\"]"}},
+"tools":{"type":"array","items":{"type":"string"},"description":"Optional: only these read-only tools are given to the subagent, e.g. [\"grep\",\"read_file\"]"},
+"agent":{"type":"string","description":"Optional: name of a custom agent definition to run the job as"}},
 "required":["description","prompt"],"additionalProperties":false}`)
 }
 
@@ -49,6 +69,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		Description string   `json:"description"`
 		Prompt      string   `json:"prompt"`
 		Tools       []string `json:"tools"`
+		Agent       string   `json:"agent"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", fmt.Errorf("bad input: %w", err)
@@ -59,9 +80,31 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if t.Parent == nil {
 		return "", fmt.Errorf("task tool has no parent agent")
 	}
+	var profile *skill.Profile
+	if in.Agent != "" {
+		for _, p := range t.profiles() {
+			if strings.EqualFold(p.Name, in.Agent) {
+				pp := p
+				profile = &pp
+				break
+			}
+		}
+		if profile == nil {
+			return "", fmt.Errorf("no custom agent named %q", in.Agent)
+		}
+		if len(in.Tools) == 0 {
+			in.Tools = profile.Tools
+		}
+	}
 	child, err := t.child(in.Tools)
 	if err != nil {
 		return "", err
+	}
+	if profile != nil {
+		child.System += "\n\n# Agent: " + profile.Name + "\n" + profile.Body
+		if profile.Model != "" {
+			child.Model = profile.Model
+		}
 	}
 	start := time.Now()
 	err = child.Run(ctx, in.Prompt, nil)

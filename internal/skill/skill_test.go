@@ -113,3 +113,18 @@ func TestToolReadsSkillByName(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestLoadProfiles(t *testing.T) {
+	cwd, cfg := t.TempDir(), t.TempDir()
+	write(t, filepath.Join(cfg, "agents", "reviewer.md"), "---\ndescription: Reviews code\ntools: read_file, grep\nmodel: cheap-model\n---\nYou review code.\n")
+	write(t, filepath.Join(cwd, ".claude", "agents", "reviewer.md"), "---\nname: reviewer\ndescription: Project reviewer\ntools: [grep]\n---\nProject rules apply.\n")
+	write(t, filepath.Join(cwd, ".janetcode", "agents", "empty.md"), "---\nname: empty\n---\n")
+	ps := LoadProfiles(cwd, cfg)
+	if len(ps) != 1 {
+		t.Fatalf("profiles = %+v", ps)
+	}
+	p := ps[0]
+	if p.Name != "reviewer" || p.Source != "claude" || p.Description != "Project reviewer" || p.Body != "Project rules apply." || len(p.Tools) != 1 || p.Tools[0] != "grep" {
+		t.Fatalf("profile = %+v", p)
+	}
+}

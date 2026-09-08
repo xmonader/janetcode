@@ -200,6 +200,23 @@ several words of its description), the file is attached to that turn
 `skills attached: …`. For anything else the model can read a skill with
 the `skill` tool. `/skills` lists what is installed.
 
+### Custom agents
+
+`.janetcode/agents/<name>.md` (or `agents/` under the config directory,
+or `.claude/agents`) defines a subagent the model can pick with
+`task {"agent": "<name>", ...}`: the body is added to the subagent's system
+prompt, and the frontmatter may set `description`, a `tools` list
+(read-only tools only) and a `model`. The `task` tool's description lists
+them, so the model knows they exist.
+
+```markdown
+---
+description: Reviews a change for correctness and missing tests
+tools: read_file, grep, glob
+---
+You are a strict reviewer. Report concrete defects with file:line ...
+```
+
 ### Hooks
 
 Hooks are shell commands run at fixed points of the loop. They live under

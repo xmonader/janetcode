@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -125,5 +126,33 @@ func TestTaskRestrictsSubagentTools(t *testing.T) {
 	all, _ := task.child(nil)
 	if defs := all.Tools.Defs(); len(defs) != 2 {
 		t.Fatalf("default child tools = %+v", defs)
+	}
+}
+
+func TestTaskRunsCustomAgentProfile(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n"), 0o644)
+	f := &fake{responses: []*llm.Response{text("review: fine")}}
+	parent := &Agent{Provider: f, Tools: tool.NewRegistry(tool.ReadFile{Root: root}, tool.Grep{Root: root}, tool.Bash{Root: root}), Model: "big", System: "sys"}
+	task := &Task{Parent: parent, Profiles: func() []skill.Profile {
+		return []skill.Profile{{Name: "reviewer", Description: "Reviews code", Tools: []string{"grep"}, Model: "small", Body: "Be strict about error handling."}}
+	}}
+	parent.Tools.Add(task)
+	if d := task.Description(); !strings.Contains(d, "reviewer (Reviews code)") {
+		t.Fatalf("description = %q", d)
+	}
+	out, err := task.Run(context.Background(), json.RawMessage(`{"description":"review","prompt":"review a.go","agent":"Reviewer"}`))
+	if err != nil || !strings.HasPrefix(out, "review: fine") {
+		t.Fatalf("out=%q err=%v", out, err)
+	}
+	req := f.requests[0]
+	if req.Model != "small" || !strings.Contains(req.System, "# Agent: reviewer\nBe strict about error handling.") || !strings.HasPrefix(req.System, "sys") {
+		t.Fatalf("request = model %q system %q", req.Model, req.System)
+	}
+	if len(req.Tools) != 1 || req.Tools[0].Name != "grep" {
+		t.Fatalf("tools = %+v", req.Tools)
+	}
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"y","agent":"nobody"}`)); err == nil || !strings.Contains(err.Error(), "no custom agent") {
+		t.Fatalf("unknown agent err = %v", err)
 	}
 }
