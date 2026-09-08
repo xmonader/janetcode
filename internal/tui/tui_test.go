@@ -872,7 +872,8 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 		t.Fatalf("esc did not close: %+v %q", h.m.connect, h.m.input.Value())
 	}
 
-	// A listing failure still lets the user type a model id.
+	// A listing failure still lets the user type a model id; esc from a
+	// /model picker closes it rather than stepping back to the keys.
 	lister.err = errors.New("boom")
 	h.keys("/model")
 	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter})
@@ -880,12 +881,15 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 		t.Fatalf("view:\n%s", plain(h.m.View()))
 	}
 	h.update(esc)
+	if h.m.connect != nil {
+		t.Fatalf("esc should close the /model picker: %+v", h.m.connect)
+	}
 }
 
 func TestFirstRunOpensConnectDialog(t *testing.T) {
 	h := newHarness(t)
 	h.m.opts.Agent.Provider = nil
-	cfg := &config.Config{Provider: "anthropic", Providers: map[string]config.Provider{}}
+	cfg := &config.Config{Provider: "anthropic", Providers: map[string]config.Provider{"anthropic": {Type: "anthropic"}}}
 	lister := &listing{models: []llm.ModelInfo{{ID: "llama3"}}}
 	h.withConfig(t, cfg, func(c *config.Config) (llm.Provider, error) { return lister, nil })
 	h.m.opts.Connect = true
@@ -894,7 +898,7 @@ func TestFirstRunOpensConnectDialog(t *testing.T) {
 	if h.m.connect == nil || h.m.connect.step != stepPick {
 		t.Fatalf("dialog not opened: %+v", h.m.connect)
 	}
-	if v := plain(h.m.View()); !strings.Contains(v, "not connected · /connect") {
+	if v := plain(h.m.View()); !strings.Contains(v, "not connected · /connect") || strings.Contains(v, "✓") {
 		t.Fatalf("view:\n%s", v)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})

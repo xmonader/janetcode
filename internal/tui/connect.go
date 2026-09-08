@@ -39,18 +39,19 @@ type connectRow struct {
 }
 
 type connect struct {
-	step    connectStep
-	name    string
-	prov    config.Provider
-	rows    []connectRow
-	models  []llm.ModelInfo
-	loading bool
-	loadErr string
-	idx     int
-	idxFor  string // input value the highlight belongs to
-	draft   string // input text saved while the dialog is open
-	problem string // shown under the title until the next key
-	gen     int    // ignore model lists from an abandoned dialog
+	step      connectStep
+	name      string
+	prov      config.Provider
+	rows      []connectRow
+	models    []llm.ModelInfo
+	loading   bool
+	loadErr   string
+	idx       int
+	idxFor    string // input value the highlight belongs to
+	draft     string // input text saved while the dialog is open
+	modelOnly bool   // opened by /model: esc closes instead of stepping back
+	problem   string // shown under the title until the next key
+	gen       int    // ignore model lists from an abandoned dialog
 }
 
 // modelsMsg carries the asynchronously fetched model list.
@@ -77,7 +78,7 @@ func (m *model) openConnect(step connectStep) tea.Cmd {
 	m.connect = c
 	cfg := m.opts.Config
 	if step == stepModel {
-		c.name, c.prov = cfg.Provider, cfg.Active()
+		c.name, c.prov, c.modelOnly = cfg.Provider, cfg.Active(), true
 	}
 	c.rows = m.connectRows()
 	m.input.Reset()
@@ -95,6 +96,9 @@ func (m *model) connectRows() []connectRow {
 	var rows []connectRow
 	for _, n := range cfg.ProviderNames() {
 		p := cfg.Providers[n]
+		if len(p.Keys()) == 0 && p.NeedsKey() {
+			continue // a bare entry (or preset picked on the command line): not usable yet
+		}
 		label := n
 		if pre, ok := config.FindPreset(n); ok {
 			label = pre.Label
@@ -112,7 +116,7 @@ func (m *model) connectRows() []connectRow {
 		rows = append(rows, connectRow{name: n, label: label, detail: detail, prov: p, configured: true})
 	}
 	for _, pre := range config.Presets {
-		if _, ok := cfg.Providers[pre.Name]; ok {
+		if p, ok := cfg.Providers[pre.Name]; ok && (len(p.Keys()) > 0 || !p.NeedsKey()) {
 			continue
 		}
 		rows = append(rows, connectRow{name: pre.Name, label: pre.Label, detail: pre.BaseURL, prov: config.Provider{Type: pre.Type, BaseURL: pre.BaseURL}})
@@ -296,7 +300,7 @@ func (m *model) handleConnectKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		case stepKeys:
 			m.enterStep(stepURL)
 		case stepModel:
-			if len(c.rows) == 0 {
+			if c.modelOnly {
 				m.closeConnect("")
 			} else {
 				m.enterStep(stepKeys)
