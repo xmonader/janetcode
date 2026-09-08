@@ -218,6 +218,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	return tui.Run(tui.Options{
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: cfgDir,
+		Config: cfg, ConfigPath: cfgPath, Build: buildProvider,
 		Resumed: len(history), Version: version, Theme: cfg.Theme,
 		InitialPrompt: initial,
 		MCP: &tui.MCPOptions{

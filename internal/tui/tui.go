@@ -23,6 +23,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/prompt"
@@ -39,9 +40,14 @@ type Options struct {
 	Agent    *agent.Agent
 	Session  *session.Session
 	Provider string
-	Cwd      string
-	Resumed  int // messages loaded from a resumed session
-	Version  string
+	// Config, ConfigPath and Build enable /connect and the /model picker:
+	// Build constructs a backend for a config, Update persists the choice.
+	Config     *config.Config
+	ConfigPath string
+	Build      func(*config.Config) (llm.Provider, error)
+	Cwd        string
+	Resumed    int // messages loaded from a resumed session
+	Version    string
 	// Theme is "dark", "light" or "" for terminal detection.
 	Theme string
 	// InitialPrompt is sent as soon as the UI is ready.
@@ -178,7 +184,8 @@ var commands = []command{
 	{"/undo", "", "revert the files changed by the last turn"},
 	{"/mcp", "[trust]", "MCP servers and their tools; trust starts the project's .mcp.json servers"},
 	{"/yolo", "", "toggle auto-approve for tools"},
-	{"/model", "<name>", "switch model on the same provider"},
+	{"/connect", "", "connect to a provider (preset or custom API) and pick a model"},
+	{"/model", "[name]", "pick a model from a list, or set one by name"},
 	{"/usage", "", "tokens and cost for this session"},
 	{"/verbose", "", "toggle expanded tool output (ctrl+o)"},
 	{"/quit", "", "exit"},
@@ -225,6 +232,8 @@ type model struct {
 	compFor    string                   // input value the highlight belongs to
 	lastFind   string                   // last /find query, for repeats
 	lastFindAt int                      // line of the last hit, so repeats advance past it
+	connect    *connect                 // open provider/model dialog
+	connectGen int
 	quitting   bool
 	branch     string
 }
@@ -369,6 +378,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
+	case modelsMsg:
+		m.handleModels(msg)
+		return m, nil
+
 	case tea.MouseMsg:
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(msg)
@@ -511,6 +524,9 @@ func (m *model) applyEvent(ev agent.Event) {
 }
 
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if m.connect != nil {
+		return m.handleConnectKey(msg)
+	}
 	// Permission prompt takes over the keyboard.
 	if m.pending != nil && m.denying {
 		// Collecting an optional reason: enter sends it, esc denies silently.
@@ -715,6 +731,9 @@ func (m *model) remember(text string) {
 // completions lists slash commands matching the input, or files matching
 // the @path being typed at its end.
 func (m *model) completions() []command {
+	if m.connect != nil {
+		return nil
+	}
 	v := m.input.Value()
 	if strings.HasPrefix(v, "/") && !strings.ContainsAny(v, " \n") {
 		var out []command
@@ -1135,17 +1154,13 @@ func friendlyError(err error, provider string) string {
 	l := strings.ToLower(s)
 	switch {
 	case strings.Contains(l, "connection refused") || strings.Contains(l, "no such host") || strings.Contains(l, "dial tcp"):
-		hint := "check ANTHROPIC_BASE_URL and your network"
-		if provider == "openai" {
-			hint = "check OPENAI_BASE_URL and your network"
-		}
-		return "cannot reach the API: " + s + "\n  " + hint
+		return "cannot reach the API: " + s + "\n  check the base URL for provider " + provider + " (/connect) and your network"
 	case strings.Contains(l, "http 401") || strings.Contains(l, "authentication") || strings.Contains(l, "invalid x-api-key") || strings.Contains(l, "incorrect api key"):
-		return "authentication failed: " + s + "\n  check the API key for provider " + provider
+		return "authentication failed: " + s + "\n  check the API key for provider " + provider + " (/connect)"
 	case strings.Contains(l, "http 429") || strings.Contains(l, "rate limit") || strings.Contains(l, "quota"):
-		return "rate limited or out of quota: " + s + "\n  wait and resend, or switch model with /model"
+		return "rate limited or out of quota: " + s + "\n  wait and resend, add keys with /connect, or switch model with /model"
 	case strings.Contains(l, "http 404") || strings.Contains(l, "model not found") || strings.Contains(l, "not_found"):
-		return "model not available: " + s + "\n  pick another with /model <name>"
+		return "model not available: " + s + "\n  pick another with /model"
 	case strings.Contains(l, "deadline exceeded") || strings.Contains(l, "timeout"):
 		return "the request timed out: " + s
 	}
@@ -1182,12 +1197,26 @@ func (m *model) command(text string) tea.Cmd {
 	case "/verbose":
 		m.verbose = !m.verbose
 		m.transcript.info(fmt.Sprintf("verbose tool output: %v", m.verbose))
+	case "/connect":
+		return m.openConnect(stepPick)
 	case "/model":
 		if len(fields) < 2 {
-			m.transcript.info("model: " + m.opts.Agent.Model + " (" + m.opts.Provider + ")")
-			break
+			if m.opts.Config == nil {
+				m.transcript.info("model: " + m.opts.Agent.Model + " (" + m.opts.Provider + ")")
+				break
+			}
+			return m.openConnect(stepModel)
 		}
 		m.opts.Agent.Model = fields[1]
+		if cfg := m.opts.Config; cfg != nil {
+			cfg.Model = fields[1]
+			m.opts.Agent.Price = cfg.PriceFor(fields[1])
+			if m.opts.ConfigPath != "" {
+				if err := config.Update(m.opts.ConfigPath, cfg.Provider, cfg.Active(), fields[1]); err != nil {
+					m.transcript.errorf("saving config: %v", err)
+				}
+			}
+		}
 		m.transcript.info("model set to " + fields[1] + " on " + m.opts.Provider)
 	case "/mcp":
 		m.mcpCommand(fields[1:])
@@ -1499,6 +1528,9 @@ func (m *model) footerHeight() int {
 	if m.denying {
 		h++
 	}
+	if m.connect != nil {
+		h += m.connectHeight()
+	}
 	return h + len(m.queued)
 }
 
@@ -1683,6 +1715,9 @@ func (m *model) footerView() string {
 			parts = append(parts, styleFaint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))
 		}
 	}
+	if m.connect != nil {
+		parts = append(parts, m.connectView()...)
+	}
 	for i, q := range m.queued {
 		parts = append(parts, "  "+styleFaint.Render(fmt.Sprintf("queued %d ", i+1))+styleDim.Render(truncateLine(strings.ReplaceAll(q, "\n", " "), m.width-14)))
 	}
@@ -1695,6 +1730,14 @@ func (m *model) footerView() string {
 		prompt = styleFaint.Render("❯ ")
 	}
 	lines := strings.Split(m.input.View(), "\n")
+	if m.connect != nil && m.connect.step == stepKeys {
+		// Keys never appear on screen.
+		masked := maskedInput(m.input.Value())
+		if masked == "" {
+			masked = styleFaint.Render(m.input.Placeholder)
+		}
+		lines = strings.Split(masked+"▌", "\n")
+	}
 	for i := range lines {
 		if i == 0 {
 			lines[i] = prompt + lines[i]

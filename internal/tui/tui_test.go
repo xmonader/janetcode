@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/mcp/testserver"
@@ -753,4 +754,130 @@ func TestSplitMarkdownBlocks(t *testing.T) {
 	if len(got) != 3 || got[1] != "b\n```\nx\n\ny\n```" || got[2] != "c" {
 		t.Fatalf("got %q", got)
 	}
+}
+
+// listing is a provider that can enumerate models.
+type listing struct {
+	scripted
+	models []llm.ModelInfo
+	err    error
+}
+
+func (l *listing) ListModels(ctx context.Context) ([]llm.ModelInfo, error) { return l.models, l.err }
+
+// updateCmd runs Update and then any command it returned, feeding the
+// resulting message back in (enough for the dialog's single async step).
+func (h *harness) updateCmd(msg tea.Msg) {
+	mm, cmd := h.m.Update(msg)
+	h.m = mm.(*model)
+	if cmd != nil {
+		if out := cmd(); out != nil {
+			h.update(out)
+		}
+	}
+}
+
+func (h *harness) withConfig(t *testing.T, cfg *config.Config, build func(*config.Config) (llm.Provider, error)) string {
+	path := filepath.Join(t.TempDir(), "config.json")
+	h.m.opts.Config, h.m.opts.ConfigPath, h.m.opts.Build = cfg, path, build
+	return path
+}
+
+func TestConnectDialogSwitchesProvider(t *testing.T) {
+	h := newHarness(t)
+	cfg := &config.Config{Provider: "fake", Model: "m", Providers: map[string]config.Provider{
+		"fake": {Type: "openai", BaseURL: "http://fake", APIKey: "k0"},
+	}}
+	var built *config.Config
+	lister := &listing{models: []llm.ModelInfo{{ID: "zeta/z"}, {ID: "deepseek/deepseek-v4-flash", Name: "DeepSeek V4 Flash"}}}
+	path := h.withConfig(t, cfg, func(c *config.Config) (llm.Provider, error) { built = c; return lister, nil })
+	esc := tea.KeyMsg{Type: tea.KeyEsc}
+	down := tea.KeyMsg{Type: tea.KeyDown}
+
+	h.keys("/connect")
+	h.enter()
+	if h.m.connect == nil || h.m.connect.step != stepPick {
+		t.Fatalf("dialog not open: %+v", h.m.connect)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "choose a provider") || !strings.Contains(v, "✓ fake") || !strings.Contains(v, "OpenRouter") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("openrouter")
+	h.enter()
+	if h.m.connect.step != stepURL || h.m.input.Value() != "https://openrouter.ai/api/v1" {
+		t.Fatalf("step %d url %q", h.m.connect.step, h.m.input.Value())
+	}
+	h.enter() // keep the preset URL
+	if h.m.connect.step != stepKeys {
+		t.Fatalf("step = %d", h.m.connect.step)
+	}
+	h.enter() // hosted provider without a key is refused
+	if h.m.connect.step != stepKeys || !strings.Contains(plain(h.m.View()), "needs an API key") {
+		t.Fatalf("step %d view:\n%s", h.m.connect.step, plain(h.m.View()))
+	}
+	h.keys("sk-one, sk-two")
+	if v := plain(h.m.View()); strings.Contains(v, "sk-one") || !strings.Contains(v, "••") {
+		t.Fatalf("key visible:\n%s", v)
+	}
+	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter}) // runs the model fetch
+	if h.m.connect.step != stepModel || h.m.connect.loading || len(h.m.connect.models) != 2 {
+		t.Fatalf("connect = %+v", h.m.connect)
+	}
+	if built == nil || built.Provider != "openrouter" || strings.Join(built.Active().Keys(), ",") != "sk-one,sk-two" {
+		t.Fatalf("list built with %+v", built)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "▸ deepseek/deepseek-v4-flash") || !strings.Contains(v, "zeta/z") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.update(down)
+	if !strings.Contains(plain(h.m.View()), "▸ zeta/z") {
+		t.Fatalf("view:\n%s", plain(h.m.View()))
+	}
+	h.keys("deep") // filtering resets the highlight to the first match
+	h.enter()
+	if h.m.connect != nil {
+		t.Fatalf("dialog still open: %+v", h.m.connect)
+	}
+	if h.m.opts.Agent.Model != "deepseek/deepseek-v4-flash" || h.m.opts.Agent.Provider != lister || h.m.opts.Provider != "openrouter" || cfg.Provider != "openrouter" {
+		t.Fatalf("agent %s/%v opts %s cfg %s", h.m.opts.Agent.Model, h.m.opts.Agent.Provider, h.m.opts.Provider, cfg.Provider)
+	}
+	if !strings.Contains(plain(h.m.View()), "connected to openrouter · model deepseek/deepseek-v4-flash") {
+		t.Fatalf("view:\n%s", plain(h.m.View()))
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(raw), `"sk-two"`) || !strings.Contains(string(raw), `"provider": "openrouter"`) || !strings.Contains(string(raw), `"model": "deepseek/deepseek-v4-flash"`) {
+		t.Fatalf("saved config: %s %v", raw, err)
+	}
+
+	// /model alone opens the picker for the current provider; a typed id
+	// that is not listed is used as is; esc leaves the dialog.
+	h.inputReset()
+	h.keys("/model")
+	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter})
+	if h.m.connect == nil || h.m.connect.step != stepModel || h.m.connect.name != "openrouter" {
+		t.Fatalf("connect = %+v", h.m.connect)
+	}
+	h.keys("custom/model")
+	h.enter()
+	if h.m.connect != nil || h.m.opts.Agent.Model != "custom/model" {
+		t.Fatalf("model = %s", h.m.opts.Agent.Model)
+	}
+	h.inputReset()
+	h.keys("hello")
+	h.inputReset()
+	h.keys("/connect")
+	h.enter()
+	h.update(esc)
+	if h.m.connect != nil || h.m.input.Value() != "" {
+		t.Fatalf("esc did not close: %+v %q", h.m.connect, h.m.input.Value())
+	}
+
+	// A listing failure still lets the user type a model id.
+	lister.err = errors.New("boom")
+	h.keys("/model")
+	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter})
+	if !strings.Contains(plain(h.m.View()), "could not list models: boom") {
+		t.Fatalf("view:\n%s", plain(h.m.View()))
+	}
+	h.update(esc)
 }
