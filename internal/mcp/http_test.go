@@ -112,6 +112,9 @@ func legacySSEServer(t *testing.T) *httptest.Server {
 	push := func(s string) {
 		mu.Lock()
 		defer mu.Unlock()
+		if stream == nil {
+			return // client went away
+		}
 		fmt.Fprintf(stream, "event: message\ndata: %s\n\n", s)
 		fl.Flush()
 	}
@@ -130,6 +133,9 @@ func legacySSEServer(t *testing.T) *httptest.Server {
 		mu.Unlock()
 		close(ready)
 		<-r.Context().Done()
+		mu.Lock()
+		stream, fl = nil, nil
+		mu.Unlock()
 	})
 	mux.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("session") != "abc" {
