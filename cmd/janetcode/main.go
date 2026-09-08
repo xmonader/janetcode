@@ -70,6 +70,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		showVersion = fs.Bool("version", false, "print version and exit")
 		listSess    = fs.Bool("sessions", false, "list saved sessions for this directory and exit")
 		initCfg     = fs.Bool("init", false, "write an example config file and exit")
+		runDoctor   = fs.Bool("doctor", false, "check config, credentials, a live model call, directories and MCP servers, then exit")
 	)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -91,6 +92,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	if *listSess {
 		return printSessions()
+	}
+	if *runDoctor {
+		return doctor(os.Stdout, config.Overrides{Provider: *provider, Model: *model, Effort: *effort})
 	}
 	initial := strings.TrimSpace(strings.Join(fs.Args(), " "))
 	if initial != "" && *promptText != "" {
