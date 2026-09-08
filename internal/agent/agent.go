@@ -118,6 +118,9 @@ type Agent struct {
 	Messages []llm.Message
 	// Usage accumulates over the whole conversation.
 	Usage llm.Usage
+	// Price, when set, lets the UI estimate spend for providers that do not
+	// report cost.
+	Price *llm.Price
 
 	allowed map[string]bool
 

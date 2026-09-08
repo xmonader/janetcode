@@ -145,6 +145,7 @@ type wireChunk struct {
 		PromptTokensDetails *struct {
 			CachedTokens int `json:"cached_tokens"`
 		} `json:"prompt_tokens_details"`
+		Cost float64 `json:"cost"` // OpenRouter reports the request price
 	} `json:"usage"`
 	Error *wireError `json:"error"`
 }
@@ -394,6 +395,7 @@ func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
 			if ch.Usage.PromptTokensDetails != nil {
 				usage.CacheReadTokens = ch.Usage.PromptTokensDetails.CachedTokens
 			}
+			usage.CostUSD = ch.Usage.Cost
 		}
 		for _, c := range ch.Choices {
 			if c.FinishReason != nil && *c.FinishReason != "" {

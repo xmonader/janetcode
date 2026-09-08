@@ -117,6 +117,9 @@ type Usage struct {
 	OutputTokens     int `json:"output_tokens"`
 	CacheReadTokens  int `json:"cache_read_tokens"`
 	CacheWriteTokens int `json:"cache_write_tokens"`
+	// CostUSD is the price the provider reported for the request (OpenRouter
+	// does), or 0 when unknown.
+	CostUSD float64 `json:"cost_usd,omitempty"`
 }
 
 // Add accumulates u2 into u.
@@ -125,6 +128,41 @@ func (u *Usage) Add(u2 Usage) {
 	u.OutputTokens += u2.OutputTokens
 	u.CacheReadTokens += u2.CacheReadTokens
 	u.CacheWriteTokens += u2.CacheWriteTokens
+	u.CostUSD += u2.CostUSD
+}
+
+// Price is what a model costs per million tokens, in USD.
+type Price struct {
+	Input      float64 `json:"input"`
+	Output     float64 `json:"output"`
+	CacheRead  float64 `json:"cache_read"`
+	CacheWrite float64 `json:"cache_write"`
+}
+
+// Cost returns the provider-reported cost when there is one, otherwise an
+// estimate from the price table; ok is false when neither is available.
+func (u Usage) Cost(p *Price) (usd float64, ok bool) {
+	if u.CostUSD > 0 {
+		return u.CostUSD, true
+	}
+	if p == nil {
+		return 0, false
+	}
+	m := 1e6
+	usd = float64(u.InputTokens)/m*p.Input + float64(u.OutputTokens)/m*p.Output +
+		float64(u.CacheReadTokens)/m*p.CacheRead + float64(u.CacheWriteTokens)/m*p.CacheWrite
+	return usd, true
+}
+
+// FormatUSD renders a cost compactly: $0.0042, $0.12, $3.40.
+func FormatUSD(usd float64) string {
+	switch {
+	case usd < 0.01:
+		return fmt.Sprintf("$%.4f", usd)
+	case usd < 1:
+		return fmt.Sprintf("$%.3f", usd)
+	}
+	return fmt.Sprintf("$%.2f", usd)
 }
 
 // StopReason says why the model stopped generating.

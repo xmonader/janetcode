@@ -147,7 +147,7 @@ var commands = []command{
 	{"/resume", "[n|id]", "list earlier sessions here, or reopen one"},
 	{"/yolo", "", "toggle auto-approve for tools"},
 	{"/model", "<name>", "switch model on the same provider"},
-	{"/usage", "", "token usage for this session"},
+	{"/usage", "", "tokens and cost for this session"},
 	{"/verbose", "", "toggle expanded tool output (ctrl+o)"},
 	{"/quit", "", "exit"},
 }
@@ -398,6 +398,9 @@ func (m *model) applyEvent(ev agent.Event) {
 		s := fmt.Sprintf("%s in · %s out", shortTokens(u.InputTokens+u.CacheReadTokens+u.CacheWriteTokens), shortTokens(u.OutputTokens))
 		if u.CacheReadTokens > 0 {
 			s += fmt.Sprintf(" · %s cached", shortTokens(u.CacheReadTokens))
+		}
+		if usd, ok := m.opts.Agent.Usage.Cost(m.opts.Agent.Price); ok {
+			s += " · " + llm.FormatUSD(usd) + " total"
 		}
 		if ev.StopReason != "" && ev.StopReason != "end_turn" {
 			s += " · stopped: " + string(ev.StopReason)
@@ -935,10 +938,19 @@ func (m *model) command(text string) tea.Cmd {
 			break
 		}
 		return m.compact()
-	case "/usage":
+	case "/usage", "/cost":
 		u := m.opts.Agent.Usage
-		m.transcript.info(fmt.Sprintf("session tokens · in %s · out %s · cache read %s · cache write %s · context now ~%s",
-			shortTokens(u.InputTokens), shortTokens(u.OutputTokens), shortTokens(u.CacheReadTokens), shortTokens(u.CacheWriteTokens), shortTokens(m.opts.Agent.EstimateTokens())))
+		line := fmt.Sprintf("session tokens · in %s · out %s · cache read %s · cache write %s · context now ~%s",
+			shortTokens(u.InputTokens), shortTokens(u.OutputTokens), shortTokens(u.CacheReadTokens), shortTokens(u.CacheWriteTokens), shortTokens(m.opts.Agent.EstimateTokens()))
+		switch usd, ok := u.Cost(m.opts.Agent.Price); {
+		case ok && u.CostUSD > 0:
+			line += "\ncost " + llm.FormatUSD(usd) + " (reported by the provider)"
+		case ok:
+			line += "\ncost " + llm.FormatUSD(usd) + " (estimated from prices in the config file)"
+		default:
+			line += "\ncost unknown: the provider does not report it; add the model under \"prices\" in the config file to estimate"
+		}
+		m.transcript.info(line)
 	default:
 		if c, ok := m.custom[fields[0]]; ok {
 			args := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))

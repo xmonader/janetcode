@@ -1,6 +1,8 @@
 package config
 
 import (
+	"github.com/xmonader/janetcode/internal/llm"
+
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,5 +104,21 @@ func TestWriteExampleParses(t *testing.T) {
 	cfg, err := load(p, env(map[string]string{"ANTHROPIC_API_KEY": "k"}), Overrides{})
 	if err != nil || cfg.CompactAt != 150000 || cfg.Theme != "auto" || cfg.Effort != "high" {
 		t.Fatalf("cfg=%+v err=%v", cfg, err)
+	}
+}
+
+func TestPriceFor(t *testing.T) {
+	c := &Config{Prices: map[string]llm.Price{"claude": {Input: 1}, "claude-opus": {Input: 2}, "exact-model": {Input: 3}}}
+	if p := c.PriceFor("exact-model"); p == nil || p.Input != 3 {
+		t.Fatalf("exact = %+v", p)
+	}
+	if p := c.PriceFor("claude-opus-5"); p == nil || p.Input != 2 {
+		t.Fatalf("longest prefix = %+v", p)
+	}
+	if p := c.PriceFor("claude-haiku"); p == nil || p.Input != 1 {
+		t.Fatalf("short prefix = %+v", p)
+	}
+	if p := c.PriceFor("gpt"); p != nil {
+		t.Fatalf("unknown = %+v", p)
 	}
 }

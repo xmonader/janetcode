@@ -133,6 +133,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 
 	ag := &agent.Agent{
 		Provider: prov,
+		Price:    cfg.PriceFor(cfg.Model),
 		Tools: tool.NewRegistry(
 			tool.ReadFile{Root: cwd},
 			tool.WriteFile{Root: cwd},

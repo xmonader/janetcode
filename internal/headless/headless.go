@@ -12,6 +12,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 )
 
@@ -49,7 +50,11 @@ func Run(ctx context.Context, opts Options) error {
 			fmt.Fprintf(opts.Stderr, "[compacted] %s\n", e.Text)
 		case agent.EvTurnDone:
 			fmt.Fprintln(opts.Stdout)
-			fmt.Fprintf(opts.Stderr, "[usage] in=%d out=%d cache_read=%d stop=%s\n", e.Usage.InputTokens, e.Usage.OutputTokens, e.Usage.CacheReadTokens, e.StopReason)
+			fmt.Fprintf(opts.Stderr, "[usage] in=%d out=%d cache_read=%d stop=%s", e.Usage.InputTokens, e.Usage.OutputTokens, e.Usage.CacheReadTokens, e.StopReason)
+			if usd, ok := e.Usage.Cost(opts.Agent.Price); ok {
+				fmt.Fprintf(opts.Stderr, " cost=%s", llm.FormatUSD(usd))
+			}
+			fmt.Fprintln(opts.Stderr)
 		}
 	})
 	if opts.Session != nil {

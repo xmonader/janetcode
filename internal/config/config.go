@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/llm"
 )
 
 // ProviderConfig is the credentials for one backend.
@@ -33,6 +35,28 @@ type Config struct {
 	Theme     string         `json:"theme,omitempty"`
 	Anthropic ProviderConfig `json:"anthropic"`
 	OpenAI    ProviderConfig `json:"openai"`
+	// Prices per million tokens by model name, used to estimate spend when
+	// the provider does not report it. A key may be a prefix ("claude-opus").
+	Prices map[string]llm.Price `json:"prices,omitempty"`
+}
+
+// PriceFor returns the configured price for model: an exact key first, then
+// the longest key that prefixes the model name.
+func (c *Config) PriceFor(model string) *llm.Price {
+	if p, ok := c.Prices[model]; ok {
+		return &p
+	}
+	best := ""
+	for k := range c.Prices {
+		if strings.HasPrefix(model, k) && len(k) > len(best) {
+			best = k
+		}
+	}
+	if best == "" {
+		return nil
+	}
+	p := c.Prices[best]
+	return &p
 }
 
 // Overrides are command-line values; empty means "not given".
@@ -80,6 +104,9 @@ const Example = `{
   "openai": {
     "api_key": "",
     "base_url": "https://api.openai.com/v1"
+  },
+  "prices": {
+    "example-model": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75}
   }
 }
 `

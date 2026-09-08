@@ -59,7 +59,7 @@ func TestStreamTextAndToolCalls(t *testing.T) {
 			`{"choices":[{"delta":{"tool_calls":[{"index":1,"id":"call_2","function":{"name":"bash","arguments":"{\"command\":\"ls\"}"}}]}}]}`,
 			`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"th\":\"a.go\"}"}}]}}]}`,
 			`{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
-			`{"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":5,"prompt_tokens_details":{"cached_tokens":4}}}`,
+			`{"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":5,"prompt_tokens_details":{"cached_tokens":4},"cost":0.00123}}`,
 		))
 	})
 	req := llm.Request{
@@ -105,7 +105,7 @@ func TestStreamTextAndToolCalls(t *testing.T) {
 	if resp.StopReason != llm.StopToolUse {
 		t.Fatalf("stop = %s", resp.StopReason)
 	}
-	if resp.Usage != (llm.Usage{InputTokens: 10, OutputTokens: 5, CacheReadTokens: 4}) {
+	if resp.Usage != (llm.Usage{InputTokens: 10, OutputTokens: 5, CacheReadTokens: 4, CostUSD: 0.00123}) {
 		t.Fatalf("usage = %+v", resp.Usage)
 	}
 	blocks := resp.Message.Blocks

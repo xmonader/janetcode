@@ -45,7 +45,33 @@ func TestUsageAdd(t *testing.T) {
 	var u Usage
 	u.Add(Usage{InputTokens: 1, OutputTokens: 2, CacheReadTokens: 3, CacheWriteTokens: 4})
 	u.Add(Usage{InputTokens: 1, OutputTokens: 2, CacheReadTokens: 3, CacheWriteTokens: 4})
-	if u != (Usage{2, 4, 6, 8}) {
+	if u != (Usage{InputTokens: 2, OutputTokens: 4, CacheReadTokens: 6, CacheWriteTokens: 8}) {
 		t.Fatalf("usage = %+v", u)
+	}
+}
+
+func TestUsageCost(t *testing.T) {
+	u := Usage{InputTokens: 1_000_000, OutputTokens: 100_000, CacheReadTokens: 500_000}
+	if _, ok := u.Cost(nil); ok {
+		t.Fatal("no price and no reported cost must be unknown")
+	}
+	usd, ok := u.Cost(&Price{Input: 3, Output: 15, CacheRead: 0.3})
+	if !ok || usd < 4.649 || usd > 4.651 {
+		t.Fatalf("estimate = %v %v", usd, ok)
+	}
+	u.CostUSD = 0.5
+	if usd, ok := u.Cost(&Price{Input: 3}); !ok || usd != 0.5 {
+		t.Fatalf("reported cost must win: %v %v", usd, ok)
+	}
+	var sum Usage
+	sum.Add(u)
+	sum.Add(u)
+	if sum.CostUSD != 1.0 {
+		t.Fatalf("Add cost = %v", sum.CostUSD)
+	}
+	for in, want := range map[float64]string{0.0042: "$0.0042", 0.123: "$0.123", 3.4: "$3.40"} {
+		if got := FormatUSD(in); got != want {
+			t.Fatalf("FormatUSD(%v) = %q", in, got)
+		}
 	}
 }
