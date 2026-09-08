@@ -95,6 +95,7 @@ func (t *Task) child() *Agent {
 		MaxTokens:     p.MaxTokens,
 		MaxIterations: maxIter,
 		CompactAt:     p.CompactAt,
+		Archive:       p.Archive,
 		AutoApprove:   false,
 		Debug:         p.Debug,
 	}

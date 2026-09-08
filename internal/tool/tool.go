@@ -89,8 +89,9 @@ func (r *Registry) Defs() []llm.ToolDef {
 	return defs
 }
 
-// MaxOutput caps tool output sent back to the model, in bytes.
-const MaxOutput = 64 * 1024
+// MaxOutput is the hard cap on what a tool returns, in bytes. The agent
+// archives anything over its inline limit, so this only bounds memory.
+const MaxOutput = 256 * 1024
 
 // Truncate clips s to about MaxOutput bytes, keeping the head and the tail
 // with a marker in between: the failure in a long test run is at the end.

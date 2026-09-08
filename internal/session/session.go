@@ -4,6 +4,8 @@ package session
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -51,6 +53,13 @@ func Dir() (string, error) {
 		base = filepath.Join(home, ".local", "share")
 	}
 	return filepath.Join(base, "janetcode", "sessions"), nil
+}
+
+// ArchiveDir is where full tool outputs for the project at cwd are kept,
+// beside the sessions directory and shared by all of the project's sessions.
+func ArchiveDir(sessionsDir, cwd string) string {
+	sum := sha256.Sum256([]byte(cwd))
+	return filepath.Join(filepath.Dir(sessionsDir), "archive", hex.EncodeToString(sum[:8]))
 }
 
 // New creates a session file in dir.

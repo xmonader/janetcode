@@ -124,6 +124,9 @@ type Agent struct {
 	// UndoPath, when set, persists undo checkpoints next to the session so
 	// /undo survives a resume.
 	UndoPath string
+	// Archive, when set, keeps full tool outputs longer than InlineOutput
+	// on disk so the model can page through them with expand_output.
+	Archive *Archive
 
 	allowed map[string]bool
 	cp      checkpointer
@@ -471,6 +474,7 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	if out == "" {
 		out = "(no output)"
 	}
+	out = a.stash(u.ID, u.Name, out)
 	if t.Mutating() { // edit coaching only touches serial (mutating) calls, so no lock is needed
 		out += a.coach.after(ctx, a.Tools, t, u.Name, u.Input, isErr)
 	} else if u.Name == "read_file" {

@@ -147,8 +147,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 
 	task := &agent.Task{}
+	archive := agent.NewArchive(session.ArchiveDir(sessDir, cwd))
 	ag := &agent.Agent{
 		Provider: prov,
+		Archive:  archive,
 		Price:    cfg.PriceFor(cfg.Model),
 		Tools: tool.NewRegistry(
 			tool.ReadFile{Root: cwd},
@@ -159,6 +161,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			tool.Grep{Root: cwd},
 			tool.Bash{Root: cwd, Cache: &tool.ShellCache{}},
 			tool.FetchURL{},
+			&agent.ExpandOutput{Archive: archive},
 			task,
 		),
 		System:        prompt.System(cwd),

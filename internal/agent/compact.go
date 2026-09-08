@@ -97,7 +97,7 @@ func (a *Agent) Prune() int {
 			case useKey[b.ToolUseID] != "" && !keep[b.ToolUseID] && len(b.Text) > len(superseded):
 				a.Messages[i].Blocks[j].Text = superseded
 			case len(b.Text) > pruneKeep:
-				a.Messages[i].Blocks[j].Text = tool.TruncateTo(b.Text, pruneKeep)
+				a.Messages[i].Blocks[j].Text = a.trimOld(b.ToolUseID, b.Text)
 			}
 			saved += before - len(a.Messages[i].Blocks[j].Text)
 		}
@@ -292,4 +292,24 @@ func isContextOverflow(err error) bool {
 		}
 	}
 	return false
+}
+
+// trimOld shortens an old tool result to pruneKeep bytes. The full text is
+// archived first (unless it already was) so the model can get it back.
+func (a *Agent) trimOld(toolUse, text string) string {
+	if a.Archive == nil {
+		return tool.TruncateTo(text, pruneKeep)
+	}
+	if id := a.Archive.IDFor(toolUse); id != "" {
+		// Already archived: keep the note that names the id, trim the rest.
+		if i := strings.Index(text, "\n"); i > 0 && strings.HasPrefix(text, "[output is ") {
+			return text[:i+1] + tool.TruncateTo(text[i+1:], pruneKeep)
+		}
+		return archiveNote(id, len(text), pruneKeep) + tool.TruncateTo(text, pruneKeep)
+	}
+	id, err := a.Archive.Put(toolUse, "", text)
+	if err != nil {
+		return tool.TruncateTo(text, pruneKeep)
+	}
+	return archiveNote(id, len(text), pruneKeep) + tool.TruncateTo(text, pruneKeep)
 }
