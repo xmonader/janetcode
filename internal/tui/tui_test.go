@@ -303,6 +303,35 @@ func TestMentionCompletionAndAttachment(t *testing.T) {
 	}
 }
 
+func TestShellPassthrough(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "seen"), StopReason: llm.StopEndTurn})
+	h.keys("!echo hello-from-shell; echo err >&2; exit 3")
+	h.enter()
+	if !h.m.running {
+		t.Fatal("shell should mark the UI busy")
+	}
+	h.pump(func() bool { return !h.m.running })
+	v := plain(h.m.View())
+	for _, want := range []string{"shell", "hello-from-shell", "output shared with the model"} {
+		if !strings.Contains(v, want) {
+			t.Errorf("missing %q in view:\n%s", want, v)
+		}
+	}
+	// The next prompt carries the command and its output.
+	h.keys("what did that print?")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	if n := len(h.m.opts.Agent.Messages); n != 2 {
+		t.Fatalf("messages = %d, the shell context must merge into the user turn", n)
+	}
+	sent := h.m.opts.Agent.Messages[0].Text()
+	for _, want := range []string{"$ echo hello-from-shell", "\nhello-from-shell\n", "[exit code 3]", "what did that print?"} {
+		if !strings.Contains(sent, want) {
+			t.Fatalf("missing %q in shared context: %q", want, sent)
+		}
+	}
+}
+
 func TestPromptHistoryRecall(t *testing.T) {
 	h := newHarness(t,
 		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "a"), StopReason: llm.StopEndTurn},

@@ -3,6 +3,7 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // Options configures the UI.
@@ -69,6 +71,14 @@ type verdict struct {
 	reason string
 }
 type tickMsg time.Time
+
+// shellDoneMsg carries the result of a "!command" the user ran directly.
+type shellDoneMsg struct {
+	call   agent.ToolCall
+	output string
+	err    error
+	dur    time.Duration
+}
 
 // eventQueue coalesces agent events so that one slow render never throttles
 // the model stream: the agent goroutine appends without blocking and the UI
@@ -318,6 +328,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.GotoBottom()
 		return m, nil
 
+	case shellDoneMsg:
+		m.finishShell(msg)
+		var cmd tea.Cmd
+		if len(m.queued) > 0 {
+			next := m.queued[0]
+			m.queued = m.queued[1:]
+			cmd = m.submit(next)
+		}
+		m.refresh(false)
+		return m, cmd
+
 	case agentDoneMsg:
 		m.drainEvents()
 		cmd := m.finishTurn(msg)
@@ -511,6 +532,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		if strings.HasPrefix(text, "/") {
 			return m.command(text), true
 		}
+		if strings.HasPrefix(text, "!") {
+			return m.shell(strings.TrimSpace(text[1:])), true
+		}
 		return m.submit(text), true
 	}
 	return nil, false
@@ -649,6 +673,62 @@ func (m *model) submit(text string) tea.Cmd {
 		send(agentDoneMsg{err: err, syncErr: syncErr})
 	}()
 	return m.spinner.Tick
+}
+
+// shell runs a command the user typed with a "!" prefix in the project
+// directory, shows it like a tool call, and hands the output to the model
+// as context for the next turn.
+func (m *model) shell(cmdline string) tea.Cmd {
+	if cmdline == "" {
+		m.transcript.errorf("usage: !<command>  (runs in %s and shares the output with the model)", shortPath(m.opts.Cwd))
+		m.refresh(false)
+		return nil
+	}
+	if m.running {
+		m.transcript.errorf("wait for the current turn to finish before running a command")
+		m.refresh(false)
+		return nil
+	}
+	input, _ := json.Marshal(map[string]string{"command": cmdline})
+	call := agent.ToolCall{ID: fmt.Sprintf("shell-%d", time.Now().UnixNano()), Name: "shell", Input: input}
+	m.transcript.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
+	m.startTurn("running your command")
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+	send, cwd := m.send, m.opts.Cwd
+	m.refresh(false)
+	m.viewport.GotoBottom()
+	go func() {
+		start := time.Now()
+		out, err := tool.Bash{Root: cwd}.Run(ctx, input)
+		send(shellDoneMsg{call: call, output: out, err: err, dur: time.Since(start)})
+	}()
+	return m.spinner.Tick
+}
+
+func (m *model) finishShell(msg shellDoneMsg) {
+	m.running = false
+	m.cancelling = false
+	if m.cancel != nil {
+		m.cancel()
+		m.cancel = nil
+	}
+	m.phase = ""
+	out, isErr := msg.output, false
+	if msg.err != nil {
+		out, isErr = "Error: "+msg.err.Error(), true
+	}
+	if out == "" {
+		out = "(no output)"
+	}
+	m.transcript.apply(agent.Event{Kind: agent.EvToolResult, Call: &msg.call, Output: out, IsError: isErr, Duration: msg.dur})
+	var in struct{ Command string }
+	json.Unmarshal(msg.call.Input, &in)
+	m.opts.Agent.AddContext(fmt.Sprintf("I ran this command myself in %s:\n$ %s\n<output>\n%s\n</output>", m.opts.Cwd, in.Command, strings.TrimRight(out, "\n")))
+	m.status = "ran in " + shortDuration(msg.dur) + " · output shared with the model"
+	if len(m.queued) > 0 {
+		m.status += " · sending queued prompt"
+	}
 }
 
 func (m *model) startTurn(phase string) {
@@ -840,6 +920,7 @@ func helpText() string {
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand tool output · ctrl+l redraw\n")
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends\n")
 	sb.WriteString("  @path attaches a file or directory listing to the prompt · tab completes the path\n")
+	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
 	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · n deny (then type why, or enter to skip) · esc deny\n")
 	sb.WriteString("commands\n")
 	for _, c := range commands {

@@ -333,6 +333,10 @@ func (a *Agent) traced(emit func(Event)) func(Event) {
 	}
 }
 
+// AddContext records text the user produced outside the model's view (a
+// shell command they ran, a note) as user content for the next turn.
+func (a *Agent) AddContext(text string) { a.appendUserText(text) }
+
 // appendUserText adds text as a new user message, or into the trailing user
 // message if the last turn ended with one (tool results from an aborted turn,
 // or a message whose model call failed).
