@@ -365,12 +365,15 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	head, tail := history[:ts], history[ts:]
 	midTurn := len(tail) == 0 && history[len(history)-1].Role == llm.RoleUser // ends with tool results
 
-	req := llm.Request{
-		Model:     a.Model,
-		System:    compactSystem,
-		Messages:  append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, "Write the handoff note now.")),
-		MaxTokens: a.MaxTokens,
+	typed := !a.Off["working"]
+	req := llm.Request{Model: a.Model, System: compactSystem, MaxTokens: a.MaxTokens}
+	ask := "Write the handoff note now."
+	if typed {
+		a.working.absorb(head)
+		req.System = workingSystem
+		ask = "Previous working memory (update it):\n" + a.working.modelSections() + "\n\nWrite the updated JSON object now."
 	}
+	req.Messages = append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, ask))
 	resp, err := a.Provider.Stream(ctx, req, nil)
 	if err != nil {
 		a.summaryFailedAt = time.Now()
@@ -385,6 +388,17 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	a.Usage.Add(resp.Usage)
 
 	note := "[Context was compacted. Handoff note from the earlier part of this conversation:]\n\n" + summary
+	if typed {
+		w := &a.working
+		w.Latest = a.integ.userText
+		if !w.merge(summary) {
+			emit(Event{Kind: EvNotice, Text: "working memory: the model returned prose instead of the record; kept as notes"})
+		}
+		if a.Hooks != nil {
+			w.hash(a.Hooks.Cwd)
+		}
+		note = w.Render()
+	}
 	for _, n := range hookNotes {
 		note += "\n\n[From a pre_compact hook:]\n" + n
 	}

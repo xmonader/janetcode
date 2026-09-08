@@ -650,6 +650,18 @@ meanwhile. Token estimates use character classes (letters, digits and
 symbols, non-ASCII) rather than a flat bytes-per-token guess, which is
 what keeps the threshold honest on code.
 
+The summary itself is not a prose note. It is a typed working-memory
+record: the harness fills in exactly what it observed in the messages
+being condensed (files edited with a hash of their content now, files
+read, commands run with their last exit code and run count, the last
+verification result), and the model only maintains the parts that need
+judgement: goal and constraints, decisions, approaches ruled out, facts
+about the codebase, open questions, and next steps. The model gets the
+previous record and updates it rather than summarising from scratch, so
+the record does not drift from compaction to compaction, and a model
+that answers in prose anyway has its text kept as notes. The eval
+switch `working` restores the old prose handoff note for comparison.
+
 Edits are refused when a file changed on disk since the agent last read
 or wrote it (you edited it, a formatter ran, another session touched it):
 the model is told to read it again. Files it has never read are not
@@ -708,7 +720,7 @@ improved:  05-rename-symbol, 13-multi-file-package
 ```
 
 `EVAL_OFF=coach,prune` runs an ablation with named behaviours disabled
-(`coach`, `syntax`, `loops`, `prune`, `verify`, `repomap`); the variant name is
+(`coach`, `syntax`, `loops`, `prune`, `verify`, `repomap`, `working`); the variant name is
 recorded in the results file so a comparison says what it compared.
 
 ## Development

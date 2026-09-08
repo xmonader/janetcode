@@ -84,7 +84,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalKeep    = fs.Bool("eval-keep", false, "keep eval work directories")
 		evalRuns    = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips)")
 		evalCompare = fs.String("eval-compare", "", "results file of a baseline run to compare against (paired by task, bootstrap interval)")
-		evalOff     = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify, repomap")
+		evalOff     = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify, repomap, working")
 		evalLabel   = fs.String("eval-label", "", "name recorded in the results file for this variant")
 		allow       = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
 		deny        = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
@@ -473,7 +473,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	for _, f := range strings.Split(o.off, ",") {
 		if f = strings.TrimSpace(f); f != "" {
 			if !agent.KnownSwitch(f) {
-				return fmt.Errorf("--eval-off: unknown behaviour %q (coach, syntax, loops, prune, verify, repomap)", f)
+				return fmt.Errorf("--eval-off: unknown behaviour %q (coach, syntax, loops, prune, verify, repomap, working)", f)
 			}
 			off[f] = true
 		}

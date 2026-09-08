@@ -12,7 +12,7 @@ import (
 )
 
 func TestCompactKeepsPendingUserText(t *testing.T) {
-	f := &fake{responses: []*llm.Response{text("SUMMARY: did things")}}
+	f := &fake{responses: []*llm.Response{text(`{"facts":["SUMMARY: did things"]}`)}}
 	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Messages: []llm.Message{
 		llm.TextMessage(llm.RoleUser, "first"),
 		llm.TextMessage(llm.RoleAssistant, "ok"),
@@ -23,7 +23,7 @@ func TestCompactKeepsPendingUserText(t *testing.T) {
 		t.Fatal(err)
 	}
 	req := f.requests[0]
-	if req.System != compactSystem || len(req.Tools) != 0 || len(req.Messages) != 3 || req.Messages[2].Text() != "Write the handoff note now." {
+	if req.System != workingSystem || len(req.Tools) != 0 || len(req.Messages) != 3 || !strings.HasPrefix(req.Messages[2].Text(), "Previous working memory") {
 		t.Fatalf("compaction request = %+v", req)
 	}
 	if len(a.Messages) != 1 || a.Messages[0].Role != llm.RoleUser || len(a.Messages[0].Blocks) != 2 {
@@ -43,11 +43,11 @@ func TestCompactKeepsPendingUserText(t *testing.T) {
 func TestAutoCompactBeforeCallAndOnOverflow(t *testing.T) {
 	big := strings.Repeat("x", 4000) // ~1000 tokens
 	f := &fake{responses: []*llm.Response{
-		text("note A"),     // compaction triggered by estimate
-		text("answer one"), // real call
-		nil,                // overflow error (errs below)
-		text("note B"),     // compaction triggered by overflow
-		text("answer two"), // retry
+		text(`{"next":["note A"]}`), // compaction triggered by estimate
+		text("answer one"),          // real call
+		nil,                         // overflow error (errs below)
+		text(`{"next":["note B"]}`), // compaction triggered by overflow
+		text("answer two"),          // retry
 	}, errs: []error{nil, nil, errors.New("400: prompt is too long: 210000 tokens > 200000 maximum")}}
 	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", CompactAt: 500}
 	a.Messages = []llm.Message{llm.TextMessage(llm.RoleUser, big), llm.TextMessage(llm.RoleAssistant, "ok")}

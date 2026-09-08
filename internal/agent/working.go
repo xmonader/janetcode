@@ -1,0 +1,310 @@
+package agent
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+
+	"github.com/xmonader/janetcode/internal/llm"
+)
+
+// WorkingMemory is the typed record that replaces the prose handoff note
+// when the history is compacted. The harness fills the parts it observed
+// itself (files edited and read, commands run and how they exited, the
+// last verification) exactly, from the messages being summarised; the
+// model only updates the parts that need judgement (goal, decisions,
+// what was ruled out, facts, open questions, next steps), starting from
+// the previous record so nothing drifts from summary to summary.
+type WorkingMemory struct {
+	Goal     string
+	Latest   string // the current user request
+	Edited   []FileNote
+	Read     []string
+	Commands []CommandNote
+	Verify   string // last verification outcome
+	// Model-maintained sections.
+	Decisions []string `json:"decisions"`
+	RuledOut  []string `json:"ruled_out"`
+	Facts     []string `json:"facts"`
+	Open      []string `json:"open"`
+	Next      []string `json:"next"`
+	// Notes holds the model's prose when it did not return the structure.
+	Notes string
+
+	seen map[string]bool // tool_use ids already counted
+}
+
+// FileNote is a file the agent changed, with a hash of its content at
+// compaction time so a later read can tell whether it moved since.
+type FileNote struct {
+	Path  string
+	Edits int
+	Hash  string
+}
+
+// CommandNote is a shell command the agent ran.
+type CommandNote struct {
+	Command string
+	Runs    int
+	Exit    string
+	order   int
+}
+
+const (
+	workingMarker = "[Context was compacted. Working memory for this session:]"
+	maxEdited     = 40
+	maxRead       = 40
+	maxCommands   = 15
+	maxItems      = 12
+)
+
+const workingSystem = `You are compacting a coding-agent conversation so work can continue in a fresh context. The harness has already recorded exactly which files were edited and read, which commands ran and how they exited, and the last verification result; do not repeat those. Update the working memory from the conversation and return only a JSON object with these keys:
+"goal": the user's goal and every constraint or preference they stated (string);
+"decisions": choices made and why (array of strings);
+"ruled_out": approaches tried and abandoned, each with the reason, so they are not repeated (array);
+"facts": things learned about the codebase that would be expensive to rediscover, with concrete file paths, names and commands (array);
+"open": unresolved questions (array);
+"next": what remains, in order, concretely (array).
+Keep entries from the previous record that still matter, drop what is finished, and be precise rather than brief. Output only the JSON object.`
+
+var reExitArrow = regexp.MustCompile(`→ exit (\d+)`)
+
+// absorb records the tool calls and user requests in msgs that were not
+// counted yet.
+func (w *WorkingMemory) absorb(msgs []llm.Message) {
+	if w.seen == nil {
+		w.seen = map[string]bool{}
+	}
+	uses := map[string]llm.Block{}
+	edited := map[string]int{}
+	for i, f := range w.Edited {
+		edited[f.Path] = i
+	}
+	cmds := map[string]int{}
+	for i, c := range w.Commands {
+		cmds[c.Command] = i
+	}
+	order := len(w.Commands)
+	for _, m := range msgs {
+		for _, b := range m.Blocks {
+			switch b.Type {
+			case llm.BlockText:
+				if m.Role == llm.RoleUser && w.Goal == "" && !strings.HasPrefix(b.Text, "[") {
+					w.Goal = prefix(b.Text, 600)
+				}
+			case llm.BlockToolUse:
+				uses[b.ID] = b
+			case llm.BlockToolResult:
+				u, ok := uses[b.ToolUseID]
+				if !ok || b.IsError || w.seen[b.ToolUseID] {
+					continue
+				}
+				w.seen[b.ToolUseID] = true
+				var in struct {
+					Path    string `json:"path"`
+					Command string `json:"command"`
+				}
+				json.Unmarshal(u.Input, &in)
+				switch u.Name {
+				case "write_file", "edit_file":
+					if in.Path == "" {
+						continue
+					}
+					if i, ok := edited[in.Path]; ok {
+						w.Edited[i].Edits++
+					} else {
+						edited[in.Path] = len(w.Edited)
+						w.Edited = append(w.Edited, FileNote{Path: in.Path, Edits: 1})
+					}
+				case "read_file":
+					if in.Path != "" {
+						w.Read = appendUnique(w.Read, in.Path)
+					}
+				case "bash":
+					if in.Command == "" {
+						continue
+					}
+					exit := "0"
+					if m := reExitCode.FindStringSubmatch(b.Text); m != nil {
+						exit = m[1]
+					} else if m := reExitArrow.FindStringSubmatch(b.Text); m != nil {
+						exit = m[1]
+					}
+					order++
+					if i, ok := cmds[in.Command]; ok {
+						w.Commands[i].Runs++
+						w.Commands[i].Exit = exit
+						w.Commands[i].order = order
+					} else {
+						cmds[in.Command] = len(w.Commands)
+						w.Commands = append(w.Commands, CommandNote{Command: in.Command, Runs: 1, Exit: exit, order: order})
+					}
+				}
+			}
+		}
+	}
+	if len(w.Read) > maxRead {
+		w.Read = w.Read[len(w.Read)-maxRead:]
+	}
+	if len(w.Commands) > maxCommands {
+		sort.SliceStable(w.Commands, func(i, j int) bool { return w.Commands[i].order > w.Commands[j].order })
+		w.Commands = w.Commands[:maxCommands]
+		sort.SliceStable(w.Commands, func(i, j int) bool { return w.Commands[i].order < w.Commands[j].order })
+	}
+	if len(w.Edited) > maxEdited {
+		w.Edited = w.Edited[len(w.Edited)-maxEdited:]
+	}
+}
+
+func appendUnique(list []string, s string) []string {
+	for i, x := range list {
+		if x == s {
+			return append(list[:i:i], append(list[i+1:], s)...)
+		}
+	}
+	return append(list, s)
+}
+
+// hash records the current content hash of every edited file under root.
+func (w *WorkingMemory) hash(root string) {
+	for i, f := range w.Edited {
+		p := f.Path
+		if !filepath.IsAbs(p) && root != "" {
+			p = filepath.Join(root, p)
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			w.Edited[i].Hash = "missing"
+			continue
+		}
+		sum := sha256.Sum256(data)
+		w.Edited[i].Hash = hex.EncodeToString(sum[:4])
+	}
+}
+
+// modelSections is the part of the record the model maintains.
+func (w *WorkingMemory) modelSections() string {
+	data, _ := json.MarshalIndent(struct {
+		Goal      string   `json:"goal"`
+		Decisions []string `json:"decisions"`
+		RuledOut  []string `json:"ruled_out"`
+		Facts     []string `json:"facts"`
+		Open      []string `json:"open"`
+		Next      []string `json:"next"`
+	}{w.Goal, nonNil(w.Decisions), nonNil(w.RuledOut), nonNil(w.Facts), nonNil(w.Open), nonNil(w.Next)}, "", "  ")
+	return string(data)
+}
+
+func nonNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
+// merge applies the model's answer. It returns false, keeping the text
+// as prose notes, when the answer is not the expected JSON object.
+func (w *WorkingMemory) merge(answer string) bool {
+	answer = strings.TrimSpace(answer)
+	start, end := strings.Index(answer, "{"), strings.LastIndex(answer, "}")
+	var got struct {
+		Goal      string   `json:"goal"`
+		Decisions []string `json:"decisions"`
+		RuledOut  []string `json:"ruled_out"`
+		Facts     []string `json:"facts"`
+		Open      []string `json:"open"`
+		Next      []string `json:"next"`
+	}
+	if start < 0 || end <= start || json.Unmarshal([]byte(answer[start:end+1]), &got) != nil {
+		w.Notes = answer
+		return false
+	}
+	w.Notes = ""
+	if got.Goal != "" {
+		w.Goal = got.Goal
+	}
+	w.Decisions, w.RuledOut, w.Facts, w.Open, w.Next = capItems(got.Decisions), capItems(got.RuledOut), capItems(got.Facts), capItems(got.Open), capItems(got.Next)
+	return true
+}
+
+func capItems(items []string) []string {
+	var out []string
+	for _, s := range items {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	if len(out) > maxItems {
+		out = out[:maxItems]
+	}
+	return out
+}
+
+// Render writes the record as the note the model reads after compaction.
+func (w *WorkingMemory) Render() string {
+	var b strings.Builder
+	b.WriteString(workingMarker + "\n")
+	if w.Goal != "" {
+		fmt.Fprintf(&b, "\nGoal: %s\n", w.Goal)
+	}
+	if w.Latest != "" && w.Latest != w.Goal {
+		fmt.Fprintf(&b, "\nCurrent request: %s\n", prefix(w.Latest, 600))
+	}
+	if len(w.Edited) > 0 {
+		b.WriteString("\nFiles edited (content hash now; re-read before editing if the hash changed):\n")
+		for _, f := range w.Edited {
+			fmt.Fprintf(&b, "- %s  %s  %s\n", f.Path, plural(f.Edits, "edit"), f.Hash)
+		}
+	}
+	if len(w.Read) > 0 {
+		b.WriteString("\nFiles read: " + strings.Join(w.Read, ", ") + "\n")
+	}
+	if len(w.Commands) > 0 {
+		b.WriteString("\nCommands run (last exit):\n")
+		for _, c := range w.Commands {
+			fmt.Fprintf(&b, "- %s → exit %s", quoteTrunc(c.Command, 100), c.Exit)
+			if c.Runs > 1 {
+				fmt.Fprintf(&b, " (%d runs)", c.Runs)
+			}
+			b.WriteString("\n")
+		}
+	}
+	if w.Verify != "" {
+		b.WriteString("\nLast verification: " + w.Verify + "\n")
+	}
+	section := func(title string, items []string) {
+		if len(items) == 0 {
+			return
+		}
+		b.WriteString("\n" + title + ":\n")
+		for i, s := range items {
+			if title == "Next" {
+				fmt.Fprintf(&b, "%d. %s\n", i+1, s)
+			} else {
+				b.WriteString("- " + s + "\n")
+			}
+		}
+	}
+	section("Decisions", w.Decisions)
+	section("Ruled out", w.RuledOut)
+	section("Facts about the codebase", w.Facts)
+	section("Open questions", w.Open)
+	section("Next", w.Next)
+	if w.Notes != "" {
+		b.WriteString("\nNotes:\n" + w.Notes + "\n")
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+func plural(n int, word string) string {
+	if n == 1 {
+		return "1 " + word
+	}
+	return fmt.Sprintf("%d %ss", n, word)
+}

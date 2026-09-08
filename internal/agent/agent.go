@@ -106,6 +106,8 @@ type Agent struct {
 	stats statsCounter
 	// summaryFailedAt starts the summaryCooldown after a failed summary.
 	summaryFailedAt time.Time
+	// working is the typed record carried across compactions.
+	working WorkingMemory
 
 	Provider llm.Provider
 	Tools    *tool.Registry
@@ -126,7 +128,8 @@ type Agent struct {
 	// edits), "loops" (loop nudges and stuck detection), "prune"
 	// (condensing old tool results before a summary), "verify" (the
 	// verification gate), "repomap" (honoured by the caller that installs
-	// the Prepare hook). Unknown names are ignored.
+	// the Prepare hook), "working" (the typed working-memory record; off
+	// means a prose handoff note). Unknown names are ignored.
 	Off map[string]bool
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
@@ -739,6 +742,7 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 	if ctx.Err() != nil {
 		return false
 	}
+	a.working.Verify = res.Summary()
 	if res.OK() {
 		emit(Event{Kind: EvNotice, Text: res.Summary()})
 		return false
