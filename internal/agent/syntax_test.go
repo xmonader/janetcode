@@ -17,7 +17,7 @@ func TestEditFeedbackSyntaxAndCoveringTest(t *testing.T) {
 	good := filepath.Join(dir, "calc.go")
 	os.WriteFile(good, []byte("package calc\n\nfunc Add(a, b int) int { return a + b }\n"), 0o644)
 	os.WriteFile(filepath.Join(dir, "calc_test.go"), []byte("package calc\n"), 0o644)
-	if got := editFeedback(context.Background(), good); !strings.Contains(got, "Tests covering this file: ") || !strings.HasSuffix(strings.TrimSpace(got), "calc_test.go") || strings.Contains(got, "Syntax") {
+	if got := editFeedback(context.Background(), good); !strings.HasSuffix(strings.TrimSpace(got), "edited file): calc_test.go") || strings.Contains(got, "Syntax") {
 		t.Fatalf("good file: %q", got)
 	}
 	bad := filepath.Join(dir, "broken.go")

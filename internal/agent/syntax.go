@@ -99,10 +99,10 @@ func editFeedback(ctx context.Context, abs string) string {
 	}
 	if t := coveringTest(abs); t != "" {
 		rel := t
-		if r, err := filepath.Rel(filepath.Dir(filepath.Dir(abs)), t); err == nil && !strings.HasPrefix(r, "..") {
-			rel = r
+		if r, err := filepath.Rel(filepath.Dir(abs), t); err == nil {
+			rel = r // next to the edited file: "calc_test.go", "tests/test_x.py"
 		}
-		notes = append(notes, "Tests covering this file: "+rel)
+		notes = append(notes, "Tests covering this file (same directory as the edited file): "+rel)
 	}
 	if len(notes) == 0 {
 		return ""
