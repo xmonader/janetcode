@@ -11,9 +11,9 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
-var ansi = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
+var ansiRe = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
 
-func plain(s string) string { return ansi.ReplaceAllString(s, "") }
+func plain(s string) string { return ansiRe.ReplaceAllString(s, "") }
 
 func TestTranscriptStreamingAndTools(t *testing.T) {
 	tr := newTranscript()
@@ -123,5 +123,15 @@ func TestThinkingView(t *testing.T) {
 	}
 	if got := thinkingView("plan first\nthen do", true); got != "· thought: plan first (2 lines)" {
 		t.Fatalf("done: %q", got)
+	}
+}
+
+func TestTruncateLineIsWidthAware(t *testing.T) {
+	colored := "\x1b[1mhello\x1b[0m world"
+	if got := truncateLine(colored, 20); got != colored {
+		t.Fatalf("colour codes counted as width: %q", got)
+	}
+	if got := truncateLine("ééééééééééééééé", 10); got != "ééééééééé…" {
+		t.Fatalf("rune split: %q", got)
 	}
 }

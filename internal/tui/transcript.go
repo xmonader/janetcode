@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/charmbracelet/x/ansi"
 	"strings"
 	"time"
 
@@ -573,10 +574,8 @@ func truncateLine(s string, max int) string {
 	if max < 10 {
 		max = 10
 	}
-	if len(s) > max {
-		return s[:max-1] + "…"
-	}
-	return s
+	// Width-aware: colour codes take no columns and a rune is never split.
+	return ansi.Truncate(s, max, "…")
 }
 
 func clip(s string, lines int) string {
