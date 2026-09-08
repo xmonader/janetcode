@@ -121,6 +121,10 @@ type Agent struct {
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
 	Verify *verify.Runner
+	// ReadOnly hides mutating tools from the model and refuses them if
+	// called anyway. PlanMode does the same and asks for a plan.
+	ReadOnly bool
+	PlanMode bool
 	// Diagnose, when set, is called with the path a file tool just wrote
 	// and returns a note (language-server diagnostics) appended to the
 	// tool result, or "".
@@ -395,11 +399,19 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 	if a.SystemExtra != nil {
 		system += a.SystemExtra()
 	}
+	defs := a.Tools.Defs()
+	if a.readOnly() {
+		defs = a.Tools.DefsIf(func(t tool.Tool) bool { return !t.Mutating() })
+		system += readOnlySystem
+		if a.PlanMode {
+			system += planSystem
+		}
+	}
 	resp, err := a.Provider.Stream(ctx, llm.Request{
 		Model:     a.Model,
 		System:    system,
 		Messages:  a.Messages,
-		Tools:     a.Tools.Defs(),
+		Tools:     defs,
 		MaxTokens: a.MaxTokens,
 	}, func(e llm.Event) { forward(e, emit) })
 	if err != nil {
@@ -461,6 +473,11 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	t, ok := a.Tools.Get(u.Name)
 	if !ok {
 		msg := fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames())
+		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+		return msg, true, nil
+	}
+	if a.readOnly() && t.Mutating() {
+		msg := fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", u.Name, a.modeName())
 		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
 		return msg, true, nil
 	}
@@ -634,6 +651,19 @@ func (a *Agent) stopHook(ctx context.Context, text string, stops *int, emit func
 	a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, "[A stop hook did not accept this as done]\n"+res.Continue))
 	return true
 }
+
+func (a *Agent) readOnly() bool { return a.ReadOnly || a.PlanMode }
+
+func (a *Agent) modeName() string {
+	if a.PlanMode {
+		return "plan mode"
+	}
+	return "read-only mode"
+}
+
+const readOnlySystem = "\n\n# Read-only\nThis session is read-only: you can read, search and run read-only tools, but nothing that changes files or runs commands is available, and asking for it will fail. Do not pretend a change was made."
+
+const planSystem = "\n\n# Plan mode\nThe user wants a plan before any change. Explore the code as needed, then write a concrete, numbered plan: which files change and how, in what order, how each step is verified, and what could go wrong. Put it under a heading `## Plan`. The user will approve it, edit it, or ask questions; changes start only after approval."
 
 // maxStopContinues bounds how often stop hooks may extend one turn.
 const maxStopContinues = 3

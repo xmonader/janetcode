@@ -253,3 +253,43 @@ func TestDiagnoseNoteFollowsFileEdits(t *testing.T) {
 		t.Fatalf("result = %q", got)
 	}
 }
+
+func TestReadOnlyAndPlanModeHideAndRefuseMutatingTools(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"x.txt","content":"1"}`),
+		text("here is the plan"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.PlanMode = true
+	if err := a.Run(context.Background(), "change x", nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range f.requests[0].Tools {
+		if d.Name == "write_file" || d.Name == "bash" {
+			t.Fatalf("mutating tool %s offered in plan mode", d.Name)
+		}
+	}
+	if !strings.Contains(f.requests[0].System, "# Plan mode") || !strings.Contains(f.requests[0].System, "# Read-only") {
+		t.Fatalf("system = %q", f.requests[0].System)
+	}
+	r1 := f.requests[1].Messages
+	if got := r1[len(r1)-1].Blocks[0].Text; !strings.Contains(got, "read-only (plan mode)") {
+		t.Fatalf("result = %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(root, "x.txt")); err == nil {
+		t.Fatal("file was written in plan mode")
+	}
+	if a.LastTurnMutated() {
+		t.Fatal("refused call counted as a mutation")
+	}
+	f = &fake{responses: []*llm.Response{text("ok")}}
+	a, _ = newAgent(t, f, nil)
+	a.ReadOnly = true
+	if err := a.Run(context.Background(), "look", nil); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(f.requests[0].System, "# Plan mode") || !strings.Contains(f.requests[0].System, "# Read-only") {
+		t.Fatalf("system = %q", f.requests[0].System)
+	}
+}

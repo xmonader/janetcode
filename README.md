@@ -129,6 +129,8 @@ the turn ends. Cancelling a turn hands queued text back to the input.
 ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, pngpaste on macOS)
 !command         run a shell command here; its output is shown and shared with the model
 /help      /quit      /clear (new session)     /yolo (toggle auto-approve)
+/plan <request> (plan mode: explore, write a plan; /plan approve executes it)
+/readonly  (toggle read-only: the model can inspect but change nothing)
 /connect   /model     /compact (summarise the context to free the window)
 /usage
 /resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)
@@ -264,6 +266,22 @@ tools: read_file, grep, glob
 ---
 You are a strict reviewer. Report concrete defects with file:line ...
 ```
+
+### Plan mode and read-only mode
+
+`/plan add rate limiting to the API` puts the session in plan mode: the
+model only gets read-only tools, explores the code and writes a numbered
+plan under `## Plan` (files, order, verification, risks). Ask questions or
+request changes to the plan as normal messages; `/plan approve` leaves the
+mode and tells the model to execute the plan step by step, verifying each
+step. Every step is a normal turn, so `/undo` walks it back. `/plan off`
+leaves without executing.
+
+`/readonly` (or `--readonly` on the command line) is the same restriction
+without the plan: useful for reviews and for letting the model answer
+questions about a codebase you do not want touched. In both modes a
+mutating call the model tries anyway fails with a message rather than
+asking you.
 
 ### Verification gates
 

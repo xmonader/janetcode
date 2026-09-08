@@ -273,6 +273,44 @@ func (m *model) permissionsCommand(args []string) {
 	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 }
 
+// planCommand enters plan mode, approves the plan, or leaves the mode.
+func (m *model) planCommand(arg string) tea.Cmd {
+	ag := m.opts.Agent
+	switch arg {
+	case "approve", "go", "execute":
+		if !ag.PlanMode {
+			m.transcript.errorf("not in plan mode: /plan <request> writes a plan first")
+			m.refresh(false)
+			return nil
+		}
+		if m.running {
+			m.transcript.errorf("wait for the plan to finish")
+			m.refresh(false)
+			return nil
+		}
+		ag.PlanMode = false
+		m.input.Placeholder = defaultPlaceholder
+		m.transcript.info("plan approved · leaving plan mode; each step is undoable with /undo")
+		return m.submit("The plan is approved. Execute it now, step by step, in the order written. Verify each step (build, tests) before starting the next, and stop to report if a step fails or the plan turns out to be wrong.")
+	case "off", "cancel", "exit":
+		ag.PlanMode = false
+		m.input.Placeholder = defaultPlaceholder
+		m.transcript.info("left plan mode without executing")
+		m.refresh(false)
+		return nil
+	}
+	if !ag.PlanMode {
+		ag.PlanMode = true
+		m.input.Placeholder = "Plan mode: describe the change; the model explores and writes a plan (/plan approve runs it, /plan off leaves)"
+		m.transcript.info("plan mode ON: the model reads and searches but changes nothing; /plan approve executes the plan, /plan off leaves")
+	}
+	if arg == "" {
+		m.refresh(false)
+		return nil
+	}
+	return m.submit(arg)
+}
+
 // lspCommand shows language-server status and known problems.
 func (m *model) lspCommand() {
 	d := m.opts.LSP
@@ -467,6 +505,8 @@ var commands = []command{
 	{"/permissions", "[allow|deny <rule>|trust]", "permission rules; add one, or trust the project's .janetcode/permissions.json"},
 	{"/verify", "[set <cmd>|clear|trust]", "run the project's checks now; set adds one to .janetcode/verify.json"},
 	{"/lsp", "", "language servers and the diagnostics they reported"},
+	{"/plan", "[request|approve|off]", "plan mode: the model explores and writes a plan; approve executes it"},
+	{"/readonly", "", "toggle read-only mode (no edits or commands)"},
 	{"/memory", "", "what janetcode remembers about this project"},
 	{"/skills", "", "skill files available to the model"},
 	{"/remember", "<fact>", "add a fact to the project memory"},
@@ -1534,6 +1574,15 @@ func (m *model) command(text string) tea.Cmd {
 		} else {
 			m.transcript.info("auto-approve OFF: edits and commands ask first")
 		}
+	case "/readonly":
+		m.opts.Agent.ReadOnly = !m.opts.Agent.ReadOnly
+		if m.opts.Agent.ReadOnly {
+			m.transcript.info("read-only ON: the model can inspect but not change anything")
+		} else {
+			m.transcript.info("read-only OFF")
+		}
+	case "/plan":
+		return m.planCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/verbose":
 		m.verbose = !m.verbose
 		m.transcript.info(fmt.Sprintf("verbose tool output: %v", m.verbose))
@@ -2010,7 +2059,12 @@ func (m *model) headerView() string {
 		suffix = " ⎇ " + m.branch
 	}
 	prefix := ""
-	if m.opts.Agent.AutoApprove {
+	switch {
+	case m.opts.Agent.PlanMode:
+		prefix = "PLAN · "
+	case m.opts.Agent.ReadOnly:
+		prefix = "READ-ONLY · "
+	case m.opts.Agent.AutoApprove:
 		prefix = "YOLO · "
 	}
 	avail := m.width - lipgloss.Width(left) - lipgloss.Width(prefix) - lipgloss.Width(suffix) - 3

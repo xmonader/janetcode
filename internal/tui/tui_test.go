@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,13 +27,27 @@ import (
 	"github.com/xmonader/janetcode/internal/verify"
 )
 
-type scripted struct{ responses []*llm.Response }
+type scripted struct {
+	responses []*llm.Response
+	mu        sync.Mutex
+	requests  []llm.Request
+}
+
+// reqs returns the requests seen so far.
+func (s *scripted) reqs() []llm.Request {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]llm.Request(nil), s.requests...)
+}
 
 func (s *scripted) Name() string { return "fake" }
 func (s *scripted) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
 	if emit == nil {
 		emit = func(llm.Event) {}
 	}
+	s.mu.Lock()
+	s.requests = append(s.requests, req)
+	s.mu.Unlock()
 	r := s.responses[0]
 	s.responses = s.responses[1:]
 	for _, b := range r.Message.Blocks {
@@ -62,7 +77,7 @@ func newHarness(t *testing.T, responses ...*llm.Response) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ag := &agent.Agent{Provider: &scripted{responses}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m"}
+	ag := &agent.Agent{Provider: &scripted{responses: responses}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m"}
 	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"})
 	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
 	m.send = func(msg tea.Msg) { h.msgs <- msg }
@@ -549,7 +564,7 @@ func TestMCPTrustFlow(t *testing.T) {
 	if v := plain(h.m.View()); !strings.Contains(v, "needs <who>") {
 		t.Fatalf("missing-arg error absent:\n%s", v)
 	}
-	h.m.opts.Agent.Provider = &scripted{[]*llm.Response{{Message: llm.TextMessage(llm.RoleAssistant, "hello there"), StopReason: llm.StopEndTurn}}}
+	h.m.opts.Agent.Provider = &scripted{responses: []*llm.Response{{Message: llm.TextMessage(llm.RoleAssistant, "hello there"), StopReason: llm.StopEndTurn}}}
 	h.keys("/mcp__proj__greet the team")
 	h.enter()
 	h.pump(func() bool { return !h.m.running && len(h.m.opts.Agent.Messages) == 2 })
@@ -676,7 +691,7 @@ func TestPromptHistoryRecall(t *testing.T) {
 func TestInitialPromptIsSubmitted(t *testing.T) {
 	root := t.TempDir()
 	sess, _ := session.New(t.TempDir(), root, "fake", "m")
-	ag := &agent.Agent{Provider: &scripted{[]*llm.Response{{Message: llm.TextMessage(llm.RoleAssistant, "auto"), StopReason: llm.StopEndTurn}}}, Tools: tool.NewRegistry(), Model: "m"}
+	ag := &agent.Agent{Provider: &scripted{responses: []*llm.Response{{Message: llm.TextMessage(llm.RoleAssistant, "auto"), StopReason: llm.StopEndTurn}}}, Tools: tool.NewRegistry(), Model: "m"}
 	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, InitialPrompt: "explain"})
 	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
 	m.send = func(msg tea.Msg) { h.msgs <- msg }
@@ -1098,5 +1113,44 @@ func TestVerifyCommandSetsRunsAndGatesTurns(t *testing.T) {
 	h.enter()
 	if cfg, _, _ := verify.Load(h.m.opts.Cwd); len(cfg.Commands) != 0 || h.m.opts.Agent.Verify != nil {
 		t.Fatalf("clear left cfg = %+v verify = %v", cfg, h.m.opts.Agent.Verify)
+	}
+}
+
+func TestPlanModeHidesToolsUntilApproved(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "## Plan\n1. write a.txt"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(`{"path":"a.txt","content":"done"}`)}}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "executed"), StopReason: llm.StopEndTurn},
+	)
+	h.m.opts.Agent.AutoApprove = true
+	h.keys("/plan approve")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "not in plan mode") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/plan add a.txt")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	sc := h.m.opts.Agent.Provider.(*scripted)
+	if !h.m.opts.Agent.PlanMode || !strings.Contains(plain(h.m.View()), "PLAN ·") {
+		t.Fatalf("plan mode not on; view:\n%s", plain(h.m.View()))
+	}
+	for _, d := range sc.reqs()[0].Tools {
+		if d.Name == "write_file" {
+			t.Fatal("write_file offered in plan mode")
+		}
+	}
+	h.keys("/plan approve")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	if h.m.opts.Agent.PlanMode {
+		t.Fatal("still in plan mode after approve")
+	}
+	if got, _ := os.ReadFile(filepath.Join(h.m.opts.Cwd, "a.txt")); string(got) != "done" {
+		t.Fatalf("a.txt = %q", got)
+	}
+	last := sc.reqs()[1].Messages
+	if !strings.Contains(last[len(last)-1].Text(), "The plan is approved") {
+		t.Fatalf("approval message missing: %q", last[len(last)-1].Text())
 	}
 }

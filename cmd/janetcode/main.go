@@ -72,6 +72,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		model       = fs.String("model", "", "model id (default claude-opus-5 for anthropic)")
 		effort      = fs.String("effort", "", "anthropic effort: low, medium, high, xhigh, max")
 		yolo        = fs.Bool("yolo", false, "auto-approve every tool call")
+		readonly    = fs.Bool("readonly", false, "read-only: no edits or commands, the model can only inspect")
 		allow       = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
 		deny        = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
 		cont        = fs.Bool("continue", false, "resume the latest session for this directory")
@@ -181,6 +182,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		MaxTokens:     cfg.MaxTokens,
 		MaxIterations: cfg.MaxIterations,
 		AutoApprove:   cfg.AutoApprove,
+		ReadOnly:      *readonly,
 		CompactAt:     cfg.CompactAt,
 		Messages:      history,
 	}

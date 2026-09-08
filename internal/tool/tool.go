@@ -118,12 +118,15 @@ func (r *Registry) Remove(name string) {
 
 // Defs returns the tool definitions in stable (sorted) order so the request
 // prefix stays cacheable.
-func (r *Registry) Defs() []llm.ToolDef {
+func (r *Registry) Defs() []llm.ToolDef { return r.DefsIf(nil) }
+
+// DefsIf is Defs restricted to tools the predicate keeps; nil keeps all.
+func (r *Registry) DefsIf(keep func(Tool) bool) []llm.ToolDef {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	names := make([]string, 0, len(r.tools))
 	for n := range r.tools {
-		if !r.deferred[n] {
+		if !r.deferred[n] && (keep == nil || keep(r.tools[n])) {
 			names = append(names, n)
 		}
 	}
