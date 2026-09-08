@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -145,6 +146,7 @@ var commands = []command{
 	{"/compact", "", "summarise the conversation to free context"},
 	{"/clear", "", "start a new session"},
 	{"/resume", "[n|id]", "list earlier sessions here, or reopen one"},
+	{"/find", "<text>", "jump to the next line matching text; repeat to continue"},
 	{"/yolo", "", "toggle auto-approve for tools"},
 	{"/model", "<name>", "switch model on the same provider"},
 	{"/usage", "", "tokens and cost for this session"},
@@ -188,6 +190,8 @@ type model struct {
 	lastTurn   string                   // usage summary of the last turn
 	queued     []string                 // prompts typed while a turn was running
 	custom     map[string]prompt.Custom // user-defined slash commands
+	lastFind   string                   // last /find query, for repeats
+	lastFindAt int                      // line of the last hit, so repeats advance past it
 	quitting   bool
 	branch     string
 }
@@ -922,6 +926,17 @@ func (m *model) command(text string) tea.Cmd {
 		}
 		m.opts.Agent.Model = fields[1]
 		m.transcript.info("model set to " + fields[1] + " on " + m.opts.Provider)
+	case "/find", "/search":
+		q := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
+		if q == "" {
+			q = m.lastFind
+		}
+		if q == "" {
+			m.transcript.errorf("usage: /find <text>")
+			break
+		}
+		m.find(q)
+		return nil
 	case "/resume", "/sessions":
 		if m.running {
 			m.transcript.errorf("wait for the current turn to finish before switching sessions")
@@ -960,6 +975,45 @@ func (m *model) command(text string) tea.Cmd {
 	}
 	m.refresh(false)
 	return nil
+}
+
+var ansiSeq = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
+
+// find scrolls the transcript to the next line containing q (case-insensitive),
+// starting below the current top line and wrapping around.
+func (m *model) find(q string) {
+	// A repeat continues past the previous hit even when the viewport could
+	// not scroll down to it (matches near the bottom).
+	from := m.viewport.YOffset
+	if q == m.lastFind && m.lastFindAt > from {
+		from = m.lastFindAt
+	} else if q != m.lastFind {
+		from = -1
+	}
+	m.lastFind = q
+	lines := strings.Split(m.lastContent, "\n")
+	needle := strings.ToLower(q)
+	var hits []int
+	for i, l := range lines {
+		if strings.Contains(strings.ToLower(ansiSeq.ReplaceAllString(l, "")), needle) {
+			hits = append(hits, i)
+		}
+	}
+	if len(hits) == 0 {
+		m.status = fmt.Sprintf("no match for %q", q)
+		return
+	}
+	next := hits[0]
+	idx := 0
+	for i, h := range hits {
+		if h > from {
+			next, idx = h, i
+			break
+		}
+	}
+	m.lastFindAt = next
+	m.viewport.SetYOffset(next)
+	m.status = fmt.Sprintf("match %d/%d for %q on line %d · /find again for the next", idx+1, len(hits), q, next+1)
 }
 
 // listSessions shows the sessions recorded for this directory, numbered so

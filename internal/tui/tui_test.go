@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -391,6 +392,47 @@ func TestCustomSlashCommand(t *testing.T) {
 	h.enter()
 	if v := plain(h.m.View()); !strings.Contains(v, "/review") {
 		t.Fatalf("help lacks custom command:\n%s", v)
+	}
+}
+
+func TestFindScrollsToMatches(t *testing.T) {
+	h := newHarness(t)
+	h.update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	for i := 0; i < 30; i++ {
+		h.m.transcript.info(fmt.Sprintf("filler line %d", i))
+	}
+	h.m.transcript.info("the NEEDLE is here")
+	for i := 0; i < 30; i++ {
+		h.m.transcript.info(fmt.Sprintf("more %d", i))
+	}
+	h.m.transcript.info("second needle")
+	h.m.refresh(false)
+	h.m.viewport.GotoTop()
+	h.keys("/find needle")
+	h.enter()
+	if !strings.Contains(h.m.status, "match 1/2") {
+		t.Fatalf("status = %q", h.m.status)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "the NEEDLE is here") {
+		t.Fatalf("viewport not scrolled to the match:\n%s", v)
+	}
+	h.keys("/find")
+	h.enter()
+	if !strings.Contains(h.m.status, "match 2/2") {
+		t.Fatalf("repeat status = %q", h.m.status)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "second needle") {
+		t.Fatalf("viewport not at second match:\n%s", v)
+	}
+	h.keys("/find")
+	h.enter()
+	if !strings.Contains(h.m.status, "match 1/2") {
+		t.Fatalf("wrap status = %q", h.m.status)
+	}
+	h.keys("/find zzz")
+	h.enter()
+	if !strings.Contains(h.m.status, "no match") {
+		t.Fatalf("miss status = %q", h.m.status)
 	}
 }
 
