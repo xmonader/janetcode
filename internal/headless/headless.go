@@ -24,7 +24,7 @@ type Options struct {
 	// Images are sent with the prompt as image blocks.
 	Images []llm.Block
 	Stdout io.Writer
-	Stderr  io.Writer
+	Stderr io.Writer
 	// Stdin is used for permission prompts when it is a terminal.
 	Stdin *os.File
 }
