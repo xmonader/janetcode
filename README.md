@@ -73,6 +73,7 @@ mutating tools prompt on the terminal, or are denied when stdin is not a TTY.
 | `write_file` | Create or overwrite a file | yes, shows a diff |
 | `bash` | Run a shell command with a timeout | yes |
 | `fetch_url` | Fetch a web page or API response as text | yes |
+| `task` | Delegate a read-only job to a subagent with its own context; several run in parallel | no |
 
 All paths are confined to the working directory, symlinks included.
 Read-only tools run concurrently; mutating tools run one at a time, in order.

@@ -537,7 +537,7 @@ func summarizeInput(name, raw string, max int) string {
 	if json.Unmarshal([]byte(raw), &m) != nil {
 		return truncateLine(raw, max)
 	}
-	for _, k := range []string{"command", "pattern", "path"} {
+	for _, k := range []string{"command", "pattern", "path", "url", "description"} {
 		if v, ok := m[k].(string); ok {
 			extra := ""
 			if k == "pattern" {

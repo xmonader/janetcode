@@ -131,6 +131,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 	}
 
+	task := &agent.Task{}
 	ag := &agent.Agent{
 		Provider: prov,
 		Price:    cfg.PriceFor(cfg.Model),
@@ -143,6 +144,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			tool.Grep{Root: cwd},
 			tool.Bash{Root: cwd},
 			tool.FetchURL{},
+			task,
 		),
 		System:        prompt.System(cwd),
 		Model:         cfg.Model,
@@ -152,6 +154,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		CompactAt:     cfg.CompactAt,
 		Messages:      history,
 	}
+	task.Parent = ag
 
 	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
