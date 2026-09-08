@@ -38,15 +38,23 @@ export OPENAI_API_KEY=sk-or-...
 export OPENAI_BASE_URL=https://openrouter.ai/api/v1
 janetcode --model deepseek/deepseek-v4-flash
 
-# Ollama (any non-empty key)
-export OPENAI_API_KEY=ollama
+# Ollama (no key needed for a local server)
 export OPENAI_BASE_URL=http://localhost:11434/v1
 janetcode --model qwen3-coder
 ```
 
+Or skip the environment and run `/connect` inside the TUI: pick a preset
+(Anthropic, OpenAI, OpenRouter, Alibaba Qwen, DeepSeek, Moonshot, Zhipu,
+MiniMax, Gemini, xAI, Mistral, Groq, Cerebras, Together, Fireworks, Ollama,
+LM Studio) or a custom OpenAI- or Anthropic-compatible URL, paste one or
+more API keys, choose a model from the server's list, and the choice is
+saved to the config file. Several keys for one provider are rotated
+automatically when one is rate limited or rejected.
+
 The provider is inferred from whichever key is set (`--provider` overrides
-it). Put `model` and the keys in the config file (see below), or export
-`JANETCODE_MODEL`, to skip the flag. A prompt given as an argument starts the session with it:
+it, and accepts any configured or preset name). Put `model` and the keys in
+the config file (see below), or export `JANETCODE_MODEL`, to skip the flag.
+A prompt given as an argument starts the session with it:
 
 ```sh
 janetcode "explain how requests flow through this service"
@@ -108,10 +116,16 @@ the turn ends. Cancelling a turn hands queued text back to the input.
 ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, pngpaste on macOS)
 !command         run a shell command here; its output is shown and shared with the model
 /help      /quit      /clear (new session)     /yolo (toggle auto-approve)
-/model X   /usage     /compact (summarise the context to free the window)
+/connect   /model     /compact (summarise the context to free the window)
+/usage
 /resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)
 /undo      /find X    /cost      /mcp [trust]
 ```
+
+`/connect` walks through provider → base URL → API keys → model with
+arrow-key lists that filter as you type; `/model` alone opens just the model
+list for the current provider (`/model name` sets one directly). Both write
+the choice to the config file.
 
 `/undo` restores every file the last turn changed through `edit_file` or
 `write_file` (files it created are removed) and tells the model. Repeat it to
@@ -171,14 +185,26 @@ janetcode --init     # writes ~/.config/janetcode/config.json
   "max_iterations": 50,
   "compact_at": 150000,
   "theme": "auto",
-  "anthropic": { "api_key": "", "base_url": "" },
-  "openai":    { "api_key": "", "base_url": "https://api.openai.com/v1" }
+  "providers": {
+    "anthropic":  { "type": "anthropic", "api_key": "sk-ant-..." },
+    "openrouter": { "type": "openai", "base_url": "https://openrouter.ai/api/v1",
+                    "api_key": "sk-or-1", "api_keys": ["sk-or-2"], "model": "deepseek/deepseek-v4-flash" },
+    "ollama":     { "type": "openai", "base_url": "http://localhost:11434/v1" }
+  }
 }
 ```
 
+`providers` holds any number of backends by name; `provider` selects one.
+`type` is `anthropic` or `openai` (any OpenAI-compatible server). A preset
+name needs no `base_url`. `api_keys` lists extra keys to rotate through on
+429/401/403 responses, and each entry remembers its last `model`, so
+`--provider openrouter` comes back with the model last used there. The older
+`anthropic`/`openai` sections are still read.
+
 Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `OPENAI_API_KEY`,
-`OPENAI_BASE_URL`, `JANETCODE_PROVIDER`, `JANETCODE_MODEL`, `JANETCODE_EFFORT`,
-`JANETCODE_THEME`.
+`OPENAI_BASE_URL` (a key may be a comma-separated list), `JANETCODE_PROVIDER`,
+`JANETCODE_MODEL`, `JANETCODE_EFFORT`, `JANETCODE_THEME`. Keys from the
+environment are never copied into the config file.
 
 `effort` (Anthropic only) is `low`, `medium`, `high`, `xhigh` or `max`.
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
