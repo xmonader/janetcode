@@ -84,8 +84,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalKeep    = fs.Bool("eval-keep", false, "keep eval work directories")
 		evalRuns    = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips)")
 		evalCompare = fs.String("eval-compare", "", "results file of a baseline run to compare against (paired by task, bootstrap interval)")
-		evalOff     = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify, repomap, working, plan")
+		evalOff     = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify, repomap, working, plan, critic")
 		evalLabel   = fs.String("eval-label", "", "name recorded in the results file for this variant")
+		evalTrain   = fs.String("eval-train", "", "train the trajectory critic from these eval result files (comma-separated files or directories) and exit")
 		allow       = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
 		deny        = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
 		cont        = fs.Bool("continue", false, "resume the latest session for this directory")
@@ -147,6 +148,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
+	}
+	if *evalTrain != "" {
+		cfgPath, _ := config.Path()
+		return trainCritic(strings.Split(*evalTrain, ","), filepath.Join(filepath.Dir(cfgPath), "critic.json"), os.Stdout)
 	}
 	if *evalPath != "" {
 		if prov == nil {
@@ -239,6 +244,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	repo := &repomap.Cache{Root: cwd}
 	ag.Tools.Add(repomap.Tool{Cache: repo})
 	ag.PlanCheck = repo.CheckPlan
+	if ag.Predictor, err = agent.LoadPredictor(filepath.Join(cfgDir, "critic.json")); err != nil {
+		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
+	}
 	ag.Prepare = chainPrep(skill.TurnPrep(&skill.Injector{Skills: skills}, mem), repomap.TurnPrep(repo, 0))
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools})
 	ag.UndoPath = sess.UndoPath()
@@ -474,7 +482,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	for _, f := range strings.Split(o.off, ",") {
 		if f = strings.TrimSpace(f); f != "" {
 			if !agent.KnownSwitch(f) {
-				return fmt.Errorf("--eval-off: unknown behaviour %q (coach, syntax, loops, prune, verify, repomap, working, plan)", f)
+				return fmt.Errorf("--eval-off: unknown behaviour %q (coach, syntax, loops, prune, verify, repomap, working, plan, critic)", f)
 			}
 			off[f] = true
 		}
@@ -540,6 +548,56 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	}
 	if passed < len(results) {
 		return fmt.Errorf("%d of %d eval tasks failed", len(results)-passed, len(results))
+	}
+	return nil
+}
+
+// trainCritic fits the trajectory predictor to the pass/fail outcomes in
+// eval result files and saves it where the agent loads it from.
+func trainCritic(paths []string, out string, w io.Writer) error {
+	var samples []agent.Sample
+	files := 0
+	for _, p := range paths {
+		if p = strings.TrimSpace(p); p == "" {
+			continue
+		}
+		var list []string
+		if st, err := os.Stat(p); err != nil {
+			return err
+		} else if st.IsDir() {
+			list, _ = filepath.Glob(filepath.Join(p, "*.json"))
+		} else {
+			list = []string{p}
+		}
+		for _, f := range list {
+			ef, err := eval.ReadFile(f)
+			if err != nil {
+				return err
+			}
+			files++
+			for _, r := range ef.Results {
+				if len(r.Features) > 0 {
+					samples = append(samples, agent.Sample{Features: r.Features, Passed: r.Passed})
+				}
+			}
+		}
+	}
+	if len(samples) == 0 {
+		return fmt.Errorf("no runs with trajectory features in %d result file(s); results written before features were recorded cannot be used", files)
+	}
+	p, err := agent.Train(samples)
+	if err != nil {
+		return err
+	}
+	if err := p.Save(out); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "trajectory critic trained on %d runs (%d passed, %d failed) from %d file(s)\n", p.Samples, p.Positives, p.Negatives, files)
+	fmt.Fprintf(w, "cross-validated accuracy %.0f%% (always guessing the majority: %.0f%%)\n", p.Accuracy*100, p.Baseline*100)
+	if p.Accuracy <= p.Baseline {
+		fmt.Fprintf(w, "warning: the critic is no better than the baseline; it will still be loaded from %s, delete the file to disable it\n", out)
+	} else {
+		fmt.Fprintf(w, "saved to %s\n", out)
 	}
 	return nil
 }

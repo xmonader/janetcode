@@ -3,7 +3,7 @@ PKG := ./...
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build install test race lint clean run eval eval-baseline cross
+.PHONY: build install test race lint clean run eval eval-baseline eval-train cross
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BIN) ./cmd/$(BIN)
@@ -33,6 +33,10 @@ eval: build
 # Save the last run as the baseline that later runs compare against.
 eval-baseline:
 	cp evals/last-results.json evals/baseline.json
+
+## Train the trajectory critic from eval result files (FILES=a.json,b.json or a directory).
+eval-train: build
+	./bin/janetcode --eval-train $(or $(FILES),evals)
 
 # Cross-compile checks; Windows and macOS are built, not run, here.
 cross:

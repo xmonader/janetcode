@@ -420,6 +420,20 @@ are matched by exact name, by bare method name and by dotted suffix, so
 is flagged when nothing defines or calls a Flush. The eval switch is
 `plan`.
 
+The critic also learns. Every eval run records the trajectory features
+of the turn (tool calls and errors, reads, edits, files edited, test
+runs and failures, edits since the last test, repeats, cycle rounds,
+tokens, compactions, minutes) next to its pass/fail outcome, and
+`make eval-train FILES=evals` fits a logistic model to them, reporting
+the cross-validated accuracy against the majority baseline; it refuses
+when every run passed or every run failed, since there is nothing to
+separate. Once `critic.json` exists in the config directory, the live
+turn is scored every five tool calls, and the first time the chance of
+success falls under 35% the model gets one note naming the features
+pulling it down (`tool_errors=8, tests=0`) and is asked to step back.
+The eval switch is `critic`. As of this writing the bundled tasks all
+pass, so the trainer refuses on them: harder tasks are the next step.
+
 ### Context inspector and pins
 
 `/context` shows where the window goes: system prompt, memory and skill
@@ -762,7 +776,7 @@ improved:  05-rename-symbol, 13-multi-file-package
 ```
 
 `EVAL_OFF=coach,prune` runs an ablation with named behaviours disabled
-(`coach`, `syntax`, `loops`, `prune`, `verify`, `repomap`, `working`, `plan`); the variant name is
+(`coach`, `syntax`, `loops`, `prune`, `verify`, `repomap`, `working`, `plan`, `critic`); the variant name is
 recorded in the results file so a comparison says what it compared.
 
 ## Development

@@ -116,6 +116,9 @@ type Result struct {
 	Output    string        `json:"output"`
 	CheckOut  string        `json:"check_output,omitempty"`
 	Dir       string        `json:"dir,omitempty"`
+	// Features is the agent's trajectory at the end of the run, the
+	// training data for the success predictor (agent.Train).
+	Features map[string]float64 `json:"features,omitempty"`
 }
 
 // Runner executes tasks with fresh agents.
@@ -227,6 +230,7 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 	})
 	res.Output = out.String()
 	res.Usage = ag.Usage
+	res.Features = ag.Trajectory()
 	res.CostUSD, res.CostKnown = ag.Usage.Cost(ag.Price)
 	if err != nil {
 		if errors.Is(rctx.Err(), context.DeadlineExceeded) {

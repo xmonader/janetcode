@@ -108,6 +108,13 @@ type Agent struct {
 	summaryFailedAt time.Time
 	// working is the typed record carried across compactions.
 	working WorkingMemory
+	// Predictor, when set, scores the running turn from its trajectory
+	// features (see Trajectory) and warns the model once per turn when
+	// the score is low. Trained from eval runs with Train.
+	Predictor *Predictor
+	turnStart time.Time
+	warned    bool
+	lastScore float64
 
 	Provider llm.Provider
 	Tools    *tool.Registry
@@ -130,7 +137,8 @@ type Agent struct {
 	// verification gate), "repomap" (honoured by the caller that installs
 	// the Prepare hook), "working" (the typed working-memory record; off
 	// means a prose handoff note), "plan" (checking the names in the
-	// model's plan against the repository). Unknown names are ignored.
+	// model's plan against the repository), "critic" (the trajectory
+	// predictor's notes). Unknown names are ignored.
 	Off map[string]bool
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
@@ -256,6 +264,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	a.mutated, a.mutations = false, 0
 	defer a.endTurn()
 	a.loops.reset()
+	a.turnStart, a.warned = time.Now(), false
 	a.integ.userText = ""
 	for _, b := range blocks {
 		if b.Type == llm.BlockText && b.Text != "" {
@@ -693,6 +702,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		}
 		a.loopMu.Unlock()
 		out += note
+	}
+	if t.Mutating() { // serial: safe to read the counters
+		out += a.critique(emit)
 	}
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
 	return out, isErr, nil

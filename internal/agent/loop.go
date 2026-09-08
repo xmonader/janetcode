@@ -45,9 +45,11 @@ type loopDetector struct {
 // signature is a call reduced to what a loop looks like from outside:
 // the tool, what it was about, and whether it failed.
 type signature struct {
-	key    string
-	label  string
-	failed bool
+	key     string
+	label   string
+	name    string
+	subject string
+	failed  bool
 }
 
 func (d *loopDetector) reset() {
@@ -67,7 +69,7 @@ func newSignature(name string, input []byte, isErr bool) signature {
 	if isErr {
 		label += " fails"
 	}
-	return signature{key: fmt.Sprintf("%s\x00%s\x00%t", name, subject, isErr), label: label, failed: isErr}
+	return signature{key: fmt.Sprintf("%s\x00%s\x00%t", name, subject, isErr), label: label, name: name, subject: subject, failed: isErr}
 }
 
 // cycle reports the shortest period (2..maxCycle) the turn's recent
