@@ -1342,6 +1342,10 @@ func (m *model) export(path string) {
 		path = filepath.Join(m.opts.Cwd, path)
 	}
 	md := session.Markdown(m.opts.Session.Meta, m.opts.Agent.Messages)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		m.transcript.errorf("export: %v", err)
+		return
+	}
 	if err := tool.AtomicWrite(path, []byte(md)); err != nil {
 		m.transcript.errorf("export: %v", err)
 		return
