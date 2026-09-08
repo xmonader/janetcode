@@ -881,3 +881,41 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 	}
 	h.update(esc)
 }
+
+func TestFirstRunOpensConnectDialog(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Agent.Provider = nil
+	cfg := &config.Config{Provider: "anthropic", Providers: map[string]config.Provider{}}
+	lister := &listing{models: []llm.ModelInfo{{ID: "llama3"}}}
+	h.withConfig(t, cfg, func(c *config.Config) (llm.Provider, error) { return lister, nil })
+	h.m.opts.Connect = true
+	h.m.ready = false
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	if h.m.connect == nil || h.m.connect.step != stepPick {
+		t.Fatalf("dialog not opened: %+v", h.m.connect)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "not connected · /connect") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	h.keys("hello")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "not connected to a provider yet: run /connect") {
+		t.Fatalf("view:\n%s", v)
+	}
+	// Ollama needs no key: URL and key steps pass with empty input.
+	h.inputReset()
+	h.keys("/connect")
+	h.enter()
+	h.keys("ollama")
+	h.enter()
+	h.enter()
+	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter})
+	if h.m.connect == nil || h.m.connect.step != stepModel || len(h.m.connect.models) != 1 {
+		t.Fatalf("connect = %+v", h.m.connect)
+	}
+	h.enter()
+	if h.m.opts.Agent.Provider != lister || h.m.opts.Agent.Model != "llama3" || !strings.Contains(plain(h.m.View()), "ollama/llama3") {
+		t.Fatalf("view:\n%s", plain(h.m.View()))
+	}
+}

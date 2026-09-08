@@ -523,3 +523,11 @@ func maskedInput(v string) string {
 	}
 	return b.String()
 }
+
+// headerModel labels the active backend in the header.
+func (m *model) headerModel() string {
+	if m.opts.Agent.Provider == nil {
+		return "not connected · /connect"
+	}
+	return m.opts.Provider + "/" + m.opts.Agent.Model
+}

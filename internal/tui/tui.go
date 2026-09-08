@@ -45,9 +45,12 @@ type Options struct {
 	Config     *config.Config
 	ConfigPath string
 	Build      func(*config.Config) (llm.Provider, error)
-	Cwd        string
-	Resumed    int // messages loaded from a resumed session
-	Version    string
+	// Connect opens the provider dialog at start because Agent.Provider is
+	// nil: nothing is configured yet.
+	Connect bool
+	Cwd     string
+	Resumed int // messages loaded from a resumed session
+	Version string
 	// Theme is "dark", "light" or "" for terminal detection.
 	Theme string
 	// InitialPrompt is sent as soon as the UI is ready.
@@ -298,7 +301,11 @@ func newModel(opts Options) *model {
 
 func (m *model) welcome() string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "janetcode %s · %s · %s\n", m.opts.Version, m.opts.Provider, m.opts.Agent.Model)
+	if m.opts.Agent.Provider == nil {
+		fmt.Fprintf(&sb, "janetcode %s · no provider configured yet: pick one below, or set ANTHROPIC_API_KEY / OPENAI_API_KEY\n", m.opts.Version)
+	} else {
+		fmt.Fprintf(&sb, "janetcode %s · %s · %s\n", m.opts.Version, m.opts.Provider, m.opts.Agent.Model)
+	}
 	fmt.Fprintf(&sb, "working in %s", tailPath(shortPath(m.opts.Cwd), 70))
 	if m.branch != "" {
 		fmt.Fprintf(&sb, " on %s", m.branch)
@@ -364,6 +371,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.layout()
 		m.refresh(true)
+		if first && m.opts.Connect {
+			m.opts.Connect = false
+			return m, m.openConnect(stepPick)
+		}
 		if first && m.opts.InitialPrompt != "" {
 			text := m.opts.InitialPrompt
 			m.opts.InitialPrompt = ""
@@ -958,6 +969,11 @@ func (m *model) answer(d agent.Decision, reason string) {
 }
 
 func (m *model) submit(text string) tea.Cmd {
+	if m.opts.Agent.Provider == nil {
+		m.transcript.errorf("not connected to a provider yet: run /connect")
+		m.refresh(false)
+		return nil
+	}
 	m.transcript.user(text)
 	text, atts := prompt.ExpandMentions(m.opts.Cwd, text)
 	if len(atts) > 0 {
@@ -1603,7 +1619,7 @@ func (m *model) View() string {
 }
 
 func (m *model) headerView() string {
-	left := styleHeaderHi.Render(" ◆ janetcode ") + styleHeader.Render(m.opts.Provider+"/"+m.opts.Agent.Model)
+	left := styleHeaderHi.Render(" ◆ janetcode ") + styleHeader.Render(m.headerModel())
 	suffix := ""
 	if m.branch != "" {
 		suffix = " ⎇ " + m.branch

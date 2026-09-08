@@ -67,6 +67,10 @@ func (c *Config) PriceFor(model string) *llm.Price {
 	return &p
 }
 
+// ErrNoCredentials is returned (with a usable Config) when the selected
+// provider has no API key, so an interactive caller can ask for one.
+var ErrNoCredentials = errors.New("no API key")
+
 // Overrides are command-line values; empty means "not given".
 type Overrides struct {
 	Provider    string
@@ -139,7 +143,9 @@ func WriteExample() (string, error) {
 }
 
 // Load reads the config file (if any), applies environment variables, then
-// overrides, and validates the result.
+// overrides, and validates the result. When the only problem is a missing
+// key it returns the Config together with an error wrapping
+// ErrNoCredentials.
 func Load(ov Overrides) (*Config, error) {
 	p, err := Path()
 	if err != nil {
@@ -281,9 +287,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		}
 		if len(active.Keys()) == 0 {
 			if cfg.Provider == DefaultProvider {
-				return nil, fmt.Errorf("no API key: set ANTHROPIC_API_KEY, or OPENAI_API_KEY with JANETCODE_MODEL for an OpenAI-compatible backend, or run janetcode --init and edit %s", path)
+				return cfg, fmt.Errorf("%w: set ANTHROPIC_API_KEY, or OPENAI_API_KEY with JANETCODE_MODEL for an OpenAI-compatible backend, or run janetcode --init and edit %s", ErrNoCredentials, path)
 			}
-			return nil, fmt.Errorf("no API key for provider %q: set providers.%s.api_key in %s", cfg.Provider, cfg.Provider, path)
+			return cfg, fmt.Errorf("%w for provider %q: set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
 		}
 	case "openai":
 		if cfg.Model == "" {
@@ -291,9 +297,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		}
 		if len(active.Keys()) == 0 && active.NeedsKey() {
 			if cfg.Provider == "openai" {
-				return nil, fmt.Errorf("no OpenAI-compatible API key: set OPENAI_API_KEY or providers.openai.api_key in %s", path)
+				return cfg, fmt.Errorf("%w: set OPENAI_API_KEY or providers.openai.api_key in %s", ErrNoCredentials, path)
 			}
-			return nil, fmt.Errorf("no API key for provider %q: set providers.%s.api_key in %s", cfg.Provider, cfg.Provider, path)
+			return cfg, fmt.Errorf("%w for provider %q: set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
 		}
 	default:
 		return nil, fmt.Errorf("provider %q has type %q (want anthropic or openai)", cfg.Provider, active.Type)

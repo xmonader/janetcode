@@ -97,12 +97,17 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 
 	cfg, err := config.Load(config.Overrides{Provider: *provider, Model: *model, Effort: *effort, AutoApprove: *yolo})
-	if err != nil {
+	// Interactive first run: open the TUI and ask for a provider instead
+	// of failing. Headless runs still need working credentials.
+	needsConnect := err != nil && errors.Is(err, config.ErrNoCredentials) && *promptText == "" && term.IsTerminal(int(os.Stdin.Fd()))
+	if err != nil && !needsConnect {
 		return err
 	}
-	prov, err := buildProvider(cfg)
-	if err != nil {
-		return err
+	var prov llm.Provider
+	if !needsConnect {
+		if prov, err = buildProvider(cfg); err != nil {
+			return err
+		}
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -218,7 +223,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	return tui.Run(tui.Options{
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: cfgDir,
-		Config: cfg, ConfigPath: cfgPath, Build: buildProvider,
+		Config: cfg, ConfigPath: cfgPath, Build: buildProvider, Connect: needsConnect,
 		Resumed: len(history), Version: version, Theme: cfg.Theme,
 		InitialPrompt: initial,
 		MCP: &tui.MCPOptions{
