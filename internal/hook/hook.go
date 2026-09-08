@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/tool"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -157,7 +158,8 @@ type Runner struct {
 	Config Config
 	Cwd    string
 	Log    func(string)
-	// Shell overrides the shell used ("bash" by default).
+	// Shell overrides the shell used with -c (bash on Unix and PowerShell
+	// on Windows by default, see tool.DefaultShell).
 	Shell string
 }
 
@@ -251,15 +253,16 @@ func (r *Runner) exec(ctx context.Context, h Hook, in Input) (execOut, int, erro
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	shell := r.Shell
-	if shell == "" {
-		shell = "bash"
-	}
 	payload, err := json.Marshal(in)
 	if err != nil {
 		return execOut{}, -1, err
 	}
-	cmd := exec.CommandContext(ctx, shell, "-c", h.Command)
+	var cmd *exec.Cmd
+	if r.Shell != "" {
+		cmd = exec.CommandContext(ctx, r.Shell, "-c", h.Command)
+	} else {
+		cmd = tool.ShellCommand(ctx, h.Command)
+	}
 	cmd.Dir = r.Cwd
 	cmd.Stdin = bytes.NewReader(payload)
 	cmd.Env = append(os.Environ(),

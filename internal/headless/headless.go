@@ -172,7 +172,7 @@ func remember(ctx context.Context, opts Options) {
 func check(ctx context.Context, cwd, command string) (string, int) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "bash", "-c", command)
+	cmd := tool.ShellCommand(ctx, command)
 	cmd.Dir = cwd
 	out, err := cmd.CombinedOutput()
 	if err == nil {

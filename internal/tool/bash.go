@@ -28,7 +28,7 @@ type Bash struct {
 
 func (Bash) Name() string { return "bash" }
 func (Bash) Description() string {
-	return "Run a shell command with bash in the working directory. Returns combined stdout/stderr and the exit code. Use a timeout for long-running commands, or background: true for servers, watchers and long builds: the command keeps running, you get a job id at once and a note when it finishes (see the job tool). Do not use for reading or editing files; use the dedicated tools."
+	return "Run a shell command with " + DefaultShell().Name + " in the working directory. Returns combined stdout/stderr and the exit code. Use a timeout for long-running commands, or background: true for servers, watchers and long builds: the command keeps running, you get a job id at once and a note when it finishes (see the job tool). Do not use for reading or editing files; use the dedicated tools."
 }
 func (Bash) Mutating() bool { return true }
 func (Bash) Schema() json.RawMessage {
@@ -86,7 +86,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "bash", "-c", in.Command)
+	cmd := ShellCommand(ctx, in.Command)
 	cmd.Dir = t.Root
 	cmd.Env = scrubEnv(os.Environ())
 	setProcessGroup(cmd)

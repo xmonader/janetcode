@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/tool"
 	"io"
 	"os"
 	"os/exec"
@@ -229,7 +230,7 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 	}
 	cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer ccancel()
-	cmd := exec.CommandContext(cctx, "bash", "-c", t.Check)
+	cmd := tool.ShellCommand(cctx, t.Check)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir)
 	cout, cerr := cmd.CombinedOutput()

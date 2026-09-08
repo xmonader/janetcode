@@ -61,7 +61,7 @@ func (j *Jobs) Start(root, command string) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.CommandContext(context.Background(), "bash", "-c", command) // never cancelled; Kill uses the process group
+	cmd := ShellCommand(context.Background(), command) // never cancelled; Kill uses the process group
 	cmd.Dir = root
 	cmd.Env = scrubEnv(os.Environ())
 	setProcessGroup(cmd)

@@ -16,6 +16,17 @@ make install        # puts janetcode on your $GOPATH/bin
 
 Requires Go 1.25+.
 
+Linux and macOS are where janetcode is developed and tested. Windows
+support is best effort: `GOOS=windows go build ./...` (`make cross`) is
+kept green and the shell paths are switched by OS, so `bash`, hooks,
+verification commands, `--watch`/`--until` checks and background jobs
+run through PowerShell (`pwsh` if installed, else Windows PowerShell)
+with the command passed as `-EncodedCommand` to avoid quoting rules, and
+cancelled commands are killed with `taskkill /T`. None of that has been
+exercised on a real Windows machine yet, and the command safety
+classifier still reasons about POSIX shell syntax, so treat it as
+untested. The cheapest way to use janetcode on Windows today is WSL.
+
 ## Quick start
 
 ```sh

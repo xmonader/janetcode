@@ -115,7 +115,7 @@ func (r *Runner) Run(ctx context.Context) Result {
 	}
 	for _, command := range r.Config.Commands {
 		cctx, cancel := context.WithTimeout(ctx, timeout)
-		cmd := exec.CommandContext(cctx, "bash", "-c", command)
+		cmd := tool.ShellCommand(cctx, command)
 		cmd.Dir = r.Cwd
 		cmd.Env = append(os.Environ(), "JANETCODE_VERIFY=1")
 		out, err := cmd.CombinedOutput()
