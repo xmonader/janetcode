@@ -103,3 +103,27 @@ func TestTaskRejectsBadInput(t *testing.T) {
 		t.Fatal("missing parent accepted")
 	}
 }
+
+func TestTaskRestrictsSubagentTools(t *testing.T) {
+	root := t.TempDir()
+	parent := &Agent{Tools: tool.NewRegistry(tool.ReadFile{Root: root}, tool.Grep{Root: root}, tool.Bash{Root: root})}
+	task := &Task{Parent: parent}
+	parent.Tools.Add(task)
+	child, err := task.child([]string{"grep"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if defs := child.Tools.Defs(); len(defs) != 1 || defs[0].Name != "grep" {
+		t.Fatalf("child tools = %+v", defs)
+	}
+	if _, err := task.child([]string{"bash"}); err == nil || !strings.Contains(err.Error(), "read-only") {
+		t.Fatalf("mutating tool accepted: %v", err)
+	}
+	if _, err := task.child([]string{"nope"}); err == nil || !strings.Contains(err.Error(), "unknown tool") {
+		t.Fatalf("unknown tool accepted: %v", err)
+	}
+	all, _ := task.child(nil)
+	if defs := all.Tools.Defs(); len(defs) != 2 {
+		t.Fatalf("default child tools = %+v", defs)
+	}
+}

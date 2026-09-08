@@ -12,12 +12,20 @@ import (
 type Manager struct {
 	Options  Options
 	Registry *tool.Registry // receives each server's tools once it is up
+	// DeferAbove is the number of tools past which a server's tools are
+	// registered deferred (loaded on demand via tool_search) instead of
+	// being sent with every request. Zero means DefaultDeferAbove.
+	DeferAbove int
 
 	mu       sync.Mutex
 	clients  map[string]*Client
 	errs     map[string]error
 	starting map[string]bool
 }
+
+// DefaultDeferAbove is the per-server tool count above which MCP tools are
+// deferred; a handful of tools are cheaper to list than to search for.
+const DefaultDeferAbove = 6
 
 // ServerStatus is one row of /mcp.
 type ServerStatus struct {
@@ -59,8 +67,17 @@ func (m *Manager) Start(ctx context.Context, name string, cfg ServerConfig, onDo
 		} else {
 			m.clients[name] = c
 			if m.Registry != nil {
-				for _, t := range c.AgentTools() {
-					m.Registry.Add(t)
+				tools := c.AgentTools()
+				deferAbove := m.DeferAbove
+				if deferAbove == 0 {
+					deferAbove = DefaultDeferAbove
+				}
+				for _, t := range tools {
+					if len(tools) > deferAbove {
+						m.Registry.AddDeferred(t)
+					} else {
+						m.Registry.Add(t)
+					}
 				}
 			}
 		}

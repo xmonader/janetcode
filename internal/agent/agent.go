@@ -516,6 +516,9 @@ func (a *Agent) toolNames() string {
 		}
 		s += d.Name
 	}
+	if n := len(a.Tools.Deferred()); n > 0 {
+		s += fmt.Sprintf(" (and %d deferred tools; find them with tool_search)", n)
+	}
 	return s
 }
 

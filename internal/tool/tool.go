@@ -31,8 +31,9 @@ type Tool interface {
 
 // Registry holds the tools available to an agent.
 type Registry struct {
-	mu    sync.RWMutex
-	tools map[string]Tool
+	mu       sync.RWMutex
+	tools    map[string]Tool
+	deferred map[string]bool
 }
 
 // NewRegistry builds a registry from the given tools. Duplicate names panic
@@ -64,11 +65,55 @@ func (r *Registry) Add(t Tool) {
 	r.tools[t.Name()] = t
 }
 
+// AddDeferred registers a tool whose schema is not sent to the model until
+// it is activated (by tool_search). This keeps big MCP tool sets from
+// bloating every request.
+func (r *Registry) AddDeferred(t Tool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.tools[t.Name()] = t
+	if r.deferred == nil {
+		r.deferred = map[string]bool{}
+	}
+	r.deferred[t.Name()] = true
+}
+
+// Activate makes a deferred tool's schema part of every request from now
+// on. It reports whether the name was a deferred tool.
+func (r *Registry) Activate(name string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.deferred[name] {
+		return false
+	}
+	delete(r.deferred, name)
+	return true
+}
+
+// Deferred returns the definitions of tools that are registered but not
+// yet exposed, sorted by name.
+func (r *Registry) Deferred() []llm.ToolDef {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	names := make([]string, 0, len(r.deferred))
+	for n := range r.deferred {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	defs := make([]llm.ToolDef, 0, len(names))
+	for _, n := range names {
+		t := r.tools[n]
+		defs = append(defs, llm.ToolDef{Name: n, Description: t.Description(), InputSchema: t.Schema()})
+	}
+	return defs
+}
+
 // Remove unregisters a tool.
 func (r *Registry) Remove(name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.tools, name)
+	delete(r.deferred, name)
 }
 
 // Defs returns the tool definitions in stable (sorted) order so the request
@@ -78,7 +123,9 @@ func (r *Registry) Defs() []llm.ToolDef {
 	defer r.mu.RUnlock()
 	names := make([]string, 0, len(r.tools))
 	for n := range r.tools {
-		names = append(names, n)
+		if !r.deferred[n] {
+			names = append(names, n)
+		}
 	}
 	sort.Strings(names)
 	defs := make([]llm.ToolDef, 0, len(names))

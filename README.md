@@ -268,6 +268,12 @@ evicted) and the model sees the first and last part plus the id. The
 every archived result, so a truncated build log or grep can always be
 recovered instead of rerun.
 
+An MCP server that exposes more than six tools has them registered
+*deferred*: their schemas are not sent with every request. The model sees
+their names in the `tool_search` description and loads the ones it needs
+by keyword, after which they stay available. The `task` subagent tool takes
+an optional `tools` list so a narrow job gets a narrow toolset.
+
 ## Development
 
 ```sh

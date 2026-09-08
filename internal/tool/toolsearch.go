@@ -1,0 +1,125 @@
+package tool
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+)
+
+// ToolSearch exposes deferred tools on demand: the model asks for what it
+// needs by keyword, gets the matching schemas back, and those tools are
+// part of every later request.
+type ToolSearch struct {
+	Registry *Registry
+}
+
+const toolSearchMax = 8
+
+func (*ToolSearch) Name() string { return "tool_search" }
+func (t *ToolSearch) Description() string {
+	names := t.deferredNames()
+	if len(names) == 0 {
+		return "Find and load tools that are not listed by default. Nothing is deferred right now."
+	}
+	list := strings.Join(names, ", ")
+	if len(list) > 1500 {
+		list = list[:1500] + "…"
+	}
+	return fmt.Sprintf("Find and load tools that are not listed by default (%d deferred). Search by keyword; matching tools are returned with their schemas and become callable. Deferred now: %s", len(names), list)
+}
+func (*ToolSearch) Mutating() bool { return false }
+func (*ToolSearch) Schema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{
+"query":{"type":"string","description":"Keywords or a tool name; empty lists every deferred tool"}},
+"additionalProperties":false}`)
+}
+
+func (t *ToolSearch) deferredNames() []string {
+	if t.Registry == nil {
+		return nil
+	}
+	defs := t.Registry.Deferred()
+	names := make([]string, len(defs))
+	for i, d := range defs {
+		names[i] = d.Name
+	}
+	return names
+}
+
+func (t *ToolSearch) Run(ctx context.Context, input json.RawMessage) (string, error) {
+	var in struct {
+		Query string `json:"query"`
+	}
+	if len(input) > 0 {
+		if err := json.Unmarshal(input, &in); err != nil {
+			return "", fmt.Errorf("bad input: %w", err)
+		}
+	}
+	if t.Registry == nil {
+		return "", fmt.Errorf("tool_search has no registry")
+	}
+	defs := t.Registry.Deferred()
+	if len(defs) == 0 {
+		return "No tools are deferred; everything available is already listed.", nil
+	}
+	words := strings.Fields(strings.ToLower(in.Query))
+	if len(words) == 0 {
+		var sb strings.Builder
+		fmt.Fprintf(&sb, "%d deferred tools (search to load any of them):\n", len(defs))
+		for _, d := range defs {
+			fmt.Fprintf(&sb, "%s\t%s\n", d.Name, firstSentence(d.Description))
+		}
+		return Truncate(sb.String()), nil
+	}
+	type hit struct {
+		i     int
+		score int
+	}
+	var hits []hit
+	for i, d := range defs {
+		hay := strings.ToLower(d.Name + " " + d.Description)
+		name := strings.ToLower(d.Name)
+		score := 0
+		for _, w := range words {
+			switch {
+			case name == w || strings.HasSuffix(name, "__"+w):
+				score += 10
+			case strings.Contains(name, w):
+				score += 4
+			case strings.Contains(hay, w):
+				score++
+			}
+		}
+		if score > 0 {
+			hits = append(hits, hit{i, score})
+		}
+	}
+	if len(hits) == 0 {
+		return fmt.Sprintf("No deferred tool matches %q. Call tool_search with an empty query to list them all.", in.Query), nil
+	}
+	sort.SliceStable(hits, func(a, b int) bool { return hits[a].score > hits[b].score })
+	if len(hits) > toolSearchMax {
+		hits = hits[:toolSearchMax]
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Loaded %d tools; they are callable from now on:\n", len(hits))
+	for _, h := range hits {
+		d := defs[h.i]
+		t.Registry.Activate(d.Name)
+		fmt.Fprintf(&sb, "\n## %s\n%s\nInput schema: %s\n", d.Name, d.Description, string(d.InputSchema))
+	}
+	return Truncate(sb.String()), nil
+}
+
+func firstSentence(s string) string {
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
+	if i := strings.Index(s, ". "); i > 0 && i < 160 {
+		return s[:i+1]
+	}
+	if len(s) > 160 {
+		return s[:157] + "…"
+	}
+	return s
+}

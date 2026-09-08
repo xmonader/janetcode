@@ -26,13 +26,14 @@ type Task struct {
 
 func (*Task) Name() string { return "task" }
 func (*Task) Description() string {
-	return "Delegate a self-contained read-only job to a subagent that has its own context window: exploring an unfamiliar area of the codebase, tracing how something works, or gathering facts across many files. It can read, list, glob, grep and fetch URLs but cannot edit files or run commands. Give it a complete brief with what to find and what to report back; it returns only its final report. Call several in one turn to work in parallel."
+	return "Delegate a self-contained read-only job to a subagent that has its own context window: exploring an unfamiliar area of the codebase, tracing how something works, or gathering facts across many files. It can read, list, glob, grep and fetch URLs but cannot edit files or run commands. Give it a complete brief with what to find and what to report back; it returns only its final report. Call several in one turn to work in parallel. Pass tools to restrict it to a few named tools when the job is narrow (fewer schemas, cheaper and more focused)."
 }
 func (*Task) Mutating() bool { return false }
 func (*Task) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
 "description":{"type":"string","description":"Short label for what the subagent is doing (shown to the user)"},
-"prompt":{"type":"string","description":"The full brief: goal, where to look, and exactly what to report"}},
+"prompt":{"type":"string","description":"The full brief: goal, where to look, and exactly what to report"},
+"tools":{"type":"array","items":{"type":"string"},"description":"Optional: only these read-only tools are given to the subagent, e.g. [\"grep\",\"read_file\"]"}},
 "required":["description","prompt"],"additionalProperties":false}`)
 }
 
@@ -45,8 +46,9 @@ func (t *Task) Usage() llm.Usage {
 
 func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
-		Description string `json:"description"`
-		Prompt      string `json:"prompt"`
+		Description string   `json:"description"`
+		Prompt      string   `json:"prompt"`
+		Tools       []string `json:"tools"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", fmt.Errorf("bad input: %w", err)
@@ -57,9 +59,12 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if t.Parent == nil {
 		return "", fmt.Errorf("task tool has no parent agent")
 	}
-	child := t.child()
+	child, err := t.child(in.Tools)
+	if err != nil {
+		return "", err
+	}
 	start := time.Now()
-	err := child.Run(ctx, in.Prompt, nil)
+	err = child.Run(ctx, in.Prompt, nil)
 	t.mu.Lock()
 	t.usage.Add(child.Usage)
 	t.mu.Unlock()
@@ -73,14 +78,28 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	return fmt.Sprintf("%s\n\n[subagent %q: %d tool calls, %s, %s in / %s out]", report, in.Description, countToolUses(child.Messages), time.Since(start).Round(time.Millisecond), tokens(child.Usage.InputTokens+child.Usage.CacheReadTokens), tokens(child.Usage.OutputTokens)), nil
 }
 
-// child builds the subagent: same provider and model, read-only tools only,
-// no approver (a mutating tool would be denied outright).
-func (t *Task) child() *Agent {
+// child builds the subagent: same provider and model, read-only tools only
+// (or the named subset of them), no approver (a mutating tool would be
+// denied outright).
+func (t *Task) child(only []string) (*Agent, error) {
 	p := t.Parent
 	var ro []tool.Tool
-	for _, d := range p.Tools.Defs() {
-		if tl, ok := p.Tools.Get(d.Name); ok && !tl.Mutating() && d.Name != t.Name() {
+	if len(only) > 0 {
+		for _, name := range only {
+			tl, ok := p.Tools.Get(name)
+			if !ok {
+				return nil, fmt.Errorf("unknown tool %q in tools", name)
+			}
+			if tl.Mutating() || name == t.Name() {
+				return nil, fmt.Errorf("tool %q cannot be given to a subagent (read-only tools only)", name)
+			}
 			ro = append(ro, tl)
+		}
+	} else {
+		for _, d := range p.Tools.Defs() {
+			if tl, ok := p.Tools.Get(d.Name); ok && !tl.Mutating() && d.Name != t.Name() {
+				ro = append(ro, tl)
+			}
 		}
 	}
 	maxIter := t.MaxIterations
@@ -98,7 +117,7 @@ func (t *Task) child() *Agent {
 		Archive:       p.Archive,
 		AutoApprove:   false,
 		Debug:         p.Debug,
-	}
+	}, nil
 }
 
 func lastAssistantText(msgs []llm.Message) string {
