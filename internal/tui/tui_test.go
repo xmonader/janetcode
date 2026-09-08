@@ -23,6 +23,7 @@ import (
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 type scripted struct{ responses []*llm.Response }
@@ -1054,5 +1055,48 @@ func TestPermissionPromptRuleKeySavesRule(t *testing.T) {
 	h.enter()
 	if v := plain(h.m.View()); !strings.Contains(v, "deny   bash(git push*)") || !strings.Contains(v, "allow  write_file(docs/*)") {
 		t.Fatalf("view:\n%s", v)
+	}
+}
+
+func TestVerifyCommandSetsRunsAndGatesTurns(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(`{"path":"a.txt","content":"bad"}`)}}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "t2", Name: "write_file", Input: json.RawMessage(`{"path":"a.txt","content":"ok"}`)}}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "fixed"), StopReason: llm.StopEndTurn},
+	)
+	h.m.opts.Agent.AutoApprove = true
+	h.m.opts.Verify = &VerifyOptions{Trust: mcp.TrustStore{Path: filepath.Join(t.TempDir(), "trust.json")}}
+	h.keys("/verify")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "no verification commands") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/verify set grep -q ok a.txt")
+	h.enter()
+	cfg, _, err := verify.Load(h.m.opts.Cwd)
+	if err != nil || len(cfg.Commands) != 1 || cfg.Commands[0] != "grep -q ok a.txt" || h.m.opts.Agent.Verify == nil || !h.m.opts.Verify.ProjectTrusted {
+		t.Fatalf("cfg = %+v err = %v agent.Verify = %v", cfg, err, h.m.opts.Agent.Verify)
+	}
+	h.keys("/verify")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	if v := plain(h.m.View()); !strings.Contains(v, "verification failed: grep -q ok a.txt (exit 2") {
+		t.Fatalf("manual run view:\n%s", v)
+	}
+	h.keys("write it")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	v := plain(h.m.View())
+	if !strings.Contains(v, "sending the model back to fix it (1/3)") || !strings.Contains(v, "verified: grep -q ok a.txt") {
+		t.Fatalf("gated turn view:\n%s", v)
+	}
+	if got, _ := os.ReadFile(filepath.Join(h.m.opts.Cwd, "a.txt")); string(got) != "ok" {
+		t.Fatalf("a.txt = %q", got)
+	}
+	h.keys("/verify clear")
+	h.enter()
+	if cfg, _, _ := verify.Load(h.m.opts.Cwd); len(cfg.Commands) != 0 || h.m.opts.Agent.Verify != nil {
+		t.Fatalf("clear left cfg = %+v verify = %v", cfg, h.m.opts.Agent.Verify)
 	}
 }

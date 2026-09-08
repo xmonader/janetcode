@@ -40,9 +40,11 @@ type Options struct {
 	// ConfigDir holds global custom commands under commands/*.md.
 	ConfigDir string
 	// MCP, when set, describes the servers to start.
-	MCP      *MCPOptions
-	Hooks    *HookOptions
-	Perms    *PermOptions
+	MCP   *MCPOptions
+	Hooks *HookOptions
+	Perms *PermOptions
+	// Verify carries the project's verification commands (/verify).
+	Verify   *VerifyOptions
 	Agent    *agent.Agent
 	Session  *session.Session
 	Provider string
@@ -436,6 +438,7 @@ var commands = []command{
 	{"/mcp", "[trust]", "MCP servers and their tools; trust starts the project's .mcp.json servers"},
 	{"/hooks", "[trust]", "hooks in effect; trust enables the project's .janetcode/hooks.json"},
 	{"/permissions", "[allow|deny <rule>|trust]", "permission rules; add one, or trust the project's .janetcode/permissions.json"},
+	{"/verify", "[set <cmd>|clear|trust]", "run the project's checks now; set adds one to .janetcode/verify.json"},
 	{"/memory", "", "what janetcode remembers about this project"},
 	{"/skills", "", "skill files available to the model"},
 	{"/remember", "<fact>", "add a fact to the project memory"},
@@ -695,6 +698,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.phase = "waiting for your approval"
 		m.refresh(false)
 		m.viewport.GotoBottom()
+		return m, nil
+
+	case verifyDoneMsg:
+		m.finishVerify(msg)
+		m.refresh(false)
 		return m, nil
 
 	case mcpPromptMsg:
@@ -1528,6 +1536,10 @@ func (m *model) command(text string) tea.Cmd {
 		m.hooksCommand(fields[1:])
 	case "/permissions", "/perms":
 		m.permissionsCommand(fields[1:])
+	case "/verify":
+		if cmd := m.verifyCommand(fields[1:]); cmd != nil {
+			return cmd
+		}
 	case "/skills":
 		skills := skill.Load(m.opts.Cwd, m.opts.ConfigDir)
 		if len(skills) == 0 {

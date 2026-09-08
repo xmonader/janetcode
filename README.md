@@ -265,6 +265,29 @@ tools: read_file, grep, glob
 You are a strict reviewer. Report concrete defects with file:line ...
 ```
 
+### Verification gates
+
+A project can define what "done" means. `.janetcode/verify.json` lists
+commands that must pass after any turn that changed something:
+
+```json
+{"commands": ["go build ./...", "go test ./..."], "timeout": 600}
+```
+
+When the model ends a turn after editing or running something, the
+commands run in order. A failure is shown to you and fed back to the model
+as a message with the exit code and output, and it keeps working; after
+three failed rounds it stops and tells you. A pass shows as
+`verified: …`. Read-only turns skip the checks, and the checks do not
+rerun until something changes again.
+
+`/verify` runs the checks now, `/verify set "make test"` adds a command to
+the file, `/verify clear` removes them all. Like hooks, a verify file that
+came with a clone needs a one-time `/verify trust` before it runs, because
+it executes commands on your machine; files you write through `/verify
+set` are trusted as you write them. In headless mode `--until` remains the
+one-off equivalent.
+
 ### Hooks
 
 Hooks are shell commands run at fixed points of the loop. They live under

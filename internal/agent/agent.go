@@ -20,6 +20,7 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 // Decision is the user's answer to a permission request.
@@ -116,6 +117,12 @@ type Agent struct {
 	// Rules are persistent permission rules consulted before the Approver:
 	// a deny refuses the call outright, an allow skips the prompt.
 	Rules perm.Rules
+	// Verify, when set, runs the project's definition of done after a turn
+	// that changed something. Failures go back to the model before the
+	// turn ends, up to verify.MaxRounds times.
+	Verify *verify.Runner
+	// mutations counts successful mutating tool calls this turn.
+	mutations int
 	// SaveRule, when set, persists a rule the user created with AllowAlways.
 	SaveRule func(perm.Rule) error
 	// CompactAt is the estimated token count that triggers automatic
@@ -205,7 +212,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}
 	a.appendUserBlocks(blocks...)
 	a.cp.beginTurn()
-	a.mutated = false
+	a.mutated, a.mutations = false, 0
 	defer a.endTurn()
 	a.loops.reset()
 	a.integ.userText = ""
@@ -221,6 +228,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		compactAt = DefaultCompactAt
 	}
 	stops := 0
+	gate := gateState{}
 	for iter := 0; iter < maxIter; iter++ {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -258,6 +266,9 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 
 		if resp.StopReason != llm.StopToolUse {
 			if more := a.stopHook(ctx, resp.Message.Text(), &stops, emit); more {
+				continue
+			}
+			if more := a.verifyGate(ctx, &gate, emit); more {
 				continue
 			}
 			emit(Event{Kind: EvTurnDone, Usage: resp.Usage, StopReason: resp.StopReason})
@@ -563,6 +574,7 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 		isErr = true
 	} else if t.Mutating() {
 		a.mutated = true
+		a.mutations++
 	}
 	if out == "" {
 		out = "(no output)"
@@ -616,6 +628,40 @@ func (a *Agent) stopHook(ctx context.Context, text string, stops *int, emit func
 
 // maxStopContinues bounds how often stop hooks may extend one turn.
 const maxStopContinues = 3
+
+// gateState tracks verification within one turn.
+type gateState struct {
+	rounds int
+	seen   int // a.mutations when the checks last ran
+}
+
+// verifyGate runs the project's verification commands when the model ends
+// a turn after changing something. A failure is fed back and the turn
+// continues; a pass is reported. Checks rerun only after further changes,
+// and at most verify.MaxRounds failures are sent back.
+func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) bool {
+	if !a.Verify.Enabled() || a.mutations == 0 || a.mutations == g.seen {
+		return false
+	}
+	g.seen = a.mutations
+	emit(Event{Kind: EvNotice, Text: "verifying: " + strings.Join(a.Verify.Config.Commands, " · ")})
+	res := a.Verify.Run(ctx)
+	if ctx.Err() != nil {
+		return false
+	}
+	if res.OK() {
+		emit(Event{Kind: EvNotice, Text: res.Summary()})
+		return false
+	}
+	g.rounds++
+	if g.rounds > verify.MaxRounds {
+		emit(Event{Kind: EvNotice, Text: res.Summary() + " · giving up after " + fmt.Sprint(verify.MaxRounds) + " rounds"})
+		return false
+	}
+	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("%s · sending the model back to fix it (%d/%d)", res.Summary(), g.rounds, verify.MaxRounds)})
+	a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, res.Feedback()))
+	return true
+}
 
 func runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (out string, err error) {
 	defer func() {

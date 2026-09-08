@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 // seesApprover records the inputs it was asked to approve.
@@ -156,5 +158,72 @@ func TestPermissionRulesAllowDenyAndAlways(t *testing.T) {
 	}
 	if data, _ := os.ReadFile(filepath.Join(root, "h.txt")); string(data) != "x" {
 		t.Fatal("hook-approved write did not run")
+	}
+}
+
+func TestVerifyGateFeedsFailuresBackThenPasses(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"a.txt","content":"v1"}`),
+		text("done"), // gate runs: fails
+		toolCall("t2", "write_file", `{"path":"a.txt","content":"ok"}`),
+		text("fixed"), // gate runs: passes
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Verify = &verify.Runner{Cwd: root, Config: verify.Config{Commands: []string{"grep -q ok a.txt"}}}
+	var notices []string
+	err := a.Run(context.Background(), "go", func(e Event) {
+		if e.Kind == EvNotice {
+			notices = append(notices, e.Text)
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.requests) != 4 {
+		t.Fatalf("requests = %d, want 4", len(f.requests))
+	}
+	last := f.requests[2].Messages
+	if fb := last[len(last)-1].Text(); !strings.Contains(fb, "Verification failed") || !strings.Contains(fb, "grep -q ok a.txt") {
+		t.Fatalf("feedback = %q", fb)
+	}
+	joined := strings.Join(notices, "\n")
+	if !strings.Contains(joined, "sending the model back to fix it (1/3)") || !strings.Contains(joined, "verified: grep -q ok a.txt") {
+		t.Fatalf("notices = %q", joined)
+	}
+}
+
+func TestVerifyGateSkipsReadOnlyTurnsAndGivesUp(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("nothing changed")}}
+	a, root := newAgent(t, f, nil)
+	a.Verify = &verify.Runner{Cwd: root, Config: verify.Config{Commands: []string{"false"}}}
+	if err := a.Run(context.Background(), "hi", nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.requests) != 1 {
+		t.Fatalf("read-only turn ran the gate: requests = %d", len(f.requests))
+	}
+	var rs []*llm.Response
+	for i := 0; i < 6; i++ {
+		rs = append(rs, toolCall(fmt.Sprintf("t%d", i), "write_file", `{"path":"b.txt","content":"x"}`), text("done"))
+	}
+	f = &fake{responses: rs}
+	a, root = newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Verify = &verify.Runner{Cwd: root, Config: verify.Config{Commands: []string{"false"}}}
+	var last string
+	if err := a.Run(context.Background(), "go", func(e Event) {
+		if e.Kind == EvNotice {
+			last = e.Text
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// One initial attempt plus MaxRounds retries, each a tool call and a reply.
+	if want := 2 * (verify.MaxRounds + 1); len(f.requests) != want {
+		t.Fatalf("requests = %d, want %d", len(f.requests), want)
+	}
+	if !strings.Contains(last, "giving up after 3 rounds") {
+		t.Fatalf("last notice = %q", last)
 	}
 }

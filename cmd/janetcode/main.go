@@ -31,6 +31,7 @@ import (
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/tui"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 // version is set at build time via -ldflags "-X main.version=...".
@@ -216,6 +217,16 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	} else if len(hooksCfg) > 0 && *promptText != "" {
 		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
 	}
+	verifyCfg, verifyHash, err := verify.Load(cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v (project verification ignored)\n", err)
+	}
+	verifyTrusted := len(verifyCfg.Commands) > 0 && trust.Trusted(cwd+"#verify", verifyHash)
+	if verifyTrusted {
+		ag.Verify = &verify.Runner{Config: verifyCfg, Cwd: cwd}
+	} else if len(verifyCfg.Commands) > 0 && *promptText != "" {
+		fmt.Fprintf(os.Stderr, "[verify] %s is not trusted yet; open the TUI and run /verify trust\n", verify.ProjectFile)
+	}
 	rules, _ := cfg.Permissions.Rules() // validated by config.Load
 	projRules, permHash, err := perm.LoadProject(cwd)
 	if err != nil {
@@ -303,7 +314,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			Manager: &servers, Global: cfg.MCPServers,
 			Project: projectServers, ProjectHash: projectHash, ProjectTrusted: projectTrusted, Trust: trust,
 		},
-		Hooks: &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
+		Hooks:  &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
+		Verify: &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: trust},
 		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: trust,
 			Save: func(kind string, r perm.Rule) error { return config.AddPermission(cfgPath, kind, r) }},
 	})
