@@ -27,6 +27,10 @@ type Meta struct {
 	Created  time.Time `json:"created"`
 	// Pins are user notes kept in the system prompt (/pin).
 	Pins []string `json:"pins,omitempty"`
+	// Title is a short name, set by the user or generated after the first turn.
+	Title string `json:"title,omitempty"`
+	// ForkOf is the session this one was branched from.
+	ForkOf string `json:"fork_of,omitempty"`
 }
 
 type line struct {
@@ -179,6 +183,17 @@ type Info struct {
 	Preview  string // first user text, trimmed
 }
 
+// Label is the title when set, else the preview, else the id.
+func (in Info) Label() string {
+	switch {
+	case in.Meta.Title != "":
+		return in.Meta.Title
+	case in.Preview != "":
+		return in.Preview
+	}
+	return in.Meta.ID
+}
+
 // List returns the sessions recorded for cwd (all when cwd is ""), newest
 // first. Unreadable files are skipped.
 func List(dir, cwd string) ([]Info, error) {
@@ -209,7 +224,7 @@ func List(dir, cwd string) ([]Info, error) {
 		}
 		out = append(out, info)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Meta.ID > out[j].Meta.ID })
+	sort.Slice(out, func(i, j int) bool { return newer(out[i].Meta, out[j].Meta) })
 	return out, nil
 }
 
@@ -283,6 +298,171 @@ func (s *Session) Sync(msgs []llm.Message) error {
 	s.persisted = len(msgs)
 	s.lastBlocks = len(msgs[s.persisted-1].Blocks)
 	return nil
+}
+
+// SetTitle stores a title in the metadata line and rewrites the file.
+func (s *Session) SetTitle(title string, msgs []llm.Message) error {
+	s.Meta.Title = strings.TrimSpace(title)
+	return s.rewrite(msgs)
+}
+
+// Fork starts a new session holding a copy of this one's messages, so a
+// conversation can branch: try one approach here, another in the fork.
+func Fork(dir string, from *Session, msgs []llm.Message, title string) (*Session, error) {
+	ns, err := New(dir, from.Meta.Cwd, from.Meta.Provider, from.Meta.Model)
+	if err != nil {
+		return nil, err
+	}
+	ns.Meta.Pins = append([]string(nil), from.Meta.Pins...)
+	ns.Meta.ForkOf = from.Meta.ID
+	if title = strings.TrimSpace(title); title == "" {
+		title = "fork of " + from.Label()
+	}
+	ns.Meta.Title = title
+	if err := ns.rewrite(msgs); err != nil {
+		return nil, err
+	}
+	ns.persisted = len(msgs)
+	if len(msgs) > 0 {
+		ns.lastBlocks = len(msgs[len(msgs)-1].Blocks)
+	}
+	return ns, nil
+}
+
+// Label is the title, or the id when there is none.
+func (s *Session) Label() string {
+	if s.Meta.Title != "" {
+		return s.Meta.Title
+	}
+	return s.Meta.ID
+}
+
+// AutoTitle derives a title from the first user message: its first line,
+// trimmed to a few words. It is the fallback when no model wrote one.
+func AutoTitle(msgs []llm.Message) string {
+	for _, m := range msgs {
+		if m.Role != llm.RoleUser {
+			continue
+		}
+		t := strings.TrimSpace(m.Text())
+		if t == "" || strings.HasPrefix(t, "[") || strings.HasPrefix(t, "<") {
+			continue
+		}
+		words := strings.Fields(firstLine(t, 200))
+		if len(words) > 8 {
+			words = words[:8]
+		}
+		return strings.TrimRight(strings.Join(words, " "), ".,;:")
+	}
+	return ""
+}
+
+// Hit is one search match in a saved session.
+type Hit struct {
+	Info    Info
+	Role    llm.Role
+	Snippet string
+	Matches int
+}
+
+// Search scans every session (all directories when cwd is "") for
+// messages containing every word of the query, case-insensitively, and
+// returns the best snippet per session, newest first.
+func Search(dir, cwd, query string, limit int) ([]Hit, error) {
+	words := strings.Fields(strings.ToLower(query))
+	if len(words) == 0 {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var hits []Hit
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".jsonl") {
+			continue
+		}
+		s, msgs, err := Open(dir, strings.TrimSuffix(e.Name(), ".jsonl"))
+		if err != nil || (cwd != "" && s.Meta.Cwd != cwd) {
+			continue
+		}
+		var best Hit
+		for _, m := range msgs {
+			for _, b := range m.Blocks {
+				if b.Type != llm.BlockText && b.Type != llm.BlockToolResult {
+					continue
+				}
+				low := strings.ToLower(b.Text)
+				n := 0
+				first := -1
+				for _, w := range words {
+					i := strings.Index(low, w)
+					if i < 0 {
+						n = 0
+						break
+					}
+					n++
+					if first < 0 || i < first {
+						first = i
+					}
+				}
+				if n == 0 {
+					continue
+				}
+				score := n
+				if b.Type == llm.BlockText {
+					score++ // conversation beats tool output
+				}
+				if score > best.Matches {
+					best = Hit{Role: m.Role, Snippet: snippetAround(b.Text, first), Matches: score}
+				}
+			}
+		}
+		if best.Matches == 0 {
+			continue
+		}
+		best.Info = Info{Meta: s.Meta, Messages: len(msgs)}
+		hits = append(hits, best)
+	}
+	sort.Slice(hits, func(i, j int) bool { return newer(hits[i].Info.Meta, hits[j].Info.Meta) })
+	if limit > 0 && len(hits) > limit {
+		hits = hits[:limit]
+	}
+	return hits, nil
+}
+
+// newer orders sessions newest first; ids made in the same second differ
+// only by their random suffix, so the creation time decides.
+func newer(a, b Meta) bool {
+	if !a.Created.Equal(b.Created) {
+		return a.Created.After(b.Created)
+	}
+	return a.ID > b.ID
+}
+
+func snippetAround(text string, at int) string {
+	start := strings.LastIndexByte(text[:at], '\n') + 1
+	end := strings.IndexByte(text[at:], '\n')
+	if end < 0 {
+		end = len(text)
+	} else {
+		end += at
+	}
+	line := strings.TrimSpace(text[start:end])
+	if len(line) > 120 {
+		from := at - start - 40
+		if from < 0 {
+			from = 0
+		}
+		if from+120 > len(line) {
+			from = len(line) - 120
+		}
+		line = "…" + line[from:from+120] + "…"
+	}
+	return line
 }
 
 // SavePins stores the pins in the metadata line and rewrites the file.

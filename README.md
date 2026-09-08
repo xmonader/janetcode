@@ -135,6 +135,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /usage
 /resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)
 /undo      /find X    /cost      /mcp [trust]
+/fork [title]  /title <text>  /history <words> (search every saved session)
 /context   (what fills the window)   /pin <note or @file>   /unpin <n>
 /export [file.md] (write the conversation as a Markdown transcript)
 ```
@@ -520,6 +521,15 @@ If the working directory contains `JANETCODE.md`, `AGENTS.md` or `CLAUDE.md`
 
 Every conversation is saved as append-only JSONL under
 `~/.local/share/janetcode/sessions/`.
+
+Every session gets a title after its first turn: the model is asked for a
+few words (a headless run uses the first prompt instead), and `/title
+<text>` renames one. `/fork [title]` branches the conversation: a new
+session starts with a copy of the messages and pins, the original stays
+as it was, and `/resume` lists both so you can try two approaches from the
+same point. `/history <words>` searches every saved session in every
+directory for the words and shows the best matching line with the session
+id to `/resume`.
 
 ```sh
 janetcode --sessions        # list sessions for this directory

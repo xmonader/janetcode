@@ -151,6 +151,11 @@ func turn(ctx context.Context, opts Options, blocks []llm.Block) error {
 		remember(ctx, opts)
 	}
 	if opts.Session != nil {
+		if opts.Session.Meta.Title == "" {
+			if t := session.AutoTitle(ag.Messages); t != "" {
+				opts.Session.Meta.Title = t // written by the sync below
+			}
+		}
 		ns, serr := opts.Session.SyncOrRotate(ag.Messages)
 		if ns != opts.Session {
 			ag.UndoPath = ns.UndoPath()

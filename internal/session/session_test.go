@@ -144,3 +144,61 @@ func TestSavePinsSurvivesOpenAndRotate(t *testing.T) {
 		t.Fatalf("rotate: same=%v pins=%v err=%v", ns == re, ns.Meta.Pins, err)
 	}
 }
+
+func TestForkTitleAndSearch(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir, "/work", "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	msgs := []llm.Message{
+		llm.TextMessage(llm.RoleUser, "Please add rate limiting to the API server."),
+		llm.TextMessage(llm.RoleAssistant, "Added a token bucket in limiter.go."),
+	}
+	if err := s.Sync(msgs); err != nil {
+		t.Fatal(err)
+	}
+	if got := AutoTitle(msgs); got != "Please add rate limiting to the API server" {
+		t.Fatalf("AutoTitle = %q", got)
+	}
+	if err := s.SetTitle("rate limiting", msgs); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SavePins([]string{"pin"}, msgs); err != nil {
+		t.Fatal(err)
+	}
+	f, err := Fork(dir, s, msgs, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Meta.ID == s.Meta.ID || f.Meta.Title != "fork of rate limiting" || f.Meta.ForkOf != s.Meta.ID || len(f.Meta.Pins) != 1 {
+		t.Fatalf("fork meta = %+v", f.Meta)
+	}
+	// Appending to the fork must not rewrite the original.
+	more := append(append([]llm.Message(nil), msgs...), llm.TextMessage(llm.RoleUser, "now use redis"))
+	if err := f.Sync(more); err != nil {
+		t.Fatal(err)
+	}
+	_, orig, _ := Open(dir, s.Meta.ID)
+	re, back, _ := Open(dir, f.Meta.ID)
+	if len(orig) != 2 || len(back) != 3 || re.Meta.Title != "fork of rate limiting" {
+		t.Fatalf("orig=%d fork=%d title=%q", len(orig), len(back), re.Meta.Title)
+	}
+	infos, _ := List(dir, "/work")
+	if len(infos) != 2 || infos[0].Label() != "fork of rate limiting" {
+		t.Fatalf("infos = %+v", infos)
+	}
+	hits, err := Search(dir, "/work", "token BUCKET", 10)
+	if err != nil || len(hits) != 2 || hits[0].Info.Meta.ID != f.Meta.ID || hits[0].Role != llm.RoleAssistant || !strings.Contains(hits[0].Snippet, "token bucket") {
+		t.Fatalf("hits = %+v err=%v", hits, err)
+	}
+	if hits, _ := Search(dir, "/work", "redis", 10); len(hits) != 1 || hits[0].Info.Meta.ID != f.Meta.ID {
+		t.Fatalf("redis hits = %+v", hits)
+	}
+	if hits, _ := Search(dir, "/elsewhere", "redis", 10); len(hits) != 0 {
+		t.Fatal("cwd filter ignored")
+	}
+	if hits, _ := Search(dir, "", "nothing-here", 10); len(hits) != 0 {
+		t.Fatal("phantom hit")
+	}
+}

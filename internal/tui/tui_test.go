@@ -1262,3 +1262,57 @@ func TestJobsCommandAndIdleNotice(t *testing.T) {
 		t.Fatalf("view:\n%s", v)
 	}
 }
+
+func TestForkTitleAndSearchCommands(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "I added a token bucket."), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "\"Rate limiting for the API.\"\n"), StopReason: llm.StopEndTurn}, // title
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "using redis now"), StopReason: llm.StopEndTurn},
+	)
+	h.m.opts.AutoTitle = true
+	h.keys("add rate limiting to the api")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	h.runCmd(h.m.autoTitle()) // finishTurn batches this; the harness drops commands
+	if got := h.m.opts.Session.Meta.Title; got != "Rate limiting for the API" {
+		t.Fatalf("title = %q", got)
+	}
+	orig := h.m.opts.Session
+	h.keys("/fork redis variant")
+	h.enter()
+	if h.m.opts.Session == orig || h.m.opts.Session.Meta.Title != "redis variant" || h.m.opts.Session.Meta.ForkOf != orig.Meta.ID {
+		t.Fatalf("fork = %+v", h.m.opts.Session.Meta)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "forked Rate limiting for the API →") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("switch to redis")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	_, origMsgs, _ := session.Open(dirOf(orig), orig.Meta.ID)
+	_, forkMsgs, _ := session.Open(dirOf(orig), h.m.opts.Session.Meta.ID)
+	if len(origMsgs) != 2 || len(forkMsgs) != 4 {
+		t.Fatalf("orig=%d fork=%d", len(origMsgs), len(forkMsgs))
+	}
+	h.keys("/title redis for real")
+	h.enter()
+	if re, _, _ := session.Open(dirOf(orig), h.m.opts.Session.Meta.ID); re.Meta.Title != "redis for real" {
+		t.Fatalf("saved title = %q", re.Meta.Title)
+	}
+	h.keys("/history token bucket")
+	h.enter()
+	v := plain(h.m.View())
+	if !strings.Contains(v, "redis for real") || !strings.Contains(v, "Rate limiting for the API") || !strings.Contains(v, "assistant: I added a token bucket.") {
+		t.Fatalf("search view:\n%s", v)
+	}
+	h.keys("/history nothing-like-this")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "no session mentions nothing-like-this") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/resume")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "Rate limiting for the API") {
+		t.Fatalf("resume list lacks the title:\n%s", v)
+	}
+}

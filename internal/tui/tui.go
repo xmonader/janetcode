@@ -49,10 +49,12 @@ type Options struct {
 	// LSP reports language-server status (/lsp).
 	LSP *lsp.Manager
 	// Jobs are background commands; finished ones are announced while idle.
-	Jobs     *tool.Jobs
-	Agent    *agent.Agent
-	Session  *session.Session
-	Provider string
+	Jobs *tool.Jobs
+	// AutoTitle asks the model for a short session title after the first turn.
+	AutoTitle bool
+	Agent     *agent.Agent
+	Session   *session.Session
+	Provider  string
 	// Config, ConfigPath and Build enable /connect and the /model picker:
 	// Build constructs a backend for a config, Update persists the choice.
 	Config     *config.Config
@@ -423,6 +425,97 @@ func trunc(s string, n int) string {
 	return s[:n-1] + "…"
 }
 
+// titleMsg carries a generated session title.
+type titleMsg struct {
+	gen   int
+	title string
+}
+
+// autoTitle asks the model for a short title in the background; on any
+// failure the first user message provides one.
+func (m *model) autoTitle() tea.Cmd {
+	m.titleGen++
+	gen := m.titleGen
+	ag := m.opts.Agent
+	msgs := append([]llm.Message(nil), ag.Messages...)
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		title, err := session.GenerateTitle(ctx, ag.Provider, ag.Model, msgs)
+		if err != nil || title == "" {
+			title = session.AutoTitle(msgs)
+		}
+		return titleMsg{gen: gen, title: title}
+	}
+}
+
+// forkSession branches the conversation into a new session.
+func (m *model) forkSession(title string) {
+	if m.opts.Session == nil {
+		m.transcript.errorf("no session to fork")
+		return
+	}
+	if m.running {
+		m.transcript.errorf("wait for the current turn to finish before forking")
+		return
+	}
+	ns, err := session.Fork(dirOf(m.opts.Session), m.opts.Session, m.opts.Agent.Messages, title)
+	if err != nil {
+		m.transcript.errorf("fork: %v", err)
+		return
+	}
+	old := m.opts.Session.Label()
+	m.opts.Session = ns
+	m.opts.Agent.UndoPath = ns.UndoPath()
+	m.opts.Agent.SaveUndo()
+	m.transcript.info(fmt.Sprintf("forked %s → %s (%s) · this session continues from here, the original is unchanged · /resume lists both", old, ns.Meta.ID, ns.Meta.Title))
+}
+
+// setTitle names the session.
+func (m *model) setTitle(title string) {
+	if m.opts.Session == nil {
+		m.transcript.errorf("no session")
+		return
+	}
+	if title == "" {
+		m.transcript.info("title: " + m.opts.Session.Label() + " · /title <text> renames")
+		return
+	}
+	m.titleGen++ // a pending generated title must not overwrite this
+	if err := m.opts.Session.SetTitle(title, m.opts.Agent.Messages); err != nil {
+		m.transcript.errorf("save title: %v", err)
+		return
+	}
+	m.transcript.info("titled: " + title)
+}
+
+// searchSessions finds earlier conversations mentioning the words.
+func (m *model) searchSessions(query string) {
+	if query == "" {
+		m.transcript.errorf("usage: /history <words>")
+		return
+	}
+	hits, err := session.Search(dirOf(m.opts.Session), "", query, 15)
+	if err != nil {
+		m.transcript.errorf("search: %v", err)
+		return
+	}
+	if len(hits) == 0 {
+		m.transcript.info("no session mentions " + query)
+		return
+	}
+	var sb strings.Builder
+	for _, h := range hits {
+		where := ""
+		if h.Info.Meta.Cwd != m.opts.Cwd {
+			where = " in " + shortPath(h.Info.Meta.Cwd)
+		}
+		fmt.Fprintf(&sb, "  %s  %s%s\n      %s: %s\n", h.Info.Meta.ID, h.Info.Label(), where, h.Role, h.Snippet)
+	}
+	sb.WriteString("/resume <id> reopens one (sessions from other directories open there when you cd)")
+	m.transcript.info(sb.String())
+}
+
 // jobsCommand lists background jobs or kills one.
 func (m *model) jobsCommand(args []string) {
 	if len(args) == 2 && args[0] == "kill" {
@@ -638,6 +731,9 @@ var commands = []command{
 	{"/compact", "", "summarise the conversation to free context"},
 	{"/clear", "", "start a new session"},
 	{"/resume", "[n|id]", "list earlier sessions here, or reopen one"},
+	{"/fork", "[title]", "branch this conversation into a new session and continue there"},
+	{"/title", "<text>", "name this session (titles are generated after the first turn)"},
+	{"/history", "<words>", "find earlier sessions in any directory whose conversation mentions the words"},
 	{"/find", "<text>", "jump to the next line matching text; repeat to continue"},
 	{"/undo", "", "revert everything the last turn changed (git snapshot; file copies outside git)"},
 	{"/mcp", "[trust]", "MCP servers and their tools; trust starts the project's .mcp.json servers"},
@@ -672,6 +768,8 @@ type model struct {
 	approver *tuiApprover
 	// send delivers messages from background goroutines into the loop.
 	send func(tea.Msg)
+	// titleGen invalidates generated titles once the user set one.
+	titleGen int
 
 	transcript *transcript
 	queue      *eventQueue
@@ -967,8 +1065,22 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && (m.opts.Agent.LastTurnMutated() || memory.LooksLikeFeedback(m.lastUserText)) {
 			cmd = tea.Batch(cmd, m.extractMemory())
 		}
+		if msg.err == nil && m.opts.AutoTitle && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && len(m.opts.Agent.Messages) >= 2 {
+			cmd = tea.Batch(cmd, m.autoTitle())
+		}
 		m.refresh(false)
 		return m, cmd
+	case titleMsg:
+		if msg.gen == m.titleGen && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && msg.title != "" {
+			if err := m.opts.Session.SetTitle(msg.title, m.opts.Agent.Messages); err != nil {
+				m.transcript.errorf("could not save the title: %v", err)
+			} else {
+				m.status = "titled: " + msg.title
+			}
+			m.refresh(false)
+		}
+		return m, nil
+
 	case memoryMsg:
 		if msg.err != nil {
 			m.transcript.info("memory: extraction failed: " + msg.err.Error())
@@ -1768,6 +1880,12 @@ func (m *model) command(text string) tea.Cmd {
 		m.lspCommand()
 	case "/jobs":
 		m.jobsCommand(fields[1:])
+	case "/fork":
+		m.forkSession(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/title":
+		m.setTitle(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/history":
+		m.searchSessions(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/reload":
 		m.opts.Agent.RefreshExtra()
 		m.transcript.info("memory and skill indexes will be rebuilt for the next call (one cache miss); they also refresh at compaction")
@@ -2025,7 +2143,7 @@ func (m *model) listSessions() {
 			break
 		}
 		age := shortAge(time.Since(in.Meta.Created))
-		fmt.Fprintf(&sb, "  %2d  %s  %-6s %3d msgs  %s\n", n, in.Meta.ID, age, in.Messages, in.Preview)
+		fmt.Fprintf(&sb, "  %2d  %s  %-6s %3d msgs  %s\n", n, in.Meta.ID, age, in.Messages, in.Label())
 	}
 	if n == 0 {
 		m.transcript.info("no earlier sessions in " + shortPath(m.opts.Cwd))
