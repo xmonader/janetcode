@@ -170,7 +170,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 	}
 
-	task := &agent.Task{}
+	task := &agent.Task{Root: cwd}
 	cfgPath, _ := config.Path()
 	cfgDir := filepath.Dir(cfgPath)
 	archive := agent.NewArchive(session.ArchiveDir(sessDir, cwd))

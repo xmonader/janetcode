@@ -264,6 +264,17 @@ model can read a skill with the `skill` tool. You can run one yourself as
 lists what is installed. Skills are re-read from disk every turn, so
 editing one takes effect immediately.
 
+### Editing subagents in a worktree
+
+`task` with `edit: true` gives the subagent the full tool set inside a
+throwaway `git worktree` of the project (uncommitted changes included, via
+a snapshot). It edits and runs commands there without asking, and the
+main agent gets back its report plus the diff: a `--stat` summary, the
+patch inline, and the patch saved to a file so it can be applied with
+`git apply` after review. The real tree is untouched until then, and
+your deny rules still apply inside the worktree. This needs a git
+repository.
+
 ### Custom agents
 
 `.janetcode/agents/<name>.md` (or `agents/` under the config directory,

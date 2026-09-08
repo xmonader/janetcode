@@ -156,3 +156,102 @@ func TestTaskRunsCustomAgentProfile(t *testing.T) {
 		t.Fatalf("unknown agent err = %v", err)
 	}
 }
+
+// editScript drives an editing subagent: it writes b.txt, runs a command,
+// and reports; the parent summarises the tool result.
+type editScript struct {
+	mu   sync.Mutex
+	dirs []string
+}
+
+func (s *editScript) Name() string { return "fake" }
+func (s *editScript) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	first := req.Messages[0].Text()
+	last := req.Messages[len(req.Messages)-1]
+	if strings.HasPrefix(first, "edit:") {
+		n := 0
+		for _, m := range req.Messages {
+			for _, b := range m.Blocks {
+				if b.Type == llm.BlockToolResult {
+					n++
+				}
+			}
+		}
+		switch n {
+		case 0:
+			return toolCall("c1", "write_file", `{"path":"b.txt","content":"new file\n"}`), nil
+		case 1:
+			return toolCall("c2", "bash", `{"command":"pwd && echo changed >> a.txt"}`), nil
+		case 2:
+			s.mu.Lock()
+			s.dirs = append(s.dirs, strings.TrimSpace(strings.Split(last.Blocks[0].Text, "\n")[0]))
+			s.mu.Unlock()
+			return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "REPORT: added b.txt and a line to a.txt"), StopReason: llm.StopEndTurn}, nil
+		}
+	}
+	if last.Role == llm.RoleUser && last.Blocks[0].Type == llm.BlockToolResult {
+		return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "SUMMARY: "+last.Blocks[0].Text), StopReason: llm.StopEndTurn}, nil
+	}
+	return toolCall("p1", "task", `{"description":"add b","prompt":"edit: add b.txt","edit":true}`), nil
+}
+
+func TestTaskEditsInAWorktreeAndReturnsAPatch(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha\n"), 0o644)
+	gitInit(t, root)
+	os.WriteFile(filepath.Join(root, "uncommitted.txt"), []byte("wip\n"), 0o644) // must be visible to the child
+	prov := &editScript{}
+	parent := &Agent{Provider: prov, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent, Root: root}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+	if err := parent.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	final := parent.Messages[len(parent.Messages)-1].Text()
+	for _, want := range []string{"REPORT: added b.txt", "## Changes made in the worktree (not applied)", "a.txt |", "b.txt |", "Patch saved to ", "+new file", "+changed"} {
+		if !strings.Contains(final, want) {
+			t.Fatalf("missing %q in:\n%s", want, final)
+		}
+	}
+	if len(prov.dirs) != 1 || prov.dirs[0] == root || !strings.Contains(prov.dirs[0], "janetcode-wt-") {
+		t.Fatalf("child ran in %q, want a worktree", prov.dirs)
+	}
+	if _, err := os.Stat(prov.dirs[0]); err == nil {
+		t.Fatal("worktree not removed")
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(got) != "alpha\n" {
+		t.Fatalf("real tree changed: %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(root, "b.txt")); err == nil {
+		t.Fatal("b.txt leaked into the real tree")
+	}
+	// The saved patch applies cleanly to the real tree.
+	i := strings.Index(final, "Patch saved to ")
+	path := strings.Fields(final[i+len("Patch saved to "):])[0]
+	if out, err := gitRun(context.Background(), root, "apply", path); err != nil {
+		t.Fatalf("git apply: %v %s", err, out)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "b.txt")); string(got) != "new file\n" {
+		t.Fatalf("after apply b.txt = %q", got)
+	}
+	os.Remove(path)
+	if out, _ := gitRun(context.Background(), root, "worktree", "list"); strings.Count(out, "\n") != 0 {
+		t.Fatalf("stale worktrees: %s", out)
+	}
+	if out, _ := gitRun(context.Background(), root, "for-each-ref", "refs/janetcode/"); out != "" {
+		t.Fatalf("snapshot ref left behind: %s", out)
+	}
+}
+
+func TestTaskEditNeedsARepo(t *testing.T) {
+	root := t.TempDir()
+	parent := &Agent{Provider: &editScript{}, Model: "m", AutoApprove: true}
+	task := &Task{Parent: parent, Root: root}
+	parent.Tools = tool.NewRegistry(task)
+	if err := parent.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	if final := parent.Messages[len(parent.Messages)-1].Text(); !strings.Contains(final, "need a git repository") {
+		t.Fatalf("final = %q", final)
+	}
+}
