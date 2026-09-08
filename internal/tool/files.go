@@ -13,7 +13,11 @@ import (
 )
 
 // ReadFile reads a file with optional line window.
-type ReadFile struct{ Root string }
+type ReadFile struct {
+	Root string
+	// Seen, when set, records what was read for later conflict checks.
+	Seen *Seen
+}
 
 func (ReadFile) Name() string { return "read_file" }
 func (ReadFile) Description() string {
@@ -48,6 +52,7 @@ func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	if isBinary(data) {
 		return "", fmt.Errorf("%s is a binary file (%d bytes)", in.Path, len(data))
 	}
+	t.Seen.Record(p, data)
 	lines := strings.Split(string(data), "\n")
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
@@ -89,7 +94,12 @@ func isBinary(b []byte) bool {
 }
 
 // WriteFile creates or overwrites a file.
-type WriteFile struct{ Root string }
+type WriteFile struct {
+	Root string
+	// Seen, when set, refuses to overwrite a file that changed since the
+	// agent last read or wrote it.
+	Seen *Seen
+}
 
 func (WriteFile) Name() string { return "write_file" }
 func (WriteFile) Description() string {
@@ -118,11 +128,15 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return "", err
 	}
+	if err := t.Seen.Check(p, in.Path); err != nil {
+		return "", err
+	}
 	old, readErr := os.ReadFile(p)
 	existed := readErr == nil
 	if err := atomicWrite(p, []byte(in.Content)); err != nil {
 		return "", err
 	}
+	t.Seen.Record(p, []byte(in.Content))
 	if !existed {
 		return fmt.Sprintf("Created %s (%s)", in.Path, plural(countLines(in.Content), "line")), nil
 	}
@@ -237,7 +251,12 @@ func atomicWrite(p string, data []byte) error {
 }
 
 // EditFile replaces an exact substring in a file.
-type EditFile struct{ Root string }
+type EditFile struct {
+	Root string
+	// Seen, when set, refuses to edit a file that changed since the agent
+	// last read or wrote it.
+	Seen *Seen
+}
 
 func (EditFile) Name() string { return "edit_file" }
 func (EditFile) Description() string {
@@ -305,9 +324,13 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	if err != nil {
 		return "", err
 	}
+	if err := t.Seen.Check(pl.path, pl.display); err != nil {
+		return "", err
+	}
 	if err := atomicWrite(pl.path, []byte(pl.after)); err != nil {
 		return "", err
 	}
+	t.Seen.Record(pl.path, []byte(pl.after))
 	added, removed := diff.Stats(pl.before, pl.after)
 	return fmt.Sprintf("Edited %s (%s, +%d -%d lines)", pl.display, plural(pl.replacements, "replacement"), added, removed), nil
 }

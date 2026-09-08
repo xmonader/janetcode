@@ -606,7 +606,25 @@ continues in a new session file. A "too long" error that names the model's
 real limit lowers the threshold for the rest of the session. `/compact`
 does this on demand.
 
-Tool results longer than 24 KB never reach the model whole: the full text
+A summary is the last resort. Before paying for one, old tool results are
+deduplicated and trimmed, and then condensed oldest-first into one-line
+placeholders that still say what the call was and how it went (`bash "go
+test ./..." → exit 1; last line: FAIL pkg`, `read_file a.go: 400 lines
+were shown`) with the archive id for the full text, until the history is
+down to half the threshold. Most of the time that is enough and no model
+call is made. When a summary call does fail (rate limit, outage), no
+summary is attempted for ten minutes; pruning carries the session
+meanwhile. Token estimates use character classes (letters, digits and
+symbols, non-ASCII) rather than a flat bytes-per-token guess, which is
+what keeps the threshold honest on code.
+
+Edits are refused when a file changed on disk since the agent last read
+or wrote it (you edited it, a formatter ran, another session touched it):
+the model is told to read it again. Files it has never read are not
+checked; the edit coach handles those.
+
+Tool results longer than 24 KB (12 KB for commands, 8 KB for listings and
+greps) never reach the model whole: the full text
 is archived under an id such as `ctx-12` (per project, 8 MiB, oldest
 evicted) and the model sees the first and last part plus the id. The
 `expand_output` tool pages through an archived result, greps it, or greps

@@ -187,14 +187,15 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		model := cfg.EmbeddingModel
 		mem.Embed = func(ctx context.Context, texts []string) ([][]float32, error) { return em.Embed(ctx, model, texts) }
 	}
+	seen := &tool.Seen{}
 	ag := &agent.Agent{
 		Provider: prov,
 		Archive:  archive,
 		Price:    cfg.PriceFor(cfg.Model),
 		Tools: tool.NewRegistry(
-			tool.ReadFile{Root: cwd},
-			tool.WriteFile{Root: cwd},
-			tool.EditFile{Root: cwd},
+			tool.ReadFile{Root: cwd, Seen: seen},
+			tool.WriteFile{Root: cwd, Seen: seen},
+			tool.EditFile{Root: cwd, Seen: seen},
 			tool.ListDir{Root: cwd},
 			tool.Glob{Root: cwd},
 			tool.Grep{Root: cwd},

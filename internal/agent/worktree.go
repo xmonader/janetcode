@@ -82,8 +82,9 @@ func (w *worktree) remove(ctx context.Context) {
 
 // tools is the full editing tool set rooted at the checkout.
 func (w *worktree) tools() []tool.Tool {
+	seen := &tool.Seen{}
 	return []tool.Tool{
-		tool.ReadFile{Root: w.Dir}, tool.WriteFile{Root: w.Dir}, tool.EditFile{Root: w.Dir},
+		tool.ReadFile{Root: w.Dir, Seen: seen}, tool.WriteFile{Root: w.Dir, Seen: seen}, tool.EditFile{Root: w.Dir, Seen: seen},
 		tool.ListDir{Root: w.Dir}, tool.Glob{Root: w.Dir}, tool.Grep{Root: w.Dir},
 		tool.Bash{Root: w.Dir, Cache: &tool.ShellCache{}},
 	}

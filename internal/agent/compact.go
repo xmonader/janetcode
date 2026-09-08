@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -116,6 +117,60 @@ func (a *Agent) Prune() int {
 	return saved
 }
 
+// pruneTo replaces old tool results, oldest first, with one-line
+// placeholders until the estimate is at or under target tokens, or the
+// recent tail is reached. Full outputs go to the archive first. It returns
+// how many results were replaced.
+func (a *Agent) pruneTo(target int) int {
+	if target <= 0 || a.EstimateTokens() <= target {
+		return 0
+	}
+	tail := tailStart(a.Messages)
+	uses := map[string]llm.Block{}
+	for _, m := range a.Messages[:min(tail, len(a.Messages))] {
+		for _, b := range m.Blocks {
+			if b.Type == llm.BlockToolUse {
+				uses[b.ID] = b
+			}
+		}
+	}
+	replaced := 0
+	for i := 0; i < tail && i < len(a.Messages); i++ {
+		for j, b := range a.Messages[i].Blocks {
+			if b.Type != llm.BlockToolResult || strings.HasPrefix(b.Text, prunedPrefix) || b.Text == superseded {
+				continue
+			}
+			u, ok := uses[b.ToolUseID]
+			if !ok {
+				continue
+			}
+			id := ""
+			if a.Archive != nil {
+				if id = a.Archive.IDFor(b.ToolUseID); id == "" {
+					id, _ = a.Archive.Put(b.ToolUseID, u.Name, b.Text)
+				}
+			}
+			ph := placeholder(u.Name, u.Input, b.Text, id)
+			if len(ph) >= len(b.Text) {
+				continue
+			}
+			a.Messages[i].Blocks[j].Text = ph
+			replaced++
+			a.lastInputTokens, a.lastInputMsgs = 0, 0
+			a.integ.shrunkOK = true
+			if a.EstimateTokens() <= target {
+				return replaced
+			}
+		}
+	}
+	return replaced
+}
+
+// summaryCooldown is how long compaction stops asking the model for a
+// summary after a summary call failed (rate limit, outage): pruning alone
+// carries the session meanwhile instead of re-hitting the provider.
+const summaryCooldown = 10 * time.Minute
+
 // canonical normalises tool input JSON so formatting differences do not
 // defeat deduplication.
 func canonical(raw []byte) string {
@@ -138,7 +193,7 @@ func tailStart(msgs []llm.Message) int {
 	start := len(msgs)
 	tokens := 0
 	for i := len(msgs) - 1; i >= 0 && len(msgs)-i <= tailMessages; i-- {
-		tokens += messageChars(msgs[i]) / 4
+		tokens += messageTokens(msgs[i])
 		if tokens > tailTokens {
 			break
 		}
@@ -150,34 +205,20 @@ func tailStart(msgs []llm.Message) int {
 }
 
 // EstimateTokens approximates the prompt size of the current history. It
-// uses the last real input-token count when available and a bytes/4
-// heuristic for what was added since.
+// uses the last real input-token count when available and a
+// character-class estimate (see estimateTokens) for what was added since.
 func (a *Agent) EstimateTokens() int {
-	est := len(a.systemPrompt()) / 4
+	est := estimateTokens(a.systemPrompt())
 	for _, d := range a.Tools.Defs() {
-		est += (len(d.Description) + len(d.InputSchema)) / 4
+		est += estimateTokens(d.Description) + estimateTokens(string(d.InputSchema))
 	}
 	for i, m := range a.Messages {
 		if i < a.lastInputMsgs {
 			continue
 		}
-		est += messageChars(m) / 4
+		est += messageTokens(m)
 	}
 	return est + a.lastInputTokens
-}
-
-func messageChars(m llm.Message) int {
-	n := 0
-	for _, b := range m.Blocks {
-		if b.Type == llm.BlockImage {
-			// Providers bill images by area, roughly 1.5k tokens for a
-			// screenshot; base64 length would overcount a hundredfold.
-			n += 1600 * 4
-			continue
-		}
-		n += len(b.Text) + len(b.Input) + len(b.Name) + 16
-	}
-	return n
 }
 
 // Compact shrinks the history: first by pruning (see Prune), and when
@@ -202,9 +243,22 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 		return ErrNothingToCompact
 	}
 	before := a.EstimateTokens()
-	if saved := a.Prune(); saved > 0 && !force {
-		if limit := a.CompactThreshold(); limit > 0 && a.EstimateTokens() < limit*3/4 {
-			emit(Event{Kind: EvCompacted, Text: fmt.Sprintf("context pruned: ~%d → ~%d tokens (old tool output trimmed, no summary needed)", before, a.EstimateTokens())})
+	limit := a.CompactThreshold()
+	if !force {
+		// Free the window without paying for a summary: dedupe and trim
+		// first, then condense the oldest results to placeholders down to
+		// half the threshold so the next few turns fit too.
+		saved := a.Prune()
+		replaced := 0
+		if limit > 0 {
+			replaced = a.pruneTo(limit / 2)
+		}
+		if (saved > 0 || replaced > 0) && limit > 0 && a.EstimateTokens() < limit*3/4 {
+			emit(Event{Kind: EvCompacted, Text: fmt.Sprintf("context pruned: ~%d → ~%d tokens (%d old results condensed, no summary needed)", before, a.EstimateTokens(), replaced)})
+			return nil
+		}
+		if since := time.Since(a.summaryFailedAt); a.summaryFailedAt.IsZero() == false && since < summaryCooldown {
+			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("context summary skipped: the last summary call failed %s ago; pruned to ~%d tokens instead", since.Round(time.Second), a.EstimateTokens())})
 			return nil
 		}
 	}
@@ -241,12 +295,15 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	}
 	resp, err := a.Provider.Stream(ctx, req, nil)
 	if err != nil {
+		a.summaryFailedAt = time.Now()
 		return fmt.Errorf("compact: %w", err)
 	}
 	summary := strings.TrimSpace(resp.Message.Text())
 	if summary == "" {
+		a.summaryFailedAt = time.Now()
 		return errors.New("compact: model returned an empty summary")
 	}
+	a.summaryFailedAt = time.Time{}
 	a.Usage.Add(resp.Usage)
 
 	note := "[Context was compacted. Handoff note from the earlier part of this conversation:]\n\n" + summary
@@ -273,7 +330,9 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 func chars(msgs []llm.Message) int {
 	n := 0
 	for _, m := range msgs {
-		n += messageChars(m)
+		for _, b := range m.Blocks {
+			n += len(b.Text) + len(b.Input)
+		}
 	}
 	return n
 }

@@ -205,3 +205,96 @@ func TestCompactThresholdFromWindow(t *testing.T) {
 		}
 	}
 }
+
+func TestPruneToCondensesOldestResultsFirst(t *testing.T) {
+	root := t.TempDir()
+	reg := tool.NewRegistry(tool.ReadFile{Root: root}, tool.Bash{Root: root})
+	long := strings.Repeat("line of output\n", 400) // ~6k bytes
+	use := func(id, name, input string) llm.Message {
+		return llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: id, Name: name, Input: json.RawMessage(input)}}}
+	}
+	res := func(id, text string) llm.Message { return llm.ToolResultMessage(llm.ToolResult(id, text, false)) }
+	a := &Agent{Provider: &fake{}, Tools: reg, Archive: NewArchive(t.TempDir()), Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, "go"),
+		use("1", "bash", `{"command":"go test ./..."}`), res("1", long+"FAIL\tpkg\n[exit code 1]"),
+		use("2", "read_file", `{"path":"a.go"}`), res("2", long),
+		use("3", "grep", `{"pattern":"TODO","path":"."}`), res("3", long),
+		use("4", "read_file", `{"path":"b.go"}`), res("4", long),
+		llm.TextMessage(llm.RoleAssistant, "done"),
+		llm.TextMessage(llm.RoleUser, "next"),
+	}}
+	before := a.EstimateTokens()
+	target := before - 2_000
+	replaced := a.pruneTo(target)
+	if replaced == 0 || a.EstimateTokens() > target {
+		t.Fatalf("replaced %d, estimate %d > target %d", replaced, a.EstimateTokens(), target)
+	}
+	get := func(i int) string { return a.Messages[i].Blocks[0].Text }
+	if !strings.HasPrefix(get(2), `[pruned: bash "go test ./..." → exit 1; last line: FAIL`) || !strings.Contains(get(2), `expand_output {"id":`) {
+		t.Fatalf("bash placeholder: %q", get(2))
+	}
+	if replaced == 1 {
+		if !strings.HasPrefix(get(4), "line of output") {
+			t.Fatal("second result should be untouched when the first was enough")
+		}
+	} else if !strings.HasPrefix(get(4), "[pruned: read_file a.go: 400 lines were shown") {
+		t.Fatalf("read placeholder: %q", get(4))
+	}
+	// The tail (from the last assistant text on) and anything past the
+	// target stay verbatim; a second pass at the same target is a no-op.
+	if len(get(8)) != len(long) {
+		t.Fatalf("tail result modified: %d", len(get(8)))
+	}
+	if again := a.pruneTo(target); again != 0 {
+		t.Fatalf("second prune replaced %d", again)
+	}
+	// The archive still has the full text.
+	id := a.Archive.IDFor("1")
+	if id == "" {
+		t.Fatal("bash output not archived")
+	}
+	// Placeholders for the other tools.
+	if got := placeholder("grep", json.RawMessage(`{"pattern":"x"}`), "a\nb\n", ""); got != `[pruned: grep "x": 2 matching lines]` {
+		t.Fatalf("grep: %q", got)
+	}
+	if got := placeholder("mcp__x__y", nil, "first line here\nmore", ""); got != "[pruned: mcp__x__y: first line here]" {
+		t.Fatalf("default: %q", got)
+	}
+}
+
+func TestCompactCooldownAfterFailedSummary(t *testing.T) {
+	f := &fake{errs: []error{errors.New("429 rate limited")}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", CompactAt: 1_000}
+	for i := 0; i < 20; i++ {
+		a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, strings.Repeat("words and more words ", 60)), llm.TextMessage(llm.RoleAssistant, "ok"))
+	}
+	err := a.Compact(context.Background(), nil)
+	if err == nil || !strings.Contains(err.Error(), "rate limited") {
+		t.Fatalf("first compact err = %v", err)
+	}
+	if len(f.requests) != 1 || a.summaryFailedAt.IsZero() {
+		t.Fatalf("requests %d, cooldown set %v", len(f.requests), !a.summaryFailedAt.IsZero())
+	}
+	var notes []string
+	if err := a.Compact(context.Background(), func(e Event) {
+		if e.Kind == EvNotice {
+			notes = append(notes, e.Text)
+		}
+	}); err != nil {
+		t.Fatalf("compact during cooldown: %v", err)
+	}
+	if len(f.requests) != 1 {
+		t.Fatalf("summary called during cooldown: %d requests", len(f.requests))
+	}
+	if len(notes) != 1 || !strings.Contains(notes[0], "summary skipped") {
+		t.Fatalf("notes = %v", notes)
+	}
+	// An explicit /compact ignores the cooldown, and success clears it.
+	f.responses = []*llm.Response{nil, text("handoff note")} // indexed by request
+	if err := a.ForceCompact(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.requests) != 2 || !a.summaryFailedAt.IsZero() {
+		t.Fatalf("requests %d, cooldown cleared %v", len(f.requests), a.summaryFailedAt.IsZero())
+	}
+}

@@ -232,17 +232,32 @@ func (ar *Archive) List() []Entry {
 // through untouched; long ones are archived and replaced by a preview of
 // both ends that names the archive id.
 func (a *Agent) stash(toolUse, name, out string) string {
-	if len(out) <= InlineOutput || name == (&ExpandOutput{}).Name() {
+	budget := inlineBudget(name)
+	if len(out) <= budget || name == (&ExpandOutput{}).Name() {
 		return out
 	}
 	if a.Archive == nil {
-		return tool.TruncateTo(out, InlineOutput)
+		return tool.TruncateTo(out, budget)
 	}
 	id, err := a.Archive.Put(toolUse, name, out)
 	if err != nil {
-		return tool.TruncateTo(out, InlineOutput) + "\n[archive unavailable: " + err.Error() + "]"
+		return tool.TruncateTo(out, budget) + "\n[archive unavailable: " + err.Error() + "]"
 	}
-	return archiveNote(id, len(out), InlineOutput) + tool.TruncateTo(out, InlineOutput)
+	return archiveNote(id, len(out), budget) + tool.TruncateTo(out, budget)
+}
+
+// inlineBudget is how much of a tool's output stays in the conversation;
+// the rest goes to the archive. File contents are what the model edits
+// against, so they get the most; listings and command output are usually
+// skimmed for a few lines and the rest fetched on demand.
+func inlineBudget(name string) int {
+	switch name {
+	case "bash", "job":
+		return 12 * 1024
+	case "grep", "glob", "list_dir":
+		return 8 * 1024
+	}
+	return InlineOutput
 }
 
 func archiveNote(id string, size, shown int) string {

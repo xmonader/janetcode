@@ -104,6 +104,8 @@ type Event struct {
 // Agent holds one conversation and the machinery to advance it.
 type Agent struct {
 	stats statsCounter
+	// summaryFailedAt starts the summaryCooldown after a failed summary.
+	summaryFailedAt time.Time
 
 	Provider llm.Provider
 	Tools    *tool.Registry
