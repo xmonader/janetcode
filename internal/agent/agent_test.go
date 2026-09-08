@@ -456,3 +456,25 @@ func TestSystemExtraAndLastTurnMutated(t *testing.T) {
 		t.Fatalf("extra not re-evaluated: %q", got)
 	}
 }
+
+func TestPrepareAddsBlocksAndNotice(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("ok")}}
+	a, _ := newAgent(t, f, nil)
+	a.Prepare = func(blocks []llm.Block) ([]llm.Block, string) {
+		return append(blocks, llm.Block{Type: llm.BlockText, Text: "<skill>steps</skill>"}), "skills attached: deploy"
+	}
+	var notes []string
+	if err := a.Run(context.Background(), "deploy it", func(e Event) {
+		if e.Kind == EvNotice {
+			notes = append(notes, e.Text)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if u := f.requests[0].Messages[0]; len(u.Blocks) != 2 || u.Blocks[0].Text != "deploy it" || u.Blocks[1].Text != "<skill>steps</skill>" {
+		t.Fatalf("user message = %+v", u)
+	}
+	if len(notes) != 1 || notes[0] != "skills attached: deploy" {
+		t.Fatalf("notes = %q", notes)
+	}
+}

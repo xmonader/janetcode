@@ -30,6 +30,7 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -336,6 +337,7 @@ var commands = []command{
 	{"/mcp", "[trust]", "MCP servers and their tools; trust starts the project's .mcp.json servers"},
 	{"/hooks", "[trust]", "hooks in effect; trust enables the project's .janetcode/hooks.json"},
 	{"/memory", "", "what janetcode remembers about this project"},
+	{"/skills", "", "skill files available to the model"},
 	{"/remember", "<fact>", "add a fact to the project memory"},
 	{"/forget", "<n>", "remove memory entry n"},
 	{"/yolo", "", "toggle auto-approve for tools"},
@@ -1414,6 +1416,17 @@ func (m *model) command(text string) tea.Cmd {
 		m.mcpCommand(fields[1:])
 	case "/hooks":
 		m.hooksCommand(fields[1:])
+	case "/skills":
+		skills := skill.Load(m.opts.Cwd, m.opts.ConfigDir)
+		if len(skills) == 0 {
+			m.transcript.info("no skills found: add .janetcode/skills/<name>/SKILL.md (or <name>.md) to the project, or skills/ under " + shortPath(m.opts.ConfigDir) + "; .claude/skills is read too")
+			break
+		}
+		var sb strings.Builder
+		for _, s := range skills {
+			fmt.Fprintf(&sb, "%-20s %s  (%s)\n", s.Name, s.Description, s.Source)
+		}
+		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 	case "/memory", "/remember", "/forget":
 		m.memoryCommand(fields[0], strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/undo":

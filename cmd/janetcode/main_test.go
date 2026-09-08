@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,8 @@ import (
 func TestHeadlessEndToEnd(t *testing.T) {
 	work := t.TempDir()
 	os.WriteFile(filepath.Join(work, "hello.txt"), []byte("hello world\n"), 0o644)
+	os.MkdirAll(filepath.Join(work, ".janetcode", "skills", "uppercase"), 0o755)
+	os.WriteFile(filepath.Join(work, ".janetcode", "skills", "uppercase", "SKILL.md"), []byte("---\ndescription: How to uppercase a text file into another file\n---\nRead the source, write the target in capitals.\n"), 0o644)
 	home := t.TempDir()
 
 	var calls int
@@ -98,6 +101,17 @@ func TestHeadlessEndToEnd(t *testing.T) {
 	}
 	if len(msgs) != 6 { // system, user, assistant, tool, assistant, tool
 		t.Fatalf("history length = %d", len(msgs))
+	}
+	// The matching project skill was listed in the system prompt and
+	// attached to the request.
+	if sys := msgs[0].(map[string]any)["content"].(string); !strings.Contains(sys, "# Skills\n") || !strings.Contains(sys, "- uppercase: How to uppercase") {
+		t.Fatalf("skill index missing: %q", sys)
+	}
+	if u := fmt.Sprint(msgs[1].(map[string]any)["content"]); !strings.Contains(u, "<skill name=\"uppercase\"") || !strings.Contains(u, "write the target in capitals") {
+		t.Fatalf("skill not attached: %q", u)
+	}
+	if !strings.Contains(errOut, "[notice] skills attached: uppercase") {
+		t.Fatalf("stderr = %q", errOut)
 	}
 
 	// Resume the latest session and send another prompt: history is replayed

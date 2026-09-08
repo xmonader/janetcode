@@ -139,6 +139,10 @@ type Agent struct {
 	// SystemExtra, when set, is appended to System on every call; it lets
 	// memory and skills change between turns without rebuilding System.
 	SystemExtra func() string
+	// Prepare, when set, may add blocks to a user turn before it is sent
+	// (skills attach themselves this way). The returned note, if any, is
+	// emitted as a notice.
+	Prepare func(blocks []llm.Block) ([]llm.Block, string)
 
 	mutated bool // a mutating tool ran successfully this turn
 
@@ -182,6 +186,13 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	maxIter := a.MaxIterations
 	if maxIter <= 0 {
 		maxIter = 50
+	}
+	if a.Prepare != nil {
+		var note string
+		blocks, note = a.Prepare(blocks)
+		if note != "" {
+			emit(Event{Kind: EvNotice, Text: note})
+		}
 	}
 	a.appendUserBlocks(blocks...)
 	a.cp.beginTurn()

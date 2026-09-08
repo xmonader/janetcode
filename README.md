@@ -177,6 +177,29 @@ one memory), else by the git origin URL, else by the directory path.
 - `/memory` lists the facts, `/remember <fact>` adds one, `/forget <n>`
   removes one. The file is plain markdown you can edit by hand.
 
+### Skills
+
+A skill is a markdown file with instructions for one kind of task
+(`.janetcode/skills/<name>/SKILL.md` or `.janetcode/skills/<name>.md` in
+the project, `skills/` under the config directory for all projects;
+`.claude/skills` is read too). Optional frontmatter gives `name`,
+`description` and comma-separated `keywords`:
+
+```markdown
+---
+description: Ship a release to production
+keywords: release, ship
+---
+1. `make test` must pass ...
+```
+
+Every skill is listed by name and description in the system prompt. When
+a request clearly matches one (its name or a keyword in the text, or
+several words of its description), the file is attached to that turn
+(up to five, not re-attached while still fresh in the context) and you see
+`skills attached: …`. For anything else the model can read a skill with
+the `skill` tool. `/skills` lists what is installed.
+
 ### Hooks
 
 Hooks are shell commands run at fixed points of the loop. They live under

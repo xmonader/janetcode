@@ -26,6 +26,7 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/tui"
@@ -150,6 +151,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 
 	task := &agent.Task{}
+	cfgPath, _ := config.Path()
+	cfgDir := filepath.Dir(cfgPath)
 	archive := agent.NewArchive(session.ArchiveDir(sessDir, cwd))
 	mem := memory.Open(filepath.Dir(sessDir), cwd)
 	ag := &agent.Agent{
@@ -177,7 +180,17 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Messages:      history,
 	}
 	task.Parent = ag
-	ag.SystemExtra = mem.Section
+	skills := func() []skill.Skill { return skill.Load(cwd, cfgDir) }
+	ag.Tools.Add(&skill.Tool{Skills: skills})
+	ag.SystemExtra = func() string { return mem.Section() + skill.Index(skills()) }
+	injector := &skill.Injector{Skills: skills}
+	ag.Prepare = func(blocks []llm.Block) ([]llm.Block, string) {
+		blocks, names := injector.Prepare(blocks)
+		if len(names) == 0 {
+			return blocks, ""
+		}
+		return blocks, "skills attached: " + strings.Join(names, ", ")
+	}
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools})
 	ag.UndoPath = sess.UndoPath()
 	if repo, err := snapshot.Open(cwd); err == nil {
@@ -187,8 +200,6 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
 
-	cfgPath, _ := config.Path()
-	cfgDir := filepath.Dir(cfgPath)
 	servers := mcp.Manager{Options: mcp.Options{Root: cwd, Version: version}, Registry: ag.Tools}
 	defer servers.Close()
 	projectServers, projectHash, err := mcp.LoadProject(cwd)
