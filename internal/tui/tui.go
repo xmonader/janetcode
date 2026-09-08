@@ -311,6 +311,116 @@ func (m *model) planCommand(arg string) tea.Cmd {
 	return m.submit(arg)
 }
 
+// contextCommand shows what fills the context window.
+func (m *model) contextCommand() {
+	r := m.opts.Agent.Context()
+	var sb strings.Builder
+	pct := 0
+	if r.CompactAt > 0 {
+		pct = r.Total * 100 / r.CompactAt
+	}
+	fmt.Fprintf(&sb, "context ~%s tokens · compaction at %s (%d%%) · %d messages, %d turns\n", shortTokens(r.Total), shortTokens(r.CompactAt), pct, r.Messages, r.Turns)
+	fmt.Fprintf(&sb, "  system prompt %6s   memory+skill index %6s   pins %6s (%d)\n", shortTokens(r.System), shortTokens(r.Extra), shortTokens(r.Pins), len(m.opts.Agent.Pins))
+	fmt.Fprintf(&sb, "  tools         %6s   (%d definitions", shortTokens(r.Tools), r.ToolCount)
+	if r.Deferred > 0 {
+		fmt.Fprintf(&sb, ", %d deferred", r.Deferred)
+	}
+	sb.WriteString(")\n")
+	fmt.Fprintf(&sb, "  user text     %6s   assistant text %6s   thinking %6s\n", shortTokens(r.UserText), shortTokens(r.AssistantText), shortTokens(r.Thinking))
+	fmt.Fprintf(&sb, "  tool calls    %6s   tool results   %6s", shortTokens(r.ToolCalls), shortTokens(r.ToolResults))
+	if r.Images > 0 {
+		fmt.Fprintf(&sb, "   images %d (~%s)", r.Images, shortTokens(r.Images*1600))
+	}
+	sb.WriteString("\n")
+	if len(r.ByTool) > 0 {
+		sb.WriteString("by tool:")
+		for i, t := range r.ByTool {
+			if i >= 6 {
+				break
+			}
+			fmt.Fprintf(&sb, " %s %s (%d)", t.Name, shortTokens(t.Tokens), t.Calls)
+		}
+		sb.WriteString("\n")
+	}
+	if len(r.Largest) > 0 {
+		sb.WriteString("largest tool results:\n")
+		for _, it := range r.Largest {
+			subj := it.Subject
+			if subj != "" {
+				subj = " " + trunc(subj, 50)
+			}
+			fmt.Fprintf(&sb, "  %6s  %s%s (message %d)\n", shortTokens(it.Tokens), it.Tool, subj, it.Index)
+		}
+	}
+	sb.WriteString("/compact summarises the history, /pin keeps a note through it")
+	m.transcript.info(sb.String())
+}
+
+// pinCommand adds a pin or lists them.
+func (m *model) pinCommand(arg string) {
+	ag := m.opts.Agent
+	if arg == "" {
+		if len(ag.Pins) == 0 {
+			m.transcript.info("no pins: /pin <note> or /pin @path keeps something in the system prompt for the whole session")
+			return
+		}
+		var sb strings.Builder
+		for i, p := range ag.Pins {
+			fmt.Fprintf(&sb, "%d. %s\n", i+1, trunc(strings.ReplaceAll(p, "\n", " "), 120))
+		}
+		sb.WriteString("/unpin <n> removes one")
+		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+		return
+	}
+	if strings.HasPrefix(arg, "@") && !strings.ContainsAny(arg, " \t") {
+		rel := strings.TrimPrefix(arg, "@")
+		data, err := os.ReadFile(filepath.Join(m.opts.Cwd, rel))
+		if err != nil {
+			m.transcript.errorf("pin: %v", err)
+			return
+		}
+		const maxPin = 16 * 1024
+		body := string(data)
+		if len(body) > maxPin {
+			body = body[:maxPin] + "\n… (truncated)"
+		}
+		arg = "File " + rel + " as of pinning:\n" + body
+	}
+	ag.Pin(arg)
+	m.savePins()
+	m.transcript.info(fmt.Sprintf("pinned (%d): %s", len(ag.Pins), trunc(strings.ReplaceAll(arg, "\n", " "), 100)))
+}
+
+func (m *model) unpinCommand(args []string) {
+	if len(args) != 1 {
+		m.transcript.errorf("usage: /unpin <n>")
+		return
+	}
+	n, err := strconv.Atoi(args[0])
+	if err != nil || !m.opts.Agent.Unpin(n) {
+		m.transcript.errorf("no pin %s; /pin lists them", args[0])
+		return
+	}
+	m.savePins()
+	m.transcript.info(fmt.Sprintf("unpinned %d", n))
+}
+
+func (m *model) savePins() {
+	if m.opts.Session == nil {
+		return
+	}
+	if err := m.opts.Session.SavePins(m.opts.Agent.Pins, m.opts.Agent.Messages); err != nil {
+		m.transcript.errorf("could not save pins: %v", err)
+	}
+}
+
+func trunc(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n-1] + "…"
+}
+
 // lspCommand shows language-server status and known problems.
 func (m *model) lspCommand() {
 	d := m.opts.LSP
@@ -505,6 +615,9 @@ var commands = []command{
 	{"/permissions", "[allow|deny <rule>|trust]", "permission rules; add one, or trust the project's .janetcode/permissions.json"},
 	{"/verify", "[set <cmd>|clear|trust]", "run the project's checks now; set adds one to .janetcode/verify.json"},
 	{"/lsp", "", "language servers and the diagnostics they reported"},
+	{"/context", "", "what fills the context window: prompt, tools, messages, largest tool results"},
+	{"/pin", "[note or @file]", "keep a note in the system prompt for the whole session; alone lists pins"},
+	{"/unpin", "<n>", "remove a pin"},
 	{"/plan", "[request|approve|off]", "plan mode: the model explores and writes a plan; approve executes it"},
 	{"/readonly", "", "toggle read-only mode (no edits or commands)"},
 	{"/memory", "", "what janetcode remembers about this project"},
@@ -1615,6 +1728,12 @@ func (m *model) command(text string) tea.Cmd {
 		m.permissionsCommand(fields[1:])
 	case "/lsp":
 		m.lspCommand()
+	case "/context", "/ctx":
+		m.contextCommand()
+	case "/pin":
+		m.pinCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/unpin":
+		m.unpinCommand(fields[1:])
 	case "/verify":
 		if cmd := m.verifyCommand(fields[1:]); cmd != nil {
 			return cmd

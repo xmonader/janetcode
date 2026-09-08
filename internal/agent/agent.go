@@ -125,6 +125,8 @@ type Agent struct {
 	// called anyway. PlanMode does the same and asks for a plan.
 	ReadOnly bool
 	PlanMode bool
+	// Pins are user notes kept in the system prompt across compaction.
+	Pins []string
 	// Diagnose, when set, is called with the path a file tool just wrote
 	// and returns a note (language-server diagnostics) appended to the
 	// tool result, or "".
@@ -395,17 +397,10 @@ func serialize(emit func(Event)) func(Event) {
 func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, error) {
 	start := time.Now()
 	a.debugf("call start: %d messages, ~%d tokens", len(a.Messages), a.EstimateTokens())
-	system := a.System
-	if a.SystemExtra != nil {
-		system += a.SystemExtra()
-	}
+	system := a.systemPrompt()
 	defs := a.Tools.Defs()
 	if a.readOnly() {
 		defs = a.Tools.DefsIf(func(t tool.Tool) bool { return !t.Mutating() })
-		system += readOnlySystem
-		if a.PlanMode {
-			system += planSystem
-		}
 	}
 	resp, err := a.Provider.Stream(ctx, llm.Request{
 		Model:     a.Model,

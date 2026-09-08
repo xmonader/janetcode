@@ -121,3 +121,26 @@ func TestSyncOrRotateOnShrink(t *testing.T) {
 		t.Fatalf("new session = %+v", cur)
 	}
 }
+
+func TestSavePinsSurvivesOpenAndRotate(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir, "/work", "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	msgs := []llm.Message{llm.TextMessage(llm.RoleUser, "hi"), llm.TextMessage(llm.RoleAssistant, "yo")}
+	if err := s.Sync(msgs); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SavePins([]string{"use tabs", "never touch vendor/"}, msgs); err != nil {
+		t.Fatal(err)
+	}
+	re, back, err := Open(dir, s.Meta.ID)
+	if err != nil || len(back) != 2 || len(re.Meta.Pins) != 2 || re.Meta.Pins[1] != "never touch vendor/" {
+		t.Fatalf("reopened: pins=%v msgs=%d err=%v", re.Meta.Pins, len(back), err)
+	}
+	ns, err := re.SyncOrRotate([]llm.Message{llm.TextMessage(llm.RoleUser, "compacted")})
+	if err != nil || ns == re || len(ns.Meta.Pins) != 2 {
+		t.Fatalf("rotate: same=%v pins=%v err=%v", ns == re, ns.Meta.Pins, err)
+	}
+}

@@ -135,6 +135,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /usage
 /resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)
 /undo      /find X    /cost      /mcp [trust]
+/context   (what fills the window)   /pin <note or @file>   /unpin <n>
 /export [file.md] (write the conversation as a Markdown transcript)
 ```
 
@@ -266,6 +267,16 @@ tools: read_file, grep, glob
 ---
 You are a strict reviewer. Report concrete defects with file:line ...
 ```
+
+### Context inspector and pins
+
+`/context` shows where the window goes: system prompt, memory and skill
+indexes, tool definitions, user and assistant text, tool calls and
+results by tool, and the five largest tool results with the message they
+sit in. `/pin <note>` or `/pin @path` keeps a note (or a file's content,
+up to 16 KB) in the system prompt for the rest of the session; pins survive
+compaction and session resume, `/pin` lists them and `/unpin <n>` drops
+one.
 
 ### Plan mode and read-only mode
 

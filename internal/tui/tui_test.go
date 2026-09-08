@@ -1154,3 +1154,48 @@ func TestPlanModeHidesToolsUntilApproved(t *testing.T) {
 		t.Fatalf("approval message missing: %q", last[len(last)-1].Text())
 	}
 }
+
+func TestContextAndPinCommands(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(`{"path":"n.txt","content":"1"}`)}}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn},
+	)
+	h.m.opts.Agent.AutoApprove = true
+	os.WriteFile(filepath.Join(h.m.opts.Cwd, "rules.md"), []byte("tabs not spaces"), 0o644)
+	h.keys("/pin")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "no pins") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/pin @rules.md ")
+	h.enter()
+	h.keys("/pin never edit vendor")
+	h.enter()
+	if pins := h.m.opts.Agent.Pins; len(pins) != 2 || !strings.Contains(pins[0], "tabs not spaces") || pins[1] != "never edit vendor" {
+		t.Fatalf("pins = %q", pins)
+	}
+	h.keys("write n")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	sc := h.m.opts.Agent.Provider.(*scripted)
+	if sys := sc.reqs()[0].System; !strings.Contains(sys, "File rules.md as of pinning:\ntabs not spaces") || !strings.Contains(sys, "2. never edit vendor") {
+		t.Fatalf("system = %q", sys)
+	}
+	re, _, err := session.Open(filepath.Dir(h.m.opts.Session.Path()), h.m.opts.Session.Meta.ID)
+	if err != nil || len(re.Meta.Pins) != 2 {
+		t.Fatalf("saved pins = %v err = %v", re.Meta.Pins, err)
+	}
+	h.keys("/unpin 1")
+	h.enter()
+	h.keys("/context")
+	h.enter()
+	v := plain(h.m.View())
+	if !strings.Contains(v, "pins") || !strings.Contains(v, "(1)") || !strings.Contains(v, "by tool: write_file") || !strings.Contains(v, "largest tool results") || !strings.Contains(v, "write_file n.txt") {
+		t.Fatalf("context view:\n%s", v)
+	}
+	h.keys("/unpin 5")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "no pin 5") {
+		t.Fatalf("view:\n%s", v)
+	}
+}

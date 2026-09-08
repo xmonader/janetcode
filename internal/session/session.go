@@ -25,6 +25,8 @@ type Meta struct {
 	Provider string    `json:"provider"`
 	Model    string    `json:"model"`
 	Created  time.Time `json:"created"`
+	// Pins are user notes kept in the system prompt (/pin).
+	Pins []string `json:"pins,omitempty"`
 }
 
 type line struct {
@@ -236,6 +238,9 @@ func (s *Session) Persisted() int { return s.persisted }
 func (s *Session) SyncOrRotate(msgs []llm.Message) (*Session, error) {
 	if len(msgs) < s.persisted {
 		ns, err := New(filepath.Dir(s.path), s.Meta.Cwd, s.Meta.Provider, s.Meta.Model)
+		if err == nil && len(s.Meta.Pins) > 0 {
+			ns.Meta.Pins = append([]string(nil), s.Meta.Pins...)
+		}
 		if err != nil {
 			return s, err
 		}
@@ -278,6 +283,12 @@ func (s *Session) Sync(msgs []llm.Message) error {
 	s.persisted = len(msgs)
 	s.lastBlocks = len(msgs[s.persisted-1].Blocks)
 	return nil
+}
+
+// SavePins stores the pins in the metadata line and rewrites the file.
+func (s *Session) SavePins(pins []string, msgs []llm.Message) error {
+	s.Meta.Pins = append([]string(nil), pins...)
+	return s.rewrite(msgs)
 }
 
 func (s *Session) rewrite(msgs []llm.Message) error {

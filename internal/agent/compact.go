@@ -153,7 +153,7 @@ func tailStart(msgs []llm.Message) int {
 // uses the last real input-token count when available and a bytes/4
 // heuristic for what was added since.
 func (a *Agent) EstimateTokens() int {
-	est := len(a.System) / 4
+	est := len(a.systemPrompt()) / 4
 	for _, d := range a.Tools.Defs() {
 		est += (len(d.Description) + len(d.InputSchema)) / 4
 	}

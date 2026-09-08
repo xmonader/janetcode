@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -476,5 +477,50 @@ func TestPrepareAddsBlocksAndNotice(t *testing.T) {
 	}
 	if len(notes) != 1 || notes[0] != "skills attached: deploy" {
 		t.Fatalf("notes = %q", notes)
+	}
+}
+
+func TestContextReportAndPins(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "read_file", `{"path":"big.txt"}`),
+		text("done"),
+		text("again"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	os.WriteFile(filepath.Join(root, "big.txt"), bytes.Repeat([]byte("x"), 4000), 0o644)
+	a.SystemExtra = func() string { return strings.Repeat("m", 400) }
+	a.Pin("always use tabs")
+	if err := a.Run(context.Background(), "read big.txt please", nil); err != nil {
+		t.Fatal(err)
+	}
+	if sys := f.requests[0].System; !strings.Contains(sys, "# Pinned by the user") || !strings.Contains(sys, "1. always use tabs") {
+		t.Fatalf("system = %q", sys)
+	}
+	r := a.Context()
+	if r.ToolCount == 0 || r.Tools == 0 || r.Extra != 100 || r.Pins == 0 || r.UserText == 0 || r.AssistantText == 0 || r.Turns != 1 {
+		t.Fatalf("report = %+v", r)
+	}
+	if len(r.ByTool) != 1 || r.ByTool[0].Name != "read_file" || r.ByTool[0].Calls != 1 || r.ByTool[0].Tokens < 1000 {
+		t.Fatalf("by tool = %+v", r.ByTool)
+	}
+	if len(r.Largest) != 1 || r.Largest[0].Subject != "big.txt" || r.Largest[0].Tokens < 1000 || r.Largest[0].Index != 2 {
+		t.Fatalf("largest = %+v", r.Largest)
+	}
+	if r.Total <= 0 || r.CompactAt != DefaultCompactAt {
+		t.Fatalf("total/compactAt = %d/%d", r.Total, r.CompactAt)
+	}
+	if !a.Unpin(1) || a.Unpin(1) || a.Unpin(0) {
+		t.Fatal("Unpin bookkeeping wrong")
+	}
+	a.Pin("   ")
+	if len(a.Pins) != 0 {
+		t.Fatal("blank pin stored")
+	}
+	if err := a.Run(context.Background(), "more", nil); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(f.requests[2].System, "Pinned") {
+		t.Fatal("pins section present with no pins")
 	}
 }
