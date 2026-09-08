@@ -213,6 +213,7 @@ type model struct {
 	lastTurn   string                   // usage summary of the last turn
 	queued     []string                 // prompts typed while a turn was running
 	custom     map[string]prompt.Custom // user-defined slash commands
+	clipboard  func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
 	lastFind   string                   // last /find query, for repeats
 	lastFindAt int                      // line of the last hit, so repeats advance past it
 	quitting   bool
@@ -264,6 +265,7 @@ func newModel(opts Options) *model {
 			m.branch = "git"
 		}
 	}
+	m.clipboard = readClipboardImage
 	m.custom = map[string]prompt.Custom{}
 	for _, c := range prompt.CustomCommands(opts.Cwd, opts.ConfigDir) {
 		m.custom["/"+c.Name] = c
@@ -572,6 +574,11 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return nil, true
 	case "ctrl+l":
 		return tea.ClearScreen, true
+	case "ctrl+v":
+		// Text paste arrives through the terminal on its own; ctrl+v grabs an
+		// image from the clipboard and attaches it as an @mention.
+		m.pasteImage()
+		return nil, true
 	case "tab":
 		if m.complete() {
 			m.layout()
@@ -632,6 +639,30 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return m.submit(text), true
 	}
 	return nil, false
+}
+
+// pasteImage saves the clipboard image to a file and inserts @path.
+func (m *model) pasteImage() {
+	data, err := m.clipboard()
+	if err != nil {
+		m.status = err.Error()
+		m.refresh(false)
+		return
+	}
+	path, err := saveClipboardImage(data)
+	if err != nil {
+		m.status = "could not save the image: " + err.Error()
+		m.refresh(false)
+		return
+	}
+	v := m.input.Value()
+	if v != "" && !strings.HasSuffix(v, " ") && !strings.HasSuffix(v, "\n") {
+		m.input.InsertString(" ")
+	}
+	m.input.InsertString("@" + path + " ")
+	m.layout()
+	m.status = fmt.Sprintf("attached clipboard image (%s) · send when ready", shortBytes(int64(len(data))))
+	m.refresh(false)
 }
 
 // remember adds a submitted prompt to the up/down history.
@@ -1269,7 +1300,7 @@ func (m *model) helpText() string {
 	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, twice to force quit · ctrl+d quit\n")
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand tool output · ctrl+l redraw\n")
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends\n")
-	sb.WriteString("  @path attaches a file or directory listing to the prompt · tab completes the path\n")
+	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
 	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · n deny (then type why, or enter to skip) · esc deny\n")
 	sb.WriteString("commands\n")

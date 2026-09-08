@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -528,6 +529,31 @@ func TestMCPTrustFlow(t *testing.T) {
 		t.Fatalf("status after trust:\n%s", v)
 	}
 	mgr.Close()
+}
+
+func TestCtrlVPastesClipboardImage(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "a screenshot"), StopReason: llm.StopEndTurn})
+	h.m.clipboard = func() ([]byte, error) { return nil, errors.New("no image in the clipboard") }
+	h.keys("look")
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlV})
+	if h.m.input.Value() != "look" || !strings.Contains(h.m.status, "no image") {
+		t.Fatalf("input %q status %q", h.m.input.Value(), h.m.status)
+	}
+	png := []byte("\x89PNG\r\n\x1a\nfake")
+	h.m.clipboard = func() ([]byte, error) { return png, nil }
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlV})
+	v := h.m.input.Value()
+	if !strings.HasPrefix(v, "look @") || !strings.HasSuffix(v, ".png ") {
+		t.Fatalf("input after paste: %q", v)
+	}
+	path := strings.TrimSpace(strings.TrimPrefix(v, "look @"))
+	t.Cleanup(func() { os.Remove(path) })
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	blocks := h.m.opts.Agent.Messages[0].Blocks
+	if len(blocks) != 2 || blocks[1].Type != llm.BlockImage || blocks[1].MediaType != "image/png" {
+		t.Fatalf("blocks = %+v", blocks)
+	}
 }
 
 func TestPromptHistoryRecall(t *testing.T) {
