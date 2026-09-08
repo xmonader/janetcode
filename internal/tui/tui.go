@@ -24,6 +24,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -33,12 +34,14 @@ import (
 type Options struct {
 	// ConfigDir holds global custom commands under commands/*.md.
 	ConfigDir string
-	Agent     *agent.Agent
-	Session   *session.Session
-	Provider  string
-	Cwd       string
-	Resumed   int // messages loaded from a resumed session
-	Version   string
+	// MCP, when set, describes the servers to start.
+	MCP      *MCPOptions
+	Agent    *agent.Agent
+	Session  *session.Session
+	Provider string
+	Cwd      string
+	Resumed  int // messages loaded from a resumed session
+	Version  string
 	// Theme is "dark", "light" or "" for terminal detection.
 	Theme string
 	// InitialPrompt is sent as soon as the UI is ready.
@@ -55,6 +58,24 @@ func Run(opts Options) error {
 	opts.Agent.Approver = m.approver
 	_, err := p.Run()
 	return err
+}
+
+// MCPOptions lists the servers from the config file (started right away)
+// and from the project's .mcp.json (started once the user trusts it).
+type MCPOptions struct {
+	Manager        *mcp.Manager
+	Global         map[string]mcp.ServerConfig
+	Project        map[string]mcp.ServerConfig
+	ProjectHash    string
+	ProjectTrusted bool
+	Trust          mcp.TrustStore
+}
+
+// mcpDoneMsg reports a server that came up or failed.
+type mcpDoneMsg struct {
+	name  string
+	tools int
+	err   error
 }
 
 // --- messages from the agent goroutine ---
@@ -148,6 +169,7 @@ var commands = []command{
 	{"/resume", "[n|id]", "list earlier sessions here, or reopen one"},
 	{"/find", "<text>", "jump to the next line matching text; repeat to continue"},
 	{"/undo", "", "revert the files changed by the last turn"},
+	{"/mcp", "[trust]", "MCP servers and their tools; trust starts the project's .mcp.json servers"},
 	{"/yolo", "", "toggle auto-approve for tools"},
 	{"/model", "<name>", "switch model on the same provider"},
 	{"/usage", "", "tokens and cost for this session"},
@@ -271,7 +293,42 @@ func (m *model) welcome() string {
 	return sb.String()
 }
 
+// startMCP launches the configured servers in the background.
+func (m *model) startMCP() {
+	o := m.opts.MCP
+	if o == nil || o.Manager == nil {
+		return
+	}
+	start := func(servers map[string]mcp.ServerConfig) {
+		for name, cfg := range servers {
+			o.Manager.Start(context.Background(), name, cfg, func(name string, c *mcp.Client, err error) {
+				n := 0
+				if c != nil {
+					n = len(c.Tools())
+				}
+				m.send(mcpDoneMsg{name: name, tools: n, err: err})
+			})
+		}
+	}
+	start(o.Global)
+	if o.ProjectTrusted {
+		start(o.Project)
+	} else if len(o.Project) > 0 {
+		names := make([]string, 0, len(o.Project))
+		for n := range o.Project {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		m.transcript.info(fmt.Sprintf("%s lists MCP servers (%s) that have not been trusted for this directory. They would run commands on your machine: inspect the file, then /mcp trust to start them.", mcp.ProjectFile, strings.Join(names, ", ")))
+	}
+	if n := len(o.Global) + len(o.Project); n > 0 && (o.ProjectTrusted || len(o.Global) > 0) {
+		m.status = "starting MCP servers…"
+	}
+	m.refresh(false)
+}
+
 func (m *model) Init() tea.Cmd {
+	m.startMCP()
 	return tea.Batch(textarea.Blink, m.spinner.Tick, tick())
 }
 
@@ -344,6 +401,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.phase = "waiting for your approval"
 		m.refresh(false)
 		m.viewport.GotoBottom()
+		return m, nil
+
+	case mcpDoneMsg:
+		if msg.err != nil {
+			m.transcript.errorf("mcp %s: %v", msg.name, msg.err)
+		} else {
+			m.transcript.info(fmt.Sprintf("mcp %s ready · %d tools (see /mcp)", msg.name, msg.tools))
+		}
+		if m.status == "starting MCP servers…" {
+			m.status = ""
+		}
+		m.refresh(false)
 		return m, nil
 
 	case shellDoneMsg:
@@ -931,6 +1000,8 @@ func (m *model) command(text string) tea.Cmd {
 		}
 		m.opts.Agent.Model = fields[1]
 		m.transcript.info("model set to " + fields[1] + " on " + m.opts.Provider)
+	case "/mcp":
+		m.mcpCommand(fields[1:])
 	case "/undo":
 		if m.running {
 			m.transcript.errorf("wait for the current turn to finish before undoing")
@@ -1039,6 +1110,64 @@ func (m *model) find(q string) {
 	m.lastFindAt = next
 	m.viewport.SetYOffset(next)
 	m.status = fmt.Sprintf("match %d/%d for %q on line %d · /find again for the next", idx+1, len(hits), q, next+1)
+}
+
+func (m *model) mcpCommand(args []string) {
+	o := m.opts.MCP
+	if o == nil || o.Manager == nil {
+		m.transcript.info("MCP is not configured: add servers under \"mcp_servers\" in the config file or a .mcp.json in the project")
+		return
+	}
+	if len(args) > 0 && args[0] == "trust" {
+		switch {
+		case len(o.Project) == 0:
+			m.transcript.errorf("no %s in %s", mcp.ProjectFile, shortPath(m.opts.Cwd))
+		case o.ProjectTrusted:
+			m.transcript.info("project servers are already trusted")
+		default:
+			if err := o.Trust.Trust(m.opts.Cwd, o.ProjectHash); err != nil {
+				m.transcript.errorf("record trust: %v", err)
+				return
+			}
+			o.ProjectTrusted = true
+			m.transcript.info("trusted " + mcp.ProjectFile + " · starting its servers")
+			for name, cfg := range o.Project {
+				o.Manager.Start(context.Background(), name, cfg, func(name string, c *mcp.Client, err error) {
+					n := 0
+					if c != nil {
+						n = len(c.Tools())
+					}
+					m.send(mcpDoneMsg{name: name, tools: n, err: err})
+				})
+			}
+		}
+		return
+	}
+	st := o.Manager.Status()
+	if len(st) == 0 {
+		if len(o.Project) > 0 && !o.ProjectTrusted {
+			m.transcript.info("no MCP servers running · /mcp trust starts the ones in " + mcp.ProjectFile)
+		} else {
+			m.transcript.info("no MCP servers configured")
+		}
+		return
+	}
+	var sb strings.Builder
+	sb.WriteString("MCP servers\n")
+	for _, s := range st {
+		switch {
+		case s.Starting:
+			fmt.Fprintf(&sb, "  … %s starting\n", s.Name)
+		case s.Err != nil:
+			fmt.Fprintf(&sb, "  ✗ %s: %v\n", s.Name, s.Err)
+		default:
+			fmt.Fprintf(&sb, "  ✓ %s · %d tools\n", s.Name, len(s.Tools))
+			for _, t := range s.Tools {
+				fmt.Fprintf(&sb, "      %s\n", t)
+			}
+		}
+	}
+	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 }
 
 // listSessions shows the sessions recorded for this directory, numbered so

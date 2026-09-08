@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -30,6 +31,7 @@ type Tool interface {
 
 // Registry holds the tools available to an agent.
 type Registry struct {
+	mu    sync.RWMutex
 	tools map[string]Tool
 }
 
@@ -48,13 +50,32 @@ func NewRegistry(tools ...Tool) *Registry {
 
 // Get looks up a tool by name.
 func (r *Registry) Get(name string) (Tool, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	t, ok := r.tools[name]
 	return t, ok
+}
+
+// Add registers a tool at runtime (MCP servers come up after startup). An
+// existing tool of the same name is replaced.
+func (r *Registry) Add(t Tool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.tools[t.Name()] = t
+}
+
+// Remove unregisters a tool.
+func (r *Registry) Remove(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.tools, name)
 }
 
 // Defs returns the tool definitions in stable (sorted) order so the request
 // prefix stays cacheable.
 func (r *Registry) Defs() []llm.ToolDef {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	names := make([]string, 0, len(r.tools))
 	for n := range r.tools {
 		names = append(names, n)

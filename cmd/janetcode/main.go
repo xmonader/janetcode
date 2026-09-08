@@ -21,6 +21,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/llm/anthropic"
 	"github.com/xmonader/janetcode/internal/llm/openai"
+	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -156,6 +157,17 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	task.Parent = ag
 
+	cfgPath, _ := config.Path()
+	cfgDir := filepath.Dir(cfgPath)
+	servers := mcp.Manager{Options: mcp.Options{Root: cwd, Version: version}, Registry: ag.Tools}
+	defer servers.Close()
+	projectServers, projectHash, err := mcp.LoadProject(cwd)
+	if err != nil {
+		return err
+	}
+	trust := mcp.TrustStore{Path: filepath.Join(cfgDir, "mcp-trust.json")}
+	projectTrusted := len(projectServers) > 0 && trust.Trusted(cwd, projectHash)
+
 	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 		if err != nil {
@@ -163,6 +175,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 		defer f.Close()
 		ag.Debug = f
+		servers.Options.Debug = f
 	}
 
 	if *promptText != "" {
@@ -175,16 +188,37 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		if extra := pipedStdin(); extra != "" {
 			text += "\n\n<stdin>\n" + extra + "\n</stdin>"
 		}
+		toStart := map[string]mcp.ServerConfig{}
+		for n, c := range cfg.MCPServers {
+			toStart[n] = c
+		}
+		if projectTrusted {
+			for n, c := range projectServers {
+				toStart[n] = c
+			}
+		} else if len(projectServers) > 0 {
+			fmt.Fprintf(os.Stderr, "[mcp] %s lists servers that are not trusted yet; open the TUI and run /mcp trust\n", mcp.ProjectFile)
+		}
+		servers.StartAll(ctx, toStart, func(name string, c *mcp.Client, err error) {
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "[mcp] %s failed: %v\n", name, err)
+				return
+			}
+			fmt.Fprintf(os.Stderr, "[mcp] %s ready: %d tools\n", name, len(c.Tools()))
+		})
 		return headless.Run(ctx, headless.Options{
 			Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
 		})
 	}
-	cfgPath, _ := config.Path()
 	return tui.Run(tui.Options{
-		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: filepath.Dir(cfgPath),
+		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: cfgDir,
 		Resumed: len(history), Version: version, Theme: cfg.Theme,
 		InitialPrompt: initial,
+		MCP: &tui.MCPOptions{
+			Manager: &servers, Global: cfg.MCPServers,
+			Project: projectServers, ProjectHash: projectHash, ProjectTrusted: projectTrusted, Trust: trust,
+		},
 	})
 }
 

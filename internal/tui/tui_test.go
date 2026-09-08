@@ -14,6 +14,8 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/mcp/testserver"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -484,6 +486,48 @@ func TestImageMentionSendsImageBlock(t *testing.T) {
 	if v := plain(h.m.View()); !strings.Contains(v, "attached shot.png (image, 8B)") {
 		t.Fatalf("view:\n%s", v)
 	}
+}
+
+// TestFakeMCPServerProcess is not a test: TestMCPTrustFlow spawns the test
+// binary with MCP_FAKE_SERVER=1 and this "test" then serves the protocol.
+func TestFakeMCPServerProcess(t *testing.T) {
+	if os.Getenv("MCP_FAKE_SERVER") != "1" {
+		t.Skip("helper process only")
+	}
+	testserver.Run()
+}
+
+func TestMCPTrustFlow(t *testing.T) {
+	h := newHarness(t)
+	reg := h.m.opts.Agent.Tools
+	mgr := &mcp.Manager{Options: mcp.Options{Root: h.m.opts.Cwd, HandshakeTimeout: 20 * time.Second}, Registry: reg}
+	fake := mcp.ServerConfig{Command: os.Args[0], Args: []string{"-test.run=TestFakeMCPServerProcess"}, Env: map[string]string{"MCP_FAKE_SERVER": "1"}}
+	h.m.opts.MCP = &MCPOptions{
+		Manager: mgr, Project: map[string]mcp.ServerConfig{"proj": fake}, ProjectHash: "h1",
+		Trust: mcp.TrustStore{Path: filepath.Join(t.TempDir(), "trust.json")},
+	}
+	h.m.Init()
+	if v := plain(h.m.View()); !strings.Contains(v, "not been trusted") || !strings.Contains(v, "proj") {
+		t.Fatalf("trust notice missing:\n%s", v)
+	}
+	h.keys("/mcp")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "no MCP servers running") {
+		t.Fatalf("status:\n%s", v)
+	}
+	h.keys("/mcp trust")
+	h.enter()
+	h.pump(func() bool { _, ok := reg.Get("mcp__proj__echo"); return ok })
+	if !h.m.opts.MCP.Trust.Trusted(h.m.opts.Cwd, "h1") {
+		t.Fatal("trust not recorded")
+	}
+	h.keys("/mcp")
+	h.enter()
+	v := plain(h.m.View())
+	if !strings.Contains(v, "✓ proj · 4 tools") || !strings.Contains(v, "mcp__proj__echo") || !strings.Contains(v, "mcp proj ready · 4 tools") {
+		t.Fatalf("status after trust:\n%s", v)
+	}
+	mgr.Close()
 }
 
 func TestPromptHistoryRecall(t *testing.T) {

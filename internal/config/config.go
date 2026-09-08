@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/mcp"
 )
 
 // ProviderConfig is the credentials for one backend.
@@ -38,6 +39,9 @@ type Config struct {
 	// Prices per million tokens by model name, used to estimate spend when
 	// the provider does not report it. A key may be a prefix ("claude-opus").
 	Prices map[string]llm.Price `json:"prices,omitempty"`
+	// MCPServers are started for every project. Project-specific ones go
+	// in <project>/.mcp.json and need a one-time approval.
+	MCPServers map[string]mcp.ServerConfig `json:"mcp_servers,omitempty"`
 }
 
 // PriceFor returns the configured price for model: an exact key first, then
@@ -107,6 +111,9 @@ const Example = `{
   },
   "prices": {
     "example-model": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75}
+  },
+  "mcp_servers": {
+    "example": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."], "env": {}}
   }
 }
 `

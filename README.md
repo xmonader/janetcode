@@ -109,12 +109,27 @@ the turn ends. Cancelling a turn hands queued text back to the input.
 /help      /quit      /clear (new session)     /yolo (toggle auto-approve)
 /model X   /usage     /compact (summarise the context to free the window)
 /resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)
-/undo      /find X    /cost
+/undo      /find X    /cost      /mcp [trust]
 ```
 
 `/undo` restores every file the last turn changed through `edit_file` or
 `write_file` (files it created are removed) and tells the model. Repeat it to
 go back further. Changes made by shell commands are not tracked.
+
+### MCP servers
+
+janetcode is an MCP client over stdio. Servers listed under `mcp_servers` in
+the config file start with every session. Servers listed in a project's
+`.mcp.json` (the same format Claude Code uses) are shown at startup but only
+start after you run `/mcp trust` once for that exact file; editing the file
+asks again, because the file can run any command on your machine.
+
+```json
+{"mcpServers": {"fs": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]}}}
+```
+
+Server tools appear as `mcp__<server>__<tool>`. They ask for permission
+unless the server marks them read-only. `/mcp` shows status and tools.
 
 ### Custom commands
 
