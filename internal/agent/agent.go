@@ -125,7 +125,8 @@ type Agent struct {
 	// coaching), "syntax" (syntax check and covering-test pointer after
 	// edits), "loops" (loop nudges and stuck detection), "prune"
 	// (condensing old tool results before a summary), "verify" (the
-	// verification gate). Unknown names are ignored.
+	// verification gate), "repomap" (honoured by the caller that installs
+	// the Prepare hook). Unknown names are ignored.
 	Off map[string]bool
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the

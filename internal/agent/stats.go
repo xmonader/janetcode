@@ -99,7 +99,7 @@ func (a *Agent) Stats() Stats {
 }
 
 // switches are the behaviours Agent.Off can disable.
-var switches = map[string]bool{"coach": true, "syntax": true, "loops": true, "prune": true, "verify": true}
+var switches = map[string]bool{"coach": true, "syntax": true, "loops": true, "prune": true, "verify": true, "repomap": true}
 
 // KnownSwitch reports whether Off understands the name.
 func KnownSwitch(name string) bool { return switches[name] }

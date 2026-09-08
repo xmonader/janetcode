@@ -121,6 +121,7 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `write_file` | Create or overwrite a file | yes, shows a diff |
 | `bash` | Run a shell command with a timeout | yes |
 | `fetch_url` | Fetch a web page or API response as text | yes |
+| `repo_map` | Rank files for a query, or a symbol's blast radius (definers and users) | no |
 | `web_search` | Search the web (DuckDuckGo, or Brave Search with a key) for titles, URLs and snippets | yes |
 | `task` | Delegate a read-only job to a subagent with its own context; several run in parallel | no |
 
@@ -358,6 +359,24 @@ hunk counts, new and deleted files); `/diff path` shows that file's
 hunks, numbered; `/diff revert path:2` puts one hunk back the way HEAD
 has it, leaving the rest of the file's changes in place. `/undo` still
 reverts a whole turn at once.
+
+### Repository map
+
+Every request starts with a map of the repository ranked for it: which
+files matter and the symbols they define, ordered by how often other
+files use them. Files are nodes, "A uses a symbol B defines" is an edge
+(Go is parsed with the real parser, other languages by patterns), and a
+PageRank walk gives the structural weight. The request then pulls files
+up: a path or file name it mentions (×4), a directory (×3), a symbol or
+its stem (×2.5, so "compaction" finds `Compact`), and files that differ
+from HEAD (×2.5). The map is about 1500 tokens, attached to the user
+turn so every model call of the turn shares it as cached prefix, and
+each line says why a file was pulled up; the turn note says how many
+files the request pulled up. The
+`repo_map` tool re-ranks for another query or shows a symbol's blast
+radius: what defines it, every file that uses it, and with
+`transitive` the users of those. The index rebuilds when the tree
+changes (git status or mtimes) and caps at 5000 files.
 
 ### Context inspector and pins
 
@@ -688,7 +707,7 @@ improved:  05-rename-symbol, 13-multi-file-package
 ```
 
 `EVAL_OFF=coach,prune` runs an ablation with named behaviours disabled
-(`coach`, `syntax`, `loops`, `prune`, `verify`); the variant name is
+(`coach`, `syntax`, `loops`, `prune`, `verify`, `repomap`); the variant name is
 recorded in the results file so a comparison says what it compared.
 
 ## Development
