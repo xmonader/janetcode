@@ -114,7 +114,9 @@ the turn ends. Cancelling a turn hands queued text back to the input.
 
 `/undo` restores every file the last turn changed through `edit_file` or
 `write_file` (files it created are removed) and tells the model. Repeat it to
-go back further. Changes made by shell commands are not tracked.
+go back further, and it still works after `--continue` or `/resume` because
+checkpoints are saved next to the session file. Changes made by shell
+commands are not tracked.
 
 ### MCP servers
 

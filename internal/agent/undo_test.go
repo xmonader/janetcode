@@ -63,3 +63,41 @@ func TestUndoRestoresLastTurn(t *testing.T) {
 		t.Fatalf("third undo err = %v", err)
 	}
 }
+
+func TestUndoPersistsAcrossAgents(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"x","content":"new"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	a.UndoPath = filepath.Join(t.TempDir(), "s.undo.json")
+	if err := a.Run(context.Background(), "write", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(a.UndoPath); err != nil {
+		t.Fatal("undo file not written after the turn")
+	}
+	// A fresh agent (a resumed session) picks the checkpoints up.
+	b := &Agent{UndoPath: a.UndoPath}
+	if err := b.LoadUndo(); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(b.Checkpoints()); n != 1 {
+		t.Fatalf("loaded %d checkpoints", n)
+	}
+	if _, err := b.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "x")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("undo from the resumed agent did not remove x")
+	}
+	if _, err := os.Stat(a.UndoPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("empty checkpoint list should remove the undo file")
+	}
+	os.WriteFile(a.UndoPath, []byte("{bad"), 0o644)
+	if err := b.LoadUndo(); err == nil {
+		t.Fatal("corrupt undo file accepted")
+	}
+}

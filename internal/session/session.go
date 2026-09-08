@@ -212,6 +212,9 @@ func firstLine(s string, max int) string {
 	return s
 }
 
+// UndoPath is where the session's undo checkpoints live.
+func (s *Session) UndoPath() string { return strings.TrimSuffix(s.path, ".jsonl") + ".undo.json" }
+
 // Path is the file backing the session.
 func (s *Session) Path() string { return s.path }
 

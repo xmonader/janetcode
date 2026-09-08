@@ -391,6 +391,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case sessionSwapMsg:
 		m.opts.Session = msg.sess
+		m.opts.Agent.UndoPath = msg.sess.UndoPath()
+		m.opts.Agent.SaveUndo()
 		m.transcript.info("continuing in session " + msg.sess.Meta.ID)
 		m.refresh(false)
 		return m, nil
@@ -980,6 +982,7 @@ func (m *model) command(text string) tea.Cmd {
 		}
 		m.opts.Session = sess
 		m.opts.Agent.Messages = nil
+		m.opts.Agent.UndoPath = sess.UndoPath()
 		m.transcript = newTranscriptStyled(m.transcript.styleName)
 		m.transcript.banner(m.welcome())
 		m.transcript.info("new session " + sess.Meta.ID)
@@ -1233,6 +1236,10 @@ func (m *model) resume(arg string) {
 	m.opts.Session = sess
 	m.opts.Agent.Messages = history
 	m.opts.Agent.Usage = llm.Usage{}
+	m.opts.Agent.UndoPath = sess.UndoPath()
+	if err := m.opts.Agent.LoadUndo(); err != nil {
+		m.transcript.errorf("%v", err)
+	}
 	m.transcript = newTranscriptStyled(m.transcript.styleName)
 	m.transcript.banner(m.welcome())
 	m.transcript.info(fmt.Sprintf("resumed session %s · %d messages", sess.Meta.ID, len(history)))

@@ -121,6 +121,9 @@ type Agent struct {
 	// Price, when set, lets the UI estimate spend for providers that do not
 	// report cost.
 	Price *llm.Price
+	// UndoPath, when set, persists undo checkpoints next to the session so
+	// /undo survives a resume.
+	UndoPath string
 
 	allowed map[string]bool
 	cp      checkpointer
@@ -159,6 +162,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}
 	a.appendUserBlocks(blocks...)
 	a.cp.beginTurn()
+	defer a.saveUndoIfDirty()
 
 	compactAt := a.CompactAt
 	if compactAt == 0 {

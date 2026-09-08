@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,16 +14,16 @@ import (
 
 // Snapshot is a file as it was before a turn changed it.
 type Snapshot struct {
-	Path    string
-	Data    []byte
-	Existed bool
+	Path    string `json:"path"`
+	Data    []byte `json:"data,omitempty"`
+	Existed bool   `json:"existed"`
 }
 
 // Checkpoint groups the files a single turn modified through file tools.
 // Shell commands are not tracked.
 type Checkpoint struct {
-	When  time.Time
-	Files []Snapshot
+	When  time.Time  `json:"when"`
+	Files []Snapshot `json:"files"`
 }
 
 // ErrNothingToUndo is returned by Undo when no turn changed any file.
@@ -30,9 +31,10 @@ var ErrNothingToUndo = errors.New("nothing to undo")
 
 // checkpointer records pre-change snapshots for the running turn.
 type checkpointer struct {
-	mu   sync.Mutex
-	open bool // the last checkpoint in all belongs to the running turn
-	all  []Checkpoint
+	mu    sync.Mutex
+	open  bool // the last checkpoint in all belongs to the running turn
+	dirty bool // changed since the last SaveUndo
+	all   []Checkpoint
 }
 
 // beginTurn closes the previous turn's checkpoint; the next snapshot opens
@@ -72,6 +74,64 @@ func (c *checkpointer) snapshot(t tool.Tool, input []byte) {
 		}
 		cur := &c.all[len(c.all)-1]
 		cur.Files = append(cur.Files, snap)
+		c.dirty = true
+	}
+}
+
+// SaveUndo persists the checkpoints to UndoPath so /undo works after a
+// resume. Without a path it does nothing.
+func (a *Agent) SaveUndo() error {
+	if a.UndoPath == "" {
+		return nil
+	}
+	a.cp.mu.Lock()
+	defer a.cp.mu.Unlock()
+	a.cp.dirty = false
+	if len(a.cp.all) == 0 {
+		err := os.Remove(a.UndoPath)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	data, err := json.Marshal(a.cp.all)
+	if err != nil {
+		return err
+	}
+	return tool.AtomicWrite(a.UndoPath, data)
+}
+
+// LoadUndo restores checkpoints saved by SaveUndo. A missing file is fine.
+func (a *Agent) LoadUndo() error {
+	if a.UndoPath == "" {
+		return nil
+	}
+	data, err := os.ReadFile(a.UndoPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var all []Checkpoint
+	if err := json.Unmarshal(data, &all); err != nil {
+		return fmt.Errorf("%s: %w", a.UndoPath, err)
+	}
+	a.cp.mu.Lock()
+	a.cp.all, a.cp.open, a.cp.dirty = all, false, false
+	a.cp.mu.Unlock()
+	return nil
+}
+
+// saveUndoIfDirty is called at the end of a turn.
+func (a *Agent) saveUndoIfDirty() {
+	a.cp.mu.Lock()
+	dirty := a.cp.dirty
+	a.cp.mu.Unlock()
+	if dirty {
+		if err := a.SaveUndo(); err != nil {
+			a.debugf("save undo: %v", err)
+		}
 	}
 }
 
@@ -104,6 +164,14 @@ func (a *Agent) Undo() ([]string, error) {
 	cp := a.cp.all[n-1]
 	a.cp.all = a.cp.all[:n-1]
 	a.cp.open = false
+	a.cp.dirty = true
+	defer func() {
+		a.cp.mu.Unlock()
+		if err := a.SaveUndo(); err != nil {
+			a.debugf("save undo: %v", err)
+		}
+		a.cp.mu.Lock()
+	}()
 	var (
 		done []string
 		errs []error

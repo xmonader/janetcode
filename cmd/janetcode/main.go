@@ -156,6 +156,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Messages:      history,
 	}
 	task.Parent = ag
+	ag.UndoPath = sess.UndoPath()
+	if err := ag.LoadUndo(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+	}
 
 	cfgPath, _ := config.Path()
 	cfgDir := filepath.Dir(cfgPath)

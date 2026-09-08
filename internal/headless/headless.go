@@ -62,6 +62,10 @@ func Run(ctx context.Context, opts Options) error {
 	})
 	if opts.Session != nil {
 		ns, serr := opts.Session.SyncOrRotate(ag.Messages)
+		if ns != opts.Session {
+			ag.UndoPath = ns.UndoPath()
+			ag.SaveUndo()
+		}
 		if serr != nil {
 			fmt.Fprintf(opts.Stderr, "[warn] could not save session: %v\n", serr)
 		} else if ns != opts.Session {
