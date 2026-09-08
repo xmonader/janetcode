@@ -471,6 +471,21 @@ func TestUndoCommand(t *testing.T) {
 	}
 }
 
+func TestImageMentionSendsImageBlock(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "a cat"), StopReason: llm.StopEndTurn})
+	os.WriteFile(filepath.Join(h.m.opts.Cwd, "shot.png"), []byte("\x89PNGfake"), 0o644)
+	h.keys("what is in @shot.png ?")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	blocks := h.m.opts.Agent.Messages[0].Blocks
+	if len(blocks) != 2 || blocks[0].Type != llm.BlockText || blocks[1].Type != llm.BlockImage || blocks[1].MediaType != "image/png" {
+		t.Fatalf("blocks = %+v", blocks)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "attached shot.png (image, 8B)") {
+		t.Fatalf("view:\n%s", v)
+	}
+}
+
 func TestPromptHistoryRecall(t *testing.T) {
 	h := newHarness(t,
 		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "a"), StopReason: llm.StopEndTurn},

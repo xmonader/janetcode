@@ -173,7 +173,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			text += "\n\n<stdin>\n" + extra + "\n</stdin>"
 		}
 		return headless.Run(ctx, headless.Options{
-			Agent: ag, Session: sess, Prompt: text,
+			Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
 		})
 	}

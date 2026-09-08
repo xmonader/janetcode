@@ -137,6 +137,12 @@ var ErrMaxIterations = errors.New("agent: turn exceeded maximum tool iterations"
 // Run sends userText and drives the loop until the model ends its turn or
 // an error occurs. History stays consistent on every return path.
 func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) error {
+	return a.RunBlocks(ctx, []llm.Block{{Type: llm.BlockText, Text: userText}}, emit)
+}
+
+// RunBlocks is Run for a user turn made of several blocks (text plus
+// images).
+func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Event)) error {
 	emit = serialize(a.traced(emit))
 	if a.Provider == nil {
 		return errors.New("agent: no provider")
@@ -151,7 +157,7 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 	if maxIter <= 0 {
 		maxIter = 50
 	}
-	a.appendUserText(userText)
+	a.appendUserBlocks(blocks...)
 	a.cp.beginTurn()
 
 	compactAt := a.CompactAt
@@ -346,11 +352,15 @@ func (a *Agent) AddContext(text string) { a.appendUserText(text) }
 // message if the last turn ended with one (tool results from an aborted turn,
 // or a message whose model call failed).
 func (a *Agent) appendUserText(text string) {
+	a.appendUserBlocks(llm.Block{Type: llm.BlockText, Text: text})
+}
+
+func (a *Agent) appendUserBlocks(blocks ...llm.Block) {
 	if n := len(a.Messages); n > 0 && a.Messages[n-1].Role == llm.RoleUser {
-		a.Messages[n-1].Blocks = append(a.Messages[n-1].Blocks, llm.Block{Type: llm.BlockText, Text: text})
+		a.Messages[n-1].Blocks = append(a.Messages[n-1].Blocks, blocks...)
 		return
 	}
-	a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, text))
+	a.Messages = append(a.Messages, llm.Message{Role: llm.RoleUser, Blocks: blocks})
 }
 
 // execute runs one tool call. The returned error is non-nil only for

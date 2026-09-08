@@ -140,6 +140,8 @@ func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
 					content = "(no output)"
 				}
 				blocks = append(blocks, sdk.NewToolResultBlock(b.ToolUseID, content, b.IsError))
+			case llm.BlockImage:
+				blocks = append(blocks, sdk.NewImageBlockBase64(b.MediaType, b.Data))
 			}
 		}
 		if len(blocks) == 0 {

@@ -2,21 +2,47 @@ package prompt
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/llm"
 )
 
 // MaxMentionBytes caps how much of one @file is attached to a prompt.
 const MaxMentionBytes = 100 << 10
+
+// MaxImageBytes caps an attached image (providers reject larger ones).
+const MaxImageBytes = 5 << 20
 
 // Attachment is one @path that was found and attached to a prompt.
 type Attachment struct {
 	Path string // as typed, relative to cwd
 	Size int64
 	Dir  bool
+	// Image attachments are not inlined in the text; the caller sends them
+	// as image blocks. MediaType and Data (base64) are set for them.
+	MediaType string
+	Data      string
+}
+
+// Image reports whether the attachment is an image.
+func (a Attachment) Image() bool { return a.MediaType != "" }
+
+var imageTypes = map[string]string{".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp"}
+
+// ImageBlocks converts the image attachments to llm blocks.
+func ImageBlocks(atts []Attachment) []llm.Block {
+	var out []llm.Block
+	for _, a := range atts {
+		if a.Image() {
+			out = append(out, llm.Block{Type: llm.BlockImage, MediaType: a.MediaType, Data: a.Data})
+		}
+	}
+	return out
 }
 
 // ExpandMentions attaches the contents of every "@path" in text that names
@@ -41,6 +67,16 @@ func ExpandMentions(cwd, text string) (string, []Attachment) {
 			continue
 		}
 		seen[m] = true
+		if mt, ok := imageTypes[strings.ToLower(filepath.Ext(m))]; ok && !fi.IsDir() {
+			data, err := os.ReadFile(full)
+			if err != nil || len(data) > MaxImageBytes {
+				fmt.Fprintf(&out, "\n\n<attached path=%q>\n(image not attached: %s)\n</attached>", m, imageProblem(err, len(data)))
+				atts = append(atts, Attachment{Path: m, Size: fi.Size()})
+				continue
+			}
+			atts = append(atts, Attachment{Path: m, Size: fi.Size(), MediaType: mt, Data: base64.StdEncoding.EncodeToString(data)})
+			continue
+		}
 		atts = append(atts, Attachment{Path: m, Size: fi.Size(), Dir: fi.IsDir()})
 		fmt.Fprintf(&out, "\n\n<attached path=%q>\n%s\n</attached>", m, attachmentBody(full, fi))
 	}
@@ -48,6 +84,13 @@ func ExpandMentions(cwd, text string) (string, []Attachment) {
 		return text, nil
 	}
 	return text + out.String(), atts
+}
+
+func imageProblem(err error, n int) string {
+	if err != nil {
+		return err.Error()
+	}
+	return fmt.Sprintf("%d bytes exceeds the %d MB limit", n, MaxImageBytes>>20)
 }
 
 func attachmentBody(full string, fi os.FileInfo) string {

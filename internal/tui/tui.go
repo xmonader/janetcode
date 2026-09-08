@@ -688,12 +688,16 @@ func (m *model) submit(text string) tea.Cmd {
 		names := make([]string, len(atts))
 		for i, a := range atts {
 			names[i] = a.Path
-			if !a.Dir {
+			switch {
+			case a.Image():
+				names[i] += " (image, " + shortBytes(a.Size) + ")"
+			case !a.Dir:
 				names[i] += " (" + shortBytes(a.Size) + ")"
 			}
 		}
 		m.transcript.info("attached " + strings.Join(names, " · "))
 	}
+	blocks := append([]llm.Block{{Type: llm.BlockText, Text: text}}, prompt.ImageBlocks(atts)...)
 	m.startTurn("thinking")
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
@@ -701,7 +705,7 @@ func (m *model) submit(text string) tea.Cmd {
 	m.refresh(false)
 	m.viewport.GotoBottom()
 	go func() {
-		err := ag.Run(ctx, text, queue.push)
+		err := ag.RunBlocks(ctx, blocks, queue.push)
 		ns, syncErr := sess.SyncOrRotate(ag.Messages)
 		if ns != sess {
 			send(sessionSwapMsg{sess: ns})

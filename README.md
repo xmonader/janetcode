@@ -103,7 +103,7 @@ Typing while the model is working queues the message; it is sent as soon as
 the turn ends. Cancelling a turn hands queued text back to the input.
 
 ```
-@path            attach a file (or a directory listing) to the prompt; tab completes
+@path            attach a file, an image (png/jpg/gif/webp), or a directory listing; tab completes
 !command         run a shell command here; its output is shown and shared with the model
 /help      /quit      /clear (new session)     /yolo (toggle auto-approve)
 /model X   /usage     /compact (summarise the context to free the window)

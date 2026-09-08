@@ -257,3 +257,21 @@ func TestDialectFallbacks(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestBuildRequestImages(t *testing.T) {
+	w, err := buildRequest(llm.Request{Model: "m", Messages: []llm.Message{
+		{Role: llm.RoleUser, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "what is this"},
+			{Type: llm.BlockImage, MediaType: "image/png", Data: "AAAA"},
+		}},
+		llm.TextMessage(llm.RoleUser, "plain"),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(w.Messages)
+	want := `[{"role":"user","content":[{"type":"text","text":"what is this"},{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA"}}]},{"role":"user","content":"plain"}]`
+	if string(raw) != want {
+		t.Fatalf("messages = %s", raw)
+	}
+}

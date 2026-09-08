@@ -48,6 +48,12 @@ func (a *Agent) EstimateTokens() int {
 func messageChars(m llm.Message) int {
 	n := 0
 	for _, b := range m.Blocks {
+		if b.Type == llm.BlockImage {
+			// Providers bill images by area, roughly 1.5k tokens for a
+			// screenshot; base64 length would overcount a hundredfold.
+			n += 1600 * 4
+			continue
+		}
 		n += len(b.Text) + len(b.Input) + len(b.Name) + 16
 	}
 	return n

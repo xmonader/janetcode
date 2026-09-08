@@ -21,7 +21,9 @@ type Options struct {
 	Agent   *agent.Agent
 	Session *session.Session
 	Prompt  string
-	Stdout  io.Writer
+	// Images are sent with the prompt as image blocks.
+	Images []llm.Block
+	Stdout io.Writer
 	Stderr  io.Writer
 	// Stdin is used for permission prompts when it is a terminal.
 	Stdin *os.File
@@ -34,7 +36,8 @@ func Run(ctx context.Context, opts Options) error {
 	if ag.Approver == nil {
 		ag.Approver = &stdinApprover{in: opts.Stdin, out: opts.Stderr}
 	}
-	err := ag.Run(ctx, opts.Prompt, func(e agent.Event) {
+	blocks := append([]llm.Block{{Type: llm.BlockText, Text: opts.Prompt}}, opts.Images...)
+	err := ag.RunBlocks(ctx, blocks, func(e agent.Event) {
 		switch e.Kind {
 		case agent.EvText:
 			fmt.Fprint(opts.Stdout, e.Text)

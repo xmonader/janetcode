@@ -26,6 +26,8 @@ const (
 	BlockThinking   BlockType = "thinking"
 	BlockToolUse    BlockType = "tool_use"
 	BlockToolResult BlockType = "tool_result"
+	// BlockImage carries a base64 image in a user message.
+	BlockImage BlockType = "image"
 )
 
 // Block is one unit of content in a message. Which fields are meaningful
@@ -45,6 +47,10 @@ type Block struct {
 	// Tool result fields (BlockToolResult).
 	ToolUseID string `json:"tool_use_id,omitempty"`
 	IsError   bool   `json:"is_error,omitempty"`
+
+	// Image fields (BlockImage): MediaType like "image/png", Data base64.
+	MediaType string `json:"media_type,omitempty"`
+	Data      string `json:"data,omitempty"`
 
 	// Signature is opaque provider data attached to thinking blocks that must
 	// be echoed back verbatim on later turns.

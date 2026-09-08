@@ -67,3 +67,25 @@ func TestCompletePath(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+func TestExpandMentionsImages(t *testing.T) {
+	root := t.TempDir()
+	png := []byte("\x89PNG\r\n\x1a\nfakepng")
+	os.WriteFile(filepath.Join(root, "shot.PNG"), png, 0o644)
+	os.WriteFile(filepath.Join(root, "huge.jpg"), make([]byte, MaxImageBytes+1), 0o644)
+	text := "look at @shot.PNG and @huge.jpg"
+	got, atts := ExpandMentions(root, text)
+	if len(atts) != 2 || !atts[0].Image() || atts[0].MediaType != "image/png" || atts[1].Image() {
+		t.Fatalf("atts = %+v", atts)
+	}
+	if strings.Contains(got, "shot.PNG\">") {
+		t.Fatalf("image must not be inlined as text:\n%s", got)
+	}
+	if !strings.Contains(got, "(image not attached: ") || !strings.Contains(got, "exceeds") {
+		t.Fatalf("oversize image not reported:\n%s", got)
+	}
+	blocks := ImageBlocks(atts)
+	if len(blocks) != 1 || blocks[0].Type != "image" || blocks[0].Data == "" {
+		t.Fatalf("blocks = %+v", blocks)
+	}
+}

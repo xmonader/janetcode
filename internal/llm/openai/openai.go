@@ -82,10 +82,20 @@ func (p *Provider) Name() string { return p.cfg.Name }
 // --- wire types ---
 
 type wireMessage struct {
-	Role       string         `json:"role"`
-	Content    string         `json:"content"`
+	Role string `json:"role"`
+	// Content is a string, or []wirePart when the message carries images.
+	Content    any            `json:"content"`
 	ToolCalls  []wireToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string         `json:"tool_call_id,omitempty"`
+}
+
+// wirePart is one element of a multi-part user message.
+type wirePart struct {
+	Type     string `json:"type"`
+	Text     string `json:"text,omitempty"`
+	ImageURL *struct {
+		URL string `json:"url"`
+	} `json:"image_url,omitempty"`
 }
 
 type wireToolCall struct {
@@ -184,7 +194,10 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 		case llm.RoleUser:
 			// Tool results and plain text can both sit in a user turn; emit
 			// tool results as "tool" messages and text as a "user" message.
-			var text strings.Builder
+			var (
+				text   strings.Builder
+				images []wirePart
+			)
 			for _, b := range m.Blocks {
 				switch b.Type {
 				case llm.BlockToolResult:
@@ -195,9 +208,22 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 					w.Messages = append(w.Messages, wireMessage{Role: "tool", ToolCallID: b.ToolUseID, Content: content})
 				case llm.BlockText:
 					text.WriteString(b.Text)
+				case llm.BlockImage:
+					part := wirePart{Type: "image_url"}
+					part.ImageURL = &struct {
+						URL string `json:"url"`
+					}{"data:" + b.MediaType + ";base64," + b.Data}
+					images = append(images, part)
 				}
 			}
-			if text.Len() > 0 {
+			switch {
+			case len(images) > 0:
+				parts := []wirePart{}
+				if text.Len() > 0 {
+					parts = append(parts, wirePart{Type: "text", Text: text.String()})
+				}
+				w.Messages = append(w.Messages, wireMessage{Role: "user", Content: append(parts, images...)})
+			case text.Len() > 0:
 				w.Messages = append(w.Messages, wireMessage{Role: "user", Content: text.String()})
 			}
 		case llm.RoleAssistant:

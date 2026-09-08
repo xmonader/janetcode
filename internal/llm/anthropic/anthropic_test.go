@@ -212,3 +212,21 @@ func TestEmptyAssistantMessageIsReplayable(t *testing.T) {
 		t.Fatal("empty user message should be rejected")
 	}
 }
+
+func TestBuildParamsImages(t *testing.T) {
+	params, err := buildParams(llm.Request{Model: "m", MaxTokens: 10, Messages: []llm.Message{
+		{Role: llm.RoleUser, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "what is this"},
+			{Type: llm.BlockImage, MediaType: "image/png", Data: "AAAA"},
+		}},
+	}}, Config{APIKey: "k"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(params.Messages)
+	for _, want := range []string{`"type":"image"`, `"media_type":"image/png"`, `"data":"AAAA"`, `"type":"base64"`} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("missing %s in %s", want, raw)
+		}
+	}
+}
