@@ -357,3 +357,32 @@ func TestLocalServerNeedsNoKey(t *testing.T) {
 		t.Fatalf("remote without key: err = %v", err)
 	}
 }
+
+func TestDeadKeyIsSkippedOnLaterRequests(t *testing.T) {
+	var keysSeen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		keysSeen = append(keysSeen, key)
+		if key == "dead" {
+			w.WriteHeader(401)
+			io.WriteString(w, `{"error":{"message":"invalid api key"}}`)
+			return
+		}
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	defer srv.Close()
+	p, err := New(Config{BaseURL: srv.URL + "/v1", APIKeys: []string{"dead", "live"}, MaxRetries: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}
+	for i := 0; i < 3; i++ {
+		if _, err := p.Stream(context.Background(), req, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The rejected key is tried once, then skipped for an hour.
+	if strings.Join(keysSeen, ",") != "dead,live,live,live" {
+		t.Fatalf("keys tried = %v", keysSeen)
+	}
+}

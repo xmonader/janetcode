@@ -44,10 +44,9 @@ type Config struct {
 
 // Provider is an OpenAI-compatible chat backend.
 type Provider struct {
-	cfg    Config
-	keys   []string
-	keyIdx int
-	http   *http.Client
+	cfg  Config
+	ring *llm.KeyRing
+	http *http.Client
 
 	// Dialect quirks learned from 400 responses, kept for the provider's
 	// lifetime so each is paid for at most once.
@@ -58,19 +57,16 @@ type Provider struct {
 
 // New validates cfg and builds a provider.
 func New(cfg Config) (*Provider, error) {
-	keys := dedupe(append([]string{cfg.APIKey}, cfg.APIKeys...))
+	ring := llm.NewKeyRing(append([]string{cfg.APIKey}, cfg.APIKeys...))
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.openai.com/v1"
 	}
 	// Local servers (Ollama, LM Studio) accept requests without a key;
 	// hosted ones never do, so refuse early with a clear error.
-	if len(keys) == 0 {
-		if !localURL(cfg.BaseURL) {
-			return nil, llm.ErrNoAPIKey
-		}
-		keys = []string{""}
+	if k, _ := ring.Current(); k == "" && !localURL(cfg.BaseURL) {
+		return nil, llm.ErrNoAPIKey
 	}
-	cfg.APIKey = keys[0]
+	cfg.APIKey, _ = ring.Current()
 	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
 	if cfg.Name == "" {
 		cfg.Name = "openai"
@@ -87,7 +83,7 @@ func New(cfg Config) (*Provider, error) {
 			Transport: &http.Transport{ResponseHeaderTimeout: 2 * time.Minute, Proxy: http.ProxyFromEnvironment},
 		}
 	}
-	return &Provider{cfg: cfg, keys: keys, http: hc}, nil
+	return &Provider{cfg: cfg, ring: ring, http: hc}, nil
 }
 
 // localURL reports whether u points at this machine.
@@ -100,55 +96,27 @@ func localURL(u string) bool {
 	return h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "0.0.0.0"
 }
 
-func dedupe(keys []string) []string {
-	var out []string
-	seen := map[string]bool{}
-	for _, k := range keys {
-		k = strings.TrimSpace(k)
-		if k == "" || seen[k] {
-			continue
-		}
-		seen[k] = true
-		out = append(out, k)
-	}
-	return out
-}
-
+// Name implements llm.Provider.
 func (p *Provider) Name() string { return p.cfg.Name }
 
-// Keys reports how many API keys the provider rotates between.
-func (p *Provider) Keys() int { return len(p.keys) }
+// Keys is the number of distinct API keys configured.
+func (p *Provider) Keys() int { return p.ring.Len() }
 
-// currentKey returns the key in use.
-func (p *Provider) currentKey() string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.keys[p.keyIdx]
-}
-
-// rotateKey moves to the next key after a rate limit or rejection. It
-// reports false when there is no other key to try.
-func (p *Provider) rotateKey() bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if len(p.keys) < 2 {
-		return false
-	}
-	p.keyIdx = (p.keyIdx + 1) % len(p.keys)
-	return true
-}
-
-// keyProblem reports whether an error is one another key might avoid.
-func keyProblem(err error) bool {
+// keyProblem reports whether an error is one another key might avoid, and
+// how to classify it for the key ring.
+func keyProblem(err error) (llm.Failure, bool) {
 	var ae *APIError
 	if !errors.As(err, &ae) {
-		return false
-	}
-	if ae.Status == 429 || ae.Status == 401 || ae.Status == 403 {
-		return true
+		return 0, false
 	}
 	msg := strings.ToLower(ae.Message)
-	return strings.Contains(msg, "quota") || strings.Contains(msg, "rate limit")
+	switch {
+	case ae.Status == 429 || ae.Status == 401 || ae.Status == 403 || ae.Status == 402:
+	case strings.Contains(msg, "quota") || strings.Contains(msg, "rate limit"):
+	default:
+		return 0, false
+	}
+	return llm.ClassifyFailure(ae.Status, ae.Message), true
 }
 
 // ListModels implements llm.ModelLister via GET /models.
@@ -157,7 +125,7 @@ func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	if k := p.currentKey(); k != "" {
+	if k, _ := p.ring.Current(); k != "" {
 		hreq.Header.Set("Authorization", "Bearer "+k)
 	}
 	resp, err := p.http.Do(hreq)
@@ -397,8 +365,10 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		if err != nil {
 			return nil, err
 		}
-		resp, err = p.do(ctx, body)
+		key, idx := p.ring.Current()
+		resp, err = p.do(ctx, body, key)
 		if err == nil {
+			p.ring.OK(idx)
 			break
 		}
 		if p.learnDialect(err) {
@@ -406,11 +376,14 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 			// immediately without counting it as a retry.
 			continue
 		}
-		if keyProblem(err) && rotations < len(p.keys)-1 && p.rotateKey() {
-			// Another key may have quota left; try it right away.
-			rotations++
-			attempt--
-			continue
+		if f, ok := keyProblem(err); ok {
+			// Remember the bad key; another may have quota left, so try it
+			// right away without counting a retry.
+			if p.ring.Fail(idx, f) && rotations < p.ring.Len()-1 {
+				rotations++
+				attempt--
+				continue
+			}
 		}
 		if attempt >= p.cfg.MaxRetries || !retryable(err) || ctx.Err() != nil {
 			return nil, err
@@ -459,15 +432,15 @@ func (p *Provider) learnDialect(err error) bool {
 	return false
 }
 
-func (p *Provider) do(ctx context.Context, body []byte) (*http.Response, error) {
+func (p *Provider) do(ctx context.Context, body []byte, key string) (*http.Response, error) {
 	hreq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.cfg.BaseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/event-stream")
-	if k := p.currentKey(); k != "" {
-		hreq.Header.Set("Authorization", "Bearer "+k)
+	if key != "" {
+		hreq.Header.Set("Authorization", "Bearer "+key)
 	}
 	resp, err := p.http.Do(hreq)
 	if err != nil {

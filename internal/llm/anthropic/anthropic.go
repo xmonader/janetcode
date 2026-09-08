@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
-	"sync"
 	"time"
 
 	sdk "github.com/anthropics/anthropic-sdk-go"
@@ -45,14 +43,14 @@ type Provider struct {
 	cfg     Config
 	client  sdk.Client // first key's client; kept for tests
 	clients []sdk.Client
-	mu      sync.Mutex
-	keyIdx  int
+	ring    *llm.KeyRing
 }
 
 // New validates cfg and builds a provider.
 func New(cfg Config) (*Provider, error) {
-	keys := dedupe(append([]string{cfg.APIKey}, cfg.APIKeys...))
-	if len(keys) == 0 {
+	ring := llm.NewKeyRing(append([]string{cfg.APIKey}, cfg.APIKeys...))
+	keys := ring.Keys()
+	if keys[0] == "" {
 		return nil, llm.ErrNoAPIKey
 	}
 	cfg.APIKey = keys[0]
@@ -64,7 +62,7 @@ func New(cfg Config) (*Provider, error) {
 	default:
 		return nil, fmt.Errorf("anthropic: invalid effort %q", cfg.Effort)
 	}
-	p := &Provider{cfg: cfg}
+	p := &Provider{cfg: cfg, ring: ring}
 	for _, key := range keys {
 		opts := []option.RequestOption{
 			option.WithAPIKey(key),
@@ -84,56 +82,35 @@ func New(cfg Config) (*Provider, error) {
 	return p, nil
 }
 
-func dedupe(keys []string) []string {
-	var out []string
-	seen := map[string]bool{}
-	for _, k := range keys {
-		k = strings.TrimSpace(k)
-		if k == "" || seen[k] {
-			continue
-		}
-		seen[k] = true
-		out = append(out, k)
-	}
-	return out
-}
-
+// Name implements llm.Provider.
 func (p *Provider) Name() string { return "anthropic" }
 
-// Keys reports how many API keys the provider rotates between.
-func (p *Provider) Keys() int { return len(p.clients) }
+// Keys is the number of distinct API keys configured.
+func (p *Provider) Keys() int { return p.ring.Len() }
 
-func (p *Provider) current() *sdk.Client {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return &p.clients[p.keyIdx]
+// current returns the client for the key the ring picks now.
+func (p *Provider) current() (*sdk.Client, int) {
+	_, i := p.ring.Current()
+	return &p.clients[i], i
 }
 
-func (p *Provider) rotateKey() bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if len(p.clients) < 2 {
-		return false
-	}
-	p.keyIdx = (p.keyIdx + 1) % len(p.clients)
-	return true
-}
-
-func keyProblem(err error) bool {
+// keyProblem reports whether an error is one another key might avoid.
+func keyProblem(err error) (llm.Failure, bool) {
 	var ae *APIError
 	if !errors.As(err, &ae) {
-		return false
+		return 0, false
 	}
 	switch ae.Status {
-	case 429, 401, 403, 529:
-		return true
+	case 429, 401, 403, 402, 529:
+		return llm.ClassifyFailure(ae.Status, ae.Message), true
 	}
-	return false
+	return 0, false
 }
 
 // ListModels implements llm.ModelLister.
 func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
-	page, err := p.current().Models.List(ctx, sdk.ModelListParams{Limit: sdk.Int(100)})
+	client, _ := p.current()
+	page, err := client.Models.List(ctx, sdk.ModelListParams{Limit: sdk.Int(100)})
 	if err != nil {
 		return nil, mapError(ctx, err)
 	}
@@ -286,16 +263,21 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		return nil, err
 	}
 	for rotations := 0; ; rotations++ {
-		resp, err := p.stream(ctx, params, emit)
-		if err != nil && keyProblem(err) && rotations < len(p.clients)-1 && p.rotateKey() {
+		client, idx := p.current()
+		resp, err := p.stream(ctx, client, params, emit)
+		if err == nil {
+			p.ring.OK(idx)
+			return resp, nil
+		}
+		if f, ok := keyProblem(err); ok && p.ring.Fail(idx, f) && rotations < p.ring.Len()-1 {
 			continue
 		}
 		return resp, err
 	}
 }
 
-func (p *Provider) stream(ctx context.Context, params sdk.MessageNewParams, emit func(llm.Event)) (*llm.Response, error) {
-	stream := p.current().Messages.NewStreaming(ctx, params)
+func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.MessageNewParams, emit func(llm.Event)) (*llm.Response, error) {
+	stream := client.Messages.NewStreaming(ctx, params)
 	msg := sdk.Message{}
 	// Track open tool_use blocks by index so we can emit start/end events.
 	openTools := map[int64]*llm.Block{}
