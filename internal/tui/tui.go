@@ -1089,7 +1089,7 @@ func (m *model) compact() tea.Cmd {
 	m.transcript.info(fmt.Sprintf("compacting ~%s tokens of context…", shortTokens(ag.EstimateTokens())))
 	m.refresh(false)
 	go func() {
-		err := ag.Compact(ctx, queue.push)
+		err := ag.ForceCompact(ctx, queue.push)
 		if errors.Is(err, agent.ErrNothingToCompact) {
 			err = nil
 		}

@@ -10,7 +10,7 @@
 ## Key Decisions
 - Go + bubbletea; product name is janetcode, not the Janet language (2026-09-07).
 - Anthropic via official SDK per policy; OpenAI-compatible hand-rolled to tolerate dialects (Qwen, DeepSeek, vLLM, Ollama, OpenRouter) and learn quirks from 400s at runtime (2026-09-07).
-- Compaction instead of in-place history pruning: Fable 5.1 preserved-thinking rejects edited history, so the harness is append-only and compaction starts a fresh history (2026-09-07).
+- Compaction instead of in-place history pruning: Fable 5.1 preserved-thinking rejects edited history, so the harness is append-only and compaction starts a fresh history (2026-09-07). Amended 2026-09-08: `Agent.Prune` rewrites only the *text of old tool_result blocks* (superseded reads stubbed, long outputs trimmed) and only on the way to compaction; thinking blocks and their signatures are never touched. Compaction now keeps the recent tail (≤6 messages, ≤12k tokens) verbatim after the summary.
 - Tool results for a turn always go back in one user message; history stays provider-valid on every return path, including cancellation (2026-09-07).
 - Sessions rotate to a new file when history shrinks so pre-compaction transcripts are never overwritten (2026-09-07).
 

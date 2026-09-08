@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -55,11 +56,12 @@ func TestAutoCompactBeforeCallAndOnOverflow(t *testing.T) {
 	if err := a.Run(context.Background(), "q1", emit); err != nil {
 		t.Fatal(err)
 	}
-	if kinds[0] != EvCompacted || len(a.Messages) != 2 || a.Messages[1].Text() != "answer one" {
+	// note, kept tail ("ok"), q1, answer one.
+	if kinds[0] != EvCompacted || len(a.Messages) != 4 || a.Messages[1].Text() != "ok" || a.Messages[3].Text() != "answer one" {
 		t.Fatalf("kinds=%v messages=%+v", kinds, a.Messages)
 	}
-	if !strings.Contains(a.Messages[0].Text(), "note A") || !strings.Contains(a.Messages[0].Text(), "q1") {
-		t.Fatalf("compacted first message = %q", a.Messages[0].Text())
+	if !strings.Contains(a.Messages[0].Text(), "note A") || a.Messages[2].Text() != "q1" {
+		t.Fatalf("compacted messages = %+v", a.Messages)
 	}
 	a.CompactAt = 1_000_000 // estimate says fine; the provider will disagree
 	kinds = nil
@@ -100,5 +102,67 @@ func TestEstimateTokensUsesRealUsage(t *testing.T) {
 	}
 	if !isContextOverflow(errors.New("context_length_exceeded")) || isContextOverflow(errors.New("rate limited")) {
 		t.Fatal("overflow detection wrong")
+	}
+}
+
+func TestPruneDedupesReadsAndTrimsOldOutput(t *testing.T) {
+	root := t.TempDir()
+	reg := tool.NewRegistry(tool.ReadFile{Root: root}, tool.WriteFile{Root: root})
+	long := strings.Repeat("y", 10_000)
+	use := func(id, name, input string) llm.Message {
+		return llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: id, Name: name, Input: json.RawMessage(input)}}}
+	}
+	res := func(id, text string) llm.Message { return llm.ToolResultMessage(llm.ToolResult(id, text, false)) }
+	a := &Agent{Provider: &fake{}, Tools: reg, Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, "go"),
+		use("1", "read_file", `{"path":"a.go"}`), res("1", "first read "+long),
+		use("2", "write_file", `{"path":"b.go","content":"x"}`), res("2", "wrote "+long),
+		use("3", "read_file", `{ "path" : "a.go" }`), res("3", "second read "+long),
+		use("4", "read_file", `{"path":"c.go"}`), res("4", "c "+long),
+		llm.TextMessage(llm.RoleAssistant, "done"),
+		llm.TextMessage(llm.RoleUser, "next"),
+	}}
+	before := a.EstimateTokens()
+	if saved := a.Prune(); saved < 17_000 {
+		t.Fatalf("saved %d bytes", saved)
+	}
+	get := func(i int) string { return a.Messages[i].Blocks[0].Text }
+	if get(2) != superseded {
+		t.Fatalf("first read should be superseded: %q", get(2)[:40])
+	}
+	if !strings.HasPrefix(get(4), "wrote ") || len(get(4)) > pruneKeep+100 || !strings.Contains(get(4), "omitted") {
+		t.Fatalf("old write result should be trimmed: len=%d", len(get(4)))
+	}
+	// The recent tail (the last six messages, from an assistant call on)
+	// is untouched, including the newest read of a.go.
+	if len(get(6)) != len("second read "+long) || len(get(8)) != len("c "+long) {
+		t.Fatalf("tail results were modified: %d %d", len(get(6)), len(get(8)))
+	}
+	if a.EstimateTokens() >= before {
+		t.Fatal("estimate did not drop")
+	}
+}
+
+func TestCompactKeepsRecentTail(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("SUMMARY")}}
+	big := strings.Repeat("z", 8000)
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", CompactAt: 100, Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, big),
+		llm.TextMessage(llm.RoleAssistant, "old answer"),
+		llm.TextMessage(llm.RoleUser, "second question"),
+		llm.TextMessage(llm.RoleAssistant, "recent answer"),
+		llm.TextMessage(llm.RoleUser, "pending"),
+	}}
+	if err := a.ForceCompact(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	// note, the recent tail from the earliest assistant message that fits,
+	// then the pending user text.
+	if len(a.Messages) != 5 || !strings.Contains(a.Messages[0].Text(), "SUMMARY") || a.Messages[1].Text() != "old answer" || a.Messages[3].Text() != "recent answer" || a.Messages[4].Text() != "pending" {
+		t.Fatalf("messages = %+v", a.Messages)
+	}
+	// The summariser saw only the head.
+	if got := len(f.requests[0].Messages); got != 2 { // big + instruction
+		t.Fatalf("summariser got %d messages", got)
 	}
 }
