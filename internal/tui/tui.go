@@ -190,6 +190,7 @@ var commands = []command{
 	{"/connect", "", "connect to a provider (preset or custom API) and pick a model"},
 	{"/model", "[name]", "pick a model from a list, or set one by name"},
 	{"/usage", "", "tokens and cost for this session"},
+	{"/export", "[file.md]", "write this session as a Markdown transcript"},
 	{"/verbose", "", "toggle expanded tool output (ctrl+o)"},
 	{"/quit", "", "exit"},
 }
@@ -1294,6 +1295,12 @@ func (m *model) command(text string) tea.Cmd {
 			break
 		}
 		return m.compact()
+	case "/export":
+		path := ""
+		if len(fields) > 1 {
+			path = strings.Join(fields[1:], " ")
+		}
+		m.export(path)
 	case "/usage", "/cost":
 		u := m.opts.Agent.Usage
 		line := fmt.Sprintf("session tokens · in %s · out %s · cache read %s · cache write %s · context now ~%s",
@@ -1325,6 +1332,23 @@ var ansiSeq = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
 
 // find scrolls the transcript to the next line containing q (case-insensitive),
 // starting below the current top line and wrapping around.
+// export writes the conversation as Markdown, to path or to a file named
+// after the session in the working directory.
+func (m *model) export(path string) {
+	if path == "" {
+		path = "janetcode-" + m.opts.Session.Meta.ID + ".md"
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(m.opts.Cwd, path)
+	}
+	md := session.Markdown(m.opts.Session.Meta, m.opts.Agent.Messages)
+	if err := tool.AtomicWrite(path, []byte(md)); err != nil {
+		m.transcript.errorf("export: %v", err)
+		return
+	}
+	m.transcript.info(fmt.Sprintf("exported %d messages to %s", len(m.opts.Agent.Messages), shortPath(path)))
+}
+
 func (m *model) find(q string) {
 	// A repeat continues past the previous hit even when the viewport could
 	// not scroll down to it (matches near the bottom).

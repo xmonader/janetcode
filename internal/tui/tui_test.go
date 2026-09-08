@@ -941,3 +941,22 @@ func TestFirstRunOpensConnectDialog(t *testing.T) {
 		t.Fatalf("view:\n%s", plain(h.m.View()))
 	}
 }
+
+func TestExportWritesMarkdown(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hello there"), StopReason: llm.StopEndTurn})
+	h.keys("hi")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	h.keys("/export notes/out.md")
+	h.enter()
+	data, err := os.ReadFile(filepath.Join(h.m.opts.Cwd, "notes", "out.md"))
+	if err != nil {
+		t.Fatalf("export file: %v\n%s", err, plain(h.m.View()))
+	}
+	if !strings.Contains(string(data), "## User\n\nhi") || !strings.Contains(string(data), "hello there") {
+		t.Fatalf("export = %s", data)
+	}
+	if !strings.Contains(plain(h.m.View()), "exported 2 messages") {
+		t.Fatalf("view:\n%s", plain(h.m.View()))
+	}
+}
