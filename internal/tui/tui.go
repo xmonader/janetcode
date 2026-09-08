@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -139,6 +141,7 @@ var commands = []command{
 	{"/help", "", "keys and commands"},
 	{"/compact", "", "summarise the conversation to free context"},
 	{"/clear", "", "start a new session"},
+	{"/resume", "[n|id]", "list earlier sessions here, or reopen one"},
 	{"/yolo", "", "toggle auto-approve for tools"},
 	{"/model", "<name>", "switch model on the same provider"},
 	{"/usage", "", "token usage for this session"},
@@ -891,6 +894,16 @@ func (m *model) command(text string) tea.Cmd {
 		}
 		m.opts.Agent.Model = fields[1]
 		m.transcript.info("model set to " + fields[1] + " on " + m.opts.Provider)
+	case "/resume", "/sessions":
+		if m.running {
+			m.transcript.errorf("wait for the current turn to finish before switching sessions")
+			break
+		}
+		if len(fields) < 2 {
+			m.listSessions()
+			break
+		}
+		m.resume(fields[1])
 	case "/compact":
 		if m.running {
 			m.transcript.errorf("wait for the current turn to finish before compacting")
@@ -906,6 +919,87 @@ func (m *model) command(text string) tea.Cmd {
 	}
 	m.refresh(false)
 	return nil
+}
+
+// listSessions shows the sessions recorded for this directory, numbered so
+// "/resume 2" can pick one.
+func (m *model) listSessions() {
+	infos, err := session.List(dirOf(m.opts.Session), m.opts.Cwd)
+	if err != nil {
+		m.transcript.errorf("list sessions: %v", err)
+		return
+	}
+	var sb strings.Builder
+	n := 0
+	for _, in := range infos {
+		if in.Meta.ID == m.opts.Session.Meta.ID || in.Messages == 0 {
+			continue
+		}
+		n++
+		if n > 15 {
+			sb.WriteString(fmt.Sprintf("  … %d more (janetcode --sessions lists all)\n", len(infos)-n+1))
+			break
+		}
+		age := shortAge(time.Since(in.Meta.Created))
+		fmt.Fprintf(&sb, "  %2d  %s  %-6s %3d msgs  %s\n", n, in.Meta.ID, age, in.Messages, in.Preview)
+	}
+	if n == 0 {
+		m.transcript.info("no earlier sessions in " + shortPath(m.opts.Cwd))
+		return
+	}
+	m.transcript.info("sessions here (newest first) · /resume <n> or /resume <id> reopens one\n" + strings.TrimRight(sb.String(), "\n"))
+}
+
+// resume swaps the conversation for a saved one.
+func (m *model) resume(arg string) {
+	dir := dirOf(m.opts.Session)
+	id := arg
+	if n, err := strconv.Atoi(arg); err == nil {
+		infos, err := session.List(dir, m.opts.Cwd)
+		if err != nil {
+			m.transcript.errorf("list sessions: %v", err)
+			return
+		}
+		k := 0
+		id = ""
+		for _, in := range infos {
+			if in.Meta.ID == m.opts.Session.Meta.ID || in.Messages == 0 {
+				continue
+			}
+			if k++; k == n {
+				id = in.Meta.ID
+				break
+			}
+		}
+		if id == "" {
+			m.transcript.errorf("no session numbered %d (see /resume)", n)
+			return
+		}
+	}
+	sess, history, err := session.Open(dir, id)
+	if err != nil {
+		m.transcript.errorf("resume %s: %v", id, err)
+		return
+	}
+	m.opts.Session = sess
+	m.opts.Agent.Messages = history
+	m.opts.Agent.Usage = llm.Usage{}
+	m.transcript = newTranscriptStyled(m.transcript.styleName)
+	m.transcript.banner(m.welcome())
+	m.transcript.info(fmt.Sprintf("resumed session %s · %d messages", sess.Meta.ID, len(history)))
+	m.transcript.loadHistory(history)
+	m.lastTurn = ""
+	m.viewport.GotoBottom()
+}
+
+func shortAge(d time.Duration) string {
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }
 
 func dirOf(s *session.Session) string {

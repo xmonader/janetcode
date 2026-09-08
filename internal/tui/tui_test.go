@@ -332,6 +332,39 @@ func TestShellPassthrough(t *testing.T) {
 	}
 }
 
+func TestResumePicker(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "old answer"), StopReason: llm.StopEndTurn})
+	h.keys("old question")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	old := h.m.opts.Session.Meta.ID
+	h.keys("/clear")
+	h.enter()
+	if h.m.opts.Session.Meta.ID == old || len(h.m.opts.Agent.Messages) != 0 {
+		t.Fatal("/clear should start an empty session")
+	}
+	h.keys("/resume")
+	h.enter()
+	v := plain(h.m.View())
+	if !strings.Contains(v, " 1  "+old) || !strings.Contains(v, "2 msgs") || !strings.Contains(v, "old question") {
+		t.Fatalf("listing:\n%s", v)
+	}
+	h.keys("/resume 1")
+	h.enter()
+	if h.m.opts.Session.Meta.ID != old || len(h.m.opts.Agent.Messages) != 2 {
+		t.Fatalf("resume: session %s messages %d", h.m.opts.Session.Meta.ID, len(h.m.opts.Agent.Messages))
+	}
+	v = plain(h.m.View())
+	if !strings.Contains(v, "resumed session "+old) || !strings.Contains(v, "old answer") {
+		t.Fatalf("after resume:\n%s", v)
+	}
+	h.keys("/resume 9")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "no session numbered 9") {
+		t.Fatalf("bad index:\n%s", v)
+	}
+}
+
 func TestPromptHistoryRecall(t *testing.T) {
 	h := newHarness(t,
 		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "a"), StopReason: llm.StopEndTurn},
