@@ -625,8 +625,15 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		a.cp.snapshot(a.Snapshots, t, u.Input)
 	}
 	start := time.Now()
+	var pend []pending
+	if t.Mutating() {
+		pend = a.before(t, u.Input)
+	}
 	out, err := runSafely(ctx, t, u.Input)
 	dur := time.Since(start)
+	if err == nil && len(pend) > 0 {
+		a.after(u, pend)
+	}
 	if ctx.Err() != nil {
 		return "", true, ctx.Err()
 	}

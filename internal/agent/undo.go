@@ -50,6 +50,9 @@ type checkpointer struct {
 	// redo holds the states undone in this session, newest last; any new
 	// change clears it.
 	redo []Checkpoint
+	// changes is the hunk-level provenance record, oldest first.
+	changes []Change
+	seq     int
 }
 
 // beginTurn closes the previous turn's checkpoint; the next snapshot opens
@@ -231,14 +234,14 @@ func (a *Agent) SaveUndo() error {
 	a.cp.mu.Lock()
 	defer a.cp.mu.Unlock()
 	a.cp.dirty = false
-	if len(a.cp.all) == 0 && len(a.cp.redo) == 0 {
+	if len(a.cp.all) == 0 && len(a.cp.redo) == 0 && len(a.cp.changes) == 0 {
 		err := os.Remove(a.UndoPath)
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
 		return err
 	}
-	data, err := json.Marshal(undoFile{Checkpoints: a.cp.all, Redo: a.cp.redo})
+	data, err := json.Marshal(undoFile{Checkpoints: a.cp.all, Redo: a.cp.redo, Changes: a.cp.changes, Seq: a.cp.seq})
 	if err != nil {
 		return err
 	}
@@ -250,6 +253,8 @@ func (a *Agent) SaveUndo() error {
 type undoFile struct {
 	Checkpoints []Checkpoint `json:"checkpoints"`
 	Redo        []Checkpoint `json:"redo,omitempty"`
+	Changes     []Change     `json:"changes,omitempty"`
+	Seq         int          `json:"seq,omitempty"`
 }
 
 // LoadUndo restores checkpoints saved by SaveUndo. A missing file is fine.
@@ -275,6 +280,7 @@ func (a *Agent) LoadUndo() error {
 	}
 	a.cp.mu.Lock()
 	a.cp.all, a.cp.redo, a.cp.open, a.cp.dirty = f.Checkpoints, f.Redo, false, false
+	a.cp.changes, a.cp.seq = f.Changes, f.Seq
 	a.cp.mu.Unlock()
 	return nil
 }

@@ -111,6 +111,7 @@ func TestUndoPersistsAcrossAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.cp.dropRedo(nil)
+	c.cp.changes = nil // provenance keeps the file otherwise
 	if err := c.SaveUndo(); err != nil {
 		t.Fatal(err)
 	}

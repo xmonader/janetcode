@@ -378,6 +378,23 @@ radius: what defines it, every file that uses it, and with
 `transitive` the users of those. The index rebuilds when the tree
 changes (git status or mtimes) and caps at 5000 files.
 
+### Change provenance: /changes, /blame, /undo n
+
+Every file change is recorded per tool call with the model's stated
+reason (the text it wrote just before the call), so the session's work
+can be read and unpicked one decision at a time rather than one turn at
+a time. `/changes` lists the changes grouped by turn and intent with
+line counts; `/changes 4` shows that change's hunks. `/blame path`
+attributes each line of a file to the change that wrote it (lines from
+before the session are unmarked) and says so when the file was edited
+outside the session since. `/undo 4` reverts one change on its own,
+leaving the later changes to the same file in place: each hunk is
+located in the file as it is now and put back, and a hunk whose lines
+were edited since is refused rather than guessed. Reverts are recorded
+as changes themselves. Turn-level `/undo` and `/redo` still restore
+whole snapshots. Shell commands are not tracked at hunk level; a git
+snapshot covers them for turn-level undo.
+
 ### Context inspector and pins
 
 `/context` shows where the window goes: system prompt, memory and skill

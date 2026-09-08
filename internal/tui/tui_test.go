@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -1515,6 +1516,71 @@ func TestOpenAndDiffCommands(t *testing.T) {
 	h.keys("/open missing.txt")
 	h.enter()
 	if v := plain(h.m.View()); !strings.Contains(v, "open: ") {
+		t.Fatalf("view:\n%s", v)
+	}
+}
+
+func TestChangesBlameAndUndoOne(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "Write the list."},
+			{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"l.txt","content":"a\nb\nc\nd\ne\nf\ng\nh\n"}`)},
+		}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "Capitalise b."},
+			{Type: llm.BlockToolUse, ID: "e1", Name: "edit_file", Input: json.RawMessage(`{"path":"l.txt","old_string":"b","new_string":"B"}`)},
+		}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "Capitalise h."},
+			{Type: llm.BlockToolUse, ID: "e2", Name: "edit_file", Input: json.RawMessage(`{"path":"l.txt","old_string":"h","new_string":"H"}`)},
+		}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+	)
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 120})
+	h.keys("/changes")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "no file changes in this session yet") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.m.opts.Agent.AutoApprove = true
+	h.m.opts.Agent.Tools = tool.NewRegistry(tool.WriteFile{Root: h.m.opts.Cwd}, tool.EditFile{Root: h.m.opts.Cwd})
+	h.keys("make the list")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	h.keys("/changes")
+	h.enter()
+	v := plain(h.m.View())
+	for _, want := range []string{"turn 1 · Write the list.", "#1   write_file l.txt  +8 -0", "turn 1 · Capitalise b.", "#2   edit_file  l.txt  +1 -1", "#3   edit_file  l.txt  +1 -1"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("missing %q in view:\n%s", want, v)
+		}
+	}
+	h.keys("/changes 3")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "#3  edit_file  l.txt  · Capitalise h.") || !regexp.MustCompile(`-h\s*\n\s*\+H`).MatchString(v) {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/blame l.txt")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "#2       2 │ B") || !strings.Contains(v, "#1       3 │ c") || !strings.Contains(v, "#3       8 │ H") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/undo 2")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "↶ #2: reverted 1 hunk(s) of l.txt") {
+		t.Fatalf("view:\n%s", v)
+	}
+	if data, _ := os.ReadFile(filepath.Join(h.m.opts.Cwd, "l.txt")); string(data) != "a\nb\nc\nd\ne\nf\ng\nH\n" {
+		t.Fatalf("file after /undo 2: %q", data)
+	}
+	h.keys("/undo 2")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "already undone") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/blame missing.txt")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "no change to") {
 		t.Fatalf("view:\n%s", v)
 	}
 }
