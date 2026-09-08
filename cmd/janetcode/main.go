@@ -132,6 +132,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		return errors.New("--watch and --until cannot be combined")
 	}
 
+	if *evalTrain != "" {
+		cfgPath, _ := config.Path()
+		return trainCritic(strings.Split(*evalTrain, ","), filepath.Join(filepath.Dir(cfgPath), "critic.json"), os.Stdout)
+	}
 	cfg, err := config.Load(config.Overrides{Provider: *provider, Model: *model, Effort: *effort, AutoApprove: *yolo})
 	// Interactive first run: open the TUI and ask for a provider instead
 	// of failing. Headless runs still need working credentials.
@@ -148,10 +152,6 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
-	}
-	if *evalTrain != "" {
-		cfgPath, _ := config.Path()
-		return trainCritic(strings.Split(*evalTrain, ","), filepath.Join(filepath.Dir(cfgPath), "critic.json"), os.Stdout)
 	}
 	if *evalPath != "" {
 		if prov == nil {
