@@ -26,6 +26,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
@@ -44,7 +45,9 @@ type Options struct {
 	Hooks *HookOptions
 	Perms *PermOptions
 	// Verify carries the project's verification commands (/verify).
-	Verify   *VerifyOptions
+	Verify *VerifyOptions
+	// LSP reports language-server status (/lsp).
+	LSP      *lsp.Manager
 	Agent    *agent.Agent
 	Session  *session.Session
 	Provider string
@@ -270,6 +273,30 @@ func (m *model) permissionsCommand(args []string) {
 	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 }
 
+// lspCommand shows language-server status and known problems.
+func (m *model) lspCommand() {
+	d := m.opts.LSP
+	if d == nil || !d.Enabled() {
+		m.transcript.info("diagnostics are off: no language server configured (gopls, pyright-langserver, typescript-language-server, rust-analyzer and clangd are used when on PATH; see \"lsp\" in the config)")
+		return
+	}
+	var sb strings.Builder
+	for _, l := range d.Status() {
+		sb.WriteString(l + "\n")
+	}
+	known := d.Known()
+	if len(known) == 0 {
+		sb.WriteString("no known problems")
+	} else {
+		sb.WriteString(fmt.Sprintf("%d problems:\n", len(known)))
+		if len(known) > 30 {
+			known = append(known[:30], "…")
+		}
+		sb.WriteString(strings.Join(known, "\n"))
+	}
+	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+}
+
 // hooksCommand lists hooks or trusts the project's hook file.
 func (m *model) hooksCommand(args []string) {
 	o := m.opts.Hooks
@@ -439,6 +466,7 @@ var commands = []command{
 	{"/hooks", "[trust]", "hooks in effect; trust enables the project's .janetcode/hooks.json"},
 	{"/permissions", "[allow|deny <rule>|trust]", "permission rules; add one, or trust the project's .janetcode/permissions.json"},
 	{"/verify", "[set <cmd>|clear|trust]", "run the project's checks now; set adds one to .janetcode/verify.json"},
+	{"/lsp", "", "language servers and the diagnostics they reported"},
 	{"/memory", "", "what janetcode remembers about this project"},
 	{"/skills", "", "skill files available to the model"},
 	{"/remember", "<fact>", "add a fact to the project memory"},
@@ -1536,6 +1564,8 @@ func (m *model) command(text string) tea.Cmd {
 		m.hooksCommand(fields[1:])
 	case "/permissions", "/perms":
 		m.permissionsCommand(fields[1:])
+	case "/lsp":
+		m.lspCommand()
 	case "/verify":
 		if cmd := m.verifyCommand(fields[1:]); cmd != nil {
 			return cmd

@@ -121,6 +121,10 @@ type Agent struct {
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
 	Verify *verify.Runner
+	// Diagnose, when set, is called with the path a file tool just wrote
+	// and returns a note (language-server diagnostics) appended to the
+	// tool result, or "".
+	Diagnose func(ctx context.Context, path string) string
 	// mutations counts successful mutating tool calls this turn.
 	mutations int
 	// SaveRule, when set, persists a rule the user created with AllowAlways.
@@ -582,6 +586,11 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	if a.Hooks.Has(hook.PostTool) {
 		res := a.Hooks.Run(ctx, hook.Input{Event: hook.PostTool, Cwd: a.Hooks.Cwd, Tool: u.Name, Input: u.Input, Output: out, IsError: isErr})
 		hookNotes = append(hookNotes, res.Notes...)
+	}
+	if a.Diagnose != nil && !isErr && (u.Name == "write_file" || u.Name == "edit_file") {
+		if note := a.Diagnose(ctx, perm.Subject(u.Name, u.Input)); note != "" {
+			out += "\n" + note
+		}
 	}
 	out = a.stash(u.ID, u.Name, out)
 	for _, n := range hookNotes {

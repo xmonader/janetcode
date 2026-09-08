@@ -12,6 +12,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/perm"
 )
@@ -55,6 +56,8 @@ type Config struct {
 	// Project rules go in <project>/.janetcode/permissions.json; its allow
 	// rules need a one-time approval, its deny rules always apply.
 	Permissions perm.File `json:"permissions,omitempty"`
+	// LSP configures language servers for diagnostics after edits.
+	LSP lsp.Config `json:"lsp,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on. /remember always works.
 	Memory *bool `json:"memory,omitempty"`
@@ -340,6 +343,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	}
 	if _, err := cfg.Permissions.Rules(); err != nil {
 		return nil, fmt.Errorf("%s: permissions: %w", path, err)
+	}
+	if err := cfg.LSP.Validate(); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return cfg, nil
 }

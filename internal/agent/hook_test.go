@@ -227,3 +227,29 @@ func TestVerifyGateSkipsReadOnlyTurnsAndGivesUp(t *testing.T) {
 		t.Fatalf("last notice = %q", last)
 	}
 }
+
+func TestDiagnoseNoteFollowsFileEdits(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"x.go","content":"package x"}`),
+		toolCall("t2", "bash", `{"command":"true"}`),
+		toolCall("t3", "write_file", `{"path":"nope/../../x.go","content":"z"}`), // fails: outside root
+		text("done"),
+	}}
+	a, _ := newAgent(t, f, nil)
+	a.AutoApprove = true
+	var asked []string
+	a.Diagnose = func(_ context.Context, path string) string {
+		asked = append(asked, path)
+		return "[diagnostics]\n" + path + ":1:1: error: boom"
+	}
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(asked) != 1 || asked[0] != "x.go" {
+		t.Fatalf("asked = %q", asked)
+	}
+	r1 := f.requests[1].Messages
+	if got := r1[len(r1)-1].Blocks[0].Text; !strings.Contains(got, "x.go:1:1: error: boom") {
+		t.Fatalf("result = %q", got)
+	}
+}

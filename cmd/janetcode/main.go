@@ -22,6 +22,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/llm/anthropic"
 	"github.com/xmonader/janetcode/internal/llm/openai"
+	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
@@ -188,6 +189,12 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(cwd, cfgDir) }
 	ag.Tools.Add(&skill.Tool{Skills: skills})
 	ag.Tools.Add(&memory.Tool{Store: mem})
+	diag := lsp.New(cwd, cfg.LSP)
+	defer diag.Close()
+	if diag.Enabled() {
+		ag.Tools.Add(lsp.Tool{M: diag})
+		ag.Diagnose = diagnoseNote(diag)
+	}
 	ag.SystemExtra = func() string { return mem.Index() + skill.Index(skills()) }
 	ag.Prepare = skill.TurnPrep(&skill.Injector{Skills: skills}, mem)
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools})
@@ -315,6 +322,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			Project: projectServers, ProjectHash: projectHash, ProjectTrusted: projectTrusted, Trust: trust,
 		},
 		Hooks:  &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
+		LSP:    diag,
 		Verify: &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: trust},
 		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: trust,
 			Save: func(kind string, r perm.Rule) error { return config.AddPermission(cfgPath, kind, r) }},
@@ -384,6 +392,29 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 		})
 	}
 	return nil, fmt.Errorf("provider %q has unknown type %q", cfg.Provider, p.Type)
+}
+
+// diagnoseNote turns language-server diagnostics for a just-edited file
+// into the note appended to the tool result.
+func diagnoseNote(m *lsp.Manager) func(context.Context, string) string {
+	return func(ctx context.Context, path string) string {
+		if m.ServerFor(path) == "" {
+			return ""
+		}
+		lines, ok, err := m.Diagnose(ctx, path)
+		switch {
+		case err != nil:
+			return "[diagnostics unavailable: " + err.Error() + "]"
+		case !ok && len(lines) == 0:
+			return ""
+		case len(lines) == 0:
+			return "[diagnostics: no problems (" + m.ServerFor(path) + ")]"
+		}
+		if len(lines) > 40 {
+			lines = append(lines[:40], fmt.Sprintf("… %d more; use the diagnostics tool", len(lines)-40))
+		}
+		return "[diagnostics]\n" + strings.Join(lines, "\n")
+	}
 }
 
 // hookTrustKey keeps hook approvals apart from MCP approvals in the same

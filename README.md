@@ -288,6 +288,36 @@ it executes commands on your machine; files you write through `/verify
 set` are trusted as you write them. In headless mode `--until` remains the
 one-off equivalent.
 
+### Diagnostics from language servers
+
+When a language server for the file is on PATH, every `write_file` or
+`edit_file` result carries its diagnostics, so the model sees a type error
+in the same step that caused it rather than at the next build:
+
+```
+[diagnostics]
+internal/x/x.go:14:9: error: cannot use "no" (untyped string constant) as int value in return statement (compile)
+```
+
+gopls, pyright-langserver, typescript-language-server, rust-analyzer and
+clangd are used by extension; each starts on the first edit of a matching
+file and is remembered as unavailable when missing. The `diagnostics` tool
+re-checks a file or lists every known problem, and `/lsp` shows server
+status. Configure or disable under `"lsp"` in the config file:
+
+```json
+"lsp": {
+  "timeout": 8,
+  "servers": {
+    "pyright": {"command": ["basedpyright-langserver", "--stdio"], "extensions": [".py"]},
+    "clangd": {"command": []}
+  }
+}
+```
+
+An empty command removes a default; `"disabled": true` turns diagnostics
+off.
+
 ### Hooks
 
 Hooks are shell commands run at fixed points of the loop. They live under
