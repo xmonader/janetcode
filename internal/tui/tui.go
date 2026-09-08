@@ -1314,9 +1314,15 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 	case "pgup", "pgdown", "ctrl+u", "ctrl+b", "ctrl+f":
-		var cmd tea.Cmd
-		m.viewport, cmd = m.viewport.Update(msg)
-		return cmd, true
+		// With text in the input these are the textarea's readline keys
+		// (kill line, back/forward a character); they page the transcript
+		// only when there is nothing to edit.
+		if k := msg.String(); k == "pgup" || k == "pgdown" || m.input.Value() == "" {
+			var cmd tea.Cmd
+			m.viewport, cmd = m.viewport.Update(msg)
+			return cmd, true
+		}
+		return nil, false
 	case "enter":
 		if c, idx := m.menu(); len(c) > 0 && strings.TrimSpace(m.input.Value()) != c[idx].name {
 			m.complete()

@@ -1584,3 +1584,24 @@ func TestChangesBlameAndUndoOne(t *testing.T) {
 		t.Fatalf("view:\n%s", v)
 	}
 }
+
+func TestReadlineKeysEditTheInput(t *testing.T) {
+	h := newHarness(t)
+	h.keys("hello world")
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlW})
+	if got := h.m.input.Value(); got != "hello " {
+		t.Fatalf("after ctrl+w: %q", got)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlU})
+	if got := h.m.input.Value(); got != "" {
+		t.Fatalf("after ctrl+u: %q", got)
+	}
+	// With nothing to edit, ctrl+u pages the transcript and must not panic.
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlU})
+	h.keys("abc")
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlK})
+	if got := h.m.input.Value(); got != "" {
+		t.Fatalf("after ctrl+a ctrl+k: %q", got)
+	}
+}
