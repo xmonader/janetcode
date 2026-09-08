@@ -322,7 +322,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		}
 		if a.stuck {
 			a.stuck = false
-			emit(Event{Kind: EvNotice, Text: "turn stopped: the model repeated the same tool call " + fmt.Sprint(loopStopAt) + " times"})
+			emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
 			return ErrStuck
 		}
 	}
@@ -672,7 +672,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	if !a.Off["loops"] {
 		a.loopMu.Lock()
-		note, stop := a.loops.record(u.Name, u.Input, isErr)
+		note, stop := a.loops.record(u.Name, u.Input, isErr, t.Mutating())
 		if stop {
 			a.stuck = true
 		}

@@ -395,6 +395,20 @@ as changes themselves. Turn-level `/undo` and `/redo` still restore
 whole snapshots. Shell commands are not tracked at hunk level; a git
 snapshot covers them for turn-level undo.
 
+### Trajectory critic
+
+The harness watches the shape of a turn, not just its last call. An
+identical tool call repeated three times gets a note and five ends the
+turn; an identical failing call is called out on the second try. A
+successful edit resets those counts, because re-running a test after a
+change is progress. Longer loops are caught as cycles: the calls of a
+turn are reduced to signatures (tool, what it was about, failed or
+not), and a repeating period of two to four steps that contains a
+failing step (edit a file, run the failing test, edit it again, run it
+again) is named in a note after three rounds and ends the turn after
+six. A loop that converges never has a failing last step and is never
+flagged.
+
 ### Context inspector and pins
 
 `/context` shows where the window goes: system prompt, memory and skill
