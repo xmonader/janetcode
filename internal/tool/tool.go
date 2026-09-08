@@ -92,12 +92,26 @@ func (r *Registry) Defs() []llm.ToolDef {
 // MaxOutput caps tool output sent back to the model, in bytes.
 const MaxOutput = 64 * 1024
 
-// Truncate clips s to MaxOutput bytes with a marker so the model knows.
+// Truncate clips s to about MaxOutput bytes, keeping the head and the tail
+// with a marker in between: the failure in a long test run is at the end.
 func Truncate(s string) string {
-	if len(s) <= MaxOutput {
+	return TruncateTo(s, MaxOutput)
+}
+
+// TruncateTo is Truncate with an explicit byte budget.
+func TruncateTo(s string, max int) string {
+	if len(s) <= max {
 		return s
 	}
-	return s[:MaxOutput] + fmt.Sprintf("\n... [truncated %d bytes]", len(s)-MaxOutput)
+	head, tail := max*2/3, max/3
+	// Cut on line boundaries where possible so no line is left half-shown.
+	if i := strings.LastIndexByte(s[:head], '\n'); i > head/2 {
+		head = i
+	}
+	if i := strings.IndexByte(s[len(s)-tail:], '\n'); i >= 0 && i < tail/2 {
+		tail -= i + 1
+	}
+	return s[:head] + fmt.Sprintf("\n... [%d bytes omitted; the output continues] ...\n", len(s)-head-tail) + s[len(s)-tail:]
 }
 
 // resolvePath makes p absolute relative to root and rejects escapes outside
