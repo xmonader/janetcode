@@ -401,6 +401,18 @@ three failed rounds it stops and tells you. A pass shows as
 `verified: …`. Read-only turns skip the checks, and the checks do not
 rerun until something changes again.
 
+Passing tests prove little when the change is not covered. With
+`"mutate": "go test ./..."` in the file (or `/verify mutate "go test
+./..."`), once the commands pass janetcode takes the lines the turn
+changed, flips one operator at a time (`==`/`!=`, `<`/`<=`, `&&`/`||`,
+`+`/`-`, `true`/`false`), runs the test command against each mutant in
+a throwaway git worktree of the current tree, and treats a mutant the
+tests let through as a failure: the model is told which line's behaviour
+is not pinned down and asked to add a test (or say why the mutation is
+equivalent). At most twelve mutants run per turn (`max_mutants`), spread
+across the changed lines, so the cost is bounded by twelve test runs.
+Test files and comments are never mutated.
+
 `/verify` runs the checks now, `/verify set "make test"` adds a command to
 the file, `/verify clear` removes them all. Like hooks, a verify file that
 came with a clone needs a one-time `/verify trust` before it runs, because

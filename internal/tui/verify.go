@@ -41,6 +41,15 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 			c := o.Config
 			c.Commands = append(append([]string(nil), c.Commands...), cmd)
 			return m.saveVerify(c, "added: "+cmd)
+		case "mutate":
+			cmd := strings.TrimSpace(strings.Join(args[1:], " "))
+			c := o.Config
+			if cmd == "" || cmd == "off" {
+				c.Mutate = ""
+				return m.saveVerify(c, "mutation testing off")
+			}
+			c.Mutate = cmd
+			return m.saveVerify(c, "mutation testing with: "+cmd+" (small mutations of changed lines must make it fail)")
 		case "clear":
 			return m.saveVerify(verify.Config{}, "cleared "+verify.ProjectFile)
 		case "trust":
@@ -60,11 +69,11 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 			}
 			return nil
 		default:
-			m.transcript.errorf("usage: /verify [set <command>|clear|trust]")
+			m.transcript.errorf("usage: /verify [set <command>|mutate <test command>|mutate off|clear|trust]")
 			return nil
 		}
 	}
-	if len(o.Config.Commands) == 0 {
+	if len(o.Config.Commands) == 0 && o.Config.Mutate == "" {
 		m.transcript.info("no verification commands: /verify set \"make test\" writes " + verify.ProjectFile + "; its commands run after every turn that changes something")
 		return nil
 	}

@@ -263,7 +263,11 @@ func WriteComparison(w io.Writer, c Comparison) {
 	}
 	fmt.Fprintf(w, "\npass-rate delta %s [%s, %s] over %d shared task(s) · %s\n", pct(c.Delta), pct(c.Lo), pct(c.Hi), c.Shared, verdict)
 	if c.CostKnown {
-		fmt.Fprintf(w, "cost per solved task %s → %s (%+s)\n", llm.FormatUSD(c.Base.CostPerSolved), llm.FormatUSD(c.Current.CostPerSolved), llm.FormatUSD(c.CostDelta))
+		sign := "+"
+		if c.CostDelta < 0 {
+			sign = "-"
+		}
+		fmt.Fprintf(w, "cost per solved task %s → %s (%s%s)\n", llm.FormatUSD(c.Base.CostPerSolved), llm.FormatUSD(c.Current.CostPerSolved), sign, llm.FormatUSD(math.Abs(c.CostDelta)))
 	}
 	if len(c.Improved) > 0 {
 		fmt.Fprintf(w, "improved:  %s\n", strings.Join(c.Improved, ", "))

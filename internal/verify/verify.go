@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/mutate"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -29,6 +30,12 @@ type Config struct {
 	Commands []string `json:"commands"`
 	// Timeout in seconds per command; zero means 600.
 	Timeout int `json:"timeout,omitempty"`
+	// Mutate, when set, is the test command run against small mutations
+	// of the lines the agent changed once the commands pass; mutants the
+	// tests do not catch are sent back like a failure.
+	Mutate string `json:"mutate,omitempty"`
+	// MaxMutants bounds mutants per run; zero means mutate.DefaultMax.
+	MaxMutants int `json:"max_mutants,omitempty"`
 }
 
 // MaxRounds bounds how often one turn is sent back for failing checks.
@@ -77,21 +84,39 @@ type Result struct {
 	Exit     int
 	Output   string
 	Duration time.Duration
+	// Mutation is the mutation-testing report when Config.Mutate is set
+	// and the commands passed.
+	Mutation *mutate.Report
+	// MutationErr is why mutation testing could not run (not a failure).
+	MutationErr error
 }
 
-// OK reports whether every command passed.
-func (r Result) OK() bool { return r.Failed == "" }
+// OK reports whether every command passed and no mutant survived.
+func (r Result) OK() bool { return r.Failed == "" && (r.Mutation == nil || r.Mutation.OK()) }
 
 // Summary is a one-line account for notices.
 func (r Result) Summary() string {
-	if r.OK() {
-		return fmt.Sprintf("verified: %s (%s)", strings.Join(r.Passed, " · "), r.Duration.Round(100*time.Millisecond))
+	switch {
+	case r.Failed != "":
+		return fmt.Sprintf("verification failed: %s (exit %d, %s)", r.Failed, r.Exit, r.Duration.Round(100*time.Millisecond))
+	case r.Mutation != nil && !r.Mutation.OK():
+		return "verification failed: " + r.Mutation.Summary()
 	}
-	return fmt.Sprintf("verification failed: %s (exit %d, %s)", r.Failed, r.Exit, r.Duration.Round(100*time.Millisecond))
+	s := fmt.Sprintf("verified: %s (%s)", strings.Join(r.Passed, " · "), r.Duration.Round(100*time.Millisecond))
+	if r.Mutation != nil {
+		s += " · " + r.Mutation.Summary()
+	}
+	if r.MutationErr != nil {
+		s += " · mutation testing unavailable: " + r.MutationErr.Error()
+	}
+	return s
 }
 
 // Feedback is the message the model gets when a check fails.
 func (r Result) Feedback() string {
+	if r.Failed == "" && r.Mutation != nil {
+		return r.Mutation.Feedback()
+	}
 	return fmt.Sprintf("Verification failed. This project requires the following to pass before a change is done.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nFix the cause, then finish. Do not disable or skip the check.",
 		r.Failed, r.Exit, tool.TruncateTo(strings.TrimSpace(r.Output), 6000))
 }
@@ -100,10 +125,14 @@ func (r Result) Feedback() string {
 type Runner struct {
 	Config Config
 	Cwd    string
+	// Log receives mutation progress lines when set.
+	Log func(string)
 }
 
 // Enabled reports whether there is anything to run.
-func (r *Runner) Enabled() bool { return r != nil && len(r.Config.Commands) > 0 }
+func (r *Runner) Enabled() bool {
+	return r != nil && (len(r.Config.Commands) > 0 || strings.TrimSpace(r.Config.Mutate) != "")
+}
 
 // Run executes the commands in order and stops at the first failure.
 func (r *Runner) Run(ctx context.Context) Result {
@@ -136,6 +165,15 @@ func (r *Runner) Run(ctx context.Context) Result {
 			res.Exit, res.Output = 1, res.Output+"\n"+err.Error()
 		}
 		break
+	}
+	if res.Failed == "" && strings.TrimSpace(r.Config.Mutate) != "" && ctx.Err() == nil {
+		mr := &mutate.Runner{Root: r.Cwd, Command: r.Config.Mutate, Timeout: timeout, Max: r.Config.MaxMutants, Log: r.Log}
+		rep, err := mr.Run(ctx)
+		if err != nil {
+			res.MutationErr = err
+		} else {
+			res.Mutation = &rep
+		}
 	}
 	res.Duration = time.Since(start)
 	return res

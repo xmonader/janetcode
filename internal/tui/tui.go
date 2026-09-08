@@ -755,7 +755,7 @@ var commands = []command{
 	{"/mcp", "[trust|auth <server>|logout <server>]", "MCP servers and their tools; trust starts the project's .mcp.json servers; auth logs in to a remote server with OAuth"},
 	{"/hooks", "[trust]", "hooks in effect; trust enables the project's .janetcode/hooks.json"},
 	{"/permissions", "[allow|deny <rule>|trust]", "permission rules; add one, or trust the project's .janetcode/permissions.json"},
-	{"/verify", "[set <cmd>|clear|trust]", "run the project's checks now; set adds one to .janetcode/verify.json"},
+	{"/verify", "[set <cmd>|mutate <test cmd>|clear|trust]", "run the project's checks now; set adds one to .janetcode/verify.json; mutate requires tests to catch mutations of changed lines"},
 	{"/lsp", "", "language servers and the diagnostics they reported"},
 	{"/jobs", "[kill <n>]", "background commands started with bash background:true"},
 	{"/context", "", "what fills the context window: prompt, tools, messages, largest tool results"},

@@ -272,10 +272,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v (project verification ignored)\n", err)
 	}
-	verifyTrusted := len(verifyCfg.Commands) > 0 && trust.Trusted(cwd+"#verify", verifyHash)
+	verifyDefined := len(verifyCfg.Commands) > 0 || verifyCfg.Mutate != ""
+	verifyTrusted := verifyDefined && trust.Trusted(cwd+"#verify", verifyHash)
 	if verifyTrusted {
-		ag.Verify = &verify.Runner{Config: verifyCfg, Cwd: cwd}
-	} else if len(verifyCfg.Commands) > 0 && *promptText != "" {
+		ag.Verify = &verify.Runner{Config: verifyCfg, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[verify] %s\n", s) }}
+	} else if verifyDefined && *promptText != "" {
 		fmt.Fprintf(os.Stderr, "[verify] %s is not trusted yet; open the TUI and run /verify trust\n", verify.ProjectFile)
 	}
 	rules, _ := cfg.Permissions.Rules() // validated by config.Load
