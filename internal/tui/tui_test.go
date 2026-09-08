@@ -196,7 +196,11 @@ func TestEscCancelsRunningTurn(t *testing.T) {
 	if v := plain(h.m.View()); !strings.Contains(v, "cancelled") {
 		t.Fatalf("expected cancelled marker:\n%s", v)
 	}
-	// ctrl+c when idle quits.
+	// ctrl+c with typed text clears it; when idle and empty it quits.
+	h.keys("draft")
+	if _, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC}); cmd != nil || h.m.input.Value() != "" {
+		t.Fatalf("ctrl+c should clear the input first: cmd=%v value=%q", cmd, h.m.input.Value())
+	}
 	_, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if cmd == nil {
 		t.Fatal("ctrl+c when idle should quit")

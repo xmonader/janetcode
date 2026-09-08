@@ -590,11 +590,19 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	}
 	switch msg.String() {
 	case "ctrl+c":
+		// Three stages: cancel a running turn, else clear typed text, else
+		// quit. A second press while a cancel is pending forces the quit.
 		if m.running && !m.cancelling {
 			m.cancelTurn()
 			return nil, true
 		}
-		// Idle, or pressed twice while a cancel is still pending: quit.
+		if !m.running && m.input.Value() != "" {
+			m.input.Reset()
+			m.status = "input cleared · ctrl+c again to quit"
+			m.layout()
+			m.refresh(false)
+			return nil, true
+		}
 		m.quitting = true
 		return tea.Quit, true
 	case "ctrl+d":
