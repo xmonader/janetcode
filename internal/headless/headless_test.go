@@ -2,9 +2,9 @@ package headless
 
 import (
 	"bytes"
-	"errors"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
