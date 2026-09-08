@@ -69,6 +69,19 @@ janetcode -p "add a --verbose flag to cmd/server" --yolo
 Assistant text goes to stdout, tool activity to stderr. Without `--yolo`,
 mutating tools prompt on the terminal, or are denied when stdin is not a TTY.
 
+`--until "<command>"` keeps the run going until a shell command exits 0:
+after each turn the command runs in the working directory and its output
+goes back to the model on failure, at most five rounds. The verdict is the
+exit code, never the model's opinion.
+
+```sh
+janetcode -p "make the flaky TestSync deterministic" --yolo --until "go test -count=3 ./internal/sync/"
+```
+
+`janetcode --doctor` checks the config file, every configured provider's
+keys, a live call to the selected model, the sessions directory, git, local
+tools and MCP servers, and exits non-zero when something is broken.
+
 ## What it can do
 
 | Tool | Purpose | Asks permission |
@@ -120,12 +133,23 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /usage
 /resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)
 /undo      /find X    /cost      /mcp [trust]
+/export [file.md] (write the conversation as a Markdown transcript)
 ```
+
+`ctrl+c` cancels a running turn, then clears typed text, then quits.
 
 `/connect` walks through provider → base URL → API keys → model with
 arrow-key lists that filter as you type; `/model` alone opens just the model
 list for the current provider (`/model name` sets one directly). Both write
 the choice to the config file.
+
+Safety rules that apply in every mode, including `--yolo`: commands that
+would destroy the machine (deleting `/` or the home directory, formatting,
+writing raw devices, piping a download into a shell, fork bombs, power-off)
+are refused outright, seen through `sudo`, `env`, `timeout`, `sh -c` and
+`eval` wrappers; commands that change files outside the working directory
+(`rm ../x`, `cp a ~/b`, `> /etc/hosts`) always ask. Everything else follows
+the permission mode.
 
 `/undo` restores every file the last turn changed through `edit_file` or
 `write_file` (files it created are removed) and tells the model. Repeat it to
