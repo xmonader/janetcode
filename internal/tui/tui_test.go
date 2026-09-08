@@ -436,6 +436,41 @@ func TestFindScrollsToMatches(t *testing.T) {
 	}
 }
 
+func TestUndoCommand(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"n.txt","content":"x\n"}`)}}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "written"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn},
+	)
+	h.keys("/undo")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "nothing to undo") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.m.opts.Agent.AutoApprove = true
+	h.keys("make n.txt")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	target := filepath.Join(h.m.opts.Cwd, "n.txt")
+	if _, err := os.Stat(target); err != nil {
+		t.Fatal("file not written")
+	}
+	h.keys("/undo")
+	h.enter()
+	if _, err := os.Stat(target); err == nil {
+		t.Fatal("undo did not remove the created file")
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "↶ removed") || !strings.Contains(v, "n.txt") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("continue")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	if sent := h.m.opts.Agent.Messages[len(h.m.opts.Agent.Messages)-2].Text(); !strings.Contains(sent, "I reverted the file changes") || !strings.Contains(sent, "continue") {
+		t.Fatalf("model not told about the undo: %q", sent)
+	}
+}
+
 func TestPromptHistoryRecall(t *testing.T) {
 	h := newHarness(t,
 		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "a"), StopReason: llm.StopEndTurn},

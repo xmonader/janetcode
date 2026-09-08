@@ -123,6 +123,7 @@ type Agent struct {
 	Price *llm.Price
 
 	allowed map[string]bool
+	cp      checkpointer
 
 	// Real input size of the last call, and how many messages it covered,
 	// so EstimateTokens only has to guess about what came after.
@@ -151,6 +152,7 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 		maxIter = 50
 	}
 	a.appendUserText(userText)
+	a.cp.beginTurn()
 
 	compactAt := a.CompactAt
 	if compactAt == 0 {
@@ -404,6 +406,9 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 		}
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
+	if t.Mutating() {
+		a.cp.snapshot(t, u.Input)
+	}
 	start := time.Now()
 	out, err := runSafely(ctx, t, u.Input)
 	dur := time.Since(start)

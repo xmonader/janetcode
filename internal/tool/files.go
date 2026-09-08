@@ -139,6 +139,11 @@ func plural(n int, unit string) string {
 
 // Preview implements Previewer: a diff against the existing file, or the
 // head of a new file.
+// Touches reports the file the write will replace or create.
+func (t WriteFile) Touches(input json.RawMessage) ([]string, error) {
+	return touchedPath(t.Root, input)
+}
+
 func (t WriteFile) Preview(_ context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Path    string `json:"path"`
@@ -178,6 +183,27 @@ func countLines(s string) int {
 
 // atomicWrite writes via a temp file + rename so a crash mid-write never
 // leaves a truncated file. Preserves the mode of an existing file.
+// touchedPath resolves the "path" field of a file tool's input.
+func touchedPath(root string, input json.RawMessage) ([]string, error) {
+	var in struct {
+		Path string `json:"path"`
+	}
+	// Plain unmarshal: only the path matters here, the other fields are the
+	// tool's business.
+	if err := json.Unmarshal(input, &in); err != nil {
+		return nil, err
+	}
+	p, err := resolvePath(root, in.Path)
+	if err != nil {
+		return nil, err
+	}
+	return []string{p}, nil
+}
+
+// AtomicWrite replaces the file at p with data via a temp file and rename,
+// so a crash mid-write never leaves a truncated file.
+func AtomicWrite(p string, data []byte) error { return atomicWrite(p, data) }
+
 func atomicWrite(p string, data []byte) error {
 	mode := os.FileMode(0o644)
 	if st, err := os.Stat(p); err == nil {
@@ -287,6 +313,11 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 }
 
 // Preview implements Previewer with a unified diff of the edit.
+// Touches reports the file the edit will rewrite.
+func (t EditFile) Touches(input json.RawMessage) ([]string, error) {
+	return touchedPath(t.Root, input)
+}
+
 func (t EditFile) Preview(_ context.Context, input json.RawMessage) (string, error) {
 	pl, err := t.plan(input)
 	if err != nil {

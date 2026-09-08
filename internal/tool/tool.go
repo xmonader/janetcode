@@ -129,6 +129,12 @@ type Previewer interface {
 	Preview(ctx context.Context, input json.RawMessage) (string, error)
 }
 
+// Toucher is implemented by tools that modify files at known paths, so the
+// agent can snapshot them before the call and offer an undo.
+type Toucher interface {
+	Touches(input json.RawMessage) ([]string, error)
+}
+
 // Warner is implemented by tools that can flag risky inputs so the
 // permission prompt can call them out. Empty means nothing to flag.
 type Warner interface {

@@ -147,6 +147,7 @@ var commands = []command{
 	{"/clear", "", "start a new session"},
 	{"/resume", "[n|id]", "list earlier sessions here, or reopen one"},
 	{"/find", "<text>", "jump to the next line matching text; repeat to continue"},
+	{"/undo", "", "revert the files changed by the last turn"},
 	{"/yolo", "", "toggle auto-approve for tools"},
 	{"/model", "<name>", "switch model on the same provider"},
 	{"/usage", "", "tokens and cost for this session"},
@@ -926,6 +927,26 @@ func (m *model) command(text string) tea.Cmd {
 		}
 		m.opts.Agent.Model = fields[1]
 		m.transcript.info("model set to " + fields[1] + " on " + m.opts.Provider)
+	case "/undo":
+		if m.running {
+			m.transcript.errorf("wait for the current turn to finish before undoing")
+			break
+		}
+		done, err := m.opts.Agent.Undo()
+		if errors.Is(err, agent.ErrNothingToUndo) {
+			m.transcript.errorf("nothing to undo: no turn has changed files through edit_file or write_file (shell changes are not tracked)")
+			break
+		}
+		for _, d := range done {
+			m.transcript.info("↶ " + shortPath(d))
+		}
+		if err != nil {
+			m.transcript.errorf("undo incomplete: %v", err)
+		}
+		if len(done) > 0 {
+			m.opts.Agent.AddContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
+			m.status = fmt.Sprintf("undid %d file change(s) · %d more turn(s) can be undone", len(done), len(m.opts.Agent.Checkpoints()))
+		}
 	case "/find", "/search":
 		q := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
 		if q == "" {
