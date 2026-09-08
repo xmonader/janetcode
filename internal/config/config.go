@@ -14,7 +14,8 @@ import (
 	"github.com/xmonader/janetcode/internal/mcp"
 )
 
-// ProviderConfig is the credentials for one backend.
+// ProviderConfig is the legacy "anthropic"/"openai" section; it is folded
+// into Providers on load.
 type ProviderConfig struct {
 	APIKey  string `json:"api_key,omitempty"`
 	BaseURL string `json:"base_url,omitempty"`
@@ -33,9 +34,12 @@ type Config struct {
 	// 0 means the default, negative disables.
 	CompactAt int `json:"compact_at,omitempty"`
 	// Theme is dark, light or auto.
-	Theme     string         `json:"theme,omitempty"`
-	Anthropic ProviderConfig `json:"anthropic"`
-	OpenAI    ProviderConfig `json:"openai"`
+	Theme string `json:"theme,omitempty"`
+	// Providers are the backends by name; Provider selects one. Presets
+	// (see Presets) can be referred to by name without a base_url.
+	Providers map[string]Provider `json:"providers,omitempty"`
+	Anthropic ProviderConfig      `json:"anthropic,omitempty"`
+	OpenAI    ProviderConfig      `json:"openai,omitempty"`
 	// Prices per million tokens by model name, used to estimate spend when
 	// the provider does not report it. A key may be a prefix ("claude-opus").
 	Prices map[string]llm.Price `json:"prices,omitempty"`
@@ -101,13 +105,10 @@ const Example = `{
   "max_iterations": 50,
   "compact_at": 150000,
   "theme": "auto",
-  "anthropic": {
-    "api_key": "",
-    "base_url": ""
-  },
-  "openai": {
-    "api_key": "",
-    "base_url": "https://api.openai.com/v1"
+  "providers": {
+    "anthropic": {"type": "anthropic", "api_key": ""},
+    "openrouter": {"type": "openai", "base_url": "https://openrouter.ai/api/v1", "api_key": "", "api_keys": [], "model": "deepseek/deepseek-v4-flash"},
+    "ollama": {"type": "openai", "base_url": "http://localhost:11434/v1"}
   },
   "prices": {
     "example-model": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75}
@@ -147,13 +148,65 @@ func Load(ov Overrides) (*Config, error) {
 	return load(p, os.Getenv, ov)
 }
 
-// inferProvider picks a backend when none was configured: the one whose key
-// is present, Anthropic when both or neither are.
+// inferProvider picks a backend when none was configured: Anthropic when
+// it has a key, else the first configured provider with one, else Anthropic.
 func inferProvider(cfg *Config) string {
-	if cfg.Anthropic.APIKey == "" && cfg.OpenAI.APIKey != "" {
-		return "openai"
+	if len(cfg.Providers[DefaultProvider].Keys()) > 0 {
+		return DefaultProvider
+	}
+	for _, n := range cfg.ProviderNames() {
+		if len(cfg.Providers[n].Keys()) > 0 {
+			return n
+		}
 	}
 	return DefaultProvider
+}
+
+// mergeProviders folds the legacy sections and environment into Providers.
+func mergeProviders(cfg *Config, getenv func(string) string) {
+	if cfg.Providers == nil {
+		cfg.Providers = map[string]Provider{}
+	}
+	fold := func(name, typ string, legacy ProviderConfig, keyEnv, urlEnv string) {
+		e, ok := cfg.Providers[name]
+		if !ok {
+			if legacy.APIKey == "" && legacy.BaseURL == "" && getenv(keyEnv) == "" && getenv(urlEnv) == "" {
+				return
+			}
+			e = Provider{Type: typ}
+		}
+		if e.Type == "" {
+			e.Type = typ
+		}
+		if e.APIKey == "" && len(e.APIKeys) == 0 {
+			e.APIKey = legacy.APIKey
+		}
+		if e.BaseURL == "" {
+			e.BaseURL = legacy.BaseURL
+		}
+		if k := getenv(keyEnv); k != "" {
+			e.SetKeys(strings.Split(k, ","))
+			e.envKeys = true
+		}
+		if u := getenv(urlEnv); u != "" {
+			e.BaseURL = u
+		}
+		cfg.Providers[name] = e
+	}
+	fold("anthropic", "anthropic", cfg.Anthropic, "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL")
+	fold("openai", "openai", cfg.OpenAI, "OPENAI_API_KEY", "OPENAI_BASE_URL")
+	for n, e := range cfg.Providers {
+		if pre, ok := FindPreset(n); ok {
+			if e.Type == "" {
+				e.Type = pre.Type
+			}
+			if e.BaseURL == "" {
+				e.BaseURL = pre.BaseURL
+			}
+		}
+		e.Type = strings.ToLower(strings.TrimSpace(e.Type))
+		cfg.Providers[n] = e
+	}
 }
 
 func load(path string, getenv func(string) string, ov Overrides) (*Config, error) {
@@ -180,10 +233,8 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 			*dst = v
 		}
 	}
-	setIf(&cfg.Anthropic.APIKey, "ANTHROPIC_API_KEY")
-	setIf(&cfg.Anthropic.BaseURL, "ANTHROPIC_BASE_URL")
-	setIf(&cfg.OpenAI.APIKey, "OPENAI_API_KEY")
-	setIf(&cfg.OpenAI.BaseURL, "OPENAI_BASE_URL")
+	mergeProviders(cfg, getenv)
+	fileProvider, fileModel := cfg.Provider, cfg.Model
 	setIf(&cfg.Provider, "JANETCODE_PROVIDER")
 	setIf(&cfg.Model, "JANETCODE_MODEL")
 	setIf(&cfg.Effort, "JANETCODE_EFFORT")
@@ -206,23 +257,46 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if cfg.Provider == "" {
 		cfg.Provider = inferProvider(cfg)
 	}
-	switch cfg.Provider {
+	active, ok := cfg.Providers[cfg.Provider]
+	if !ok {
+		pre, isPreset := FindPreset(cfg.Provider)
+		if !isPreset {
+			return nil, fmt.Errorf("unknown provider %q (configured: %s; presets: %s)", cfg.Provider, orNone(cfg.ProviderNames()), presetNames())
+		}
+		active = Provider{Type: pre.Type, BaseURL: pre.BaseURL}
+		cfg.Providers[cfg.Provider] = active
+	}
+	// A provider chosen on the command line or in the environment brings
+	// its own last-used model; the file's top-level model belongs to the
+	// file's provider.
+	if cfg.Model == "" || (cfg.Provider != fileProvider && cfg.Model == fileModel) {
+		if active.Model != "" {
+			cfg.Model = active.Model
+		}
+	}
+	switch active.Type {
 	case "anthropic":
 		if cfg.Model == "" {
 			cfg.Model = DefaultModel
 		}
-		if cfg.Anthropic.APIKey == "" {
-			return nil, fmt.Errorf("no API key: set ANTHROPIC_API_KEY, or OPENAI_API_KEY with JANETCODE_MODEL for an OpenAI-compatible backend, or run janetcode --init and edit %s", path)
+		if len(active.Keys()) == 0 {
+			if cfg.Provider == DefaultProvider {
+				return nil, fmt.Errorf("no API key: set ANTHROPIC_API_KEY, or OPENAI_API_KEY with JANETCODE_MODEL for an OpenAI-compatible backend, or run janetcode --init and edit %s", path)
+			}
+			return nil, fmt.Errorf("no API key for provider %q: set providers.%s.api_key in %s", cfg.Provider, cfg.Provider, path)
 		}
 	case "openai":
 		if cfg.Model == "" {
-			return nil, errors.New("openai provider needs a model: pass --model, set JANETCODE_MODEL, or set model in the config file (for example JANETCODE_MODEL=deepseek/deepseek-v4-flash)")
+			return nil, fmt.Errorf("provider %q needs a model: pass --model, set JANETCODE_MODEL, or set model in the config file (for example JANETCODE_MODEL=deepseek/deepseek-v4-flash)", cfg.Provider)
 		}
-		if cfg.OpenAI.APIKey == "" {
-			return nil, fmt.Errorf("no OpenAI-compatible API key: set OPENAI_API_KEY or openai.api_key in %s", path)
+		if len(active.Keys()) == 0 && active.NeedsKey() {
+			if cfg.Provider == "openai" {
+				return nil, fmt.Errorf("no OpenAI-compatible API key: set OPENAI_API_KEY or providers.openai.api_key in %s", path)
+			}
+			return nil, fmt.Errorf("no API key for provider %q: set providers.%s.api_key in %s", cfg.Provider, cfg.Provider, path)
 		}
 	default:
-		return nil, fmt.Errorf("unknown provider %q (want anthropic or openai)", cfg.Provider)
+		return nil, fmt.Errorf("provider %q has type %q (want anthropic or openai)", cfg.Provider, active.Type)
 	}
 	switch cfg.Effort {
 	case "", "low", "medium", "high", "xhigh", "max":
@@ -241,6 +315,21 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		cfg.MaxIterations = DefaultMaxIter
 	}
 	return cfg, nil
+}
+
+func orNone(names []string) string {
+	if len(names) == 0 {
+		return "none"
+	}
+	return strings.Join(names, ", ")
+}
+
+func presetNames() string {
+	names := make([]string, len(Presets))
+	for i, p := range Presets {
+		names[i] = p.Name
+	}
+	return strings.Join(names, ", ")
 }
 
 // ThinkingEnabled reports whether adaptive thinking should be requested.

@@ -51,7 +51,8 @@ Flags:
 `, version)
 		fs.PrintDefaults()
 		fmt.Fprintf(fs.Output(), `
-Environment: ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL,
+Environment: ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL
+             (a key may be a comma-separated list; they are rotated on rate limits),
              JANETCODE_PROVIDER, JANETCODE_MODEL, JANETCODE_EFFORT, JANETCODE_THEME
              JANETCODE_DEBUG=<file> appends a timestamped event log
 Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode/config.json)
@@ -59,7 +60,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	var (
 		promptText  = fs.String("p", "", "run this prompt headless and exit")
-		provider    = fs.String("provider", "", "anthropic or openai (default from config, else anthropic)")
+		provider    = fs.String("provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")
 		model       = fs.String("model", "", "model id (default claude-opus-5 for anthropic)")
 		effort      = fs.String("effort", "", "anthropic effort: low, medium, high, xhigh, max")
 		yolo        = fs.Bool("yolo", false, "auto-approve every tool call")
@@ -270,20 +271,23 @@ func printSessions() error {
 	return nil
 }
 
+// buildProvider constructs the backend selected by cfg.Provider.
 func buildProvider(cfg *config.Config) (llm.Provider, error) {
-	switch cfg.Provider {
+	p := cfg.Active()
+	switch p.Type {
 	case "anthropic":
 		return anthropic.New(anthropic.Config{
-			APIKey:   cfg.Anthropic.APIKey,
-			BaseURL:  cfg.Anthropic.BaseURL,
+			APIKeys:  p.Keys(),
+			BaseURL:  p.BaseURL,
 			Thinking: cfg.ThinkingEnabled(),
 			Effort:   cfg.Effort,
 		})
 	case "openai":
 		return openai.New(openai.Config{
-			APIKey:  cfg.OpenAI.APIKey,
-			BaseURL: cfg.OpenAI.BaseURL,
+			APIKeys: p.Keys(),
+			BaseURL: p.BaseURL,
+			Name:    cfg.Provider,
 		})
 	}
-	return nil, fmt.Errorf("unknown provider %q", cfg.Provider)
+	return nil, fmt.Errorf("provider %q has unknown type %q", cfg.Provider, p.Type)
 }
