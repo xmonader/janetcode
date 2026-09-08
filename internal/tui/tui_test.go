@@ -141,6 +141,37 @@ func TestPermissionPromptAllow(t *testing.T) {
 	}
 }
 
+func TestPermissionDenyWithReason(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"n.txt","content":"x\n"}`)}}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "understood"), StopReason: llm.StopEndTurn},
+	)
+	h.keys("make n.txt")
+	h.enter()
+	h.pump(func() bool { return h.m.pending != nil })
+	h.keys("n")
+	if !h.m.denying {
+		t.Fatal("n should open the reason prompt")
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "tell the model why") {
+		t.Fatalf("reason prompt missing:\n%s", v)
+	}
+	h.keys("wrong directory")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	res := h.m.opts.Agent.Messages[2].Blocks[0]
+	if !res.IsError || !strings.Contains(res.Text, "The user said: wrong directory") {
+		t.Fatalf("tool result = %q", res.Text)
+	}
+	v := plain(h.m.View())
+	if !strings.Contains(v, "told the model: wrong directory") || !strings.Contains(v, "understood") || h.m.input.Value() != "" {
+		t.Fatalf("view:\n%s", v)
+	}
+	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "n.txt")); err == nil {
+		t.Fatal("denied write happened")
+	}
+}
+
 func TestEscCancelsRunningTurn(t *testing.T) {
 	blocker := &blocking{started: make(chan struct{})}
 	root := t.TempDir()
@@ -322,7 +353,7 @@ func TestInitialPromptIsSubmitted(t *testing.T) {
 
 func TestPermissionBoxShowsWarning(t *testing.T) {
 	h := newHarness(t)
-	h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "b1", Name: "bash", Input: json.RawMessage(`{"command":"rm -rf build"}`), Warning: "recursive force delete"}, reply: make(chan agent.Decision, 1)}
+	h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "b1", Name: "bash", Input: json.RawMessage(`{"command":"rm -rf build"}`), Warning: "recursive force delete"}, reply: make(chan verdict, 1)}
 	h.m.layout()
 	v := plain(h.m.View())
 	for _, want := range []string{"allow bash rm -rf build", "⚠ recursive force delete", "always for bash", "approval needed"} {
@@ -331,8 +362,12 @@ func TestPermissionBoxShowsWarning(t *testing.T) {
 		}
 	}
 	h.keys("n")
-	if h.m.pending != nil {
-		t.Fatal("n should answer the prompt")
+	if h.m.pending == nil || !h.m.denying {
+		t.Fatal("n should open the reason prompt")
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if h.m.pending != nil || h.m.denying {
+		t.Fatal("esc should deny without a reason")
 	}
 }
 

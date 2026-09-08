@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -46,6 +47,17 @@ type ToolCall struct {
 type Approver interface {
 	Approve(ctx context.Context, call ToolCall) (Decision, error)
 }
+
+// ReasonApprover is an Approver that can also pass the user's reason for a
+// denial back to the model, so it can adjust instead of guessing.
+type ReasonApprover interface {
+	Approver
+	ApproveWithReason(ctx context.Context, call ToolCall) (Decision, string, error)
+}
+
+// DeniedMessage is the tool result the model sees after a denial. The user's
+// reason, when given, follows it.
+const DeniedMessage = "The user denied permission for this tool call. Ask before retrying or choose another approach."
 
 // ApproverFunc adapts a function to Approver.
 type ApproverFunc func(ctx context.Context, call ToolCall) (Decision, error)
@@ -358,7 +370,16 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
 			return msg, true, nil
 		}
-		d, err := a.Approver.Approve(ctx, call)
+		var (
+			d      Decision
+			reason string
+			err    error
+		)
+		if ra, ok := a.Approver.(ReasonApprover); ok {
+			d, reason, err = ra.ApproveWithReason(ctx, call)
+		} else {
+			d, err = a.Approver.Approve(ctx, call)
+		}
 		if err != nil {
 			return "", true, err
 		}
@@ -367,7 +388,10 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 			a.allowed[u.Name] = true
 		case Allow:
 		default:
-			msg := "The user denied permission for this tool call. Ask before retrying or choose another approach."
+			msg := DeniedMessage
+			if reason = strings.TrimSpace(reason); reason != "" {
+				msg += " The user said: " + reason
+			}
 			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
 			return msg, true, nil
 		}

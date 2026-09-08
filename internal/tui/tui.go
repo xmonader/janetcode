@@ -60,7 +60,13 @@ type agentDoneMsg struct {
 type sessionSwapMsg struct{ sess *session.Session }
 type permissionMsg struct {
 	call  agent.ToolCall
-	reply chan agent.Decision
+	reply chan verdict
+}
+
+// verdict is the user's answer to a permission prompt.
+type verdict struct {
+	d      agent.Decision
+	reason string
 }
 type tickMsg time.Time
 
@@ -98,13 +104,18 @@ func (q *eventQueue) drain() []agent.Event {
 type tuiApprover struct{ send func(tea.Msg) }
 
 func (a *tuiApprover) Approve(ctx context.Context, call agent.ToolCall) (agent.Decision, error) {
-	reply := make(chan agent.Decision, 1)
+	d, _, err := a.ApproveWithReason(ctx, call)
+	return d, err
+}
+
+func (a *tuiApprover) ApproveWithReason(ctx context.Context, call agent.ToolCall) (agent.Decision, string, error) {
+	reply := make(chan verdict, 1)
 	a.send(permissionMsg{call: call, reply: reply})
 	select {
-	case d := <-reply:
-		return d, nil
+	case v := <-reply:
+		return v.d, v.reason, nil
 	case <-ctx.Done():
-		return agent.Deny, ctx.Err()
+		return agent.Deny, "", ctx.Err()
 	}
 }
 
@@ -156,6 +167,7 @@ type model struct {
 	startedAt  time.Time
 	phase      string // what the agent is doing right now
 	pending    *permissionMsg
+	denying    bool // the input box is collecting a reason for a denial
 	status     string
 	lastTurn   string // usage summary of the last turn
 	queued     []string // prompts typed while a turn was running
@@ -362,16 +374,42 @@ func (m *model) applyEvent(ev agent.Event) {
 
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	// Permission prompt takes over the keyboard.
+	if m.pending != nil && m.denying {
+		// Collecting an optional reason: enter sends it, esc denies silently.
+		switch msg.String() {
+		case "enter":
+			m.answer(agent.Deny, strings.TrimSpace(m.input.Value()))
+			m.input.Reset()
+			m.layout()
+		case "esc":
+			m.answer(agent.Deny, "")
+			m.input.Reset()
+			m.layout()
+		case "ctrl+c":
+			m.answer(agent.Deny, "")
+			m.input.Reset()
+			m.cancelTurn()
+		default:
+			return nil, false // let the textarea take it
+		}
+		return nil, true
+	}
 	if m.pending != nil {
 		switch msg.String() {
 		case "y", "Y", "enter":
-			m.answer(agent.Allow)
+			m.answer(agent.Allow, "")
 		case "a", "A":
-			m.answer(agent.AllowSession)
-		case "n", "N", "esc":
-			m.answer(agent.Deny)
+			m.answer(agent.AllowSession, "")
+		case "n", "N":
+			// Ask why so the model can adapt; enter with nothing skips.
+			m.denying = true
+			m.input.Reset()
+			m.layout()
+			m.refresh(false)
+		case "esc":
+			m.answer(agent.Deny, "")
 		case "ctrl+c":
-			m.answer(agent.Deny)
+			m.answer(agent.Deny, "")
 			m.cancelTurn()
 		case "ctrl+o":
 			m.verbose = !m.verbose
@@ -568,13 +606,17 @@ func shortBytes(n int64) string {
 	return fmt.Sprintf("%dB", n)
 }
 
-func (m *model) answer(d agent.Decision) {
+func (m *model) answer(d agent.Decision, reason string) {
 	if m.pending == nil {
 		return
 	}
-	m.pending.reply <- d
+	m.pending.reply <- verdict{d: d, reason: reason}
 	m.transcript.permissionAnswered(m.pending.call, d)
+	if d == agent.Deny && reason != "" {
+		m.transcript.info("told the model: " + reason)
+	}
 	m.pending = nil
+	m.denying = false
 	m.phase = "thinking"
 	m.refresh(false)
 }
@@ -798,7 +840,7 @@ func helpText() string {
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand tool output · ctrl+l redraw\n")
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends\n")
 	sb.WriteString("  @path attaches a file or directory listing to the prompt · tab completes the path\n")
-	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · n deny\n")
+	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · n deny (then type why, or enter to skip) · esc deny\n")
 	sb.WriteString("commands\n")
 	for _, c := range commands {
 		fmt.Fprintf(&sb, "  %-10s %-7s %s\n", c.name, c.args, c.help)
@@ -820,12 +862,15 @@ func (m *model) inputHeight() int {
 }
 
 func (m *model) footerHeight() int {
-	if m.pending != nil {
+	if m.pending != nil && !m.denying {
 		return m.permissionBoxHeight()
 	}
 	h := m.inputHeight() + 2 // border
 	if c := m.completions(); len(c) > 0 {
 		h += min(len(c), 6)
+	}
+	if m.denying {
+		h++
 	}
 	return h + len(m.queued)
 }
@@ -984,10 +1029,13 @@ func (m *model) contextGauge() string {
 }
 
 func (m *model) footerView() string {
-	if m.pending != nil {
+	if m.pending != nil && !m.denying {
 		return m.permissionView()
 	}
 	var parts []string
+	if m.denying {
+		parts = append(parts, "  "+styleWarn.Bold(true).Render("denied "+m.pending.call.Name)+styleDim.Render(" · tell the model why (optional) · enter sends · esc skips"))
+	}
 	if c := m.completions(); len(c) > 0 {
 		if len(c) > 6 {
 			c = c[:6]
@@ -1026,7 +1074,7 @@ func (m *model) permissionView() string {
 	if c.Warning != "" {
 		sb.WriteString("\n" + styleErr.Bold(true).Render("⚠ "+c.Warning))
 	}
-	sb.WriteString("\n" + styleKey.Render("y") + styleDim.Render(" allow once   ") + styleKey.Render("a") + styleDim.Render(" always for "+c.Name+"   ") + styleKey.Render("n") + styleDim.Render(" deny   ") + styleFaint.Render("(diff shown above · ctrl+o expands)"))
+	sb.WriteString("\n" + styleKey.Render("y") + styleDim.Render(" allow once   ") + styleKey.Render("a") + styleDim.Render(" always for "+c.Name+"   ") + styleKey.Render("n") + styleDim.Render(" deny (and say why)   ") + styleFaint.Render("(diff shown above · ctrl+o expands)"))
 	return stylePermBox.Width(m.width - 2).Render(sb.String())
 }
 

@@ -79,9 +79,16 @@ type stdinApprover struct {
 }
 
 func (a *stdinApprover) Approve(ctx context.Context, call agent.ToolCall) (agent.Decision, error) {
+	d, _, err := a.ApproveWithReason(ctx, call)
+	return d, err
+}
+
+// ApproveWithReason reads one line: y, a, or n optionally followed by a
+// reason for the model ("n use the config dir instead").
+func (a *stdinApprover) ApproveWithReason(ctx context.Context, call agent.ToolCall) (agent.Decision, string, error) {
 	if a.in == nil || !isTerminal(a.in) {
 		fmt.Fprintf(a.out, "[permission] %s denied: stdin is not a terminal (use --yolo to auto-approve)\n", call.Name)
-		return agent.Deny, nil
+		return agent.Deny, "", nil
 	}
 	if call.Preview != "" {
 		fmt.Fprintf(a.out, "\n%s\n", strings.TrimRight(call.Preview, "\n"))
@@ -89,7 +96,7 @@ func (a *stdinApprover) Approve(ctx context.Context, call agent.ToolCall) (agent
 	if call.Warning != "" {
 		fmt.Fprintf(a.out, "\nWARNING: %s\n", call.Warning)
 	}
-	fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways / [n]o: ", call.Name, oneLine(string(call.Input), 200))
+	fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways / [n]o (add a reason after n): ", call.Name, oneLine(string(call.Input), 200))
 	type res struct {
 		s   string
 		err error
@@ -101,18 +108,19 @@ func (a *stdinApprover) Approve(ctx context.Context, call agent.ToolCall) (agent
 	}()
 	select {
 	case <-ctx.Done():
-		return agent.Deny, ctx.Err()
+		return agent.Deny, "", ctx.Err()
 	case r := <-ch:
 		if r.err != nil && r.s == "" {
-			return agent.Deny, nil
+			return agent.Deny, "", nil
 		}
-		switch strings.ToLower(strings.TrimSpace(r.s)) {
+		word, rest, _ := strings.Cut(strings.TrimSpace(r.s), " ")
+		switch strings.ToLower(word) {
 		case "y", "yes":
-			return agent.Allow, nil
+			return agent.Allow, "", nil
 		case "a", "always":
-			return agent.AllowSession, nil
+			return agent.AllowSession, "", nil
 		}
-		return agent.Deny, nil
+		return agent.Deny, strings.TrimSpace(rest), nil
 	}
 }
 

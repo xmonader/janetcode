@@ -266,3 +266,25 @@ func TestCancelDuringApprovalRecordsResults(t *testing.T) {
 		t.Fatalf("results = %+v", res)
 	}
 }
+
+type reasoning struct{ reason string }
+
+func (r reasoning) Approve(ctx context.Context, call ToolCall) (Decision, error) { return Deny, nil }
+func (r reasoning) ApproveWithReason(ctx context.Context, call ToolCall) (Decision, string, error) {
+	return Deny, r.reason, nil
+}
+
+func TestDenyReasonReachesModel(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"x","content":"1"}`),
+		text("ok"),
+	}}
+	a, _ := newAgent(t, f, reasoning{reason: "use the config dir instead"})
+	if err := a.Run(context.Background(), "write", nil); err != nil {
+		t.Fatal(err)
+	}
+	r := a.Messages[2].Blocks[0]
+	if !r.IsError || !strings.HasPrefix(r.Text, DeniedMessage) || !strings.HasSuffix(r.Text, "The user said: use the config dir instead") {
+		t.Fatalf("deny result = %q", r.Text)
+	}
+}
