@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	sdk "github.com/anthropics/anthropic-sdk-go"
@@ -21,6 +23,9 @@ const RequestTimeout = 30 * time.Minute
 // Config configures the provider.
 type Config struct {
 	APIKey string
+	// APIKeys are extra keys tried in turn when one is rate limited or
+	// rejected.
+	APIKeys []string
 	// BaseURL overrides the API root (tests, proxies). Empty means default.
 	BaseURL string
 	// Thinking enables adaptive thinking. Set false for models that reject
@@ -37,15 +42,20 @@ type Config struct {
 
 // Provider is the Anthropic Messages API backend.
 type Provider struct {
-	cfg    Config
-	client sdk.Client
+	cfg     Config
+	client  sdk.Client // first key's client; kept for tests
+	clients []sdk.Client
+	mu      sync.Mutex
+	keyIdx  int
 }
 
 // New validates cfg and builds a provider.
 func New(cfg Config) (*Provider, error) {
-	if cfg.APIKey == "" {
+	keys := dedupe(append([]string{cfg.APIKey}, cfg.APIKeys...))
+	if len(keys) == 0 {
 		return nil, llm.ErrNoAPIKey
 	}
+	cfg.APIKey = keys[0]
 	if cfg.MaxRetries == 0 {
 		cfg.MaxRetries = 2
 	}
@@ -54,22 +64,91 @@ func New(cfg Config) (*Provider, error) {
 	default:
 		return nil, fmt.Errorf("anthropic: invalid effort %q", cfg.Effort)
 	}
-	opts := []option.RequestOption{
-		option.WithAPIKey(cfg.APIKey),
-		option.WithMaxRetries(cfg.MaxRetries),
-		// Long agentic turns can stream for many minutes on large models.
-		option.WithRequestTimeout(RequestTimeout),
+	p := &Provider{cfg: cfg}
+	for _, key := range keys {
+		opts := []option.RequestOption{
+			option.WithAPIKey(key),
+			option.WithMaxRetries(cfg.MaxRetries),
+			// Long agentic turns can stream for many minutes on large models.
+			option.WithRequestTimeout(RequestTimeout),
+		}
+		if cfg.BaseURL != "" {
+			opts = append(opts, option.WithBaseURL(cfg.BaseURL))
+		}
+		if cfg.HTTPClient != nil {
+			opts = append(opts, option.WithHTTPClient(cfg.HTTPClient))
+		}
+		p.clients = append(p.clients, sdk.NewClient(opts...))
 	}
-	if cfg.BaseURL != "" {
-		opts = append(opts, option.WithBaseURL(cfg.BaseURL))
+	p.client = p.clients[0]
+	return p, nil
+}
+
+func dedupe(keys []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, k := range keys {
+		k = strings.TrimSpace(k)
+		if k == "" || seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, k)
 	}
-	if cfg.HTTPClient != nil {
-		opts = append(opts, option.WithHTTPClient(cfg.HTTPClient))
-	}
-	return &Provider{cfg: cfg, client: sdk.NewClient(opts...)}, nil
+	return out
 }
 
 func (p *Provider) Name() string { return "anthropic" }
+
+// Keys reports how many API keys the provider rotates between.
+func (p *Provider) Keys() int { return len(p.clients) }
+
+func (p *Provider) current() *sdk.Client {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return &p.clients[p.keyIdx]
+}
+
+func (p *Provider) rotateKey() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.clients) < 2 {
+		return false
+	}
+	p.keyIdx = (p.keyIdx + 1) % len(p.clients)
+	return true
+}
+
+func keyProblem(err error) bool {
+	var ae *APIError
+	if !errors.As(err, &ae) {
+		return false
+	}
+	switch ae.Status {
+	case 429, 401, 403, 529:
+		return true
+	}
+	return false
+}
+
+// ListModels implements llm.ModelLister.
+func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
+	page, err := p.current().Models.List(ctx, sdk.ModelListParams{Limit: sdk.Int(100)})
+	if err != nil {
+		return nil, mapError(ctx, err)
+	}
+	var out []llm.ModelInfo
+	for page != nil {
+		for _, m := range page.Data {
+			out = append(out, llm.ModelInfo{ID: m.ID, Name: m.DisplayName})
+		}
+		page, err = page.GetNextPage()
+		if err != nil {
+			return nil, mapError(ctx, err)
+		}
+	}
+	return out, nil
+}
 
 // APIError is a non-2xx response from the API.
 type APIError struct {
@@ -206,7 +285,17 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if err != nil {
 		return nil, err
 	}
-	stream := p.client.Messages.NewStreaming(ctx, params)
+	for rotations := 0; ; rotations++ {
+		resp, err := p.stream(ctx, params, emit)
+		if err != nil && keyProblem(err) && rotations < len(p.clients)-1 && p.rotateKey() {
+			continue
+		}
+		return resp, err
+	}
+}
+
+func (p *Provider) stream(ctx context.Context, params sdk.MessageNewParams, emit func(llm.Event)) (*llm.Response, error) {
+	stream := p.current().Messages.NewStreaming(ctx, params)
 	msg := sdk.Message{}
 	// Track open tool_use blocks by index so we can emit start/end events.
 	openTools := map[int64]*llm.Block{}

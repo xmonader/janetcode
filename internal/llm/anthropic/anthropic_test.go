@@ -230,3 +230,47 @@ func TestBuildParamsImages(t *testing.T) {
 		}
 	}
 }
+
+func TestKeyRotationAndListModels(t *testing.T) {
+	var keysSeen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := r.Header.Get("x-api-key")
+		if r.URL.Path == "/v1/models" {
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `{"data":[{"id":"claude-a","display_name":"Claude A","type":"model","created_at":"2025-01-01T00:00:00Z"}],"has_more":false,"first_id":"claude-a","last_id":"claude-a"}`)
+			return
+		}
+		keysSeen = append(keysSeen, key)
+		if key == "k1" {
+			w.WriteHeader(429)
+			io.WriteString(w, `{"type":"error","error":{"type":"rate_limit_error","message":"rate limited"}}`)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, event("message_start", `{"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","model":"x","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}}}`))
+		io.WriteString(w, event("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`))
+		io.WriteString(w, event("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ok"}}`))
+		io.WriteString(w, event("content_block_stop", `{"type":"content_block_stop","index":0}`))
+		io.WriteString(w, event("message_delta", `{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":1}}`))
+		io.WriteString(w, event("message_stop", `{"type":"message_stop"}`))
+	}))
+	defer srv.Close()
+	p, err := New(Config{APIKey: "k1", APIKeys: []string{"k2"}, BaseURL: srv.URL, MaxRetries: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Keys() != 2 {
+		t.Fatalf("keys = %d", p.Keys())
+	}
+	resp, err := p.Stream(context.Background(), llm.Request{Model: "m", MaxTokens: 10, Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	if err != nil || resp.Message.Text() != "ok" {
+		t.Fatalf("resp=%v err=%v", resp, err)
+	}
+	if len(keysSeen) < 2 || keysSeen[0] != "k1" || keysSeen[len(keysSeen)-1] != "k2" {
+		t.Fatalf("keys tried = %v", keysSeen)
+	}
+	models, err := p.ListModels(context.Background())
+	if err != nil || len(models) != 1 || models[0].ID != "claude-a" || models[0].Name != "Claude A" {
+		t.Fatalf("models = %+v err = %v", models, err)
+	}
+}

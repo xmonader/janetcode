@@ -217,6 +217,17 @@ type Provider interface {
 	Stream(ctx context.Context, req Request, emit func(Event)) (*Response, error)
 }
 
+// ModelInfo is one model a provider offers.
+type ModelInfo struct {
+	ID   string
+	Name string // display name when the provider gives one
+}
+
+// ModelLister is implemented by providers that can enumerate their models.
+type ModelLister interface {
+	ListModels(ctx context.Context) ([]ModelInfo, error)
+}
+
 // ErrNoAPIKey is returned when a provider is constructed without credentials.
 var ErrNoAPIKey = errors.New("llm: no API key configured")
 

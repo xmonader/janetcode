@@ -275,3 +275,60 @@ func TestBuildRequestImages(t *testing.T) {
 		t.Fatalf("messages = %s", raw)
 	}
 }
+
+func TestKeyRotationAndListModels(t *testing.T) {
+	var keysSeen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if r.URL.Path == "/v1/models" {
+			if key != "k2" {
+				w.WriteHeader(401)
+				io.WriteString(w, `{"error":{"message":"bad key"}}`)
+				return
+			}
+			io.WriteString(w, `{"data":[{"id":"zeta"},{"id":"alpha","name":"Alpha"}]}`)
+			return
+		}
+		keysSeen = append(keysSeen, key)
+		switch key {
+		case "k1":
+			w.WriteHeader(429)
+			io.WriteString(w, `{"error":{"message":"usage allocated quota exceeded"}}`)
+		case "k2":
+			io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+		default:
+			w.WriteHeader(401)
+			io.WriteString(w, `{"error":{"message":"bad key"}}`)
+		}
+	}))
+	defer srv.Close()
+	p, err := New(Config{BaseURL: srv.URL + "/v1", APIKey: "k1", APIKeys: []string{"k1", " k2 ", ""}, MaxRetries: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Keys() != 2 {
+		t.Fatalf("keys = %d (dedupe and trim)", p.Keys())
+	}
+	req := llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}
+	resp, err := p.Stream(context.Background(), req, nil)
+	if err != nil || resp.Message.Text() != "ok" {
+		t.Fatalf("resp=%v err=%v", resp, err)
+	}
+	if strings.Join(keysSeen, ",") != "k1,k2" {
+		t.Fatalf("keys tried = %v; the second key should be used right after the quota error", keysSeen)
+	}
+	// The working key stays current for later requests and model listing.
+	keysSeen = nil
+	if _, err := p.Stream(context.Background(), req, nil); err != nil || strings.Join(keysSeen, ",") != "k2" {
+		t.Fatalf("second call keys = %v err = %v", keysSeen, err)
+	}
+	models, err := p.ListModels(context.Background())
+	if err != nil || len(models) != 2 || models[0].ID != "alpha" || models[0].Name != "Alpha" || models[1].ID != "zeta" {
+		t.Fatalf("models = %+v err = %v", models, err)
+	}
+	// A single key never loops: the 401 comes straight back.
+	single, _ := New(Config{BaseURL: srv.URL + "/v1", APIKey: "k9", MaxRetries: 1})
+	if _, err := single.Stream(context.Background(), req, nil); err == nil || !strings.Contains(err.Error(), "bad key") {
+		t.Fatalf("single key err = %v", err)
+	}
+}

@@ -29,6 +29,9 @@ type Config struct {
 	// BaseURL is the API root, e.g. https://api.openai.com/v1.
 	BaseURL string
 	APIKey  string
+	// APIKeys are extra keys tried in turn when one is rate limited or
+	// rejected (429, 401, 403, quota errors).
+	APIKeys []string
 	// Name is the label shown to users (default "openai").
 	Name string
 	// HTTPClient overrides the default client (tests).
@@ -40,8 +43,10 @@ type Config struct {
 
 // Provider is an OpenAI-compatible chat backend.
 type Provider struct {
-	cfg  Config
-	http *http.Client
+	cfg    Config
+	keys   []string
+	keyIdx int
+	http   *http.Client
 
 	// Dialect quirks learned from 400 responses, kept for the provider's
 	// lifetime so each is paid for at most once.
@@ -52,9 +57,11 @@ type Provider struct {
 
 // New validates cfg and builds a provider.
 func New(cfg Config) (*Provider, error) {
-	if cfg.APIKey == "" {
+	keys := dedupe(append([]string{cfg.APIKey}, cfg.APIKeys...))
+	if len(keys) == 0 {
 		return nil, llm.ErrNoAPIKey
 	}
+	cfg.APIKey = keys[0]
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.openai.com/v1"
 	}
@@ -74,10 +81,101 @@ func New(cfg Config) (*Provider, error) {
 			Transport: &http.Transport{ResponseHeaderTimeout: 2 * time.Minute, Proxy: http.ProxyFromEnvironment},
 		}
 	}
-	return &Provider{cfg: cfg, http: hc}, nil
+	return &Provider{cfg: cfg, keys: keys, http: hc}, nil
+}
+
+func dedupe(keys []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, k := range keys {
+		k = strings.TrimSpace(k)
+		if k == "" || seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, k)
+	}
+	return out
 }
 
 func (p *Provider) Name() string { return p.cfg.Name }
+
+// Keys reports how many API keys the provider rotates between.
+func (p *Provider) Keys() int { return len(p.keys) }
+
+// currentKey returns the key in use.
+func (p *Provider) currentKey() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.keys[p.keyIdx]
+}
+
+// rotateKey moves to the next key after a rate limit or rejection. It
+// reports false when there is no other key to try.
+func (p *Provider) rotateKey() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.keys) < 2 {
+		return false
+	}
+	p.keyIdx = (p.keyIdx + 1) % len(p.keys)
+	return true
+}
+
+// keyProblem reports whether an error is one another key might avoid.
+func keyProblem(err error) bool {
+	var ae *APIError
+	if !errors.As(err, &ae) {
+		return false
+	}
+	if ae.Status == 429 || ae.Status == 401 || ae.Status == 403 {
+		return true
+	}
+	msg := strings.ToLower(ae.Message)
+	return strings.Contains(msg, "quota") || strings.Contains(msg, "rate limit")
+}
+
+// ListModels implements llm.ModelLister via GET /models.
+func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
+	hreq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.cfg.BaseURL+"/models", nil)
+	if err != nil {
+		return nil, err
+	}
+	hreq.Header.Set("Authorization", "Bearer "+p.currentKey())
+	resp, err := p.http.Do(hreq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if resp.StatusCode/100 != 2 {
+		msg := strings.TrimSpace(string(raw))
+		var env struct {
+			Error *wireError `json:"error"`
+		}
+		if json.Unmarshal(raw, &env) == nil && env.Error != nil && env.Error.Message != "" {
+			msg = env.Error.Message
+		}
+		return nil, &APIError{Status: resp.StatusCode, Message: msg}
+	}
+	var out struct {
+		Data []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("models: bad response: %w", err)
+	}
+	var models []llm.ModelInfo
+	for _, m := range out.Data {
+		if m.ID != "" {
+			models = append(models, llm.ModelInfo{ID: m.ID, Name: m.Name})
+		}
+	}
+	sort.Slice(models, func(i, j int) bool { return models[i].ID < models[j].ID })
+	return models, nil
+}
 
 // --- wire types ---
 
@@ -275,6 +373,7 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		return nil, err
 	}
 	var resp *http.Response
+	rotations := 0
 	for attempt := 0; ; attempt++ {
 		body, err := json.Marshal(p.applyDialect(w))
 		if err != nil {
@@ -287,6 +386,12 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		if p.learnDialect(err) {
 			// A parameter the server rejects was dropped or renamed; resend
 			// immediately without counting it as a retry.
+			continue
+		}
+		if keyProblem(err) && rotations < len(p.keys)-1 && p.rotateKey() {
+			// Another key may have quota left; try it right away.
+			rotations++
+			attempt--
 			continue
 		}
 		if attempt >= p.cfg.MaxRetries || !retryable(err) || ctx.Err() != nil {
@@ -343,7 +448,7 @@ func (p *Provider) do(ctx context.Context, body []byte) (*http.Response, error) 
 	}
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/event-stream")
-	hreq.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
+	hreq.Header.Set("Authorization", "Bearer "+p.currentKey())
 	resp, err := p.http.Do(hreq)
 	if err != nil {
 		return nil, err
