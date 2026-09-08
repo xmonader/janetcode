@@ -1,12 +1,14 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,6 +47,9 @@ type checkpointer struct {
 	dirty    bool // changed since the last SaveUndo
 	gitTried bool // a git snapshot was attempted this turn
 	all      []Checkpoint
+	// redo holds the states undone in this session, newest last; any new
+	// change clears it.
+	redo []Checkpoint
 }
 
 // beginTurn closes the previous turn's checkpoint; the next snapshot opens
@@ -69,8 +74,7 @@ func (c *checkpointer) snapshot(repo *snapshot.Repo, t tool.Tool, input []byte) 
 		cancel()
 		if err == nil {
 			if !c.open {
-				c.all = append(c.all, Checkpoint{When: time.Now()})
-				c.open = true
+				c.openCheckpoint(repo)
 			}
 			c.all[len(c.all)-1].Snap = &snap
 			c.dirty = true
@@ -95,13 +99,127 @@ func (c *checkpointer) snapshot(repo *snapshot.Repo, t tool.Tool, input []byte) 
 			continue // unreadable: cannot promise a restore
 		}
 		if !c.open {
-			c.all = append(c.all, Checkpoint{When: time.Now()})
-			c.open = true
+			c.openCheckpoint(repo)
 		}
 		cur := &c.all[len(c.all)-1]
 		cur.Files = append(cur.Files, snap)
 		c.dirty = true
 	}
+}
+
+// openCheckpoint starts a checkpoint for the running turn. A new change
+// makes the redo states unreachable, so they are dropped.
+func (c *checkpointer) openCheckpoint(repo *snapshot.Repo) {
+	c.all = append(c.all, Checkpoint{When: time.Now()})
+	c.open = true
+	c.dropRedo(repo)
+}
+
+func (c *checkpointer) dropRedo(repo *snapshot.Repo) {
+	for _, r := range c.redo {
+		if repo != nil && r.Snap != nil {
+			repo.Drop(context.Background(), *r.Snap)
+		}
+	}
+	c.redo = nil
+}
+
+// ErrNothingToRedo is returned by Redo when no undo can be reapplied.
+var ErrNothingToRedo = errors.New("nothing to redo")
+
+// UndoPreview lists what Undo would do, one "verb path" per line, without
+// changing anything.
+func (a *Agent) UndoPreview() ([]string, error) {
+	a.cp.mu.Lock()
+	defer a.cp.mu.Unlock()
+	n := len(a.cp.all)
+	if n == 0 {
+		return nil, ErrNothingToUndo
+	}
+	cp := a.cp.all[n-1]
+	var out []string
+	seen := map[string]bool{}
+	if cp.Snap != nil && a.Snapshots != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		diff, err := a.Snapshots.Diff(ctx, *cp.Snap)
+		cancel()
+		if err != nil {
+			return nil, err
+		}
+		for _, d := range diff {
+			status, path, _ := strings.Cut(d, " ")
+			seen[path] = true
+			switch status {
+			case "A":
+				out = append(out, "remove "+path)
+			case "D":
+				out = append(out, "recreate "+path)
+			default:
+				out = append(out, "restore "+path)
+			}
+		}
+	}
+	for _, f := range cp.Files {
+		if seen[f.Path] {
+			continue
+		}
+		if f.Existed {
+			out = append(out, "restore "+f.Path)
+		} else {
+			out = append(out, "remove "+f.Path)
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// Redo reapplies the most recently undone turn. It works until the next
+// change or the end of the session, and returns what it restored.
+func (a *Agent) Redo() ([]string, error) {
+	a.cp.mu.Lock()
+	defer a.cp.mu.Unlock()
+	n := len(a.cp.redo)
+	if n == 0 {
+		return nil, ErrNothingToRedo
+	}
+	entry := a.cp.redo[n-1]
+	a.cp.redo = a.cp.redo[:n-1]
+	// The state before redoing becomes undoable again.
+	if before, ok := a.captureState(entry, "before redo"); ok {
+		a.cp.all = append(a.cp.all, before)
+		a.cp.open = false
+		a.cp.dirty = true
+	}
+	done, err := a.restore(entry)
+	a.cp.mu.Unlock()
+	if serr := a.SaveUndo(); serr != nil {
+		a.debugf("save undo: %v", serr)
+	}
+	a.cp.mu.Lock()
+	return done, err
+}
+
+// captureState records the current tree as a checkpoint covering what
+// the given one covers, so the restore can be reversed. Called with the
+// lock held.
+func (a *Agent) captureState(like Checkpoint, label string) (Checkpoint, bool) {
+	cp := Checkpoint{When: time.Now()}
+	if a.Snapshots != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		snap, err := a.Snapshots.Take(ctx, label)
+		cancel()
+		if err == nil {
+			cp.Snap = &snap
+		}
+	}
+	for _, f := range like.Files {
+		s := Snapshot{Path: f.Path}
+		if data, err := os.ReadFile(f.Path); err == nil {
+			s.Data, s.Existed = data, true
+		}
+		cp.Files = append(cp.Files, s)
+	}
+	return cp, cp.Snap != nil || len(cp.Files) > 0
 }
 
 // SaveUndo persists the checkpoints to UndoPath so /undo works after a
@@ -113,18 +231,25 @@ func (a *Agent) SaveUndo() error {
 	a.cp.mu.Lock()
 	defer a.cp.mu.Unlock()
 	a.cp.dirty = false
-	if len(a.cp.all) == 0 {
+	if len(a.cp.all) == 0 && len(a.cp.redo) == 0 {
 		err := os.Remove(a.UndoPath)
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
 		return err
 	}
-	data, err := json.Marshal(a.cp.all)
+	data, err := json.Marshal(undoFile{Checkpoints: a.cp.all, Redo: a.cp.redo})
 	if err != nil {
 		return err
 	}
 	return tool.AtomicWrite(a.UndoPath, data)
+}
+
+// undoFile is the on-disk shape of UndoPath. Older files hold a bare
+// checkpoint array.
+type undoFile struct {
+	Checkpoints []Checkpoint `json:"checkpoints"`
+	Redo        []Checkpoint `json:"redo,omitempty"`
 }
 
 // LoadUndo restores checkpoints saved by SaveUndo. A missing file is fine.
@@ -139,12 +264,17 @@ func (a *Agent) LoadUndo() error {
 	if err != nil {
 		return err
 	}
-	var all []Checkpoint
-	if err := json.Unmarshal(data, &all); err != nil {
+	var f undoFile
+	if bytes.HasPrefix(bytes.TrimSpace(data), []byte("[")) {
+		err = json.Unmarshal(data, &f.Checkpoints)
+	} else {
+		err = json.Unmarshal(data, &f)
+	}
+	if err != nil {
 		return fmt.Errorf("%s: %w", a.UndoPath, err)
 	}
 	a.cp.mu.Lock()
-	a.cp.all, a.cp.open, a.cp.dirty = all, false, false
+	a.cp.all, a.cp.redo, a.cp.open, a.cp.dirty = f.Checkpoints, f.Redo, false, false
 	a.cp.mu.Unlock()
 	return nil
 }
@@ -201,7 +331,8 @@ func (a *Agent) Checkpoints() []Checkpoint {
 
 // Undo restores the files changed by the most recent turn that touched any
 // and forgets that checkpoint. It returns what it restored, and an error
-// listing files that could not be restored.
+// listing files that could not be restored. The state before undoing is
+// kept for Redo.
 func (a *Agent) Undo() ([]string, error) {
 	a.cp.mu.Lock()
 	defer a.cp.mu.Unlock()
@@ -213,13 +344,22 @@ func (a *Agent) Undo() ([]string, error) {
 	a.cp.all = a.cp.all[:n-1]
 	a.cp.open = false
 	a.cp.dirty = true
-	defer func() {
-		a.cp.mu.Unlock()
-		if err := a.SaveUndo(); err != nil {
-			a.debugf("save undo: %v", err)
-		}
-		a.cp.mu.Lock()
-	}()
+	if now, ok := a.captureState(cp, "before undo"); ok {
+		a.cp.redo = append(a.cp.redo, now)
+	}
+	done, err := a.restore(cp)
+	a.cp.mu.Unlock()
+	if serr := a.SaveUndo(); serr != nil {
+		a.debugf("save undo: %v", serr)
+	}
+	a.cp.mu.Lock()
+	return done, err
+}
+
+// restore puts the tree back to a checkpoint: through git when it holds a
+// snapshot, else (or as a fallback) from the file copies. Called with the
+// lock held.
+func (a *Agent) restore(cp Checkpoint) ([]string, error) {
 	var (
 		done []string
 		errs []error

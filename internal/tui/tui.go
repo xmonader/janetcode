@@ -737,7 +737,8 @@ var commands = []command{
 	{"/title", "<text>", "name this session (titles are generated after the first turn)"},
 	{"/history", "<words>", "find earlier sessions in any directory whose conversation mentions the words"},
 	{"/find", "<text>", "jump to the next line matching text; repeat to continue"},
-	{"/undo", "", "revert everything the last turn changed (git snapshot; file copies outside git)"},
+	{"/undo", "[preview]", "revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it"},
+	{"/redo", "", "reapply what the last /undo reverted (until the next change)"},
 	{"/mcp", "[trust]", "MCP servers and their tools; trust starts the project's .mcp.json servers"},
 	{"/hooks", "[trust]", "hooks in effect; trust enables the project's .janetcode/hooks.json"},
 	{"/permissions", "[allow|deny <rule>|trust]", "permission rules; add one, or trust the project's .janetcode/permissions.json"},
@@ -1918,30 +1919,8 @@ func (m *model) command(text string) tea.Cmd {
 		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 	case "/memory", "/remember", "/forget":
 		m.memoryCommand(fields[0], strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
-	case "/undo":
-		if m.running {
-			m.transcript.errorf("wait for the current turn to finish before undoing")
-			break
-		}
-		done, err := m.opts.Agent.Undo()
-		if errors.Is(err, agent.ErrNothingToUndo) {
-			m.transcript.errorf("nothing to undo: no turn has changed anything yet")
-			break
-		}
-		for _, d := range done {
-			verb, path, _ := strings.Cut(d, " ")
-			if rel, err := filepath.Rel(m.opts.Cwd, path); err == nil && !strings.HasPrefix(rel, "..") {
-				path = rel
-			}
-			m.transcript.info("↶ " + verb + " " + shortPath(path))
-		}
-		if err != nil {
-			m.transcript.errorf("undo incomplete: %v", err)
-		}
-		if len(done) > 0 {
-			m.opts.Agent.AddContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
-			m.status = fmt.Sprintf("undid %d file change(s) · %d more turn(s) can be undone", len(done), len(m.opts.Agent.Checkpoints()))
-		}
+	case "/undo", "/redo":
+		m.undoCommand(fields[0], len(fields) > 1 && fields[1] == "preview")
 	case "/find", "/search":
 		q := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
 		if q == "" {
@@ -2499,4 +2478,77 @@ func shortPath(p string) string {
 		return "~" + strings.TrimPrefix(p, home)
 	}
 	return p
+}
+
+// undoCommand handles /undo, /undo preview and /redo.
+func (m *model) undoCommand(cmd string, preview bool) {
+	if m.running {
+		m.transcript.errorf("wait for the current turn to finish before %s", strings.TrimPrefix(cmd, "/")+"ing")
+		return
+	}
+	rel := func(path string) string {
+		if r, err := filepath.Rel(m.opts.Cwd, path); err == nil && !strings.HasPrefix(r, "..") {
+			path = r
+		}
+		return shortPath(path)
+	}
+	if preview {
+		lines, err := m.opts.Agent.UndoPreview()
+		if errors.Is(err, agent.ErrNothingToUndo) {
+			m.transcript.errorf("nothing to undo: no turn has changed anything yet")
+			return
+		}
+		if err != nil {
+			m.transcript.errorf("undo preview: %v", err)
+			return
+		}
+		if len(lines) == 0 {
+			m.transcript.info("/undo would change nothing (the tree already matches the snapshot)")
+			return
+		}
+		var sb strings.Builder
+		fmt.Fprintf(&sb, "/undo would revert %d file(s):\n", len(lines))
+		for _, l := range lines {
+			verb, path, _ := strings.Cut(l, " ")
+			fmt.Fprintf(&sb, "  %-8s %s\n", verb, rel(path))
+		}
+		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+		return
+	}
+	var (
+		done []string
+		err  error
+		mark = "↶"
+	)
+	if cmd == "/redo" {
+		mark = "↷"
+		done, err = m.opts.Agent.Redo()
+		if errors.Is(err, agent.ErrNothingToRedo) {
+			m.transcript.errorf("nothing to redo: /redo only reapplies an /undo from before the next change")
+			return
+		}
+	} else {
+		done, err = m.opts.Agent.Undo()
+		if errors.Is(err, agent.ErrNothingToUndo) {
+			m.transcript.errorf("nothing to undo: no turn has changed anything yet")
+			return
+		}
+	}
+	for _, d := range done {
+		verb, path, _ := strings.Cut(d, " ")
+		m.transcript.info(mark + " " + verb + " " + rel(path))
+	}
+	if err != nil {
+		m.transcript.errorf("%s incomplete: %v", strings.TrimPrefix(cmd, "/"), err)
+	}
+	if len(done) == 0 {
+		return
+	}
+	if cmd == "/redo" {
+		m.opts.Agent.AddContext("I reapplied the file changes I had undone:\n" + strings.Join(done, "\n"))
+		m.status = fmt.Sprintf("redid %d file change(s) · /undo reverts them again", len(done))
+		return
+	}
+	m.opts.Agent.AddContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
+	m.status = fmt.Sprintf("undid %d file change(s) · %d more turn(s) can be undone · /redo reapplies", len(done), len(m.opts.Agent.Checkpoints()))
 }

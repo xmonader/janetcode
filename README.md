@@ -145,7 +145,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /connect   /model     /compact (summarise the context to free the window)
 /usage
 /resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)
-/undo      /find X    /cost      /mcp [trust]
+/undo [preview]  /redo  /find X    /cost      /mcp [trust]
 /fork [title]  /title <text>  /history <words> (search every saved session)
 /open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)
 /context   (what fills the window)   /pin <note or @file>   /unpin <n>
@@ -183,6 +183,10 @@ files changed through `edit_file`/`write_file` are restored from copies.
 Repeat it to go back further (up to 30 turns); it still works after
 `--continue` or `/resume`. If you committed or checked out in between, the
 git snapshot is not applied and only file-tool changes are reverted.
+`/undo preview` lists what an undo would restore, recreate or remove
+without touching anything. `/redo` reapplies what the last `/undo`
+reverted; it survives a restart but is discarded as soon as the next turn
+changes something, because the two histories would no longer line up.
 
 ### Permission rules
 

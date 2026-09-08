@@ -96,8 +96,26 @@ func TestUndoPersistsAcrossAgents(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "x")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("undo from the resumed agent did not remove x")
 	}
+	// The undone state stays on disk so a later resume can redo it.
+	c := &Agent{UndoPath: a.UndoPath}
+	if err := c.LoadUndo(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Redo(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "x")); err != nil {
+		t.Fatal("redo from a resumed agent did not recreate x")
+	}
+	if _, err := c.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	c.cp.dropRedo(nil)
+	if err := c.SaveUndo(); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := os.Stat(a.UndoPath); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal("empty checkpoint list should remove the undo file")
+		t.Fatal("empty checkpoint and redo lists should remove the undo file")
 	}
 	os.WriteFile(a.UndoPath, []byte("{bad"), 0o644)
 	if err := b.LoadUndo(); err == nil {
@@ -168,10 +186,58 @@ func TestUndoRevertsShellChangesThroughGit(t *testing.T) {
 	if _, err := a.Undo(); !errors.Is(err, ErrNothingToUndo) {
 		t.Fatalf("second undo err = %v", err)
 	}
-	cmd := exec.Command("git", "for-each-ref", snapshot.RefPrefix)
-	cmd.Dir = root
-	if out, _ := cmd.Output(); len(out) != 0 {
-		t.Fatalf("snapshot refs left behind: %s", out)
+	refs := func() string {
+		cmd := exec.Command("git", "for-each-ref", snapshot.RefPrefix)
+		cmd.Dir = root
+		out, _ := cmd.Output()
+		return string(out)
+	}
+	if n := strings.Count(refs(), "\n"); n != 1 {
+		t.Fatalf("want exactly the redo snapshot ref, got:\n%s", refs())
+	}
+	// Redo brings the changes back and makes them undoable again.
+	done, err = a.Redo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "changed\n" {
+		t.Fatalf("a.txt after redo = %q (done: %v)", data, done)
+	}
+	if _, err := os.Stat(filepath.Join(root, "made.txt")); err != nil {
+		t.Fatal("made.txt not recreated by redo")
+	}
+	if _, err := a.Redo(); !errors.Is(err, ErrNothingToRedo) {
+		t.Fatalf("second redo err = %v", err)
+	}
+	preview, err := a.UndoPreview()
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined = strings.Join(preview, "\n")
+	for _, want := range []string{"remove " + filepath.Join(root, "made.txt"), "restore " + filepath.Join(root, "a.txt")} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("preview missing %q in:\n%s", want, joined)
+		}
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "changed\n" {
+		t.Fatal("preview changed the tree")
+	}
+	if _, err := a.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "alpha\n" {
+		t.Fatalf("a.txt after undo of redo = %q", data)
+	}
+	// A new change discards the redo state and its ref.
+	f.responses = append(f.responses, toolCall("t9", "write_file", `{"path":"c.txt","content":"new"}`), text("ok"))
+	if err := a.Run(context.Background(), "write c", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Redo(); !errors.Is(err, ErrNothingToRedo) {
+		t.Fatalf("redo after new change err = %v", err)
+	}
+	if n := strings.Count(refs(), "\n"); n != 1 {
+		t.Fatalf("want only the new turn's ref, got:\n%s", refs())
 	}
 }
 

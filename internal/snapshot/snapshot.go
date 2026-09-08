@@ -170,6 +170,36 @@ func (r *Repo) Changed(ctx context.Context, s Snap) (bool, error) {
 	return out != "", err
 }
 
+// Diff lists how the work tree differs from a snapshot as "M path",
+// "A path" (exists now, not in the snapshot) or "D path" (gone now).
+func (r *Repo) Diff(ctx context.Context, s Snap) ([]string, error) {
+	idx, cleanup, err := r.tempIndex()
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+	if _, err := r.run(ctx, idx, "read-tree", s.Commit); err != nil {
+		return nil, err
+	}
+	if _, err := r.run(ctx, idx, "add", "-A", "--", "."); err != nil {
+		return nil, err
+	}
+	out, err := r.run(ctx, idx, "diff-index", "--cached", "--name-status", "-z", s.Commit)
+	if err != nil {
+		return nil, err
+	}
+	var lines []string
+	parts := strings.Split(out, "\x00")
+	for i := 0; i+1 < len(parts); i += 2 {
+		status, path := parts[i], parts[i+1]
+		if status == "" {
+			continue
+		}
+		lines = append(lines, status[:1]+" "+filepath.Join(r.Root, path))
+	}
+	return lines, nil
+}
+
 func (r *Repo) head() string {
 	h, err := git(r.Root, nil, "rev-parse", "--verify", "-q", "HEAD")
 	if err != nil {

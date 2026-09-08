@@ -485,6 +485,19 @@ func TestUndoCommand(t *testing.T) {
 	if _, err := os.Stat(target); err != nil {
 		t.Fatal("file not written")
 	}
+	h.keys("/undo preview")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "/undo would revert 1 file(s)") || !strings.Contains(v, "remove   n.txt") {
+		t.Fatalf("view:\n%s", v)
+	}
+	if _, err := os.Stat(target); err != nil {
+		t.Fatal("preview removed the file")
+	}
+	h.keys("/redo")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "nothing to redo") {
+		t.Fatalf("view:\n%s", v)
+	}
 	h.keys("/undo")
 	h.enter()
 	if _, err := os.Stat(target); err == nil {
@@ -492,6 +505,19 @@ func TestUndoCommand(t *testing.T) {
 	}
 	if v := plain(h.m.View()); !strings.Contains(v, "↶ removed") || !strings.Contains(v, "n.txt") {
 		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/redo")
+	h.enter()
+	if data, err := os.ReadFile(target); err != nil || string(data) != "x\n" {
+		t.Fatalf("redo did not recreate the file: %q %v", data, err)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "↷ restored") || !strings.Contains(v, "redid 1 file change(s)") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/undo")
+	h.enter()
+	if _, err := os.Stat(target); err == nil {
+		t.Fatal("undo after redo did not remove the file")
 	}
 	h.keys("continue")
 	h.enter()
