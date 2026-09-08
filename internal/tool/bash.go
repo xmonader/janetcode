@@ -45,6 +45,9 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if strings.TrimSpace(in.Command) == "" {
 		return "", fmt.Errorf("command is empty")
 	}
+	if risk, why := Classify(in.Command, t.Root); risk == RiskCatastrophic {
+		return "", fmt.Errorf("refused: this command %s. janetcode never runs it, not even with auto-approve; do not retry it in another form", why)
+	}
 	def, max := t.DefaultTimeout, t.MaxTimeout
 	if def == 0 {
 		def = 2 * time.Minute
@@ -121,8 +124,23 @@ var dangerPatterns = []struct {
 	{regexp.MustCompile(`>\s*/dev/sd|>\s*/etc/`), "overwrites system files"},
 }
 
+// Guard implements Guard: commands that change files outside the workspace
+// always ask, whatever the permission mode.
+func (t Bash) Guard(input json.RawMessage) (bool, string) {
+	var in struct {
+		Command string `json:"command"`
+	}
+	if json.Unmarshal(input, &in) != nil {
+		return false, ""
+	}
+	if risk, why := Classify(in.Command, t.Root); risk == RiskEscapes {
+		return true, why
+	}
+	return false, ""
+}
+
 // Warn implements Warner.
-func (Bash) Warn(input json.RawMessage) string {
+func (t Bash) Warn(input json.RawMessage) string {
 	var in struct {
 		Command string `json:"command"`
 	}
@@ -130,6 +148,9 @@ func (Bash) Warn(input json.RawMessage) string {
 		return ""
 	}
 	var notes []string
+	if risk, why := Classify(in.Command, t.Root); risk != RiskOrdinary {
+		notes = append(notes, why)
+	}
 	for _, d := range dangerPatterns {
 		if d.re.MatchString(in.Command) {
 			notes = append(notes, d.note)

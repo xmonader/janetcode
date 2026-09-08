@@ -3,9 +3,9 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
-	"fmt"
 	"strings"
 	"testing"
 )

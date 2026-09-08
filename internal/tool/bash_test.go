@@ -95,3 +95,20 @@ func TestBashWarn(t *testing.T) {
 		}
 	}
 }
+
+func TestBashRefusesCatastrophicAndGuardsEscapes(t *testing.T) {
+	b := Bash{Root: t.TempDir()}
+	_, err := b.Run(context.Background(), raw(`{"command":"echo hi && sudo rm -rf /"}`))
+	if err == nil || !strings.Contains(err.Error(), "refused") || !strings.Contains(err.Error(), "home directory") {
+		t.Fatalf("err = %v", err)
+	}
+	if ask, why := b.Guard(raw(`{"command":"cp a.txt ../elsewhere/"}`)); !ask || !strings.Contains(why, "outside the workspace") {
+		t.Fatalf("guard = %v %q", ask, why)
+	}
+	if ask, _ := b.Guard(raw(`{"command":"cp a.txt b.txt"}`)); ask {
+		t.Fatal("ordinary copy should not ask")
+	}
+	if w := b.Warn(raw(`{"command":"rm -rf ../x"}`)); !strings.Contains(w, "outside the workspace") || !strings.Contains(w, "recursive force delete") {
+		t.Fatalf("warn = %q", w)
+	}
+}

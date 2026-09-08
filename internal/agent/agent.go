@@ -387,7 +387,18 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	if w, ok := t.(tool.Warner); ok {
 		call.Warning = w.Warn(u.Input)
 	}
-	if t.Mutating() && !a.AutoApprove && !a.allowed[u.Name] {
+	// A guarded input (a command reaching outside the workspace) asks even
+	// under auto-approve or a session-wide allow.
+	mustAsk := false
+	if g, ok := t.(tool.Guard); ok && t.Mutating() {
+		if ask, why := g.Guard(u.Input); ask {
+			mustAsk = true
+			if why != "" && !strings.Contains(call.Warning, why) {
+				call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
+			}
+		}
+	}
+	if t.Mutating() && (mustAsk || !a.AutoApprove && !a.allowed[u.Name]) {
 		if a.Approver == nil {
 			msg := "Permission denied: no approver configured for mutating tools."
 			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
@@ -408,7 +419,9 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 		}
 		switch d {
 		case AllowSession:
-			a.allowed[u.Name] = true
+			if !mustAsk {
+				a.allowed[u.Name] = true
+			}
 		case Allow:
 		default:
 			msg := DeniedMessage

@@ -170,6 +170,13 @@ type Toucher interface {
 	Touches(input json.RawMessage) ([]string, error)
 }
 
+// Guard is implemented by tools whose inputs can be risky enough that the
+// user must be asked even when auto-approve is on or the tool was allowed
+// for the session. The reason is shown in the prompt.
+type Guard interface {
+	Guard(input json.RawMessage) (ask bool, reason string)
+}
+
 // Warner is implemented by tools that can flag risky inputs so the
 // permission prompt can call them out. Empty means nothing to flag.
 type Warner interface {

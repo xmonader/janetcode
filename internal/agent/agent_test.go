@@ -288,3 +288,40 @@ func TestDenyReasonReachesModel(t *testing.T) {
 		t.Fatalf("deny result = %q", r.Text)
 	}
 }
+
+type guardTool struct{ ask bool }
+
+func (guardTool) Name() string            { return "guarded" }
+func (guardTool) Description() string     { return "guarded" }
+func (guardTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
+func (guardTool) Mutating() bool          { return true }
+func (guardTool) Run(context.Context, json.RawMessage) (string, error) {
+	return "ran", nil
+}
+func (g guardTool) Guard(json.RawMessage) (bool, string) { return g.ask, "reaches outside" }
+
+func TestGuardedToolAsksEvenWithAutoApprove(t *testing.T) {
+	asked := 0
+	approver := ApproverFunc(func(ctx context.Context, call ToolCall) (Decision, error) {
+		asked++
+		if call.Warning != "reaches outside" {
+			t.Errorf("warning = %q", call.Warning)
+		}
+		return AllowSession, nil
+	})
+	f := &fake{responses: []*llm.Response{toolCall("1", "guarded", `{}`), toolCall("2", "guarded", `{}`), text("done")}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(guardTool{ask: true}), Approver: approver, AutoApprove: true}
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	// Auto-approve is bypassed and "always" does not stick for guarded calls.
+	if asked != 2 {
+		t.Fatalf("asked %d times, want 2", asked)
+	}
+	asked = 0
+	f = &fake{responses: []*llm.Response{toolCall("1", "guarded", `{}`), text("done")}}
+	a = &Agent{Provider: f, Tools: tool.NewRegistry(guardTool{ask: false}), Approver: approver, AutoApprove: true}
+	if err := a.Run(context.Background(), "go", nil); err != nil || asked != 0 {
+		t.Fatalf("err=%v asked=%d", err, asked)
+	}
+}
