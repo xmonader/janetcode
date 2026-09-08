@@ -1226,3 +1226,39 @@ func TestFooterShowsCacheRate(t *testing.T) {
 		t.Fatalf("view:\n%s", v)
 	}
 }
+
+func TestJobsCommandAndIdleNotice(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+	h.keys("/jobs")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "no background jobs") {
+		t.Fatalf("view:\n%s", v)
+	}
+	jobs := &tool.Jobs{Dir: t.TempDir()}
+	h.m.opts.Jobs = jobs
+	if _, err := jobs.Start(h.m.opts.Cwd, "echo hi; exit 4"); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := jobs.Wait(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	h.update(tickMsg(time.Now()))
+	if v := plain(h.m.View()); !strings.Contains(v, "⚙ job 1 finished with exit 4") {
+		t.Fatalf("view:\n%s", v)
+	}
+	if msgs := h.m.opts.Agent.Messages; len(msgs) != 1 || !strings.Contains(msgs[0].Text(), "[background job update]") {
+		t.Fatalf("context not added: %+v", msgs)
+	}
+	h.keys("/jobs")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "job 1 finished with exit 4") || !strings.Contains(v, "output:") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("/jobs kill 1")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "already finished") {
+		t.Fatalf("view:\n%s", v)
+	}
+}

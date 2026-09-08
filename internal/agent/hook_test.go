@@ -293,3 +293,40 @@ func TestReadOnlyAndPlanModeHideAndRefuseMutatingTools(t *testing.T) {
 		t.Fatalf("system = %q", f.requests[0].System)
 	}
 }
+
+func TestBackgroundJobsAreReportedBetweenCalls(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"echo bg; exit 2","background":true}`),
+		toolCall("t2", "job", `{"action":"wait","id":1,"timeout_ms":5000}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Jobs = &tool.Jobs{Dir: t.TempDir()}
+	a.Tools.Add(tool.Bash{Root: root, Jobs: a.Jobs})
+	a.Tools.Add(tool.JobTool{Jobs: a.Jobs})
+	var notices []string
+	if err := a.Run(context.Background(), "go", func(e Event) {
+		if e.Kind == EvNotice {
+			notices = append(notices, e.Text)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r1 := f.requests[1].Messages
+	if got := r1[len(r1)-1].Blocks[0].Text; !strings.HasPrefix(got, "Started background job 1") {
+		t.Fatalf("bash result = %q", got)
+	}
+	last := f.requests[2].Messages[len(f.requests[2].Messages)-1]
+	var texts []string
+	for _, b := range last.Blocks {
+		texts = append(texts, b.Text)
+	}
+	joined := strings.Join(texts, "|")
+	if !strings.Contains(joined, "job 1 finished with exit 2") || !strings.Contains(joined, "[background job update]") {
+		t.Fatalf("model was not told: %q", joined)
+	}
+	if len(notices) != 1 || !strings.HasPrefix(notices[0], "job 1 finished with exit 2") {
+		t.Fatalf("notices = %q", notices)
+	}
+}

@@ -264,6 +264,17 @@ model can read a skill with the `skill` tool. You can run one yourself as
 lists what is installed. Skills are re-read from disk every turn, so
 editing one takes effect immediately.
 
+### Background jobs
+
+`bash` with `background: true` starts a command detached (its own
+process group, output to a log file) and returns a job id at once, so a
+dev server or a long build does not block the turn. When the job ends,
+the model is told before its next call and you see `⚙ job 1 finished with
+exit 0` in the transcript, with the last lines of output. The `job` tool
+lists jobs, shows output, waits with a timeout, or kills one; `/jobs` and
+`/jobs kill <n>` do the same for you. Every job is stopped when janetcode
+exits.
+
 ### Editing subagents in a worktree
 
 `task` with `edit: true` gives the subagent the full tool set inside a

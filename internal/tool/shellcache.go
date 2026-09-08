@@ -120,3 +120,14 @@ func treeFingerprint(root string) string {
 	}
 	return sb.String()
 }
+
+// invalidate forgets every cached result; a background job may change the
+// tree at any time, so nothing recorded before it is trustworthy.
+func (c *ShellCache) invalidate() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.m = nil
+}

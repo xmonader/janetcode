@@ -171,6 +171,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 
 	task := &agent.Task{Root: cwd}
+	jobs := &tool.Jobs{}
+	defer jobs.KillAll()
 	cfgPath, _ := config.Path()
 	cfgDir := filepath.Dir(cfgPath)
 	archive := agent.NewArchive(session.ArchiveDir(sessDir, cwd))
@@ -190,7 +192,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			tool.ListDir{Root: cwd},
 			tool.Glob{Root: cwd},
 			tool.Grep{Root: cwd},
-			tool.Bash{Root: cwd, Cache: &tool.ShellCache{}},
+			tool.Bash{Root: cwd, Cache: &tool.ShellCache{}, Jobs: jobs},
+			tool.JobTool{Jobs: jobs},
 			tool.FetchURL{},
 			&agent.ExpandOutput{Archive: archive},
 			task,
@@ -204,6 +207,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		CompactAt:     cfg.CompactAt,
 		Messages:      history,
 		Pins:          sess.Meta.Pins,
+		Jobs:          jobs,
 		ContextWindow: cfg.MetaFor(cfg.Model).ContextWindow,
 	}
 	task.Parent = ag
@@ -345,6 +349,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		},
 		Hooks:  &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
 		LSP:    diag,
+		Jobs:   jobs,
 		Verify: &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: trust},
 		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: trust,
 			Save: func(kind string, r perm.Rule) error { return config.AddPermission(cfgPath, kind, r) }},

@@ -127,6 +127,9 @@ type Agent struct {
 	PlanMode bool
 	// Pins are user notes kept in the system prompt across compaction.
 	Pins []string
+	// Jobs, when set, is polled before each model call so finished
+	// background commands are reported to the model as they complete.
+	Jobs *tool.Jobs
 	// ContextWindow is the model's input limit when known; with CompactAt
 	// unset, compaction runs at three quarters of it (capped, see
 	// CompactThreshold) instead of DefaultCompactAt.
@@ -253,6 +256,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			}
 		}
 		a.checkIntegrity(emit)
+		a.reportJobs(emit)
 		resp, err := a.call(ctx, emit)
 		if err != nil && isContextOverflow(err) && compactAt > 0 {
 			// The estimate was wrong; summarise and try once more. When the
@@ -666,6 +670,15 @@ func (a *Agent) stopHook(ctx context.Context, text string, stops *int, emit func
 }
 
 func (a *Agent) readOnly() bool { return a.ReadOnly || a.PlanMode }
+
+// reportJobs tells the model (and the user) about background jobs that
+// ended since the last check.
+func (a *Agent) reportJobs(emit func(Event)) {
+	for _, n := range a.Jobs.Finished() {
+		emit(Event{Kind: EvNotice, Text: strings.SplitN(n, "\n", 2)[0]})
+		a.appendUserText("[background job update]\n" + n)
+	}
+}
 
 func (a *Agent) modeName() string {
 	if a.PlanMode {

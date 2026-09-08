@@ -47,7 +47,9 @@ type Options struct {
 	// Verify carries the project's verification commands (/verify).
 	Verify *VerifyOptions
 	// LSP reports language-server status (/lsp).
-	LSP      *lsp.Manager
+	LSP *lsp.Manager
+	// Jobs are background commands; finished ones are announced while idle.
+	Jobs     *tool.Jobs
 	Agent    *agent.Agent
 	Session  *session.Session
 	Provider string
@@ -421,6 +423,34 @@ func trunc(s string, n int) string {
 	return s[:n-1] + "…"
 }
 
+// jobsCommand lists background jobs or kills one.
+func (m *model) jobsCommand(args []string) {
+	if len(args) == 2 && args[0] == "kill" {
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			m.transcript.errorf("usage: /jobs kill <n>")
+			return
+		}
+		if err := m.opts.Jobs.Kill(n); err != nil {
+			m.transcript.errorf("%v", err)
+			return
+		}
+		m.transcript.info(fmt.Sprintf("killed job %d", n))
+		return
+	}
+	jobs := m.opts.Jobs.List()
+	if len(jobs) == 0 {
+		m.transcript.info("no background jobs; the model starts one with bash background:true (a dev server, a long build)")
+		return
+	}
+	var sb strings.Builder
+	for _, j := range jobs {
+		sb.WriteString(j.Summary() + "\n  output: " + j.OutPath + "\n")
+	}
+	sb.WriteString("/jobs kill <n> stops one; all jobs stop when janetcode exits")
+	m.transcript.info(sb.String())
+}
+
 // lspCommand shows language-server status and known problems.
 func (m *model) lspCommand() {
 	d := m.opts.LSP
@@ -615,6 +645,7 @@ var commands = []command{
 	{"/permissions", "[allow|deny <rule>|trust]", "permission rules; add one, or trust the project's .janetcode/permissions.json"},
 	{"/verify", "[set <cmd>|clear|trust]", "run the project's checks now; set adds one to .janetcode/verify.json"},
 	{"/lsp", "", "language servers and the diagnostics they reported"},
+	{"/jobs", "[kill <n>]", "background commands started with bash background:true"},
 	{"/context", "", "what fills the context window: prompt, tools, messages, largest tool results"},
 	{"/reload", "", "rebuild the memory and skill indexes in the prompt now instead of at compaction"},
 	{"/pin", "[note or @file]", "keep a note in the system prompt for the whole session; alone lists pins"},
@@ -844,6 +875,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Keeps elapsed timers and throttled live markdown moving even when
 		// no event arrives.
 		if m.running {
+			m.refresh(false)
+		} else if notes := m.opts.Jobs.Finished(); len(notes) > 0 {
+			for _, n := range notes {
+				m.transcript.info("⚙ " + strings.SplitN(n, "\n", 2)[0])
+				m.opts.Agent.AddContext("[background job update]\n" + n)
+			}
 			m.refresh(false)
 		}
 		return m, tick()
@@ -1729,6 +1766,8 @@ func (m *model) command(text string) tea.Cmd {
 		m.permissionsCommand(fields[1:])
 	case "/lsp":
 		m.lspCommand()
+	case "/jobs":
+		m.jobsCommand(fields[1:])
 	case "/reload":
 		m.opts.Agent.RefreshExtra()
 		m.transcript.info("memory and skill indexes will be rebuilt for the next call (one cache miss); they also refresh at compaction")

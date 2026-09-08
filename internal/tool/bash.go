@@ -22,24 +22,28 @@ type Bash struct {
 	MaxTimeout time.Duration
 	// Cache, when set, replays identical commands on an unchanged tree.
 	Cache *ShellCache
+	// Jobs, when set, enables background: true.
+	Jobs *Jobs
 }
 
 func (Bash) Name() string { return "bash" }
 func (Bash) Description() string {
-	return "Run a shell command with bash in the working directory. Returns combined stdout/stderr and the exit code. Use a timeout for long-running commands. Do not use for reading or editing files; use the dedicated tools."
+	return "Run a shell command with bash in the working directory. Returns combined stdout/stderr and the exit code. Use a timeout for long-running commands, or background: true for servers, watchers and long builds: the command keeps running, you get a job id at once and a note when it finishes (see the job tool). Do not use for reading or editing files; use the dedicated tools."
 }
 func (Bash) Mutating() bool { return true }
 func (Bash) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
 "command":{"type":"string","description":"The command to run"},
-"timeout_ms":{"type":"integer","description":"Timeout in milliseconds (default 120000, max 600000)"}},
+"timeout_ms":{"type":"integer","description":"Timeout in milliseconds (default 120000, max 600000)"},
+"background":{"type":"boolean","description":"Run detached and return immediately with a job id; output is collected and reported when the job ends"}},
 "required":["command"],"additionalProperties":false}`)
 }
 
 func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
-		Command   string `json:"command"`
-		TimeoutMS int    `json:"timeout_ms"`
+		Command    string `json:"command"`
+		TimeoutMS  int    `json:"timeout_ms"`
+		Background bool   `json:"background"`
 	}
 	if err := decode(input, &in); err != nil {
 		return "", err
@@ -49,6 +53,17 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	if risk, why := Classify(in.Command, t.Root); risk == RiskCatastrophic {
 		return "", fmt.Errorf("refused: this command %s. janetcode never runs it, not even with auto-approve; do not retry it in another form", why)
+	}
+	if in.Background {
+		if t.Jobs == nil {
+			return "", fmt.Errorf("background jobs are not available in this session; run the command in the foreground with a timeout")
+		}
+		job, err := t.Jobs.Start(t.Root, in.Command)
+		if err != nil {
+			return "", err
+		}
+		t.Cache.invalidate()
+		return fmt.Sprintf("Started background job %d (pid %d): %s\nOutput is collected in %s. You will be told when it finishes; the job tool shows output, waits, or kills it.", job.ID, job.Pid, in.Command, job.OutPath), nil
 	}
 	cacheKey := t.Cache.key(t.Root, in.Command)
 	if out, age, ok := t.Cache.get(cacheKey); ok {
