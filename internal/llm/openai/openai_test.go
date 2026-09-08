@@ -332,3 +332,28 @@ func TestKeyRotationAndListModels(t *testing.T) {
 		t.Fatalf("single key err = %v", err)
 	}
 }
+
+func TestLocalServerNeedsNoKey(t *testing.T) {
+	var auth string
+	var gotAuth bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth, gotAuth = r.Header.Get("Authorization"), r.Header.Get("Authorization") != ""
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"data":[{"id":"llama3"}]}`))
+	}))
+	defer srv.Close()
+	p, err := New(Config{BaseURL: srv.URL}) // httptest listens on 127.0.0.1
+	if err != nil {
+		t.Fatal(err)
+	}
+	models, err := p.ListModels(context.Background())
+	if err != nil || len(models) != 1 || models[0].ID != "llama3" {
+		t.Fatalf("models = %v, %v", models, err)
+	}
+	if gotAuth {
+		t.Fatalf("sent Authorization %q without a key", auth)
+	}
+	if _, err := New(Config{BaseURL: "https://api.example.com/v1"}); err != llm.ErrNoAPIKey {
+		t.Fatalf("remote without key: err = %v", err)
+	}
+}

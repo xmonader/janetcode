@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -58,13 +59,18 @@ type Provider struct {
 // New validates cfg and builds a provider.
 func New(cfg Config) (*Provider, error) {
 	keys := dedupe(append([]string{cfg.APIKey}, cfg.APIKeys...))
-	if len(keys) == 0 {
-		return nil, llm.ErrNoAPIKey
-	}
-	cfg.APIKey = keys[0]
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.openai.com/v1"
 	}
+	// Local servers (Ollama, LM Studio) accept requests without a key;
+	// hosted ones never do, so refuse early with a clear error.
+	if len(keys) == 0 {
+		if !localURL(cfg.BaseURL) {
+			return nil, llm.ErrNoAPIKey
+		}
+		keys = []string{""}
+	}
+	cfg.APIKey = keys[0]
 	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
 	if cfg.Name == "" {
 		cfg.Name = "openai"
@@ -82,6 +88,16 @@ func New(cfg Config) (*Provider, error) {
 		}
 	}
 	return &Provider{cfg: cfg, keys: keys, http: hc}, nil
+}
+
+// localURL reports whether u points at this machine.
+func localURL(u string) bool {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	h := parsed.Hostname()
+	return h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "0.0.0.0"
 }
 
 func dedupe(keys []string) []string {
@@ -141,7 +157,9 @@ func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	hreq.Header.Set("Authorization", "Bearer "+p.currentKey())
+	if k := p.currentKey(); k != "" {
+		hreq.Header.Set("Authorization", "Bearer "+k)
+	}
 	resp, err := p.http.Do(hreq)
 	if err != nil {
 		return nil, err
@@ -448,7 +466,9 @@ func (p *Provider) do(ctx context.Context, body []byte) (*http.Response, error) 
 	}
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/event-stream")
-	hreq.Header.Set("Authorization", "Bearer "+p.currentKey())
+	if k := p.currentKey(); k != "" {
+		hreq.Header.Set("Authorization", "Bearer "+k)
+	}
 	resp, err := p.http.Do(hreq)
 	if err != nil {
 		return nil, err
