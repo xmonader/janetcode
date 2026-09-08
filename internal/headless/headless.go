@@ -16,6 +16,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -36,6 +37,10 @@ type Options struct {
 	// the model and another turn starts, up to UntilRounds times.
 	Until       string
 	UntilRounds int
+	// Memory, when set with AutoMemory, receives facts extracted after
+	// each turn that changed something.
+	Memory     *memory.Store
+	AutoMemory bool
 	Cwd         string
 }
 
@@ -74,6 +79,25 @@ func Run(ctx context.Context, opts Options) error {
 			return fmt.Errorf("%w after %d rounds: %s", ErrUntilFailed, rounds, oneLine(out, 300))
 		}
 		blocks = []llm.Block{{Type: llm.BlockText, Text: fmt.Sprintf("The check command has not passed yet.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nKeep working until this command exits 0, then stop.", opts.Until, exit, tool.TruncateTo(strings.TrimSpace(out), 4000))}}
+	}
+}
+
+// remember extracts durable facts from the turn into project memory.
+func remember(ctx context.Context, opts Options) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	ag := opts.Agent
+	facts, err := memory.Extract(ctx, ag.Provider, ag.Model, ag.Messages, opts.Memory.Entries())
+	if err != nil {
+		fmt.Fprintf(opts.Stderr, "[memory] extraction failed: %v\n", err)
+		return
+	}
+	for _, f := range facts {
+		if ok, err := opts.Memory.Add(f); err != nil {
+			fmt.Fprintf(opts.Stderr, "[memory] %v\n", err)
+		} else if ok {
+			fmt.Fprintf(opts.Stderr, "[memory] remembered: %s\n", f)
+		}
 	}
 }
 
@@ -122,6 +146,9 @@ func turn(ctx context.Context, opts Options, blocks []llm.Block) error {
 			fmt.Fprintln(opts.Stderr)
 		}
 	})
+	if err == nil && opts.Memory != nil && opts.AutoMemory && ag.LastTurnMutated() {
+		remember(ctx, opts)
+	}
 	if opts.Session != nil {
 		ns, serr := opts.Session.SyncOrRotate(ag.Messages)
 		if ns != opts.Session {

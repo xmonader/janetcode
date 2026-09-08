@@ -162,6 +162,21 @@ Repeat it to go back further (up to 30 turns); it still works after
 `--continue` or `/resume`. If you committed or checked out in between, the
 git snapshot is not applied and only file-tool changes are reverted.
 
+### Project memory
+
+janetcode keeps a short list of durable facts per project in
+`~/.local/share/janetcode/memory/<project>.md` and puts it in the system
+prompt of every session: conventions you asked for, decisions and their
+reasons, commands that work, environment quirks. The project is identified
+by `.janetcode/project` (any string; commit it so every checkout shares
+one memory), else by the git origin URL, else by the directory path.
+
+- After a turn that changed something, a cheap extra model call asks what
+  this turn *decided* (not what it did) and appends new facts; you see
+  `remembered: …` lines. `"memory": false` in the config turns this off.
+- `/memory` lists the facts, `/remember <fact>` adds one, `/forget <n>`
+  removes one. The file is plain markdown you can edit by hand.
+
 ### Hooks
 
 Hooks are shell commands run at fixed points of the loop. They live under
@@ -251,6 +266,7 @@ janetcode --init     # writes ~/.config/janetcode/config.json
   "auto_approve": false,
   "max_iterations": 50,
   "compact_at": 80000,
+  "memory": true,
   "theme": "auto",
   "providers": {
     "anthropic":  { "type": "anthropic", "api_key": "sk-ant-..." },

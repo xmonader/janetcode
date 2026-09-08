@@ -136,6 +136,11 @@ type Agent struct {
 	// Hooks, when set, runs user commands around tool calls, compaction
 	// and turn end (see package hook). Nil means no hooks.
 	Hooks *hook.Runner
+	// SystemExtra, when set, is appended to System on every call; it lets
+	// memory and skills change between turns without rebuilding System.
+	SystemExtra func() string
+
+	mutated bool // a mutating tool ran successfully this turn
 
 	allowed map[string]bool
 	cp      checkpointer
@@ -180,6 +185,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}
 	a.appendUserBlocks(blocks...)
 	a.cp.beginTurn()
+	a.mutated = false
 	defer a.endTurn()
 	a.loops.reset()
 	a.integ.userText = ""
@@ -350,9 +356,13 @@ func serialize(emit func(Event)) func(Event) {
 func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, error) {
 	start := time.Now()
 	a.debugf("call start: %d messages, ~%d tokens", len(a.Messages), a.EstimateTokens())
+	system := a.System
+	if a.SystemExtra != nil {
+		system += a.SystemExtra()
+	}
 	resp, err := a.Provider.Stream(ctx, llm.Request{
 		Model:     a.Model,
-		System:    a.System,
+		System:    system,
 		Messages:  a.Messages,
 		Tools:     a.Tools.Defs(),
 		MaxTokens: a.MaxTokens,
@@ -504,6 +514,8 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	if err != nil {
 		out = "Error: " + err.Error()
 		isErr = true
+	} else if t.Mutating() {
+		a.mutated = true
 	}
 	if out == "" {
 		out = "(no output)"
@@ -533,6 +545,11 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
 	return out, isErr, nil
 }
+
+// LastTurnMutated reports whether the most recent turn ran a mutating tool
+// successfully, i.e. whether it may have decided something worth
+// remembering.
+func (a *Agent) LastTurnMutated() bool { return a.mutated }
 
 // stopHook gives stop hooks a chance to send the model back to work. It
 // reports whether the turn continues.

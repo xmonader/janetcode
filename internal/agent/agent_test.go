@@ -425,3 +425,34 @@ func TestIntegrityCheckFlagsShrunkHistory(t *testing.T) {
 		t.Fatalf("notices = %v", notices)
 	}
 }
+
+func TestSystemExtraAndLastTurnMutated(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		text("no tools"),
+		toolCall("t1", "write_file", `{"path":"x","content":"1"}`),
+		text("wrote"),
+	}}
+	a, _ := newAgent(t, f, nil)
+	a.AutoApprove = true
+	extra := "\n# Project memory\n- fact one\n"
+	a.SystemExtra = func() string { return extra }
+	if err := a.Run(context.Background(), "chat", nil); err != nil {
+		t.Fatal(err)
+	}
+	if a.LastTurnMutated() {
+		t.Fatal("turn without mutation reported as mutated")
+	}
+	if got := f.requests[0].System; !strings.HasSuffix(got, extra) || !strings.HasPrefix(got, "sys") {
+		t.Fatalf("system = %q", got)
+	}
+	extra = "\n# Project memory\n- fact two\n"
+	if err := a.Run(context.Background(), "write", nil); err != nil {
+		t.Fatal(err)
+	}
+	if !a.LastTurnMutated() {
+		t.Fatal("mutating turn not reported")
+	}
+	if got := f.requests[1].System; !strings.Contains(got, "fact two") {
+		t.Fatalf("extra not re-evaluated: %q", got)
+	}
+}

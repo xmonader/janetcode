@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/mcp/testserver"
+	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -27,6 +28,9 @@ type scripted struct{ responses []*llm.Response }
 
 func (s *scripted) Name() string { return "fake" }
 func (s *scripted) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	if emit == nil {
+		emit = func(llm.Event) {}
+	}
 	r := s.responses[0]
 	s.responses = s.responses[1:]
 	for _, b := range r.Message.Blocks {
@@ -958,5 +962,52 @@ func TestExportWritesMarkdown(t *testing.T) {
 	}
 	if !strings.Contains(plain(h.m.View()), "exported 2 messages") {
 		t.Fatalf("view:\n%s", plain(h.m.View()))
+	}
+}
+
+func TestMemoryCommandsAndAutoExtraction(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(`{"path":"x","content":"1"}`)}}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "wrote"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "The x file is hand-maintained."), StopReason: llm.StopEndTurn},
+	)
+	store := memory.Open(t.TempDir(), h.m.opts.Cwd)
+	h.m.opts.Memory, h.m.opts.AutoMemory = store, true
+	h.m.opts.Agent.AutoApprove = true
+	h.keys("/remember   Always run make test before committing ")
+	h.enter()
+	if e := store.Entries(); len(e) != 1 || e[0] != "Always run make test before committing" {
+		t.Fatalf("entries = %q", e)
+	}
+	h.keys("/memory")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, " 1. Always run make test before committing") {
+		t.Fatalf("view:\n%s", v)
+	}
+	h.keys("write x")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	// The turn changed a file, so extraction runs; drive its command.
+	if !h.m.opts.Agent.LastTurnMutated() {
+		t.Fatal("turn not mutated")
+	}
+	h.runCmd(h.m.extractMemory())
+	if e := store.Entries(); len(e) != 2 || e[1] != "The x file is hand-maintained." {
+		t.Fatalf("entries after extraction = %q", e)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "remembered: The x file is hand-maintained.") {
+		t.Fatalf("view:\n%s", v)
+	}
+	// The system prompt of the next call carries the memory.
+	h.m.opts.Agent.SystemExtra = store.Section
+	h.keys("/forget 1")
+	h.enter()
+	if e := store.Entries(); len(e) != 1 || e[0] != "The x file is hand-maintained." {
+		t.Fatalf("entries after forget = %q", e)
+	}
+	h.keys("/forget 9")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "no memory entry 9") {
+		t.Fatalf("view:\n%s", v)
 	}
 }

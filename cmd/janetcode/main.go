@@ -23,6 +23,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm/anthropic"
 	"github.com/xmonader/janetcode/internal/llm/openai"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/snapshot"
@@ -150,6 +151,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 
 	task := &agent.Task{}
 	archive := agent.NewArchive(session.ArchiveDir(sessDir, cwd))
+	mem := memory.Open(filepath.Dir(sessDir), cwd)
 	ag := &agent.Agent{
 		Provider: prov,
 		Archive:  archive,
@@ -175,6 +177,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Messages:      history,
 	}
 	task.Parent = ag
+	ag.SystemExtra = mem.Section
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools})
 	ag.UndoPath = sess.UndoPath()
 	if repo, err := snapshot.Open(cwd); err == nil {
@@ -247,11 +250,12 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		return headless.Run(ctx, headless.Options{
 			Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
-			Until: *until, Cwd: cwd,
+			Until: *until, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
 		})
 	}
 	return tui.Run(tui.Options{
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: cfgDir,
+		Memory: mem, AutoMemory: cfg.AutoMemory(),
 		Config: cfg, ConfigPath: cfgPath, Build: buildProvider, Connect: needsConnect,
 		Resumed: len(history), Version: version, Theme: cfg.Theme,
 		InitialPrompt: initial,

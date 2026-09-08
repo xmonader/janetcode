@@ -27,6 +27,7 @@ import (
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -57,6 +58,10 @@ type Options struct {
 	Theme string
 	// InitialPrompt is sent as soon as the UI is ready.
 	InitialPrompt string
+	// Memory is the project's memory store; AutoMemory extracts facts
+	// after turns that changed something.
+	Memory     *memory.Store
+	AutoMemory bool
 }
 
 // Run starts the interactive UI and blocks until the user quits.
@@ -89,6 +94,78 @@ type HookOptions struct {
 	ProjectHash    string
 	ProjectTrusted bool
 	Trust          mcp.TrustStore
+}
+
+// extractMemory runs memory extraction in the background.
+func (m *model) extractMemory() tea.Cmd {
+	ag, store := m.opts.Agent, m.opts.Memory
+	msgs := append([]llm.Message(nil), ag.Messages...)
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		facts, err := memory.Extract(ctx, ag.Provider, ag.Model, msgs, store.Entries())
+		if err != nil {
+			return memoryMsg{err: err}
+		}
+		var added []string
+		for _, f := range facts {
+			if ok, err := store.Add(f); err != nil {
+				return memoryMsg{added: added, err: err}
+			} else if ok {
+				added = append(added, f)
+			}
+		}
+		return memoryMsg{added: added}
+	}
+}
+
+// memoryCommand implements /memory, /remember and /forget.
+func (m *model) memoryCommand(cmd, arg string) {
+	store := m.opts.Memory
+	if store == nil {
+		m.transcript.errorf("memory is not available in this session")
+		return
+	}
+	switch cmd {
+	case "/remember":
+		if arg == "" {
+			m.transcript.errorf("usage: /remember <fact about this project>")
+			return
+		}
+		ok, err := store.Add(arg)
+		switch {
+		case err != nil:
+			m.transcript.errorf("remember: %v", err)
+		case !ok:
+			m.transcript.info("already remembered")
+		default:
+			m.transcript.info("🧠 remembered: " + memory.Clean(arg))
+		}
+	case "/forget":
+		n, err := strconv.Atoi(arg)
+		if err != nil {
+			m.transcript.errorf("usage: /forget <n>  (numbers as shown by /memory)")
+			return
+		}
+		gone, err := store.Remove(n)
+		if err != nil {
+			m.transcript.errorf("forget: %v", err)
+			return
+		}
+		m.transcript.info("forgot: " + gone)
+	default:
+		entries := store.Entries()
+		if len(entries) == 0 {
+			m.transcript.info("nothing remembered yet for this project (" + store.Key + "). /remember <fact> adds one; facts are also extracted automatically after turns that change something.")
+			return
+		}
+		var sb strings.Builder
+		fmt.Fprintf(&sb, "project memory (%s, %s):\n", store.Key, shortPath(store.Path))
+		for i, e := range entries {
+			fmt.Fprintf(&sb, "%2d. %s\n", i+1, e)
+		}
+		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+	}
 }
 
 // hooksCommand lists hooks or trusts the project's hook file.
@@ -162,6 +239,12 @@ type mcpPromptMsg struct {
 // --- messages from the agent goroutine ---
 
 type agentEventMsg struct{ ev agent.Event }
+
+// memoryMsg reports what automatic extraction remembered.
+type memoryMsg struct {
+	added []string
+	err   error
+}
 type flushMsg struct{}
 type agentDoneMsg struct {
 	err     error
@@ -252,6 +335,9 @@ var commands = []command{
 	{"/undo", "", "revert everything the last turn changed (git snapshot; file copies outside git)"},
 	{"/mcp", "[trust]", "MCP servers and their tools; trust starts the project's .mcp.json servers"},
 	{"/hooks", "[trust]", "hooks in effect; trust enables the project's .janetcode/hooks.json"},
+	{"/memory", "", "what janetcode remembers about this project"},
+	{"/remember", "<fact>", "add a fact to the project memory"},
+	{"/forget", "<n>", "remove memory entry n"},
 	{"/yolo", "", "toggle auto-approve for tools"},
 	{"/connect", "", "connect to a provider (preset or custom API) and pick a model"},
 	{"/model", "[name]", "pick a model from a list, or set one by name"},
@@ -547,8 +633,20 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case agentDoneMsg:
 		m.drainEvents()
 		cmd := m.finishTurn(msg)
+		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && m.opts.Agent.LastTurnMutated() {
+			cmd = tea.Batch(cmd, m.extractMemory())
+		}
 		m.refresh(false)
 		return m, cmd
+	case memoryMsg:
+		if msg.err != nil {
+			m.transcript.info("memory: extraction failed: " + msg.err.Error())
+		}
+		for _, f := range msg.added {
+			m.transcript.info("🧠 remembered: " + f)
+		}
+		m.refresh(false)
+		return m, nil
 	}
 
 	var cmd tea.Cmd
@@ -1316,6 +1414,8 @@ func (m *model) command(text string) tea.Cmd {
 		m.mcpCommand(fields[1:])
 	case "/hooks":
 		m.hooksCommand(fields[1:])
+	case "/memory", "/remember", "/forget":
+		m.memoryCommand(fields[0], strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/undo":
 		if m.running {
 			m.transcript.errorf("wait for the current turn to finish before undoing")

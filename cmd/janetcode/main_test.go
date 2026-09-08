@@ -21,11 +21,15 @@ func TestHeadlessEndToEnd(t *testing.T) {
 	home := t.TempDir()
 
 	var calls int
-	var lastReq map[string]any
+	var lastReq, memReq map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		raw, _ := io.ReadAll(r.Body)
-		json.Unmarshal(raw, &lastReq)
+		if calls == 4 {
+			json.Unmarshal(raw, &memReq) // memory extraction after the mutating turn
+		} else {
+			json.Unmarshal(raw, &lastReq)
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		var chunks []string
 		switch calls {
@@ -37,6 +41,8 @@ func TestHeadlessEndToEnd(t *testing.T) {
 			chunks = []string{
 				`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c2","function":{"name":"write_file","arguments":"{\"path\":\"out.txt\",\"content\":\"HELLO WORLD\"}"}}]},"finish_reason":"tool_calls"}]}`,
 			}
+		case 4:
+			chunks = []string{`{"choices":[{"delta":{"content":"out.txt is generated from hello.txt."},"finish_reason":"stop"}]}`}
 		default:
 			chunks = []string{`{"choices":[{"delta":{"content":"wrote out.txt"},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":2}}`}
 		}
@@ -71,8 +77,18 @@ func TestHeadlessEndToEnd(t *testing.T) {
 	if err != nil || string(got) != "HELLO WORLD" {
 		t.Fatalf("out.txt = %q err=%v", got, err)
 	}
-	if calls != 3 {
+	if calls != 4 { // read, write, answer, memory extraction
 		t.Fatalf("model calls = %d", calls)
+	}
+	if !strings.Contains(errOut, "[memory] remembered: out.txt is generated from hello.txt.") {
+		t.Fatalf("stderr = %q", errOut)
+	}
+	if sys := memReq["messages"].([]any)[0].(map[string]any); !strings.Contains(sys["content"].(string), "memory file") {
+		t.Fatalf("extraction system prompt = %v", sys)
+	}
+	memFiles, _ := filepath.Glob(filepath.Join(home, ".local", "share", "janetcode", "memory", "*.md"))
+	if len(memFiles) != 1 {
+		t.Fatalf("memory files = %v", memFiles)
 	}
 	// The last request carried the system prompt with the working directory
 	// and the full tool history.
@@ -103,6 +119,8 @@ func TestHeadlessEndToEnd(t *testing.T) {
 		t.Fatalf("resumed history length = %d", len(msgs))
 	} else if u := msgs[7].(map[string]any)["content"].(string); !strings.Contains(u, "thanks") || !strings.Contains(u, "<stdin>\ndiff --git a/x b/x\n</stdin>") {
 		t.Fatalf("stdin not attached: %q", u)
+	} else if sys := msgs[0].(map[string]any)["content"].(string); !strings.Contains(sys, "# Project memory") || !strings.Contains(sys, "- out.txt is generated from hello.txt.") {
+		t.Fatalf("memory missing from resumed system prompt: %q", sys)
 	}
 
 	// Missing model for openai is a clear error, not a request.

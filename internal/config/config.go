@@ -50,7 +50,13 @@ type Config struct {
 	// Hooks run for every project. Project-specific ones go in
 	// <project>/.janetcode/hooks.json and need a one-time approval.
 	Hooks hook.Config `json:"hooks,omitempty"`
+	// Memory enables automatic extraction of project memory after turns
+	// that changed something; nil means on. /remember always works.
+	Memory *bool `json:"memory,omitempty"`
 }
+
+// AutoMemory reports whether memory is extracted automatically.
+func (c *Config) AutoMemory() bool { return c.Memory == nil || *c.Memory }
 
 // PriceFor returns the configured price for model: an exact key first, then
 // the longest key that prefixes the model name.

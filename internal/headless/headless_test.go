@@ -12,6 +12,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -20,6 +21,9 @@ type fake struct{ responses []*llm.Response }
 
 func (f *fake) Name() string { return "fake" }
 func (f *fake) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	if emit == nil {
+		emit = func(llm.Event) {}
+	}
 	r := f.responses[0]
 	f.responses = f.responses[1:]
 	for _, b := range r.Message.Blocks {
@@ -100,5 +104,32 @@ func TestUntilReloopsUntilCheckPasses(t *testing.T) {
 	err = Run(context.Background(), Options{Agent: ag2, Prompt: "x", Stdout: &out, Stderr: &errOut, Until: "false", UntilRounds: 2, Cwd: root})
 	if !errors.Is(err, ErrUntilFailed) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestAutoMemoryAfterMutatingTurn(t *testing.T) {
+	root := t.TempDir()
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(`{"path":"x","content":"1"}`)},
+		}}, StopReason: llm.StopToolUse},
+		{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+		{Message: llm.TextMessage(llm.RoleAssistant, "Files under x are generated; edit the templates instead.\nNONE"), StopReason: llm.StopEndTurn},
+	}}
+	ag := &agent.Agent{Provider: f, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", AutoApprove: true}
+	store := memory.Open(t.TempDir(), root)
+	var out, errOut bytes.Buffer
+	err := Run(context.Background(), Options{Agent: ag, Prompt: "write x", Stdout: &out, Stderr: &errOut, Memory: store, AutoMemory: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := store.Entries(); len(e) != 1 || e[0] != "Files under x are generated; edit the templates instead." {
+		t.Fatalf("entries = %q\nstderr: %s", e, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "[memory] remembered: Files under x") {
+		t.Fatalf("stderr = %q", errOut.String())
+	}
+	if len(f.responses) != 0 {
+		t.Fatalf("%d responses unused", len(f.responses))
 	}
 }
