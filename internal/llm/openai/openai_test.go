@@ -391,3 +391,30 @@ func TestDeadKeyIsSkippedOnLaterRequests(t *testing.T) {
 		t.Fatalf("keys tried = %v", keysSeen)
 	}
 }
+
+func TestEmbed(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/embeddings" || r.Header.Get("Authorization") != "Bearer k" {
+			w.WriteHeader(404)
+			return
+		}
+		json.NewDecoder(r.Body).Decode(&got)
+		io.WriteString(w, `{"data":[{"index":1,"embedding":[0,1]},{"index":0,"embedding":[1,0]}]}`)
+	}))
+	defer srv.Close()
+	p, err := New(Config{APIKeys: []string{"k"}, BaseURL: srv.URL + "/v1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	vecs, err := p.Embed(context.Background(), "emb", []string{"a", "b"})
+	if err != nil || len(vecs) != 2 || vecs[0][0] != 1 || vecs[1][1] != 1 {
+		t.Fatalf("vecs=%v err=%v", vecs, err)
+	}
+	if got["model"] != "emb" || len(got["input"].([]any)) != 2 {
+		t.Fatalf("request = %v", got)
+	}
+	if _, err := p.Embed(context.Background(), "emb", []string{"a", "b", "c"}); err == nil {
+		t.Fatal("count mismatch accepted")
+	}
+}

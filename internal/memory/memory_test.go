@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -221,4 +222,74 @@ func TestExtractParsesAppliesAndReplaces(t *testing.T) {
 		t.Fatal("feedback heuristic wrong")
 	}
 	_ = time.Now
+}
+
+// topicEmbed maps texts to two topics, tests and deployment, by keyword.
+func topicEmbed(calls *int) EmbedFunc {
+	return func(_ context.Context, texts []string) ([][]float32, error) {
+		*calls++
+		out := make([][]float32, len(texts))
+		for i, t := range texts {
+			v := []float32{0.01, 0.01}
+			for _, w := range Words(t) {
+				switch w {
+				case "test", "check", "verify", "build":
+					v[0]++
+				case "deploy", "ship", "release":
+					v[1]++
+				}
+			}
+			out[i] = v
+		}
+		return out, nil
+	}
+}
+
+func TestSemanticRecallFallsBackAndCachesVectors(t *testing.T) {
+	root := t.TempDir()
+	s := &Store{Root: root, Key: "proj"}
+	for _, e := range []Entry{
+		{Name: "run-tests-first", Description: "always run make test before committing", Type: "feedback", Scope: "project", Body: "The user wants tests run before every commit."},
+		{Name: "release-steps", Description: "deploy with make ship after tagging", Type: "project", Scope: "project", Body: "Ship a release by tagging, then make ship."},
+	} {
+		if _, _, err := s.Put(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx := context.Background()
+	if hits := s.RecallCtx(ctx, "how do I verify the build works?", 4); len(hits) != 0 {
+		t.Fatalf("lexical-only recall found %v", hits)
+	}
+	calls := 0
+	s.Embed = topicEmbed(&calls)
+	hits := s.RecallCtx(ctx, "how do I verify the build works?", 4)
+	if len(hits) != 1 || hits[0].Name != "run-tests-first" {
+		t.Fatalf("semantic recall = %v", hits)
+	}
+	if calls != 1 {
+		t.Fatalf("embed calls = %d", calls)
+	}
+	// A second store instance reuses the cached vectors: only the query is embedded.
+	var embedded []string
+	s2 := &Store{Root: root, Key: "proj", Embed: func(_ context.Context, texts []string) ([][]float32, error) {
+		embedded = append(embedded, texts...)
+		return topicEmbed(new(int))(ctx, texts)
+	}}
+	if hits := s2.SearchCtx(ctx, "shipping a release", 4); len(hits) != 1 || hits[0].Name != "release-steps" {
+		t.Fatalf("search = %v", hits)
+	}
+	if len(embedded) != 1 {
+		t.Fatalf("re-embedded entries: %q", embedded)
+	}
+	// Lexical hits still come back when the embedder fails, and the
+	// failure is not retried immediately.
+	fails := 0
+	s2.Embed = func(context.Context, []string) ([][]float32, error) { fails++; return nil, errors.New("down") }
+	if hits := s2.SearchCtx(ctx, "make ship", 4); len(hits) != 1 || hits[0].Name != "release-steps" {
+		t.Fatalf("fallback = %v", hits)
+	}
+	s2.SearchCtx(ctx, "make ship", 4)
+	if fails != 1 {
+		t.Fatalf("embedder retried immediately: %d calls", fails)
+	}
 }

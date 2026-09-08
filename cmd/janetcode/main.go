@@ -175,6 +175,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	cfgDir := filepath.Dir(cfgPath)
 	archive := agent.NewArchive(session.ArchiveDir(sessDir, cwd))
 	mem := memory.Open(filepath.Dir(sessDir), cwd)
+	if em, ok := prov.(llm.Embedder); ok && cfg.EmbeddingModel != "" {
+		model := cfg.EmbeddingModel
+		mem.Embed = func(ctx context.Context, texts []string) ([][]float32, error) { return em.Embed(ctx, model, texts) }
+	}
 	ag := &agent.Agent{
 		Provider: prov,
 		Archive:  archive,

@@ -268,3 +268,8 @@ func (r Request) Validate() error {
 	}
 	return nil
 }
+
+// Embedder is implemented by providers that expose an embeddings endpoint.
+type Embedder interface {
+	Embed(ctx context.Context, model string, texts []string) ([][]float32, error)
+}

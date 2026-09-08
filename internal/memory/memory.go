@@ -123,8 +123,13 @@ func Slug(s string) string {
 type Store struct {
 	Root string // <data>/memory
 	Key  string // project key
+	// Embed, when set, adds semantic ranking to recall (see EmbedFunc).
+	Embed EmbedFunc
 
-	mu sync.Mutex
+	mu        sync.Mutex
+	embedMu   sync.Mutex
+	vecs      map[string]vecEntry
+	embedDown time.Time
 }
 
 // Open returns the store for the project at cwd under dataDir/memory and

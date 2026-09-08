@@ -59,6 +59,9 @@ type Config struct {
 	// Project rules go in <project>/.janetcode/permissions.json; its allow
 	// rules need a one-time approval, its deny rules always apply.
 	Permissions perm.File `json:"permissions,omitempty"`
+	// EmbeddingModel, when set, is asked of the provider's /embeddings
+	// endpoint so memory recall ranks by meaning, not just words.
+	EmbeddingModel string `json:"embedding_model,omitempty"`
 	// LSP configures language servers for diagnostics after edits.
 	LSP lsp.Config `json:"lsp,omitempty"`
 	// Memory enables automatic extraction of project memory after turns

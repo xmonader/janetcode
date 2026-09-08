@@ -46,7 +46,7 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		if strings.TrimSpace(in.Query) == "" {
 			hits = t.Store.Entries()
 		} else {
-			hits = t.Store.Search(in.Query, 8)
+			hits = t.Store.SearchCtx(ctx, in.Query, 8)
 		}
 		if len(hits) == 0 {
 			return "Nothing remembered matches that.", nil

@@ -227,6 +227,13 @@ everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
   prints one, `/remember [-g] <fact>` adds (`-g` global), `/forget
   <name|number>` removes. Files are plain markdown you can edit by hand.
 
+Recall matches words by default. With `"embedding_model": "text-embedding-3-small"`
+(or any model your provider serves at `/v1/embeddings`) it also ranks
+entries by meaning, so "verify the build works" finds a note about running
+`make test`. Vectors are cached next to the entries and recomputed only
+when an entry changes; if the endpoint fails, recall silently falls back to
+words and retries a few minutes later.
+
 ### Skills
 
 A skill is a markdown file with instructions for one kind of task

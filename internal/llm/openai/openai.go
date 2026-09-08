@@ -121,6 +121,62 @@ func keyProblem(err error) (llm.Failure, bool) {
 	return llm.ClassifyFailure(ae.Status, ae.Message), true
 }
 
+// Embed implements llm.Embedder via POST /embeddings.
+func (p *Provider) Embed(ctx context.Context, model string, texts []string) ([][]float32, error) {
+	if len(texts) == 0 {
+		return nil, nil
+	}
+	body, err := json.Marshal(map[string]any{"model": model, "input": texts})
+	if err != nil {
+		return nil, err
+	}
+	hreq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.cfg.BaseURL+"/embeddings", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	hreq.Header.Set("Content-Type", "application/json")
+	if k, _ := p.ring.Current(); k != "" {
+		hreq.Header.Set("Authorization", "Bearer "+k)
+	}
+	resp, err := p.http.Do(hreq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	if resp.StatusCode/100 != 2 {
+		msg := strings.TrimSpace(string(raw))
+		var env struct {
+			Error *wireError `json:"error"`
+		}
+		if json.Unmarshal(raw, &env) == nil && env.Error != nil && env.Error.Message != "" {
+			msg = env.Error.Message
+		}
+		return nil, &APIError{Status: resp.StatusCode, Message: msg}
+	}
+	var out struct {
+		Data []struct {
+			Index     int       `json:"index"`
+			Embedding []float32 `json:"embedding"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("embeddings: bad response: %w", err)
+	}
+	if len(out.Data) != len(texts) {
+		return nil, fmt.Errorf("embeddings: got %d vectors for %d inputs", len(out.Data), len(texts))
+	}
+	vecs := make([][]float32, len(texts))
+	for i, d := range out.Data {
+		idx := d.Index
+		if idx < 0 || idx >= len(texts) {
+			idx = i
+		}
+		vecs[idx] = d.Embedding
+	}
+	return vecs, nil
+}
+
 // ListModels implements llm.ModelLister via GET /models.
 func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 	hreq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.cfg.BaseURL+"/models", nil)

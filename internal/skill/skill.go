@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/md"
@@ -415,7 +416,9 @@ func TurnPrep(in *Injector, mem *memory.Store) func([]llm.Block) ([]llm.Block, s
 			notes = append(notes, "skills attached: "+strings.Join(names, ", "))
 		}
 		if mem != nil {
-			hits := mem.Recall(text, memory.MaxRecall)
+			rctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			hits := mem.RecallCtx(rctx, text, memory.MaxRecall)
+			cancel()
 			var used []memory.Entry
 			size := 0
 			for _, e := range hits {

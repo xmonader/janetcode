@@ -186,7 +186,7 @@ func (m *model) memoryCommand(cmd, arg string) {
 			}
 			fmt.Fprintf(&sb, "%s\n%s\nsource %s · used %d× · %s\n", memoryLine(e), e.Body, e.Source, e.Uses, shortPath(e.Path))
 		case arg != "":
-			hits := store.Search(arg, 8)
+			hits := store.SearchCtx(context.Background(), arg, 8)
 			if len(hits) == 0 {
 				m.transcript.info("nothing remembered matches " + strconv.Quote(arg))
 				return
