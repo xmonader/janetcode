@@ -207,7 +207,7 @@ janetcode --init     # writes ~/.config/janetcode/config.json
   "effort": "high",
   "auto_approve": false,
   "max_iterations": 50,
-  "compact_at": 150000,
+  "compact_at": 80000,
   "theme": "auto",
   "providers": {
     "anthropic":  { "type": "anthropic", "api_key": "sk-ant-..." },
@@ -253,9 +253,20 @@ janetcode --resume <id>
 Inside the TUI, `/resume` lists the sessions for the directory and
 `/resume 2` reopens one.
 
-When the context grows past `compact_at` tokens, or the model reports the
-prompt is too long, the history is summarised into a handoff note and the
-conversation continues in a new session file. `/compact` does this on demand.
+When the context grows past `compact_at` tokens (80k by default: far below
+any modern window, because a smaller working context is cheaper, caches
+better and is attended to better), or the model reports the prompt is too
+long, the history is summarised into a handoff note and the conversation
+continues in a new session file. A "too long" error that names the model's
+real limit lowers the threshold for the rest of the session. `/compact`
+does this on demand.
+
+Tool results longer than 24 KB never reach the model whole: the full text
+is archived under an id such as `ctx-12` (per project, 8 MiB, oldest
+evicted) and the model sees the first and last part plus the id. The
+`expand_output` tool pages through an archived result, greps it, or greps
+every archived result, so a truncated build log or grep can always be
+recovered instead of rerun.
 
 ## Development
 

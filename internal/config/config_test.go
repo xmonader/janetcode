@@ -102,7 +102,7 @@ func TestWriteExampleParses(t *testing.T) {
 		t.Fatal("second write should refuse to overwrite")
 	}
 	cfg, err := load(p, env(map[string]string{"ANTHROPIC_API_KEY": "k"}), Overrides{})
-	if err != nil || cfg.CompactAt != 150000 || cfg.Theme != "auto" || cfg.Effort != "high" {
+	if err != nil || cfg.CompactAt != 80000 || cfg.Theme != "auto" || cfg.Effort != "high" {
 		t.Fatalf("cfg=%+v err=%v", cfg, err)
 	}
 }

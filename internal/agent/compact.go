@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -12,8 +14,12 @@ import (
 )
 
 // DefaultCompactAt is the estimated input-token count at which the history
-// is summarised before the next model call.
-const DefaultCompactAt = 150_000
+// is summarised before the next model call. It is deliberately well below
+// any modern context window: past this size every call costs more, cache
+// hits get rarer and models attend worse, so the working context is kept
+// small regardless of how much the model could take. Models with smaller
+// windows lower it further on the first overflow (see windowFromError).
+const DefaultCompactAt = 80_000
 
 // EvCompacted reports that the history was summarised. Text carries a
 // human-readable note.
@@ -292,6 +298,22 @@ func isContextOverflow(err error) bool {
 		}
 	}
 	return false
+}
+
+var windowRe = regexp.MustCompile(`(?i)(?:>\s*|maximum context length is |context length of |limit of |window of )(\d{4,7})(?:\s*(?:tokens|maximum|max))?`)
+
+// windowFromError pulls the model's context limit out of an overflow error
+// such as "prompt is too long: 210000 tokens > 200000 maximum", or 0.
+func windowFromError(err error) int {
+	if err == nil {
+		return 0
+	}
+	m := windowRe.FindStringSubmatch(err.Error())
+	if m == nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(m[1])
+	return n
 }
 
 // trimOld shortens an old tool result to pruneKeep bytes. The full text is

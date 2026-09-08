@@ -166,3 +166,25 @@ func TestCompactKeepsRecentTail(t *testing.T) {
 		t.Fatalf("summariser got %d messages", got)
 	}
 }
+
+func TestOverflowLowersCompactThreshold(t *testing.T) {
+	for msg, want := range map[string]int{
+		"400: prompt is too long: 210000 tokens > 200000 maximum":                 200000,
+		"This model's maximum context length is 32768 tokens. However, you requested 40000": 32768,
+		"rate limited": 0,
+	} {
+		if got := windowFromError(errors.New(msg)); got != want {
+			t.Errorf("%q -> %d, want %d", msg, got, want)
+		}
+	}
+	f := &fake{responses: []*llm.Response{nil, text("note"), text("ok")},
+		errs: []error{errors.New("maximum context length is 32768 tokens")}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, strings.Repeat("x", 4000)), llm.TextMessage(llm.RoleAssistant, "old")}}
+	if err := a.Run(context.Background(), "q", nil); err != nil {
+		t.Fatal(err)
+	}
+	if a.CompactAt != 32768*3/4 || a.CompactThreshold() != 24576 {
+		t.Fatalf("CompactAt = %d", a.CompactAt)
+	}
+}

@@ -197,7 +197,12 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		a.checkIntegrity(emit)
 		resp, err := a.call(ctx, emit)
 		if err != nil && isContextOverflow(err) && compactAt > 0 {
-			// The estimate was wrong; summarise and try once more.
+			// The estimate was wrong; summarise and try once more. When the
+			// error names the model's real limit, compact earlier from now on.
+			if w := windowFromError(err); w > 0 && w*3/4 < compactAt {
+				compactAt = w * 3 / 4
+				a.CompactAt = compactAt
+			}
 			if cerr := a.Compact(ctx, emit); cerr != nil && !errors.Is(cerr, ErrNothingToCompact) {
 				return fmt.Errorf("%w (compaction also failed: %v)", err, cerr)
 			}

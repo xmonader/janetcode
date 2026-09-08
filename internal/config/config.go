@@ -107,7 +107,7 @@ const Example = `{
   "effort": "high",
   "auto_approve": false,
   "max_iterations": 50,
-  "compact_at": 150000,
+  "compact_at": 80000,
   "theme": "auto",
   "providers": {
     "anthropic": {"type": "anthropic", "api_key": ""},
