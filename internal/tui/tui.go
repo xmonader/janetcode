@@ -24,6 +24,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/prompt"
@@ -37,6 +38,7 @@ type Options struct {
 	ConfigDir string
 	// MCP, when set, describes the servers to start.
 	MCP      *MCPOptions
+	Hooks    *HookOptions
 	Agent    *agent.Agent
 	Session  *session.Session
 	Provider string
@@ -78,6 +80,69 @@ type MCPOptions struct {
 	ProjectHash    string
 	ProjectTrusted bool
 	Trust          mcp.TrustStore
+}
+
+// HookOptions describes the hooks in effect for /hooks.
+type HookOptions struct {
+	Global         hook.Config
+	Project        hook.Config
+	ProjectHash    string
+	ProjectTrusted bool
+	Trust          mcp.TrustStore
+}
+
+// hooksCommand lists hooks or trusts the project's hook file.
+func (m *model) hooksCommand(args []string) {
+	o := m.opts.Hooks
+	if o == nil {
+		m.transcript.info("hooks are not configured: add them under \"hooks\" in the config file or in " + hook.ProjectFile)
+		return
+	}
+	if len(args) > 0 && args[0] == "trust" {
+		switch {
+		case len(o.Project) == 0:
+			m.transcript.errorf("no %s in %s", hook.ProjectFile, shortPath(m.opts.Cwd))
+		case o.ProjectTrusted:
+			m.transcript.info("project hooks are already trusted")
+		default:
+			if err := o.Trust.Trust(m.opts.Cwd+"#hooks", o.ProjectHash); err != nil {
+				m.transcript.errorf("record trust: %v", err)
+				return
+			}
+			o.ProjectTrusted = true
+			if m.opts.Agent.Hooks == nil {
+				m.opts.Agent.Hooks = &hook.Runner{Cwd: m.opts.Cwd}
+			}
+			m.opts.Agent.Hooks.Config = hook.Merge(o.Global, o.Project)
+			m.transcript.info("trusted " + hook.ProjectFile + " · its hooks are active")
+		}
+		return
+	}
+	var sb strings.Builder
+	n := 0
+	for _, src := range []struct {
+		label string
+		cfg   hook.Config
+	}{{"config file", o.Global}, {hook.ProjectFile, o.Project}} {
+		for _, ev := range hook.Events {
+			for _, h := range src.cfg[ev] {
+				n++
+				match := h.Match
+				if match == "" {
+					match = "*"
+				}
+				fmt.Fprintf(&sb, "%-12s %-14s %s  (%s)\n", ev, match, h.Command, src.label)
+			}
+		}
+	}
+	if n == 0 {
+		m.transcript.info("no hooks configured: add them under \"hooks\" in the config file or in " + hook.ProjectFile)
+		return
+	}
+	if len(o.Project) > 0 && !o.ProjectTrusted {
+		sb.WriteString(hook.ProjectFile + " is present but not trusted; run /hooks trust to enable it\n")
+	}
+	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 }
 
 // mcpDoneMsg reports a server that came up or failed.
@@ -186,6 +251,7 @@ var commands = []command{
 	{"/find", "<text>", "jump to the next line matching text; repeat to continue"},
 	{"/undo", "", "revert everything the last turn changed (git snapshot; file copies outside git)"},
 	{"/mcp", "[trust]", "MCP servers and their tools; trust starts the project's .mcp.json servers"},
+	{"/hooks", "[trust]", "hooks in effect; trust enables the project's .janetcode/hooks.json"},
 	{"/yolo", "", "toggle auto-approve for tools"},
 	{"/connect", "", "connect to a provider (preset or custom API) and pick a model"},
 	{"/model", "[name]", "pick a model from a list, or set one by name"},
@@ -1248,6 +1314,8 @@ func (m *model) command(text string) tea.Cmd {
 		m.transcript.info("model set to " + fields[1] + " on " + m.opts.Provider)
 	case "/mcp":
 		m.mcpCommand(fields[1:])
+	case "/hooks":
+		m.hooksCommand(fields[1:])
 	case "/undo":
 		if m.running {
 			m.transcript.errorf("wait for the current turn to finish before undoing")

@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/headless"
+	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/llm/anthropic"
 	"github.com/xmonader/janetcode/internal/llm/openai"
@@ -192,6 +193,17 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		return err
 	}
 	trust := mcp.TrustStore{Path: filepath.Join(cfgDir, "mcp-trust.json")}
+	hooksCfg, hooksHash, err := hook.LoadProject(cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v (project hooks ignored)\n", err)
+	}
+	hooksTrusted := len(hooksCfg) > 0 && trust.Trusted(hookTrustKey(cwd), hooksHash)
+	ag.Hooks = &hook.Runner{Config: cfg.Hooks, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[hook] %s\n", s) }}
+	if hooksTrusted {
+		ag.Hooks.Config = hook.Merge(cfg.Hooks, hooksCfg)
+	} else if len(hooksCfg) > 0 && *promptText != "" {
+		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
+	}
 	projectTrusted := len(projectServers) > 0 && trust.Trusted(cwd, projectHash)
 
 	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {
@@ -247,6 +259,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			Manager: &servers, Global: cfg.MCPServers,
 			Project: projectServers, ProjectHash: projectHash, ProjectTrusted: projectTrusted, Trust: trust,
 		},
+		Hooks: &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
 	})
 }
 
@@ -314,3 +327,7 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 	}
 	return nil, fmt.Errorf("provider %q has unknown type %q", cfg.Provider, p.Type)
 }
+
+// hookTrustKey keeps hook approvals apart from MCP approvals in the same
+// trust store.
+func hookTrustKey(cwd string) string { return cwd + "#hooks" }

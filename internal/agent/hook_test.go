@@ -1,0 +1,105 @@
+package agent
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/xmonader/janetcode/internal/hook"
+	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/tool"
+)
+
+// seesApprover records the inputs it was asked to approve.
+type seesApprover struct{ inputs []string }
+
+func (s *seesApprover) Approve(_ context.Context, c ToolCall) (Decision, error) {
+	s.inputs = append(s.inputs, string(c.Input))
+	return Allow, nil
+}
+
+func TestHooksDenyRewriteAnnotateAndContinue(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"rm -rf build"}`),        // denied by hook
+		toolCall("t2", "write_file", `{"path":"x","content":"v1"}`), // rewritten by hook
+		text("done"),        // stop hook sends it back
+		text("really done"), // stop hook accepts
+	}}
+	ap := &seesApprover{}
+	a, root := newAgent(t, f, ap)
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root})
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{
+		hook.PreTool: {
+			{Match: "bash", Command: `grep -q 'rm -rf' && { echo "no rm -rf" >&2; exit 2; }; exit 0`},
+			{Match: "write_file", Command: `echo '{"input":{"path":"x","content":"v2"}}'`},
+		},
+		hook.PostTool: {{Match: "write_file", Command: `echo "remember to run gofmt"`}},
+		hook.Stop:     {{Command: `grep -q '"really' || echo '{"continue":"not yet: run the tests"}'`}},
+	}}
+	var notices []string
+	err := a.Run(context.Background(), "go", func(e Event) {
+		if e.Kind == EvNotice {
+			notices = append(notices, e.Text)
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := func(i int) llm.Block { return a.Messages[i].Blocks[0] }
+	if r := res(2); !r.IsError || !strings.Contains(r.Text, "Blocked by a hook: no rm -rf") {
+		t.Fatalf("deny result = %+v", r)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "x")); string(data) != "v2" {
+		t.Fatalf("x = %q, rewrite not applied", data)
+	}
+	// The approver saw the rewritten input, i.e. what actually ran.
+	if len(ap.inputs) != 1 || !strings.Contains(ap.inputs[0], `"v2"`) {
+		t.Fatalf("approver saw %q", ap.inputs)
+	}
+	if r := res(4); !strings.Contains(r.Text, "[hook: a hook rewrote this call's input to: {\"path\":\"x\",\"content\":\"v2\"}]") || !strings.Contains(r.Text, "[hook: remember to run gofmt]") {
+		t.Fatalf("notes missing: %q", r.Text)
+	}
+	// Stop hook: "done" was pushed back once, then "really done" ended the turn.
+	if len(notices) != 1 || !strings.Contains(notices[0], "not yet: run the tests") {
+		t.Fatalf("notices = %q", notices)
+	}
+	last := a.Messages[len(a.Messages)-1]
+	if last.Text() != "really done" || !strings.Contains(a.Messages[len(a.Messages)-2].Text(), "not yet: run the tests") {
+		t.Fatalf("tail = %+v", a.Messages[len(a.Messages)-3:])
+	}
+	if len(f.requests) != 4 {
+		t.Fatalf("requests = %d", len(f.requests))
+	}
+}
+
+func TestStopHookIsBounded(t *testing.T) {
+	var rs []*llm.Response
+	for i := 0; i < 6; i++ {
+		rs = append(rs, text("done"))
+	}
+	f := &fake{responses: rs}
+	a, root := newAgent(t, f, nil)
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{hook.Stop: {{Command: `echo "keep going" >&2; exit 2`}}}}
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.requests) != maxStopContinues+1 {
+		t.Fatalf("requests = %d, want %d", len(f.requests), maxStopContinues+1)
+	}
+}
+
+func TestPreCompactHookNoteLandsInHandoff(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("SUMMARY")}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, "first"), llm.TextMessage(llm.RoleAssistant, "ok"),
+	}}
+	a.Hooks = &hook.Runner{Cwd: t.TempDir(), Config: hook.Config{hook.PreCompact: {{Command: `python3 -c 'import sys,json; d=json.load(sys.stdin); print("tokens were", d["tokens"])'`}}}}
+	if err := a.ForceCompact(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.Messages[0].Text(); !strings.Contains(got, "[From a pre_compact hook:]\ntokens were ") {
+		t.Fatalf("note = %q", got)
+	}
+}

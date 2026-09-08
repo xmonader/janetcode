@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 )
@@ -46,6 +47,9 @@ type Config struct {
 	// MCPServers are started for every project. Project-specific ones go
 	// in <project>/.mcp.json and need a one-time approval.
 	MCPServers map[string]mcp.ServerConfig `json:"mcp_servers,omitempty"`
+	// Hooks run for every project. Project-specific ones go in
+	// <project>/.janetcode/hooks.json and need a one-time approval.
+	Hooks hook.Config `json:"hooks,omitempty"`
 }
 
 // PriceFor returns the configured price for model: an exact key first, then
@@ -319,6 +323,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	}
 	if cfg.MaxIterations <= 0 {
 		cfg.MaxIterations = DefaultMaxIter
+	}
+	if err := cfg.Hooks.Validate(); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return cfg, nil
 }

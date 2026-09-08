@@ -162,6 +162,44 @@ Repeat it to go back further (up to 30 turns); it still works after
 `--continue` or `/resume`. If you committed or checked out in between, the
 git snapshot is not applied and only file-tool changes are reverted.
 
+### Hooks
+
+Hooks are shell commands run at fixed points of the loop. They live under
+`"hooks"` in the config file (every project) or in
+`<project>/.janetcode/hooks.json` (needs a one-time `/hooks trust`, like
+`.mcp.json`, because a cloned repository must not run commands on your
+machine by itself):
+
+```json
+"hooks": {
+  "pre_tool":    [{"match": "bash", "command": "scripts/policy.sh"}],
+  "post_tool":   [{"match": "write_file|edit_file", "command": "gofmt -l . | sed 's/^/unformatted: /'"}],
+  "pre_compact": [{"command": "echo 'Open PR: #42'"}],
+  "stop":        [{"command": "go test ./... >/dev/null || { echo 'tests fail' >&2; exit 2; }"}]
+}
+```
+
+Each hook gets the event as JSON on stdin (`event`, `cwd`, `tool`, `input`,
+and for `post_tool` the `output`/`is_error`, for `stop` the model's `text`,
+for `pre_compact` the estimated `tokens`) plus `JANETCODE_EVENT`,
+`JANETCODE_TOOL` and `JANETCODE_CWD` in the environment. `match` is a
+regexp on the tool name. What the hook prints decides:
+
+- exit code 2 blocks: a `pre_tool` call is denied with stderr as the
+  reason; a `stop` sends the model back to work with stderr as the message
+  (at most three times per turn).
+- stdout JSON `{"decision":"deny","reason":"…"}` blocks the same way;
+  `{"input":{…}}` rewrites the tool input (the rewritten input is what is
+  previewed, approved and run); `{"note":"…"}` is appended to the tool
+  result (or to the handoff note for `pre_compact`);
+  `{"continue":"…"}` on `stop` sends the model back with that text.
+- plain text on stdout is a note.
+- any other exit code, a crash or a timeout (10 s by default, `timeout`
+  in seconds) is logged and ignored: hooks fail open, so a broken hook
+  cannot wedge a session.
+
+`/hooks` lists what is in effect.
+
 ### MCP servers
 
 janetcode is an MCP client over stdio. Servers listed under `mcp_servers` in

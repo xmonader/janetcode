@@ -1,0 +1,293 @@
+// Package hook runs user-supplied commands at points in the agent loop:
+// before and after a tool call, before compaction, and when the model
+// wants to stop. A hook can deny or rewrite a tool call and add notes the
+// model sees. Hooks are fail-open: a crash, timeout or unexpected exit
+// code is reported and otherwise ignored, so a broken hook cannot wedge a
+// session; only exit code 2 (or a JSON deny) blocks.
+package hook
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+)
+
+// Event names.
+const (
+	PreTool    = "pre_tool"    // before a tool runs; may deny or rewrite input
+	PostTool   = "post_tool"   // after a tool ran; may add a note to the result
+	PreCompact = "pre_compact" // before the history is summarised
+	Stop       = "stop"        // the model ended its turn; may send it back to work
+)
+
+// Events lists every event name, for validation and docs.
+var Events = []string{PreTool, PostTool, PreCompact, Stop}
+
+// Hook is one command bound to an event.
+type Hook struct {
+	// Match is a regexp on the tool name for tool events; empty matches all.
+	Match string `json:"match,omitempty"`
+	// Command is run through the shell with the event JSON on stdin.
+	Command string `json:"command"`
+	// Timeout in seconds; zero means 10.
+	Timeout int `json:"timeout,omitempty"`
+}
+
+// Config maps event names to hooks, the shape used in config.json under
+// "hooks" and in <project>/.janetcode/hooks.json.
+type Config map[string][]Hook
+
+// ProjectFile is the per-project hook list, relative to the project root.
+const ProjectFile = ".janetcode/hooks.json"
+
+// Validate rejects unknown events, bad regexps and empty commands.
+func (c Config) Validate() error {
+	for ev, hooks := range c {
+		known := false
+		for _, e := range Events {
+			known = known || e == ev
+		}
+		if !known {
+			return fmt.Errorf("hooks: unknown event %q (want one of %s)", ev, strings.Join(Events, ", "))
+		}
+		for i, h := range hooks {
+			if strings.TrimSpace(h.Command) == "" {
+				return fmt.Errorf("hooks: %s[%d] has no command", ev, i)
+			}
+			if h.Match != "" {
+				if _, err := regexp.Compile(h.Match); err != nil {
+					return fmt.Errorf("hooks: %s[%d] match: %v", ev, i, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// LoadProject reads the project hook file. A missing file gives an empty
+// config and empty hash. The hash identifies the exact content that was
+// approved, like the MCP project file.
+func LoadProject(root string) (Config, string, error) {
+	data, err := os.ReadFile(filepath.Join(root, ProjectFile))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, "", nil
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	var c Config
+	if err := json.Unmarshal(data, &c); err != nil {
+		return nil, "", fmt.Errorf("%s: %w", ProjectFile, err)
+	}
+	if err := c.Validate(); err != nil {
+		return nil, "", fmt.Errorf("%s: %w", ProjectFile, err)
+	}
+	sum := sha256.Sum256(data)
+	return c, hex.EncodeToString(sum[:]), nil
+}
+
+// Merge returns a config with the hooks of both, a's first.
+func Merge(a, b Config) Config {
+	out := Config{}
+	for _, c := range []Config{a, b} {
+		for ev, hs := range c {
+			out[ev] = append(out[ev], hs...)
+		}
+	}
+	return out
+}
+
+// Input is what a hook reads on stdin, as JSON.
+type Input struct {
+	Event   string          `json:"event"`
+	Cwd     string          `json:"cwd"`
+	Tool    string          `json:"tool,omitempty"`
+	Input   json.RawMessage `json:"input,omitempty"`
+	Output  string          `json:"output,omitempty"`
+	IsError bool            `json:"is_error,omitempty"`
+	// Text is the model's final message for stop events.
+	Text string `json:"text,omitempty"`
+	// Tokens is the estimated context size for pre_compact events.
+	Tokens int `json:"tokens,omitempty"`
+}
+
+// Output is what a hook may print on stdout, as JSON. Plain text on
+// stdout is taken as a note.
+type Output struct {
+	// Decision "deny" blocks the tool call (pre_tool) with Reason.
+	Decision string `json:"decision,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+	// Input replaces the tool input (pre_tool).
+	Input json.RawMessage `json:"input,omitempty"`
+	// Note is appended to the tool result (post_tool) or shown to the
+	// model as context (pre_tool, stop).
+	Note string `json:"note,omitempty"`
+	// Continue sends the model back to work with this text (stop).
+	Continue string `json:"continue,omitempty"`
+}
+
+// Result is the combined verdict of every hook that ran for an event.
+type Result struct {
+	Denied bool
+	Reason string
+	// Input is the final tool input after rewrites (pre_tool).
+	Input json.RawMessage
+	// Notes collects notes from every hook.
+	Notes []string
+	// Continue is the text to feed back on a stop event, or "".
+	Continue string
+}
+
+// Runner executes hooks. Log receives one line per failure that was
+// ignored (fail-open); nil discards them.
+type Runner struct {
+	Config Config
+	Cwd    string
+	Log    func(string)
+	// Shell overrides the shell used ("bash" by default).
+	Shell string
+}
+
+// Has reports whether any hook is bound to the event.
+func (r *Runner) Has(event string) bool { return r != nil && len(r.Config[event]) > 0 }
+
+// Run executes the hooks of in.Event in order. A deny stops the chain;
+// rewrites chain, so each hook sees the previous hook's input.
+func (r *Runner) Run(ctx context.Context, in Input) Result {
+	res := Result{Input: in.Input}
+	if r == nil {
+		return res
+	}
+	for i, h := range r.Config[in.Event] {
+		if h.Match != "" && in.Tool != "" {
+			if ok, _ := regexp.MatchString(h.Match, in.Tool); !ok {
+				continue
+			}
+		}
+		in.Input = res.Input
+		out, exit, err := r.exec(ctx, h, in)
+		label := fmt.Sprintf("%s hook %d (%s)", in.Event, i+1, firstWords(h.Command))
+		switch {
+		case ctx.Err() != nil:
+			return res
+		case exit == 2:
+			reason := strings.TrimSpace(out.stderr)
+			if reason == "" {
+				reason = "blocked by " + label
+			}
+			if in.Event == Stop {
+				res.Continue = reason
+				return res
+			}
+			res.Denied, res.Reason = true, reason
+			return res
+		case err != nil || exit != 0:
+			msg := strings.TrimSpace(out.stderr)
+			if err != nil {
+				msg = err.Error()
+			}
+			r.logf("%s ignored: exit %d: %s", label, exit, msg)
+			continue
+		}
+		var o Output
+		text := strings.TrimSpace(out.stdout)
+		if text == "" {
+			continue
+		}
+		if err := json.Unmarshal([]byte(text), &o); err != nil {
+			o.Note = text
+		}
+		if o.Decision == "deny" || o.Decision == "block" {
+			if o.Reason == "" {
+				o.Reason = "blocked by " + label
+			}
+			if in.Event == Stop {
+				res.Continue = o.Reason
+				return res
+			}
+			res.Denied, res.Reason = true, o.Reason
+			return res
+		}
+		if len(o.Input) > 0 && in.Event == PreTool {
+			if !json.Valid(o.Input) {
+				r.logf("%s ignored: rewritten input is not valid JSON", label)
+			} else {
+				res.Input = o.Input
+			}
+		}
+		if o.Note != "" {
+			res.Notes = append(res.Notes, o.Note)
+		}
+		if o.Continue != "" && in.Event == Stop {
+			res.Continue = o.Continue
+			return res
+		}
+	}
+	return res
+}
+
+type execOut struct{ stdout, stderr string }
+
+func (r *Runner) exec(ctx context.Context, h Hook, in Input) (execOut, int, error) {
+	timeout := time.Duration(h.Timeout) * time.Second
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	shell := r.Shell
+	if shell == "" {
+		shell = "bash"
+	}
+	payload, err := json.Marshal(in)
+	if err != nil {
+		return execOut{}, -1, err
+	}
+	cmd := exec.CommandContext(ctx, shell, "-c", h.Command)
+	cmd.Dir = r.Cwd
+	cmd.Stdin = bytes.NewReader(payload)
+	cmd.Env = append(os.Environ(),
+		"JANETCODE_EVENT="+in.Event,
+		"JANETCODE_TOOL="+in.Tool,
+		"JANETCODE_CWD="+in.Cwd,
+	)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err = cmd.Run()
+	out := execOut{stdout.String(), stderr.String()}
+	if ctx.Err() != nil {
+		return out, -1, fmt.Errorf("timed out after %s", timeout)
+	}
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return out, ee.ExitCode(), nil
+	}
+	if err != nil {
+		return out, -1, err
+	}
+	return out, 0, nil
+}
+
+func (r *Runner) logf(format string, args ...any) {
+	if r.Log != nil {
+		r.Log(fmt.Sprintf(format, args...))
+	}
+}
+
+func firstWords(s string) string {
+	f := strings.Fields(s)
+	if len(f) > 3 {
+		f = f[:3]
+	}
+	return strings.Join(f, " ")
+}

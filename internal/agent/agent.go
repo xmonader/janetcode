@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -131,6 +133,9 @@ type Agent struct {
 	// Snapshots, when set, snapshots the git work tree before the first
 	// mutating tool of each turn so Undo also reverts shell changes.
 	Snapshots *snapshot.Repo
+	// Hooks, when set, runs user commands around tool calls, compaction
+	// and turn end (see package hook). Nil means no hooks.
+	Hooks *hook.Runner
 
 	allowed map[string]bool
 	cp      checkpointer
@@ -189,6 +194,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	if compactAt == 0 {
 		compactAt = DefaultCompactAt
 	}
+	stops := 0
 	for iter := 0; iter < maxIter; iter++ {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -225,6 +231,9 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		emit(Event{Kind: EvTextBlockDone})
 
 		if resp.StopReason != llm.StopToolUse {
+			if more := a.stopHook(ctx, resp.Message.Text(), &stops, emit); more {
+				continue
+			}
 			emit(Event{Kind: EvTurnDone, Usage: resp.Usage, StopReason: resp.StopReason})
 			return nil
 		}
@@ -410,6 +419,22 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
 		return msg, true, nil
 	}
+	var hookNotes []string
+	if a.Hooks.Has(hook.PreTool) {
+		res := a.Hooks.Run(ctx, hook.Input{Event: hook.PreTool, Cwd: a.Hooks.Cwd, Tool: u.Name, Input: u.Input})
+		if res.Denied {
+			msg := "Blocked by a hook: " + res.Reason
+			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+			return msg, true, nil
+		}
+		if !bytes.Equal(res.Input, u.Input) {
+			// The rewritten input is what gets previewed, approved and run.
+			u.Input = res.Input
+			call.Input = res.Input
+			hookNotes = append(hookNotes, "a hook rewrote this call's input to: "+string(res.Input))
+		}
+		hookNotes = append(hookNotes, res.Notes...)
+	}
 	if pv, ok := t.(tool.Previewer); ok {
 		if p, err := pv.Preview(ctx, u.Input); err == nil {
 			call.Preview = p
@@ -483,7 +508,14 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	if out == "" {
 		out = "(no output)"
 	}
+	if a.Hooks.Has(hook.PostTool) {
+		res := a.Hooks.Run(ctx, hook.Input{Event: hook.PostTool, Cwd: a.Hooks.Cwd, Tool: u.Name, Input: u.Input, Output: out, IsError: isErr})
+		hookNotes = append(hookNotes, res.Notes...)
+	}
 	out = a.stash(u.ID, u.Name, out)
+	for _, n := range hookNotes {
+		out += "\n[hook: " + n + "]"
+	}
 	if t.Mutating() { // edit coaching only touches serial (mutating) calls, so no lock is needed
 		out += a.coach.after(ctx, a.Tools, t, u.Name, u.Input, isErr)
 	} else if u.Name == "read_file" {
@@ -501,6 +533,25 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
 	return out, isErr, nil
 }
+
+// stopHook gives stop hooks a chance to send the model back to work. It
+// reports whether the turn continues.
+func (a *Agent) stopHook(ctx context.Context, text string, stops *int, emit func(Event)) bool {
+	if !a.Hooks.Has(hook.Stop) || *stops >= maxStopContinues {
+		return false
+	}
+	res := a.Hooks.Run(ctx, hook.Input{Event: hook.Stop, Cwd: a.Hooks.Cwd, Text: text})
+	if res.Continue == "" {
+		return false
+	}
+	*stops++
+	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("stop hook sent the model back to work (%d/%d): %s", *stops, maxStopContinues, res.Continue)})
+	a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, "[A stop hook did not accept this as done]\n"+res.Continue))
+	return true
+}
+
+// maxStopContinues bounds how often stop hooks may extend one turn.
+const maxStopContinues = 3
 
 func runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (out string, err error) {
 	defer func() {

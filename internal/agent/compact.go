@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -208,6 +209,11 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 		}
 	}
 
+	var hookNotes []string
+	if a.Hooks.Has(hook.PreCompact) {
+		hookNotes = a.Hooks.Run(ctx, hook.Input{Event: hook.PreCompact, Cwd: a.Hooks.Cwd, Tokens: before}).Notes
+	}
+
 	// Detach a trailing plain user message so it survives verbatim.
 	var pending *llm.Message
 	history := a.Messages
@@ -244,6 +250,9 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	a.Usage.Add(resp.Usage)
 
 	note := "[Context was compacted. Handoff note from the earlier part of this conversation:]\n\n" + summary
+	for _, n := range hookNotes {
+		note += "\n\n[From a pre_compact hook:]\n" + n
+	}
 	if midTurn {
 		note += "\n\n[The previous turn was interrupted mid-task by compaction. Continue the work described above.]"
 	}
