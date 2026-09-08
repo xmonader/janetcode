@@ -472,10 +472,10 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 		out = "(no output)"
 	}
 	if t.Mutating() { // edit coaching only touches serial (mutating) calls, so no lock is needed
-		out += a.coach.after(ctx, a.Tools, u.Name, u.Input, isErr)
+		out += a.coach.after(ctx, a.Tools, t, u.Name, u.Input, isErr)
 	} else if u.Name == "read_file" {
 		a.coachMu.Lock()
-		a.coach.after(ctx, a.Tools, u.Name, u.Input, isErr)
+		a.coach.after(ctx, a.Tools, t, u.Name, u.Input, isErr)
 		a.coachMu.Unlock()
 	}
 	a.loopMu.Lock()

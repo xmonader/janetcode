@@ -27,6 +27,16 @@ type coach struct {
 	read  map[string]bool
 }
 
+// absPath asks a Toucher for the file it changed.
+func absPath(t tool.Tool, input json.RawMessage) string {
+	if tc, ok := t.(tool.Toucher); ok {
+		if paths, err := tc.Touches(input); err == nil && len(paths) == 1 {
+			return paths[0]
+		}
+	}
+	return ""
+}
+
 func inputPath(input json.RawMessage) string {
 	var in struct {
 		Path string `json:"path"`
@@ -38,8 +48,8 @@ func inputPath(input json.RawMessage) string {
 }
 
 // after inspects a finished tool call and returns text to append to its
-// result.
-func (c *coach) after(ctx context.Context, tools *tool.Registry, name string, input json.RawMessage, isErr bool) string {
+// result. An empty abs path (no Toucher) skips the per-edit feedback.
+func (c *coach) after(ctx context.Context, tools *tool.Registry, t tool.Tool, name string, input json.RawMessage, isErr bool) string {
 	if c.fails == nil {
 		c.fails, c.read = map[string]int{}, map[string]bool{}
 	}
@@ -48,9 +58,15 @@ func (c *coach) after(ctx context.Context, tools *tool.Registry, name string, in
 		return ""
 	}
 	switch name {
-	case "read_file", "write_file":
+	case "read_file":
 		if !isErr {
 			c.read[p] = true
+		}
+		return ""
+	case "write_file":
+		if !isErr {
+			c.read[p] = true
+			return editFeedback(ctx, absPath(t, input))
 		}
 		return ""
 	case "edit_file":
@@ -60,7 +76,7 @@ func (c *coach) after(ctx context.Context, tools *tool.Registry, name string, in
 	if !isErr {
 		delete(c.fails, p)
 		c.read[p] = true
-		return ""
+		return editFeedback(ctx, absPath(t, input))
 	}
 	c.fails[p]++
 	var notes []string
