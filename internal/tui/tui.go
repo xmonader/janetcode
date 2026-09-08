@@ -1440,7 +1440,11 @@ func (m *model) command(text string) tea.Cmd {
 			break
 		}
 		for _, d := range done {
-			m.transcript.info("↶ " + shortPath(d))
+			verb, path, _ := strings.Cut(d, " ")
+			if rel, err := filepath.Rel(m.opts.Cwd, path); err == nil && !strings.HasPrefix(rel, "..") {
+				path = rel
+			}
+			m.transcript.info("↶ " + verb + " " + shortPath(path))
 		}
 		if err != nil {
 			m.transcript.errorf("undo incomplete: %v", err)
