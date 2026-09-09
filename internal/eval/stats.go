@@ -301,6 +301,9 @@ type Comparison struct {
 	// interval rather than being computed from the totals.
 	CostRatio, CostRatioLo, CostRatioHi          float64
 	ContextRatio, ContextRatioLo, ContextRatioHi float64
+	// Output tokens are the wall-clock term: generation dominates a turn's
+	// latency, so a change aimed at speed is a change to this number.
+	OutputRatio, OutputRatioLo, OutputRatioHi float64
 	// Paired reports whether there were enough shared tasks with usable
 	// numbers to bootstrap the ratios at all.
 	Paired bool
@@ -325,6 +328,7 @@ func (c Comparison) ContextSignificant() bool {
 type pair struct {
 	base, cur       float64
 	baseCtx, curCtx float64
+	baseOut, curOut float64
 }
 
 // ratioCI bootstraps the ratio of summed current to summed base over the
@@ -422,15 +426,15 @@ func Compare(base, cur []Result) Comparison {
 // pairCosts bootstraps the cost and context ratios over the tasks the two
 // sets share.
 func (c *Comparison) pairCosts(base, cur []Result) {
-	bc, bctx, bknown := perTask(base)
-	cc, cctx, cknown := perTask(cur)
+	bc, bctx, bout, bknown := perTask(base)
+	cc, cctx, cout, cknown := perTask(cur)
 	var pairs []pair
 	for name, b := range bc {
 		cv, ok := cc[name]
 		if !ok {
 			continue
 		}
-		pairs = append(pairs, pair{base: b, cur: cv, baseCtx: bctx[name], curCtx: cctx[name]})
+		pairs = append(pairs, pair{base: b, cur: cv, baseCtx: bctx[name], curCtx: cctx[name], baseOut: bout[name], curOut: cout[name]})
 	}
 	if len(pairs) == 0 {
 		return
@@ -440,24 +444,27 @@ func (c *Comparison) pairCosts(base, cur []Result) {
 		c.CostRatio, c.CostRatioLo, c.CostRatioHi, _ = ratioCI(pairs, func(p pair) (float64, float64) { return p.base, p.cur })
 	}
 	c.ContextRatio, c.ContextRatioLo, c.ContextRatioHi, _ = ratioCI(pairs, func(p pair) (float64, float64) { return p.baseCtx, p.curCtx })
+	c.OutputRatio, c.OutputRatioLo, c.OutputRatioHi, _ = ratioCI(pairs, func(p pair) (float64, float64) { return p.baseOut, p.curOut })
 }
 
 // perTask is each task's mean cost and mean context tokens across its runs.
-func perTask(rs []Result) (cost, ctx map[string]float64, costKnown bool) {
-	cost, ctx = map[string]float64{}, map[string]float64{}
+func perTask(rs []Result) (cost, ctx, out map[string]float64, costKnown bool) {
+	cost, ctx, out = map[string]float64{}, map[string]float64{}, map[string]float64{}
 	n := map[string]int{}
 	costKnown = true
 	for _, r := range rs {
 		cost[r.Name] += r.CostUSD
 		ctx[r.Name] += float64(contextTokens(r.Usage))
+		out[r.Name] += float64(r.Usage.OutputTokens)
 		n[r.Name]++
 		costKnown = costKnown && r.CostKnown
 	}
 	for name, k := range n {
 		cost[name] /= float64(k)
 		ctx[name] /= float64(k)
+		out[name] /= float64(k)
 	}
-	return cost, ctx, costKnown
+	return cost, ctx, out, costKnown
 }
 
 // Significant reports whether the interval excludes zero.
@@ -523,6 +530,11 @@ func WriteComparison(w io.Writer, c Comparison) {
 		fmt.Fprintf(w, "context per solved task %s → %s (×%.2f) · compactions %d → %d%s\n",
 			shortTokens(c.Base.ContextPerSolved), shortTokens(c.Current.ContextPerSolved), ratio, c.Base.Compactions, c.Current.Compactions,
 			ratioNote(c.ContextRatio, c.ContextRatioLo, c.ContextRatioHi, c.Paired))
+	}
+	if c.Paired && c.OutputRatio > 0 {
+		fmt.Fprintf(w, "output tokens %s → %s · generation is most of a turn's latency%s\n",
+			shortTokens(c.Base.Usage.OutputTokens), shortTokens(c.Current.Usage.OutputTokens),
+			ratioNote(c.OutputRatio, c.OutputRatioLo, c.OutputRatioHi, true))
 	}
 	if c.Paired && !c.CostSignificant() && !c.ContextSignificant() {
 		fmt.Fprintf(w, "neither cost nor context moved beyond the run-to-run spread: this is not evidence of a saving.\n")

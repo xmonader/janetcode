@@ -207,3 +207,93 @@ func TestEditFileList(t *testing.T) {
 		t.Fatalf("a failed batch must not write: %q", got)
 	}
 }
+
+// TestEditFileByLine covers the cheaper locator: line ranges instead of
+// retyping the text being replaced.
+func TestEditFileByLine(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "f.go")
+	orig := "package x\n\nfunc A() {}\nfunc B() {}\nfunc C() {}\n"
+	write := func() {
+		if err := os.WriteFile(path, []byte(orig), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write()
+	e := EditFile{Root: root}
+
+	out, err := e.Run(context.Background(), raw(`{"path":"f.go","from_line":3,"to_line":3,"new_string":"func Alpha() {}"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(path)
+	if want := "package x\n\nfunc Alpha() {}\nfunc B() {}\nfunc C() {}\n"; string(got) != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+	// The result quotes what the range actually held: a line number is a
+	// claim nothing in the input checks.
+	if !strings.Contains(out, "replaced lines 3: func A() {}") {
+		t.Fatalf("result must say what it replaced: %q", out)
+	}
+
+	// Several line edits in one call are all numbered against the file as
+	// it was before the call, so the model need not track its own shifts.
+	write()
+	if _, err := e.Run(context.Background(), raw(`{"path":"f.go","edits":[
+{"from_line":3,"to_line":3,"new_string":"func Alpha() {}\nfunc Extra() {}"},
+{"from_line":5,"to_line":5,"new_string":"func Gamma() {}"}]}`)); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = os.ReadFile(path)
+	if want := "package x\n\nfunc Alpha() {}\nfunc Extra() {}\nfunc B() {}\nfunc Gamma() {}\n"; string(got) != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+
+	// Deleting a range.
+	write()
+	if _, err := e.Run(context.Background(), raw(`{"path":"f.go","from_line":3,"to_line":4,"new_string":""}`)); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = os.ReadFile(path)
+	if want := "package x\n\nfunc C() {}\n"; string(got) != want {
+		t.Fatalf("delete: got %q want %q", got, want)
+	}
+
+	// Refusals, each leaving the file alone.
+	write()
+	for _, tc := range []struct{ in, want string }{
+		{`{"path":"f.go","from_line":9,"to_line":9,"new_string":"x"}`, "past the end"},
+		{`{"path":"f.go","from_line":4,"to_line":2,"new_string":"x"}`, "before from_line"},
+		{`{"path":"f.go","from_line":0,"to_line":0,"old_string":"nothing here","new_string":"x"}`, "not found"},
+		{`{"path":"f.go","from_line":3,"to_line":3,"old_string":"func A() {}","new_string":"x"}`, "not both"},
+		{`{"path":"f.go","edits":[{"from_line":3,"to_line":4,"new_string":"x"},{"from_line":4,"to_line":5,"new_string":"y"}]}`, "both cover line 4"},
+		{`{"path":"f.go","edits":[{"from_line":3,"to_line":3,"new_string":"x"},{"old_string":"func C","new_string":"y"}]}`, "locate itself the same way"},
+	} {
+		if _, err := e.Run(context.Background(), raw(tc.in)); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("input %s: expected %q, got %v", tc.in, tc.want, err)
+		}
+	}
+	if got, _ = os.ReadFile(path); string(got) != orig {
+		t.Fatalf("a refused edit must not write: %q", got)
+	}
+
+	// A file with no trailing newline keeps not having one.
+	noEnd := filepath.Join(root, "g.txt")
+	os.WriteFile(noEnd, []byte("one\ntwo"), 0o644)
+	if _, err := e.Run(context.Background(), raw(`{"path":"g.txt","from_line":1,"to_line":1,"new_string":"ONE"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = os.ReadFile(noEnd); string(got) != "ONE\ntwo" {
+		t.Fatalf("trailing newline changed: %q", got)
+	}
+
+	// The ablation withdraws the form entirely.
+	write()
+	if _, err := (EditFile{Root: root, NoLines: true}).Run(context.Background(),
+		raw(`{"path":"f.go","from_line":3,"to_line":3,"new_string":"x"}`)); err == nil || !strings.Contains(err.Error(), "old_string only") {
+		t.Fatalf("expected the line form to be withdrawn, got %v", err)
+	}
+	if d := (EditFile{Root: root, NoLines: true}).Description(); strings.Contains(d, "from_line") {
+		t.Fatal("the withdrawn form must not be advertised")
+	}
+}

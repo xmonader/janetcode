@@ -666,7 +666,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			Archive:   archive,
 			Price:     cfg.PriceFor(cfg.Model),
 			Tools: tool.NewRegistry(
-				tool.ReadFile{Root: root}, tool.WriteFile{Root: root}, tool.EditFile{Root: root},
+				tool.ReadFile{Root: root}, tool.WriteFile{Root: root}, tool.EditFile{Root: root, NoLines: off["lineedit"]},
 				tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root},
 				tool.Bash{Root: root, Cache: &tool.ShellCache{}},
 				repomap.Tool{Cache: repo},
@@ -944,7 +944,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		Tools: tool.NewRegistry(
 			tool.ReadFile{Root: d.cwd, Seen: seen},
 			tool.WriteFile{Root: d.cwd, Seen: seen},
-			tool.EditFile{Root: d.cwd, Seen: seen},
+			tool.EditFile{Root: d.cwd, Seen: seen, NoLines: envOff()["lineedit"]},
 			tool.ListDir{Root: d.cwd},
 			tool.Glob{Root: d.cwd},
 			tool.Grep{Root: d.cwd},
