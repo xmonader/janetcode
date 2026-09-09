@@ -58,6 +58,9 @@ type Provider struct {
 	cfg  Config
 	ring *llm.KeyRing
 	http *http.Client
+	// pace widens the gap between requests after the provider starts
+	// refusing them, so a long run stops walking into the same limit.
+	pace llm.Pacer
 
 	// Dialect quirks learned from 400 responses, kept for the provider's
 	// lifetime so each is paid for at most once.
@@ -658,6 +661,11 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if emit == nil {
 		emit = func(llm.Event) {}
 	}
+	// Spacing imposed by earlier rate limits, if any. Costs nothing on a
+	// session the provider has never refused.
+	if err := p.pace.Wait(ctx); err != nil {
+		return nil, err
+	}
 	w, err := buildRequest(req)
 	if err != nil {
 		return nil, err
@@ -695,6 +703,12 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 				continue
 			}
 		}
+		// A rate limit widens the gap for later requests, so a long run
+		// stops walking into the same wall; retrying only rescues this one.
+		var rl *APIError
+		if errors.As(err, &rl) && (rl.Status == 429 || rl.Status == 529) && !permanentLimit(rl.Error()) {
+			p.pace.Refused()
+		}
 		if attempt >= p.cfg.MaxRetries || !retryable(err) || ctx.Err() != nil {
 			return nil, err
 		}
@@ -705,6 +719,7 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		}
 	}
 	defer resp.Body.Close()
+	p.pace.Served()
 	return readStream(resp.Body, emit)
 }
 
