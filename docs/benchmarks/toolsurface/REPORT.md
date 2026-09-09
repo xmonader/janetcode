@@ -71,6 +71,27 @@ Better on fan-out, neutral on large trees, unchanged pass rate in all 254
 runs. `lean_tools` is therefore **on by default**, and the tools are
 deferred rather than removed: the worst case is one `tool_search` call.
 
+## The exploration case, finally tested
+
+Both earlier arms ran on generated trees where a shell one-liner
+substitutes for a search tool, and both reports named the same missing
+case: a genuinely exploratory job on an unfamiliar repository.
+`evals/explore` is that — 59 files across eight packages, one constant
+defined in one place and hard-coded in exactly one other, findable only by
+searching and following the reference.
+
+Five runs per arm on `inception/mercury-2.5`: **5/5 passed both ways**, and
+the four-tool arm was cheaper — cost x1.14 and context x1.13 in favour of
+the lean surface.
+
+No interval is quoted, because there is one task and a bootstrap over one
+task resamples the same value and collapses to a point. The harness used to
+print that point as `[1.13, 1.13] · real increase`, which is exactly the
+overclaim it exists to prevent; it now says "too few tasks to bootstrap an
+interval" and claims nothing. So this is a direction, not a result: on the
+one exploratory task that exists, withholding the search tools did not hurt
+and looks cheaper.
+
 ## What this does not show
 
 That the five tools are worthless — a model that wants one asks for it, and

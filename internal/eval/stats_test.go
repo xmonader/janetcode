@@ -57,3 +57,32 @@ func res(name string, cost float64) Result {
 		Usage: llm.Usage{InputTokens: int(cost * 1000), OutputTokens: 10},
 	}
 }
+
+// TestOneTaskCannotBeSignificant: a bootstrap resamples tasks, so with one
+// task every resample is the same value and the interval collapses to a
+// point that reads as certainty. The harness produced exactly that —
+// "×1.13 [1.13, 1.13] · real increase" — on a single-task comparison.
+func TestOneTaskCannotBeSignificant(t *testing.T) {
+	one := Compare([]Result{res("a", 1.0)}, []Result{res("a", 1.13)})
+	if one.CostSignificant() || one.ContextSignificant() {
+		t.Fatalf("one task cannot be significant: cost ×%.2f [%.2f, %.2f]", one.CostRatio, one.CostRatioLo, one.CostRatioHi)
+	}
+	if one.CostRatio == 0 {
+		t.Fatal("the ratio itself is still worth reporting")
+	}
+	var b strings.Builder
+	WriteComparison(&b, one)
+	if !strings.Contains(b.String(), "too few tasks") {
+		t.Fatalf("the report must say why there is no interval:\n%s", b.String())
+	}
+	if strings.Contains(b.String(), "real increase") || strings.Contains(b.String(), "real saving") {
+		t.Fatalf("no verdict may be claimed:\n%s", b.String())
+	}
+	// Three tasks is enough to bootstrap, and a consistent effect shows.
+	three := Compare(
+		[]Result{res("a", 1.0), res("b", 1.0), res("c", 1.0)},
+		[]Result{res("a", 0.5), res("b", 0.5), res("c", 0.5)})
+	if !three.CostSignificant() {
+		t.Fatalf("three tasks halving should clear: ×%.2f [%.2f, %.2f]", three.CostRatio, three.CostRatioLo, three.CostRatioHi)
+	}
+}

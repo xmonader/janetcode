@@ -316,13 +316,17 @@ type Comparison struct {
 // CostSignificant reports whether the cost ratio's interval excludes 1,
 // i.e. whether the difference survived the noise.
 func (c Comparison) CostSignificant() bool {
-	return c.Paired && (c.CostRatioLo > 1 || c.CostRatioHi < 1)
+	return c.Paired && hasInterval(c.CostRatioLo, c.CostRatioHi) && (c.CostRatioLo > 1 || c.CostRatioHi < 1)
 }
+
+// hasInterval reports whether a bootstrap actually produced bounds. Too
+// few tasks leaves them at zero, and zero must never read as "below one".
+func hasInterval(lo, hi float64) bool { return lo > 0 && hi > 0 }
 
 // ContextSignificant reports whether the context ratio's interval
 // excludes 1.
 func (c Comparison) ContextSignificant() bool {
-	return c.Paired && (c.ContextRatioLo > 1 || c.ContextRatioHi < 1)
+	return c.Paired && hasInterval(c.ContextRatioLo, c.ContextRatioHi) && (c.ContextRatioLo > 1 || c.ContextRatioHi < 1)
 }
 
 // pair is one task's mean cost and context in each set, for the paired
@@ -339,8 +343,16 @@ type pair struct {
 // shared tasks. Resampling whole tasks, not runs, is what makes it paired:
 // a task that is expensive in both sets cannot move the ratio on its own.
 func ratioCI(pairs []pair, pick func(pair) (float64, float64)) (ratio, lo, hi float64, ok bool) {
-	if len(pairs) == 0 {
-		return 0, 0, 0, false
+	// A bootstrap resamples tasks, so with one or two of them every
+	// resample is the same handful of values and the interval collapses to
+	// a point — which then reads as certainty. That is precisely the
+	// overclaim this file exists to prevent, so below minPairs the ratio
+	// is reported without an interval and never called significant.
+	const minPairs = 3
+	if len(pairs) < minPairs {
+		if len(pairs) == 0 {
+			return 0, 0, 0, false
+		}
 	}
 	sum := func(idx []int) (b, c float64) {
 		for _, i := range idx {
@@ -358,6 +370,9 @@ func ratioCI(pairs []pair, pick func(pair) (float64, float64)) (ratio, lo, hi fl
 		return 0, 0, 0, false
 	}
 	ratio = cu / b
+	if len(pairs) < minPairs {
+		return ratio, 0, 0, false
+	}
 	rng := rand.New(rand.NewSource(1))
 	const resamples = 4000
 	ratios := make([]float64, 0, resamples)
@@ -567,6 +582,9 @@ func WriteComparison(w io.Writer, c Comparison) {
 func ratioNote(r, lo, hi float64, ok bool) string {
 	if !ok || r == 0 {
 		return ""
+	}
+	if lo == 0 && hi == 0 {
+		return fmt.Sprintf("\n  paired ×%.2f over shared tasks · too few tasks to bootstrap an interval", r)
 	}
 	verdict := "inside the noise"
 	switch {
