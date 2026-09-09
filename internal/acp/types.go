@@ -1,0 +1,202 @@
+package acp
+
+import "encoding/json"
+
+// The wire types of the Agent Client Protocol, in the shapes the editor
+// sends and expects. Only what this adapter uses is modelled; unknown
+// fields are ignored on the way in and omitted on the way out.
+
+type initializeParams struct {
+	ProtocolVersion    int                `json:"protocolVersion"`
+	ClientCapabilities clientCapabilities `json:"clientCapabilities"`
+	ClientInfo         *implInfo          `json:"clientInfo,omitempty"`
+}
+
+type clientCapabilities struct {
+	FS       fsCapability `json:"fs"`
+	Terminal bool         `json:"terminal,omitempty"`
+}
+
+type fsCapability struct {
+	ReadTextFile  bool `json:"readTextFile,omitempty"`
+	WriteTextFile bool `json:"writeTextFile,omitempty"`
+}
+
+type implInfo struct {
+	Name    string `json:"name"`
+	Title   string `json:"title,omitempty"`
+	Version string `json:"version,omitempty"`
+}
+
+type initializeResult struct {
+	ProtocolVersion   int               `json:"protocolVersion"`
+	AgentCapabilities agentCapabilities `json:"agentCapabilities"`
+	AgentInfo         implInfo          `json:"agentInfo"`
+	AuthMethods       []authMethod      `json:"authMethods"`
+}
+
+type agentCapabilities struct {
+	LoadSession        bool               `json:"loadSession"`
+	PromptCapabilities promptCapabilities `json:"promptCapabilities"`
+}
+
+type promptCapabilities struct {
+	Image           bool `json:"image"`
+	Audio           bool `json:"audio"`
+	EmbeddedContext bool `json:"embeddedContext"`
+}
+
+type authMethod struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+type newSessionParams struct {
+	Cwd                   string   `json:"cwd"`
+	AdditionalDirectories []string `json:"additionalDirectories,omitempty"`
+}
+
+type newSessionResult struct {
+	SessionID string `json:"sessionId"`
+}
+
+type loadSessionParams struct {
+	SessionID string `json:"sessionId"`
+	Cwd       string `json:"cwd"`
+}
+
+type promptParams struct {
+	SessionID string         `json:"sessionId"`
+	Prompt    []contentBlock `json:"prompt"`
+}
+
+type promptResult struct {
+	StopReason string `json:"stopReason"`
+}
+
+type cancelParams struct {
+	SessionID string `json:"sessionId"`
+}
+
+// contentBlock is the ACP content union. Only the fields of the variants
+// this adapter reads or writes are present.
+type contentBlock struct {
+	Type     string `json:"type"`
+	Text     string `json:"text,omitempty"`
+	Data     string `json:"data,omitempty"`
+	MimeType string `json:"mimeType,omitempty"`
+	URI      string `json:"uri,omitempty"`
+	Name     string `json:"name,omitempty"`
+	// Resource carries an embedded resource's own fields.
+	Resource *embeddedResource `json:"resource,omitempty"`
+}
+
+func textBlock(s string) contentBlock { return contentBlock{Type: "text", Text: s} }
+
+type embeddedResource struct {
+	URI      string `json:"uri,omitempty"`
+	MimeType string `json:"mimeType,omitempty"`
+	Text     string `json:"text,omitempty"`
+}
+
+// sessionNotification is the envelope of every session/update.
+type sessionNotification struct {
+	SessionID string `json:"sessionId"`
+	Update    any    `json:"update"`
+}
+
+// A session/update payload is one of two shapes. They are separate types
+// because both name their payload "content" — a message chunk carries one
+// content block, a tool call carries a list of tool content — and one Go
+// struct cannot hold the same JSON tag twice.
+
+// msgUpdate is agent_message_chunk, agent_thought_chunk or
+// user_message_chunk.
+type msgUpdate struct {
+	SessionUpdate string        `json:"sessionUpdate"`
+	MessageID     string        `json:"messageId,omitempty"`
+	Content       *contentBlock `json:"content,omitempty"`
+}
+
+// toolUpdate is tool_call or tool_call_update.
+type toolUpdate struct {
+	SessionUpdate string             `json:"sessionUpdate"`
+	ToolCallID    string             `json:"toolCallId"`
+	Title         string             `json:"title,omitempty"`
+	Kind          string             `json:"kind,omitempty"`
+	Status        string             `json:"status,omitempty"`
+	Content       []toolCallContent  `json:"content,omitempty"`
+	Locations     []toolCallLocation `json:"locations,omitempty"`
+	RawInput      json.RawMessage    `json:"rawInput,omitempty"`
+}
+
+// toolCallContent is the content union of a tool call: rendered text, a
+// file diff, or a terminal handle. Only text and diff are produced here.
+type toolCallContent struct {
+	Type    string        `json:"type"`
+	Content *contentBlock `json:"content,omitempty"`
+	Path    string        `json:"path,omitempty"`
+	OldText *string       `json:"oldText,omitempty"`
+	NewText string        `json:"newText,omitempty"`
+}
+
+type toolCallLocation struct {
+	Path string `json:"path"`
+	Line *int   `json:"line,omitempty"`
+}
+
+// Tool call kinds and statuses, as the protocol names them.
+const (
+	kindRead    = "read"
+	kindEdit    = "edit"
+	kindDelete  = "delete"
+	kindSearch  = "search"
+	kindExecute = "execute"
+	kindThink   = "think"
+	kindFetch   = "fetch"
+	kindOther   = "other"
+
+	statusPending    = "pending"
+	statusInProgress = "in_progress"
+	statusCompleted  = "completed"
+	statusFailed     = "failed"
+)
+
+// Stop reasons.
+const (
+	stopCompleted = "completed"
+	stopCancelled = "cancelled"
+	stopRefusal   = "refusal"
+	stopMaxTurns  = "max_turn_requests"
+)
+
+type requestPermissionParams struct {
+	SessionID string             `json:"sessionId"`
+	ToolCall  toolUpdate         `json:"toolCall"`
+	Options   []permissionOption `json:"options"`
+}
+
+type permissionOption struct {
+	OptionID string `json:"optionId"`
+	Name     string `json:"name"`
+	Kind     string `json:"kind"`
+}
+
+// Permission option ids and kinds. The outcome is matched on the id, so a
+// client that renames kinds still routes correctly.
+const (
+	optAllowOnce    = "allow_once"
+	optAllowAlways  = "allow_always"
+	optRejectOnce   = "reject_once"
+	optRejectAlways = "reject_always"
+)
+
+type requestPermissionResult struct {
+	Outcome permissionOutcome `json:"outcome"`
+}
+
+type permissionOutcome struct {
+	Outcome  string `json:"outcome"`
+	OptionID string `json:"optionId,omitempty"`
+}

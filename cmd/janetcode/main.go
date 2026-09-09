@@ -16,6 +16,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/xmonader/janetcode/internal/acp"
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/eval"
@@ -90,6 +91,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalTimeout = fs.Duration("eval-timeout", 0, "replace every task's timeout with this wall budget (benchmarks give each harness the same)")
 		evalTurns   = fs.Int("eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
 		evalNoLimit = fs.Bool("eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
+		acpMode     = fs.Bool("acp", false, "serve the Agent Client Protocol on stdin/stdout, for an ACP editor that launches janetcode as a subprocess (nothing but protocol messages goes to stdout)")
 		evalFacts   = fs.Int("eval-facts", 0, "after each run that compacted, probe up to N facts mined from what compaction removed (exit codes, output lines, file lines) and record how many the model still recalls")
 		evalBlind   = fs.Bool("eval-facts-blind", false, "probe without expand_output: what the compacted context alone retains")
 		evalCompact = fs.Int("eval-compact-at", 0, "compact the history at this many estimated tokens instead of the default: a low value forces compaction on tasks that would not otherwise reach it, to measure what it costs and what it loses")
@@ -194,79 +196,24 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 	}
 
-	task := &agent.Task{Root: cwd}
-	defer task.Close(context.Background())
-	jobs := &tool.Jobs{}
-	defer jobs.KillAll()
 	cfgPath, _ := config.Path()
 	cfgDir := filepath.Dir(cfgPath)
-	archive := agent.NewArchive(session.ArchiveDir(sessDir, cwd))
+	jobs := &tool.Jobs{}
+	defer jobs.KillAll()
 	mem := memory.Open(filepath.Dir(sessDir), cwd)
 	if em, ok := prov.(llm.Embedder); ok && cfg.EmbeddingModel != "" {
 		model := cfg.EmbeddingModel
 		mem.Embed = func(ctx context.Context, texts []string) ([][]float32, error) { return em.Embed(ctx, model, texts) }
 	}
-	seen := &tool.Seen{}
-	ag := &agent.Agent{
-		Provider: prov,
-		Archive:  archive,
-		Log:      sess,
-		Price:    cfg.PriceFor(cfg.Model),
-		Tools: tool.NewRegistry(
-			tool.ReadFile{Root: cwd, Seen: seen},
-			tool.WriteFile{Root: cwd, Seen: seen},
-			tool.EditFile{Root: cwd, Seen: seen},
-			tool.ListDir{Root: cwd},
-			tool.Glob{Root: cwd},
-			tool.Grep{Root: cwd},
-			tool.Bash{Root: cwd, Cache: &tool.ShellCache{}, Jobs: jobs},
-			tool.JobTool{Jobs: jobs},
-			tool.FetchURL{},
-			tool.WebSearch{Config: cfg.Search},
-			&agent.ExpandOutput{Archive: archive},
-			task,
-		),
-		System:        prompt.System(cwd),
-		Model:         cfg.Model,
-		MaxTokens:     cfg.MaxTokens,
-		MaxIterations: cfg.MaxIterations,
-		AutoApprove:   cfg.AutoApprove,
-		ReadOnly:      *readonly,
-		CompactAt:     cfg.CompactAt,
-		Messages:      history,
-		Pins:          sess.Meta.Pins,
-		Jobs:          jobs,
-		ContextWindow: cfg.MetaFor(cfg.Model).ContextWindow,
+	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly}
+	built, err := buildAgent(deps, sess, history)
+	if err != nil {
+		return err
 	}
-	ag.RestoreFromLog() // plan mode and the turn counter of a resumed session
-	task.Parent = ag
-	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
-	skills := func() []skill.Skill { return skill.Load(cwd, cfgDir) }
-	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(cwd, cfgDir) }
-	ag.Tools.Add(&skill.Tool{Skills: skills})
-	ag.Tools.Add(&memory.Tool{Store: mem})
-	diag := lsp.New(cwd, cfg.LSP)
-	defer diag.Close()
-	if diag.Enabled() {
-		ag.Tools.Add(lsp.Tool{M: diag})
-		ag.Diagnose = diagnoseNote(diag)
-	}
-	ag.SystemExtra = func() string { return mem.Index() + skill.Index(skills()) }
-	repo := &repomap.Cache{Root: cwd}
-	ag.Tools.Add(repomap.Tool{Cache: repo})
-	ag.PlanCheck = repo.CheckPlan
-	if ag.Predictor, err = agent.LoadPredictor(filepath.Join(cfgDir, "critic.json")); err != nil {
-		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
-	}
-	ag.Prepare = chainPrep(skill.TurnPrep(&skill.Injector{Skills: skills}, mem), repomap.TurnPrep(repo, 0))
-	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools})
-	ag.UndoPath = sess.UndoPath()
-	if repo, err := snapshot.Open(cwd); err == nil {
-		ag.Snapshots = repo
-	}
-	if err := ag.LoadUndo(); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
-	}
+	defer built.close()
+	ag, task, diag, repo := built.agent, built.task, built.diag, built.repo
+	_ = task
+	_ = repo
 
 	servers := mcp.Manager{Options: mcp.Options{Root: cwd, Version: version}, Registry: ag.Tools}
 	defer servers.Close()
@@ -343,6 +290,48 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		defer f.Close()
 		ag.Debug = f
 		servers.Options.Debug = f
+	}
+
+	if *acpMode {
+		// The editor owns stdout: only ACP frames may go there, so every
+		// other message in this mode is already on stderr.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		first := built
+		used := false
+		srv := acp.New(acp.Options{
+			In: os.Stdin, Out: os.Stdout, Log: os.Stderr, Version: version,
+			NewAgent: func(sessionCwd, resume string) (*agent.Agent, *session.Session, error) {
+				// The first session takes the agent this process already
+				// built; every later one is wired the same way over its
+				// own session file.
+				s, hist := sess, history
+				if resume != "" {
+					var err error
+					if s, hist, err = session.Open(sessDir, resume); err != nil {
+						return nil, nil, err
+					}
+				} else if used {
+					var err error
+					if s, err = session.New(sessDir, cwd, cfg.Provider, cfg.Model); err != nil {
+						return nil, nil, err
+					}
+					hist = nil
+				}
+				if !used && resume == "" {
+					used = true
+					return first.agent, s, nil
+				}
+				used = true
+				b, err := buildAgent(deps, s, hist)
+				if err != nil {
+					return nil, nil, err
+				}
+				return b.agent, s, nil
+			},
+		})
+		fmt.Fprintf(os.Stderr, "janetcode %s serving ACP on stdio (%s/%s in %s)\n", version, cfg.Provider, cfg.Model, cwd)
+		return srv.Serve(ctx)
 	}
 
 	if *promptText != "" || *watchCmd != "" {
@@ -712,4 +701,112 @@ func authorizeMCP(name string, global, project map[string]mcp.ServerConfig, toke
 	}
 	fmt.Printf("mcp %s: authorized; token stored in %s\n", name, tokens.Path)
 	return nil
+}
+
+// agentDeps is what every agent in this process shares: the provider, the
+// configuration, the project directory and the process-wide stores. One
+// agent is built per session, so an ACP editor opening a second thread
+// gets its own history, log and undo state over the same wiring rather
+// than a second copy of the wiring.
+type agentDeps struct {
+	prov     llm.Provider
+	cfg      *config.Config
+	cwd      string
+	cfgDir   string
+	sessDir  string
+	mem      *memory.Store
+	jobs     *tool.Jobs
+	version  string
+	readOnly bool
+}
+
+// builtAgent is one session's agent and the pieces the caller still owns:
+// the subagent tool (its worktrees outlive a turn), the language-server
+// manager and the repository map.
+type builtAgent struct {
+	agent *agent.Agent
+	task  *agent.Task
+	diag  *lsp.Manager
+	repo  *repomap.Cache
+}
+
+// close releases what the agent held. It is the caller's job, since the
+// pieces outlive any single turn.
+func (b builtAgent) close() {
+	b.task.Close(context.Background())
+	b.diag.Close()
+}
+
+// buildAgent wires one agent for a session: tools rooted at the project,
+// the system prompt, skills and memory, diagnostics, the repository map
+// and the trajectory critic.
+func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (builtAgent, error) {
+	task := &agent.Task{Root: d.cwd}
+	jobs := d.jobs
+	cfgDir := d.cfgDir
+	archive := agent.NewArchive(session.ArchiveDir(d.sessDir, d.cwd))
+	mem := d.mem
+	seen := &tool.Seen{}
+	ag := &agent.Agent{
+		Provider: d.prov,
+		Archive:  archive,
+		Log:      sess,
+		Price:    d.cfg.PriceFor(d.cfg.Model),
+		Tools: tool.NewRegistry(
+			tool.ReadFile{Root: d.cwd, Seen: seen},
+			tool.WriteFile{Root: d.cwd, Seen: seen},
+			tool.EditFile{Root: d.cwd, Seen: seen},
+			tool.ListDir{Root: d.cwd},
+			tool.Glob{Root: d.cwd},
+			tool.Grep{Root: d.cwd},
+			tool.Bash{Root: d.cwd, Cache: &tool.ShellCache{}, Jobs: jobs},
+			tool.JobTool{Jobs: jobs},
+			tool.FetchURL{},
+			tool.WebSearch{Config: d.cfg.Search},
+			&agent.ExpandOutput{Archive: archive},
+			task,
+		),
+		System:        prompt.System(d.cwd),
+		Model:         d.cfg.Model,
+		MaxTokens:     d.cfg.MaxTokens,
+		MaxIterations: d.cfg.MaxIterations,
+		AutoApprove:   d.cfg.AutoApprove,
+		ReadOnly:      d.readOnly,
+		CompactAt:     d.cfg.CompactAt,
+		Messages:      history,
+		Pins:          sess.Meta.Pins,
+		Jobs:          jobs,
+		ContextWindow: d.cfg.MetaFor(d.cfg.Model).ContextWindow,
+	}
+	ag.RestoreFromLog() // plan mode and the turn counter of a resumed session
+	task.Parent = ag
+	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
+	skills := func() []skill.Skill { return skill.Load(d.cwd, cfgDir) }
+	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(d.cwd, cfgDir) }
+	ag.Tools.Add(&skill.Tool{Skills: skills})
+	ag.Tools.Add(&memory.Tool{Store: mem})
+	diag := lsp.New(d.cwd, d.cfg.LSP)
+	if diag.Enabled() {
+		ag.Tools.Add(lsp.Tool{M: diag})
+		ag.Diagnose = diagnoseNote(diag)
+	}
+	ag.SystemExtra = func() string { return mem.Index() + skill.Index(skills()) }
+	repo := &repomap.Cache{Root: d.cwd}
+	ag.Tools.Add(repomap.Tool{Cache: repo})
+	ag.PlanCheck = repo.CheckPlan
+	var err error
+	if ag.Predictor, err = agent.LoadPredictor(filepath.Join(cfgDir, "critic.json")); err != nil {
+		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
+	}
+	ag.Prepare = chainPrep(skill.TurnPrep(&skill.Injector{Skills: skills}, mem), repomap.TurnPrep(repo, 0))
+	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools})
+	ag.UndoPath = sess.UndoPath()
+	if snaps, serr := snapshot.Open(d.cwd); serr == nil {
+		ag.Snapshots = snaps
+	}
+	if err := ag.LoadUndo(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+	}
+
+	return builtAgent{agent: ag, task: task, diag: diag, repo: repo}, nil
 }
