@@ -37,6 +37,7 @@ import (
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/tui"
 	"github.com/xmonader/janetcode/internal/verify"
+	"github.com/xmonader/janetcode/internal/worktree"
 )
 
 // version is set at build time via -ldflags "-X main.version=...".
@@ -91,6 +92,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalTimeout = fs.Duration("eval-timeout", 0, "replace every task's timeout with this wall budget (benchmarks give each harness the same)")
 		evalTurns   = fs.Int("eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
 		evalNoLimit = fs.Bool("eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
+		wtBranch    = fs.String("worktree", "", "run the session in a git worktree on this branch, in a checkout under .git: the real tree is untouched, two sessions can work on one repository at once, and the result is a branch to review and merge")
 		acpMode     = fs.Bool("acp", false, "serve the Agent Client Protocol on stdin/stdout, for an ACP editor that launches janetcode as a subprocess (nothing but protocol messages goes to stdout)")
 		evalFacts   = fs.Int("eval-facts", 0, "after each run that compacted, probe up to N facts mined from what compaction removed (exit codes, output lines, file lines) and record how many the model still recalls")
 		evalBlind   = fs.Bool("eval-facts-blind", false, "probe without expand_output: what the compacted context alone retains")
@@ -160,6 +162,26 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
+	}
+	if *wtBranch != "" {
+		wt, err := worktree.Open(context.Background(), cwd, *wtBranch)
+		if err != nil {
+			return err
+		}
+		verb := "reusing"
+		if wt.Created {
+			verb = "created"
+		}
+		fmt.Fprintf(os.Stderr, "worktree: %s %s on branch %s\n", verb, wt.Path, wt.Branch)
+		defer func() {
+			fmt.Fprintf(os.Stderr, "worktree: branch %s has %s (%s)\nmerge it with: git merge %s\n", wt.Branch, wt.Summarize(context.Background()), wt.Path, wt.Branch)
+		}()
+		// Everything downstream is rooted at cwd: tools, the repository
+		// map, language servers, hooks and the session's own record.
+		if err := os.Chdir(wt.Path); err != nil {
+			return err
+		}
+		cwd = wt.Path
 	}
 	if *evalPath != "" {
 		if prov == nil {
