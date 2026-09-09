@@ -369,3 +369,54 @@ func TestToolKindsAndTitles(t *testing.T) {
 		t.Fatalf("locations = %+v", u.Locations)
 	}
 }
+
+// The editor says which directory a session is for, and it is not
+// necessarily the one the binary was launched from. Every tool is rooted
+// at that directory, so the factory has to be told which one it is.
+func TestSessionCwdReachesTheAgent(t *testing.T) {
+	dir := t.TempDir()
+	var gotCwd []string
+	o := Options{
+		Version: "test",
+		NewAgent: func(cwd, resume string) (*agent.Agent, *session.Session, error) {
+			gotCwd = append(gotCwd, cwd)
+			s, err := session.New(dir, cwd, "fake", "m")
+			if err != nil {
+				return nil, nil, err
+			}
+			return &agent.Agent{Provider: &scripted{}, Model: "m", Log: s,
+				Tools: tool.NewRegistry(tool.WriteFile{Root: cwd})}, s, nil
+		},
+	}
+	c, stop := newClient(t, o)
+	defer stop()
+
+	workspace := t.TempDir()
+	c.call("session/new", newSessionParams{Cwd: workspace})
+	var ns newSessionResult
+	if err := json.Unmarshal(c.read().Result, &ns); err != nil {
+		t.Fatal(err)
+	}
+	if len(gotCwd) != 1 || gotCwd[0] != workspace {
+		t.Fatalf("the factory was given %v, want the workspace %q", gotCwd, workspace)
+	}
+	// A second workspace gets its own session, rooted at its own directory.
+	other := t.TempDir()
+	c.call("session/new", newSessionParams{Cwd: other})
+	var ns2 newSessionResult
+	if err := json.Unmarshal(c.read().Result, &ns2); err != nil {
+		t.Fatal(err)
+	}
+	if len(gotCwd) != 2 || gotCwd[1] != other {
+		t.Fatalf("second session got %v", gotCwd)
+	}
+	if ns2.SessionID == ns.SessionID {
+		t.Fatal("two workspaces shared one session")
+	}
+	// A session without a cwd is refused rather than silently rooted at
+	// whatever directory the process happens to be in.
+	c.call("session/new", newSessionParams{})
+	if m := c.read(); m.Error == nil {
+		t.Fatal("session/new with no cwd was accepted")
+	}
+}

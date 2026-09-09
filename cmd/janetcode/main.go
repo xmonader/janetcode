@@ -341,28 +341,43 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		srv := acp.New(acp.Options{
 			In: os.Stdin, Out: os.Stdout, Log: os.Stderr, Version: version,
 			NewAgent: func(sessionCwd, resume string) (*agent.Agent, *session.Session, error) {
-				// The first session takes the agent this process already
-				// built; every later one is wired the same way over its
-				// own session file.
+				// The editor says which directory the session is for, and
+				// it is not necessarily the one janetcode was launched
+				// from — an editor opens a workspace, not a terminal. Every
+				// tool is rooted at that directory, so it has to be the one
+				// the agent is built for.
+				root := cwd
+				if sessionCwd != "" {
+					if abs, err := filepath.Abs(sessionCwd); err == nil {
+						root = abs
+					}
+				}
 				s, hist := sess, history
 				if resume != "" {
 					var err error
 					if s, hist, err = session.Open(sessDir, resume); err != nil {
 						return nil, nil, err
 					}
-				} else if used {
+					if s.Meta.Cwd != "" {
+						root = s.Meta.Cwd
+					}
+				} else if used || root != cwd {
 					var err error
-					if s, err = session.New(sessDir, cwd, cfg.Provider, cfg.Model); err != nil {
+					if s, err = session.New(sessDir, root, cfg.Provider, cfg.Model); err != nil {
 						return nil, nil, err
 					}
 					hist = nil
 				}
-				if !used && resume == "" {
+				// The agent this process already built is only right when
+				// the session is for the directory it was built for.
+				if !used && resume == "" && root == cwd {
 					used = true
 					return first.agent, s, nil
 				}
 				used = true
-				b, err := buildAgent(deps, s, hist)
+				d := deps
+				d.cwd = root
+				b, err := buildAgent(d, s, hist)
 				if err != nil {
 					return nil, nil, err
 				}
