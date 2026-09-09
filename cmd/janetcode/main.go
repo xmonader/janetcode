@@ -788,6 +788,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	diag := lsp.New(d.cwd, d.cfg.LSP)
 	if diag.Enabled() {
 		ag.Tools.Add(lsp.Tool{M: diag})
+		ag.Tools.Add(lsp.SymbolTool{M: diag})
 		ag.Diagnose = diagnoseNote(diag)
 	}
 	ag.SystemExtra = func() string { return mem.Index() + skill.Index(skills()) }
