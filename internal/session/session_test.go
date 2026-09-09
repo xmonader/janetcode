@@ -9,29 +9,42 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
-func TestRoundTripAppendAndMerge(t *testing.T) {
+// put appends msgs to the log as surface events, the way a turn does, and
+// returns the seq of each.
+func put(t *testing.T, s *Session, msgs ...llm.Message) []int {
+	t.Helper()
+	var seqs []int
+	for i := range msgs {
+		m := msgs[i]
+		typ := TypeUserMessage
+		if m.Role == llm.RoleAssistant {
+			typ = TypeAssistant
+		}
+		seq, err := s.Append(Event{Type: typ, Surface: true, Message: &m})
+		if err != nil {
+			t.Fatal(err)
+		}
+		seqs = append(seqs, seq)
+	}
+	return seqs
+}
+
+func TestRoundTripAppendAndReplace(t *testing.T) {
 	dir := t.TempDir()
 	s, err := New(dir, "/work", "anthropic", "m")
 	if err != nil {
 		t.Fatal(err)
 	}
-	msgs := []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}
-	if err := s.Sync(msgs); err != nil {
+	hi := llm.TextMessage(llm.RoleUser, "hi")
+	seqs := put(t, s, hi)
+	// A failed call, then a merged user turn: the grown message replaces the
+	// one already logged instead of being appended a second time.
+	grown := llm.TextMessage(llm.RoleUser, "hi again")
+	if _, err := s.Append(Event{Type: TypeUserMessage, Surface: true, SurfaceOp: SurfaceOpReplace, Replaces: seqs, Message: &grown}); err != nil {
 		t.Fatal(err)
 	}
-	// Simulate a failed call followed by a merged user turn.
-	msgs[0].Blocks = append(msgs[0].Blocks, llm.Block{Type: llm.BlockText, Text: " again"})
-	msgs = append(msgs, llm.TextMessage(llm.RoleAssistant, "hello"))
-	if err := s.Sync(msgs); err != nil {
-		t.Fatal(err)
-	}
-	msgs = append(msgs, llm.ToolResultMessage(llm.ToolResult("t1", "out", true)))
-	if err := s.Sync(msgs); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.Sync(msgs); err != nil { // no-op
-		t.Fatal(err)
-	}
+	put(t, s, llm.TextMessage(llm.RoleAssistant, "hello"), llm.ToolResultMessage(llm.ToolResult("t1", "out", true)))
+
 	s2, got, err := Open(dir, s.Meta.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -42,23 +55,27 @@ func TestRoundTripAppendAndMerge(t *testing.T) {
 	if len(got) != 3 || got[0].Text() != "hi again" || got[1].Text() != "hello" || got[2].Blocks[0].ToolUseID != "t1" || !got[2].Blocks[0].IsError {
 		t.Fatalf("got = %+v", got)
 	}
-	// Continue appending on the reopened session.
-	got = append(got, llm.TextMessage(llm.RoleAssistant, "more"))
-	if err := s2.Sync(got); err != nil {
-		t.Fatal(err)
-	}
+	// Continue appending on the reopened session: seqs must not restart.
+	put(t, s2, llm.TextMessage(llm.RoleAssistant, "more"))
 	_, got2, _ := Open(dir, s.Meta.ID)
 	if len(got2) != 4 {
 		t.Fatalf("after reopen+append: %d messages", len(got2))
+	}
+	seen := map[int]bool{}
+	for _, e := range s2.Events() {
+		if seen[e.Seq] {
+			t.Fatalf("duplicate seq %d after reopen", e.Seq)
+		}
+		seen[e.Seq] = true
 	}
 }
 
 func TestTornLastLineIsDropped(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := New(dir, "/w", "p", "m")
-	s.Sync([]llm.Message{llm.TextMessage(llm.RoleUser, "hi")})
+	put(t, s, llm.TextMessage(llm.RoleUser, "hi"))
 	f, _ := os.OpenFile(s.Path(), os.O_APPEND|os.O_WRONLY, 0o600)
-	f.WriteString(`{"type":"message","message":{"role":"assis`)
+	f.WriteString(`{"type":"event","t":"user/message","message":{"role":"assis`)
 	f.Close()
 	_, got, err := Open(dir, s.Meta.ID)
 	if err != nil || len(got) != 1 {
@@ -69,7 +86,7 @@ func TestTornLastLineIsDropped(t *testing.T) {
 func TestList(t *testing.T) {
 	dir := t.TempDir()
 	a, _ := New(dir, "/a", "p", "m")
-	a.Sync([]llm.Message{llm.TextMessage(llm.RoleUser, "fix the build\nplease"), llm.TextMessage(llm.RoleAssistant, "ok")})
+	put(t, a, llm.TextMessage(llm.RoleUser, "fix the build\nplease"), llm.TextMessage(llm.RoleAssistant, "ok"))
 	New(dir, "/b", "p", "m")
 	infos, err := List(dir, "/a")
 	if err != nil || len(infos) != 1 || infos[0].Messages != 2 || infos[0].Preview != "fix the build" {
@@ -90,7 +107,6 @@ func TestLatestAndInvalidID(t *testing.T) {
 	}
 	a, _ := New(dir, "/a", "p", "m")
 	b, _ := New(dir, "/b", "p", "m")
-	// Force ordering: IDs start with a timestamp, so rename b to sort later.
 	_ = a
 	id, err := Latest(dir, "/b")
 	if err != nil || id != b.Meta.ID {
@@ -101,47 +117,23 @@ func TestLatestAndInvalidID(t *testing.T) {
 	}
 }
 
-func TestSyncOrRotateOnShrink(t *testing.T) {
-	dir := t.TempDir()
-	s, _ := New(dir, "/w", "p", "m")
-	msgs := []llm.Message{llm.TextMessage(llm.RoleUser, "a"), llm.TextMessage(llm.RoleAssistant, "b"), llm.TextMessage(llm.RoleUser, "c")}
-	same, err := s.SyncOrRotate(msgs)
-	if err != nil || same != s {
-		t.Fatalf("grow: %v %v", err, same == s)
-	}
-	compacted := []llm.Message{llm.TextMessage(llm.RoleUser, "summary")}
-	ns, err := s.SyncOrRotate(compacted)
-	if err != nil || ns == s || ns.Meta.Cwd != "/w" {
-		t.Fatalf("rotate: %v same=%v meta=%+v", err, ns == s, ns.Meta)
-	}
-	if _, old, _ := Open(dir, s.Meta.ID); len(old) != 3 {
-		t.Fatalf("old session damaged: %d messages", len(old))
-	}
-	if _, cur, _ := Open(dir, ns.Meta.ID); len(cur) != 1 || cur[0].Text() != "summary" {
-		t.Fatalf("new session = %+v", cur)
-	}
-}
-
-func TestSavePinsSurvivesOpenAndRotate(t *testing.T) {
+func TestSavePinsSurvivesOpen(t *testing.T) {
 	dir := t.TempDir()
 	s, err := New(dir, "/work", "p", "m")
 	if err != nil {
 		t.Fatal(err)
 	}
-	msgs := []llm.Message{llm.TextMessage(llm.RoleUser, "hi"), llm.TextMessage(llm.RoleAssistant, "yo")}
-	if err := s.Sync(msgs); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.SavePins([]string{"use tabs", "never touch vendor/"}, msgs); err != nil {
+	put(t, s, llm.TextMessage(llm.RoleUser, "hi"), llm.TextMessage(llm.RoleAssistant, "yo"))
+	if err := s.SavePins([]string{"use tabs", "never touch vendor/"}); err != nil {
 		t.Fatal(err)
 	}
 	re, back, err := Open(dir, s.Meta.ID)
 	if err != nil || len(back) != 2 || len(re.Meta.Pins) != 2 || re.Meta.Pins[1] != "never touch vendor/" {
 		t.Fatalf("reopened: pins=%v msgs=%d err=%v", re.Meta.Pins, len(back), err)
 	}
-	ns, err := re.SyncOrRotate([]llm.Message{llm.TextMessage(llm.RoleUser, "compacted")})
-	if err != nil || ns == re || len(ns.Meta.Pins) != 2 {
-		t.Fatalf("rotate: same=%v pins=%v err=%v", ns == re, ns.Meta.Pins, err)
+	// Rewriting the metadata must not drop the events it wrote around.
+	if len(re.Events()) != 2 {
+		t.Fatalf("events after pin rewrite: %d", len(re.Events()))
 	}
 }
 
@@ -155,30 +147,25 @@ func TestForkTitleAndSearch(t *testing.T) {
 		llm.TextMessage(llm.RoleUser, "Please add rate limiting to the API server."),
 		llm.TextMessage(llm.RoleAssistant, "Added a token bucket in limiter.go."),
 	}
-	if err := s.Sync(msgs); err != nil {
-		t.Fatal(err)
-	}
+	put(t, s, msgs...)
 	if got := AutoTitle(msgs); got != "Please add rate limiting to the API server" {
 		t.Fatalf("AutoTitle = %q", got)
 	}
-	if err := s.SetTitle("rate limiting", msgs); err != nil {
+	if err := s.SetTitle("rate limiting"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SavePins([]string{"pin"}, msgs); err != nil {
+	if err := s.SavePins([]string{"pin"}); err != nil {
 		t.Fatal(err)
 	}
-	f, err := Fork(dir, s, msgs, "")
+	f, err := Fork(dir, s, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if f.Meta.ID == s.Meta.ID || f.Meta.Title != "fork of rate limiting" || f.Meta.ForkOf != s.Meta.ID || len(f.Meta.Pins) != 1 {
 		t.Fatalf("fork meta = %+v", f.Meta)
 	}
-	// Appending to the fork must not rewrite the original.
-	more := append(append([]llm.Message(nil), msgs...), llm.TextMessage(llm.RoleUser, "now use redis"))
-	if err := f.Sync(more); err != nil {
-		t.Fatal(err)
-	}
+	// Appending to the fork must not touch the original.
+	put(t, f, llm.TextMessage(llm.RoleUser, "now use redis"))
 	_, orig, _ := Open(dir, s.Meta.ID)
 	re, back, _ := Open(dir, f.Meta.ID)
 	if len(orig) != 2 || len(back) != 3 || re.Meta.Title != "fork of rate limiting" {

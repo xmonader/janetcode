@@ -192,6 +192,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 
 	task := &agent.Task{Root: cwd}
+	defer task.Close(context.Background())
 	jobs := &tool.Jobs{}
 	defer jobs.KillAll()
 	cfgPath, _ := config.Path()
@@ -231,10 +232,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		CompactAt:     cfg.CompactAt,
 		Messages:      history,
 		Pins:          sess.Meta.Pins,
-		PlanMode:      session.FoldPlanMode(sess.Events()),
 		Jobs:          jobs,
 		ContextWindow: cfg.MetaFor(cfg.Model).ContextWindow,
 	}
+	ag.RestoreFromLog() // plan mode and the turn counter of a resumed session
 	task.Parent = ag
 	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
 	skills := func() []skill.Skill { return skill.Load(cwd, cfgDir) }

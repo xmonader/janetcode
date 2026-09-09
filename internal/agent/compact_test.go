@@ -20,8 +20,8 @@ func TestCompactWritesShadowedLogEvents(t *testing.T) {
 		u,
 		llm.TextMessage(llm.RoleAssistant, "working"),
 	}}
-	_ = mem.Append(session.Event{Type: session.TypeUserMessage, Surface: true, Message: &a.Messages[0]})
-	_ = mem.Append(session.Event{Type: session.TypeAssistant, Surface: true, Message: &a.Messages[1]})
+	_, _ = mem.Append(session.Event{Type: session.TypeUserMessage, Surface: true, Message: &a.Messages[0]})
+	_, _ = mem.Append(session.Event{Type: session.TypeAssistant, Surface: true, Message: &a.Messages[1]})
 	if err := a.ForceCompact(context.Background(), func(Event) {}); err != nil {
 		t.Fatal(err)
 	}
@@ -376,5 +376,73 @@ func TestCompactCooldownAfterFailedSummary(t *testing.T) {
 	}
 	if len(f.requests) != 2 || !a.summaryFailedAt.IsZero() {
 		t.Fatalf("requests %d, cooldown cleared %v", len(f.requests), a.summaryFailedAt.IsZero())
+	}
+}
+
+// The fold of the log must equal the history the model is being sent, and
+// compaction must not append a second copy of every message it keeps.
+func TestCompactFoldMatchesHistoryWithoutRelogging(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text(`{"facts":["done"]}`)}}
+	mem := &session.Memory{}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Log: mem}
+	for i := 0; i < 6; i++ {
+		a.Messages = append(a.Messages,
+			llm.TextMessage(llm.RoleUser, strings.Repeat("investigate the flaky suite ", 60)),
+			llm.TextMessage(llm.RoleAssistant, "working on it"))
+	}
+	for i := range a.Messages {
+		typ := session.TypeUserMessage
+		if a.Messages[i].Role == llm.RoleAssistant {
+			typ = session.TypeAssistant
+		}
+		if _, err := mem.Append(session.Event{Type: typ, Surface: true, Message: &a.Messages[i]}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := len(mem.Events())
+	if err := a.ForceCompact(context.Background(), func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	got := session.FoldSurface(mem.Events())
+	if len(got) != len(a.Messages) {
+		t.Fatalf("fold = %d messages, history = %d", len(got), len(a.Messages))
+	}
+	for i := range got {
+		if got[i].Text() != a.Messages[i].Text() {
+			t.Fatalf("message %d: fold %q history %q", i, trunc(got[i].Text(), 40), trunc(a.Messages[i].Text(), 40))
+		}
+	}
+	// start + summary + replacement + end, and nothing per kept message.
+	if added := len(mem.Events()) - before; added > 5 {
+		t.Fatalf("compaction re-logged the kept tail: %d new events", added)
+	}
+}
+
+// Pruning rewrites tool results in place; the log has to learn about it or
+// a resumed session folds back to the un-pruned history.
+func TestPrunedMessagesAreLogged(t *testing.T) {
+	mem := &session.Memory{}
+	a := &Agent{Tools: tool.NewRegistry(), Model: "m", Log: mem, Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, "go"),
+		llm.TextMessage(llm.RoleAssistant, "sure"),
+	}}
+	for i := range a.Messages {
+		typ := session.TypeUserMessage
+		if a.Messages[i].Role == llm.RoleAssistant {
+			typ = session.TypeAssistant
+		}
+		_, _ = mem.Append(session.Event{Type: typ, Surface: true, Message: &a.Messages[i]})
+	}
+	a.Messages[1].Blocks[0].Text = "sure (condensed)"
+	a.syncSurface()
+	got := session.FoldSurface(mem.Events())
+	if len(got) != 2 || got[1].Text() != "sure (condensed)" {
+		t.Fatalf("fold = %+v", got)
+	}
+	// Nothing changed since: no further events.
+	n := len(mem.Events())
+	a.syncSurface()
+	if len(mem.Events()) != n {
+		t.Fatalf("syncSurface logged an unchanged message")
 	}
 }

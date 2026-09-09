@@ -141,6 +141,35 @@ func TestAgentRunWritesTurnStepToolEvents(t *testing.T) {
 	}
 }
 
+// A call that fails leaves the typed text in a trailing user message; the
+// next turn merges into it. The log must end up with one copy, not two.
+func TestMergedUserTurnFoldsOnce(t *testing.T) {
+	f := &fake{errs: []error{strErr("boom")}}
+	mem := &session.Memory{}
+	a, _ := newAgent(t, f, nil)
+	a.Log = mem
+	if err := a.Run(context.Background(), "first try", func(Event) {}); err == nil {
+		t.Fatal("expected the call to fail")
+	}
+	f2 := &fake{responses: []*llm.Response{text("done")}}
+	a.Provider = f2
+	if err := a.Run(context.Background(), "and this too", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	got := session.FoldSurface(mem.Events())
+	if len(got) != len(a.Messages) {
+		t.Fatalf("fold = %d messages, history = %d", len(got), len(a.Messages))
+	}
+	if !strings.Contains(got[0].Text(), "first try") || !strings.Contains(got[0].Text(), "and this too") {
+		t.Fatalf("merged user turn = %q", got[0].Text())
+	}
+	for _, m := range got[1:] {
+		if strings.Contains(m.Text(), "first try") {
+			t.Fatalf("the user turn was logged twice: %+v", got)
+		}
+	}
+}
+
 func TestResumeRestoresTrajectoryCounts(t *testing.T) {
 	ev := []session.Event{
 		{Type: session.TypeTurnStart, Turn: 1},

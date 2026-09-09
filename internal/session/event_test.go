@@ -5,25 +5,40 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
-func TestOpenLegacyMessages(t *testing.T) {
-	dir := t.TempDir()
-	s, err := New(dir, "/w", "p", "m")
-	if err != nil {
-		t.Fatal(err)
+func TestFoldOrdersReplacementsInPlace(t *testing.T) {
+	u := llm.TextMessage(llm.RoleUser, "first")
+	a := llm.TextMessage(llm.RoleAssistant, "second")
+	later := llm.TextMessage(llm.RoleUser, "third")
+	pruned := llm.TextMessage(llm.RoleAssistant, "second (pruned)")
+	events := []Event{
+		{Seq: 1, Type: TypeUserMessage, Surface: true, Message: &u},
+		{Seq: 2, Type: TypeAssistant, Surface: true, Message: &a},
+		{Seq: 3, Type: TypeUserMessage, Surface: true, Message: &later},
+		// A message rewritten in place is logged last but stands where the
+		// message it replaces stood.
+		{Seq: 4, Type: TypeAssistant, Surface: true, SurfaceOp: SurfaceOpReplace, Replaces: []int{2}, Message: &pruned},
 	}
-	msgs := []llm.Message{llm.TextMessage(llm.RoleUser, "hi"), llm.TextMessage(llm.RoleAssistant, "yo")}
-	if err := s.Sync(msgs); err != nil {
-		t.Fatal(err)
+	got := FoldSurface(events)
+	if len(got) != 3 || got[0].Text() != "first" || got[1].Text() != "second (pruned)" || got[2].Text() != "third" {
+		t.Fatalf("fold = %+v", got)
 	}
-	re, got, err := Open(dir, s.Meta.ID)
-	if err != nil || len(got) != 2 || got[0].Text() != "hi" || len(re.Events()) != 0 {
-		t.Fatalf("legacy open: msgs=%+v events=%d err=%v", got, len(re.Events()), err)
+	if seqs := CurrentSeqs(events); len(seqs) != 3 || seqs[1] != 4 {
+		t.Fatalf("CurrentSeqs = %v", seqs)
+	}
+	// Replacing a replacement keeps the same slot.
+	again := llm.TextMessage(llm.RoleAssistant, "second (condensed)")
+	events = append(events, Event{Seq: 5, Type: TypeAssistant, Surface: true, SurfaceOp: SurfaceOpReplace, Replaces: []int{4}, Message: &again})
+	got = FoldSurface(events)
+	if len(got) != 3 || got[1].Text() != "second (condensed)" {
+		t.Fatalf("second fold = %+v", got)
 	}
 }
 
@@ -34,13 +49,13 @@ func TestAppendIsAppendOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	u := llm.TextMessage(llm.RoleUser, "hi")
-	if err := s.Append(Event{Type: TypeTurnStart, Turn: 1}); err != nil {
+	if _, err := s.Append(Event{Type: TypeTurnStart, Turn: 1}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Append(Event{Type: TypeUserMessage, Turn: 1, Surface: true, Message: &u}); err != nil {
+	if _, err := s.Append(Event{Type: TypeUserMessage, Turn: 1, Surface: true, Message: &u}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Append(Event{Type: TypeTurnEnd, Turn: 1, Reason: "end_turn"}); err != nil {
+	if _, err := s.Append(Event{Type: TypeTurnEnd, Turn: 1, Reason: "end_turn"}); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(s.Path())
@@ -48,7 +63,7 @@ func TestAppendIsAppendOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := strings.Count(string(raw), "\n")
-	if err := s.Append(Event{Type: TypeNotice, Output: "nudge"}); err != nil {
+	if _, err := s.Append(Event{Type: TypeNotice, Output: "nudge"}); err != nil {
 		t.Fatal(err)
 	}
 	raw2, _ := os.ReadFile(s.Path())
@@ -100,7 +115,7 @@ func TestUnknownEventTypeSkipped(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := New(dir, "/w", "p", "m")
 	u := llm.TextMessage(llm.RoleUser, "hi")
-	if err := s.Append(Event{Type: TypeUserMessage, Surface: true, Message: &u}); err != nil {
+	if _, err := s.Append(Event{Type: TypeUserMessage, Surface: true, Message: &u}); err != nil {
 		t.Fatal(err)
 	}
 	f, err := os.OpenFile(s.Path(), os.O_APPEND|os.O_WRONLY, 0o600)
@@ -130,30 +145,25 @@ func TestUnknownEventTypeSkipped(t *testing.T) {
 	}
 }
 
-func TestEventLogDoesNotRotateOnShrink(t *testing.T) {
+func TestCompactionStaysInTheSameFile(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := New(dir, "/w", "p", "m")
 	u := llm.TextMessage(llm.RoleUser, "a")
 	a := llm.TextMessage(llm.RoleAssistant, "b")
-	if err := s.Append(Event{Type: TypeUserMessage, Surface: true, Message: &u}); err != nil {
+	if _, err := s.Append(Event{Type: TypeUserMessage, Surface: true, Message: &u}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Append(Event{Type: TypeAssistant, Surface: true, Message: &a}); err != nil {
+	if _, err := s.Append(Event{Type: TypeAssistant, Surface: true, Message: &a}); err != nil {
 		t.Fatal(err)
 	}
 	sum := llm.TextMessage(llm.RoleUser, "summary")
-	if err := s.Append(Event{Type: TypeCompactSummary, Shadowed: []int{1, 2}}); err != nil {
+	if _, err := s.Append(Event{Type: TypeCompactSummary, Shadowed: []int{1, 2}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Append(Event{Type: TypeUserMessage, Surface: true, SurfaceOp: SurfaceOpReplace, Replaces: []int{1, 2}, Message: &sum}); err != nil {
+	if _, err := s.Append(Event{Type: TypeUserMessage, Surface: true, SurfaceOp: SurfaceOpReplace, Replaces: []int{1, 2}, Message: &sum}); err != nil {
 		t.Fatal(err)
 	}
-	id := s.Meta.ID
-	ns, err := s.SyncOrRotate(FoldSurface(s.Events()))
-	if err != nil || ns != s || ns.Meta.ID != id {
-		t.Fatalf("rotated event log: err=%v same=%v", err, ns == s)
-	}
-	re, msgs, err := Open(dir, id)
+	re, msgs, err := Open(dir, s.Meta.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,10 +182,10 @@ func TestPinsRewriteKeepsEvents(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := New(dir, "/w", "p", "m")
 	u := llm.TextMessage(llm.RoleUser, "hi")
-	if err := s.Append(Event{Type: TypeUserMessage, Surface: true, Message: &u}); err != nil {
+	if _, err := s.Append(Event{Type: TypeUserMessage, Surface: true, Message: &u}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SavePins([]string{"pin"}, FoldSurface(s.Events())); err != nil {
+	if err := s.SavePins([]string{"pin"}); err != nil {
 		t.Fatal(err)
 	}
 	re, msgs, err := Open(dir, s.Meta.ID)
@@ -201,10 +211,10 @@ func TestFoldPlanMode(t *testing.T) {
 
 func TestMemoryLogAssignsSeq(t *testing.T) {
 	var m Memory
-	if err := m.Append(Event{Type: TypeTurnStart, Turn: 1}); err != nil {
+	if _, err := m.Append(Event{Type: TypeTurnStart, Turn: 1}); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Append(Event{Type: TypeTurnEnd, Turn: 1}); err != nil {
+	if _, err := m.Append(Event{Type: TypeTurnEnd, Turn: 1}); err != nil {
 		t.Fatal(err)
 	}
 	if len(m.Events()) != 2 || m.Events()[1].Seq != 2 || m.Events()[0].Time.IsZero() {
@@ -218,7 +228,7 @@ func TestEventLineJSONShape(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := New(dir, "/w", "p", "m")
 	u := llm.TextMessage(llm.RoleUser, "hi")
-	if err := s.Append(Event{Type: TypeUserMessage, Surface: true, Message: &u, Turn: 1}); err != nil {
+	if _, err := s.Append(Event{Type: TypeUserMessage, Surface: true, Message: &u, Turn: 1}); err != nil {
 		t.Fatal(err)
 	}
 	b, err := os.ReadFile(s.Path())
@@ -245,10 +255,10 @@ func TestMeasureAndQueryAndFeedback(t *testing.T) {
 	s, _ := New(dir, "/w", "p", "m")
 	u := llm.TextMessage(llm.RoleUser, "count the widgets")
 	a := llm.TextMessage(llm.RoleAssistant, "there are 12")
-	_ = s.Append(Event{Type: TypeUserMessage, Surface: true, Message: &u})
-	_ = s.Append(Event{Type: TypeAssistant, Surface: true, Message: &a})
-	_ = s.Append(Event{Type: TypeToolCall, Name: "bash", Arguments: "ls", CallID: "c1"})
-	_ = s.Append(Event{Type: TypeCompactSummary, Shadowed: []int{1}})
+	_, _ = s.Append(Event{Type: TypeUserMessage, Surface: true, Message: &u})
+	_, _ = s.Append(Event{Type: TypeAssistant, Surface: true, Message: &a})
+	_, _ = s.Append(Event{Type: TypeToolCall, Name: "bash", Arguments: "ls", CallID: "c1"})
+	_, _ = s.Append(Event{Type: TypeCompactSummary, Shadowed: []int{1}})
 	m := Measure(s.Events(), func(msg llm.Message) int { return len(msg.Text()) })
 	if m.LogRevision != 4 || len(m.Nodes) != 1 || m.Nodes[0].Seq != 2 {
 		t.Fatalf("meter = %+v", m)
@@ -270,7 +280,7 @@ func TestUnknownTypeDoesNotBreakPath(t *testing.T) {
 	// ensure we did not write a second jsonl beside the session
 	dir := t.TempDir()
 	s, _ := New(dir, "/w", "p", "m")
-	_ = s.Append(Event{Type: TypeTurnStart, Turn: 1})
+	_, _ = s.Append(Event{Type: TypeTurnStart, Turn: 1})
 	ents, _ := os.ReadDir(dir)
 	n := 0
 	for _, e := range ents {
@@ -283,5 +293,54 @@ func TestUnknownTypeDoesNotBreakPath(t *testing.T) {
 	}
 	if filepath.Ext(s.Path()) != ".jsonl" {
 		t.Fatalf("path = %s", s.Path())
+	}
+}
+
+func TestQuerySnippetDoesNotSplitRunes(t *testing.T) {
+	long := strings.Repeat("é", 200)
+	events := []Event{{Seq: 1, Type: TypeToolResult, CallID: "c1", Name: "bash", Output: long}}
+	hits := QueryEvents(events, QueryFilter{Tool: "bash"})
+	if len(hits) != 1 {
+		t.Fatalf("hits = %+v", hits)
+	}
+	if !utf8.ValidString(hits[0].Snippet) {
+		t.Fatalf("snippet split a rune: %q", hits[0].Snippet)
+	}
+	if !strings.HasSuffix(hits[0].Snippet, "…") {
+		t.Fatalf("snippet not truncated: %q", hits[0].Snippet)
+	}
+}
+
+func TestConcurrentAppend(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := New(dir, "/w", "p", "m")
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			for j := 0; j < 5; j++ {
+				if _, err := s.Append(Event{Type: TypeToolCall, Name: "bash"}); err != nil {
+					t.Error(err)
+					return
+				}
+				_ = s.Events()
+			}
+		}(i)
+	}
+	wg.Wait()
+	re, _, err := Open(dir, s.Meta.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(re.Events()) != 40 {
+		t.Fatalf("events on disk = %d, want 40", len(re.Events()))
+	}
+	seen := map[int]bool{}
+	for _, e := range re.Events() {
+		if seen[e.Seq] {
+			t.Fatalf("duplicate seq %d", e.Seq)
+		}
+		seen[e.Seq] = true
 	}
 }

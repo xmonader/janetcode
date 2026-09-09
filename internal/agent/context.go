@@ -50,7 +50,7 @@ func (a *Agent) RefreshExtra() { a.extraFrozen = false }
 // CacheRate is the share of session input tokens served from the
 // provider's prompt cache, and whether the provider reported any.
 func (a *Agent) CacheRate() (pct int, ok bool) {
-	u := a.Usage
+	u := a.UsageSnapshot()
 	total := u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
 	if total == 0 || u.CacheReadTokens+u.CacheWriteTokens == 0 {
 		return 0, false

@@ -32,6 +32,11 @@ func FoldGoals(events []session.Event) []Goal {
 	by := map[string]*Goal{}
 	var order []string
 	for _, e := range events {
+		switch e.Type {
+		case session.TypeGoalCreate, session.TypeGoalPhase, session.TypeGoalRound:
+		default:
+			continue // tool calls and spills also carry a Name
+		}
 		id := e.Name
 		if id == "" {
 			continue
@@ -64,10 +69,14 @@ func FoldGoals(events []session.Event) []Goal {
 }
 
 // ActiveGoal is the last goal still in active phase, or nil.
-func ActiveGoal(events []session.Event) *Goal {
+func ActiveGoal(events []session.Event) *Goal { return LastGoal(events, GoalActive) }
+
+// LastGoal is the most recent goal in the given phase, or the most recent
+// goal of any phase when phase is "". It returns nil when there are none.
+func LastGoal(events []session.Event, phase string) *Goal {
 	gs := FoldGoals(events)
 	for i := len(gs) - 1; i >= 0; i-- {
-		if gs[i].Phase == GoalActive {
+		if phase == "" || gs[i].Phase == phase {
 			g := gs[i]
 			return &g
 		}
@@ -79,7 +88,12 @@ func (a *Agent) CreateGoal(objective string, maxRounds int) string {
 	if maxRounds <= 0 {
 		maxRounds = defaultGoalRounds
 	}
-	id := fmt.Sprintf("g%d", a.turnN+1)
+	// Numbered by how many goals the log already holds, so two goals made
+	// inside one turn do not share an id (and fold into one).
+	id := "g1"
+	if a.Log != nil {
+		id = fmt.Sprintf("g%d", len(FoldGoals(a.Log.Events()))+1)
+	}
 	a.logEvent(session.Event{Type: session.TypeGoalCreate, Name: id, Output: strings.TrimSpace(objective), Tokens: maxRounds})
 	a.logEvent(session.Event{Type: session.TypeGoalPhase, Name: id, Reason: GoalActive})
 	return id

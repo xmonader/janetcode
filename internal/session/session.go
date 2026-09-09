@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -34,9 +35,8 @@ type Meta struct {
 }
 
 type line struct {
-	Type    string       `json:"type"`
-	Meta    *Meta        `json:"meta,omitempty"`
-	Message *llm.Message `json:"message,omitempty"`
+	Type string `json:"type"`
+	Meta *Meta  `json:"meta,omitempty"`
 }
 
 type eventLine struct {
@@ -44,15 +44,17 @@ type eventLine struct {
 	Event
 }
 
-// Session is one persisted conversation.
+// Session is one persisted conversation. The file is the event log: every
+// model-visible message is an appended surface event, so nothing but the
+// metadata line is ever rewritten. Append is called from the parallel tool
+// goroutines of a turn, so the log is guarded by a mutex.
 type Session struct {
 	Meta Meta
 	path string
 
-	persisted  int // messages already on disk (legacy message lines)
-	lastBlocks int // block count of the last persisted message
-	ev         []Event
-	nextSeq    int
+	mu      sync.Mutex
+	ev      []Event
+	nextSeq int
 }
 
 // Dir returns the sessions directory, honouring XDG_DATA_HOME.
@@ -85,7 +87,7 @@ func New(dir, cwd, provider, model string) (*Session, error) {
 		Meta: Meta{ID: id, Cwd: cwd, Provider: provider, Model: model, Created: time.Now().UTC()},
 		path: filepath.Join(dir, id+".jsonl"),
 	}
-	if err := s.rewrite(nil); err != nil {
+	if err := s.rewrite(); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -113,7 +115,6 @@ func Open(dir, id string) (*Session, []llm.Message, error) {
 	}
 	defer f.Close()
 	s := &Session{path: path}
-	var legacy []llm.Message
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 1024*1024), 64*1024*1024)
 	n := 0
@@ -136,10 +137,6 @@ func Open(dir, id string) (*Session, []llm.Message, error) {
 			if l.Meta != nil {
 				s.Meta = *l.Meta
 			}
-		case "message":
-			if l.Message != nil {
-				legacy = append(legacy, *l.Message)
-			}
 		case "event":
 			var el eventLine
 			if err := json.Unmarshal([]byte(raw), &el); err != nil {
@@ -158,21 +155,7 @@ func Open(dir, id string) (*Session, []llm.Message, error) {
 	if s.Meta.ID == "" {
 		return nil, nil, fmt.Errorf("session %s has no metadata", id)
 	}
-	msgs := legacy
-	if len(s.ev) > 0 {
-		msgs = FoldSurface(s.ev)
-		if len(legacy) > 0 && len(msgs) == 0 {
-			msgs = legacy
-		}
-	}
-	s.persisted = len(legacy)
-	if s.persisted > 0 {
-		s.lastBlocks = len(legacy[s.persisted-1].Blocks)
-	} else if len(msgs) > 0 {
-		s.lastBlocks = len(msgs[len(msgs)-1].Blocks)
-		s.persisted = len(msgs)
-	}
-	return s, msgs, nil
+	return s, FoldSurface(s.ev), nil
 }
 
 // Latest returns the most recent session ID recorded for cwd, or "" if none.
@@ -271,14 +254,19 @@ func (s *Session) UndoPath() string { return strings.TrimSuffix(s.path, ".jsonl"
 // Path is the file backing the session.
 func (s *Session) Path() string { return s.path }
 
-// Persisted reports how many messages are on disk.
-func (s *Session) Persisted() int { return s.persisted }
+// Events is a snapshot of the append-only log, including shadowed and
+// log-only records. The copy keeps readers safe from a concurrent Append.
+func (s *Session) Events() []Event {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]Event(nil), s.ev...)
+}
 
-// Events is the append-only log, including shadowed and log-only records.
-func (s *Session) Events() []Event { return s.ev }
-
-// Append writes one event. Seq is assigned if zero. Prior events are never rewritten.
-func (s *Session) Append(e Event) error {
+// Append writes one event and returns the seq it was given. Seq is assigned
+// if zero. Prior events are never rewritten.
+func (s *Session) Append(e Event) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if e.Seq == 0 {
 		s.nextSeq++
 		e.Seq = s.nextSeq
@@ -290,93 +278,37 @@ func (s *Session) Append(e Event) error {
 	}
 	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	w := bufio.NewWriter(f)
 	if err := writeLine(w, eventLine{Type: "event", Event: e}); err != nil {
 		f.Close()
-		return err
+		return 0, err
 	}
 	if err := w.Flush(); err != nil {
 		f.Close()
-		return err
+		return 0, err
 	}
 	if err := f.Sync(); err != nil {
 		f.Close()
-		return err
+		return 0, err
 	}
 	if err := f.Close(); err != nil {
-		return err
+		return 0, err
 	}
 	s.ev = append(s.ev, e)
-	return nil
-}
-
-// SyncOrRotate persists msgs. Legacy message-only sessions still rotate to a
-// new file when history shrinks. A session with an event log stays on the
-// same file: compaction appends replacement events instead of rotating.
-func (s *Session) SyncOrRotate(msgs []llm.Message) (*Session, error) {
-	if len(s.ev) > 0 {
-		return s, s.Sync(msgs)
-	}
-	if len(msgs) < s.persisted {
-		ns, err := New(filepath.Dir(s.path), s.Meta.Cwd, s.Meta.Provider, s.Meta.Model)
-		if err == nil && len(s.Meta.Pins) > 0 {
-			ns.Meta.Pins = append([]string(nil), s.Meta.Pins...)
-		}
-		if err != nil {
-			return s, err
-		}
-		return ns, ns.Sync(msgs)
-	}
-	return s, s.Sync(msgs)
-}
-
-// Sync writes any messages not yet on disk. If the last persisted message
-// grew (a user turn merged after a failed call) the file is rewritten.
-func (s *Session) Sync(msgs []llm.Message) error {
-	if len(msgs) < s.persisted || (s.persisted > 0 && len(msgs[s.persisted-1].Blocks) != s.lastBlocks) {
-		return s.rewrite(msgs)
-	}
-	if len(msgs) == s.persisted {
-		return nil
-	}
-	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_WRONLY, 0o600)
-	if err != nil {
-		return err
-	}
-	w := bufio.NewWriter(f)
-	for _, m := range msgs[s.persisted:] {
-		if err := writeLine(w, line{Type: "message", Message: &m}); err != nil {
-			f.Close()
-			return err
-		}
-	}
-	if err := w.Flush(); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	s.persisted = len(msgs)
-	s.lastBlocks = len(msgs[s.persisted-1].Blocks)
-	return nil
+	return e.Seq, nil
 }
 
 // SetTitle stores a title in the metadata line and rewrites the file.
-func (s *Session) SetTitle(title string, msgs []llm.Message) error {
+func (s *Session) SetTitle(title string) error {
 	s.Meta.Title = strings.TrimSpace(title)
-	return s.rewrite(msgs)
+	return s.rewrite()
 }
 
 // Fork starts a new session holding a copy of this one's messages, so a
 // conversation can branch: try one approach here, another in the fork.
-func Fork(dir string, from *Session, msgs []llm.Message, title string) (*Session, error) {
+func Fork(dir string, from *Session, title string) (*Session, error) {
 	ns, err := New(dir, from.Meta.Cwd, from.Meta.Provider, from.Meta.Model)
 	if err != nil {
 		return nil, err
@@ -387,16 +319,14 @@ func Fork(dir string, from *Session, msgs []llm.Message, title string) (*Session
 		title = "fork of " + from.Label()
 	}
 	ns.Meta.Title = title
-	if len(from.ev) > 0 {
-		ns.ev = append([]Event(nil), from.ev...)
-		ns.nextSeq = from.nextSeq
+	ns.ev = from.Events()
+	for _, e := range ns.ev {
+		if e.Seq > ns.nextSeq {
+			ns.nextSeq = e.Seq
+		}
 	}
-	if err := ns.rewrite(msgs); err != nil {
+	if err := ns.rewrite(); err != nil {
 		return nil, err
-	}
-	ns.persisted = len(msgs)
-	if len(msgs) > 0 {
-		ns.lastBlocks = len(msgs[len(msgs)-1].Blocks)
 	}
 	return ns, nil
 }
@@ -538,12 +468,16 @@ func snippetAround(text string, at int) string {
 }
 
 // SavePins stores the pins in the metadata line and rewrites the file.
-func (s *Session) SavePins(pins []string, msgs []llm.Message) error {
+func (s *Session) SavePins(pins []string) error {
 	s.Meta.Pins = append([]string(nil), pins...)
-	return s.rewrite(msgs)
+	return s.rewrite()
 }
 
-func (s *Session) rewrite(msgs []llm.Message) error {
+// rewrite replaces the file with the metadata line followed by every event
+// held in memory. Only metadata changes need it; events are appended.
+func (s *Session) rewrite() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	tmp := s.path + ".tmp"
 	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
@@ -554,19 +488,10 @@ func (s *Session) rewrite(msgs []llm.Message) error {
 		f.Close()
 		return err
 	}
-	if len(s.ev) > 0 {
-		for i := range s.ev {
-			if err := writeLine(w, eventLine{Type: "event", Event: s.ev[i]}); err != nil {
-				f.Close()
-				return err
-			}
-		}
-	} else {
-		for i := range msgs {
-			if err := writeLine(w, line{Type: "message", Message: &msgs[i]}); err != nil {
-				f.Close()
-				return err
-			}
+	for i := range s.ev {
+		if err := writeLine(w, eventLine{Type: "event", Event: s.ev[i]}); err != nil {
+			f.Close()
+			return err
 		}
 	}
 	if err := w.Flush(); err != nil {
@@ -580,15 +505,7 @@ func (s *Session) rewrite(msgs []llm.Message) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, s.path); err != nil {
-		return err
-	}
-	s.persisted = len(msgs)
-	s.lastBlocks = 0
-	if len(msgs) > 0 {
-		s.lastBlocks = len(msgs[len(msgs)-1].Blocks)
-	}
-	return nil
+	return os.Rename(tmp, s.path)
 }
 
 func writeLine(w *bufio.Writer, v any) error {

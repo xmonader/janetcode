@@ -2,6 +2,8 @@ package session
 
 import (
 	"encoding/json"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -36,8 +38,9 @@ const (
 )
 
 // Log is the append-only event sink the agent writes during a turn.
+// Append returns the seq the event was given, so a later event can replace it.
 type Log interface {
-	Append(Event) error
+	Append(Event) (int, error)
 	Events() []Event
 }
 
@@ -71,16 +74,51 @@ type Event struct {
 	Extra      json.RawMessage `json:"extra,omitempty"`
 }
 
-// FoldSurface returns the model-visible messages: surface events whose seq
-// was not shadowed by a later compaction replace.
-func FoldSurface(events []Event) []llm.Message {
+// live returns the indexes of the surface events that still reach the
+// model, in the order the model sees them. A replacement event (a
+// compaction summary, or a message rewritten in place by pruning) is
+// appended to the log long after what it replaces, but it stands *where*
+// that content stood, so it is ordered by the earliest position it
+// replaces, following chains of replacements.
+func live(events []Event) []int {
 	hidden := shadowedSet(events)
-	var out []llm.Message
-	for _, e := range events {
-		if !e.Surface || e.Message == nil || hidden[e.Seq] {
-			continue
+	pos := make([]int, len(events))
+	at := make(map[int]int, len(events)) // seq → index
+	for i, e := range events {
+		pos[i] = i
+		if e.SurfaceOp == SurfaceOpReplace {
+			best := -1
+			for _, r := range e.Replaces {
+				if j, ok := at[r]; ok && (best < 0 || pos[j] < best) {
+					best = pos[j]
+				}
+			}
+			if best >= 0 {
+				pos[i] = best
+			}
 		}
-		out = append(out, *e.Message)
+		at[e.Seq] = i
+	}
+	var out []int
+	for i, e := range events {
+		if e.Surface && e.Message != nil && !hidden[e.Seq] {
+			out = append(out, i)
+		}
+	}
+	sort.SliceStable(out, func(a, b int) bool { return pos[out[a]] < pos[out[b]] })
+	return out
+}
+
+// FoldSurface returns the model-visible messages: surface events whose seq
+// was not shadowed by a later replacement, in model order.
+func FoldSurface(events []Event) []llm.Message {
+	idx := live(events)
+	out := make([]llm.Message, 0, len(idx))
+	for _, i := range idx {
+		out = append(out, *events[i].Message)
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }
@@ -106,25 +144,38 @@ const (
 	SurfaceLogOnly  SurfaceKind = "log-only"
 )
 
-// Classify reports whether e is on the current surface.
-func Classify(events []Event, e Event) SurfaceKind {
+// Shadowed is the set of seqs replaced by a later event. Callers that
+// classify many events build it once and pass it to ClassifyWith; Classify
+// rebuilds it for a single lookup.
+func Shadowed(events []Event) map[int]bool { return shadowedSet(events) }
+
+// ClassifyWith reports whether e is on the current surface, given the
+// shadowed set from Shadowed.
+func ClassifyWith(hidden map[int]bool, e Event) SurfaceKind {
 	if !e.Surface {
 		return SurfaceLogOnly
 	}
-	if shadowedSet(events)[e.Seq] {
+	if hidden[e.Seq] {
 		return SurfaceShadowed
 	}
 	return SurfaceCurrent
 }
 
-// CurrentSeqs is the seqs of surface events that still reach the model.
+// Classify reports whether e is on the current surface.
+func Classify(events []Event, e Event) SurfaceKind {
+	return ClassifyWith(shadowedSet(events), e)
+}
+
+// CurrentSeqs is the seqs of the surface events that still reach the model,
+// in the same order as FoldSurface, so index i names message i.
 func CurrentSeqs(events []Event) []int {
-	hidden := shadowedSet(events)
-	var seq []int
-	for _, e := range events {
-		if e.Surface && e.Message != nil && !hidden[e.Seq] {
-			seq = append(seq, e.Seq)
-		}
+	idx := live(events)
+	seq := make([]int, 0, len(idx))
+	for _, i := range idx {
+		seq = append(seq, events[i].Seq)
+	}
+	if len(seq) == 0 {
+		return nil
 	}
 	return seq
 }
@@ -144,13 +195,17 @@ func shadowedSet(events []Event) map[int]bool {
 	return h
 }
 
-// Memory is an in-memory Log for tests.
+// Memory is an in-memory Log, used by eval runs and tests. Like Session it
+// is written from the parallel tool goroutines of a turn.
 type Memory struct {
+	mu sync.Mutex
 	Ev []Event
 }
 
 // Append implements Log.
-func (m *Memory) Append(e Event) error {
+func (m *Memory) Append(e Event) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if e.Seq == 0 {
 		e.Seq = len(m.Ev) + 1
 	}
@@ -158,8 +213,12 @@ func (m *Memory) Append(e Event) error {
 		e.Time = time.Now().UTC()
 	}
 	m.Ev = append(m.Ev, e)
-	return nil
+	return e.Seq, nil
 }
 
 // Events implements Log.
-func (m *Memory) Events() []Event { return m.Ev }
+func (m *Memory) Events() []Event {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]Event(nil), m.Ev...)
+}

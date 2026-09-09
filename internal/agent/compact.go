@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -283,9 +284,15 @@ func tailStart(msgs []llm.Message) int {
 	return start
 }
 
+// TokenEstimate is the most recent EstimateTokens value. Unlike
+// EstimateTokens it reads no message state, so the UI can call it from
+// another goroutine while a turn is appending to the history.
+func (a *Agent) TokenEstimate() int { return int(a.estimate.Load()) }
+
 // EstimateTokens approximates the prompt size of the current history. It
 // uses the last real input-token count when available and a
 // character-class estimate (see estimateTokens) for what was added since.
+// It must be called from the goroutine running the turn.
 func (a *Agent) EstimateTokens() int {
 	est := estimateTokens(a.systemPrompt())
 	for _, d := range a.Tools.Defs() {
@@ -297,7 +304,9 @@ func (a *Agent) EstimateTokens() int {
 		}
 		est += messageTokens(m)
 	}
-	return est + a.lastInputTokens
+	est += a.lastInputTokens
+	a.estimate.Store(int64(est))
+	return est
 }
 
 // Compact shrinks the history: first by pruning (see Prune), and when
@@ -332,6 +341,9 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 		if limit > 0 {
 			replaced = a.pruneTo(limit / 2)
 		}
+		if saved > 0 || replaced > 0 {
+			a.syncSurface()
+		}
 		if (saved > 0 || replaced > 0) && limit > 0 && a.EstimateTokens() < limit*3/4 {
 			emit(Event{Kind: EvCompacted, Text: fmt.Sprintf("context pruned: ~%d → ~%d tokens (%d old results condensed, no summary needed)", before, a.EstimateTokens(), replaced)})
 			return nil
@@ -345,6 +357,16 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	var hookNotes []string
 	if a.Hooks.Has(hook.PreCompact) {
 		hookNotes = a.Hooks.Run(ctx, hook.Input{Event: hook.PreCompact, Cwd: a.Hooks.Cwd, Tokens: before}).Notes
+	}
+
+	// The log seqs of the messages about to be replaced, aligned with
+	// a.Messages by index (CurrentSeqs folds in model order).
+	var surface []int
+	if a.Log != nil {
+		surface = session.CurrentSeqs(a.Log.Events())
+		if len(surface) != len(a.Messages) {
+			surface = nil // out of step: fall back to replacing the whole surface
+		}
 	}
 
 	// Detach a trailing plain user message so it survives verbatim.
@@ -386,11 +408,9 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 		return errors.New("compact: model returned an empty summary")
 	}
 	a.summaryFailedAt = time.Time{}
-	a.Usage.Add(resp.Usage)
+	a.addUsage(resp.Usage)
 
-	var shadowed []int
 	if a.Log != nil {
-		shadowed = session.CurrentSeqs(a.Log.Events())
 		a.logEvent(session.Event{Type: session.TypeCompactStart, Turn: a.turnN})
 	}
 	note := "[Context was compacted. Handoff note from the earlier part of this conversation:]\n\n" + summary
@@ -413,8 +433,9 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	}
 	a.Messages = append([]llm.Message{llm.TextMessage(llm.RoleUser, note)}, tail...)
 	a.RefreshExtra() // the prefix is rebuilt anyway; pick up new memory and skills
+	mergedPending := false
 	if pending != nil {
-		a.appendUserBlocks(pending.Blocks...)
+		mergedPending = a.appendUserBlocks(pending.Blocks...)
 	}
 	a.lastInputTokens = 0
 	a.lastInputMsgs = 0
@@ -422,17 +443,33 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	after := a.EstimateTokens()
 	a.stats.compacted()
 	if a.Log != nil {
+		// The summary replaces the head (and the pending message when it was
+		// merged into the summary). The tail is untouched: its events stay on
+		// the surface where they are, so the log does not gain a second copy
+		// of every kept message at each compaction.
+		var shadowed []int
+		relog := surface == nil
+		if relog {
+			shadowed = session.CurrentSeqs(a.Log.Events())
+		} else {
+			shadowed = append(shadowed, surface[:len(head)]...)
+			if pending != nil && mergedPending {
+				shadowed = append(shadowed, surface[len(surface)-1])
+			}
+		}
 		sum := a.Messages[0]
 		u := resp.Usage
 		a.logEvent(session.Event{Type: session.TypeCompactSummary, Turn: a.turnN, Shadowed: shadowed, Tokens: before, Usage: &u})
 		a.logEvent(session.Event{Type: session.TypeUserMessage, Turn: a.turnN, Surface: true, SurfaceOp: session.SurfaceOpReplace, Replaces: shadowed, Message: &sum})
-		for i := 1; i < len(a.Messages); i++ {
-			m := a.Messages[i]
-			t := session.TypeUserMessage
-			if m.Role == llm.RoleAssistant {
-				t = session.TypeAssistant
+		if relog {
+			for i := 1; i < len(a.Messages); i++ {
+				m := a.Messages[i]
+				t := session.TypeUserMessage
+				if m.Role == llm.RoleAssistant {
+					t = session.TypeAssistant
+				}
+				a.logEvent(session.Event{Type: t, Turn: a.turnN, Surface: true, Message: &m})
 			}
-			a.logEvent(session.Event{Type: t, Turn: a.turnN, Surface: true, Message: &m})
 		}
 		a.logEvent(session.Event{Type: session.TypeCompactEnd, Turn: a.turnN})
 	}
@@ -517,4 +554,48 @@ func (a *Agent) trimOld(toolUse, text string) string {
 		return tool.TruncateTo(text, pruneKeep)
 	}
 	return archiveNote(id, len(text), pruneKeep) + tool.TruncateTo(text, pruneKeep)
+}
+
+// syncSurface records any message the harness rewrote in place — pruning
+// condenses old tool results — as a replacement event, so a resumed session
+// folds to exactly the history the model is being sent.
+func (a *Agent) syncSurface() {
+	if a.Log == nil {
+		return
+	}
+	ev := a.Log.Events()
+	seqs := session.CurrentSeqs(ev)
+	if len(seqs) != len(a.Messages) {
+		return // shape changed; compaction logs its own replacement
+	}
+	at := make(map[int]*llm.Message, len(ev))
+	for i := range ev {
+		at[ev[i].Seq] = ev[i].Message
+	}
+	for i, seq := range seqs {
+		old := at[seq]
+		if old == nil || sameMessage(*old, a.Messages[i]) {
+			continue
+		}
+		m := a.Messages[i]
+		t := session.TypeUserMessage
+		if m.Role == llm.RoleAssistant {
+			t = session.TypeAssistant
+		}
+		a.logEvent(session.Event{Type: t, Surface: true, SurfaceOp: session.SurfaceOpReplace, Replaces: []int{seq}, Message: &m})
+	}
+}
+
+func sameMessage(x, y llm.Message) bool {
+	if x.Role != y.Role || len(x.Blocks) != len(y.Blocks) {
+		return false
+	}
+	for i := range x.Blocks {
+		a, b := x.Blocks[i], y.Blocks[i]
+		if a.Type != b.Type || a.Text != b.Text || a.ID != b.ID || a.Name != b.Name ||
+			a.ToolUseID != b.ToolUseID || a.IsError != b.IsError || !bytes.Equal(a.Input, b.Input) {
+			return false
+		}
+	}
+	return true
 }

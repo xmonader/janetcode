@@ -185,9 +185,13 @@ func check(ctx context.Context, cwd, command string) (string, int) {
 	return string(out) + err.Error(), 1
 }
 
-// turn runs one agent turn and syncs the session.
+// turn runs one agent turn. The session file is written as the turn
+// happens, by the agent's event log.
 func turn(ctx context.Context, opts Options, blocks []llm.Block) error {
 	ag := opts.Agent
+	if ag.Log == nil && opts.Session != nil {
+		ag.Log = opts.Session
+	}
 	err := ag.RunBlocks(ctx, blocks, func(e agent.Event) {
 		switch e.Kind {
 		case agent.EvText:
@@ -216,23 +220,13 @@ func turn(ctx context.Context, opts Options, blocks []llm.Block) error {
 	if err == nil && opts.Memory != nil && opts.AutoMemory && (ag.LastTurnMutated() || memory.LooksLikeFeedback(llm.Message{Blocks: blocks}.Text())) {
 		remember(ctx, opts)
 	}
-	if opts.Session != nil {
-		if opts.Session.Meta.Title == "" {
-			if t := session.AutoTitle(ag.Messages); t != "" {
-				opts.Session.Meta.Title = t // written by the sync below
+	// The turn is already on disk: every message was appended to the log as
+	// it happened. Only the title still needs writing.
+	if opts.Session != nil && opts.Session.Meta.Title == "" {
+		if t := session.AutoTitle(ag.Messages); t != "" {
+			if serr := opts.Session.SetTitle(t); serr != nil {
+				fmt.Fprintf(opts.Stderr, "[warn] could not save session title: %v\n", serr)
 			}
-		}
-		ns, serr := opts.Session.SyncOrRotate(ag.Messages)
-		if ns != opts.Session {
-			opts.Session = ns
-			ag.Log = ns
-			ag.UndoPath = ns.UndoPath()
-			ag.SaveUndo()
-		}
-		if serr != nil {
-			fmt.Fprintf(opts.Stderr, "[warn] could not save session: %v\n", serr)
-		} else if ns != opts.Session {
-			fmt.Fprintf(opts.Stderr, "[session] context compacted; continuing in session %s\n", ns.Meta.ID)
 		}
 	}
 	return err

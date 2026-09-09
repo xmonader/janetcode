@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 func TestTrainScoreAndPersistPredictor(t *testing.T) {
@@ -117,5 +118,49 @@ func TestCriticWarnsOncePerTurn(t *testing.T) {
 		}
 	}); err != nil || n != 0 {
 		t.Fatalf("critic off: err=%v notices=%d", err, n)
+	}
+}
+
+func TestFoldTrajectoryCountsFilesAndSuccessfulEdits(t *testing.T) {
+	ev := []session.Event{
+		{Type: session.TypeStepStart, Turn: 1, Step: 1},
+		{Type: session.TypeToolCall, Turn: 1, Name: "edit_file", Arguments: `{"path":"a.go","old_str":"x"}`},
+		{Type: session.TypeToolResult, Turn: 1, CallID: "t1", Name: "edit_file", Arguments: `{"path":"a.go","old_str":"x"}`},
+		{Type: session.TypeToolCall, Turn: 1, Name: "edit_file", Arguments: `{"path":"a.go","old_str":"y"}`},
+		{Type: session.TypeToolResult, Turn: 1, CallID: "t2", Name: "edit_file", Arguments: `{"path":"a.go","old_str":"y"}`},
+		{Type: session.TypeToolCall, Turn: 1, Name: "write_file", Arguments: `{"path":"b.go"}`},
+		{Type: session.TypeToolResult, Turn: 1, CallID: "t3", Name: "write_file", Arguments: `{"path":"b.go"}`, IsError: true},
+	}
+	f := FoldTrajectory(ev)
+	// Two edits to a.go are one file, and the failed write is neither an
+	// edit nor a file.
+	if f["files_edited"] != 1 {
+		t.Fatalf("files_edited = %v (want the distinct paths)", f["files_edited"])
+	}
+	if f["edits"] != 2 {
+		t.Fatalf("edits = %v (want the successful ones)", f["edits"])
+	}
+	if f["tool_errors"] != 1 {
+		t.Fatalf("tool_errors = %v", f["tool_errors"])
+	}
+}
+
+func TestTrajectoryScopedToTheRunningTurn(t *testing.T) {
+	ev := []session.Event{
+		{Type: session.TypeTurnStart, Turn: 1},
+		{Type: session.TypeStepStart, Turn: 1, Step: 1},
+		{Type: session.TypeToolCall, Turn: 1, Name: "read_file", Arguments: `{"path":"a"}`},
+		{Type: session.TypeToolResult, Turn: 1, CallID: "t1", Name: "read_file", Arguments: `{"path":"a"}`},
+		{Type: session.TypeTurnEnd, Turn: 1},
+		{Type: session.TypeTurnStart, Turn: 2},
+		{Type: session.TypeStepStart, Turn: 2, Step: 1},
+		{Type: session.TypeToolCall, Turn: 2, Name: "grep", Arguments: `{"pattern":"x"}`},
+		{Type: session.TypeToolResult, Turn: 2, CallID: "t2", Name: "grep", Arguments: `{"pattern":"x"}`},
+	}
+	a := &Agent{Log: &session.Memory{Ev: ev}}
+	a.RestoreFromLog()
+	got := a.Trajectory()
+	if got["tool_calls"] != 1 || got["model_calls"] != 1 {
+		t.Fatalf("turn 2 features = %v (they must not include turn 1)", got)
 	}
 }

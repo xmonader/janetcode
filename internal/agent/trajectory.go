@@ -65,30 +65,33 @@ func FoldTrajectory(events []session.Event) map[string]float64 {
 		case session.TypeToolCall:
 			calls++
 			repeat[e.Name+" "+e.Arguments]++
-			switch e.Name {
-			case "read_file":
+			if e.Name == "read_file" {
 				reads++
-			case "write_file", "edit_file":
-				edits++
-				editsSince++
-			case "bash":
-				if testCommandRe.MatchString(e.Arguments) {
-					tests++
-					editsSince = 0
-				}
 			}
 		case session.TypeToolResult:
 			if e.CallID == "" {
-				continue
+				continue // the surface tool-result message, not one call
 			}
 			if e.IsError {
 				errs++
 			}
-			if e.Name == "write_file" || e.Name == "edit_file" {
-				files[e.Arguments] = true
-			}
-			if e.Name == "bash" && testCommandRe.MatchString(e.Arguments) && e.IsError {
-				testFails++
+			// Counted on the result, and only when it worked, so the
+			// features mean the same thing as the ones trained on.
+			switch {
+			case e.Name == "write_file" || e.Name == "edit_file":
+				if !e.IsError {
+					edits++
+					editsSince++
+					if p := argPath(e.Arguments); p != "" {
+						files[p] = true
+					}
+				}
+			case e.Name == "bash" && testCommandRe.MatchString(e.Arguments):
+				tests++
+				editsSince = 0
+				if e.IsError {
+					testFails++
+				}
 			}
 			seq = append(seq, newSignature(e.Name, []byte(e.Arguments), e.IsError))
 		}
@@ -125,10 +128,42 @@ func FoldTrajectory(events []session.Event) map[string]float64 {
 	return f
 }
 
+// argPath is the file a tool call names, for counting distinct files.
+func argPath(arguments string) string {
+	var in struct {
+		Path string `json:"path"`
+		File string `json:"file"`
+	}
+	if json.Unmarshal([]byte(arguments), &in) != nil {
+		return ""
+	}
+	if in.Path != "" {
+		return in.Path
+	}
+	return in.File
+}
+
+// turnEvents is the slice of the log belonging to the running turn. The
+// features describe one turn: folding the whole log of a resumed session
+// would hand the critic totals from earlier runs, which no training sample
+// ever contained.
+func turnEvents(events []session.Event, turn int) []session.Event {
+	if turn <= 0 {
+		return events
+	}
+	out := make([]session.Event, 0, len(events))
+	for _, e := range events {
+		if e.Turn == turn {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // Trajectory describes the running turn as feature values.
 func (a *Agent) Trajectory() map[string]float64 {
 	if a.Log != nil {
-		if ev := a.Log.Events(); len(ev) > 0 {
+		if ev := turnEvents(a.Log.Events(), a.turnN); len(ev) > 0 {
 			f := FoldTrajectory(ev)
 			if !a.turnStart.IsZero() {
 				f["minutes"] = time.Since(a.turnStart).Minutes()

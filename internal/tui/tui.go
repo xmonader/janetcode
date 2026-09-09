@@ -360,8 +360,8 @@ func (m *model) contextCommand() {
 			fmt.Fprintf(&sb, "  %6s  %s%s (message %d)\n", shortTokens(it.Tokens), it.Tool, subj, it.Index)
 		}
 	}
-	if m.opts.Session != nil && len(m.opts.Session.Events()) > 0 {
-		meter := session.Measure(m.opts.Session.Events(), nil)
+	if ev := m.sessionEvents(); len(ev) > 0 {
+		meter := session.Measure(ev, nil)
 		fmt.Fprintf(&sb, "surface meter · log rev %d · %s across %d nodes\n", meter.LogRevision, shortTokens(meter.Surface), len(meter.Nodes))
 		sort.Slice(meter.Nodes, func(i, j int) bool { return meter.Nodes[i].Tokens > meter.Nodes[j].Tokens })
 		for i, n := range meter.Nodes {
@@ -375,12 +375,20 @@ func (m *model) contextCommand() {
 	m.transcript.info(sb.String())
 }
 
+// sessionEvents is a snapshot of the session log, or nil without a session.
+func (m *model) sessionEvents() []session.Event {
+	if m.opts.Session == nil {
+		return nil
+	}
+	return m.opts.Session.Events()
+}
+
 func (m *model) trajectoryCommand(args []string) {
 	if m.opts.Session == nil {
 		m.transcript.errorf("no session")
 		return
 	}
-	ev := m.opts.Session.Events()
+	ev := m.sessionEvents()
 	if len(args) > 0 && args[0] == "grep" {
 		q := strings.Join(args[1:], " ")
 		hits := session.QueryEvents(ev, session.QueryFilter{Text: q})
@@ -428,13 +436,14 @@ func (m *model) trajectoryCommand(args []string) {
 		}
 	}
 	if len(ev) == 0 {
-		m.transcript.info("no trajectory events yet (legacy session, or no turn has run)")
+		m.transcript.info("no trajectory events yet: no turn has run")
 		return
 	}
+	hidden := session.Shadowed(ev)
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "seq  turn/step  type                 name        dur    surface\n")
 	for _, e := range ev {
-		k := session.Classify(ev, e)
+		k := session.ClassifyWith(hidden, e)
 		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %5dms %s\n", e.Seq, e.Turn, e.Step, e.Type, trunc(e.Name, 11), e.DurationMs, k)
 	}
 	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
@@ -491,14 +500,15 @@ func (m *model) goalCommand(arg string) tea.Cmd {
 			m.transcript.errorf("no session log")
 			return nil
 		}
-		g := agent.ActiveGoal(ag.Log.Events())
-		if g == nil && arg != "resume" {
-			gs := agent.FoldGoals(ag.Log.Events())
-			if len(gs) == 0 {
-				m.transcript.errorf("no goal")
-				return nil
-			}
-			g = &gs[len(gs)-1]
+		ev := ag.Log.Events()
+		// resume acts on the goal that was paused; pause and done on the
+		// active one. Either falls back to the most recent goal.
+		g := agent.ActiveGoal(ev)
+		if arg == "resume" {
+			g = agent.LastGoal(ev, agent.GoalPaused)
+		}
+		if g == nil {
+			g = agent.LastGoal(ev, "")
 		}
 		if g == nil {
 			m.transcript.errorf("no goal")
@@ -599,7 +609,7 @@ func (m *model) savePins() {
 	if m.opts.Session == nil {
 		return
 	}
-	if err := m.opts.Session.SavePins(m.opts.Agent.Pins, m.opts.Agent.Messages); err != nil {
+	if err := m.opts.Session.SavePins(m.opts.Agent.Pins); err != nil {
 		m.transcript.errorf("could not save pins: %v", err)
 	}
 }
@@ -645,13 +655,14 @@ func (m *model) forkSession(title string) {
 		m.transcript.errorf("wait for the current turn to finish before forking")
 		return
 	}
-	ns, err := session.Fork(dirOf(m.opts.Session), m.opts.Session, m.opts.Agent.Messages, title)
+	ns, err := session.Fork(dirOf(m.opts.Session), m.opts.Session, title)
 	if err != nil {
 		m.transcript.errorf("fork: %v", err)
 		return
 	}
 	old := m.opts.Session.Label()
 	m.opts.Session = ns
+	m.opts.Agent.SetLog(ns) // the fork owns the log from here on
 	m.opts.Agent.UndoPath = ns.UndoPath()
 	m.opts.Agent.SaveUndo()
 	m.transcript.info(fmt.Sprintf("forked %s → %s (%s) · this session continues from here, the original is unchanged · /resume lists both", old, ns.Meta.ID, ns.Meta.Title))
@@ -668,7 +679,7 @@ func (m *model) setTitle(title string) {
 		return
 	}
 	m.titleGen++ // a pending generated title must not overwrite this
-	if err := m.opts.Session.SetTitle(title, m.opts.Agent.Messages); err != nil {
+	if err := m.opts.Session.SetTitle(title); err != nil {
 		m.transcript.errorf("save title: %v", err)
 		return
 	}
@@ -841,10 +852,8 @@ type memoryMsg struct {
 }
 type flushMsg struct{}
 type agentDoneMsg struct {
-	err     error
-	syncErr error
+	err error
 }
-type sessionSwapMsg struct{ sess *session.Session }
 type permissionMsg struct {
 	call  agent.ToolCall
 	reply chan verdict
@@ -1205,14 +1214,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refresh(false)
 		return m, nil
 
-	case sessionSwapMsg:
-		m.opts.Session = msg.sess
-		m.opts.Agent.UndoPath = msg.sess.UndoPath()
-		m.opts.Agent.SaveUndo()
-		m.transcript.info("continuing in session " + msg.sess.Meta.ID)
-		m.refresh(false)
-		return m, nil
-
 	case permissionMsg:
 		m.drainEvents() // the tool entry must exist before the prompt shows
 		m.pending = &msg
@@ -1289,7 +1290,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case titleMsg:
 		if msg.gen == m.titleGen && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && msg.title != "" {
-			if err := m.opts.Session.SetTitle(msg.title, m.opts.Agent.Messages); err != nil {
+			if err := m.opts.Session.SetTitle(msg.title); err != nil {
 				m.transcript.errorf("could not save the title: %v", err)
 			} else {
 				m.status = "titled: " + msg.title
@@ -1349,7 +1350,7 @@ func (m *model) applyEvent(ev agent.Event) {
 		if u.CacheReadTokens > 0 {
 			s += fmt.Sprintf(" · %s cached", shortTokens(u.CacheReadTokens))
 		}
-		if usd, ok := m.opts.Agent.Usage.Cost(m.opts.Agent.Price); ok {
+		if usd, ok := m.opts.Agent.UsageSnapshot().Cost(m.opts.Agent.Price); ok {
 			s += " · " + llm.FormatUSD(usd) + " total"
 		}
 		if ev.StopReason != "" && ev.StopReason != "end_turn" {
@@ -1840,16 +1841,14 @@ func (m *model) submit(text string) tea.Cmd {
 	m.startTurn("thinking")
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	ag, sess, send, queue := m.opts.Agent, m.opts.Session, m.send, m.queue
+	ag, send, queue := m.opts.Agent, m.send, m.queue
 	m.refresh(false)
 	m.viewport.GotoBottom()
 	go func() {
+		// Every message reached the session file as it happened; there is
+		// nothing left to write when the turn ends.
 		err := ag.RunBlocks(ctx, blocks, queue.push)
-		ns, syncErr := sess.SyncOrRotate(ag.Messages)
-		if ns != sess {
-			send(sessionSwapMsg{sess: ns})
-		}
-		send(agentDoneMsg{err: err, syncErr: syncErr})
+		send(agentDoneMsg{err: err})
 	}()
 	return m.spinner.Tick
 }
@@ -1924,24 +1923,17 @@ func (m *model) compact() tea.Cmd {
 	m.compacting = true
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	ag, sess, send, queue := m.opts.Agent, m.opts.Session, m.send, m.queue
+	ag, send, queue := m.opts.Agent, m.send, m.queue
 	m.transcript.info(fmt.Sprintf("compacting ~%s tokens of context…", shortTokens(ag.EstimateTokens())))
 	m.refresh(false)
 	go func() {
+		// Compaction appends the summary and the seqs it replaces to the
+		// same log; the session file stays as it is.
 		err := ag.ForceCompact(ctx, queue.push)
 		if errors.Is(err, agent.ErrNothingToCompact) {
 			err = nil
 		}
-		var syncErr error
-		if err == nil {
-			// Compaction rewrote the history; the old transcript stays on
-			// disk and a new session file takes over.
-			var ns *session.Session
-			if ns, syncErr = sess.SyncOrRotate(ag.Messages); ns != sess {
-				send(sessionSwapMsg{sess: ns})
-			}
-		}
-		send(agentDoneMsg{err: err, syncErr: syncErr})
+		send(agentDoneMsg{err: err})
 	}()
 	return m.spinner.Tick
 }
@@ -1990,9 +1982,6 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		if m.lastTurn != "" {
 			m.status += " · " + m.lastTurn
 		}
-	}
-	if msg.syncErr != nil {
-		m.transcript.errorf("could not save session: %v", msg.syncErr)
 	}
 	if msg.err == nil && len(m.queued) == 0 {
 		if cont := m.opts.Agent.GoalContinuation(); cont != "" {
@@ -2055,6 +2044,7 @@ func (m *model) command(text string) tea.Cmd {
 		}
 		m.opts.Session = sess
 		m.opts.Agent.Messages = nil
+		m.opts.Agent.SetLog(sess)
 		m.opts.Agent.UndoPath = sess.UndoPath()
 		m.transcript = newTranscriptStyled(m.transcript.styleName)
 		m.transcript.banner(m.welcome())
@@ -2199,7 +2189,7 @@ func (m *model) command(text string) tea.Cmd {
 	case "/stats":
 		m.statsCommand()
 	case "/usage", "/cost":
-		u := m.opts.Agent.Usage
+		u := m.opts.Agent.UsageSnapshot()
 		line := fmt.Sprintf("session tokens · in %s · out %s · cache read %s · cache write %s · context now ~%s",
 			shortTokens(u.InputTokens), shortTokens(u.OutputTokens), shortTokens(u.CacheReadTokens), shortTokens(u.CacheWriteTokens), shortTokens(m.opts.Agent.EstimateTokens()))
 		switch usd, ok := u.Cost(m.opts.Agent.Price); {
@@ -2417,10 +2407,9 @@ func (m *model) resume(arg string) {
 		return
 	}
 	m.opts.Session = sess
-	m.opts.Agent.Log = sess
 	m.opts.Agent.Messages = history
 	m.opts.Agent.Pins = append([]string(nil), sess.Meta.Pins...)
-	m.opts.Agent.PlanMode = session.FoldPlanMode(sess.Events())
+	m.opts.Agent.SetLog(sess)
 	m.opts.Agent.Usage = llm.Usage{}
 	m.opts.Agent.UndoPath = sess.UndoPath()
 	if err := m.opts.Agent.LoadUndo(); err != nil {
@@ -2639,7 +2628,12 @@ func (m *model) statusView() string {
 // contextGauge shows how full the context window is relative to the
 // compaction threshold.
 func (m *model) contextGauge() string {
-	est := m.opts.Agent.EstimateTokens()
+	// While a turn runs the history belongs to the turn goroutine; the
+	// gauge reads the estimate the agent published instead.
+	est := m.opts.Agent.TokenEstimate()
+	if !m.running {
+		est = m.opts.Agent.EstimateTokens()
+	}
 	limit := m.opts.Agent.CompactThreshold()
 	if limit <= 0 {
 		return styleFaint.Render("ctx " + shortTokens(est))
@@ -2918,7 +2912,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 func (m *model) statsCommand() {
 	ag := m.opts.Agent
 	st := ag.Stats()
-	u := ag.Usage
+	u := ag.UsageSnapshot()
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "session %s · up %s · %d turn(s) · %d model call(s)", m.opts.Session.Label(), shortDuration(time.Since(m.startedAt)), st.Turns, st.ModelCalls)
 	if st.ModelErrors > 0 {

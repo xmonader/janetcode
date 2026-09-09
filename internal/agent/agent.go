@@ -13,6 +13,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/hook"
@@ -214,14 +215,16 @@ type Agent struct {
 
 	mutated bool // a mutating tool ran successfully this turn
 
-	allowed map[string]bool
-	cp      checkpointer
-	coach   coach
-	coachMu sync.Mutex // read_file runs in parallel goroutines
-	loops   loopDetector
-	loopMu  sync.Mutex
-	stuck   bool
-	integ   integrity
+	allowed  map[string]bool
+	cp       checkpointer
+	coach    coach
+	coachMu  sync.Mutex // read_file runs in parallel goroutines
+	loops    loopDetector
+	loopMu   sync.Mutex
+	usageMu  sync.Mutex   // the status bar reads Usage while a turn runs
+	estimate atomic.Int64 // last EstimateTokens, published for the status bar
+	stuck    bool
+	integ    integrity
 
 	// Real input size of the last call, and how many messages it covered,
 	// so EstimateTokens only has to guess about what came after.
@@ -264,14 +267,11 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			emit(Event{Kind: EvNotice, Text: note})
 		}
 	}
-	a.appendUserBlocks(blocks...)
+	merged := a.appendUserBlocks(blocks...)
 	a.turnN++
 	a.stepN = 0
 	a.logEvent(session.Event{Type: session.TypeTurnStart, Turn: a.turnN})
-	if n := len(a.Messages); n > 0 {
-		msg := a.Messages[n-1]
-		a.logEvent(session.Event{Type: session.TypeUserMessage, Turn: a.turnN, Surface: true, Message: &msg})
-	}
+	a.logUserMessage(merged)
 	a.cp.beginTurn()
 	a.mutated, a.mutations = false, 0
 	defer a.endTurn()
@@ -292,7 +292,9 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if compactAt > 0 && a.EstimateTokens() > compactAt {
+		// Recomputed every step: it also publishes the estimate the status
+		// bar reads while the turn runs.
+		if est := a.EstimateTokens(); compactAt > 0 && est > compactAt {
 			if err := a.Compact(ctx, emit); err != nil && !errors.Is(err, ErrNothingToCompact) {
 				return err
 			}
@@ -323,7 +325,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		a.lastInputMsgs = len(a.Messages)
 		a.Messages = append(a.Messages, resp.Message)
 		a.integ.lastLen = len(a.Messages)
-		a.Usage.Add(resp.Usage)
+		a.addUsage(resp.Usage)
 		msg := resp.Message
 		u := resp.Usage
 		a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &msg, Usage: &u})
@@ -539,12 +541,50 @@ func (a *Agent) AddContext(text string) { a.appendUserText(text) }
 // already sent to the provider: editing a cached prefix (especially a tool-
 // result turn) makes DashScope/OpenRouter re-bill the whole history as fresh.
 func (a *Agent) appendUserText(text string) {
-	a.appendUserBlocks(llm.Block{Type: llm.BlockText, Text: text})
+	a.logUserMessage(a.appendUserBlocks(llm.Block{Type: llm.BlockText, Text: text}))
 }
 
-func (a *Agent) appendUserBlocks(blocks ...llm.Block) {
-	if len(blocks) == 0 {
+// addUsage accumulates the usage of one model call. The status bar reads it
+// from the UI goroutine while the turn runs, so it is guarded.
+func (a *Agent) addUsage(u llm.Usage) {
+	a.usageMu.Lock()
+	a.Usage.Add(u)
+	a.usageMu.Unlock()
+}
+
+// UsageSnapshot is a copy of the usage so far, safe to read while a turn
+// is running.
+func (a *Agent) UsageSnapshot() llm.Usage {
+	a.usageMu.Lock()
+	defer a.usageMu.Unlock()
+	return a.Usage
+}
+
+// logUserMessage records the trailing user message on the log. When the
+// blocks merged into a message that is already logged (input typed after a
+// failed call, or a note added before the turn ran) the event replaces that
+// one, so the fold holds the grown message once instead of twice.
+func (a *Agent) logUserMessage(merged bool) {
+	n := len(a.Messages)
+	if a.Log == nil || n == 0 {
 		return
+	}
+	msg := a.Messages[n-1]
+	e := session.Event{Type: session.TypeUserMessage, Surface: true, Message: &msg}
+	if merged {
+		if seqs := session.CurrentSeqs(a.Log.Events()); len(seqs) == n {
+			e.SurfaceOp = session.SurfaceOpReplace
+			e.Replaces = []int{seqs[n-1]}
+		}
+	}
+	a.logEvent(e)
+}
+
+// appendUserBlocks adds a user turn, reporting whether it merged into the
+// trailing message rather than making a new one.
+func (a *Agent) appendUserBlocks(blocks ...llm.Block) bool {
+	if len(blocks) == 0 {
+		return false
 	}
 	n := len(a.Messages)
 	// Merge only into a trailing plain-text user turn (typed input before
@@ -552,9 +592,10 @@ func (a *Agent) appendUserBlocks(blocks ...llm.Block) {
 	// the wire; appending to them would change bytes the prompt cache keyed on.
 	if n > 0 && a.Messages[n-1].Role == llm.RoleUser && !hasToolResult(a.Messages[n-1]) {
 		a.Messages[n-1].Blocks = append(a.Messages[n-1].Blocks, blocks...)
-		return
+		return true
 	}
 	a.Messages = append(a.Messages, llm.Message{Role: llm.RoleUser, Blocks: blocks})
+	return false
 }
 
 // execute runs one tool call. The returned error is non-nil only for

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -116,9 +117,9 @@ func TestTaskContinueSeesHistory(t *testing.T) {
 	if !strings.Contains(out1, "id="+ids[0]) || !strings.Contains(out2, "id="+ids[0]) {
 		t.Fatalf("out1=%s out2=%s", out1, out2)
 	}
-	child := task.children[ids[0]]
-	if len(child.Messages) < 4 {
-		t.Fatalf("continue lost history: %d messages", len(child.Messages))
+	kid := task.children[ids[0]]
+	if len(kid.agent.Messages) < 4 {
+		t.Fatalf("continue lost history: %d messages", len(kid.agent.Messages))
 	}
 }
 
@@ -243,8 +244,14 @@ func TestTaskEditsInAWorktreeAndReturnsAPatch(t *testing.T) {
 	if len(prov.dirs) != 1 || prov.dirs[0] == root || !strings.Contains(prov.dirs[0], "janetcode-wt-") {
 		t.Fatalf("child ran in %q, want a worktree", prov.dirs)
 	}
+	// The worktree outlives the run so the subagent can be continued in it,
+	// and Close takes it away.
+	if _, err := os.Stat(prov.dirs[0]); err != nil {
+		t.Fatalf("worktree removed while the subagent is still continuable: %v", err)
+	}
+	task.Close(context.Background())
 	if _, err := os.Stat(prov.dirs[0]); err == nil {
-		t.Fatal("worktree not removed")
+		t.Fatal("worktree not removed by Close")
 	}
 	if got, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(got) != "alpha\n" {
 		t.Fatalf("real tree changed: %q", got)
@@ -280,5 +287,73 @@ func TestTaskEditNeedsARepo(t *testing.T) {
 	}
 	if final := parent.Messages[len(parent.Messages)-1].Text(); !strings.Contains(final, "need a git repository") {
 		t.Fatalf("final = %q", final)
+	}
+}
+
+// Usage is cumulative over a subagent's life; continuing one must bill the
+// parent only for the new exchange.
+func TestTaskContinueBillsUsageOnce(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha"), 0o644)
+	parent := &Agent{Provider: &scriptedByPrompt{}, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"one","prompt":"explore first"}`)); err != nil {
+		t.Fatal(err)
+	}
+	id := task.ChildIDs()[0]
+	first := task.Usage()
+	if first.InputTokens == 0 {
+		t.Fatal("first run billed nothing")
+	}
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"one","prompt":"explore again","continue":"`+id+`"}`)); err != nil {
+		t.Fatal(err)
+	}
+	child := task.children[id].agent
+	if got := task.Usage(); got.InputTokens != child.Usage.InputTokens {
+		t.Fatalf("parent billed %d input tokens, subagent spent %d", got.InputTokens, child.Usage.InputTokens)
+	}
+}
+
+func TestTaskEvictsOldestSubagent(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha"), 0o644)
+	parent := &Agent{Provider: &scriptedByPrompt{}, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+	for i := 0; i < maxChildren+2; i++ {
+		if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"explore"}`)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ids := task.ChildIDs()
+	if len(ids) != maxChildren {
+		t.Fatalf("kept %d subagents, want %d", len(ids), maxChildren)
+	}
+	if ids[0] != "task-3" {
+		t.Fatalf("oldest kept is %s, want the oldest two evicted", ids[0])
+	}
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"explore","continue":"task-1"}`)); err == nil {
+		t.Fatal("continuing an evicted subagent should fail")
+	}
+}
+
+// goal_status is read-only but writes the parent's goal log, so it must not
+// reach a subagent.
+func TestTaskWithholdsGoalStatus(t *testing.T) {
+	parent := &Agent{Model: "m", Log: &session.Memory{}}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.ListDir{Root: t.TempDir()}, task, &GoalStatus{Parent: parent})
+	child, err := task.child(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range child.Tools.Defs() {
+		if d.Name == "goal_status" {
+			t.Fatal("subagent can end the parent's goal")
+		}
+	}
+	if _, err := task.child([]string{"goal_status"}); err == nil {
+		t.Fatal("goal_status accepted in the tools list")
 	}
 }

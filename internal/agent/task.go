@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -31,8 +30,22 @@ type Task struct {
 
 	mu       sync.Mutex
 	usage    llm.Usage
-	children map[string]*Agent
+	children map[string]*subagent
+	order    []string // insertion order, for eviction
 	nextID   int
+}
+
+// maxChildren bounds how many subagents stay continuable. Each holds its
+// whole transcript (and, when it edits, a checked-out worktree), so a
+// session that delegates all day does not keep every one of them alive.
+const maxChildren = 8
+
+// subagent is a continuable child: the agent, the usage already billed to
+// the parent, and the worktree it edits in (nil for read-only subagents).
+type subagent struct {
+	agent *Agent
+	wt    *worktree
+	seen  llm.Usage
 }
 
 func (*Task) Name() string { return "task" }
@@ -70,12 +83,43 @@ func (*Task) Schema() json.RawMessage {
 func (t *Task) ChildIDs() []string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	ids := make([]string, 0, len(t.children))
-	for id := range t.children {
-		ids = append(ids, id)
+	return append([]string(nil), t.order...)
+}
+
+// Close removes the worktrees of every editing subagent. Call it when the
+// parent session ends.
+func (t *Task) Close(ctx context.Context) {
+	t.mu.Lock()
+	kids := t.children
+	t.children, t.order = nil, nil
+	t.mu.Unlock()
+	for _, c := range kids {
+		if c.wt != nil {
+			c.wt.remove(ctx)
+		}
 	}
-	sort.Strings(ids)
-	return ids
+}
+
+// remember registers a continuable subagent, evicting the oldest (and its
+// worktree) once there are too many.
+func (t *Task) remember(id string, c *subagent) {
+	t.mu.Lock()
+	if t.children == nil {
+		t.children = map[string]*subagent{}
+	}
+	t.children[id] = c
+	t.order = append(t.order, id)
+	var evicted *subagent
+	if len(t.order) > maxChildren {
+		old := t.order[0]
+		t.order = t.order[1:]
+		evicted = t.children[old]
+		delete(t.children, old)
+	}
+	t.mu.Unlock()
+	if evicted != nil && evicted.wt != nil {
+		evicted.wt.remove(context.Background())
+	}
 }
 
 // Usage is the total spent by subagents so far.
@@ -119,50 +163,57 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			in.Tools = profile.Tools
 		}
 	}
-	var wt *worktree
-	var child *Agent
+	var kid *subagent
 	var err error
 	var childID string
 	if in.Continue != "" {
 		t.mu.Lock()
-		child = t.children[in.Continue]
+		kid = t.children[in.Continue]
 		t.mu.Unlock()
-		if child == nil {
-			return "", fmt.Errorf("no subagent %q", in.Continue)
+		if kid == nil {
+			return "", fmt.Errorf("no subagent %q (it may have been retired; start a new one)", in.Continue)
 		}
 		childID = in.Continue
 	} else if in.Edit {
 		if t.Root == "" {
 			return "", fmt.Errorf("editing subagents are not available: no project root")
 		}
-		if wt, err = newWorktree(ctx, t.Root); err != nil {
-			return "", err
+		// The worktree outlives this call: the subagent is continuable, and
+		// a continued run reads and edits the same checkout. Close (or
+		// eviction) removes it.
+		wt, werr := newWorktree(ctx, t.Root)
+		if werr != nil {
+			return "", werr
 		}
-		defer wt.remove(context.WithoutCancel(ctx))
-		child = t.editingChild(wt)
-	} else if child, err = t.child(in.Tools); err != nil {
-		return "", err
+		kid = &subagent{agent: t.editingChild(wt), wt: wt}
+	} else {
+		ag, cerr := t.child(in.Tools)
+		if cerr != nil {
+			return "", cerr
+		}
+		kid = &subagent{agent: ag}
 	}
 	if profile != nil && in.Continue == "" {
-		child.System += "\n\n# Agent: " + profile.Name + "\n" + profile.Body
+		kid.agent.System += "\n\n# Agent: " + profile.Name + "\n" + profile.Body
 		if profile.Model != "" {
-			child.Model = profile.Model
+			kid.agent.Model = profile.Model
 		}
 	}
 	if childID == "" {
 		t.mu.Lock()
-		if t.children == nil {
-			t.children = map[string]*Agent{}
-		}
 		t.nextID++
 		childID = fmt.Sprintf("task-%d", t.nextID)
-		t.children[childID] = child
 		t.mu.Unlock()
+		t.remember(childID, kid)
 	}
+	child, wt := kid.agent, kid.wt
 	start := time.Now()
 	err = child.Run(ctx, in.Prompt, nil)
+	// Usage is cumulative over the subagent's life, so only what this
+	// exchange added is billed to the parent.
 	t.mu.Lock()
-	t.usage.Add(child.Usage)
+	t.usage.Add(usageSince(kid.seen, child.Usage))
+	kid.seen = child.Usage
 	t.mu.Unlock()
 	if err != nil {
 		return "", fmt.Errorf("subagent failed after %s: %w", time.Since(start).Round(time.Millisecond), err)
@@ -231,13 +282,22 @@ func (t *Task) child(only []string) (*Agent, error) {
 			if tl.Mutating() || name == t.Name() {
 				return nil, fmt.Errorf("tool %q cannot be given to a subagent (read-only tools only)", name)
 			}
+			if _, isGoal := tl.(*GoalStatus); isGoal {
+				return nil, fmt.Errorf("tool %q cannot be given to a subagent: it would end the main session's goal", name)
+			}
 			ro = append(ro, tl)
 		}
 	} else {
 		for _, d := range p.Tools.Defs() {
-			if tl, ok := p.Tools.Get(d.Name); ok && !tl.Mutating() && d.Name != t.Name() {
-				ro = append(ro, tl)
+			tl, ok := p.Tools.Get(d.Name)
+			if !ok || tl.Mutating() || d.Name == t.Name() {
+				continue
 			}
+			// goal_status is read-only but writes the parent's goal log.
+			if _, isGoal := tl.(*GoalStatus); isGoal {
+				continue
+			}
+			ro = append(ro, tl)
 		}
 	}
 	maxIter := t.MaxIterations
@@ -256,6 +316,17 @@ func (t *Task) child(only []string) (*Agent, error) {
 		AutoApprove:   false,
 		Debug:         p.Debug,
 	}, nil
+}
+
+// usageSince is the usage added between two cumulative snapshots.
+func usageSince(before, now llm.Usage) llm.Usage {
+	return llm.Usage{
+		InputTokens:      now.InputTokens - before.InputTokens,
+		OutputTokens:     now.OutputTokens - before.OutputTokens,
+		CacheReadTokens:  now.CacheReadTokens - before.CacheReadTokens,
+		CacheWriteTokens: now.CacheWriteTokens - before.CacheWriteTokens,
+		CostUSD:          now.CostUSD - before.CostUSD,
+	}
 }
 
 func lastAssistantText(msgs []llm.Message) string {

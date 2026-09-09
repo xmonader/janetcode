@@ -19,17 +19,15 @@ type TokenMeasurement struct {
 // EstimateTokens is the caller-supplied sizer (usually Agent.estimate of one message).
 type EstimateTokens func(llm.Message) int
 
-// Measure prices current surface events. Shadowed nodes are omitted.
+// Measure prices current surface events, in model order. Shadowed nodes
+// are omitted.
 func Measure(events []Event, est EstimateTokens) TokenMeasurement {
-	hidden := shadowedSet(events)
 	m := TokenMeasurement{LogRevision: 0}
 	if n := len(events); n > 0 {
 		m.LogRevision = events[n-1].Seq
 	}
-	for _, e := range events {
-		if !e.Surface || e.Message == nil || hidden[e.Seq] {
-			continue
-		}
+	for _, i := range live(events) {
+		e := events[i]
 		tok := 0
 		if est != nil {
 			tok = est(*e.Message)

@@ -2,6 +2,7 @@ package session
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -23,9 +24,10 @@ type EventHit struct {
 // QueryEvents filters one session's log.
 func QueryEvents(events []Event, f QueryFilter) []EventHit {
 	words := strings.Fields(strings.ToLower(f.Text))
+	hidden := shadowedSet(events)
 	var out []EventHit
 	for _, e := range events {
-		k := Classify(events, e)
+		k := ClassifyWith(hidden, e)
 		if f.Surface != "" && f.Surface != "any" && k != f.Surface {
 			continue
 		}
@@ -52,12 +54,22 @@ func QueryEvents(events []Event, f QueryFilter) []EventHit {
 		if snip == "" && e.Message != nil {
 			snip = e.Message.Text()
 		}
-		if len(snip) > 120 {
-			snip = snip[:117] + "…"
-		}
+		snip = truncRunes(snip, 120)
 		out = append(out, EventHit{Event: e, Kind: k, Snippet: snip})
 	}
 	return out
+}
+
+// truncRunes shortens s to at most max bytes without splitting a rune.
+func truncRunes(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	cut := max - len("…")
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "…"
 }
 
 // LastAssistantSeq is the seq of the most recent assistant/message, or 0.
