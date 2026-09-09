@@ -569,3 +569,36 @@ func TestCompactArchivesTheHead(t *testing.T) {
 		t.Fatalf("head not searchable:\n%s", out)
 	}
 }
+
+// The compaction record is parsed, not read, so the call asks the
+// provider to constrain the reply to the record's shape when it can.
+func TestCompactionAsksForTheRecordShape(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text(`{"goal":"g","facts":["done"]}`)}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, strings.Repeat("investigate the flaky suite ", 80)),
+		llm.TextMessage(llm.RoleAssistant, "working"),
+	}}
+	if err := a.ForceCompact(context.Background(), func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	req := f.requests[0]
+	if req.Schema == nil || req.Schema.Name != "working_memory" || !req.Schema.Strict {
+		t.Fatalf("schema = %+v", req.Schema)
+	}
+	if !json.Valid(req.Schema.JSON) {
+		t.Fatalf("schema is not valid JSON: %s", req.Schema.JSON)
+	}
+	// The prose path asks for no shape, since there is none to ask for.
+	g := &fake{responses: []*llm.Response{text("a prose handoff note")}}
+	b := &Agent{Provider: g, Tools: tool.NewRegistry(), Model: "m", Off: map[string]bool{"working": true}, Messages: a.Messages}
+	b.Messages = []llm.Message{
+		llm.TextMessage(llm.RoleUser, strings.Repeat("investigate the flaky suite ", 80)),
+		llm.TextMessage(llm.RoleAssistant, "working"),
+	}
+	if err := b.ForceCompact(context.Background(), func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if g.requests[0].Schema != nil {
+		t.Fatalf("prose summary asked for a schema: %+v", g.requests[0].Schema)
+	}
+}

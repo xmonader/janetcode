@@ -408,6 +408,10 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 		a.working.absorb(head)
 		instruction = workingSystem + "\n\nPrevious working memory (update it):\n" + a.working.modelSections() + "\n\nWrite the updated JSON object now."
 	}
+	var schema *llm.Schema
+	if typed {
+		schema = workingSchema
+	}
 	var summary string
 	var usage llm.Usage
 	if typed && !a.Off["richskip"] && a.working.rich(head) {
@@ -417,7 +421,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 		// forward as they are instead of paying for a summary call.
 		summary = a.working.modelSections()
 	} else {
-		resp, err := a.summarise(ctx, head, instruction)
+		resp, err := a.summarise(ctx, head, instruction, schema)
 		if err != nil {
 			a.summaryFailedAt = time.Now()
 			return fmt.Errorf("compact: %w", err)
@@ -517,7 +521,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 // which was most of what a summary cost. A model that answers the
 // instruction with a tool call instead of text gets one cold retry with
 // the instruction as the system prompt and no tools.
-func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction string) (*llm.Response, error) {
+func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction string, schema *llm.Schema) (*llm.Response, error) {
 	msgs := append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, instruction+"\n\nReply with text only; do not call tools."))
 	resp, err := a.Provider.Stream(ctx, llm.Request{
 		Model:     a.Model,
@@ -525,6 +529,7 @@ func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction s
 		Messages:  msgs,
 		Tools:     a.Tools.Defs(),
 		MaxTokens: a.MaxTokens,
+		Schema:    schema,
 	}, nil)
 	if err != nil {
 		return nil, err

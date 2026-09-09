@@ -56,6 +56,7 @@ type Provider struct {
 	useMaxCompletion bool // send max_completion_tokens instead of max_tokens
 	noStreamOptions  bool // server rejects stream_options
 	noCacheControl   bool // server rejects cache_control / array content
+	noJSONSchema     bool // server rejects response_format json_schema
 }
 
 // New validates cfg and builds a provider.
@@ -301,6 +302,21 @@ type wireRequest struct {
 	StreamOptions       *struct {
 		IncludeUsage bool `json:"include_usage"`
 	} `json:"stream_options,omitempty"`
+	ResponseFormat *wireResponseFormat `json:"response_format,omitempty"`
+}
+
+// wireResponseFormat constrains the reply to a JSON shape. Servers that
+// do not know the field ignore it; one that rejects the whole request for
+// it is handled by retrying without (see noResponseFormat).
+type wireResponseFormat struct {
+	Type       string          `json:"type"`
+	JSONSchema *wireJSONSchema `json:"json_schema,omitempty"`
+}
+
+type wireJSONSchema struct {
+	Name   string          `json:"name"`
+	Schema json.RawMessage `json:"schema"`
+	Strict bool            `json:"strict,omitempty"`
 }
 
 type wireChunk struct {
@@ -391,6 +407,12 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 		return wireRequest{}, err
 	}
 	w := wireRequest{Model: req.Model, MaxTokens: req.MaxTokens, Stream: true}
+	if req.Schema != nil && len(req.Schema.JSON) > 0 {
+		w.ResponseFormat = &wireResponseFormat{
+			Type:       "json_schema",
+			JSONSchema: &wireJSONSchema{Name: req.Schema.Name, Schema: req.Schema.JSON, Strict: req.Schema.Strict},
+		}
+	}
 	w.StreamOptions = &struct {
 		IncludeUsage bool `json:"include_usage"`
 	}{true}
@@ -658,6 +680,11 @@ func (p *Provider) applyDialect(w wireRequest) wireRequest {
 	if p.noCacheControl {
 		stripCacheControl(&w)
 	}
+	if p.noJSONSchema {
+		// The caller parses the reply either way; without the constraint
+		// it is asking rather than requiring, which is what it did before.
+		w.ResponseFormat = nil
+	}
 	return w
 }
 
@@ -680,6 +707,9 @@ func (p *Provider) learnDialect(err error) bool {
 		return true
 	case !p.noCacheControl && (strings.Contains(msg, "cache_control") || strings.Contains(msg, "cachecontrol")):
 		p.noCacheControl = true
+		return true
+	case !p.noJSONSchema && (strings.Contains(msg, "response_format") || strings.Contains(msg, "json_schema")):
+		p.noJSONSchema = true
 		return true
 	}
 	return false

@@ -115,6 +115,22 @@ type Request struct {
 	Messages  []Message
 	Tools     []ToolDef
 	MaxTokens int
+	// Schema, when set, constrains the reply to JSON matching it. A
+	// provider that cannot do this ignores it and the caller parses as
+	// before, so setting it is always safe; ask for it where a malformed
+	// answer would cost something, not everywhere.
+	Schema *Schema
+}
+
+// Schema names a JSON shape a reply must take.
+type Schema struct {
+	// Name identifies the shape to the provider; letters and underscores.
+	Name string
+	// JSON is the JSON Schema itself.
+	JSON json.RawMessage
+	// Strict asks the provider to guarantee conformance rather than
+	// merely aim at it, where it can.
+	Strict bool
 }
 
 // Usage is token accounting for one call.

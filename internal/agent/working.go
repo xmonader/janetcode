@@ -89,6 +89,27 @@ Keep entries from the previous record that still matter, drop what is finished, 
 
 var reExitArrow = regexp.MustCompile(`→ exit (\d+)`)
 
+// workingSchema is the shape the model must answer the compaction call
+// in. The record is parsed, not read, so a reply that is nearly JSON
+// costs the whole summary — merge falls back to keeping it as prose and
+// the structure is lost. A provider that can constrain the reply is asked
+// to; one that cannot ignores this and the parse behaves as before.
+var workingSchema = &llm.Schema{
+	Name:   "working_memory",
+	Strict: true,
+	JSON: json.RawMessage(`{
+"type":"object",
+"properties":{
+"goal":{"type":"string"},
+"decisions":{"type":"array","items":{"type":"string"}},
+"ruled_out":{"type":"array","items":{"type":"string"}},
+"facts":{"type":"array","items":{"type":"string"}},
+"open":{"type":"array","items":{"type":"string"}},
+"next":{"type":"array","items":{"type":"string"}}},
+"required":["goal","decisions","ruled_out","facts","open","next"],
+"additionalProperties":false}`),
+}
+
 // absorb records the tool calls and user requests in msgs that were not
 // counted yet.
 func (w *WorkingMemory) absorb(msgs []llm.Message) {

@@ -504,3 +504,50 @@ func TestDashScopeStreamSendsCacheHeaderAndBreakpoints(t *testing.T) {
 		t.Fatalf("system content not array: %#v", gotBody.Messages[0].Content)
 	}
 }
+
+func TestRequestCarriesTheSchema(t *testing.T) {
+	w, err := buildRequest(llm.Request{
+		Model: "m", MaxTokens: 10,
+		Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")},
+		Schema:   &llm.Schema{Name: "working_memory", Strict: true, JSON: json.RawMessage(`{"type":"object"}`)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.ResponseFormat == nil || w.ResponseFormat.Type != "json_schema" {
+		t.Fatalf("response_format = %+v", w.ResponseFormat)
+	}
+	if w.ResponseFormat.JSONSchema.Name != "working_memory" || !w.ResponseFormat.JSONSchema.Strict {
+		t.Fatalf("json_schema = %+v", w.ResponseFormat.JSONSchema)
+	}
+	// Without a schema the field is absent, so a server that has never
+	// heard of it sees the request it saw before.
+	plain, _ := buildRequest(llm.Request{Model: "m", MaxTokens: 10, Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}})
+	if plain.ResponseFormat != nil {
+		t.Fatalf("unrequested response_format: %+v", plain.ResponseFormat)
+	}
+	b, _ := json.Marshal(plain)
+	if strings.Contains(string(b), "response_format") {
+		t.Fatalf("field serialised anyway: %s", b)
+	}
+}
+
+// A server that rejects the field is learned from and the call is retried
+// without it, since the reply is parsed either way.
+func TestLearnDialectDropsJSONSchema(t *testing.T) {
+	p := &Provider{}
+	w := wireRequest{ResponseFormat: &wireResponseFormat{Type: "json_schema"}}
+	if got := p.applyDialect(w); got.ResponseFormat == nil {
+		t.Fatal("dropped before the server complained")
+	}
+	if !p.learnDialect(&APIError{Status: 400, Message: "unknown parameter: response_format"}) {
+		t.Fatal("the complaint was not recognised")
+	}
+	if got := p.applyDialect(w); got.ResponseFormat != nil {
+		t.Fatalf("still sent after learning: %+v", got.ResponseFormat)
+	}
+	// Learning it once is enough; the same complaint does not loop.
+	if p.learnDialect(&APIError{Status: 400, Message: "unknown parameter: response_format"}) {
+		t.Fatal("retried a second time for the same reason")
+	}
+}
