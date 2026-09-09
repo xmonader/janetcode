@@ -726,3 +726,25 @@ func TestReadStreamHostileFrames(t *testing.T) {
 		}
 	})
 }
+
+// TestReadStreamWholeArgumentResend covers providers that resend the whole
+// argument string on every delta instead of sending true deltas. Appending
+// them yields {"path":"a"}{"path":"a"} and the turn dies, so a chunk that
+// restarts a JSON value replaces what came before it.
+func TestReadStreamWholeArgumentResend(t *testing.T) {
+	s := "data: " + `{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"a","function":{"name":"read_file","arguments":"{\"path\":"}}]}}]}` + "\n\n" +
+		"data: " + `{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"path\":\"a.go\"}"}}]}}]}` + "\n\n" +
+		"data: " + `{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}` + "\n\n" +
+		"data: [DONE]\n\n"
+	resp, err := readStream(strings.NewReader(s), func(llm.Event) {})
+	if err != nil {
+		t.Fatalf("readStream: %v", err)
+	}
+	uses := resp.Message.ToolUses()
+	if len(uses) != 1 {
+		t.Fatalf("got %d calls", len(uses))
+	}
+	if got := string(uses[0].Input); got != `{"path":"a.go"}` {
+		t.Fatalf("arguments %s — a resent whole value must replace, not append", got)
+	}
+}

@@ -813,6 +813,28 @@ func slotFor(index *int, pos int, id, name string, tools map[int]*toolAcc, order
 	return newSlot(*next)
 }
 
+// mergeArguments folds one streamed argument chunk into what has been
+// accumulated, and reports the text that was actually added.
+//
+// Some providers do not stream true deltas: they resend the whole argument
+// string every chunk. Appending those turns {"path": into
+// {"path":{"path":"a.go"} and the turn dies on invalid JSON. A resend is
+// recognisable without guessing, because it repeats what is already held —
+// so a chunk that starts with everything accumulated so far replaces it,
+// and anything else is appended. That distinguishes a resend from a
+// genuine fragment that merely happens to begin with a brace.
+func mergeArguments(buf *strings.Builder, chunk string) string {
+	cur := buf.String()
+	if cur == "" || !strings.HasPrefix(chunk, cur) {
+		buf.WriteString(chunk)
+		return chunk
+	}
+	added := chunk[len(cur):]
+	buf.Reset()
+	buf.WriteString(chunk)
+	return added
+}
+
 type toolAcc struct {
 	id, name string
 	args     strings.Builder
@@ -915,8 +937,10 @@ func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
 					emit(llm.Event{Type: llm.EventToolUseStart, Block: &llm.Block{Type: llm.BlockToolUse, ID: acc.id, Name: acc.name}})
 				}
 				if tc.Function.Arguments != "" {
-					acc.args.WriteString(tc.Function.Arguments)
-					emit(llm.Event{Type: llm.EventToolUseDelta, Text: tc.Function.Arguments})
+					delta := mergeArguments(&acc.args, tc.Function.Arguments)
+					if delta != "" {
+						emit(llm.Event{Type: llm.EventToolUseDelta, Text: delta})
+					}
 				}
 			}
 		}
