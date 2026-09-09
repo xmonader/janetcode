@@ -86,3 +86,26 @@ func TestOneTaskCannotBeSignificant(t *testing.T) {
 		t.Fatalf("three tasks halving should clear: ×%.2f [%.2f, %.2f]", three.CostRatio, three.CostRatioLo, three.CostRatioHi)
 	}
 }
+
+// TestFreshTokensAreReportedApart: a cache read costs about a tenth of a
+// fresh input token, so a harness taking more turns re-reads the same
+// cached prefix more often and "context" rises far faster than the bill.
+// A 48% cost increase once showed up as 106% here and was chased as a
+// regression on that basis, so the two are now shown apart.
+func TestFreshTokensAreReportedApart(t *testing.T) {
+	cheap := llm.Usage{InputTokens: 100, CacheReadTokens: 9_900}
+	dear := llm.Usage{InputTokens: 10_000}
+	if contextTokens(cheap) != contextTokens(dear) {
+		t.Fatal("both read the same amount of conversation")
+	}
+	if freshTokens(cheap) >= freshTokens(dear) {
+		t.Fatalf("one of them paid full price for all of it: %d vs %d", freshTokens(cheap), freshTokens(dear))
+	}
+	var b strings.Builder
+	WriteComparison(&b, Compare(
+		[]Result{{Name: "a", Passed: true, Usage: cheap, CostKnown: true, CostUSD: 1}},
+		[]Result{{Name: "a", Passed: true, Usage: dear, CostKnown: true, CostUSD: 1}}))
+	if !strings.Contains(b.String(), "fresh") {
+		t.Fatalf("the report must separate them:\n%s", b.String())
+	}
+}

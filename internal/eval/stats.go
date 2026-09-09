@@ -609,10 +609,16 @@ func summaryLine(s Summary) string {
 		pct := func(d time.Duration) float64 { return 100 * d.Seconds() / math.Max(s.Duration.Seconds(), 1) }
 		timing = fmt.Sprintf(" · %.0f%% waiting on the model, %.0f%% in tools", pct(s.ModelTime), pct(s.ToolTime))
 	}
+	fresh := ""
+	if c := s.Context; c > 0 {
+		f := freshTokens(s.Usage)
+		fresh = fmt.Sprintf(" · %s of it fresh (%.0f%%)", shortTokens(f), 100*float64(f)/float64(c))
+	}
 	ctx := fmt.Sprintf("context %s (in %s · cache %s · out %s)", shortTokens(s.Context), shortTokens(s.Usage.InputTokens), shortTokens(s.Usage.CacheReadTokens), shortTokens(s.Usage.OutputTokens))
 	if s.Passed > 0 {
 		ctx += fmt.Sprintf(" · %s per solved", shortTokens(s.ContextPerSolved))
 	}
+	ctx += fresh
 	if s.Compactions > 0 {
 		ctx += fmt.Sprintf(" · %d compaction(s), summaries %s in / %s out, %d expand(s)", s.Compactions, shortTokens(contextTokens(s.SummaryUsage)), shortTokens(s.SummaryUsage.OutputTokens), s.Expands)
 	}

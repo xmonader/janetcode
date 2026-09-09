@@ -506,8 +506,24 @@ func (r *Runner) logf(format string, args ...any) {
 // contextTokens is what the model read over a run: uncached input plus
 // cache reads plus cache writes. It is the number that compaction and
 // pruning exist to hold down, so it is the one the report leads with.
+// contextTokens is every token the model read, cached or not. It measures
+// how much conversation is moving, which is what a context-management
+// change is trying to affect.
+//
+// It is deliberately not a proxy for the bill. A cache read costs roughly a
+// tenth of a fresh input token, so a harness that takes more turns re-reads
+// the same cached prefix more often and this number rises far faster than
+// the money does: a 48% cost increase once showed up here as 106%, and was
+// chased as a regression on that basis. Compare costs with costs; this is
+// for asking how much text is in play.
 func contextTokens(u llm.Usage) int {
 	return u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
+}
+
+// freshTokens is the part of the context that was not served from cache —
+// the expensive part, and the one a prefix that keeps breaking inflates.
+func freshTokens(u llm.Usage) int {
+	return u.InputTokens + u.CacheWriteTokens
 }
 
 func shortTokens(n int) string {
