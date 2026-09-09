@@ -32,6 +32,13 @@ type Config struct {
 	MaxTokens int    `json:"max_tokens"`
 	Effort    string `json:"effort,omitempty"`
 	Thinking  *bool  `json:"thinking,omitempty"`
+	// LeanTools defers the search tools (list_dir, glob, grep, repo_map)
+	// behind tool_search, leaving read/write/edit/bash in the prefix.
+	// Measured at 23% less context on a fan-out set with an unchanged pass
+	// rate; off by default because that is one model on nine tasks over
+	// small trees, and a large unfamiliar repository is the case the
+	// search tools exist for.
+	LeanTools_ *bool `json:"lean_tools,omitempty"`
 	// ShowThinking renders the model's reasoning. Turning it off asks the
 	// provider to omit the text while still returning the signature that
 	// keeps multi-turn reasoning valid, which lowers time to first visible
@@ -423,6 +430,14 @@ func presetNames() string {
 		names[i] = p.Name
 	}
 	return strings.Join(names, ", ")
+}
+
+// LeanTools reports whether the search tools are deferred.
+func (c *Config) LeanTools() bool {
+	if c.LeanTools_ != nil {
+		return *c.LeanTools_
+	}
+	return false
 }
 
 // ThinkingShown reports whether the reasoning text should be requested at

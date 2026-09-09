@@ -68,6 +68,12 @@ func registerSubjects(r *inspect.Registry, d subjectDeps) {
 		return verdictsReport(d.session)
 	})
 	r.AddText("todos", "the plan the model is working from", func() string { return todosReport(d.agent) })
+	r.AddText("cache", "what the prompt cache saved, and what was paid for twice", func() string {
+		if d.agent == nil {
+			return "no agent"
+		}
+		return d.agent.CacheReport()
+	})
 	r.AddText("scripts", "the scripts run for the model, and the calls they made", func() string { return scriptsReport(d.agent) })
 	r.AddText("goals", "session goals and their rounds", func() string { return goalsReport(d.agent) })
 	r.AddText("memory", "the working memory carried across compactions", func() string { return workingReport(d.agent) })
@@ -1066,6 +1072,7 @@ func registerOfflineSubjects(r *inspect.Registry, cfg *config.Config, cfgPath, c
 		{"tools", "the tools the model can call"},
 		{"todos", "the plan the model is working from"},
 		{"scripts", "the scripts run for the model, and the calls they made"},
+		{"cache", "what the prompt cache saved, and what was paid for twice"},
 	} {
 		needsSession(s.name, s.summary)
 	}

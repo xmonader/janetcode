@@ -120,7 +120,7 @@ func (a *Agent) Prune() int {
 	}
 	if saved > 0 {
 		a.lastInputTokens, a.lastInputMsgs = 0, 0
-		a.integ.shrunkOK = true
+		a.integ.shrunkOK, a.historyRewritten = true, true
 	}
 	return saved
 }
@@ -185,7 +185,7 @@ func (a *Agent) pruneTo(target int) int {
 		a.Messages[c.i].Blocks[c.j].Text = ph
 		replaced++
 		a.lastInputTokens, a.lastInputMsgs = 0, 0
-		a.integ.shrunkOK = true
+		a.integ.shrunkOK, a.historyRewritten = true, true
 		if a.EstimateTokens() <= target {
 			return replaced
 		}
@@ -475,7 +475,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	}
 	a.lastInputTokens = 0
 	a.lastInputMsgs = 0
-	a.integ.shrunkOK = true
+	a.integ.shrunkOK, a.historyRewritten = true, true
 	after := a.EstimateTokens()
 	a.stats.compacted()
 	if a.Log != nil {

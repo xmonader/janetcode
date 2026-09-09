@@ -965,9 +965,6 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 			tool.ReadFile{Root: d.cwd, Seen: seen},
 			tool.WriteFile{Root: d.cwd, Seen: seen},
 			tool.EditFile{Root: d.cwd, Seen: seen, NoLines: envOff()["lineedit"]},
-			tool.ListDir{Root: d.cwd},
-			tool.Glob{Root: d.cwd},
-			tool.Grep{Root: d.cwd},
 			tool.Bash{Root: d.cwd, Cache: &tool.ShellCache{}, Jobs: jobs},
 			tool.JobTool{Jobs: jobs},
 			tool.FetchURL{},
@@ -1010,7 +1007,25 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	}
 	ag.SystemExtra = func() string { return mem.Index() + skill.Index(skills()) }
 	repo := &repomap.Cache{Root: d.cwd}
-	ag.Tools.Add(repomap.Tool{Cache: repo})
+	// The search tools. On a measured fan-out set, offering these
+	// alongside bash cost 23% more context (x1.23 [1.10, 1.44]) for the
+	// same pass rate, because the model takes many small steps instead of
+	// writing one pipeline — see docs/benchmarks/toolsurface. lean_tools
+	// defers them behind tool_search, where they stay reachable for the
+	// case that measurement does not cover: a large unfamiliar repository.
+	search := []tool.Tool{
+		tool.ListDir{Root: d.cwd},
+		tool.Glob{Root: d.cwd},
+		tool.Grep{Root: d.cwd},
+		repomap.Tool{Cache: repo},
+	}
+	for _, t := range search {
+		if d.cfg.LeanTools() {
+			ag.Tools.AddDeferred(t)
+		} else {
+			ag.Tools.Add(t)
+		}
+	}
 	ag.PlanCheck = repo.CheckPlan
 	var err error
 	if ag.Predictor, err = agent.LoadPredictor(filepath.Join(cfgDir, "critic.json")); err != nil {
