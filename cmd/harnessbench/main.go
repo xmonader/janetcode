@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -35,6 +36,7 @@ func run(args []string) error {
 	baseURL := fs.String("base-url", "https://coding-intl.dashscope.aliyuncs.com/v1", "OpenAI-compatible base URL")
 	harnessesDefault := strings.Join(eval.BenchHarnesses, ",")
 	harnesses := fs.String("harnesses", harnessesDefault, "comma-separated harness names")
+	claudeModel := fs.String("claude-model", "", "model for the claudecode harness (haiku, sonnet, opus); it uses its own account")
 	timeout := fs.Duration("timeout", 3*time.Minute, "per-task wall timeout, applied to every harness")
 	maxTurns := fs.Int("max-turns", 40, "model-call cap per task for every harness that has one (qwencode, hermes-agent, grok, janetcode; pi has no flag)")
 	only := fs.String("only", "", "comma-separated task names to run (still grouped in batches of five)")
@@ -53,6 +55,12 @@ func run(args []string) error {
 		tasks = eval.FilterLarge(tasks)
 		if *harnesses == harnessesDefault {
 			*harnesses = strings.Join(eval.LargeHarnesses, ",")
+		}
+	case "claude":
+		// janetcode against Claude Code on the session set.
+		tasks = eval.Filter(tasks, []string{"session"})
+		if *harnesses == harnessesDefault {
+			*harnesses = strings.Join(eval.ClaudeHarnesses, ",")
 		}
 	case "session":
 		// Multi-prompt sessions: the context-management comparison. Each
@@ -76,16 +84,17 @@ func run(args []string) error {
 	key := strings.TrimSpace(firstEnv("DASHSCOPE_API_KEY", "OPENAI_API_KEY"))
 	names := splitCSV(*harnesses)
 	cfg := runConfig{
-		Model:    *model,
-		BaseURL:  strings.TrimRight(*baseURL, "/"),
-		Key:      key,
-		EvalsDir: *evalsDir,
-		JanetBin: *janetBin,
-		OutDir:   *outDir,
-		Scratch:  *scratch,
-		Timeout:  *timeout,
-		MaxTurns: *maxTurns,
-		RepoRoot: mustAbs("."),
+		Model:       *model,
+		BaseURL:     strings.TrimRight(*baseURL, "/"),
+		Key:         key,
+		EvalsDir:    *evalsDir,
+		JanetBin:    *janetBin,
+		OutDir:      *outDir,
+		Scratch:     *scratch,
+		ClaudeModel: *claudeModel,
+		Timeout:     *timeout,
+		MaxTurns:    *maxTurns,
+		RepoRoot:    mustAbs("."),
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -179,15 +188,22 @@ type runConfig struct {
 	Model, BaseURL, Key string
 	EvalsDir, JanetBin  string
 	OutDir, Scratch     string
-	Timeout             time.Duration
-	MaxTurns            int
-	RepoRoot            string
+	// ClaudeModel is what the claudecode harness runs on; it uses its own
+	// account rather than the endpoint above.
+	ClaudeModel string
+	Timeout     time.Duration
+	MaxTurns    int
+	RepoRoot    string
 }
 
 func runHarness(ctx context.Context, cfg runConfig, harness string, tasks []eval.Task, batches [][]eval.Task) ([]eval.BenchTaskResult, string) {
 	switch harness {
 	case "openclaw":
 		return failOpenclaw(cfg, tasks)
+	case "claudecode":
+		if _, err := exec.LookPath("claude"); err != nil {
+			return eval.UnavailableResults("claudecode", "claude is not installed", "claude -p", err.Error(), tasks), "Not installed.\n"
+		}
 	case "grok":
 		defer cleanupGrokHome()
 		if rs, note, ok := probeGrok(ctx, cfg, tasks); !ok {

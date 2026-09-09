@@ -23,6 +23,11 @@ var BenchHarnesses = []string{
 	"pi", "janetcode", "qwencode", "hermes-agent", "openclaw", "grok",
 }
 
+// ClaudeHarnesses compares janetcode with Claude Code on the same tasks.
+// Claude Code runs on its own account and its own models, so this is a
+// comparison of harnesses on comparable models, not of one endpoint.
+var ClaudeHarnesses = []string{"janetcode", "claudecode"}
+
 // OptInt is a metric a harness may omit. Set=false means unavailable, not zero.
 type OptInt struct {
 	Value int  `json:"value,omitempty"`

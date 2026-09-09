@@ -361,6 +361,25 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 			"--api_key", cfg.Key, "--max_turns", fmt.Sprint(cfg.MaxTurns), "--enabled_toolsets", "terminal", "--verbose"}
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 		extraEnv["OPENROUTER_API_KEY"] = cfg.Key
+	case "claudecode":
+		// Claude Code speaks to Anthropic on its own credentials; the
+		// endpoint flags do not apply to it, and the model is named the
+		// way it names them.
+		argv = []string{"claude", "-p", prompt, "--output-format", "json",
+			"--dangerously-skip-permissions", "--max-turns", fmt.Sprint(cfg.MaxTurns)}
+		if cfg.ClaudeModel != "" {
+			argv = append(argv, "--model", cfg.ClaudeModel)
+		}
+		if sess != nil && step > 0 {
+			argv = append(argv, "--resume", sess.id)
+		} else if sess != nil {
+			argv = append(argv, "--session-id", sess.id)
+		}
+		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
+		// Its own key, not the benchmark's endpoint.
+		delete(extraEnv, "OPENAI_API_KEY")
+		delete(extraEnv, "OPENAI_BASE_URL")
+		delete(extraEnv, "DASHSCOPE_API_KEY")
 	case "grok":
 		argv = []string{"grok", "-p", prompt, "--cwd", dir, "--always-approve", "--output-format", "json",
 			"--model", cfg.Model, "--max-turns", fmt.Sprint(cfg.MaxTurns), "--disable-web-search"}

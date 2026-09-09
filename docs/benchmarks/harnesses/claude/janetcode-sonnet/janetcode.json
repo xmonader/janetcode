@@ -1,0 +1,98 @@
+[
+  {
+    "harness": "janetcode",
+    "task": "41-session-go-service",
+    "batch": 1,
+    "passed": false,
+    "reason": "run: Missing Authentication header (HTTP 401)",
+    "wall_time_ms": 66,
+    "input_tokens": {
+      "set": true
+    },
+    "output_tokens": {
+      "set": true
+    },
+    "cache_read_tokens": {
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": true
+    },
+    "turns": {
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "janetcode --eval --eval-only 41-session-go-service --provider openai --model anthropic/claude-sonnet-4.5",
+    "exit_code": 1,
+    "stderr_excerpt": "running 3 eval tasks × 1 with openai/anthropic/claude-sonnet-4.5 (3 at a time)\nFAIL 41-session-go-service (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nFAIL 43-session-python-ledger (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nFAIL 42-session-records (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nwrote /tmp/janetcode-batch1-1788957114287043610.json\njanetcode: 3 of 3 eval tasks failed"
+  },
+  {
+    "harness": "janetcode",
+    "task": "42-session-records",
+    "batch": 1,
+    "passed": false,
+    "reason": "run: Missing Authentication header (HTTP 401)",
+    "wall_time_ms": 67,
+    "input_tokens": {
+      "set": true
+    },
+    "output_tokens": {
+      "set": true
+    },
+    "cache_read_tokens": {
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": true
+    },
+    "turns": {
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "janetcode --eval --eval-only 42-session-records --provider openai --model anthropic/claude-sonnet-4.5",
+    "exit_code": 1,
+    "stderr_excerpt": "running 3 eval tasks × 1 with openai/anthropic/claude-sonnet-4.5 (3 at a time)\nFAIL 41-session-go-service (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nFAIL 43-session-python-ledger (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nFAIL 42-session-records (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nwrote /tmp/janetcode-batch1-1788957114287043610.json\njanetcode: 3 of 3 eval tasks failed"
+  },
+  {
+    "harness": "janetcode",
+    "task": "43-session-python-ledger",
+    "batch": 1,
+    "passed": false,
+    "reason": "run: Missing Authentication header (HTTP 401)",
+    "wall_time_ms": 66,
+    "input_tokens": {
+      "set": true
+    },
+    "output_tokens": {
+      "set": true
+    },
+    "cache_read_tokens": {
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": true
+    },
+    "turns": {
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "janetcode --eval --eval-only 43-session-python-ledger --provider openai --model anthropic/claude-sonnet-4.5",
+    "exit_code": 1,
+    "stderr_excerpt": "running 3 eval tasks × 1 with openai/anthropic/claude-sonnet-4.5 (3 at a time)\nFAIL 41-session-go-service (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nFAIL 43-session-python-ledger (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nFAIL 42-session-records (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nwrote /tmp/janetcode-batch1-1788957114287043610.json\njanetcode: 3 of 3 eval tasks failed"
+  }
+]
