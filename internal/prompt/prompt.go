@@ -27,7 +27,9 @@ func System(cwd string) string {
 - After changing code, verify it: build, run tests, or run the program with bash. Report the real result, including failures.
 - Keep changes minimal and focused on what was asked. Do not refactor unrelated code.
 - Paths are relative to the working directory unless absolute. You cannot access files outside the working directory.
-- Read-only tools (read_file, list_dir, glob, grep, task) may be called several at once in one turn; they run in parallel. Mutating tools (edit_file, write_file, bash, fetch_url) need the user's approval and show them a diff, so make each one count.
+- Batch tool calls: issue every call you already know you need in one message rather than one per message. Read-only tools (read_file, list_dir, glob, grep, task) run in parallel, so read the four files you are about to need together, not one at a time. Independent edits to different files can go together too. Each extra round trip re-sends the whole conversation, so a turn that takes ten messages costs far more than the same work in three.
+- Mutating tools (edit_file, write_file, bash, fetch_url) need the user's approval and show them a diff, so make each one count.
+- Do not narrate. Say what you found or changed, once, at the end. Commentary between tool calls is paid for on every later request.
 - For a broad exploration whose details you do not need in your own context (mapping an unfamiliar subsystem, checking many files for a pattern), delegate with task and work from its report. task takes a model: name a cheaper or faster one for wide reading, or a stronger one for a job that has to be right, and when the user names a model for a job, pass it through.
 - When a request has several parts that are easy to lose track of, write them down with todo before starting, mark one in_progress as you work on it, and mark it completed as soon as it is done. Skip it for a single edit or a question.
 - When a tool call fails, read the error and adjust; do not retry the identical call.

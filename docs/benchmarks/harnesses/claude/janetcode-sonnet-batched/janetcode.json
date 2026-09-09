@@ -1,0 +1,531 @@
+[
+  {
+    "harness": "janetcode",
+    "task": "41-session-go-service",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 193250,
+    "input_tokens": {
+      "value": 56546,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 12077,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 697737,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 66,
+      "set": true
+    },
+    "turns": {
+      "value": 39,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.5947596,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 41-session-go-service --provider openai --model anthropic/claude-sonnet-4.5",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 6106,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 5354,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 795,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 6160,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 61096,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 2677,
+          "set": true
+        },
+        "turns": {
+          "value": 6,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 6688,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 115342,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1806,
+          "set": true
+        },
+        "turns": {
+          "value": 8,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 4717,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 146900,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 2169,
+          "set": true
+        },
+        "turns": {
+          "value": 8,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 28159,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 196989,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 3751,
+          "set": true
+        },
+        "turns": {
+          "value": 9,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 3444,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 112655,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 733,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 1272,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 59401,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 146,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 0
+      }
+    ]
+  },
+  {
+    "harness": "janetcode",
+    "task": "42-session-records",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 63424,
+    "input_tokens": {
+      "value": 12559,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1981,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 202934,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 22,
+      "set": true
+    },
+    "turns": {
+      "value": 25,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.13403669999999998,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 42-session-records --provider openai --model anthropic/claude-sonnet-4.5",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 8345,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 46660,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 797,
+          "set": true
+        },
+        "turns": {
+          "value": 8,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 745,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 24841,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 195,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 709,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 26064,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 198,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 675,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 27060,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 293,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 1511,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 47797,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 347,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 574,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 30512,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 151,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 0
+      }
+    ]
+  },
+  {
+    "harness": "janetcode",
+    "task": "43-session-python-ledger",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 187958,
+    "input_tokens": {
+      "value": 52256,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 11053,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 600951,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 64,
+      "set": true
+    },
+    "turns": {
+      "value": 42,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.5307070500000001,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 43-session-python-ledger --provider openai --model anthropic/claude-sonnet-4.5",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 4091,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 9262,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 567,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 9474,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 87660,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 2636,
+          "set": true
+        },
+        "turns": {
+          "value": 11,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 6769,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 110575,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1555,
+          "set": true
+        },
+        "turns": {
+          "value": 9,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 20251,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 87739,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 2781,
+          "set": true
+        },
+        "turns": {
+          "value": 6,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 10039,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 252754,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 3451,
+          "set": true
+        },
+        "turns": {
+          "value": 11,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 1632,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 52961,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 63,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 0
+      }
+    ]
+  }
+]
