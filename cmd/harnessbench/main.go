@@ -149,7 +149,12 @@ func run(args []string) error {
 	}
 	if !*reportOnly {
 		if prev, err := os.ReadFile(filepath.Join(cfg.OutDir, "NOTES.md")); err == nil && len(byHarness) < len(eval.BenchHarnesses) {
-			fmt.Fprintf(notes, "\n---\nPrevious notes preserved:\n\n%s\n", string(prev))
+			// Keep one previous layer only, or the file nests itself every run.
+			prevText := string(prev)
+			if i := strings.Index(prevText, "\n---\nPrevious notes preserved:"); i >= 0 {
+				prevText = prevText[:i]
+			}
+			fmt.Fprintf(notes, "\n---\nPrevious notes preserved:\n\n%s\n", strings.TrimSpace(prevText))
 		}
 		if err := os.WriteFile(filepath.Join(cfg.OutDir, "NOTES.md"), []byte(redact(notes.String(), cfg.Key)), 0o644); err != nil {
 			return err

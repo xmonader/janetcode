@@ -36,7 +36,12 @@ func runJanetBatch(ctx context.Context, cfg runConfig, batchN int, tasks []eval.
 		names[i] = t.Name
 	}
 	jsonOut := filepath.Join(os.TempDir(), fmt.Sprintf("janetcode-batch%d-%d.json", batchN, time.Now().UnixNano()))
-	xdg, _ := os.MkdirTemp("", "janetcode-xdg-")
+	xdg, err := os.MkdirTemp("", "janetcode-xdg-")
+	if err != nil {
+		// Without a private config dir janetcode would read the operator's
+		// real settings; that is not a benchmark run.
+		return eval.UnavailableResults("janetcode", "scratch config dir: "+err.Error(), bin+" --eval", err.Error(), tasks)
+	}
 	defer os.RemoveAll(xdg)
 
 	args := []string{
@@ -65,7 +70,7 @@ func runJanetBatch(ctx context.Context, cfg runConfig, batchN int, tasks []eval.
 	cmd.Stdout = io.MultiWriter(&stdout, logW)
 	cmd.Stderr = io.MultiWriter(&stderr, logW)
 	start := time.Now()
-	err := cmd.Run()
+	err = cmd.Run()
 	wall := time.Since(start)
 	fmt.Fprintf(logW, "janetcode batch %d exit err=%v wall=%s\n", batchN, err, wall)
 
@@ -77,10 +82,11 @@ func runJanetBatch(ctx context.Context, cfg runConfig, batchN int, tasks []eval.
 		if err != nil {
 			reason += "; " + err.Error()
 		}
+		reason += fmt.Sprintf(" (batch of %d took %s; per-task wall unknown)", len(tasks), wall.Round(time.Millisecond))
 		rs := eval.UnavailableResults("janetcode", reason, strings.Join(append([]string{bin}, args...), " "), excerpt, tasks)
 		for i := range rs {
-			rs[i].Unavailable = false
-			rs[i].SetWall(wall / time.Duration(len(tasks)))
+			rs[i].Unavailable = false // a failed run, not a missing harness
+			rs[i].SetWall(0)          // never invent a per-task duration
 			rs[i].ExitCode = exitCode(err)
 		}
 		return rs
@@ -390,11 +396,12 @@ func probeCmd(ctx context.Context, cfg runConfig, name string, args ...string) (
 func childEnv(cfg runConfig, extra map[string]string) []string {
 	base := os.Environ()
 	out := make([]string, 0, len(base)+8)
+	// Every key in extra replaces the inherited value; an empty value
+	// unsets it (XAI_API_KEY for grok, so it cannot fall back to xAI).
 	skip := map[string]bool{}
 	for k := range extra {
 		skip[k] = true
 	}
-	skip["XAI_API_KEY"] = extra != nil && extra["XAI_API_KEY"] == ""
 	for _, e := range base {
 		k, _, _ := strings.Cut(e, "=")
 		if skip[k] {
