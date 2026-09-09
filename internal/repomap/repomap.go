@@ -148,10 +148,31 @@ var (
 )
 
 // parse extracts definitions and identifier uses from one file.
+// SymbolParser, when set, extracts a file's definitions and the
+// identifiers it uses from a real grammar rather than from the regular
+// expressions below. The tree-sitter build registers one; without it the
+// built-in parsers are used. It returns false for a file it cannot parse,
+// and the caller falls back.
+//
+// Go is never handed to it: the standard library's own parser is more
+// accurate than any grammar for Go, and it is always compiled in.
+var SymbolParser func(path string, src []byte) (defs []Symbol, refs []string, ok bool)
+
 func parse(path string, data []byte) *File {
 	f := &File{Path: path, refs: map[string]int{}, size: len(data)}
 	if strings.HasSuffix(path, ".go") {
 		if parseGo(f, data) {
+			return f
+		}
+	}
+	if SymbolParser != nil {
+		if defs, refs, ok := SymbolParser(path, data); ok {
+			f.Defs = dedupe(defs)
+			for _, id := range refs {
+				if len(id) > 2 {
+					f.refs[id]++
+				}
+			}
 			return f
 		}
 	}

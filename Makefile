@@ -38,6 +38,16 @@ eval-baseline:
 eval-train: build
 	./bin/janetcode --eval-train $(or $(FILES),evals)
 
+# With tree-sitter grammars compiled in: the repository map then reads
+# Python, JavaScript, TypeScript, Rust and C with real parsers instead of
+# regular expressions. Needs cgo and a C toolchain, which is why it is not
+# the default build.
+build-treesitter:
+	CGO_ENABLED=1 go build -tags treesitter -ldflags "$(LDFLAGS)" -o bin/$(BIN) ./cmd/$(BIN)
+
+test-treesitter:
+	CGO_ENABLED=1 go test -tags treesitter ./internal/treesitter/ ./internal/repomap/
+
 # Cross-compile checks; Windows and macOS are built, not run, here.
 cross:
 	GOOS=windows GOARCH=amd64 go build ./...
