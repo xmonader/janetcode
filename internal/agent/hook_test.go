@@ -313,20 +313,29 @@ func TestBackgroundJobsAreReportedBetweenCalls(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	r1 := f.requests[1].Messages
-	if got := r1[len(r1)-1].Blocks[0].Text; !strings.HasPrefix(got, "Started background job 1") {
-		t.Fatalf("bash result = %q", got)
+	// The job may finish before the next call, so the update can land in
+	// the same request as the bash result; assert on what the model was
+	// told, not on which message carried it.
+	if got := allText(f.requests[1].Messages); !strings.Contains(got, "Started background job 1") {
+		t.Fatalf("the model was not told the job started: %q", got)
 	}
-	last := f.requests[2].Messages[len(f.requests[2].Messages)-1]
-	var texts []string
-	for _, b := range last.Blocks {
-		texts = append(texts, b.Text)
-	}
-	joined := strings.Join(texts, "|")
+	joined := allText(f.requests[2].Messages)
 	if !strings.Contains(joined, "job 1 finished with exit 2") || !strings.Contains(joined, "[background job update]") {
 		t.Fatalf("model was not told: %q", joined)
 	}
 	if len(notices) != 1 || !strings.HasPrefix(notices[0], "job 1 finished with exit 2") {
 		t.Fatalf("notices = %q", notices)
 	}
+}
+
+// allText joins every block of every message, for assertions that care
+// what the model was told rather than which message carried it.
+func allText(msgs []llm.Message) string {
+	var parts []string
+	for _, m := range msgs {
+		for _, b := range m.Blocks {
+			parts = append(parts, b.Text)
+		}
+	}
+	return strings.Join(parts, "|")
 }

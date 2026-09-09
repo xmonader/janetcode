@@ -89,6 +89,7 @@ const (
 	EvToolResult    EventKind = "tool_result"    // Call, Output, IsError, Duration
 	EvTurnDone      EventKind = "turn_done"      // Usage, StopReason
 	EvTextBlockDone EventKind = "text_block_end" // one assistant message finished streaming
+	EvVerdict       EventKind = "verdict"        // Text: what the turn demonstrated
 )
 
 // Event is a loop notification for the UI.
@@ -287,6 +288,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 
 	compactAt := a.CompactThreshold()
 	stops, needs := 0, 0
+	corrections := 0
 	gate := gateState{}
 	for iter := 0; iter < maxIter; iter++ {
 		if err := ctx.Err(); err != nil {
@@ -340,6 +342,20 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			}
 			if more := !a.Off["verify"] && a.verifyGate(ctx, &gate, emit); more {
 				continue
+			}
+			// What the turn actually demonstrated, decided from what the
+			// harness watched rather than from what was written. A claim
+			// the turn does not support is put back to the model once.
+			outcome := a.Outcome()
+			if !a.Off["verdict"] && outcome.Overclaimed() && corrections == 0 {
+				corrections++
+				emit(Event{Kind: EvNotice, Text: "the answer claims more than this turn shows: " + outcome.Why})
+				a.appendUserText(outcome.Correction())
+				continue
+			}
+			a.logOutcome(outcome)
+			if !a.Off["verdict"] && outcome.Verdict != VerdictNoChanges {
+				emit(Event{Kind: EvVerdict, Text: outcome.Line(), IsError: !outcome.OK()})
 			}
 			a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
 			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(resp.StopReason)})

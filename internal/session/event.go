@@ -36,6 +36,9 @@ const (
 	// TypeTodoWrite carries the whole plan each time it is rewritten, so
 	// the latest one is the plan and it outlives the tool result.
 	TypeTodoWrite = "todo/write"
+	// TypeVerdict records what a turn that changed code actually
+	// demonstrated, as against what the model said about it.
+	TypeVerdict = "turn/verdict"
 )
 
 const (

@@ -64,6 +64,9 @@ func registerSubjects(r *inspect.Registry, d subjectDeps) {
 		return retrievalReport(d.session)
 	})
 	r.AddText("compaction", "when the history was summarised and what it cost", func() string { return compactionReport(d.session) })
+	r.AddText("verdicts", "what each turn actually demonstrated, against what was claimed", func() string {
+		return verdictsReport(d.session)
+	})
 	r.AddText("todos", "the plan the model is working from", func() string { return todosReport(d.agent) })
 	r.AddText("goals", "session goals and their rounds", func() string { return goalsReport(d.agent) })
 	r.AddText("memory", "the working memory carried across compactions", func() string { return workingReport(d.agent) })
@@ -523,6 +526,47 @@ func compactionReport(s *session.Session) string {
 	}
 	head := fmt.Sprintf("%d compactions · summaries cost %s in / %s out in total\n", len(rows), tokensOf(totalIn), tokensOf(totalOut))
 	return head + strings.Join(rows, "\n")
+}
+
+// verdictsReport is the record of what each turn demonstrated. It is the
+// answer to "did it really do that": the claim and the evidence side by
+// side, decided from what the harness watched rather than from the answer.
+func verdictsReport(s *session.Session) string {
+	if s == nil {
+		return "no session file"
+	}
+	var rows []string
+	counts := map[string]int{}
+	for _, e := range s.Events() {
+		if e.Type != session.TypeVerdict {
+			continue
+		}
+		counts[e.Name]++
+		mark := "  "
+		if e.IsError {
+			mark = "! "
+		}
+		row := fmt.Sprintf("%sturn %-3d %-17s %s", mark, e.Turn, e.Name, e.Output)
+		var o struct {
+			Claimed string `json:"claimed"`
+		}
+		if len(e.Extra) > 0 && json.Unmarshal(e.Extra, &o) == nil && o.Claimed != "" {
+			row += fmt.Sprintf("\n            the answer said: %q", o.Claimed)
+		}
+		rows = append(rows, row)
+	}
+	if len(rows) == 0 {
+		return "no turn has changed code yet"
+	}
+	var head strings.Builder
+	head.WriteString("what each turn demonstrated:\n")
+	for _, k := range []string{string(agent.VerdictVerified), string(agent.VerdictNotDemonstrated), string(agent.VerdictUnverified), string(agent.VerdictCheckFailed), string(agent.VerdictVacuous)} {
+		if counts[k] > 0 {
+			fmt.Fprintf(&head, "  %-17s %d\n", k, counts[k])
+		}
+	}
+	head.WriteString("\n")
+	return head.String() + strings.Join(rows, "\n")
 }
 
 func todosReport(a *agent.Agent) string {
