@@ -90,6 +90,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalTimeout = fs.Duration("eval-timeout", 0, "replace every task's timeout with this wall budget (benchmarks give each harness the same)")
 		evalTurns   = fs.Int("eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
 		evalNoLimit = fs.Bool("eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
+		evalFacts   = fs.Int("eval-facts", 0, "after each run that compacted, probe up to N facts mined from what compaction removed (exit codes, output lines, file lines) and record how many the model still recalls")
+		evalBlind   = fs.Bool("eval-facts-blind", false, "probe without expand_output: what the compacted context alone retains")
 		evalCompact = fs.Int("eval-compact-at", 0, "compact the history at this many estimated tokens instead of the default: a low value forces compaction on tasks that would not otherwise reach it, to measure what it costs and what it loses")
 		allow       = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
 		deny        = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
@@ -165,7 +167,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		defer stop()
 		return runEval(ctx, cfg, prov, evalOptions{path: *evalPath, jobs: *evalJobs, only: *evalOnly, jsonOut: *evalJSON, keep: *evalKeep,
 			runs: *evalRuns, compare: *evalCompare, off: *evalOff, label: *evalLabel,
-			timeout: *evalTimeout, maxTurns: *evalTurns, noToolLimit: *evalNoLimit, compactAt: *evalCompact})
+			timeout: *evalTimeout, maxTurns: *evalTurns, noToolLimit: *evalNoLimit, compactAt: *evalCompact, facts: *evalFacts, factsBlind: *evalBlind})
 	}
 
 	sessDir, err := session.Dir()
@@ -475,6 +477,8 @@ type evalOptions struct {
 	maxTurns            int
 	noToolLimit         bool
 	compactAt           int
+	facts               int
+	factsBlind          bool
 	compare, off, label string
 }
 
@@ -536,7 +540,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	if !o.keep {
 		defer os.RemoveAll(archiveDir)
 	}
-	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, Timeout: o.timeout, IgnoreToolLimit: o.noToolLimit, NewAgent: func(root string) (*agent.Agent, error) {
+	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, Timeout: o.timeout, IgnoreToolLimit: o.noToolLimit, Facts: o.facts, FactsBlind: o.factsBlind, NewAgent: func(root string) (*agent.Agent, error) {
 		repo := &repomap.Cache{Root: root}
 		var prep func([]llm.Block) ([]llm.Block, string)
 		if !off["repomap"] {

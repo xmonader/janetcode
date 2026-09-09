@@ -145,10 +145,13 @@ type Result struct {
 	// of Usage), and how many archived outputs the model fetched back.
 	Compaction Compaction `json:"compaction"`
 	// Steps is the per-prompt accounting of a session task, in order.
-	Steps    []Step `json:"steps,omitempty"`
-	Output   string `json:"output"`
-	CheckOut string `json:"check_output,omitempty"`
-	Dir      string `json:"dir,omitempty"`
+	Steps []Step `json:"steps,omitempty"`
+	// Facts is the fact-survival probe of the run, when the runner asked
+	// for one and the run compacted something to probe.
+	Facts    *FactProbe `json:"facts,omitempty"`
+	Output   string     `json:"output"`
+	CheckOut string     `json:"check_output,omitempty"`
+	Dir      string     `json:"dir,omitempty"`
 	// Features is the agent's trajectory at the end of the run, the
 	// training data for the success predictor (agent.Train).
 	Features map[string]float64 `json:"features,omitempty"`
@@ -250,6 +253,12 @@ type Runner struct {
 	// IgnoreToolLimit skips the tasks' max_tool_calls checks, which other
 	// harnesses in a comparison do not enforce.
 	IgnoreToolLimit bool
+	// Facts, when positive, probes up to that many facts mined from what
+	// compaction removed, after the run (see MineFacts, ProbeFacts).
+	Facts int
+	// FactsBlind withholds expand_output from the probes, so they measure
+	// what the compacted context alone retains.
+	FactsBlind bool
 }
 
 // Run executes every task (Runs times each) and returns results in task
@@ -401,10 +410,28 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 		if res.CheckOut != "" {
 			res.Reason += ": " + res.CheckOut
 		}
+		r.probe(ctx, ag, &res)
 		return res
 	}
 	res.Passed = true
+	r.probe(ctx, ag, &res)
 	return res
+}
+
+// probe runs the fact-survival probes when asked and there is something
+// compacted to ask about. It runs after the check so a slow probe cannot
+// fail the task.
+func (r *Runner) probe(ctx context.Context, ag *agent.Agent, res *Result) {
+	if r.Facts <= 0 || len(res.Events) == 0 || res.Compaction.Count == 0 {
+		return
+	}
+	probes := MineFacts(res.Events, r.Facts)
+	if len(probes) == 0 {
+		return
+	}
+	fp := ProbeFacts(ctx, ag, probes, r.FactsBlind)
+	res.Facts = &fp
+	r.logf("  facts %s: %d/%d recalled, %d unknown, %d fetched", res.Name, fp.Correct, fp.Asked, fp.Unknown, fp.Fetched)
 }
 
 // Report prints a table and totals; it returns how many passed.

@@ -95,6 +95,8 @@ type Summary struct {
 	Compactions  int
 	SummaryUsage llm.Usage
 	Expands      int
+	// FactsAsked/FactsCorrect/FactsUnknown total the fact-survival probes.
+	FactsAsked, FactsCorrect, FactsUnknown, FactsFetched int
 	// ByTask is the pass fraction per task name, sorted by name.
 	ByTask []TaskRate
 }
@@ -123,6 +125,12 @@ func Summarize(rs []Result) Summary {
 		s.Compactions += r.Compaction.Count
 		s.SummaryUsage.Add(r.Compaction.Summary)
 		s.Expands += r.Compaction.Expands
+		if r.Facts != nil {
+			s.FactsAsked += r.Facts.Asked
+			s.FactsCorrect += r.Facts.Correct
+			s.FactsUnknown += r.Facts.Unknown
+			s.FactsFetched += r.Facts.Fetched
+		}
 		tr := byTask[r.Name]
 		if tr == nil {
 			tr = &TaskRate{Name: r.Name}
@@ -298,6 +306,9 @@ func WriteComparison(w io.Writer, c Comparison) {
 		fmt.Fprintf(w, "context per solved task %s → %s (×%.2f) · compactions %d → %d\n",
 			shortTokens(c.Base.ContextPerSolved), shortTokens(c.Current.ContextPerSolved), ratio, c.Base.Compactions, c.Current.Compactions)
 	}
+	if c.Base.FactsAsked > 0 && c.Current.FactsAsked > 0 {
+		fmt.Fprintf(w, "facts recalled after compaction %d/%d → %d/%d\n", c.Base.FactsCorrect, c.Base.FactsAsked, c.Current.FactsCorrect, c.Current.FactsAsked)
+	}
 	if len(c.Improved) > 0 {
 		fmt.Fprintf(w, "improved:  %s\n", strings.Join(c.Improved, ", "))
 	}
@@ -326,6 +337,9 @@ func summaryLine(s Summary) string {
 	}
 	if s.Compactions > 0 {
 		ctx += fmt.Sprintf(" · %d compaction(s), summaries %s in / %s out, %d expand(s)", s.Compactions, shortTokens(contextTokens(s.SummaryUsage)), shortTokens(s.SummaryUsage.OutputTokens), s.Expands)
+	}
+	if s.FactsAsked > 0 {
+		ctx += fmt.Sprintf("\nfacts recalled after compaction %d/%d (%.0f%%) · %d unknown · %d fetched from the archive", s.FactsCorrect, s.FactsAsked, 100*float64(s.FactsCorrect)/float64(s.FactsAsked), s.FactsUnknown, s.FactsFetched)
 	}
 	return fmt.Sprintf("%d/%d passed (%.0f%%, 95%% CI %.0f–%.0f%%) · %d task(s) × %d run(s) · %d tool calls · %s · %s\n%s",
 		s.Passed, s.Total, 100*s.PassRate, 100*s.Lo, 100*s.Hi, s.Tasks, s.Runs, s.ToolCalls, s.Duration.Round(time.Second), cost, ctx)
