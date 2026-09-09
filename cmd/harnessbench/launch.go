@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"os"
@@ -133,8 +134,7 @@ func runCLIBatch(ctx context.Context, cfg runConfig, harness string, batchN int,
 
 func runOne(ctx context.Context, cfg runConfig, harness string, batchN int, t eval.Task, mu *sync.Mutex, logW io.Writer) eval.BenchTaskResult {
 	res := eval.BenchTaskResult{Harness: harness, Task: t.Name, Batch: batchN}
-	tctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
-	defer cancel()
+	var tctx context.Context = ctx // the context of the last invocation, for the timeout check
 	dir, err := os.MkdirTemp("", "harness-"+harness+"-"+evalSanitize(t.Name)+"-")
 	if err != nil {
 		res.Reason = "mkdir: " + err.Error()
@@ -145,15 +145,47 @@ func runOne(ctx context.Context, cfg runConfig, harness string, batchN int, t ev
 		res.Reason = "setup: " + err.Error()
 		return res
 	}
-	start := time.Now()
-	stdout, stderr, argv, code, runErr := invoke(tctx, cfg, harness, t, dir)
-	res.SetWall(time.Since(start))
+	// A session task sends its prompts one by one, each as its own
+	// invocation continuing the same harness session in the same tree;
+	// every invocation gets the full wall budget, and the usage of each
+	// is kept as a step so the report can show how the context grew.
+	sess := newSession(harness, t)
+	if sess != nil && sess.dir != "" {
+		defer os.RemoveAll(sess.dir)
+	}
+	var stdout, stderr string
+	var argv []string
+	var code int
+	var runErr error
+	var total eval.UsageMetrics
+	var wall time.Duration
+	prompts := t.Steps()
+	for i, prompt := range prompts {
+		sctx, scancel := context.WithTimeout(ctx, cfg.Timeout)
+		start := time.Now()
+		stdout, stderr, argv, code, runErr = invoke(sctx, cfg, harness, prompt, dir, sess, i)
+		stepWall := time.Since(start)
+		timedOut := sctx.Err() != nil
+		scancel()
+		wall += stepWall
+		if cfg.Scratch != "" {
+			logp := filepath.Join(cfg.Scratch, fmt.Sprintf("%s-%s-p%d.log", harness, evalSanitize(t.Name), i+1))
+			_ = os.WriteFile(logp, []byte(redact(stdout+"\n--- stderr ---\n"+stderr, cfg.Key)), 0o644)
+		}
+		u := fillUsage(eval.ParseUsageJSON([]byte(stdout)), eval.ParseUsageText(stdout+"\n"+stderr))
+		total = total.Add(u)
+		if len(prompts) > 1 {
+			res.Steps = append(res.Steps, eval.BenchStep{Input: u.Input, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite, Output: u.Output, Turns: u.Turns, WallTimeMS: stepWall.Milliseconds()})
+		}
+		if runErr != nil && timedOut {
+			runErr = fmt.Errorf("prompt %d of %d: %w", i+1, len(prompts), runErr)
+			tctx = sctx
+			break
+		}
+	}
+	res.SetWall(wall)
 	res.Command = redact(strings.Join(argv, " "), cfg.Key)
 	res.ExitCode = code
-	if cfg.Scratch != "" {
-		logp := filepath.Join(cfg.Scratch, harness+"-"+evalSanitize(t.Name)+".log")
-		_ = os.WriteFile(logp, []byte(redact(stdout+"\n--- stderr ---\n"+stderr, cfg.Key)), 0o644)
-	}
 	res.StderrExcerpt = trimCap(stderr, 1500)
 
 	text := eval.ExtractAssistantText([]byte(stdout))
@@ -162,11 +194,7 @@ func runOne(ctx context.Context, cfg runConfig, harness string, batchN int, t ev
 	}
 	outPath := filepath.Join(dir, ".eval-output.txt")
 	_ = os.WriteFile(outPath, []byte(text+"\n"), 0o644)
-
-	u := eval.ParseUsageJSON([]byte(stdout))
-	u2 := eval.ParseUsageText(stdout + "\n" + stderr)
-	u = fillUsage(u, u2)
-	res.ApplyUsage(u)
+	res.ApplyUsage(total)
 
 	if runErr != nil && tctx.Err() != nil {
 		res.Reason = fmt.Sprintf("timed out after %s: %v", cfg.Timeout, runErr)
@@ -252,7 +280,46 @@ func runCheck(ctx context.Context, t eval.Task, dir, outPath string) (bool, stri
 	return true, "", string(out)
 }
 
-func invoke(ctx context.Context, cfg runConfig, harness string, t eval.Task, dir string) (stdout, stderr string, argv []string, code int, err error) {
+// session identifies one harness conversation across the prompts of a
+// session task. Single-prompt tasks run ephemeral, as before.
+type session struct {
+	id  string
+	dir string // pi keeps session files here, never in the operator's store
+}
+
+func newSession(harness string, t eval.Task) *session {
+	if !t.Session() {
+		return nil
+	}
+	s := &session{id: uuid4()}
+	if harness == "pi" {
+		if d, err := os.MkdirTemp("", "pi-sessions-"); err == nil {
+			s.dir = d
+		}
+	}
+	return s
+}
+
+// uuid4 is a random session id in the shape every harness accepts.
+func uuid4() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		n := time.Now().UnixNano()
+		for i := range b {
+			b[i] = byte(n >> (8 * (i % 8)))
+		}
+	}
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// invoke runs one prompt on a harness in dir. With a session, the first
+// prompt creates the harness's session under the given id and later ones
+// resume it, so the conversation carries over the way it does for a user.
+// hermes-agent has no non-interactive continuation; it runs each prompt
+// fresh and the report says so.
+func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir string, sess *session, step int) (stdout, stderr string, argv []string, code int, err error) {
 	var cmd *exec.Cmd
 	extraEnv := map[string]string{
 		"OPENAI_API_KEY":    cfg.Key,
@@ -261,24 +328,49 @@ func invoke(ctx context.Context, cfg runConfig, harness string, t eval.Task, dir
 	}
 	switch harness {
 	case "pi":
-		argv = []string{"pi", "-p", "--mode", "json", "--provider", "dashscope", "--model", cfg.Model, "--no-session", t.Prompt}
+		argv = []string{"pi", "-p", "--mode", "json", "--provider", "dashscope", "--model", cfg.Model}
+		if sess == nil {
+			argv = append(argv, "--no-session")
+		} else {
+			argv = append(argv, "--session-id", sess.id)
+			if sess.dir != "" {
+				argv = append(argv, "--session-dir", sess.dir)
+			}
+		}
+		argv = append(argv, prompt)
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 	case "qwencode":
 		argv = []string{"qwen", "--yolo", "--output-format", "json", "--auth-type", "openai",
 			"--openai-base-url", cfg.BaseURL, "--model", cfg.Model,
-			"--max-session-turns", fmt.Sprint(cfg.MaxTurns), "--max-wall-time", fmt.Sprintf("%ds", int(cfg.Timeout.Seconds())), t.Prompt}
+			"--max-session-turns", fmt.Sprint(cfg.MaxTurns), "--max-wall-time", fmt.Sprintf("%ds", int(cfg.Timeout.Seconds()))}
+		if sess != nil {
+			argv = append(argv, "--chat-recording")
+			if step == 0 {
+				argv = append(argv, "--session-id", sess.id)
+			} else {
+				argv = append(argv, "--resume", sess.id)
+			}
+		}
+		argv = append(argv, prompt)
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 		extraEnv["QWEN_CODE_SUPPRESS_YOLO_WARNING"] = "1"
 	case "hermes-agent":
 		// api_key must be explicit: hermes only uses a custom base URL when
 		// both base_url and api_key are set, otherwise it falls back to OpenRouter.
-		argv = []string{"hermes-agent", "--query", t.Prompt, "--model", cfg.Model, "--base_url", cfg.BaseURL,
+		argv = []string{"hermes-agent", "--query", prompt, "--model", cfg.Model, "--base_url", cfg.BaseURL,
 			"--api_key", cfg.Key, "--max_turns", fmt.Sprint(cfg.MaxTurns), "--enabled_toolsets", "terminal", "--verbose"}
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 		extraEnv["OPENROUTER_API_KEY"] = cfg.Key
 	case "grok":
-		argv = []string{"grok", "-p", t.Prompt, "--cwd", dir, "--always-approve", "--output-format", "json",
+		argv = []string{"grok", "-p", prompt, "--cwd", dir, "--always-approve", "--output-format", "json",
 			"--model", cfg.Model, "--max-turns", fmt.Sprint(cfg.MaxTurns), "--disable-web-search"}
+		if sess != nil {
+			if step == 0 {
+				argv = append(argv, "--session-id", sess.id)
+			} else {
+				argv = append(argv, "--resume", sess.id)
+			}
+		}
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 		grokHomeMu.Lock()
 		home := grokHomePath

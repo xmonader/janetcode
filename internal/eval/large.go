@@ -20,6 +20,13 @@ var LargeHarnesses = []string{
 	"pi", "janetcode", "qwencode", "hermes-agent", "grok",
 }
 
+// SessionHarnesses can continue a conversation across non-interactive
+// invocations (pi --session-id, qwen --resume, grok --resume); hermes-agent
+// and openclaw cannot, so a session would restart from nothing on them.
+var SessionHarnesses = []string{
+	"pi", "janetcode", "qwencode", "grok",
+}
+
 const (
 	LargeTaskMin = 31
 	LargeTaskMax = 35
@@ -59,9 +66,89 @@ func LargeCorpus(name string) map[string]string {
 		return corpusHeaders()
 	case "35-large-deadcode":
 		return corpusDeadcode()
+	case "42-session-records":
+		return corpusRecords()
 	default:
 		return nil
 	}
+}
+
+// corpusRecords seeds the 42-session-records session: 120 record files,
+// each with an id, an owner and a size, plus the expected answers to
+// every prompt under .eval-expected/ and the check script that compares
+// them. The owners are weighted so the "most records" answer is unique,
+// and carol's records are the ones the session later archives.
+func corpusRecords() map[string]string {
+	owners := []string{"alice", "bob", "carol", "dave", "erin", "frank"}
+	weights := []int{30, 25, 24, 20, 12, 9} // sums to 120
+	var pool []string
+	for i, o := range owners {
+		for n := 0; n < weights[i]; n++ {
+			pool = append(pool, o)
+		}
+	}
+	const n = 120
+	files := map[string]string{}
+	count := map[string]int{}
+	size := map[string]int{}
+	var ids, final []string
+	changed := 0
+	for i := 1; i <= n; i++ {
+		owner := pool[(i*11)%n] // spread the owners through the tree
+		sz := (i*37)%500 + 10
+		id := fmt.Sprintf("TOKEN_%04d", i)
+		files[fmt.Sprintf("data/r%04d.txt", i)] = fmt.Sprintf("id: %s\nowner: %s\nsize: %d\nblob: %s\n", id, owner, sz, pad(i, "rec"))
+		count[owner]++
+		size[owner] += sz
+		ids = append(ids, id)
+		if owner == "carol" {
+			final = append(final, fmt.Sprintf("ARCHIVED_%04d", i))
+			changed++
+		} else {
+			final = append(final, id)
+		}
+	}
+	sort.Strings(ids)
+	sort.Strings(final)
+	sorted := append([]string(nil), owners...)
+	sort.Strings(sorted)
+	top, topN := "", -1
+	var sizes strings.Builder
+	for _, o := range sorted {
+		if count[o] > topN {
+			top, topN = o, count[o]
+		}
+		fmt.Fprintf(&sizes, "%s %d\n", o, size[o])
+	}
+	files[".eval-expected/owners.txt"] = strings.Join(sorted, "\n") + "\n"
+	files[".eval-expected/inventory.txt"] = strings.Join(ids, "\n") + "\n"
+	files[".eval-expected/inventory_final.txt"] = strings.Join(final, "\n") + "\n"
+	files[".eval-expected/top_owner.txt"] = top + "\n"
+	files[".eval-expected/sizes.txt"] = sizes.String()
+	files[".eval-expected/changed.txt"] = fmt.Sprint(changed) + "\n"
+	files[".eval-expected/check.sh"] = `#!/bin/bash
+# Every prompt of the session left a file behind; the last also answered
+# with a number. Each is compared with what the tree really contains.
+set -u
+E=.eval-expected
+fail() { echo "check: $1"; exit 1; }
+norm() { sed -e 's/[[:space:]]*$//' -e '/^$/d' "$1"; }
+[ -f owners.txt ] || fail "owners.txt missing (prompt 1)"
+diff <(norm owners.txt) <(norm $E/owners.txt) >/dev/null || fail "owners.txt wrong (prompt 1)"
+[ -f top_owner.txt ] || fail "top_owner.txt missing (prompt 3)"
+[ "$(tr -d '[:space:]' < top_owner.txt)" = "$(tr -d '[:space:]' < $E/top_owner.txt)" ] || fail "top_owner.txt wrong (prompt 3)"
+[ -f sizes.txt ] || fail "sizes.txt missing (prompt 4)"
+diff <(norm sizes.txt | tr -s ' ') <(norm $E/sizes.txt) >/dev/null || fail "sizes.txt wrong (prompt 4)"
+archived=$(grep -l '^id: ARCHIVED_' data/*.txt 2>/dev/null | wc -l | tr -d ' ')
+[ "$archived" = "$(tr -d '[:space:]' < $E/changed.txt)" ] || fail "expected $(cat $E/changed.txt) archived records in data/, found $archived (prompt 5)"
+for f in $(grep -l '^owner: carol' data/*.txt); do grep -q '^id: ARCHIVED_' "$f" || fail "$f is carol's but not archived (prompt 5)"; done
+for f in $(grep -L '^owner: carol' data/*.txt); do grep -q '^id: TOKEN_' "$f" || fail "$f is not carol's but was changed (prompt 5)"; done
+[ -f inventory.txt ] || fail "inventory.txt missing (prompt 2/6)"
+diff <(norm inventory.txt) <(norm $E/inventory_final.txt) >/dev/null || fail "inventory.txt does not reflect the renames (prompt 6)"
+grep -qw "$(tr -d '[:space:]' < $E/changed.txt)" "$EVAL_OUTPUT" || fail "final reply does not state the number of files changed (prompt 6)"
+exit 0
+`
+	return files
 }
 
 func expandLarge(t *Task) {

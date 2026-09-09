@@ -236,3 +236,49 @@ func TestFoldCompaction(t *testing.T) {
 		t.Fatalf("line = %s", line)
 	}
 }
+
+func TestSessionTaskSendsPromptsInTurn(t *testing.T) {
+	r := &Runner{NewAgent: func(root string) (*agent.Agent, error) {
+		return &agent.Agent{Provider: &scripted{}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", Log: &session.Memory{}}, nil
+	}}
+	task := Task{Name: "s", Prompts: []string{"write hello", "now say 42"}, Check: `grep -q "hello world" hello.txt && grep -q 42 "$EVAL_OUTPUT"`}
+	if !task.Session() || len(task.Steps()) != 2 {
+		t.Fatalf("steps = %v", task.Steps())
+	}
+	res := r.Run(context.Background(), []Task{task})[0]
+	if !res.Passed {
+		t.Fatalf("session failed: %s", res.Reason)
+	}
+	// The scripted model answers every prompt with a write then a reply:
+	// two model calls and one tool call per step, accounted separately.
+	if len(res.Steps) != 2 || res.Steps[0].Turns != 2 || res.Steps[0].ToolCalls != 1 || res.Steps[1].Turns != 2 {
+		t.Fatalf("steps = %+v", res.Steps)
+	}
+	if res.Steps[0].Usage.InputTokens != 150 || res.Steps[1].Context != 50 || res.Steps[0].Peak != 100 {
+		t.Fatalf("step accounting = %+v", res.Steps)
+	}
+	if res.Usage.InputTokens != 300 || res.Turns != 4 {
+		t.Fatalf("totals = in %d turns %d", res.Usage.InputTokens, res.Turns)
+	}
+	// A single-prompt task records no steps.
+	single := r.Run(context.Background(), []Task{{Name: "one", Prompt: "say 42", Check: "true"}})[0]
+	if len(single.Steps) != 0 {
+		t.Fatalf("single task has steps: %+v", single.Steps)
+	}
+}
+
+func TestLoadAcceptsPromptsWithoutPrompt(t *testing.T) {
+	dir := t.TempDir()
+	writeTask(t, dir, "s.json", Task{Prompts: []string{"a", " ", "b"}, Check: "true"})
+	writeTask(t, dir, "bad.json", Task{Prompts: []string{" "}, Check: "true"})
+	if _, err := Load(filepath.Join(dir, "bad.json")); err == nil || !strings.Contains(err.Error(), "prompt and check are required") {
+		t.Fatalf("blank prompts accepted: %v", err)
+	}
+	tasks, err := Load(filepath.Join(dir, "s.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := tasks[0].Steps(); len(got) != 2 || got[1] != "b" {
+		t.Fatalf("steps = %v", got)
+	}
+}

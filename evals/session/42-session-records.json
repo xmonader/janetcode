@@ -1,0 +1,18 @@
+{
+  "name": "42-session-records",
+  "prompts": [
+    "The data/ directory holds many small record files. Each has the lines 'id: TOKEN_NNNN', 'owner: <name>' and 'size: <number>' followed by a blob. Write owners.txt listing every distinct owner, one per line, sorted. The tree is large; inspect it with tools rather than guessing.",
+    "Write inventory.txt: every id in data/, one per line, sorted. Do not invent ids.",
+    "Which owner has the most records? Write that owner's name alone into top_owner.txt.",
+    "Write sizes.txt: for each owner, the sum of the size field over all of their records, as lines '<owner> <total>' sorted by owner.",
+    "Every record owned by carol is being archived: in each of carol's files change the id prefix TOKEN_ to ARCHIVED_ (keep the number). Do not touch any other file.",
+    "Update inventory.txt so it reflects the renames you made in the previous step (the archived ids appear with their new prefix; keep it sorted, one id per line). Then reply with just the number of files you changed in the previous step."
+  ],
+  "check": "bash .eval-expected/check.sh",
+  "timeout": 600,
+  "tags": [
+    "session",
+    "search",
+    "context"
+  ]
+}

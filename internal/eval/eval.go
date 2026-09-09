@@ -28,6 +28,13 @@ import (
 type Task struct {
 	Name   string `json:"name"`
 	Prompt string `json:"prompt"`
+	// Prompts makes the task a session: each prompt is sent in turn to the
+	// same conversation in the same work directory, and Check runs after
+	// the last. Prompt may then be empty. Sessions are where context
+	// management shows: the history grows across prompts, so what a
+	// harness keeps, drops and summarises decides both the token bill and
+	// whether the later prompts still know what the earlier ones did.
+	Prompts []string `json:"prompts,omitempty"`
 	// Files are written into the work directory before the run.
 	Files map[string]string `json:"files,omitempty"`
 	// Check is a shell command run in the work directory afterwards; exit
@@ -70,8 +77,8 @@ func Load(path string) ([]Task, error) {
 		if t.Name == "" {
 			t.Name = strings.TrimSuffix(filepath.Base(f), ".json")
 		}
-		if strings.TrimSpace(t.Prompt) == "" || strings.TrimSpace(t.Check) == "" {
-			return nil, fmt.Errorf("%s: prompt and check are required", f)
+		if len(t.Steps()) == 0 || strings.TrimSpace(t.Check) == "" {
+			return nil, fmt.Errorf("%s: prompt and check are required (prompts may stand in for prompt)", f)
 		}
 		if seen[t.Name] {
 			return nil, fmt.Errorf("%s: duplicate task name %q", f, t.Name)
@@ -85,6 +92,24 @@ func Load(path string) ([]Task, error) {
 	}
 	return tasks, nil
 }
+
+// Steps is the sequence of prompts the task sends: Prompts for a session,
+// else the single Prompt. Blank prompts are dropped.
+func (t Task) Steps() []string {
+	var out []string
+	for _, p := range t.Prompts {
+		if strings.TrimSpace(p) != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 && strings.TrimSpace(t.Prompt) != "" {
+		out = append(out, t.Prompt)
+	}
+	return out
+}
+
+// Session reports whether the task is a multi-prompt session.
+func (t Task) Session() bool { return len(t.Steps()) > 1 }
 
 // Filter keeps tasks whose name or tags match any of the words.
 func Filter(tasks []Task, words []string) []Task {
@@ -119,9 +144,11 @@ type Result struct {
 	// the history was summarised, what the summariser calls cost (a subset
 	// of Usage), and how many archived outputs the model fetched back.
 	Compaction Compaction `json:"compaction"`
-	Output     string     `json:"output"`
-	CheckOut   string     `json:"check_output,omitempty"`
-	Dir        string     `json:"dir,omitempty"`
+	// Steps is the per-prompt accounting of a session task, in order.
+	Steps    []Step `json:"steps,omitempty"`
+	Output   string `json:"output"`
+	CheckOut string `json:"check_output,omitempty"`
+	Dir      string `json:"dir,omitempty"`
 	// Features is the agent's trajectory at the end of the run, the
 	// training data for the success predictor (agent.Train).
 	Features map[string]float64 `json:"features,omitempty"`
@@ -134,6 +161,55 @@ type Compaction struct {
 	Count   int       `json:"count"`
 	Summary llm.Usage `json:"summary_usage"`
 	Expands int       `json:"expands"`
+}
+
+// Step is one prompt of a session: what it cost and how big the context
+// was when it ended. Context is the prompt size of the step's last model
+// call (input plus cache tokens), the number that shows whether history is
+// growing or being held down.
+type Step struct {
+	Usage       llm.Usage `json:"usage"`
+	Turns       int       `json:"turns"`
+	ToolCalls   int       `json:"tool_calls"`
+	Compactions int       `json:"compactions"`
+	Context     int       `json:"context"`
+	Peak        int       `json:"peak"` // largest single model call
+}
+
+// FoldSteps reads per-turn accounting from a run's event log. Turn n of
+// the log is prompt n of the session.
+func FoldSteps(events []session.Event) []Step {
+	var steps []Step
+	at := func(turn int) *Step {
+		for len(steps) < turn {
+			steps = append(steps, Step{})
+		}
+		return &steps[turn-1]
+	}
+	for _, e := range events {
+		if e.Turn <= 0 {
+			continue
+		}
+		switch e.Type {
+		case session.TypeAssistant:
+			st := at(e.Turn)
+			st.Turns++
+			if e.Usage != nil {
+				st.Usage.Add(*e.Usage)
+				st.Context = contextTokens(*e.Usage)
+				st.Peak = max(st.Peak, st.Context)
+			}
+		case session.TypeToolCall:
+			at(e.Turn).ToolCalls++
+		case session.TypeCompactSummary:
+			st := at(e.Turn)
+			st.Compactions++
+			if e.Usage != nil {
+				st.Usage.Add(*e.Usage)
+			}
+		}
+	}
+	return steps
 }
 
 // FoldCompaction reads the compaction metrics from a run's event log.
@@ -255,22 +331,33 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 	if timeout <= 0 {
 		timeout = 3 * time.Minute
 	}
+	// The budget is per prompt: a session gets it once for each, the way
+	// the other harnesses in a comparison are invoked once per prompt.
+	timeout *= time.Duration(len(t.Steps()))
 	rctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var out strings.Builder
 	var mu sync.Mutex
-	err = ag.Run(rctx, t.Prompt, func(e agent.Event) {
-		mu.Lock()
-		defer mu.Unlock()
-		switch e.Kind {
-		case agent.EvText:
-			out.WriteString(e.Text)
-		case agent.EvToolRun:
-			res.ToolCalls++
-		case agent.EvTextBlockDone:
-			res.Turns++
+	// A session sends its prompts one after another to the same agent;
+	// the output the check sees is the answer to the last one.
+	for _, prompt := range t.Steps() {
+		out.Reset()
+		err = ag.Run(rctx, prompt, func(e agent.Event) {
+			mu.Lock()
+			defer mu.Unlock()
+			switch e.Kind {
+			case agent.EvText:
+				out.WriteString(e.Text)
+			case agent.EvToolRun:
+				res.ToolCalls++
+			case agent.EvTextBlockDone:
+				res.Turns++
+			}
+		})
+		if err != nil {
+			break
 		}
-	})
+	}
 	res.Output = out.String()
 	res.Usage = ag.Usage
 	res.Features = ag.Trajectory()
@@ -279,6 +366,9 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 		if len(res.Events) > 0 {
 			res.Features = agent.FoldTrajectory(res.Events)
 			res.Compaction = FoldCompaction(res.Events)
+			if t.Session() {
+				res.Steps = FoldSteps(res.Events)
+			}
 		}
 	}
 	res.CostUSD, res.CostKnown = ag.Usage.Cost(ag.Price)

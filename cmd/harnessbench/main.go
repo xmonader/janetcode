@@ -38,7 +38,7 @@ func run(args []string) error {
 	timeout := fs.Duration("timeout", 3*time.Minute, "per-task wall timeout, applied to every harness")
 	maxTurns := fs.Int("max-turns", 40, "model-call cap per task for every harness that has one (qwencode, hermes-agent, grok, janetcode; pi has no flag)")
 	only := fs.String("only", "", "comma-separated task names to run (still grouped in batches of five)")
-	filter := fs.String("filter", "01-20", "task set: 01-20, large, or all")
+	filter := fs.String("filter", "01-20", "task set: 01-20, large, session, or all")
 	reportOnly := fs.Bool("report-only", false, "rebuild REPORT.md from existing JSON files; do not call the API")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -53,6 +53,13 @@ func run(args []string) error {
 		tasks = eval.FilterLarge(tasks)
 		if *harnesses == harnessesDefault {
 			*harnesses = strings.Join(eval.LargeHarnesses, ",")
+		}
+	case "session":
+		// Multi-prompt sessions: the context-management comparison. Each
+		// prompt is one invocation continuing the harness's session.
+		tasks = eval.Filter(tasks, []string{"session"})
+		if *harnesses == harnessesDefault {
+			*harnesses = strings.Join(eval.SessionHarnesses, ",")
 		}
 	case "all":
 	default:

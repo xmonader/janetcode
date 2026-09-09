@@ -122,7 +122,23 @@ type BenchTaskResult struct {
 	Unavailable       bool           `json:"unavailable,omitempty"`
 	UnavailableReason string         `json:"unavailable_reason,omitempty"`
 	Extra             map[string]any `json:"extra,omitempty"`
+	// Steps is the per-prompt usage of a session task, as the harness
+	// reported it for each invocation.
+	Steps []BenchStep `json:"steps,omitempty"`
 }
+
+// BenchStep is one prompt of a session on one harness.
+type BenchStep struct {
+	Input      OptInt `json:"input_tokens"`
+	CacheRead  OptInt `json:"cache_read_tokens"`
+	CacheWrite OptInt `json:"cache_write_tokens"`
+	Output     OptInt `json:"output_tokens"`
+	Turns      OptInt `json:"turns"`
+	WallTimeMS int64  `json:"wall_time_ms"`
+}
+
+// Context is what the model read in the step: input plus cache tokens.
+func (s BenchStep) Context() OptInt { return s.Input.Add(s.CacheRead).Add(s.CacheWrite) }
 
 // ApplyUsage copies reported usage onto the result.
 func (r *BenchTaskResult) ApplyUsage(u UsageMetrics) {
@@ -231,6 +247,12 @@ func FromJanetResult(harness string, batch int, r Result) BenchTaskResult {
 	out.SetWall(r.Duration)
 	if r.CostKnown {
 		out.CostUSD = Float(r.CostUSD)
+	}
+	for _, st := range r.Steps {
+		out.Steps = append(out.Steps, BenchStep{
+			Input: Int(st.Usage.InputTokens), CacheRead: Int(st.Usage.CacheReadTokens), CacheWrite: Int(st.Usage.CacheWriteTokens),
+			Output: Int(st.Usage.OutputTokens), Turns: Int(st.Turns),
+		})
 	}
 	return out
 }
@@ -351,6 +373,8 @@ func RenderComparativeReport(byHarness map[string][]BenchTaskResult, meta Report
 		return "FAIL"
 	})
 
+	writeSessionGrowth(&b, names, taskNames, byHarness)
+
 	fmt.Fprintf(&b, "\n## Failures and unavailable harnesses\n\n")
 	any := false
 	for _, h := range names {
@@ -377,6 +401,58 @@ func RenderComparativeReport(byHarness map[string][]BenchTaskResult, meta Report
 	}
 	fmt.Fprintf(&b, "\n")
 	return b.String()
+}
+
+// writeSessionGrowth renders, for every session task, what each harness
+// read per prompt: the input plus cache tokens of that step's calls. Read
+// left to right it is the context-growth curve — a harness that resends
+// the whole history grows every column; one that prunes or summarises
+// flattens out. Only tasks with per-step data get a table.
+func writeSessionGrowth(b *strings.Builder, harnesses, tasks []string, byHarness map[string][]BenchTaskResult) {
+	idx := indexResults(byHarness)
+	wrote := false
+	for _, task := range tasks {
+		steps := 0
+		for _, h := range harnesses {
+			if r, ok := idx[h+"/"+task]; ok && len(r.Steps) > steps {
+				steps = len(r.Steps)
+			}
+		}
+		if steps < 2 {
+			continue
+		}
+		if !wrote {
+			fmt.Fprintf(b, "\n## Session context growth\n\nPer prompt of each session task: input + cache tokens the harness read during that prompt (the last column is the task total). A flat row means the history was held down; a rising row means it was resent whole.\n")
+			wrote = true
+		}
+		fmt.Fprintf(b, "\n### %s\n\n| harness |", task)
+		for i := 1; i <= steps; i++ {
+			fmt.Fprintf(b, " p%d |", i)
+		}
+		fmt.Fprintf(b, " total |\n|---|")
+		for i := 0; i <= steps; i++ {
+			fmt.Fprintf(b, "---:|")
+		}
+		fmt.Fprintf(b, "\n")
+		for _, h := range harnesses {
+			r, ok := idx[h+"/"+task]
+			if !ok || r.Unavailable {
+				continue
+			}
+			fmt.Fprintf(b, "| %s |", h)
+			var total OptInt
+			for i := 0; i < steps; i++ {
+				if i < len(r.Steps) {
+					c := r.Steps[i].Context()
+					total = total.Add(c)
+					fmt.Fprintf(b, " %s |", c)
+				} else {
+					fmt.Fprintf(b, " n/a |")
+				}
+			}
+			fmt.Fprintf(b, " %s |\n", total)
+		}
+	}
 }
 
 func writeTaskTable(b *strings.Builder, harnesses, tasks []string, byHarness map[string][]BenchTaskResult, cell func(BenchTaskResult) string) {

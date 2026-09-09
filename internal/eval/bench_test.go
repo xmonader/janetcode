@@ -344,3 +344,23 @@ func TestMergeBenchResultsKeepsOtherTasks(t *testing.T) {
 		t.Fatalf("order: %s %s", got[2].Task, got[3].Task)
 	}
 }
+
+func TestSessionGrowthTable(t *testing.T) {
+	flat := BenchTaskResult{Harness: "janetcode", Task: "41-session", Passed: true, Steps: []BenchStep{
+		{Input: Int(1000), CacheRead: Int(0)}, {Input: Int(200), CacheRead: Int(900)}, {Input: Int(300), CacheRead: Int(900)},
+	}}
+	rising := BenchTaskResult{Harness: "pi", Task: "41-session", Passed: true, Steps: []BenchStep{
+		{Input: Int(1000)}, {Input: Int(2000)}, {Input: Int(4000)},
+	}}
+	single := BenchTaskResult{Harness: "pi", Task: "01-create-file", Passed: true}
+	report := RenderComparativeReport(map[string][]BenchTaskResult{"janetcode": {flat}, "pi": {rising, single}}, ReportMeta{Model: "m"})
+	if !strings.Contains(report, "## Session context growth") || !strings.Contains(report, "### 41-session") {
+		t.Fatalf("no growth section:\n%s", report)
+	}
+	if !strings.Contains(report, "| janetcode | 1000 | 1100 | 1200 | 3300 |") || !strings.Contains(report, "| pi | 1000 | 2000 | 4000 | 7000 |") {
+		t.Fatalf("rows wrong:\n%s", report)
+	}
+	if strings.Contains(report, "### 01-create-file") {
+		t.Fatal("single-prompt task got a growth table")
+	}
+}
