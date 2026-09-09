@@ -57,3 +57,30 @@ make build
   --eval-compact-at 8000 --eval-facts 8 --provider openai --model qwen3.7-plus \
   --eval-json docs/benchmarks/compaction/facts.json --eval-label facts
 ```
+
+## With both probe shapes (the ranked search finally measured)
+
+Run 2026-09-09, all three session tasks, compaction forced at 8k, 20 probes.
+
+| probe shape | asked | in the archive | retrieved | recalled |
+|---|---:|---:|---:|---:|
+| command output | 1 | 1 | 1 | 1 |
+| content ("the line mentioning Y") | 10 | 10 | 6 | 5 |
+| positional ("line N of X") | 9 | 9 | 3 | 3 |
+| **all** | **20** | **20** | **10** | **9** |
+
+Recall is 9/20 (45%), against 0/16 blind and 3/16 when the
+archive was labelled only by tool name. All 20 values were still on disk, and
+all 9 correct answers appear verbatim in what the model fetched — none was
+produced from memory.
+
+The split answers the question the earlier runs could not. **The ranked
+search is the stronger half**, not the weaker one: it retrieved 6 of 10
+content questions against 3 of 9 positional ones. That inverts the
+assumption behind the line lookup — which was added because positional
+questions were scoring zero, and which does help, but is now the part
+that lags. A query naming a file and a line still has to reach the
+lookup, and the model does not always phrase it so.
+
+Retrieval remains the whole of the loss: every miss had its value in the
+archive. Nothing here is a storage problem or a compaction problem.
