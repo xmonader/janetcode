@@ -621,6 +621,9 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		}
 		archive := agent.NewArchive(filepath.Join(archiveDir, filepath.Base(root)))
 		expand := &agent.ExpandOutput{Archive: archive}
+		// The eval agent carries the tools a real session does, minus the
+		// ones that need a terminal or the network. A benchmark run
+		// against a smaller agent measures something nobody uses.
 		ag := &agent.Agent{
 			Provider:  prov,
 			Off:       off,
@@ -643,6 +646,9 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			CompactAt:     compactAt,
 		}
 		expand.Log = ag.LogEvent // the archive's lookups go on the same trail
+		if !off["todo"] {
+			ag.Tools.Add(&agent.TodoTool{Parent: ag})
+		}
 		return ag, nil
 	}}
 	results := r.Run(ctx, tasks)

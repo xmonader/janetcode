@@ -1,0 +1,528 @@
+[
+  {
+    "harness": "janetcode",
+    "task": "41-session-go-service",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 264709,
+    "input_tokens": {
+      "value": 41261,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 9150,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 430539,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 43,
+      "set": true
+    },
+    "turns": {
+      "value": 37,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "janetcode --eval --eval-only 41-session-go-service --provider openai --model qwen3.7-plus",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 6958,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 2288,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 686,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 9468,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 59292,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 2690,
+          "set": true
+        },
+        "turns": {
+          "value": 8,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 5862,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 50654,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 745,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 4420,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 85900,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1747,
+          "set": true
+        },
+        "turns": {
+          "value": 7,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 5802,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 115497,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 2147,
+          "set": true
+        },
+        "turns": {
+          "value": 8,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 6239,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 81812,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 993,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 2512,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 35096,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 142,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 0
+      }
+    ]
+  },
+  {
+    "harness": "janetcode",
+    "task": "42-session-records",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 103147,
+    "input_tokens": {
+      "value": 18700,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 2397,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 148794,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 17,
+      "set": true
+    },
+    "turns": {
+      "value": 21,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "janetcode --eval --eval-only 42-session-records --provider openai --model qwen3.7-plus",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 7337,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 20523,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 445,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 7048,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 24809,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 394,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 1425,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 23952,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 258,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 617,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 25503,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 301,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 1459,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 35541,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 563,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 814,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 18466,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 436,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 0
+      }
+    ]
+  },
+  {
+    "harness": "janetcode",
+    "task": "43-session-python-ledger",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 165940,
+    "input_tokens": {
+      "value": 32338,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 5785,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 193217,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 36,
+      "set": true
+    },
+    "turns": {
+      "value": 22,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "janetcode --eval --eval-only 43-session-python-ledger --provider openai --model qwen3.7-plus",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 4934,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 5310,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 653,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 6442,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 19728,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1648,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 5528,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 32671,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1024,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 4803,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 53235,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 738,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 5791,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 53431,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1607,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 0
+      },
+      {
+        "input_tokens": {
+          "value": 4840,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 28842,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 115,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 0
+      }
+    ]
+  }
+]
