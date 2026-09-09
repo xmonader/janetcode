@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -387,6 +388,11 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	a.summaryFailedAt = time.Time{}
 	a.Usage.Add(resp.Usage)
 
+	var shadowed []int
+	if a.Log != nil {
+		shadowed = session.CurrentSeqs(a.Log.Events())
+		a.logEvent(session.Event{Type: session.TypeCompactStart, Turn: a.turnN})
+	}
 	note := "[Context was compacted. Handoff note from the earlier part of this conversation:]\n\n" + summary
 	if typed {
 		w := &a.working
@@ -415,6 +421,21 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	a.integ.shrunkOK = true
 	after := a.EstimateTokens()
 	a.stats.compacted()
+	if a.Log != nil {
+		sum := a.Messages[0]
+		u := resp.Usage
+		a.logEvent(session.Event{Type: session.TypeCompactSummary, Turn: a.turnN, Shadowed: shadowed, Tokens: before, Usage: &u})
+		a.logEvent(session.Event{Type: session.TypeUserMessage, Turn: a.turnN, Surface: true, SurfaceOp: session.SurfaceOpReplace, Replaces: shadowed, Message: &sum})
+		for i := 1; i < len(a.Messages); i++ {
+			m := a.Messages[i]
+			t := session.TypeUserMessage
+			if m.Role == llm.RoleAssistant {
+				t = session.TypeAssistant
+			}
+			a.logEvent(session.Event{Type: t, Turn: a.turnN, Surface: true, Message: &m})
+		}
+		a.logEvent(session.Event{Type: session.TypeCompactEnd, Turn: a.turnN})
+	}
 	emit(Event{Kind: EvCompacted, Text: fmt.Sprintf("context compacted: ~%d → ~%d tokens (%d recent messages kept)", before, after, len(tail))})
 	return nil
 }

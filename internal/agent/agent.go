@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/verify"
@@ -187,6 +188,10 @@ type Agent struct {
 	// UndoPath, when set, persists undo checkpoints next to the session so
 	// /undo survives a resume.
 	UndoPath string
+	// Log, when set, is the append-only trajectory of this conversation.
+	// Resume reconstructs counts by folding it. Nil means in-memory stats only.
+	Log          session.Log
+	turnN, stepN int
 	// Archive, when set, keeps full tool outputs longer than InlineOutput
 	// on disk so the model can page through them with expand_output.
 	Archive *Archive
@@ -260,6 +265,13 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		}
 	}
 	a.appendUserBlocks(blocks...)
+	a.turnN++
+	a.stepN = 0
+	a.logEvent(session.Event{Type: session.TypeTurnStart, Turn: a.turnN})
+	if n := len(a.Messages); n > 0 {
+		msg := a.Messages[n-1]
+		a.logEvent(session.Event{Type: session.TypeUserMessage, Turn: a.turnN, Surface: true, Message: &msg})
+	}
 	a.cp.beginTurn()
 	a.mutated, a.mutations = false, 0
 	defer a.endTurn()
@@ -287,6 +299,8 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		}
 		a.checkIntegrity(emit)
 		a.reportJobs(emit)
+		a.stepN++
+		a.logEvent(session.Event{Type: session.TypeStepStart, Turn: a.turnN, Step: a.stepN})
 		resp, err := a.call(ctx, emit)
 		if err != nil && isContextOverflow(err) && compactAt > 0 {
 			// The estimate was wrong; summarise and try once more. When the
@@ -310,6 +324,9 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		a.Messages = append(a.Messages, resp.Message)
 		a.integ.lastLen = len(a.Messages)
 		a.Usage.Add(resp.Usage)
+		msg := resp.Message
+		u := resp.Usage
+		a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &msg, Usage: &u})
 		emit(Event{Kind: EvTextBlockDone})
 
 		if resp.StopReason != llm.StopToolUse {
@@ -319,6 +336,8 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			if more := !a.Off["verify"] && a.verifyGate(ctx, &gate, emit); more {
 				continue
 			}
+			a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
+			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(resp.StopReason)})
 			emit(Event{Kind: EvTurnDone, Usage: resp.Usage, StopReason: resp.StopReason})
 			return nil
 		}
@@ -326,6 +345,8 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		if len(uses) == 0 {
 			// Provider said tool_use but sent none; treat as end of turn
 			// rather than looping forever.
+			a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
+			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(llm.StopEndTurn)})
 			emit(Event{Kind: EvTurnDone, Usage: resp.Usage, StopReason: llm.StopEndTurn})
 			return nil
 		}
@@ -340,13 +361,18 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			results[len(results)-1].Text += "\n\n[harness] " + planNote
 			emit(Event{Kind: EvNotice, Text: planNote})
 		}
-		a.Messages = append(a.Messages, llm.ToolResultMessage(results...))
+		tr := llm.ToolResultMessage(results...)
+		a.Messages = append(a.Messages, tr)
+		a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &tr})
+		a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
 		if err != nil {
 			return err
 		}
 		if a.stuck {
 			a.stuck = false
 			emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
+			a.logEvent(session.Event{Type: session.TypeNotice, Output: "turn stopped: " + a.loops.reason})
+			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
 			return ErrStuck
 		}
 	}
@@ -652,6 +678,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		}
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
+	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: u.ID, Name: u.Name, Arguments: string(u.Input)})
 	if t.Mutating() {
 		a.cp.snapshot(a.Snapshots, t, u.Input)
 	}
@@ -714,6 +741,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		out += a.critique(emit)
 	}
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
+	a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: out, IsError: isErr, DurationMs: dur.Milliseconds()})
 	return out, isErr, nil
 }
 

@@ -224,6 +224,8 @@ func turn(ctx context.Context, opts Options, blocks []llm.Block) error {
 		}
 		ns, serr := opts.Session.SyncOrRotate(ag.Messages)
 		if ns != opts.Session {
+			opts.Session = ns
+			ag.Log = ns
 			ag.UndoPath = ns.UndoPath()
 			ag.SaveUndo()
 		}

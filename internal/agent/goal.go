@@ -1,0 +1,141 @@
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/xmonader/janetcode/internal/session"
+)
+
+const (
+	GoalActive        = "active"
+	GoalPaused        = "paused"
+	GoalBlocked       = "blocked"
+	GoalComplete      = "complete"
+	defaultGoalRounds = 8
+)
+
+// Goal is the fold of goal/* events for one id.
+type Goal struct {
+	ID        string
+	Objective string
+	Phase     string
+	Reason    string
+	MaxRounds int
+	Rounds    int
+}
+
+// FoldGoals returns the latest snapshot per goal id.
+func FoldGoals(events []session.Event) []Goal {
+	by := map[string]*Goal{}
+	var order []string
+	for _, e := range events {
+		id := e.Name
+		if id == "" {
+			continue
+		}
+		g := by[id]
+		if g == nil {
+			g = &Goal{ID: id, MaxRounds: defaultGoalRounds}
+			by[id] = g
+			order = append(order, id)
+		}
+		switch e.Type {
+		case session.TypeGoalCreate:
+			g.Objective = e.Output
+			if e.Tokens > 0 {
+				g.MaxRounds = e.Tokens
+			}
+			g.Phase = GoalActive
+		case session.TypeGoalPhase:
+			g.Phase = e.Reason
+			g.Reason = e.Output
+		case session.TypeGoalRound:
+			g.Rounds++
+		}
+	}
+	out := make([]Goal, 0, len(order))
+	for _, id := range order {
+		out = append(out, *by[id])
+	}
+	return out
+}
+
+// ActiveGoal is the last goal still in active phase, or nil.
+func ActiveGoal(events []session.Event) *Goal {
+	gs := FoldGoals(events)
+	for i := len(gs) - 1; i >= 0; i-- {
+		if gs[i].Phase == GoalActive {
+			g := gs[i]
+			return &g
+		}
+	}
+	return nil
+}
+
+func (a *Agent) CreateGoal(objective string, maxRounds int) string {
+	if maxRounds <= 0 {
+		maxRounds = defaultGoalRounds
+	}
+	id := fmt.Sprintf("g%d", a.turnN+1)
+	a.logEvent(session.Event{Type: session.TypeGoalCreate, Name: id, Output: strings.TrimSpace(objective), Tokens: maxRounds})
+	a.logEvent(session.Event{Type: session.TypeGoalPhase, Name: id, Reason: GoalActive})
+	return id
+}
+
+func (a *Agent) SetGoalPhase(id, phase, reason string) {
+	a.logEvent(session.Event{Type: session.TypeGoalPhase, Name: id, Reason: phase, Output: reason})
+}
+
+// GoalContinuation is the next auto-prompt while a goal is active, or "".
+func (a *Agent) GoalContinuation() string {
+	if a.Log == nil {
+		return ""
+	}
+	g := ActiveGoal(a.Log.Events())
+	if g == nil || g.Rounds >= g.MaxRounds {
+		return ""
+	}
+	a.logEvent(session.Event{Type: session.TypeGoalRound, Name: g.ID})
+	return "Continue the goal: " + g.Objective + "\n(round " + fmt.Sprint(g.Rounds+1) + "/" + fmt.Sprint(g.MaxRounds) + "; call goal_status when done or blocked)"
+}
+
+// GoalStatus is the model-facing tool to finish or block the active goal.
+type GoalStatus struct{ Parent *Agent }
+
+func (*GoalStatus) Name() string { return "goal_status" }
+func (*GoalStatus) Description() string {
+	return "Mark the current session goal complete or blocked. Call this when the objective is done, or when you cannot proceed (include a short reason)."
+}
+func (*GoalStatus) Mutating() bool { return false }
+func (*GoalStatus) Schema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{
+"status":{"type":"string","enum":["complete","blocked"],"description":"complete if the goal is done, blocked if you cannot proceed"},
+"reason":{"type":"string","description":"short explanation, required when blocked"}},
+"required":["status"],"additionalProperties":false}`)
+}
+
+func (g *GoalStatus) Run(_ context.Context, input json.RawMessage) (string, error) {
+	if g.Parent == nil || g.Parent.Log == nil {
+		return "", fmt.Errorf("no session log")
+	}
+	var in struct {
+		Status string `json:"status"`
+		Reason string `json:"reason"`
+	}
+	if err := json.Unmarshal(input, &in); err != nil {
+		return "", err
+	}
+	cur := ActiveGoal(g.Parent.Log.Events())
+	if cur == nil {
+		return "", fmt.Errorf("no active goal")
+	}
+	phase := GoalComplete
+	if in.Status == GoalBlocked || in.Status == "blocked" {
+		phase = GoalBlocked
+	}
+	g.Parent.SetGoalPhase(cur.ID, phase, in.Reason)
+	return "goal " + cur.ID + " is now " + phase, nil
+}

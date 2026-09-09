@@ -21,6 +21,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 // Task is one eval case, stored as JSON.
@@ -120,6 +121,8 @@ type Result struct {
 	// Features is the agent's trajectory at the end of the run, the
 	// training data for the success predictor (agent.Train).
 	Features map[string]float64 `json:"features,omitempty"`
+	// Events is the append-only trajectory log when the agent had a Log.
+	Events []session.Event `json:"events,omitempty"`
 }
 
 // Runner executes tasks with fresh agents.
@@ -241,6 +244,12 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 	res.Output = out.String()
 	res.Usage = ag.Usage
 	res.Features = ag.Trajectory()
+	if ag.Log != nil {
+		res.Events = ag.Log.Events()
+		if len(res.Events) > 0 {
+			res.Features = agent.FoldTrajectory(res.Events)
+		}
+	}
 	res.CostUSD, res.CostKnown = ag.Usage.Cost(ag.Price)
 	if err != nil {
 		if errors.Is(rctx.Err(), context.DeadlineExceeded) {

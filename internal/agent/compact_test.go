@@ -8,8 +8,45 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
+
+func TestCompactWritesShadowedLogEvents(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text(`{"facts":["done"]}`)}}
+	mem := &session.Memory{}
+	u := llm.TextMessage(llm.RoleUser, strings.Repeat("please investigate the flaky test suite in detail ", 80))
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Log: mem, Messages: []llm.Message{
+		u,
+		llm.TextMessage(llm.RoleAssistant, "working"),
+	}}
+	_ = mem.Append(session.Event{Type: session.TypeUserMessage, Surface: true, Message: &a.Messages[0]})
+	_ = mem.Append(session.Event{Type: session.TypeAssistant, Surface: true, Message: &a.Messages[1]})
+	if err := a.ForceCompact(context.Background(), func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	ev := mem.Events()
+	var sawStart, sawSum, sawEnd bool
+	for _, e := range ev {
+		switch e.Type {
+		case session.TypeCompactStart:
+			sawStart = true
+		case session.TypeCompactSummary:
+			sawSum = true
+			if len(e.Shadowed) == 0 {
+				t.Fatal("summary has no shadowed seqs")
+			}
+		case session.TypeCompactEnd:
+			sawEnd = true
+		}
+	}
+	if !sawStart || !sawSum || !sawEnd {
+		t.Fatalf("compact events missing in %+v", ev)
+	}
+	if n := len(session.FoldSurface(ev)); n < 1 {
+		t.Fatalf("surface after compact = %d", n)
+	}
+}
 
 func TestCompactKeepsPendingUserText(t *testing.T) {
 	f := &fake{responses: []*llm.Response{text(`{"facts":["SUMMARY: did things"]}`)}}

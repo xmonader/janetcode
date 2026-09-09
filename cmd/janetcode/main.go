@@ -206,6 +206,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	ag := &agent.Agent{
 		Provider: prov,
 		Archive:  archive,
+		Log:      sess,
 		Price:    cfg.PriceFor(cfg.Model),
 		Tools: tool.NewRegistry(
 			tool.ReadFile{Root: cwd, Seen: seen},
@@ -230,10 +231,12 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		CompactAt:     cfg.CompactAt,
 		Messages:      history,
 		Pins:          sess.Meta.Pins,
+		PlanMode:      session.FoldPlanMode(sess.Events()),
 		Jobs:          jobs,
 		ContextWindow: cfg.MetaFor(cfg.Model).ContextWindow,
 	}
 	task.Parent = ag
+	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
 	skills := func() []skill.Skill { return skill.Load(cwd, cfgDir) }
 	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(cwd, cfgDir) }
 	ag.Tools.Add(&skill.Tool{Skills: skills})
@@ -527,6 +530,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			Off:       off,
 			Prepare:   prep,
 			PlanCheck: repo.CheckPlan,
+			Log:       &session.Memory{},
 			Price:     cfg.PriceFor(cfg.Model),
 			Tools: tool.NewRegistry(
 				tool.ReadFile{Root: root}, tool.WriteFile{Root: root}, tool.EditFile{Root: root},

@@ -39,13 +39,20 @@ type line struct {
 	Message *llm.Message `json:"message,omitempty"`
 }
 
+type eventLine struct {
+	Type string `json:"type"`
+	Event
+}
+
 // Session is one persisted conversation.
 type Session struct {
 	Meta Meta
 	path string
 
-	persisted  int // messages already on disk
+	persisted  int // messages already on disk (legacy message lines)
 	lastBlocks int // block count of the last persisted message
+	ev         []Event
+	nextSeq    int
 }
 
 // Dir returns the sessions directory, honouring XDG_DATA_HOME.
@@ -106,7 +113,7 @@ func Open(dir, id string) (*Session, []llm.Message, error) {
 	}
 	defer f.Close()
 	s := &Session{path: path}
-	var msgs []llm.Message
+	var legacy []llm.Message
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 1024*1024), 64*1024*1024)
 	n := 0
@@ -131,8 +138,18 @@ func Open(dir, id string) (*Session, []llm.Message, error) {
 			}
 		case "message":
 			if l.Message != nil {
-				msgs = append(msgs, *l.Message)
+				legacy = append(legacy, *l.Message)
 			}
+		case "event":
+			var el eventLine
+			if err := json.Unmarshal([]byte(raw), &el); err != nil {
+				return nil, nil, fmt.Errorf("session %s line %d: %w", id, n, err)
+			}
+			e := el.Event
+			if e.Seq > s.nextSeq {
+				s.nextSeq = e.Seq
+			}
+			s.ev = append(s.ev, e)
 		}
 	}
 	if err := sc.Err(); err != nil {
@@ -141,9 +158,19 @@ func Open(dir, id string) (*Session, []llm.Message, error) {
 	if s.Meta.ID == "" {
 		return nil, nil, fmt.Errorf("session %s has no metadata", id)
 	}
-	s.persisted = len(msgs)
+	msgs := legacy
+	if len(s.ev) > 0 {
+		msgs = FoldSurface(s.ev)
+		if len(legacy) > 0 && len(msgs) == 0 {
+			msgs = legacy
+		}
+	}
+	s.persisted = len(legacy)
 	if s.persisted > 0 {
-		s.lastBlocks = len(msgs[s.persisted-1].Blocks)
+		s.lastBlocks = len(legacy[s.persisted-1].Blocks)
+	} else if len(msgs) > 0 {
+		s.lastBlocks = len(msgs[len(msgs)-1].Blocks)
+		s.persisted = len(msgs)
 	}
 	return s, msgs, nil
 }
@@ -247,10 +274,51 @@ func (s *Session) Path() string { return s.path }
 // Persisted reports how many messages are on disk.
 func (s *Session) Persisted() int { return s.persisted }
 
-// SyncOrRotate persists msgs. When the history shrank (compaction replaced
-// it) the old file is left intact and a new session is started for the
-// summarised conversation; the session to keep using is returned.
+// Events is the append-only log, including shadowed and log-only records.
+func (s *Session) Events() []Event { return s.ev }
+
+// Append writes one event. Seq is assigned if zero. Prior events are never rewritten.
+func (s *Session) Append(e Event) error {
+	if e.Seq == 0 {
+		s.nextSeq++
+		e.Seq = s.nextSeq
+	} else if e.Seq > s.nextSeq {
+		s.nextSeq = e.Seq
+	}
+	if e.Time.IsZero() {
+		e.Time = time.Now().UTC()
+	}
+	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	w := bufio.NewWriter(f)
+	if err := writeLine(w, eventLine{Type: "event", Event: e}); err != nil {
+		f.Close()
+		return err
+	}
+	if err := w.Flush(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	s.ev = append(s.ev, e)
+	return nil
+}
+
+// SyncOrRotate persists msgs. Legacy message-only sessions still rotate to a
+// new file when history shrinks. A session with an event log stays on the
+// same file: compaction appends replacement events instead of rotating.
 func (s *Session) SyncOrRotate(msgs []llm.Message) (*Session, error) {
+	if len(s.ev) > 0 {
+		return s, s.Sync(msgs)
+	}
 	if len(msgs) < s.persisted {
 		ns, err := New(filepath.Dir(s.path), s.Meta.Cwd, s.Meta.Provider, s.Meta.Model)
 		if err == nil && len(s.Meta.Pins) > 0 {
@@ -319,6 +387,10 @@ func Fork(dir string, from *Session, msgs []llm.Message, title string) (*Session
 		title = "fork of " + from.Label()
 	}
 	ns.Meta.Title = title
+	if len(from.ev) > 0 {
+		ns.ev = append([]Event(nil), from.ev...)
+		ns.nextSeq = from.nextSeq
+	}
 	if err := ns.rewrite(msgs); err != nil {
 		return nil, err
 	}
@@ -482,10 +554,19 @@ func (s *Session) rewrite(msgs []llm.Message) error {
 		f.Close()
 		return err
 	}
-	for i := range msgs {
-		if err := writeLine(w, line{Type: "message", Message: &msgs[i]}); err != nil {
-			f.Close()
-			return err
+	if len(s.ev) > 0 {
+		for i := range s.ev {
+			if err := writeLine(w, eventLine{Type: "event", Event: s.ev[i]}); err != nil {
+				f.Close()
+				return err
+			}
+		}
+	} else {
+		for i := range msgs {
+			if err := writeLine(w, line{Type: "message", Message: &msgs[i]}); err != nil {
+				f.Close()
+				return err
+			}
 		}
 	}
 	if err := w.Flush(); err != nil {
@@ -510,8 +591,8 @@ func (s *Session) rewrite(msgs []llm.Message) error {
 	return nil
 }
 
-func writeLine(w *bufio.Writer, l line) error {
-	b, err := json.Marshal(l)
+func writeLine(w *bufio.Writer, v any) error {
+	b, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}

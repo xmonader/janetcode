@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 // Trajectory features: a fixed, ordered set of numbers describing how a
@@ -28,8 +30,112 @@ var FeatureNames = []string{
 
 var testCommandRe = regexp.MustCompile(`(?i)\b(test|pytest|spec|check|vet|lint|tsc|cargo build|go build|make)\b`)
 
+// FoldTrajectory computes FeatureNames from a session event log.
+func FoldTrajectory(events []session.Event) map[string]float64 {
+	f := map[string]float64{}
+	for _, n := range FeatureNames {
+		f[n] = 0
+	}
+	var calls, errs, reads, edits, tests, testFails, compact, model int
+	inTok, outTok := 0, 0
+	files := map[string]bool{}
+	repeat := map[string]int{}
+	var seq []signature
+	var start, end time.Time
+	editsSince := 0.0
+	for _, e := range events {
+		if start.IsZero() && !e.Time.IsZero() {
+			start = e.Time
+		}
+		if !e.Time.IsZero() {
+			end = e.Time
+		}
+		switch e.Type {
+		case session.TypeStepStart:
+			model++
+		case session.TypeAssistant:
+			if e.Usage != nil {
+				inTok += e.Usage.InputTokens + e.Usage.CacheReadTokens + e.Usage.CacheWriteTokens
+				outTok += e.Usage.OutputTokens
+			}
+		case session.TypeCompactStart, session.TypeCompactSummary:
+			if e.Type == session.TypeCompactStart {
+				compact++
+			}
+		case session.TypeToolCall:
+			calls++
+			repeat[e.Name+" "+e.Arguments]++
+			switch e.Name {
+			case "read_file":
+				reads++
+			case "write_file", "edit_file":
+				edits++
+				editsSince++
+			case "bash":
+				if testCommandRe.MatchString(e.Arguments) {
+					tests++
+					editsSince = 0
+				}
+			}
+		case session.TypeToolResult:
+			if e.CallID == "" {
+				continue
+			}
+			if e.IsError {
+				errs++
+			}
+			if e.Name == "write_file" || e.Name == "edit_file" {
+				files[e.Arguments] = true
+			}
+			if e.Name == "bash" && testCommandRe.MatchString(e.Arguments) && e.IsError {
+				testFails++
+			}
+			seq = append(seq, newSignature(e.Name, []byte(e.Arguments), e.IsError))
+		}
+	}
+	f["tool_calls"] = float64(calls)
+	f["tool_errors"] = float64(errs)
+	if calls > 0 {
+		f["error_rate"] = float64(errs) / float64(calls)
+	}
+	f["model_calls"] = float64(model)
+	f["reads"] = float64(reads)
+	f["edits"] = float64(edits)
+	f["files_edited"] = float64(len(files))
+	f["tests"] = float64(tests)
+	f["test_failures"] = float64(testFails)
+	f["edits_since_test"] = editsSince
+	maxR := 0
+	for _, n := range repeat {
+		if n > maxR {
+			maxR = n
+		}
+	}
+	f["max_repeat"] = float64(maxR)
+	d := loopDetector{seq: seq}
+	if _, reps := d.cycle(); reps > 0 {
+		f["cycle_rounds"] = float64(reps)
+	}
+	f["input_ktokens"] = float64(inTok) / 1000
+	f["output_ktokens"] = float64(outTok) / 1000
+	f["compactions"] = float64(compact)
+	if !start.IsZero() && !end.IsZero() {
+		f["minutes"] = end.Sub(start).Minutes()
+	}
+	return f
+}
+
 // Trajectory describes the running turn as feature values.
 func (a *Agent) Trajectory() map[string]float64 {
+	if a.Log != nil {
+		if ev := a.Log.Events(); len(ev) > 0 {
+			f := FoldTrajectory(ev)
+			if !a.turnStart.IsZero() {
+				f["minutes"] = time.Since(a.turnStart).Minutes()
+			}
+			return f
+		}
+	}
 	st := a.Stats()
 	calls, errs := st.ToolCalls()
 	f := map[string]float64{}
@@ -336,7 +442,13 @@ func (a *Agent) critique(emit func(Event)) string {
 	why := a.Predictor.Explain(f, 3)
 	msg := fmt.Sprintf("trajectory critic: turns that looked like this succeeded %.0f%% of the time in the eval history (%s)", p*100, why)
 	emit(Event{Kind: EvNotice, Text: msg})
+	a.logEvent(session.Event{Type: session.TypeCritic, Output: msg, Extra: mustJSON(f)})
 	return "\n\n[harness] " + msg + ". Step back: check what the user actually asked for, verify the current state before more edits, and say what is blocking you if something is."
+}
+
+func mustJSON(v any) json.RawMessage {
+	b, _ := json.Marshal(v)
+	return b
 }
 
 // LastScore is the most recent critic score, or NaN before any.

@@ -296,19 +296,19 @@ func (m *model) planCommand(arg string) tea.Cmd {
 			m.refresh(false)
 			return nil
 		}
-		ag.PlanMode = false
+		ag.SetPlanMode(false)
 		m.input.Placeholder = defaultPlaceholder
 		m.transcript.info("plan approved · leaving plan mode; each step is undoable with /undo")
 		return m.submit("The plan is approved. Execute it now, step by step, in the order written. Verify each step (build, tests) before starting the next, and stop to report if a step fails or the plan turns out to be wrong.")
 	case "off", "cancel", "exit":
-		ag.PlanMode = false
+		ag.SetPlanMode(false)
 		m.input.Placeholder = defaultPlaceholder
 		m.transcript.info("left plan mode without executing")
 		m.refresh(false)
 		return nil
 	}
 	if !ag.PlanMode {
-		ag.PlanMode = true
+		ag.SetPlanMode(true)
 		m.input.Placeholder = "Plan mode: describe the change; the model explores and writes a plan (/plan approve runs it, /plan off leaves)"
 		m.transcript.info("plan mode ON: the model reads and searches but changes nothing; /plan approve executes the plan, /plan off leaves")
 	}
@@ -360,8 +360,190 @@ func (m *model) contextCommand() {
 			fmt.Fprintf(&sb, "  %6s  %s%s (message %d)\n", shortTokens(it.Tokens), it.Tool, subj, it.Index)
 		}
 	}
+	if m.opts.Session != nil && len(m.opts.Session.Events()) > 0 {
+		meter := session.Measure(m.opts.Session.Events(), nil)
+		fmt.Fprintf(&sb, "surface meter · log rev %d · %s across %d nodes\n", meter.LogRevision, shortTokens(meter.Surface), len(meter.Nodes))
+		sort.Slice(meter.Nodes, func(i, j int) bool { return meter.Nodes[i].Tokens > meter.Nodes[j].Tokens })
+		for i, n := range meter.Nodes {
+			if i >= 5 {
+				break
+			}
+			fmt.Fprintf(&sb, "  seq %d  %s  %s\n", n.Seq, n.Kind, shortTokens(n.Tokens))
+		}
+	}
 	sb.WriteString("/compact summarises the history, /pin keeps a note through it")
 	m.transcript.info(sb.String())
+}
+
+func (m *model) trajectoryCommand(args []string) {
+	if m.opts.Session == nil {
+		m.transcript.errorf("no session")
+		return
+	}
+	ev := m.opts.Session.Events()
+	if len(args) > 0 && args[0] == "grep" {
+		q := strings.Join(args[1:], " ")
+		hits := session.QueryEvents(ev, session.QueryFilter{Text: q})
+		if len(hits) == 0 {
+			m.transcript.info("no events matching " + q)
+			return
+		}
+		var sb strings.Builder
+		for _, h := range hits {
+			fmt.Fprintf(&sb, "#%d %s %s %s\n  %s\n", h.Event.Seq, h.Kind, h.Event.Type, h.Event.Name, h.Snippet)
+		}
+		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+		return
+	}
+	if len(args) == 1 {
+		n, err := strconv.Atoi(args[0])
+		if err == nil {
+			for _, e := range ev {
+				if e.Seq != n {
+					continue
+				}
+				var sb strings.Builder
+				fmt.Fprintf(&sb, "seq %d  %s  turn %d step %d  %s\n", e.Seq, e.Type, e.Turn, e.Step, session.Classify(ev, e))
+				if e.DurationMs > 0 {
+					fmt.Fprintf(&sb, "duration %dms\n", e.DurationMs)
+				}
+				if e.Usage != nil {
+					fmt.Fprintf(&sb, "usage in=%d cache=%d out=%d\n", e.Usage.InputTokens, e.Usage.CacheReadTokens, e.Usage.OutputTokens)
+				}
+				body := e.Output
+				if body == "" && e.Message != nil {
+					body = e.Message.Text()
+				}
+				if len(body) > 4000 {
+					body = body[:4000] + "…"
+				}
+				if body != "" {
+					sb.WriteString(body)
+				}
+				m.transcript.info(sb.String())
+				return
+			}
+			m.transcript.errorf("no event seq %d", n)
+			return
+		}
+	}
+	if len(ev) == 0 {
+		m.transcript.info("no trajectory events yet (legacy session, or no turn has run)")
+		return
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "seq  turn/step  type                 name        dur    surface\n")
+	for _, e := range ev {
+		k := session.Classify(ev, e)
+		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %5dms %s\n", e.Seq, e.Turn, e.Step, e.Type, trunc(e.Name, 11), e.DurationMs, k)
+	}
+	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+}
+
+func (m *model) feedbackCommand(args []string) {
+	if m.opts.Session == nil {
+		m.transcript.errorf("no session")
+		return
+	}
+	if len(args) == 0 {
+		m.transcript.errorf("usage: /feedback up|down [note]")
+		return
+	}
+	r := session.RateUp
+	if args[0] == "down" || args[0] == "-" {
+		r = session.RateDown
+	} else if args[0] != "up" && args[0] != "+" {
+		m.transcript.errorf("usage: /feedback up|down [note]")
+		return
+	}
+	note := strings.Join(args[1:], " ")
+	if err := m.opts.Session.Rate(0, r, note); err != nil {
+		m.transcript.errorf("feedback: %v", err)
+		return
+	}
+	m.transcript.info("recorded " + string(r) + " on last assistant message")
+}
+
+func (m *model) goalCommand(arg string) tea.Cmd {
+	ag := m.opts.Agent
+	switch {
+	case arg == "" || arg == "list":
+		if ag.Log == nil {
+			m.transcript.info("no session log")
+			return nil
+		}
+		gs := agent.FoldGoals(ag.Log.Events())
+		if len(gs) == 0 {
+			m.transcript.info("no goals: /goal <objective> starts one")
+			return nil
+		}
+		var sb strings.Builder
+		for _, g := range gs {
+			fmt.Fprintf(&sb, "%s  %-8s  %d/%d  %s\n", g.ID, g.Phase, g.Rounds, g.MaxRounds, g.Objective)
+			if g.Reason != "" {
+				fmt.Fprintf(&sb, "    %s\n", g.Reason)
+			}
+		}
+		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+		return nil
+	case arg == "pause" || arg == "resume" || arg == "done":
+		if ag.Log == nil {
+			m.transcript.errorf("no session log")
+			return nil
+		}
+		g := agent.ActiveGoal(ag.Log.Events())
+		if g == nil && arg != "resume" {
+			gs := agent.FoldGoals(ag.Log.Events())
+			if len(gs) == 0 {
+				m.transcript.errorf("no goal")
+				return nil
+			}
+			g = &gs[len(gs)-1]
+		}
+		if g == nil {
+			m.transcript.errorf("no goal")
+			return nil
+		}
+		phase := agent.GoalPaused
+		if arg == "resume" {
+			phase = agent.GoalActive
+		}
+		if arg == "done" {
+			phase = agent.GoalComplete
+		}
+		ag.SetGoalPhase(g.ID, phase, "")
+		m.transcript.info("goal " + g.ID + " " + phase)
+		m.refresh(false)
+		return nil
+	default:
+		id := ag.CreateGoal(arg, 0)
+		m.transcript.info("goal " + id + " active: " + arg)
+		return nil
+	}
+}
+
+func (m *model) agentsCommand() {
+	ag := m.opts.Agent
+	if ag == nil || ag.Tools == nil {
+		m.transcript.info("no tools")
+		return
+	}
+	t, ok := ag.Tools.Get("task")
+	if !ok {
+		m.transcript.info("no task tool")
+		return
+	}
+	task, ok := t.(*agent.Task)
+	if !ok {
+		m.transcript.info("task tool is not continuable")
+		return
+	}
+	ids := task.ChildIDs()
+	if len(ids) == 0 {
+		m.transcript.info("no subagents yet; task continue=<id> reuses one")
+		return
+	}
+	m.transcript.info("subagents: " + strings.Join(ids, ", "))
 }
 
 // pinCommand adds a pin or lists them.
@@ -765,6 +947,10 @@ var commands = []command{
 	{"/pin", "[note or @file]", "keep a note in the system prompt for the whole session; alone lists pins"},
 	{"/unpin", "<n>", "remove a pin"},
 	{"/plan", "[request|approve|off]", "plan mode: the model explores and writes a plan; approve executes it"},
+	{"/trajectory", "[n|grep <words>]", "event ledger of this session (turn/step/tool/compaction); n shows one record"},
+	{"/feedback", "up|down [note]", "rate the last assistant message (not sent to the model)"},
+	{"/goal", "[objective|pause|resume|done]", "same-session goal: keep going until complete or blocked"},
+	{"/agents", "", "list continuable subagents started with the task tool"},
 	{"/readonly", "", "toggle read-only mode (no edits or commands)"},
 	{"/memory", "", "what janetcode remembers about this project"},
 	{"/skills", "", "skill files available to the model"},
@@ -1808,6 +1994,12 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	if msg.syncErr != nil {
 		m.transcript.errorf("could not save session: %v", msg.syncErr)
 	}
+	if msg.err == nil && len(m.queued) == 0 {
+		if cont := m.opts.Agent.GoalContinuation(); cont != "" {
+			m.transcript.info("goal: continuing")
+			return m.submit(cont)
+		}
+	}
 	if len(m.queued) == 0 {
 		return nil
 	}
@@ -1883,6 +2075,14 @@ func (m *model) command(text string) tea.Cmd {
 		}
 	case "/plan":
 		return m.planCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/trajectory":
+		m.trajectoryCommand(fields[1:])
+	case "/feedback":
+		m.feedbackCommand(fields[1:])
+	case "/goal":
+		return m.goalCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/agents":
+		m.agentsCommand()
 	case "/verbose":
 		m.verbose = !m.verbose
 		m.transcript.info(fmt.Sprintf("verbose tool output: %v", m.verbose))
@@ -2217,7 +2417,10 @@ func (m *model) resume(arg string) {
 		return
 	}
 	m.opts.Session = sess
+	m.opts.Agent.Log = sess
 	m.opts.Agent.Messages = history
+	m.opts.Agent.Pins = append([]string(nil), sess.Meta.Pins...)
+	m.opts.Agent.PlanMode = session.FoldPlanMode(sess.Events())
 	m.opts.Agent.Usage = llm.Usage{}
 	m.opts.Agent.UndoPath = sess.UndoPath()
 	if err := m.opts.Agent.LoadUndo(); err != nil {

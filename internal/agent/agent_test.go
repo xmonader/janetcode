@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -107,6 +108,58 @@ func TestTextOnlyTurn(t *testing.T) {
 	}
 	if a.Usage.InputTokens != 1 {
 		t.Fatalf("usage = %+v", a.Usage)
+	}
+}
+
+func TestAgentRunWritesTurnStepToolEvents(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "read_file", `{"path":"a.txt"}`),
+		text("it says alpha"),
+	}}
+	a, _ := newAgent(t, f, nil)
+	mem := &session.Memory{}
+	a.Log = mem
+	if err := a.Run(context.Background(), "read a.txt", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	var types []string
+	for _, e := range mem.Events() {
+		types = append(types, e.Type)
+	}
+	joined := strings.Join(types, ",")
+	for _, want := range []string{session.TypeTurnStart, session.TypeUserMessage, session.TypeStepStart, session.TypeAssistant, session.TypeToolCall, session.TypeToolResult, session.TypeStepEnd, session.TypeTurnEnd} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("missing %s in %v", want, types)
+		}
+	}
+	if got := session.FoldSurface(mem.Events()); len(got) < 2 {
+		t.Fatalf("surface = %d", len(got))
+	}
+	feat := a.Trajectory()
+	if feat["tool_calls"] < 1 || feat["reads"] < 1 || feat["model_calls"] < 2 {
+		t.Fatalf("features = %v", feat)
+	}
+}
+
+func TestResumeRestoresTrajectoryCounts(t *testing.T) {
+	ev := []session.Event{
+		{Type: session.TypeTurnStart, Turn: 1},
+		{Type: session.TypeStepStart, Turn: 1, Step: 1},
+		{Type: session.TypeToolCall, Name: "read_file", Arguments: `{"path":"a.txt"}`},
+		{Type: session.TypeToolResult, CallID: "t1", Name: "read_file", Arguments: `{"path":"a.txt"}`},
+		{Type: session.TypeStepStart, Turn: 1, Step: 2},
+		{Type: session.TypeToolCall, Name: "write_file", Arguments: `{"path":"b.txt"}`},
+		{Type: session.TypeToolResult, CallID: "t2", Name: "write_file", Arguments: `{"path":"b.txt"}`},
+		{Type: session.TypeTurnEnd, Turn: 1},
+	}
+	f := FoldTrajectory(ev)
+	if f["tool_calls"] != 2 || f["reads"] != 1 || f["edits"] != 1 || f["model_calls"] != 2 {
+		t.Fatalf("fold = %v", f)
+	}
+	a := &Agent{Log: &session.Memory{Ev: ev}}
+	got := a.Trajectory()
+	if got["tool_calls"] != 2 || got["reads"] != 1 {
+		t.Fatalf("resume trajectory = %v", got)
 	}
 }
 

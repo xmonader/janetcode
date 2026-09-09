@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -28,8 +29,10 @@ type Task struct {
 	// a git worktree and return their changes as a patch.
 	Root string
 
-	mu    sync.Mutex
-	usage llm.Usage
+	mu       sync.Mutex
+	usage    llm.Usage
+	children map[string]*Agent
+	nextID   int
 }
 
 func (*Task) Name() string { return "task" }
@@ -58,8 +61,21 @@ func (*Task) Schema() json.RawMessage {
 "prompt":{"type":"string","description":"The full brief: goal, where to look, and exactly what to report"},
 "tools":{"type":"array","items":{"type":"string"},"description":"Optional: only these read-only tools are given to the subagent, e.g. [\"grep\",\"read_file\"]"},
 "agent":{"type":"string","description":"Optional: name of a custom agent definition to run the job as"},
-"edit":{"type":"boolean","description":"Optional: let the subagent edit files and run commands in an isolated git worktree of the project. Its changes come back as a patch (also saved to a file) for you to review and apply with git apply; the real tree is untouched."}},
+"edit":{"type":"boolean","description":"Optional: let the subagent edit files and run commands in an isolated git worktree of the project. Its changes come back as a patch (also saved to a file) for you to review and apply with git apply; the real tree is untouched."},
+"continue":{"type":"string","description":"Optional: id of a previous subagent to send another prompt. Omit prompt to list ids."}},
 "required":["description","prompt"],"additionalProperties":false}`)
+}
+
+// ChildIDs lists continuable subagents started from this parent.
+func (t *Task) ChildIDs() []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	ids := make([]string, 0, len(t.children))
+	for id := range t.children {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 // Usage is the total spent by subagents so far.
@@ -76,6 +92,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		Tools       []string `json:"tools"`
 		Agent       string   `json:"agent"`
 		Edit        bool     `json:"edit"`
+		Continue    string   `json:"continue"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", fmt.Errorf("bad input: %w", err)
@@ -105,7 +122,16 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var wt *worktree
 	var child *Agent
 	var err error
-	if in.Edit {
+	var childID string
+	if in.Continue != "" {
+		t.mu.Lock()
+		child = t.children[in.Continue]
+		t.mu.Unlock()
+		if child == nil {
+			return "", fmt.Errorf("no subagent %q", in.Continue)
+		}
+		childID = in.Continue
+	} else if in.Edit {
 		if t.Root == "" {
 			return "", fmt.Errorf("editing subagents are not available: no project root")
 		}
@@ -117,11 +143,21 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	} else if child, err = t.child(in.Tools); err != nil {
 		return "", err
 	}
-	if profile != nil {
+	if profile != nil && in.Continue == "" {
 		child.System += "\n\n# Agent: " + profile.Name + "\n" + profile.Body
 		if profile.Model != "" {
 			child.Model = profile.Model
 		}
+	}
+	if childID == "" {
+		t.mu.Lock()
+		if t.children == nil {
+			t.children = map[string]*Agent{}
+		}
+		t.nextID++
+		childID = fmt.Sprintf("task-%d", t.nextID)
+		t.children[childID] = child
+		t.mu.Unlock()
 	}
 	start := time.Now()
 	err = child.Run(ctx, in.Prompt, nil)
@@ -153,7 +189,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			report += "\n\n```diff\n" + patch + "\n```"
 		}
 	}
-	return fmt.Sprintf("%s\n\n[subagent %q: %d tool calls, %s, %s in / %s out]", report, in.Description, countToolUses(child.Messages), time.Since(start).Round(time.Millisecond), tokens(child.Usage.InputTokens+child.Usage.CacheReadTokens), tokens(child.Usage.OutputTokens)), nil
+	return fmt.Sprintf("%s\n\n[subagent %q id=%s: %d tool calls, %s, %s in / %s out; continue with task continue=%s]", report, in.Description, childID, countToolUses(child.Messages), time.Since(start).Round(time.Millisecond), tokens(child.Usage.InputTokens+child.Usage.CacheReadTokens), tokens(child.Usage.OutputTokens), childID), nil
 }
 
 // editingChild builds a subagent with the full tool set rooted at the

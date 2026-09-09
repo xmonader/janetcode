@@ -78,7 +78,7 @@ func TestTaskRunsSubagentsInParallel(t *testing.T) {
 	if !strings.HasPrefix(final, "SUMMARY: ") || strings.Count(final, "REPORT: a.txt says") != 2 {
 		t.Fatalf("final = %q", final)
 	}
-	if !strings.Contains(final, "[subagent \"one\": 1 tool calls") {
+	if !strings.Contains(final, `[subagent "one"`) || !strings.Contains(final, "1 tool calls") {
 		t.Fatalf("missing footer: %q", final)
 	}
 	if u := task.Usage(); u.InputTokens < 200 || u.OutputTokens < 20 {
@@ -92,6 +92,33 @@ func TestTaskRunsSubagentsInParallel(t *testing.T) {
 	}
 	if prov.calls != 6 {
 		t.Fatalf("provider calls = %d, want 2 parent + 2 per child", prov.calls)
+	}
+}
+
+func TestTaskContinueSeesHistory(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha"), 0o644)
+	parent := &Agent{Provider: &scriptedByPrompt{}, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+	out1, err := task.Run(context.Background(), json.RawMessage(`{"description":"one","prompt":"explore first"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := task.ChildIDs()
+	if len(ids) != 1 {
+		t.Fatalf("ids = %v", ids)
+	}
+	out2, err := task.Run(context.Background(), json.RawMessage(`{"description":"one","prompt":"explore again","continue":"`+ids[0]+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out1, "id="+ids[0]) || !strings.Contains(out2, "id="+ids[0]) {
+		t.Fatalf("out1=%s out2=%s", out1, out2)
+	}
+	child := task.children[ids[0]]
+	if len(child.Messages) < 4 {
+		t.Fatalf("continue lost history: %d messages", len(child.Messages))
 	}
 }
 

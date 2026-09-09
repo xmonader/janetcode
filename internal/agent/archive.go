@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -243,6 +244,7 @@ func (a *Agent) stash(toolUse, name, out string) string {
 	if err != nil {
 		return tool.TruncateTo(out, budget) + "\n[archive unavailable: " + err.Error() + "]"
 	}
+	a.logEvent(session.Event{Type: session.TypeSpillSave, Name: name, CallID: toolUse, Output: id, Tokens: len(out)})
 	return archiveNote(id, len(out), budget) + tool.TruncateTo(out, budget)
 }
 
