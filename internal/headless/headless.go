@@ -206,6 +206,11 @@ func turn(ctx context.Context, opts Options, blocks []llm.Block) error {
 			fmt.Fprintf(opts.Stderr, "[tool %s] %s\n", tag, oneLine(e.Output, 300))
 		case agent.EvCompacted:
 			fmt.Fprintf(opts.Stderr, "[compacted] %s\n", e.Text)
+		case agent.EvVerdict:
+			// What the turn demonstrated. It is the point of watching a
+			// run at all, so it goes to stderr beside the tool activity
+			// rather than being dropped as the TUI-only line it was.
+			fmt.Fprintf(opts.Stderr, "\n[verdict] %s\n", e.Text)
 		case agent.EvNotice:
 			fmt.Fprintf(opts.Stderr, "[notice] %s\n", e.Text)
 		case agent.EvTurnDone:

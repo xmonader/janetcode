@@ -269,3 +269,28 @@ func TestUntilComposesWithTheVerdictCorrection(t *testing.T) {
 		t.Fatalf("%d verdicts for 2 turns", verdicts)
 	}
 }
+
+// The verdict is the point of watching a run: a headless caller that sees
+// tool activity but not what the turn demonstrated has to take the
+// answer's word for it, which is what the verdict exists to avoid.
+func TestHeadlessReportsTheVerdict(t *testing.T) {
+	root := t.TempDir()
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "t1",
+			Name: "write_file", Input: json.RawMessage(`{"path":"a.go","content":"package a\n"}`)}}}, StopReason: llm.StopToolUse},
+		{Message: llm.TextMessage(llm.RoleAssistant, "wrote it"), StopReason: llm.StopEndTurn},
+	}}
+	ag := &agent.Agent{Provider: f, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m",
+		AutoApprove: true, Log: &session.Memory{}}
+	var out, errOut bytes.Buffer
+	if err := Run(context.Background(), Options{Agent: ag, Prompt: "write a.go", Stdout: &out, Stderr: &errOut, Cwd: root}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errOut.String(), "[verdict]") || !strings.Contains(errOut.String(), "unverified") {
+		t.Fatalf("no verdict on stderr: %q", errOut.String())
+	}
+	// It goes to stderr, so piping stdout still gets only the answer.
+	if strings.Contains(out.String(), "verdict") {
+		t.Fatalf("the verdict leaked into stdout: %q", out.String())
+	}
+}
