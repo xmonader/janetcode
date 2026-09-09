@@ -519,6 +519,37 @@ that a small model fails some of the time; 35 live runs with 3 failures
 were not enough to beat the baseline, so more failing runs are needed
 before the critic earns its place.
 
+### Browsing
+
+janetcode has no browser tool of its own and does not need one: it speaks
+MCP, and Chrome ships a devtools MCP server. Add it to the config —
+
+```json
+"mcp_servers": {
+  "browser": {
+    "command": "npx",
+    "args": ["-y", "chrome-devtools-mcp@latest", "--headless", "--isolated"]
+  }
+}
+```
+
+— and the session gains `navigate_page`, `take_snapshot`, `click`, `fill`,
+`press_key`, `wait_for`, `list_console_messages`, `list_network_requests`
+and the rest, addressing elements by the uid an accessibility snapshot
+gives them rather than by pixel coordinates.
+
+Two things make this cheap rather than ruinous. The server contributes 29
+tools, which is over the deferral threshold, so their schemas stay out of
+every request until `tool_search` is asked for them — a browsing session
+pays for them, a coding session does not. And janetcode is text-only by
+construction: `Tool.Run` returns a string, and the MCP client replaces
+image content with a placeholder, so a screenshot cannot quietly put a
+megabyte of base64 into the context. The model works from the accessibility
+tree, which is what the harnesses that measured this concluded is both
+cheaper and more reliable than pixels.
+
+It is off by default because it launches a browser.
+
 ### Calling tools from a script
 
 Some work cannot be batched. Reading twenty files and keeping the two that
