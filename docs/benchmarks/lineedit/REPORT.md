@@ -33,15 +33,39 @@ Both ratios point the wrong way and neither clears the interval. On the
 earlier sonnet fanout set the direction was right and also did not clear:
 output x0.88 [0.70, 1.03].
 
-## Why the mechanism works and the total does not
+## With enough runs it is a real saving
+
+The qwen arms above are 27 runs a side, which cannot resolve a ten percent
+effect on a set that swings 21%. `inception/mercury-2.5` is cheap and fast
+enough to run 8 times per task — 144 runs — and at that size the answer
+separates:
+
+| | string edits | line edits | ratio |
+|---|---:|---:|---|
+| passed | 72/72 | 72/72 | — |
+| cost per solved | $0.0010 | $0.0009 | **x0.90 [0.84, 0.97] · real saving** |
+| context per solved | 25k | 27k | x1.09 [1.03, 1.15] · real increase |
+| output tokens | 117k | 115k | x0.99 [0.94, 1.05] · inside the noise |
+
+Cost falls about ten percent while context rises about nine, which is the
+same shape the scripted-tool-call measurement produced and has the same
+cause: fresh input tokens fall (1.3M to 1.1M) while cache reads rise (528k
+to 898k), and a cache read is far cheaper than a fresh one. The bill is
+what moved.
+
+So the earlier null was underpowered rather than wrong, and the honest
+correction is that the feature does pay — by about a tenth of the bill, on
+this model, on this set.
+
+## Why the mechanism works and the total did not on qwen
 
 Scale. On qwen's fanout runs `old_string` was 3,160 characters against
 roughly 88,000 characters of output — under 4% — so cutting 61% of it saves
 about 2%, which is far inside a 21% run-to-run spread. On sonnet the same
 share was around 22% of output, which is where it would show.
 
-So the honest position: the change is proven mechanically and unproven
-end to end. It is kept because it cannot cost anything — the model chooses
+On qwen this left the total inside the noise; on mercury, with five times
+the runs, the saving separates. It is kept because it cannot cost anything — the model chooses
 the cheaper locator when it fits and the string form is untouched — and
 because the profile it targets is real on sonnet. The measurement that
 would settle it is the sonnet session benchmark, which needs an account
