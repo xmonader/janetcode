@@ -687,3 +687,42 @@ func TestReadStreamProviderQuirks(t *testing.T) {
 		})
 	}
 }
+
+// TestReadStreamHostileFrames covers two failure shapes found by reading
+// other harnesses' scar tissue: a provider that reuses index 0 for a
+// second, different tool call, and an empty SSE data frame used as a
+// keep-alive. Both are reported to kill turns in the wild.
+func TestReadStreamHostileFrames(t *testing.T) {
+	t.Run("index 0 reused for a second call", func(t *testing.T) {
+		s := "data: " + `{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_a","function":{"name":"read_file","arguments":"{\"path\":\"a\"}"}}]}}]}` + "\n\n" +
+			"data: " + `{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_b","function":{"name":"grep","arguments":"{\"pattern\":\"x\"}"}}]}}]}` + "\n\n" +
+			"data: " + `{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}` + "\n\n" +
+			"data: [DONE]\n\n"
+		resp, err := readStream(strings.NewReader(s), func(llm.Event) {})
+		if err != nil {
+			t.Fatalf("readStream: %v", err)
+		}
+		uses := resp.Message.ToolUses()
+		if len(uses) != 2 {
+			t.Fatalf("got %d calls, want 2 (the second reused index 0): %+v", len(uses), uses)
+		}
+		if uses[0].Name != "read_file" || uses[1].Name != "grep" {
+			t.Fatalf("got %q and %q", uses[0].Name, uses[1].Name)
+		}
+	})
+
+	t.Run("empty data frame is a keep-alive, not a parse error", func(t *testing.T) {
+		s := "data:\n\n" +
+			"data: " + `{"choices":[{"delta":{"content":"hi"}}]}` + "\n\n" +
+			"data:  \n\n" +
+			"data: " + `{"choices":[{"delta":{},"finish_reason":"stop"}]}` + "\n\n" +
+			"data: [DONE]\n\n"
+		resp, err := readStream(strings.NewReader(s), func(llm.Event) {})
+		if err != nil {
+			t.Fatalf("an empty keep-alive frame must not fail the stream: %v", err)
+		}
+		if resp.Message.Text() != "hi" {
+			t.Fatalf("text %q", resp.Message.Text())
+		}
+	})
+}

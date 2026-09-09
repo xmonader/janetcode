@@ -15,6 +15,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -762,44 +763,63 @@ func retryable(err error) bool {
 // toolAcc accumulates a streamed tool call.
 // slotFor decides which tool call a streamed delta belongs to.
 //
-// A well-behaved stream numbers its tool calls and this is just the index.
-// Some providers omit it, and then the only signals are that a delta which
-// carries an id or a function name begins a call, while one carrying only
-// argument text continues the call in progress. Falling back to the
-// delta's position within its chunk — as this once did — puts every call
-// in slot 0 when each chunk holds one delta, which silently concatenates
-// two calls into a tool named "read_fileedit_file" and kills the turn.
-func slotFor(index *int, pos int, id, name string, tools map[int]*toolAcc, order []int, next *int) int {
+// Providers disagree about how they number tool calls, and every way of
+// getting this wrong concatenates two calls into one — a tool named
+// "read_fileedit_file" whose arguments are two JSON objects glued
+// together, which ends the turn. Three behaviours have to be handled:
+//
+//   - the index is present and distinct, the well-behaved case;
+//   - the index is absent, and then a delta carrying an id or a function
+//     name begins a call while one carrying only argument text continues
+//     the call in progress (several deltas in one chunk are distinct);
+//   - the index is present but reused for a second, different call, which
+//     a new id gives away.
+//
+// Slots are therefore not indices. Each call gets its own monotonic slot,
+// and the wire index is kept only as the sort key, so sparse or
+// out-of-order indices still order correctly while a reused one does not
+// collide.
+func slotFor(index *int, pos int, id, name string, tools map[int]*toolAcc, order []int, byIndex map[int]int, next *int) int {
+	newSlot := func(sortKey int) int {
+		slot := *next
+		*next++
+		tools[slot] = &toolAcc{sortKey: sortKey}
+		return slot
+	}
 	if index != nil {
-		if *index >= *next {
-			*next = *index + 1
+		slot, seen := byIndex[*index]
+		if seen {
+			// A different id on a claimed index means the provider has
+			// moved on to another call and reused the number.
+			if acc := tools[slot]; id == "" || acc.id == "" || id == acc.id {
+				return slot
+			}
 		}
-		return *index
+		slot = newSlot(*index)
+		byIndex[*index] = slot
+		return slot
 	}
 	if len(order) == 0 {
-		*next = 1
-		return 0
+		return newSlot(0)
 	}
 	cur := order[len(order)-1]
 	acc := tools[cur]
-	// Several deltas in one chunk are distinct calls; otherwise a new id,
-	// or a name arriving after the current call already has one, means the
-	// stream has moved on to the next call.
 	fresh := pos > 0 ||
 		(id != "" && acc.id != "" && id != acc.id) ||
 		(name != "" && acc.name != "" && (acc.args.Len() > 0 || id != ""))
 	if !fresh {
 		return cur
 	}
-	slot := *next
-	*next++
-	return slot
+	return newSlot(*next)
 }
 
 type toolAcc struct {
 	id, name string
 	args     strings.Builder
 	started  bool
+	// sortKey is the wire index when the provider sent one, so calls are
+	// ordered as the model meant them rather than as they arrived.
+	sortKey int
 }
 
 func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
@@ -810,6 +830,7 @@ func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
 		thinking strings.Builder
 		tools    = map[int]*toolAcc{}
 		order    []int
+		byIndex  = map[int]int{}
 		nextSlot int
 		finish   string
 		usage    llm.Usage
@@ -827,6 +848,12 @@ func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
 		if data == "[DONE]" {
 			gotDone = true
 			break
+		}
+		if data == "" {
+			// Gateways send an empty data frame as a keep-alive. Handing
+			// it to the JSON decoder ends the turn with "unexpected end
+			// of JSON input" halfway through a working stream.
+			continue
 		}
 		var ch wireChunk
 		if err := json.Unmarshal([]byte(data), &ch); err != nil {
@@ -869,11 +896,9 @@ func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
 				emit(llm.Event{Type: llm.EventTextDelta, Text: d.Content})
 			}
 			for i, tc := range d.ToolCalls {
-				idx := slotFor(tc.Index, i, tc.ID, tc.Function.Name, tools, order, &nextSlot)
-				acc, ok := tools[idx]
-				if !ok {
-					acc = &toolAcc{}
-					tools[idx] = acc
+				idx := slotFor(tc.Index, i, tc.ID, tc.Function.Name, tools, order, byIndex, &nextSlot)
+				acc := tools[idx]
+				if !slices.Contains(order, idx) {
 					order = append(order, idx)
 				}
 				if tc.ID != "" {
@@ -913,7 +938,9 @@ func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
 	if text.Len() > 0 {
 		msg.Blocks = append(msg.Blocks, llm.Block{Type: llm.BlockText, Text: text.String()})
 	}
-	sort.Ints(order)
+	// Stable, so calls that shared a wire index keep the order they were
+	// streamed in.
+	sort.SliceStable(order, func(i, j int) bool { return tools[order[i]].sortKey < tools[order[j]].sortKey })
 	for _, idx := range order {
 		acc := tools[idx]
 		args := strings.TrimSpace(acc.args.String())
