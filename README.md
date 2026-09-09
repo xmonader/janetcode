@@ -123,7 +123,11 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `fetch_url` | Fetch a web page or API response as text | yes |
 | `repo_map` | Rank files for a query, or a symbol's blast radius (definers and users) | no |
 | `web_search` | Search the web (DuckDuckGo, or Brave Search with a key) for titles, URLs and snippets | yes |
-| `task` | Delegate a read-only job to a subagent with its own context; several run in parallel | no |
+| `task` | Delegate a job to a subagent with its own context, optionally on another model; several run in parallel | no |
+| `symbols` | Ask the language server where a name is defined, who uses it, its type, what a file declares | no |
+| `expand_output` | Read back tool output and conversation that compaction archived, by search or by line | no |
+| `todo` | Keep the plan for a multi-step task and mark steps off | no |
+| `inspect` | Look at the session's own state: context, archive, verdicts, config, servers | no |
 
 All paths are confined to the working directory, symlinks included.
 Read-only tools run concurrently; mutating tools run one at a time, in order.
@@ -321,6 +325,50 @@ patch inline, and the patch saved to a file so it can be applied with
 your deny rules still apply inside the worktree. This needs a git
 repository.
 
+### A whole session in a worktree
+
+`--worktree <branch>` runs the session in a `git worktree` checked out
+under `.git`, where nothing scanning the project will find it. The tree
+you are sitting in is never touched, two sessions can work on one
+repository at once, and what comes out is an ordinary branch to review
+and merge rather than a patch to apply. Naming the same branch again
+continues in the same checkout, and the session ends by saying what the
+branch holds and how to merge it.
+
+```sh
+janetcode --worktree try/new-parser
+# worktree: created /repo/.git/janetcode-worktrees/try-new-parser on branch try/new-parser
+# … work …
+# worktree: branch try/new-parser has 3 commits
+# merge it with: git merge try/new-parser
+```
+
+### Sending a job to another model
+
+`task` takes a `model`, so a job can go to a cheaper or faster model for
+wide reading, or a stronger one for the part that has to be right, while
+the session stays where it is. A name resolves to whichever configured
+provider serves it: an explicit `routes` entry in the config first, then
+a provider that lists the model, then the family the name belongs to
+(`glm-*` is Zhipu, `claude-*` is Anthropic, `deepseek-*`, `kimi-*`,
+`grok-*`, `qwen*`) when that provider is configured, and the session's
+provider otherwise. Ask in words — "explore this codebase with glm-5" —
+and the model passes the name through.
+
+A name nothing serves is refused rather than sent to an endpoint that has
+never heard of it, and `/model` follows a name to another provider
+instead of setting it on the wrong one. `inspect providers` lists what is
+reachable.
+
+```json
+{
+  "routes": { "glm-5": "zhipu", "kimi": "moonshot" },
+  "providers": {
+    "zhipu": { "type": "openai", "base_url": "https://open.bigmodel.cn/api/paas/v4", "models": ["glm-5"] }
+  }
+}
+```
+
 ### Custom agents
 
 `.janetcode/agents/<name>.md` (or `agents/` under the config directory,
@@ -377,6 +425,20 @@ files the request pulled up. The
 radius: what defines it, every file that uses it, and with
 `transitive` the users of those. The index rebuilds when the tree
 changes (git status or mtimes) and caps at 5000 files.
+
+#### Real grammars, optionally
+
+The map reads Go with the standard library's parser and every other
+language with regular expressions, which cannot tell a declaration from
+the same words in a comment or a string. `make build-treesitter` compiles
+in tree-sitter grammars for Python, JavaScript, TypeScript, TSX, Rust and
+C: declarations come from the syntax tree, and so do the identifiers
+counted as references, so a name inside a docstring no longer links two
+unrelated files.
+
+It is opt-in because the grammars are C and need cgo. The default build
+stays pure Go and cross-compiles to Windows and macOS; Go keeps its own
+parser either way, which is more accurate than a grammar for Go.
 
 ### Change provenance: /changes, /blame, /undo n
 
@@ -440,15 +502,61 @@ that a small model fails some of the time; 35 live runs with 3 failures
 were not enough to beat the baseline, so more failing runs are needed
 before the critic earns its place.
 
-### Context inspector and pins
+### Inspecting the session
 
-`/context` shows where the window goes: system prompt, memory and skill
-indexes, tool definitions, user and assistant text, tool calls and
-results by tool, and the five largest tool results with the message they
-sit in. `/pin <note>` or `/pin @path` keeps a note (or a file's content,
-up to 16 KB) in the system prompt for the rest of the session; pins survive
-compaction and session resume, `/pin` lists them and `/unpin <n>` drops
-one.
+A session should not have to be guessed at. `/inspect <subject>` in the
+terminal, `--inspect <subject>` on the command line, and an `inspect` tool
+the model can call on itself all report the same thing:
+
+| subject | what it answers |
+|---|---|
+| `context` | where the window goes, by part, with the largest results still in it |
+| `messages` | the conversation **as the model will receive it** — pruned results, injected notes and compaction summaries included |
+| `prompt` | the system prompt verbatim, with project context and pins |
+| `events` | the append-only log; `events #12` opens one whole |
+| `archive` | the full tool outputs kept for retrieval; `archive ctx-4` reads one |
+| `retrieval` | every archive lookup and whether it found anything |
+| `compaction` | when the history was summarised and what the summaries cost |
+| `verdicts` | what each turn demonstrated, against what it claimed |
+| `todos`, `goals` | the plan and the session goals |
+| `memory` | the working record carried across compactions |
+| `tools`, `stats`, `trajectory` | what is loaded, what has run, what the critic scores |
+| `config`, `providers`, `permissions` | how it resolved and what may run unasked |
+| `lsp`, `mcp`, `jobs`, `subagents`, `skills`, `notes` | the subsystems |
+| `repomap [query]` | the map and how files rank for a request |
+| `undo` | file changes recorded this session |
+| `all` | every subject at once |
+
+`/context` remains a shortcut for the first. `/pin <note>` or `/pin @path`
+keeps a note (or a file's content, up to 16 KB) in the system prompt for the
+rest of the session; pins survive compaction and session resume, `/pin`
+lists them and `/unpin <n>` drops one.
+
+### What a turn actually demonstrated
+
+A model that edits three files and reports "done, tests pass" is making a
+claim. The harness watched the turn, so it decides for itself and says so
+at the end of every turn that changed code:
+
+| verdict | what it means |
+|---|---|
+| **verified** | tests ran and passed afterwards (and it says so when a failing check flipped to green) |
+| **self-checked** | tests passed, but the tests themselves were edited in the same turn |
+| **not demonstrated** | a check passed without exercising anything, or the code ran with nothing asserting the result |
+| **unverified** | code was edited and nothing was run against it |
+| **check failed** | something ran and came back red |
+| **vacuous** | a check exited 0 having found no tests to run |
+
+When the answer claims something the turn does not show — and only then —
+the model is told once, with what was observed, and asked to run the check
+or say plainly that it did not. Nothing blocks: a gate that refuses to let
+a turn finish wedges more work than it saves. `inspect verdicts` shows the
+history with each claim beside its evidence, and `--eval-off verdict`
+turns it off.
+
+Calibrated by replaying 97 real turns: see
+`docs/benchmarks/compaction/FACTS.md` and the commit history for what the
+first version got wrong and how it was fixed.
 
 ### Plan mode and read-only mode
 
@@ -530,6 +638,25 @@ status. Configure or disable under `"lsp"` in the config file:
 
 An empty command removes a default; `"disabled": true` turns diagnostics
 off.
+
+#### Asking the server about the code
+
+Diagnostics say what is wrong; `symbols` asks what is *there*. It answers
+where a name is declared, every use of it, its type and documentation,
+what a file declares, and a name search across the project. The server has
+the resolved program, so it tells a declaration from a mention and one
+package's `Config` from another's, and it costs one call instead of a read
+of every textual hit.
+
+```
+symbols {"action":"references","path":"cfg/cfg.go","symbol":"Config"}
+symbols {"action":"definition","path":"main.go","symbol":"Load"}
+symbols {"action":"outline","path":"cfg/cfg.go"}
+```
+
+Name the symbol rather than pointing at a line; occurrences are ranked so
+a declaration wins over the doc comment above it, which is where the first
+textual match usually lands.
 
 ### Hooks
 
@@ -613,6 +740,20 @@ Drop a prompt template at `.janetcode/commands/<name>.md` in the project (or
 `~/.config/janetcode/commands/<name>.md` for every project) and `/<name> args`
 submits it with `$ARGUMENTS` replaced. The first line is the help text shown
 in tab completion.
+
+## Editor integration (ACP)
+
+`janetcode --acp` speaks the [Agent Client Protocol](https://agentclientprotocol.com)
+on stdin and stdout, so any ACP editor can launch it as a subprocess and
+drive it: `initialize`, `session/new`, `session/load` (which replays the
+stored conversation), `session/prompt` streamed back as `session/update`,
+and `session/cancel`. Tool calls stream as `tool_call` and
+`tool_call_update` with the protocol's kinds, a title naming what the call
+is about, and the file it touches; approvals go to the editor as
+`session/request_permission`, so you answer where you are working.
+
+Nothing but protocol frames reaches stdout — logs go to stderr. Point your
+editor's ACP agent configuration at the binary with `--acp`.
 
 ## Configuration
 
