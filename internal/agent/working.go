@@ -351,8 +351,16 @@ func (w *WorkingMemory) Render() string {
 	if w.Notes != "" {
 		b.WriteString("\nNotes:\n" + w.Notes + "\n")
 	}
+	b.WriteString("\n" + faultDiscipline + "\n")
 	return strings.TrimRight(b.String(), "\n")
 }
+
+// faultDiscipline closes every compaction note. A summary reads as
+// complete and confident, and a model that trusts it reconstructs the
+// exact values it no longer has — paths, error strings, exit codes —
+// plausibly and wrongly. The note must say what it is (a summary) and
+// where the originals are (the archive, one expand_output call away).
+const faultDiscipline = "This record is a summary; the exact text of earlier tool outputs is in the archive. When you need an exact value from before the compaction — a path, an error message, a command's output, a line of code — fetch it with expand_output (or re-read the file) rather than reconstructing it from memory, and say when you could not find it."
 
 func plural(n int, word string) string {
 	if n == 1 {

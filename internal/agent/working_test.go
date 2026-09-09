@@ -162,3 +162,15 @@ func TestAsksSurviveCompactionVerbatim(t *testing.T) {
 		t.Fatalf("asks after 20 more = %v", w.Asks)
 	}
 }
+
+// The note must say it is a summary and point at the archive: a model
+// that takes it as the whole truth reconstructs exact values it no longer
+// has, plausibly and wrongly.
+func TestRenderClosesWithFaultDiscipline(t *testing.T) {
+	var w WorkingMemory
+	w.Goal = "fix the build"
+	out := w.Render()
+	if !strings.HasSuffix(out, faultDiscipline) || !strings.Contains(out, "expand_output") {
+		t.Fatalf("render:\n%s", out)
+	}
+}

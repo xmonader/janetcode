@@ -23,8 +23,11 @@ import (
 const InlineOutput = 24 * 1024
 
 // ArchiveCap bounds the archive on disk; the oldest entries are dropped
-// past it.
-const ArchiveCap = 8 << 20
+// past it. It is generous on purpose: the archive is what compaction
+// leaves the model to read back, and an entry evicted to save disk is a
+// fact the model can no longer retrieve, so a few large build logs must
+// not push out the outputs a session is still working from.
+const ArchiveCap = 256 << 20
 
 // ErrArchiveMissing is returned for an id that was never archived or has
 // been evicted.

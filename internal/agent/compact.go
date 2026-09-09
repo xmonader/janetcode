@@ -421,7 +421,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	if a.Log != nil {
 		a.logEvent(session.Event{Type: session.TypeCompactStart, Turn: a.turnN})
 	}
-	note := "[Context was compacted. Handoff note from the earlier part of this conversation:]\n\n" + summary
+	note := "[Context was compacted. Handoff note from the earlier part of this conversation:]\n\n" + summary + "\n\n" + faultDiscipline
 	if typed {
 		w := &a.working
 		w.Latest = a.integ.userText
