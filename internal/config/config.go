@@ -32,6 +32,11 @@ type Config struct {
 	MaxTokens int    `json:"max_tokens"`
 	Effort    string `json:"effort,omitempty"`
 	Thinking  *bool  `json:"thinking,omitempty"`
+	// Intent asks the model for a one-line reason on every tool call. It
+	// costs about ten output tokens a call and buys a label the user sees,
+	// a record that survives compaction, and a readable narrative of the
+	// session. Default true.
+	Intent *bool `json:"intent,omitempty"`
 	// LeanTools defers the search tools (list_dir, glob, grep, repo_map)
 	// behind tool_search, leaving read/write/edit/bash in the prefix.
 	// Measured at 23% less context on a fan-out set with an unchanged pass
@@ -430,6 +435,14 @@ func presetNames() string {
 		names[i] = p.Name
 	}
 	return strings.Join(names, ", ")
+}
+
+// IntentEnabled reports whether tool calls carry a stated reason.
+func (c *Config) IntentEnabled() bool {
+	if c.Intent != nil {
+		return *c.Intent
+	}
+	return true
 }
 
 // LeanTools reports whether the search tools are deferred.

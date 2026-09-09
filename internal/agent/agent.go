@@ -50,6 +50,9 @@ type ToolCall struct {
 	Preview string
 	// Warning flags a risky input (destructive shell commands).
 	Warning string
+	// Intent is the model's own one-line reason for making this call,
+	// when the registry asks for one. Shown to the user as it runs.
+	Intent string
 }
 
 // Approver decides whether a mutating tool call may run. Implementations
@@ -230,9 +233,12 @@ type Agent struct {
 	// counted as waste. It is separate from integ.shrunkOK, which the
 	// integrity check consumes.
 	historyRewritten bool
-	estimate         atomic.Int64 // last EstimateTokens, published for the status bar
-	stuck            bool
-	integ            integrity
+	// tools is this turn's tool list, held so that a server registering
+	// mid-turn cannot rewrite the cached prefix. Cleared at each turn.
+	tools    []llm.ToolDef
+	estimate atomic.Int64 // last EstimateTokens, published for the status bar
+	stuck    bool
+	integ    integrity
 
 	// emitNow is the current turn's event sink. A tool that dispatches
 	// further tool calls of its own — a script does — needs it to show
@@ -264,6 +270,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}
 	a.stats.turn()
 	a.startTurn()
+	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {
 		a.Tools = tool.NewRegistry()
@@ -530,6 +537,29 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 	return results, nil
 }
 
+// turnTools is the tool list for this turn, built once and reused for
+// every model call in it.
+//
+// MCP servers connect in the background and register their tools whenever
+// they are ready, which can be in the middle of a turn. The tools array is
+// part of the cached request prefix, so a tool appearing between two calls
+// of the same turn re-bills the whole prompt — and it is not only the
+// tools themselves: tool_search names the deferred tools in its own
+// description, so even a deferred registration rewrites the array. A tool
+// that arrives mid-turn becomes available on the next one, which costs
+// nothing anybody notices.
+func (a *Agent) turnTools() []llm.ToolDef {
+	if a.tools != nil {
+		return a.tools
+	}
+	if a.readOnly() {
+		a.tools = a.Tools.DefsIf(func(t tool.Tool) bool { return !t.Mutating() })
+	} else {
+		a.tools = a.Tools.Defs()
+	}
+	return a.tools
+}
+
 // serialize makes emit safe to call from tool goroutines.
 func serialize(emit func(Event)) func(Event) {
 	if emit == nil {
@@ -547,10 +577,7 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 	start := time.Now()
 	a.debugf("call start: %d messages, ~%d tokens", len(a.Messages), a.EstimateTokens())
 	system := a.systemPrompt()
-	defs := a.Tools.Defs()
-	if a.readOnly() {
-		defs = a.Tools.DefsIf(func(t tool.Tool) bool { return !t.Mutating() })
-	}
+	defs := a.turnTools()
 	resp, err := a.Provider.Stream(ctx, llm.Request{
 		Model:     a.Model,
 		System:    system,
@@ -795,7 +822,12 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 }
 
 func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) (string, bool, error) {
-	call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
+	// The intent is the model's own one-line reason for the call. It is
+	// taken off before anything else looks at the input, because the tools
+	// decode with unknown fields disallowed.
+	intent, stripped := tool.TakeIntent(u.Input)
+	u.Input = stripped
+	call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input, Intent: intent}
 	t, ok := a.Tools.Get(u.Name)
 	if !ok {
 		msg := fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames())
@@ -816,7 +848,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		return deny, true, nil
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
-	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: u.ID, Name: u.Name, Arguments: string(u.Input)})
+	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Intent: intent})
 	if t.Mutating() {
 		a.cp.snapshot(a.Snapshots, t, u.Input)
 	}

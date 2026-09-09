@@ -58,20 +58,22 @@ type Log interface {
 // Message) form the model-visible history after FoldSurface; the rest are
 // log-only (compaction, notices, plan/mode, goals).
 type Event struct {
-	Seq        int             `json:"seq"`
-	Time       time.Time       `json:"at"`
-	Type       string          `json:"t"`
-	Turn       int             `json:"turn,omitempty"`
-	Step       int             `json:"step,omitempty"`
-	Surface    bool            `json:"surface,omitempty"`
-	SurfaceOp  string          `json:"surface_op,omitempty"`
-	Replaces   []int           `json:"replaces,omitempty"`
-	Shadowed   []int           `json:"shadowed,omitempty"`
-	Message    *llm.Message    `json:"message,omitempty"`
-	Usage      *llm.Usage      `json:"usage,omitempty"`
-	CallID     string          `json:"call_id,omitempty"`
-	Name       string          `json:"name,omitempty"`
-	Arguments  string          `json:"arguments,omitempty"`
+	Seq       int          `json:"seq"`
+	Time      time.Time    `json:"at"`
+	Type      string       `json:"t"`
+	Turn      int          `json:"turn,omitempty"`
+	Step      int          `json:"step,omitempty"`
+	Surface   bool         `json:"surface,omitempty"`
+	SurfaceOp string       `json:"surface_op,omitempty"`
+	Replaces  []int        `json:"replaces,omitempty"`
+	Shadowed  []int        `json:"shadowed,omitempty"`
+	Message   *llm.Message `json:"message,omitempty"`
+	Usage     *llm.Usage   `json:"usage,omitempty"`
+	CallID    string       `json:"call_id,omitempty"`
+	Name      string       `json:"name,omitempty"`
+	Arguments string       `json:"arguments,omitempty"`
+	// Intent is the model's own one-line reason for a tool call.
+	Intent     string          `json:"intent,omitempty"`
 	Output     string          `json:"output,omitempty"`
 	IsError    bool            `json:"is_error,omitempty"`
 	DurationMs int64           `json:"duration_ms,omitempty"`

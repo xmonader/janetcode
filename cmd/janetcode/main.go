@@ -680,6 +680,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		if !off["script"] {
 			ag.Tools.Add(&agent.Script{Parent: ag, Root: root})
 		}
+		ag.Tools.Intent = !off["intent"]
 		evalToolsOnce.Do(func() { evalToolNames = ag.Tools.Names() })
 		return ag, nil
 	}}
@@ -1032,6 +1033,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
 	}
 	ag.Prepare = chainPrep(skill.TurnPrep(&skill.Injector{Skills: skills}, mem), repomap.TurnPrep(repo, 0))
+	ag.Tools.Intent = d.cfg.IntentEnabled()
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools})
 	ag.UndoPath = sess.UndoPath()
 	if snaps, serr := snapshot.Open(d.cwd); serr == nil {

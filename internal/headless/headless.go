@@ -197,7 +197,13 @@ func turn(ctx context.Context, opts Options, blocks []llm.Block) error {
 		case agent.EvText:
 			fmt.Fprint(opts.Stdout, e.Text)
 		case agent.EvToolRun:
-			fmt.Fprintf(opts.Stderr, "\n[tool] %s %s\n", e.Call.Name, oneLine(string(e.Call.Input), 200))
+			// The model's own reason for the call, when it gave one, reads
+			// better than its arguments.
+			if e.Call.Intent != "" {
+				fmt.Fprintf(opts.Stderr, "\n[tool] %s — %s\n       %s\n", e.Call.Name, e.Call.Intent, oneLine(string(e.Call.Input), 160))
+			} else {
+				fmt.Fprintf(opts.Stderr, "\n[tool] %s %s\n", e.Call.Name, oneLine(string(e.Call.Input), 200))
+			}
 		case agent.EvToolResult:
 			tag := "ok"
 			if e.IsError {

@@ -35,6 +35,10 @@ type Registry struct {
 	mu       sync.RWMutex
 	tools    map[string]Tool
 	deferred map[string]bool
+	// Intent adds a short "why this call" field to every tool's schema.
+	// It is set on the registry rather than per tool so that MCP tools and
+	// anything registered at runtime carry it too.
+	Intent bool
 }
 
 // NewRegistry builds a registry from the given tools. Duplicate names panic
@@ -137,7 +141,11 @@ func (r *Registry) DefsIf(keep func(Tool) bool) []llm.ToolDef {
 	sort.Slice(kept, func(i, j int) bool { return kept[i].Name() < kept[j].Name() })
 	defs := make([]llm.ToolDef, 0, len(kept))
 	for _, t := range kept {
-		defs = append(defs, llm.ToolDef{Name: t.Name(), Description: t.Description(), InputSchema: t.Schema()})
+		schema := t.Schema()
+		if r.Intent {
+			schema = WithIntent(schema)
+		}
+		defs = append(defs, llm.ToolDef{Name: t.Name(), Description: t.Description(), InputSchema: schema})
 	}
 	return defs
 }

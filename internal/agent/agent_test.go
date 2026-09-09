@@ -802,3 +802,54 @@ func TestToolCallsFromTruncatedMessageAreNotRun(t *testing.T) {
 		t.Fatal("the turn should have continued")
 	}
 }
+
+// TestToolListIsStableWithinATurn: the tools array is part of the cached
+// request prefix, and MCP servers register whenever they connect. A tool
+// arriving between two calls of the same turn would re-bill the whole
+// prompt, so it must wait for the next turn.
+func TestToolListIsStableWithinATurn(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("c1", "first", `{}`),
+		text("done"),
+	}}
+	ag := &Agent{
+		Provider:    f,
+		Tools:       tool.NewRegistry(&namedTool{name: "first"}),
+		Log:         &session.Memory{},
+		AutoApprove: true,
+	}
+	// A server connects while the turn is running, between the two calls.
+	ag.Tools.Add(&namedTool{name: "late"})
+	if err := ag.Run(context.Background(), "go", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.requests) != 2 {
+		t.Fatalf("expected two model calls, got %d", len(f.requests))
+	}
+	names := func(r llm.Request) []string {
+		var out []string
+		for _, d := range r.Tools {
+			out = append(out, d.Name)
+		}
+		return out
+	}
+	if a, b := strings.Join(names(f.requests[0]), ","), strings.Join(names(f.requests[1]), ","); a != b {
+		t.Fatalf("the tool list changed inside one turn: %q then %q", a, b)
+	}
+	// The next turn does pick it up.
+	f.responses = append(f.responses, text("ok"))
+	if err := ag.Run(context.Background(), "again", func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(names(f.requests[2]), ","); !strings.Contains(got, "late") {
+		t.Fatalf("a tool registered earlier should be available next turn, got %q", got)
+	}
+}
+
+type namedTool struct{ name string }
+
+func (n *namedTool) Name() string                                       { return n.name }
+func (n *namedTool) Description() string                                { return n.name }
+func (*namedTool) Mutating() bool                                       { return false }
+func (*namedTool) Schema() json.RawMessage                              { return json.RawMessage(`{"type":"object"}`) }
+func (*namedTool) Run(context.Context, json.RawMessage) (string, error) { return "ok", nil }
