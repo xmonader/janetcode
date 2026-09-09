@@ -29,6 +29,9 @@ type Config struct {
 	// Thinking enables adaptive thinking. Set false for models that reject
 	// the parameter (Haiku 4.5 and older).
 	Thinking bool
+	// HideThinking asks the provider to omit the reasoning text while
+	// still returning its signature, for a UI that does not show it.
+	HideThinking bool
 	// Effort is one of low, medium, high, xhigh, max. Empty means the API
 	// default.
 	Effort string
@@ -156,7 +159,15 @@ func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
 		}}
 	}
 	if cfg.Thinking {
-		adaptive := sdk.ThinkingConfigAdaptiveParam{Display: sdk.ThinkingConfigAdaptiveDisplaySummarized}
+		// Omitted still returns the signature that keeps later turns
+		// valid; it only drops the text, which is worth doing when
+		// nothing renders it — the first visible token arrives sooner and
+		// the reasoning is not billed as output.
+		display := sdk.ThinkingConfigAdaptiveDisplaySummarized
+		if cfg.HideThinking {
+			display = sdk.ThinkingConfigAdaptiveDisplayOmitted
+		}
+		adaptive := sdk.ThinkingConfigAdaptiveParam{Display: display}
 		params.Thinking = sdk.ThinkingConfigParamUnion{OfAdaptive: &adaptive}
 	}
 	if cfg.Effort != "" {

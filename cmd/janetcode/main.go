@@ -560,10 +560,11 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 	switch p.Type {
 	case "anthropic":
 		return anthropic.New(anthropic.Config{
-			APIKeys:  p.Keys(),
-			BaseURL:  p.BaseURL,
-			Thinking: cfg.ThinkingEnabled(),
-			Effort:   cfg.Effort,
+			APIKeys:      p.Keys(),
+			BaseURL:      p.BaseURL,
+			Thinking:     cfg.ThinkingEnabled(),
+			HideThinking: !cfg.ThinkingShown(),
+			Effort:       cfg.Effort,
 		})
 	case "openai":
 		return openai.New(openai.Config{

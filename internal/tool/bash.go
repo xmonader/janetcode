@@ -200,7 +200,17 @@ var nonInteractiveEnv = []string{
 	"DEBIAN_FRONTEND=noninteractive",
 	"CI=true",
 	"NO_COLOR=1",
+	"NONINTERACTIVE=1",
+	// less pages even a short file unless told not to, and -X keeps it
+	// from clearing the screen on exit.
+	"LESS=-FX",
 }
+
+// nonUTF8Locales are the C/POSIX locales. LC_ALL overrides every LC_*
+// category, so a user or CI image that exports LC_ALL=C makes tools emit
+// non-UTF-8 bytes no matter what LC_CTYPE says — and the agent then reads
+// mangled output. Only that case is touched; a real locale is left alone.
+var nonUTF8Locales = map[string]bool{"C": true, "POSIX": true}
 
 func scrubEnv(env []string) []string {
 	out := make([]string, 0, len(env)+len(nonInteractiveEnv))
@@ -209,12 +219,24 @@ func scrubEnv(env []string) []string {
 		name, _, _ := strings.Cut(kv, "=")
 		forced[name] = true
 	}
+	dropLCAll := false
+	for _, kv := range env {
+		if name, val, _ := strings.Cut(kv, "="); name == "LC_ALL" && nonUTF8Locales[val] {
+			dropLCAll = true
+		}
+	}
 	for _, kv := range env {
 		name, _, _ := strings.Cut(kv, "=")
 		if secretEnv[name] || forced[name] {
 			continue
 		}
+		if dropLCAll && (name == "LC_ALL" || name == "LC_CTYPE") {
+			continue
+		}
 		out = append(out, kv)
+	}
+	if dropLCAll {
+		out = append(out, "LC_CTYPE=C.UTF-8")
 	}
 	return append(out, nonInteractiveEnv...)
 }

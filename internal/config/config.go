@@ -27,13 +27,18 @@ type ProviderConfig struct {
 
 // Config is the resolved configuration.
 type Config struct {
-	Provider      string `json:"provider"`
-	Model         string `json:"model"`
-	MaxTokens     int    `json:"max_tokens"`
-	Effort        string `json:"effort,omitempty"`
-	Thinking      *bool  `json:"thinking,omitempty"`
-	AutoApprove   bool   `json:"auto_approve"`
-	MaxIterations int    `json:"max_iterations"`
+	Provider  string `json:"provider"`
+	Model     string `json:"model"`
+	MaxTokens int    `json:"max_tokens"`
+	Effort    string `json:"effort,omitempty"`
+	Thinking  *bool  `json:"thinking,omitempty"`
+	// ShowThinking renders the model's reasoning. Turning it off asks the
+	// provider to omit the text while still returning the signature that
+	// keeps multi-turn reasoning valid, which lowers time to first visible
+	// token. Default true, because the terminal does show it.
+	ShowThinking  *bool `json:"show_thinking,omitempty"`
+	AutoApprove   bool  `json:"auto_approve"`
+	MaxIterations int   `json:"max_iterations"`
 	// CompactAt is the estimated token count that triggers compaction;
 	// 0 means the default, negative disables.
 	CompactAt int `json:"compact_at,omitempty"`
@@ -418,6 +423,16 @@ func presetNames() string {
 		names[i] = p.Name
 	}
 	return strings.Join(names, ", ")
+}
+
+// ThinkingShown reports whether the reasoning text should be requested at
+// all. When false the provider is asked to omit it: nothing is rendered,
+// nothing is billed for it, and the first visible token arrives sooner.
+func (c *Config) ThinkingShown() bool {
+	if c.ShowThinking != nil {
+		return *c.ShowThinking
+	}
+	return true
 }
 
 // ThinkingEnabled reports whether adaptive thinking should be requested.

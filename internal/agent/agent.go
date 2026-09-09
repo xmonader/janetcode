@@ -341,6 +341,29 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &msg, Usage: &u})
 		emit(Event{Kind: EvTextBlockDone})
 
+		// A response cut off at the output limit may have had its tool
+		// arguments truncated mid-JSON and then repaired into something
+		// that parses and validates but is missing content — a half-
+		// written file reported as a success. The calls are refused
+		// rather than run, and answered so the history stays paired and
+		// the model knows to reissue them.
+		if resp.StopReason == llm.StopMaxTokens {
+			if uses := resp.Message.ToolUses(); len(uses) > 0 {
+				results := make([]llm.Block, 0, len(uses))
+				for _, u := range uses {
+					call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
+					msg := fmt.Sprintf("%s was not run: the response hit the output token limit, so its arguments may be cut short. Reissue it with complete arguments, and make them smaller if they were long.", u.Name)
+					results = append(results, llm.ToolResult(u.ID, msg, true))
+					emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+					a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
+				}
+				tr := llm.ToolResultMessage(results...)
+				a.Messages = append(a.Messages, tr)
+				a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &tr})
+				a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
+				continue
+			}
+		}
 		if resp.StopReason != llm.StopToolUse {
 			if more := a.faultNeeds(resp.Message.Text(), &needs, emit); more {
 				continue

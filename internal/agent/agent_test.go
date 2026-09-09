@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -746,5 +747,58 @@ func TestPlanCheckNoteFollowsToolResults(t *testing.T) {
 	b.PlanCheck = func(context.Context, string) string { t.Fatal("called with plan off"); return "" }
 	if err := b.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// countingTool records every call so a test can assert one never ran.
+type countingTool struct{ calls int32 }
+
+func (*countingTool) Name() string            { return "write_file" }
+func (*countingTool) Description() string     { return "write a file" }
+func (*countingTool) Mutating() bool          { return true }
+func (*countingTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
+func (c *countingTool) Run(context.Context, json.RawMessage) (string, error) {
+	atomic.AddInt32(&c.calls, 1)
+	return "wrote", nil
+}
+
+// TestToolCallsFromTruncatedMessageAreNotRun: when a response stops on
+// max_tokens, its tool arguments may have been cut mid-JSON and then
+// repaired into something that parses and validates but is missing
+// content. Running that writes a truncated file and reports success, so
+// the calls must be refused and the model told to reissue them.
+func TestToolCallsFromTruncatedMessageAreNotRun(t *testing.T) {
+	truncated := &llm.Response{
+		Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "c1", Name: "write_file", Input: json.RawMessage(`{"path":"a.txt","content":"half of the"}`)},
+		}},
+		StopReason: llm.StopMaxTokens,
+		Usage:      llm.Usage{InputTokens: 1, OutputTokens: 1},
+	}
+	w := &countingTool{}
+	ag := &Agent{
+		Provider:    &fake{responses: []*llm.Response{truncated, text("reissued and done")}},
+		Tools:       tool.NewRegistry(w),
+		Log:         &session.Memory{},
+		AutoApprove: true,
+	}
+	var results []string
+	err := ag.Run(context.Background(), "write the file", func(e Event) {
+		if e.Kind == EvToolResult {
+			results = append(results, e.Output)
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := atomic.LoadInt32(&w.calls); n != 0 {
+		t.Fatalf("the tool ran %d time(s) from a truncated message; it must not run at all", n)
+	}
+	if len(results) != 1 || !strings.Contains(results[0], "output token limit") {
+		t.Fatalf("the model should be told why the call was refused, got %v", results)
+	}
+	// The turn continues so the model can reissue the call.
+	if len(ag.Messages) == 0 {
+		t.Fatal("the turn should have continued")
 	}
 }
