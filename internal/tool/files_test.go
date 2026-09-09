@@ -420,3 +420,49 @@ func TestActionableErrors(t *testing.T) {
 		t.Fatalf("the message should name both ways to locate an edit: %v", err)
 	}
 }
+
+// TestEditFileRepairsMalformedEdits: both shapes were sent by real models.
+// Refusing them costs a round trip to say something unambiguous.
+func TestEditFileRepairsMalformedEdits(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "f.txt")
+	orig := "one\ntwo\nthree\n"
+	e := EditFile{Root: root}
+	reset := func() { os.WriteFile(path, []byte(orig), 0o644) }
+
+	// The array double-encoded as a JSON string.
+	reset()
+	if _, err := e.Run(context.Background(), raw(`{"path":"f.txt","edits":"[{\"old_string\":\"one\",\"new_string\":\"ONE\"}]"}`)); err != nil {
+		t.Fatalf("a double-encoded edits array should be repaired: %v", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "ONE\ntwo\nthree\n" {
+		t.Fatalf("got %q", got)
+	}
+
+	// A single edit object where a list is expected.
+	reset()
+	if _, err := e.Run(context.Background(), raw(`{"path":"f.txt","edits":{"old_string":"two","new_string":"TWO"}}`)); err != nil {
+		t.Fatalf("a lone edit object should be wrapped: %v", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "one\nTWO\nthree\n" {
+		t.Fatalf("got %q", got)
+	}
+
+	// A single object, double-encoded, is both mistakes at once.
+	reset()
+	if _, err := e.Run(context.Background(), raw(`{"path":"f.txt","edits":"{\"old_string\":\"three\",\"new_string\":\"THREE\"}"}`)); err != nil {
+		t.Fatalf("both mistakes together should still be repaired: %v", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "one\ntwo\nTHREE\n" {
+		t.Fatalf("got %q", got)
+	}
+
+	// Nonsense is left alone so it fails with the normal error, not here.
+	reset()
+	if _, err := e.Run(context.Background(), raw(`{"path":"f.txt","edits":"not json at all"}`)); err == nil {
+		t.Fatal("unrepairable input should still be refused")
+	}
+	if got, _ := os.ReadFile(path); string(got) != orig {
+		t.Fatal("a refused edit must not write")
+	}
+}

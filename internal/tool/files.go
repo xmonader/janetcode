@@ -348,6 +348,7 @@ func (e oneEdit) apply(content, display string, index, total int) (string, int, 
 }
 
 func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
+	input = repairEdits(input)
 	var in struct {
 		Path       string    `json:"path"`
 		Old        string    `json:"old_string"`
@@ -408,6 +409,56 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 		content, total = updated, total+n
 	}
 	return &editPlan{path: p, display: in.Path, before: before, after: content, replacements: total}, nil
+}
+
+// repairEdits fixes the two ways models malform the edits argument, both
+// seen in real runs: sending the array as a JSON string because it encoded
+// it twice, and sending a single edit object where a list is expected.
+// Neither is ambiguous, and refusing them costs a whole round trip to say
+// so, which is more expensive than the repair.
+func repairEdits(input json.RawMessage) json.RawMessage {
+	var obj map[string]json.RawMessage
+	if len(input) == 0 || json.Unmarshal(input, &obj) != nil {
+		return input
+	}
+	raw, ok := obj["edits"]
+	if !ok {
+		return input
+	}
+	switch firstByte(raw) {
+	case '"':
+		var inner string
+		if json.Unmarshal(raw, &inner) != nil {
+			return input
+		}
+		trimmed := json.RawMessage(strings.TrimSpace(inner))
+		if !json.Valid(trimmed) {
+			return input
+		}
+		if firstByte(trimmed) == '{' {
+			trimmed = json.RawMessage("[" + string(trimmed) + "]")
+		}
+		obj["edits"] = trimmed
+	case '{':
+		obj["edits"] = json.RawMessage("[" + string(raw) + "]")
+	default:
+		return input
+	}
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return input
+	}
+	return out
+}
+
+// firstByte is the first non-space byte, or 0.
+func firstByte(raw json.RawMessage) byte {
+	for _, b := range raw {
+		if b != ' ' && b != '\t' && b != '\n' && b != '\r' {
+			return b
+		}
+	}
+	return 0
 }
 
 // applyLineEdits replaces line ranges. Every range is read against the file
