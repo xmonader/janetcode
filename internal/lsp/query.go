@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -78,15 +79,29 @@ func (m *Manager) open(ctx context.Context, path string) (*client, string, []str
 	return c, abs, strings.Split(string(data), "\n"), nil
 }
 
-// sync opens the document on the server, or updates it if it is already
-// open. Unlike diagnose it does not wait for diagnostics: a query only
-// needs the server to have the text.
+// sync makes sure the server has the file's current text. Unlike diagnose
+// it does not wait for diagnostics: a query only needs the text to be
+// there.
+//
+// A document whose content has not changed is not sent again. Every query
+// used to re-send the whole file, so answering six questions about one
+// file made the server re-parse it six times — wasted work on every
+// query, and enough of it to make clangd stop answering.
 func (c *client) sync(abs, text string) error {
 	uri := toURI(abs)
+	sum := sha256.Sum256([]byte(text))
 	c.docM.Lock()
 	version, open := c.docs[uri]
+	if open && c.synced[uri] == sum {
+		c.docM.Unlock()
+		return nil
+	}
 	version++
 	c.docs[uri] = version
+	if c.synced == nil {
+		c.synced = map[string][32]byte{}
+	}
+	c.synced[uri] = sum
 	c.docM.Unlock()
 	if !open {
 		return c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
@@ -199,9 +214,72 @@ func (m *Manager) TypeDefinition(ctx context.Context, path string, pos Point) ([
 }
 
 // References is every use of the symbol at pos, including its declaration.
+//
+// A server only reports uses in files it knows about, and some know only
+// what has been opened — tsserver and clangd both answer a cold project
+// with the declaration alone, which reads as "used nowhere" and is worse
+// than an error. The project's other files of the same language are
+// opened first, so the answer covers the project rather than the file.
 func (m *Manager) References(ctx context.Context, path string, pos Point) ([]Location, error) {
+	m.warm(ctx, path)
 	return m.locationQuery(ctx, "textDocument/references", path, pos, map[string]any{
 		"context": map[string]any{"includeDeclaration": true},
+	})
+}
+
+// warmLimit bounds how many sibling files are opened before a project-wide
+// query: enough for a real answer, few enough not to stall on a monorepo.
+const (
+	warmLimit    = 60
+	warmMaxBytes = 512 * 1024
+)
+
+// warm tells the server about the project's other files in the same
+// language, so a project-wide question is answered about the project. It
+// is done once per language server and is best-effort throughout: a file
+// that cannot be read is skipped, and a server that does not need this
+// pays one pass over the tree.
+func (m *Manager) warm(ctx context.Context, path string) {
+	c, err := m.clientFor(ctx, path)
+	if err != nil || c == nil {
+		return
+	}
+	c.warmOnce.Do(func() {
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext == "" {
+			return
+		}
+		opened := 0
+		_ = filepath.WalkDir(m.Root, func(p string, d os.DirEntry, err error) error {
+			if err != nil || opened >= warmLimit {
+				if opened >= warmLimit {
+					return filepath.SkipAll
+				}
+				return nil
+			}
+			if d.IsDir() {
+				// The places a project keeps things that are not its source.
+				switch d.Name() {
+				case ".git", "node_modules", "vendor", "target", "dist", "build", ".venv", "__pycache__":
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !strings.EqualFold(filepath.Ext(p), ext) {
+				return nil
+			}
+			if fi, err := d.Info(); err != nil || fi.Size() > warmMaxBytes {
+				return nil
+			}
+			data, err := os.ReadFile(p)
+			if err != nil {
+				return nil
+			}
+			if err := c.sync(p, string(data)); err == nil {
+				opened++
+			}
+			return nil
+		})
 	})
 }
 

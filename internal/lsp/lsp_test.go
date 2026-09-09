@@ -193,3 +193,82 @@ func TestDecodeLocationShapes(t *testing.T) {
 		t.Fatalf("null = %+v", got)
 	}
 }
+
+// A language server that dies must not poison the session: every query
+// after it would fail with its exit status, which reads as a fact about
+// the code rather than as a crashed process. It is dropped and started
+// again — but not forever.
+func TestDeadServerIsRestartedThenGivenUpOn(t *testing.T) {
+	m := New(t.TempDir(), Config{Servers: map[string]Server{
+		"dier": {Command: []string{"sh", "-c", "exit 1"}, Extensions: []string{".dies"}},
+	}})
+	defer m.Close()
+	ctx := context.Background()
+	// Starting fails, so it is remembered as failed and not retried.
+	for i := 0; i < 4; i++ {
+		if c, err := m.clientFor(ctx, "x.dies"); c != nil {
+			t.Fatalf("attempt %d handed out a client: %v", i, err)
+		}
+	}
+	if len(m.failed) == 0 {
+		t.Fatal("a server that cannot start was not remembered")
+	}
+	// A live client is handed back as it is.
+	m2 := New(t.TempDir(), Config{})
+	defer m2.Close()
+	c := &client{done: make(chan struct{})}
+	if !c.alive() {
+		t.Fatal("a running client reported dead")
+	}
+	close(c.done)
+	if c.alive() {
+		t.Fatal("a client whose process ended reported alive")
+	}
+}
+
+// Answering several questions about one file used to re-send the whole
+// file each time, so the server parsed it once per question. It is sent
+// when it changes and not otherwise.
+func TestUnchangedDocumentIsNotResent(t *testing.T) {
+	w := &countingWriter{}
+	c := &client{docs: map[string]int{}, diags: map[string]diagState{}, waits: map[string]chan struct{}{},
+		done: make(chan struct{}), stdin: w}
+	if err := c.sync("/p/a.go", "package a\n"); err != nil {
+		t.Fatal(err)
+	}
+	first := w.writes
+	if first == 0 {
+		t.Fatal("the first sync sent nothing")
+	}
+	// Same content: nothing goes over the wire.
+	for i := 0; i < 5; i++ {
+		if err := c.sync("/p/a.go", "package a\n"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if w.writes != first {
+		t.Fatalf("%d writes for five identical syncs, want %d", w.writes, first)
+	}
+	// Changed content is sent.
+	if err := c.sync("/p/a.go", "package a\n\nfunc F() {}\n"); err != nil {
+		t.Fatal(err)
+	}
+	if w.writes == first {
+		t.Fatal("a changed document was not sent")
+	}
+	// A different file is its own document.
+	before := w.writes
+	if err := c.sync("/p/b.go", "package a\n"); err != nil {
+		t.Fatal(err)
+	}
+	if w.writes == before {
+		t.Fatal("a second file was not opened")
+	}
+}
+
+// countingWriter stands in for the server's stdin and counts the
+// notifications that reach it.
+type countingWriter struct{ writes int }
+
+func (c *countingWriter) Write(p []byte) (int, error) { c.writes++; return len(p), nil }
+func (c *countingWriter) Close() error                { return nil }

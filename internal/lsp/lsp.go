@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -134,13 +135,17 @@ type Manager struct {
 	Log     func(string)
 	mu      sync.Mutex
 	clients map[string]*client // by server name
-	failed  map[string]string  // server name → why it cannot start
-	byExt   map[string]string  // extension → server name
+	failed  map[string]string
+	// restarts counts how often a server has been started again after
+	// dying, so one that keeps crashing is given up on.
+	restarts map[string]int
+	byExt    map[string]string // extension → server name
 }
 
 // New prepares a manager; nothing starts until Diagnose is called.
 func New(root string, cfg Config) *Manager {
-	m := &Manager{Root: root, Config: cfg, clients: map[string]*client{}, failed: map[string]string{}, byExt: map[string]string{}}
+	m := &Manager{Root: root, Config: cfg, clients: map[string]*client{}, failed: map[string]string{},
+		restarts: map[string]int{}, byExt: map[string]string{}}
 	for name, s := range cfg.Active() {
 		for _, e := range s.Extensions {
 			m.byExt[strings.ToLower(e)] = name
@@ -283,7 +288,21 @@ func (m *Manager) clientFor(ctx context.Context, path string) (*client, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if c, ok := m.clients[name]; ok {
-		return c, nil
+		// A server that has died must not be handed out again: every
+		// query against it fails with its exit status, which reads as a
+		// fact about the code rather than as a crashed process. It is
+		// dropped and started fresh, once — a server that keeps dying is
+		// remembered as failed rather than restarted forever.
+		if !c.alive() {
+			delete(m.clients, name)
+			m.restarts[name]++
+			if m.restarts[name] > maxRestarts {
+				m.failed[name] = fmt.Sprintf("exited %d times; not started again this session", m.restarts[name])
+				return nil, nil
+			}
+		} else {
+			return c, nil
+		}
 	}
 	if _, bad := m.failed[name]; bad {
 		return nil, nil
@@ -298,8 +317,17 @@ func (m *Manager) clientFor(ctx context.Context, path string) (*client, error) {
 	return c, nil
 }
 
+// maxRestarts bounds how often one server is restarted after dying.
+const maxRestarts = 2
+
 // client is one running language server.
 type client struct {
+	// warmOnce guards opening the project's files for the first
+	// project-wide query.
+	warmOnce sync.Once
+	// synced is the content hash last sent per document, so a query does
+	// not make the server re-parse a file that has not changed.
+	synced map[string][32]byte
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	writeM sync.Mutex
@@ -409,6 +437,12 @@ func (c *client) diagnose(ctx context.Context, abs, text string, timeout time.Du
 	version, open := c.docs[uri]
 	version++
 	c.docs[uri] = version
+	// Record what was sent, so a later query does not re-send the same
+	// text and make the server parse it again (see client.sync).
+	if c.synced == nil {
+		c.synced = map[string][32]byte{}
+	}
+	c.synced[uri] = sha256.Sum256([]byte(text))
 	before := c.diags[uri].seq
 	wait := c.waits[uri]
 	if wait == nil {
@@ -468,6 +502,16 @@ func (c *client) openCount() int {
 	c.docM.Lock()
 	defer c.docM.Unlock()
 	return len(c.docs)
+}
+
+// alive reports whether the server is still running.
+func (c *client) alive() bool {
+	select {
+	case <-c.done:
+		return false
+	default:
+		return true
+	}
 }
 
 func (c *client) exitError() error {
