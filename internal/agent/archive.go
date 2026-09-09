@@ -35,9 +35,13 @@ var ErrArchiveMissing = errors.New("no archived output with that id (it may have
 
 // Entry describes one archived tool output.
 type Entry struct {
-	ID      string    `json:"-"`
-	ToolUse string    `json:"tool_use"`
-	Name    string    `json:"name"`
+	ID      string `json:"-"`
+	ToolUse string `json:"tool_use"`
+	Name    string `json:"name"`
+	// Subject is what the call was about — the path read, the command
+	// run, the pattern searched — so a model looking for "the earlier
+	// read of parse.py" can tell the entries apart without opening them.
+	Subject string    `json:"subject,omitempty"`
 	Size    int       `json:"size"`
 	Created time.Time `json:"created"`
 }
@@ -128,6 +132,11 @@ func readHeader(p string) (Entry, error) {
 // Put stores body and returns its id. Ids are allocated with exclusive
 // file creation so several janetcode processes can share a directory.
 func (ar *Archive) Put(toolUse, name, body string) (string, error) {
+	return ar.PutSubject(toolUse, name, "", body)
+}
+
+// PutSubject is Put with the call's subject recorded in the header.
+func (ar *Archive) PutSubject(toolUse, name, subject, body string) (string, error) {
 	ar.mu.Lock()
 	defer ar.mu.Unlock()
 	if err := ar.load(); err != nil {
@@ -136,7 +145,7 @@ func (ar *Archive) Put(toolUse, name, body string) (string, error) {
 	if id := ar.byUse[toolUse]; toolUse != "" && id != "" {
 		return id, nil
 	}
-	hdr, _ := json.Marshal(Entry{ToolUse: toolUse, Name: name, Size: len(body), Created: time.Now().UTC()})
+	hdr, _ := json.Marshal(Entry{ToolUse: toolUse, Name: name, Subject: subject, Size: len(body), Created: time.Now().UTC()})
 	for attempt := 0; attempt < 1000; attempt++ {
 		id := "ctx-" + strconv.Itoa(ar.next)
 		ar.next++
@@ -235,7 +244,7 @@ func (ar *Archive) List() []Entry {
 // stash decides what the model sees of a tool result: short outputs go
 // through untouched; long ones are archived and replaced by a preview of
 // both ends that names the archive id.
-func (a *Agent) stash(toolUse, name, out string) string {
+func (a *Agent) stash(toolUse, name, subject, out string) string {
 	budget := inlineBudget(name)
 	if len(out) <= budget || name == (&ExpandOutput{}).Name() {
 		return out
@@ -243,7 +252,7 @@ func (a *Agent) stash(toolUse, name, out string) string {
 	if a.Archive == nil {
 		return tool.TruncateTo(out, budget)
 	}
-	id, err := a.Archive.Put(toolUse, name, out)
+	id, err := a.Archive.PutSubject(toolUse, name, subject, out)
 	if err != nil {
 		return tool.TruncateTo(out, budget) + "\n[archive unavailable: " + err.Error() + "]"
 	}

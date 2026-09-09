@@ -56,3 +56,21 @@ func TestExpandOutputQueryMode(t *testing.T) {
 		t.Fatalf("query with id: %v\n%s", err, out)
 	}
 }
+
+// The model remembers which file it read, not what a line said: naming
+// the file in the query must outrank a stray word match elsewhere.
+func TestSearchPrefersTheEntryAboutTheSubject(t *testing.T) {
+	ar := NewArchive(t.TempDir())
+	_, _ = ar.PutSubject("r1", "read_file", "ledger/cli.py", "1\timport argparse\n2\tp.add_argument(\"--top\", type=int)\n")
+	id2, _ := ar.PutSubject("r2", "read_file", "ledger/parse.py", "1\timport csv\n2\ttags = [t.strip() for t in row]\n3\treturn Transaction(when=when)\n")
+	out := searchArchive(ar, nil, "ledger/parse.py line 2", 0)
+	if !strings.HasPrefix(strings.SplitN(out, "\n", 3)[2], "\n"+id2) && !strings.Contains(strings.SplitN(out, "\n\n", 2)[1], id2+" (read_file ledger/parse.py)") {
+		t.Fatalf("parse.py entry not first:\n%s", out)
+	}
+	if !strings.Contains(out, "tags = [t.strip()") {
+		t.Fatalf("line 2 of parse.py missing:\n%s", out)
+	}
+	if es := ar.List(); len(es) != 2 || es[0].Subject != "ledger/parse.py" {
+		t.Fatalf("subject not stored: %+v", es)
+	}
+}

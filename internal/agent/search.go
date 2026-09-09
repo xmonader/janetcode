@@ -95,11 +95,12 @@ func anchor(t string) bool {
 }
 
 type window struct {
-	entry string // archive id
-	name  string
-	start int // first line index
-	lines []string
-	score float64
+	entry   string // archive id
+	name    string
+	subject string
+	start   int // first line index
+	lines   []string
+	score   float64
 }
 
 // searchArchive ranks the windows of the given entries (all when ids is
@@ -133,7 +134,7 @@ func searchArchive(ar *Archive, ids []string, query string, budget int) string {
 		lines := strings.Split(strings.TrimSuffix(body, "\n"), "\n")
 		for start := 0; start < len(lines); start += searchStride {
 			end := min(start+searchWindow, len(lines))
-			w := window{entry: e.ID, name: e.Name, start: start, lines: lines[start:end]}
+			w := window{entry: e.ID, name: e.Name, subject: e.Subject, start: start, lines: lines[start:end]}
 			seen := map[string]bool{}
 			n := 0
 			for _, l := range w.lines {
@@ -167,6 +168,16 @@ func searchArchive(ar *Archive, ids []string, query string, budget int) string {
 			}
 		}
 		text := strings.ToLower(strings.Join(w.lines, "\n"))
+		// A query naming what the entry is about — its path, its command —
+		// is the strongest signal there is: the model remembers which file
+		// it read, not what line 63 said. Every window of that entry gets
+		// the anchor bonus for each such term.
+		subj := strings.ToLower(w.subject)
+		for _, t := range q {
+			if subj != "" && anchor(t) && strings.Contains(subj, t) {
+				w.score += 3
+			}
+		}
 		for _, t := range q {
 			f := float64(tf[t])
 			if f == 0 {
@@ -200,7 +211,11 @@ func searchArchive(ar *Archive, ids []string, query string, budget int) string {
 		all := strings.Split(strings.TrimSuffix(body, "\n"), "\n")
 		from := max(w.start-searchContext, 0)
 		to := min(w.start+len(w.lines)+searchContext, len(all))
-		fmt.Fprintf(&sb, "\n%s (%s) lines %d-%d:\n", w.entry, w.name, from+1, to)
+		label := w.name
+		if w.subject != "" {
+			label += " " + w.subject
+		}
+		fmt.Fprintf(&sb, "\n%s (%s) lines %d-%d:\n", w.entry, label, from+1, to)
 		for i := from; i < to; i++ {
 			fmt.Fprintf(&sb, "%d\t%s\n", i+1, all[i])
 		}

@@ -90,9 +90,14 @@ func (a *Agent) Prune() int {
 		keep[id] = true
 	}
 	useKey := map[string]string{}
+	label := map[string][2]string{} // tool_use id → name, subject
 	for _, m := range a.Messages {
 		for _, b := range m.Blocks {
-			if b.Type == llm.BlockToolUse && readOnly[b.Name] {
+			if b.Type != llm.BlockToolUse {
+				continue
+			}
+			label[b.ID] = [2]string{b.Name, subjectOf(b.Name, b.Input)}
+			if readOnly[b.Name] {
 				useKey[b.ID] = b.Name + "\x00" + canonical(b.Input)
 			}
 		}
@@ -108,7 +113,7 @@ func (a *Agent) Prune() int {
 			case useKey[b.ToolUseID] != "" && !keep[b.ToolUseID] && len(b.Text) > len(superseded):
 				a.Messages[i].Blocks[j].Text = superseded
 			case len(b.Text) > pruneKeep:
-				a.Messages[i].Blocks[j].Text = a.trimOld(b.ToolUseID, b.Text)
+				a.Messages[i].Blocks[j].Text = a.trimOld(b.ToolUseID, label[b.ToolUseID][0], label[b.ToolUseID][1], b.Text)
 			}
 			saved += before - len(a.Messages[i].Blocks[j].Text)
 		}
@@ -170,7 +175,7 @@ func (a *Agent) pruneTo(target int) int {
 		id := ""
 		if a.Archive != nil {
 			if id = a.Archive.IDFor(b.ToolUseID); id == "" {
-				id, _ = a.Archive.Put(b.ToolUseID, c.use.Name, b.Text)
+				id, _ = a.Archive.PutSubject(b.ToolUseID, c.use.Name, subjectOf(c.use.Name, c.use.Input), b.Text)
 			}
 		}
 		ph := placeholder(c.use.Name, c.use.Input, b.Text, id)
@@ -225,6 +230,15 @@ func (a *Agent) lastReference(at int, use llm.Block) int {
 		}
 	}
 	return last
+}
+
+// subjectOf is the first subject of a call, or "": the label an archive
+// entry carries.
+func subjectOf(name string, input json.RawMessage) string {
+	if s := subjectsOf(name, input); len(s) > 0 {
+		return s[0]
+	}
+	return ""
 }
 
 // subjectsOf names what a tool call was about, for reference matching.
@@ -444,7 +458,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	// small results that were never archived on their own — stays one
 	// expand_output call away instead of being gone.
 	if a.Archive != nil {
-		if id, err := a.Archive.Put(fmt.Sprintf("compaction-%d-%d", a.turnN, time.Now().UnixNano()), "compacted conversation", renderMessages(head)); err == nil && id != "" {
+		if id, err := a.Archive.PutSubject(fmt.Sprintf("compaction-%d-%d", a.turnN, time.Now().UnixNano()), "compacted conversation", fmt.Sprintf("turn %d", a.turnN), renderMessages(head)); err == nil && id != "" {
 			note += fmt.Sprintf("\n\nThe full text of the compacted conversation is archived as %s: expand_output {\"id\":%q,\"query\":\"<what you are looking for>\"} finds passages in it, offset/limit reads it in order.", id, id)
 		}
 	}
@@ -618,7 +632,7 @@ func windowFromError(err error) int {
 
 // trimOld shortens an old tool result to pruneKeep bytes. The full text is
 // archived first (unless it already was) so the model can get it back.
-func (a *Agent) trimOld(toolUse, text string) string {
+func (a *Agent) trimOld(toolUse, name, subject, text string) string {
 	if a.Archive == nil {
 		return tool.TruncateTo(text, pruneKeep)
 	}
@@ -629,7 +643,7 @@ func (a *Agent) trimOld(toolUse, text string) string {
 		}
 		return archiveNote(id, len(text), pruneKeep) + tool.TruncateTo(text, pruneKeep)
 	}
-	id, err := a.Archive.Put(toolUse, "", text)
+	id, err := a.Archive.PutSubject(toolUse, name, subject, text)
 	if err != nil {
 		return tool.TruncateTo(text, pruneKeep)
 	}

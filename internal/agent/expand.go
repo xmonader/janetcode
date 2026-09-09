@@ -112,9 +112,9 @@ func (t *ExpandOutput) list() string {
 		return "Nothing is archived yet."
 	}
 	var sb strings.Builder
-	sb.WriteString("Archived outputs, newest first:\n")
+	sb.WriteString("Archived outputs, newest first (id, tool, subject, size, time):\n")
 	for _, e := range es {
-		fmt.Fprintf(&sb, "%s\t%s\t%s\t%s\n", e.ID, e.Name, humanBytes(e.Size), e.Created.Local().Format("15:04:05"))
+		fmt.Fprintf(&sb, "%s\t%s\t%s\t%s\t%s\n", e.ID, e.Name, e.Subject, humanBytes(e.Size), e.Created.Local().Format("15:04:05"))
 	}
 	return sb.String()
 }

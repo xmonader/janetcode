@@ -756,7 +756,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 			out += "\n" + note
 		}
 	}
-	out = a.stash(u.ID, u.Name, out)
+	out = a.stash(u.ID, u.Name, subjectOf(u.Name, u.Input), out)
 	for _, n := range hookNotes {
 		out += "\n[hook: " + n + "]"
 	}

@@ -68,9 +68,20 @@ func MineFacts(events []session.Event, max int) []Probe {
 			}
 		}
 	}
+	// A command run more than once has more than one "last line"; the
+	// question would be ambiguous, so only commands run once are asked about.
+	runs := map[string]int{}
+	for _, e := range events {
+		if e.Type == session.TypeToolCall && e.Name == "bash" {
+			runs[e.Arguments]++
+		}
+	}
 	var out []Probe
 	for _, e := range events {
 		if e.Type != session.TypeToolResult || e.CallID == "" || !gone[e.CallID] || e.IsError && e.Name != "bash" {
+			continue
+		}
+		if e.Name == "bash" && runs[e.Arguments] > 1 {
 			continue
 		}
 		if strings.HasPrefix(strings.TrimSpace(e.Output), "[pruned:") {
@@ -170,7 +181,7 @@ func ProbeFacts(ctx context.Context, ag *agent.Agent, probes []Probe, blind bool
 			System:        ag.System,
 			Tools:         tool.NewRegistry(tools...),
 			Messages:      append([]llm.Message(nil), ag.Messages...),
-			MaxIterations: 4,
+			MaxIterations: 6,
 			AutoApprove:   true,
 			Archive:       ag.Archive,
 			CompactAt:     -1,
