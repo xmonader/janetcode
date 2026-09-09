@@ -1,0 +1,167 @@
+[
+  {
+    "harness": "grok",
+    "task": "31-large-inventory",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 27721,
+    "input_tokens": {
+      "value": 36947,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 479,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 127360,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p The data/ directory has many text files. Each file has an 'id: TOKEN_NNNN' line. Write inventory.txt containing every TOKEN_NNNN, one per line, sorted. Do not invent tokens. The tree is large; inspect it with tools. --cwd /tmp/harness-grok-31-large-inventory-1444341948 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "32-large-rename",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 35505,
+    "input_tokens": {
+      "value": 34869,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1059,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 125184,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Rename the Go symbol Widget to Gadget everywhere in this module (source, tests, and comments in .go files). Keep the tests passing. The tree is large; inspect it with tools. --cwd /tmp/harness-grok-32-large-rename-51231323 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "33-large-sum",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 26688,
+    "input_tokens": {
+      "value": 26513,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 485,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 93184,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Each file under vals/ has a 'value: N' line. Write sum.txt containing a single integer: the sum of every value. Do not skip files. The tree is large; inspect it with tools. --cwd /tmp/harness-grok-33-large-sum-3748184120 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "34-large-headers",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 38194,
+    "input_tokens": {
+      "value": 32996,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1250,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 99712,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Add exactly this first line to every .go file: // SPDX-License-Identifier: MIT\nDo not duplicate it if you run twice. Keep go test passing. The tree is large; inspect it with tools. --cwd /tmp/harness-grok-34-large-headers-3798657645 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "35-large-deadcode",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 47363,
+    "input_tokens": {
+      "value": 43764,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1208,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 237824,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 9,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Delete every DropNNN function (dead code). Keep every KeepNNN function and keep go test passing. The tree is large; inspect it with tools. --cwd /tmp/harness-grok-35-large-deadcode-1394547248 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  }
+]

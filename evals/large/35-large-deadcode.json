@@ -1,0 +1,7 @@
+{
+  "name": "35-large-deadcode",
+  "prompt": "Delete every DropNNN function (dead code). Keep every KeepNNN function and keep go test passing. The tree is large; inspect it with tools.",
+  "check": "test -z \"$(grep -r --include='*.go' 'func Drop' . || true)\" && grep -q 'func Keep000' k000.go && go test ./...",
+  "timeout": 1200,
+  "tags": ["large", "edit", "go"]
+}

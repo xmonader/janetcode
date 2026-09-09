@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Package agent runs the model/tool loop: send the conversation, execute the
 // tool calls the model asks for (subject to permission), feed results back,
 // repeat until the model ends its turn.
@@ -509,15 +510,22 @@ func (a *Agent) traced(emit func(Event)) func(Event) {
 // shell command they ran, a note) as user content for the next turn.
 func (a *Agent) AddContext(text string) { a.appendUserText(text) }
 
-// appendUserText adds text as a new user message, or into the trailing user
-// message if the last turn ended with one (tool results from an aborted turn,
-// or a message whose model call failed).
+// appendUserText adds text as a new user message. It never mutates a message
+// already sent to the provider: editing a cached prefix (especially a tool-
+// result turn) makes DashScope/OpenRouter re-bill the whole history as fresh.
 func (a *Agent) appendUserText(text string) {
 	a.appendUserBlocks(llm.Block{Type: llm.BlockText, Text: text})
 }
 
 func (a *Agent) appendUserBlocks(blocks ...llm.Block) {
-	if n := len(a.Messages); n > 0 && a.Messages[n-1].Role == llm.RoleUser {
+	if len(blocks) == 0 {
+		return
+	}
+	n := len(a.Messages)
+	// Merge only into a trailing plain-text user turn (typed input before
+	// the first model call). Tool-result messages have already gone over
+	// the wire; appending to them would change bytes the prompt cache keyed on.
+	if n > 0 && a.Messages[n-1].Role == llm.RoleUser && !hasToolResult(a.Messages[n-1]) {
 		a.Messages[n-1].Blocks = append(a.Messages[n-1].Blocks, blocks...)
 		return
 	}

@@ -1,0 +1,7 @@
+{
+  "name": "31-large-inventory",
+  "prompt": "The data/ directory has many text files. Each file has an 'id: TOKEN_NNNN' line. Write inventory.txt containing every TOKEN_NNNN, one per line, sorted. Do not invent tokens. The tree is large; inspect it with tools.",
+  "check": "sort -o inventory.txt inventory.txt && cmp -s inventory.txt expected.txt",
+  "timeout": 1200,
+  "tags": ["large", "search"]
+}

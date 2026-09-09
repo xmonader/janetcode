@@ -1,0 +1,175 @@
+[
+  {
+    "harness": "janetcode",
+    "task": "31-large-inventory",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 12617,
+    "input_tokens": {
+      "value": 8740,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 341,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 6168,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "janetcode --eval --eval-only 31-large-inventory --provider openai --model qwen3.7-plus"
+  },
+  {
+    "harness": "janetcode",
+    "task": "32-large-rename",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 31314,
+    "input_tokens": {
+      "value": 15064,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 680,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 19560,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 7,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "janetcode --eval --eval-only 32-large-rename --provider openai --model qwen3.7-plus"
+  },
+  {
+    "harness": "janetcode",
+    "task": "33-large-sum",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 40088,
+    "input_tokens": {
+      "value": 8439,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 815,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 24160,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 7,
+      "set": true
+    },
+    "turns": {
+      "value": 8,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "janetcode --eval --eval-only 33-large-sum --provider openai --model qwen3.7-plus"
+  },
+  {
+    "harness": "janetcode",
+    "task": "34-large-headers",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 46562,
+    "input_tokens": {
+      "value": 7786,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1688,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 29021,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 11,
+      "set": true
+    },
+    "turns": {
+      "value": 8,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "janetcode --eval --eval-only 34-large-headers --provider openai --model qwen3.7-plus"
+  },
+  {
+    "harness": "janetcode",
+    "task": "35-large-deadcode",
+    "batch": 1,
+    "passed": false,
+    "reason": "check failed: exit status 1",
+    "wall_time_ms": 16756,
+    "input_tokens": {
+      "value": 12038,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 416,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 16991,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "janetcode --eval --eval-only 35-large-deadcode --provider openai --model qwen3.7-plus",
+    "exit_code": 1,
+    "stderr_excerpt": "running 5 eval tasks × 1 with openai/qwen3.7-plus (5 at a time)\nPASS 31-large-inventory (12.6s, 4 tool calls, ?)\nFAIL 35-large-deadcode (16.8s, 6 tool calls, ?)\n    check failed: exit status 1\nPASS 32-large-rename (37.1s, 11 tool calls, ?)\nPASS 33-large-sum (40.1s, 7 tool calls, ?)\nPASS 34-large-headers (1m42.2s, 15 tool calls, ?)\nwrote /tmp/janetcode-batch1-1788905539364503823.json\njanetcode: 1 of 5 eval tasks failed"
+  }
+]

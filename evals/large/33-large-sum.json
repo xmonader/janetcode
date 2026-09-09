@@ -1,0 +1,7 @@
+{
+  "name": "33-large-sum",
+  "prompt": "Each file under vals/ has a 'value: N' line. Write sum.txt containing a single integer: the sum of every value. Do not skip files. The tree is large; inspect it with tools.",
+  "check": "test \"$(tr -d ' \\t\\n\\r' < sum.txt)\" = \"$(tr -d ' \\t\\n\\r' < expected_sum.txt)\"",
+  "timeout": 1200,
+  "tags": ["large", "search"]
+}

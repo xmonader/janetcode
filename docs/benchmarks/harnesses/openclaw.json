@@ -1,0 +1,662 @@
+[
+  {
+    "harness": "openclaw",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  },
+  {
+    "harness": "openclaw",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": false,
+    "reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).",
+    "wall_time_ms": 0,
+    "input_tokens": {
+      "set": false
+    },
+    "output_tokens": {
+      "set": false
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "set": false
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --help",
+    "stderr_excerpt": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2).\nIf you use nvm, run:\n  nvm install 26\n  nvm use 26\n  nvm alias default 26",
+    "unavailable": true,
+    "unavailable_reason": "openclaw: Node.js \u003e=22.22.3 \u003c23, \u003e=24.15.0 \u003c25, or \u003e=25.9.0 is required (current: v22.22.2)."
+  }
+]

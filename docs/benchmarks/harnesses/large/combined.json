@@ -1,0 +1,861 @@
+{
+  "grok": [
+    {
+      "harness": "grok",
+      "task": "31-large-inventory",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 27721,
+      "input_tokens": {
+        "value": 36947,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 479,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127360,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "grok -p The data/ directory has many text files. Each file has an 'id: TOKEN_NNNN' line. Write inventory.txt containing every TOKEN_NNNN, one per line, sorted. Do not invent tokens. The tree is large; inspect it with tools. --cwd /tmp/harness-grok-31-large-inventory-1444341948 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+    },
+    {
+      "harness": "grok",
+      "task": "32-large-rename",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 35505,
+      "input_tokens": {
+        "value": 34869,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1059,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 125184,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "grok -p Rename the Go symbol Widget to Gadget everywhere in this module (source, tests, and comments in .go files). Keep the tests passing. The tree is large; inspect it with tools. --cwd /tmp/harness-grok-32-large-rename-51231323 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+    },
+    {
+      "harness": "grok",
+      "task": "33-large-sum",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 26688,
+      "input_tokens": {
+        "value": 26513,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 485,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 93184,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "grok -p Each file under vals/ has a 'value: N' line. Write sum.txt containing a single integer: the sum of every value. Do not skip files. The tree is large; inspect it with tools. --cwd /tmp/harness-grok-33-large-sum-3748184120 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+    },
+    {
+      "harness": "grok",
+      "task": "34-large-headers",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 38194,
+      "input_tokens": {
+        "value": 32996,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1250,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 99712,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "grok -p Add exactly this first line to every .go file: // SPDX-License-Identifier: MIT\nDo not duplicate it if you run twice. Keep go test passing. The tree is large; inspect it with tools. --cwd /tmp/harness-grok-34-large-headers-3798657645 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+    },
+    {
+      "harness": "grok",
+      "task": "35-large-deadcode",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 47363,
+      "input_tokens": {
+        "value": 43764,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1208,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 237824,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 9,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "grok -p Delete every DropNNN function (dead code). Keep every KeepNNN function and keep go test passing. The tree is large; inspect it with tools. --cwd /tmp/harness-grok-35-large-deadcode-1394547248 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+    }
+  ],
+  "hermes-agent": [
+    {
+      "harness": "hermes-agent",
+      "task": "31-large-inventory",
+      "batch": 1,
+      "passed": false,
+      "reason": "check failed: exit status 2: sort: cannot read: inventory.txt: No such file or directory",
+      "wall_time_ms": 143064,
+      "input_tokens": {
+        "value": 354895,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1936,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 284544,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 10,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query The data/ directory has many text files. Each file has an 'id: TOKEN_NNNN' line. Write inventory.txt containing every TOKEN_NNNN, one per line, sorted. Do not invent tokens. The tree is large; inspect it with tools. --model qwen3.7-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 20 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ntains \"large-inventory\" which matches the task description. This is clearly the test harness for this task. The user is asking me to process files in that data directory.\n\nI've already extracted all 160 TOKEN_NNNN values and written them to `/home/driver/inventory.txt`. The file contains 160 lines, sorted from TOKEN_0001 to TOKEN_0160.\n\nThe user said \"Do not invent tokens\" — I extracted them directly from the files using grep, so I didn't invent anything.\n\nThe user said \"sorted\" — I used `sort` so they're sorted.\n\nThe task is complete. I should report what I did.\n00:18:13 - tools.browser_tool - DEBUG [20260909_001552_71100e] - cleanup_browser called for task_id: f23ab2b0-48d6-4f1d-ab56-98948337ab56\n00:18:13 - tools.browser_tool - DEBUG [20260909_001552_71100e] - Active sessions: []\n00:18:13 - tools.browser_tool - DEBUG [20260909_001552_71100e] - No active session found for task_id: f23ab2b0-48d6-4f1d-ab56-98948337ab56\n00:18:13 - agent.conversation_loop - INFO [20260909_001552_71100e] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.7-plus api_calls=10/20 budget=10/20 tool_turns=9 last_msg_role=assistant response_len=277 session=20260909_001552_71100e\n00:18:13 - tools.terminal_tool - INFO [20260909_001552_71100e] - Shutting down 1 remaining sandbox(es)...\n00:18:13 - tools.terminal_tool - INFO [20260909_001552_71100e] - Manually cleaned up environment for task: default\n00:18:13 - tools.terminal_tool - INFO [20260909_001552_71100e] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "32-large-rename",
+      "batch": 1,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 273241,
+      "input_tokens": {
+        "value": 435977,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 8238,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 380288,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 15,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Rename the Go symbol Widget to Gadget everywhere in this module (source, tests, and comments in .go files). Keep the tests passing. The tree is large; inspect it with tools. --model qwen3.7-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 20 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": " with a `Widget()` function\n2. `widget_test.go` that calls `Widget()`\n3. 159 doc files in `pkg/p001/doc.go` through `pkg/p159/doc.go` that reference `Widget` in comments\n\nI materialized the corpus files to `/home/driver/large-rename-workspace` and then performed the rename using `sed` to replace `\\bWidget\\b` with `Gadget` in all `.go` files.\n\nThe verification shows:\n1. No `Widget` references remain in any `.go` files\n2. `Gadget` is present in `widget.go`\n3. `go test ./...` passes successfully\n\nThe task is complete. I should provide a concise summary of what was done.\n00:52:01 - tools.browser_tool - DEBUG [20260909_004730_3e48de] - cleanup_browser called for task_id: b725b751-3c45-40ec-9202-64326f422887\n00:52:01 - tools.browser_tool - DEBUG [20260909_004730_3e48de] - Active sessions: []\n00:52:01 - tools.browser_tool - DEBUG [20260909_004730_3e48de] - No active session found for task_id: b725b751-3c45-40ec-9202-64326f422887\n00:52:01 - agent.conversation_loop - INFO [20260909_004730_3e48de] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.7-plus api_calls=15/20 budget=15/20 tool_turns=14 last_msg_role=assistant response_len=358 session=20260909_004730_3e48de\n00:52:02 - tools.terminal_tool - INFO [20260909_004730_3e48de] - Shutting down 1 remaining sandbox(es)...\n00:52:02 - tools.terminal_tool - INFO [20260909_004730_3e48de] - Manually cleaned up environment for task: default\n00:52:02 - tools.terminal_tool - INFO [20260909_004730_3e48de] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "33-large-sum",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 76501,
+      "input_tokens": {
+        "value": 40981,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1290,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 20864,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Each file under vals/ has a 'value: N' line. Write sum.txt containing a single integer: the sum of every value. Do not skip files. The tree is large; inspect it with tools. --model qwen3.7-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 20 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "plus provider=unknown in=8730 out=170 total=8900 latency=4.9s cache=8448/8730 (97%)\n00:17:07 - root - DEBUG [20260909_001552_f15290] - Token usage: prompt=8,730, completion=170, total=8,900\n00:17:07 - root - DEBUG [20260909_001552_f15290] - Captured reasoning (303 chars): The user wants me to write sum.txt containing the sum of all values. I've:\n1. Found 160 files in vals/ directory\n2. Verified all 160 files have a 'value:' line\n3. Calculated the sum as 12880\n4. Written sum.txt with the value 12880\n\nThe task is complete. I should report what changed and what's verified.\n00:17:07 - tools.browser_tool - DEBUG [20260909_001552_f15290] - cleanup_browser called for task_id: 70586695-3ee5-4bda-a66e-b630af926f4a\n00:17:07 - tools.browser_tool - DEBUG [20260909_001552_f15290] - Active sessions: []\n00:17:07 - tools.browser_tool - DEBUG [20260909_001552_f15290] - No active session found for task_id: 70586695-3ee5-4bda-a66e-b630af926f4a\n00:17:07 - agent.conversation_loop - INFO [20260909_001552_f15290] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.7-plus api_calls=7/20 budget=7/20 tool_turns=6 last_msg_role=assistant response_len=180 session=20260909_001552_f15290\n00:17:07 - tools.terminal_tool - INFO [20260909_001552_f15290] - Shutting down 1 remaining sandbox(es)...\n00:17:07 - tools.terminal_tool - INFO [20260909_001552_f15290] - Manually cleaned up environment for task: default\n00:17:07 - tools.terminal_tool - INFO [20260909_001552_f15290] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "34-large-headers",
+      "batch": 1,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 419646,
+      "input_tokens": {
+        "value": 315851,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 3554,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 277760,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 16,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add exactly this first line to every .go file: // SPDX-License-Identifier: MIT\nDo not duplicate it if you run twice. Keep go test passing. The tree is large; inspect it with tools. --model qwen3.7-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 20 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "l .go files and keep go test passing. I've successfully:\n1. Added the SPDX header to all 10,309 .go files (excluding the read-only Go module cache)\n2. Verified that tests still pass in multiple projects\n\nThe verification shows:\n- projects/proj2/iniparser: all tests pass\n- geomindcode/grid_agent/grid-cli: tests pass\n\nThe failure in projects/proj2/verification is a pre-existing dependency issue (missing github.com/iniparser module), not caused by my changes. The actual test package (iniparser/iniparser) passes.\n\nI should report completion with the verification results.\n00:54:28 - tools.browser_tool - DEBUG [20260909_004730_ea8ee9] - cleanup_browser called for task_id: b0bac0a2-9ca6-4f71-9811-a7b127ebbbc5\n00:54:28 - tools.browser_tool - DEBUG [20260909_004730_ea8ee9] - Active sessions: []\n00:54:28 - tools.browser_tool - DEBUG [20260909_004730_ea8ee9] - No active session found for task_id: b0bac0a2-9ca6-4f71-9811-a7b127ebbbc5\n00:54:28 - agent.conversation_loop - INFO [20260909_004730_ea8ee9] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.7-plus api_calls=16/20 budget=16/20 tool_turns=15 last_msg_role=assistant response_len=371 session=20260909_004730_ea8ee9\n00:54:28 - tools.terminal_tool - INFO [20260909_004730_ea8ee9] - Shutting down 1 remaining sandbox(es)...\n00:54:28 - tools.terminal_tool - INFO [20260909_004730_ea8ee9] - Manually cleaned up environment for task: default\n00:54:28 - tools.terminal_tool - INFO [20260909_004730_ea8ee9] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "35-large-deadcode",
+      "batch": 1,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 459160,
+      "input_tokens": {
+        "value": 502845,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 7782,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 454272,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 20,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Delete every DropNNN function (dead code). Keep every KeepNNN function and keep go test passing. The tree is large; inspect it with tools. --model qwen3.7-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 20 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "/compress v1.17.8\\ngo: downloading github.com/moby/sys/mountinfo v0.6.2\\ngo: downloading github.com/lestrrat-go/backoff/v2 v2.0.8\\ngo: downloading github.com/lestrrat-go/iter v1.0.1\\ngo: downloading github.com/lestrrat-go/option v1.0.0\\ngo: downloading github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d\\ngo: downloading github.com/op/go-loggin\\n[Command timed out after 120s]\", \"exit_code\": 124, \"error\": null, \"hint\": \"Exit 124: the command hit its timeout. Raise timeout= (foreground max 600s) or run it with background=true and notify_on_complete=true.\"}\n00:23:29 - tools.browser_tool - DEBUG [20260909_001552_cffda8] - cleanup_browser called for task_id: 721fc3ac-9a9d-4960-a44e-4f6c74fe1fb7\n00:23:29 - tools.browser_tool - DEBUG [20260909_001552_cffda8] - Active sessions: []\n00:23:29 - tools.browser_tool - DEBUG [20260909_001552_cffda8] - No active session found for task_id: 721fc3ac-9a9d-4960-a44e-4f6c74fe1fb7\n00:23:29 - agent.conversation_loop - INFO [20260909_001552_cffda8] - Turn ended: reason=max_iterations_reached(20/20) model=qwen3.7-plus api_calls=20/20 budget=20/20 tool_turns=20 last_msg_role=assistant response_len=1815 session=20260909_001552_cffda8\n00:23:29 - tools.terminal_tool - INFO [20260909_001552_cffda8] - Shutting down 1 remaining sandbox(es)...\n00:23:29 - tools.terminal_tool - INFO [20260909_001552_cffda8] - Manually cleaned up environment for task: default\n00:23:29 - tools.terminal_tool - INFO [20260909_001552_cffda8] - Cleaned 1 environments"
+    }
+  ],
+  "janetcode": [
+    {
+      "harness": "janetcode",
+      "task": "31-large-inventory",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 12617,
+      "input_tokens": {
+        "value": 8740,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 341,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6168,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 31-large-inventory --provider openai --model qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "32-large-rename",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 31314,
+      "input_tokens": {
+        "value": 15064,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 680,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 19560,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 32-large-rename --provider openai --model qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "33-large-sum",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 40088,
+      "input_tokens": {
+        "value": 8439,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 815,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 24160,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 33-large-sum --provider openai --model qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "34-large-headers",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 46562,
+      "input_tokens": {
+        "value": 7786,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1688,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 29021,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 11,
+        "set": true
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 34-large-headers --provider openai --model qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "35-large-deadcode",
+      "batch": 1,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 16756,
+      "input_tokens": {
+        "value": 12038,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 416,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 16991,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 35-large-deadcode --provider openai --model qwen3.7-plus",
+      "exit_code": 1,
+      "stderr_excerpt": "running 5 eval tasks × 1 with openai/qwen3.7-plus (5 at a time)\nPASS 31-large-inventory (12.6s, 4 tool calls, ?)\nFAIL 35-large-deadcode (16.8s, 6 tool calls, ?)\n    check failed: exit status 1\nPASS 32-large-rename (37.1s, 11 tool calls, ?)\nPASS 33-large-sum (40.1s, 7 tool calls, ?)\nPASS 34-large-headers (1m42.2s, 15 tool calls, ?)\nwrote /tmp/janetcode-batch1-1788905539364503823.json\njanetcode: 1 of 5 eval tasks failed"
+    }
+  ],
+  "pi": [
+    {
+      "harness": "pi",
+      "task": "31-large-inventory",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 19081,
+      "input_tokens": {
+        "value": 24213,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 452,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 53120,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session The data/ directory has many text files. Each file has an 'id: TOKEN_NNNN' line. Write inventory.txt containing every TOKEN_NNNN, one per line, sorted. Do not invent tokens. The tree is large; inspect it with tools."
+    },
+    {
+      "harness": "pi",
+      "task": "32-large-rename",
+      "batch": 1,
+      "passed": false,
+      "reason": "check failed: exit status 2: grep: widget.go: No such file or directory",
+      "wall_time_ms": 32870,
+      "input_tokens": {
+        "value": 27006,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 862,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 97664,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Rename the Go symbol Widget to Gadget everywhere in this module (source, tests, and comments in .go files). Keep the tests passing. The tree is large; inspect it with tools.",
+      "stderr_excerpt": "grep: widget.go: No such file or directory"
+    },
+    {
+      "harness": "pi",
+      "task": "33-large-sum",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 22869,
+      "input_tokens": {
+        "value": 8666,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 568,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 89344,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Each file under vals/ has a 'value: N' line. Write sum.txt containing a single integer: the sum of every value. Do not skip files. The tree is large; inspect it with tools."
+    },
+    {
+      "harness": "pi",
+      "task": "34-large-headers",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 45448,
+      "input_tokens": {
+        "value": 25042,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1454,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 118912,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Add exactly this first line to every .go file: // SPDX-License-Identifier: MIT\nDo not duplicate it if you run twice. Keep go test passing. The tree is large; inspect it with tools."
+    },
+    {
+      "harness": "pi",
+      "task": "35-large-deadcode",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 38891,
+      "input_tokens": {
+        "value": 18832,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1127,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 155008,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Delete every DropNNN function (dead code). Keep every KeepNNN function and keep go test passing. The tree is large; inspect it with tools."
+    }
+  ],
+  "qwencode": [
+    {
+      "harness": "qwencode",
+      "task": "31-large-inventory",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 47610,
+      "input_tokens": {
+        "value": 250891,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1604,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 195394,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 25 --max-wall-time 180s The data/ directory has many text files. Each file has an 'id: TOKEN_NNNN' line. Write inventory.txt containing every TOKEN_NNNN, one per line, sorted. Do not invent tokens. The tree is large; inspect it with tools."
+    },
+    {
+      "harness": "qwencode",
+      "task": "32-large-rename",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 44436,
+      "input_tokens": {
+        "value": 262794,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1372,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 203673,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 10,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 25 --max-wall-time 180s Rename the Go symbol Widget to Gadget everywhere in this module (source, tests, and comments in .go files). Keep the tests passing. The tree is large; inspect it with tools."
+    },
+    {
+      "harness": "qwencode",
+      "task": "33-large-sum",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 26420,
+      "input_tokens": {
+        "value": 179078,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 432,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 132491,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 25 --max-wall-time 180s Each file under vals/ has a 'value: N' line. Write sum.txt containing a single integer: the sum of every value. Do not skip files. The tree is large; inspect it with tools."
+    },
+    {
+      "harness": "qwencode",
+      "task": "34-large-headers",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 37240,
+      "input_tokens": {
+        "value": 235753,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1038,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 180984,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 8,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 25 --max-wall-time 180s Add exactly this first line to every .go file: // SPDX-License-Identifier: MIT\nDo not duplicate it if you run twice. Keep go test passing. The tree is large; inspect it with tools."
+    },
+    {
+      "harness": "qwencode",
+      "task": "35-large-deadcode",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 73001,
+      "input_tokens": {
+        "value": 498182,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 2105,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 442168,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 18,
+        "set": true
+      },
+      "turns": {
+        "value": 10,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 25 --max-wall-time 180s Delete every DropNNN function (dead code). Keep every KeepNNN function and keep go test passing. The tree is large; inspect it with tools."
+    }
+  ]
+}

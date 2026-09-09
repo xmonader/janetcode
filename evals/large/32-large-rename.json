@@ -1,0 +1,7 @@
+{
+  "name": "32-large-rename",
+  "prompt": "Rename the Go symbol Widget to Gadget everywhere in this module (source, tests, and comments in .go files). Keep the tests passing. The tree is large; inspect it with tools.",
+  "check": "test -z \"$(grep -r --include='*.go' -E '\\bWidget\\b' . || true)\" && grep -q Gadget widget.go && go test ./...",
+  "timeout": 1200,
+  "tags": ["large", "edit", "go"]
+}

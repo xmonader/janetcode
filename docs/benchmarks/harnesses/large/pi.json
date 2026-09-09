@@ -1,0 +1,169 @@
+[
+  {
+    "harness": "pi",
+    "task": "31-large-inventory",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 19081,
+    "input_tokens": {
+      "value": 24213,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 452,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 53120,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session The data/ directory has many text files. Each file has an 'id: TOKEN_NNNN' line. Write inventory.txt containing every TOKEN_NNNN, one per line, sorted. Do not invent tokens. The tree is large; inspect it with tools."
+  },
+  {
+    "harness": "pi",
+    "task": "32-large-rename",
+    "batch": 1,
+    "passed": false,
+    "reason": "check failed: exit status 2: grep: widget.go: No such file or directory",
+    "wall_time_ms": 32870,
+    "input_tokens": {
+      "value": 27006,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 862,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 97664,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Rename the Go symbol Widget to Gadget everywhere in this module (source, tests, and comments in .go files). Keep the tests passing. The tree is large; inspect it with tools.",
+    "stderr_excerpt": "grep: widget.go: No such file or directory"
+  },
+  {
+    "harness": "pi",
+    "task": "33-large-sum",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 22869,
+    "input_tokens": {
+      "value": 8666,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 568,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 89344,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Each file under vals/ has a 'value: N' line. Write sum.txt containing a single integer: the sum of every value. Do not skip files. The tree is large; inspect it with tools."
+  },
+  {
+    "harness": "pi",
+    "task": "34-large-headers",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 45448,
+    "input_tokens": {
+      "value": 25042,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1454,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 118912,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Add exactly this first line to every .go file: // SPDX-License-Identifier: MIT\nDo not duplicate it if you run twice. Keep go test passing. The tree is large; inspect it with tools."
+  },
+  {
+    "harness": "pi",
+    "task": "35-large-deadcode",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 38891,
+    "input_tokens": {
+      "value": 18832,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1127,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 155008,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Delete every DropNNN function (dead code). Keep every KeepNNN function and keep go test passing. The tree is large; inspect it with tools."
+  }
+]

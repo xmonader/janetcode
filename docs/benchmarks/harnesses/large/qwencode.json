@@ -1,0 +1,172 @@
+[
+  {
+    "harness": "qwencode",
+    "task": "31-large-inventory",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 47610,
+    "input_tokens": {
+      "value": 250891,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1604,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 195394,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 25 --max-wall-time 180s The data/ directory has many text files. Each file has an 'id: TOKEN_NNNN' line. Write inventory.txt containing every TOKEN_NNNN, one per line, sorted. Do not invent tokens. The tree is large; inspect it with tools."
+  },
+  {
+    "harness": "qwencode",
+    "task": "32-large-rename",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 44436,
+    "input_tokens": {
+      "value": 262794,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1372,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 203673,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 10,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 25 --max-wall-time 180s Rename the Go symbol Widget to Gadget everywhere in this module (source, tests, and comments in .go files). Keep the tests passing. The tree is large; inspect it with tools."
+  },
+  {
+    "harness": "qwencode",
+    "task": "33-large-sum",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 26420,
+    "input_tokens": {
+      "value": 179078,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 432,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 132491,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 25 --max-wall-time 180s Each file under vals/ has a 'value: N' line. Write sum.txt containing a single integer: the sum of every value. Do not skip files. The tree is large; inspect it with tools."
+  },
+  {
+    "harness": "qwencode",
+    "task": "34-large-headers",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 37240,
+    "input_tokens": {
+      "value": 235753,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1038,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 180984,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 8,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 25 --max-wall-time 180s Add exactly this first line to every .go file: // SPDX-License-Identifier: MIT\nDo not duplicate it if you run twice. Keep go test passing. The tree is large; inspect it with tools."
+  },
+  {
+    "harness": "qwencode",
+    "task": "35-large-deadcode",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 73001,
+    "input_tokens": {
+      "value": 498182,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 2105,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 442168,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 18,
+      "set": true
+    },
+    "turns": {
+      "value": 10,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 25 --max-wall-time 180s Delete every DropNNN function (dead code). Keep every KeepNNN function and keep go test passing. The tree is large; inspect it with tools."
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "name": "34-large-headers",
+  "prompt": "Add exactly this first line to every .go file: // SPDX-License-Identifier: MIT\nDo not duplicate it if you run twice. Keep go test passing. The tree is large; inspect it with tools.",
+  "check": "fail=0; for f in $(find . -name '*.go'); do test \"$(head -1 \"$f\")\" = '// SPDX-License-Identifier: MIT' || fail=1; done; test $fail -eq 0 && go test ./...",
+  "timeout": 1200,
+  "tags": ["large", "edit", "go"]
+}

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Package prompt builds the system prompt for the agent.
 package prompt
 
@@ -34,7 +35,7 @@ func System(cwd string) string {
 - Be concise. Lead with the result. Use markdown; put code, commands and error output in fenced blocks.
 
 # Environment
-`)
+`) // openai.applyCacheBreakpoints splits on this heading so cwd/date stay out of the cached prefix.
 	fmt.Fprintf(&sb, "- Working directory: %s\n", cwd)
 	fmt.Fprintf(&sb, "- Platform: %s/%s\n", runtime.GOOS, runtime.GOARCH)
 	fmt.Fprintf(&sb, "- Date: %s\n", time.Now().Format("2006-01-02"))

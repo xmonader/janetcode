@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package openai
 
 import (
@@ -105,7 +106,7 @@ func TestStreamTextAndToolCalls(t *testing.T) {
 	if resp.StopReason != llm.StopToolUse {
 		t.Fatalf("stop = %s", resp.StopReason)
 	}
-	if resp.Usage != (llm.Usage{InputTokens: 10, OutputTokens: 5, CacheReadTokens: 4, CostUSD: 0.00123}) {
+	if resp.Usage != (llm.Usage{InputTokens: 6, OutputTokens: 5, CacheReadTokens: 4, CostUSD: 0.00123}) {
 		t.Fatalf("usage = %+v", resp.Usage)
 	}
 	blocks := resp.Message.Blocks
@@ -416,5 +417,91 @@ func TestEmbed(t *testing.T) {
 	}
 	if _, err := p.Embed(context.Background(), "emb", []string{"a", "b", "c"}); err == nil {
 		t.Fatal("count mismatch accepted")
+	}
+}
+
+func TestCacheableURLAndDashScopeHeader(t *testing.T) {
+	if !cacheableURL("https://coding-intl.dashscope.aliyuncs.com/v1") || !cacheableURL("https://openrouter.ai/api/v1") {
+		t.Fatal("dashscope and openrouter must be cacheable")
+	}
+	if cacheableURL("http://127.0.0.1:11434/v1") || cacheableURL("https://api.openai.com/v1") {
+		t.Fatal("local and openai.com must not get cache_control arrays")
+	}
+	h := extraHeaders("https://coding-intl.dashscope.aliyuncs.com/v1")
+	if h["X-DashScope-CacheControl"] != "enable" {
+		t.Fatalf("dashscope header = %v", h)
+	}
+	if extraHeaders("https://openrouter.ai/api/v1") != nil {
+		t.Fatal("openrouter should not get the DashScope header")
+	}
+}
+
+func TestApplyCacheBreakpoints(t *testing.T) {
+	req := llm.Request{
+		Model:  "qwen3.7-plus",
+		System: "you are a coding agent\n\n# Environment\n- Working directory: /tmp/eval-abc\n",
+		Messages: []llm.Message{
+			llm.TextMessage(llm.RoleUser, "first"),
+			llm.TextMessage(llm.RoleAssistant, "ok"),
+			llm.TextMessage(llm.RoleUser, "tail that changes"),
+		},
+		Tools: []llm.ToolDef{{Name: "bash", Description: "d", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	}
+	w, err := buildRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyCacheBreakpoints(&w)
+	sys, ok := w.Messages[0].Content.([]wirePart)
+	if !ok || len(sys) != 2 {
+		t.Fatalf("system should split static/env: %#v", w.Messages[0].Content)
+	}
+	if sys[0].CacheControl == nil || sys[0].CacheControl.Type != "ephemeral" || strings.Contains(sys[0].Text, "Working directory") {
+		t.Fatalf("static system block = %#v", sys[0])
+	}
+	if sys[1].CacheControl != nil || !strings.Contains(sys[1].Text, "Working directory") {
+		t.Fatalf("env block must be uncached: %#v", sys[1])
+	}
+	if w.Tools[0].CacheControl == nil || w.Tools[0].CacheControl.Type != "ephemeral" {
+		t.Fatalf("last tool must be marked: %+v", w.Tools[0])
+	}
+	mid, ok := w.Messages[2].Content.([]wirePart) // assistant, not the tail user
+	if !ok || mid[0].CacheControl == nil {
+		t.Fatalf("stable prefix breakpoint missing: %+v", w.Messages)
+	}
+	tail, ok := w.Messages[3].Content.([]wirePart)
+	if !ok || tail[0].CacheControl != nil {
+		t.Fatalf("tail must not be marked: %#v", w.Messages[3].Content)
+	}
+}
+
+func TestDashScopeStreamSendsCacheHeaderAndBreakpoints(t *testing.T) {
+	var gotHeader string
+	var gotBody wireRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeader = r.Header.Get("X-DashScope-CacheControl")
+		b, _ := io.ReadAll(r.Body)
+		json.Unmarshal(b, &gotBody)
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	p, err := New(Config{BaseURL: srv.URL + "/dashscope/v1", APIKey: "k"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = p.Stream(context.Background(), llm.Request{
+		Model:    "qwen3.7-plus",
+		System:   "sys",
+		Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotHeader != "enable" {
+		t.Fatalf("header = %q", gotHeader)
+	}
+	sys, _ := gotBody.Messages[0].Content.([]any)
+	if len(sys) == 0 {
+		t.Fatalf("system content not array: %#v", gotBody.Messages[0].Content)
 	}
 }

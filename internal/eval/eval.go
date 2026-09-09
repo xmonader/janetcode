@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Package eval runs small end-to-end tasks against a real provider and
 // reports pass/fail, cost and tool-call counts. It is the regression test
 // for the agent's behaviour, as opposed to its code: a prompt change that
@@ -76,6 +77,7 @@ func Load(path string) ([]Task, error) {
 			return nil, fmt.Errorf("%s: duplicate task name %q", f, t.Name)
 		}
 		seen[t.Name] = true
+		expandLarge(&t)
 		tasks = append(tasks, t)
 	}
 	if len(tasks) == 0 {

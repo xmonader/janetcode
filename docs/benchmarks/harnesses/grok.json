@@ -1,0 +1,665 @@
+[
+  {
+    "harness": "grok",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 10126,
+    "input_tokens": {
+      "value": 23645,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 89,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 23296,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Create a file named hello.txt containing exactly the text: hello world --cwd /tmp/harness-grok-01-create-file-3407030322 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 43416,
+    "input_tokens": {
+      "value": 28111,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 800,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 139776,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --cwd /tmp/harness-grok-02-go-add-function-1828714209 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 77588,
+    "input_tokens": {
+      "value": 28130,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 824,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 116480,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p go test fails. Find the bug and fix it in the implementation, not the test. --cwd /tmp/harness-grok-03-fix-failing-test-3468765388 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 19077,
+    "input_tokens": {
+      "value": 24530,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 343,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 46592,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --cwd /tmp/harness-grok-04-python-fizzbuzz-1190916514 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 43436,
+    "input_tokens": {
+      "value": 25712,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 751,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 69888,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --cwd /tmp/harness-grok-05-rename-symbol-1124118231 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 29646,
+    "input_tokens": {
+      "value": 17775,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 211,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52864,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p What does Compute(3) return? Reply with just the number. --cwd /tmp/harness-grok-06-read-and-answer-3372151640 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 37286,
+    "input_tokens": {
+      "value": 20503,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 475,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 122752,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p In config.json change the port to 8080. Keep every other key exactly as it is. --cwd /tmp/harness-grok-07-json-config-edit-1849270061 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 20879,
+    "input_tokens": {
+      "value": 17943,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 261,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52864,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Write count.sh that prints the number of lines in input.txt and nothing else. --cwd /tmp/harness-grok-08-shell-script-2506534538 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 46512,
+    "input_tokens": {
+      "value": 20685,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 516,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 146048,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Add a greet target to the Makefile that prints hi. Keep the existing targets. --cwd /tmp/harness-grok-09-makefile-target-3653111728 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 27699,
+    "input_tokens": {
+      "value": 18067,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 262,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 76160,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Append the line 'four' to the end of list.txt. Do not change the existing lines. --cwd /tmp/harness-grok-10-append-preserve-500525469 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 50179,
+    "input_tokens": {
+      "value": 27416,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1196,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 192640,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 9,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --cwd /tmp/harness-grok-11-go-return-error-4137182989 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 25202,
+    "input_tokens": {
+      "value": 20154,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 496,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 99456,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p python3 test_stats.py fails. Fix the bug in stats.py. --cwd /tmp/harness-grok-12-python-bugfix-2905186525 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 26514,
+    "input_tokens": {
+      "value": 20204,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 867,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 76160,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --cwd /tmp/harness-grok-13-multi-file-package-291899960 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 15614,
+    "input_tokens": {
+      "value": 17647,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 197,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52864,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Add node_modules/ and dist/ to .gitignore, keeping what is there. --cwd /tmp/harness-grok-14-gitignore-1765769025 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 8868,
+    "input_tokens": {
+      "value": 17443,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 97,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 29568,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --cwd /tmp/harness-grok-15-yes-no-question-3642350299 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": false,
+    "reason": "check failed: exit status 2: grep: README.md: No such file or directory",
+    "wall_time_ms": 20944,
+    "input_tokens": {
+      "value": 17748,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 387,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52864,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --cwd /tmp/harness-grok-16-readme-204485279 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search",
+    "stderr_excerpt": "grep: README.md: No such file or directory"
+  },
+  {
+    "harness": "grok",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": false,
+    "reason": "check failed: exit status 1",
+    "wall_time_ms": 17299,
+    "input_tokens": {
+      "value": 18700,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 322,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 76160,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --cwd /tmp/harness-grok-17-csv-sort-810796564 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 7622,
+    "input_tokens": {
+      "value": 17458,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 105,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 29568,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Which files mention 'flux capacitor'? List only the file names. --cwd /tmp/harness-grok-18-find-mentions-3201755828 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 29336,
+    "input_tokens": {
+      "value": 19755,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 679,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 99456,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --cwd /tmp/harness-grok-19-write-test-2413937249 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  },
+  {
+    "harness": "grok",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 14892,
+    "input_tokens": {
+      "value": 18201,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 356,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52864,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "grok -p Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --cwd /tmp/harness-grok-20-env-default-3020957001 --always-approve --output-format json --model qwen3.7-plus --max-turns 20 --disable-web-search"
+  }
+]

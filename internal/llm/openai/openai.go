@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Package openai implements llm.Provider over the OpenAI chat-completions
 // wire format, which OpenAI, xAI, Qwen, DeepSeek, OpenRouter, vLLM and Ollama
 // all speak. The client is hand-rolled so it stays tolerant of the small
@@ -55,6 +56,7 @@ type Provider struct {
 	mu               sync.Mutex
 	useMaxCompletion bool // send max_completion_tokens instead of max_tokens
 	noStreamOptions  bool // server rejects stream_options
+	noCacheControl   bool // server rejects cache_control / array content
 }
 
 // New validates cfg and builds a provider.
@@ -256,6 +258,13 @@ type wirePart struct {
 	ImageURL *struct {
 		URL string `json:"url"`
 	} `json:"image_url,omitempty"`
+	// CacheControl is an Anthropic-style breakpoint. DashScope and OpenRouter
+	// honour it; strict local servers must not see it (see applyCacheBreakpoints).
+	CacheControl *wireCacheControl `json:"cache_control,omitempty"`
+}
+
+type wireCacheControl struct {
+	Type string `json:"type"`
 }
 
 type wireToolCall struct {
@@ -275,6 +284,9 @@ type wireTool struct {
 		Description string          `json:"description"`
 		Parameters  json.RawMessage `json:"parameters"`
 	} `json:"function"`
+	// CacheControl on the last tool includes the tool schemas in DashScope's
+	// cached prefix (same marker qwen-code sends).
+	CacheControl *wireCacheControl `json:"cache_control,omitempty"`
 }
 
 type wireRequest struct {
@@ -460,6 +472,126 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 	return w, nil
 }
 
+// cacheableURL is true for endpoints that honour Anthropic-style
+// cache_control breakpoints (and, for DashScope, need an opt-in header).
+func cacheableURL(base string) bool {
+	u := strings.ToLower(base)
+	return strings.Contains(u, "dashscope") || strings.Contains(u, "openrouter.ai")
+}
+
+func extraHeaders(baseURL string) map[string]string {
+	if strings.Contains(strings.ToLower(baseURL), "dashscope") {
+		return map[string]string{"X-DashScope-CacheControl": "enable"}
+	}
+	return nil
+}
+
+func normalizeContent(content any) []wirePart {
+	switch c := content.(type) {
+	case string:
+		if c == "" {
+			return nil
+		}
+		return []wirePart{{Type: "text", Text: c}}
+	case []wirePart:
+		return c
+	default:
+		return nil
+	}
+}
+
+func markBreakpoint(m *wireMessage) {
+	parts := normalizeContent(m.Content)
+	if len(parts) == 0 {
+		return
+	}
+	last := parts[len(parts)-1]
+	if last.Type != "text" {
+		return
+	}
+	cc := wireCacheControl{Type: "ephemeral"}
+	last.CacheControl = &cc
+	parts[len(parts)-1] = last
+	m.Content = parts
+}
+
+// envSection is the heading prompt.System uses for cwd/date/git. Everything
+// before it is identical across working directories and can be cached;
+// everything after it changes every eval workdir and must stay uncached.
+const envSection = "# Environment\n"
+
+// applyCacheBreakpoints puts ephemeral cache_control markers on the stable
+// prefix: static system instructions (not cwd/date), the last tool schema,
+// then the last content-bearing history message that is not the tail.
+func applyCacheBreakpoints(w *wireRequest) {
+	for i := range w.Messages {
+		if parts := normalizeContent(w.Messages[i].Content); len(parts) > 0 {
+			w.Messages[i].Content = parts
+		}
+	}
+	for i := range w.Messages {
+		if w.Messages[i].Role == "system" {
+			markStableSystem(&w.Messages[i])
+			break
+		}
+	}
+	if n := len(w.Tools); n > 0 {
+		cc := wireCacheControl{Type: "ephemeral"}
+		w.Tools[n-1].CacheControl = &cc
+	}
+	if len(w.Messages) < 2 {
+		return
+	}
+	for i := len(w.Messages) - 2; i >= 0; i-- {
+		if w.Messages[i].Role == "system" {
+			continue
+		}
+		if len(normalizeContent(w.Messages[i].Content)) == 0 {
+			continue
+		}
+		markBreakpoint(&w.Messages[i])
+		break
+	}
+}
+
+func markStableSystem(m *wireMessage) {
+	parts := normalizeContent(m.Content)
+	if len(parts) == 0 {
+		return
+	}
+	if len(parts) == 1 && parts[0].Type == "text" {
+		text := parts[0].Text
+		if i := strings.Index(text, envSection); i > 0 {
+			m.Content = []wirePart{
+				{Type: "text", Text: text[:i], CacheControl: &wireCacheControl{Type: "ephemeral"}},
+				{Type: "text", Text: text[i:]},
+			}
+			return
+		}
+	}
+	markBreakpoint(m)
+}
+
+func stripCacheControl(w *wireRequest) {
+	for i := range w.Tools {
+		w.Tools[i].CacheControl = nil
+	}
+	for i := range w.Messages {
+		parts := normalizeContent(w.Messages[i].Content)
+		if len(parts) == 0 {
+			continue
+		}
+		for j := range parts {
+			parts[j].CacheControl = nil
+		}
+		if len(parts) == 1 && parts[0].Type == "text" && parts[0].ImageURL == nil {
+			w.Messages[i].Content = parts[0].Text
+			continue
+		}
+		w.Messages[i].Content = parts
+	}
+}
+
 // --- streaming ---
 
 // Stream implements llm.Provider.
@@ -470,6 +602,9 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	w, err := buildRequest(req)
 	if err != nil {
 		return nil, err
+	}
+	if cacheableURL(p.cfg.BaseURL) {
+		applyCacheBreakpoints(&w)
 	}
 	var resp *http.Response
 	rotations := 0
@@ -521,6 +656,9 @@ func (p *Provider) applyDialect(w wireRequest) wireRequest {
 	if p.noStreamOptions {
 		w.StreamOptions = nil
 	}
+	if p.noCacheControl {
+		stripCacheControl(&w)
+	}
 	return w
 }
 
@@ -541,6 +679,9 @@ func (p *Provider) learnDialect(err error) bool {
 	case !p.noStreamOptions && strings.Contains(msg, "stream_options"):
 		p.noStreamOptions = true
 		return true
+	case !p.noCacheControl && (strings.Contains(msg, "cache_control") || strings.Contains(msg, "cachecontrol")):
+		p.noCacheControl = true
+		return true
 	}
 	return false
 }
@@ -554,6 +695,9 @@ func (p *Provider) do(ctx context.Context, body []byte, key string) (*http.Respo
 	hreq.Header.Set("Accept", "text/event-stream")
 	if key != "" {
 		hreq.Header.Set("Authorization", "Bearer "+key)
+	}
+	for k, v := range extraHeaders(p.cfg.BaseURL) {
+		hreq.Header.Set(k, v)
 	}
 	resp, err := p.http.Do(hreq)
 	if err != nil {
@@ -627,10 +771,20 @@ func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
 		}
 		gotChunk = true
 		if ch.Usage != nil {
-			usage.InputTokens = ch.Usage.PromptTokens
-			usage.OutputTokens = ch.Usage.CompletionTokens
+			pt := ch.Usage.PromptTokens
+			cached := 0
 			if ch.Usage.PromptTokensDetails != nil {
-				usage.CacheReadTokens = ch.Usage.PromptTokensDetails.CachedTokens
+				cached = ch.Usage.PromptTokensDetails.CachedTokens
+			}
+			// OpenAI/DashScope: cached_tokens is a subset of prompt_tokens.
+			// Store uncached input so Cost() and CacheRate() stay additive
+			// like the Anthropic path (input_tokens is already uncached there).
+			usage.OutputTokens = ch.Usage.CompletionTokens
+			usage.CacheReadTokens = cached
+			if cached > 0 && cached <= pt {
+				usage.InputTokens = pt - cached
+			} else {
+				usage.InputTokens = pt
 			}
 			usage.CostUSD = ch.Usage.Cost
 		}

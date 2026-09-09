@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package agent
 
 import (
@@ -245,6 +246,40 @@ func TestMaxIterations(t *testing.T) {
 	}
 	if last := a.Messages[len(a.Messages)-1]; last.Role != llm.RoleUser || last.Blocks[0].Type != llm.BlockToolResult {
 		t.Fatalf("history should end with tool results, got %+v", last)
+	}
+}
+
+func TestAppendDoesNotMutateSentToolResults(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "read_file", `{"path":"a.txt"}`),
+		text("done"),
+	}}
+	a, _ := newAgent(t, f, nil)
+	if err := a.Run(context.Background(), "look", nil); err != nil {
+		t.Fatal(err)
+	}
+	// After the tool turn the history ends with the tool-result user message.
+	var toolMsg *llm.Message
+	for i := range a.Messages {
+		if hasToolResult(a.Messages[i]) {
+			toolMsg = &a.Messages[i]
+		}
+	}
+	if toolMsg == nil {
+		t.Fatal("expected a tool-result message")
+	}
+	nBlocks := len(toolMsg.Blocks)
+	nMsgs := len(a.Messages)
+	a.AddContext("a background job finished")
+	if len(toolMsg.Blocks) != nBlocks {
+		t.Fatalf("tool-result message was mutated in place (%d → %d blocks); that busts the prompt-cache prefix", nBlocks, len(toolMsg.Blocks))
+	}
+	if len(a.Messages) != nMsgs+1 {
+		t.Fatalf("transient context should be a new user message, got %d messages want %d", len(a.Messages), nMsgs+1)
+	}
+	last := a.Messages[len(a.Messages)-1]
+	if last.Role != llm.RoleUser || last.Text() != "a background job finished" {
+		t.Fatalf("new message = %+v", last)
 	}
 }
 

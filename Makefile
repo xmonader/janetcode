@@ -3,7 +3,7 @@ PKG := ./...
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build install test race lint clean run eval eval-baseline eval-train cross
+.PHONY: build install test race lint clean run eval eval-baseline eval-train cross harness-bench harness-bench-large
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BIN) ./cmd/$(BIN)
@@ -42,6 +42,18 @@ eval-train: build
 cross:
 	GOOS=windows GOARCH=amd64 go build ./...
 	GOOS=darwin GOARCH=arm64 go build ./...
+
+# Live 01–20 × six-harness benchmark (needs DASHSCOPE_API_KEY or OPENAI_API_KEY).
+harness-bench: build
+	go test ./internal/eval -count=1 -run 'TestBatchesOfFive|TestAggregate'
+	go build -o bin/harnessbench ./cmd/harnessbench
+	./bin/harnessbench --evals evals --out docs/benchmarks/harnesses
+
+# Five large evals (~1M cumulative tokens) × five harnesses (no openclaw).
+harness-bench-large: build
+	go test ./internal/eval -count=1 -run 'TestLarge'
+	go build -o bin/harnessbench ./cmd/harnessbench
+	./bin/harnessbench --filter large --evals evals/large --out docs/benchmarks/harnesses/large --timeout 20m --janetcode bin/janetcode
 
 clean:
 	rm -rf bin
