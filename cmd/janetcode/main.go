@@ -87,6 +87,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalOff     = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify, repomap, working, plan, critic")
 		evalLabel   = fs.String("eval-label", "", "name recorded in the results file for this variant")
 		evalTrain   = fs.String("eval-train", "", "train the trajectory critic from these eval result files (comma-separated files or directories) and exit")
+		evalTimeout = fs.Duration("eval-timeout", 0, "replace every task's timeout with this wall budget (benchmarks give each harness the same)")
+		evalTurns   = fs.Int("eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
+		evalNoLimit = fs.Bool("eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
 		allow       = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
 		deny        = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
 		cont        = fs.Bool("continue", false, "resume the latest session for this directory")
@@ -160,7 +163,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		return runEval(ctx, cfg, prov, evalOptions{path: *evalPath, jobs: *evalJobs, only: *evalOnly, jsonOut: *evalJSON, keep: *evalKeep,
-			runs: *evalRuns, compare: *evalCompare, off: *evalOff, label: *evalLabel})
+			runs: *evalRuns, compare: *evalCompare, off: *evalOff, label: *evalLabel,
+			timeout: *evalTimeout, maxTurns: *evalTurns, noToolLimit: *evalNoLimit})
 	}
 
 	sessDir, err := session.Dir()
@@ -462,6 +466,9 @@ type evalOptions struct {
 	path, only, jsonOut string
 	jobs, runs          int
 	keep                bool
+	timeout             time.Duration
+	maxTurns            int
+	noToolLimit         bool
 	compare, off, label string
 }
 
@@ -505,7 +512,11 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		fmt.Fprintf(os.Stderr, " · variant %s", variant)
 	}
 	fmt.Fprintln(os.Stderr)
-	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, NewAgent: func(root string) (*agent.Agent, error) {
+	maxIter := cfg.MaxIterations
+	if o.maxTurns > 0 {
+		maxIter = o.maxTurns
+	}
+	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, Timeout: o.timeout, IgnoreToolLimit: o.noToolLimit, NewAgent: func(root string) (*agent.Agent, error) {
 		repo := &repomap.Cache{Root: root}
 		var prep func([]llm.Block) ([]llm.Block, string)
 		if !off["repomap"] {
@@ -526,7 +537,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			System:        prompt.System(root),
 			Model:         cfg.Model,
 			MaxTokens:     cfg.MaxTokens,
-			MaxIterations: cfg.MaxIterations,
+			MaxIterations: maxIter,
 			CompactAt:     cfg.CompactAt,
 		}, nil
 	}}

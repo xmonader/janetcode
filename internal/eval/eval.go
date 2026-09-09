@@ -135,6 +135,12 @@ type Runner struct {
 	// Runs repeats every task this many times; zero means 1. Repeats
 	// turn a coin flip into a rate.
 	Runs int
+	// Timeout, when set, replaces every task's own timeout so a benchmark
+	// can give each harness the same wall budget.
+	Timeout time.Duration
+	// IgnoreToolLimit skips the tasks' max_tool_calls checks, which other
+	// harnesses in a comparison do not enforce.
+	IgnoreToolLimit bool
 }
 
 // Run executes every task (Runs times each) and returns results in task
@@ -210,6 +216,9 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 	}
 	ag.AutoApprove = true
 	timeout := time.Duration(t.Timeout) * time.Second
+	if r.Timeout > 0 {
+		timeout = r.Timeout
+	}
 	if timeout <= 0 {
 		timeout = 3 * time.Minute
 	}
@@ -241,7 +250,7 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 		}
 		return res
 	}
-	if t.MaxToolCalls > 0 && res.ToolCalls > t.MaxToolCalls {
+	if t.MaxToolCalls > 0 && res.ToolCalls > t.MaxToolCalls && !r.IgnoreToolLimit {
 		res.Reason = fmt.Sprintf("used %d tool calls, limit %d", res.ToolCalls, t.MaxToolCalls)
 		return res
 	}

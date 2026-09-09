@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -91,6 +92,26 @@ func TestLoadFilterAndRun(t *testing.T) {
 	os.WriteFile(out, []byte(`[{"name":"x","passed":true},{"name":"x","run":1,"passed":false}]`), 0o644)
 	if old, err := ReadFile(out); err != nil || len(old.Results) != 2 || old.Runs != 2 {
 		t.Fatalf("old format: %v %+v", err, old)
+	}
+}
+
+func TestRunnerOverridesForBenchmarks(t *testing.T) {
+	dir := t.TempDir()
+	writeTask(t, dir, "limited.json", Task{Prompt: "write hello", Check: "true", MaxToolCalls: 1, Timeout: 1})
+	tasks, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tasks[0].MaxToolCalls = 1
+	newAgent := func(root string) (*agent.Agent, error) {
+		return &agent.Agent{Provider: &scripted{}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m"}, nil
+	}
+	if rs := (&Runner{NewAgent: newAgent, IgnoreToolLimit: true, Timeout: time.Minute}).Run(context.Background(), tasks); !rs[0].Passed {
+		t.Fatalf("override ignored: %+v", rs[0])
+	}
+	// A runner timeout replaces the task's own.
+	if rs := (&Runner{NewAgent: newAgent, IgnoreToolLimit: true, Timeout: time.Nanosecond}).Run(context.Background(), tasks); rs[0].Passed || !strings.Contains(rs[0].Reason, "timed out after 1ns") {
+		t.Fatalf("timeout not applied: %+v", rs[0])
 	}
 }
 

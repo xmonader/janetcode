@@ -35,7 +35,8 @@ func run(args []string) error {
 	baseURL := fs.String("base-url", "https://coding-intl.dashscope.aliyuncs.com/v1", "OpenAI-compatible base URL")
 	harnessesDefault := strings.Join(eval.BenchHarnesses, ",")
 	harnesses := fs.String("harnesses", harnessesDefault, "comma-separated harness names")
-	timeout := fs.Duration("timeout", 3*time.Minute, "per-task wall timeout")
+	timeout := fs.Duration("timeout", 3*time.Minute, "per-task wall timeout, applied to every harness")
+	maxTurns := fs.Int("max-turns", 40, "model-call cap per task for every harness that has one (qwencode, hermes-agent, grok, janetcode; pi has no flag)")
 	only := fs.String("only", "", "comma-separated task names to run (still grouped in batches of five)")
 	filter := fs.String("filter", "01-20", "task set: 01-20, large, or all")
 	reportOnly := fs.Bool("report-only", false, "rebuild REPORT.md from existing JSON files; do not call the API")
@@ -76,6 +77,7 @@ func run(args []string) error {
 		OutDir:   *outDir,
 		Scratch:  *scratch,
 		Timeout:  *timeout,
+		MaxTurns: *maxTurns,
 		RepoRoot: mustAbs("."),
 	}
 
@@ -134,7 +136,7 @@ func run(args []string) error {
 		Model:    cfg.Model,
 		Endpoint: cfg.BaseURL,
 		When:     time.Now().UTC(),
-		Note:     "pass/fail is the eval JSON shell check; token fields are only those the harness emitted",
+		Note:     fmt.Sprintf("pass/fail is the eval JSON shell check; token fields are only those the harness emitted. Limits: %s wall budget for every harness and a fresh 2m for each check; %d model calls per task for qwencode, hermes-agent, grok and janetcode (pi has no cap flag); hermes-agent runs with its terminal toolset only; the tasks' max_tool_calls are not enforced for any harness", cfg.Timeout, cfg.MaxTurns),
 	}
 	if *filter == "large" {
 		meta.Tasks = "31–35 (five large evals, one batch of five); openclaw excluded"
@@ -166,6 +168,7 @@ type runConfig struct {
 	EvalsDir, JanetBin  string
 	OutDir, Scratch     string
 	Timeout             time.Duration
+	MaxTurns            int
 	RepoRoot            string
 }
 

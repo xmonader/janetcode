@@ -45,6 +45,9 @@ func runJanetBatch(ctx context.Context, cfg runConfig, batchN int, tasks []eval.
 		"--eval-json", jsonOut,
 		"--provider", "openai",
 		"--model", cfg.Model,
+		"--eval-timeout", cfg.Timeout.String(),
+		"--eval-max-turns", fmt.Sprint(cfg.MaxTurns),
+		"--eval-no-tool-limit",
 	}
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = cfg.RepoRoot
@@ -159,7 +162,7 @@ func runOne(ctx context.Context, cfg runConfig, harness string, batchN int, t ev
 
 	if runErr != nil && tctx.Err() != nil {
 		res.Reason = fmt.Sprintf("timed out after %s: %v", cfg.Timeout, runErr)
-	} else if passed, why, cout := runCheck(tctx, t, dir, outPath); passed {
+	} else if passed, why, cout := runCheck(ctx, t, dir, outPath); passed { // fresh budget: the check is not the harness's time
 		res.Passed = true
 		if why != "" {
 			res.Reason = why
@@ -220,6 +223,9 @@ func seedWorkdir(t eval.Task, dir string) error {
 	return nil
 }
 
+// runCheck runs the task's check with its own two-minute budget, like
+// the native eval runner, so a harness that used its whole wall budget
+// is not failed by a check that never got to run.
 func runCheck(ctx context.Context, t eval.Task, dir, outPath string) (bool, string, string) {
 	cctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
@@ -251,19 +257,19 @@ func invoke(ctx context.Context, cfg runConfig, harness string, t eval.Task, dir
 	case "qwencode":
 		argv = []string{"qwen", "--yolo", "--output-format", "json", "--auth-type", "openai",
 			"--openai-base-url", cfg.BaseURL, "--model", cfg.Model,
-			"--max-session-turns", "25", "--max-wall-time", "180s", t.Prompt}
+			"--max-session-turns", fmt.Sprint(cfg.MaxTurns), "--max-wall-time", fmt.Sprintf("%ds", int(cfg.Timeout.Seconds())), t.Prompt}
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 		extraEnv["QWEN_CODE_SUPPRESS_YOLO_WARNING"] = "1"
 	case "hermes-agent":
 		// api_key must be explicit: hermes only uses a custom base URL when
 		// both base_url and api_key are set, otherwise it falls back to OpenRouter.
 		argv = []string{"hermes-agent", "--query", t.Prompt, "--model", cfg.Model, "--base_url", cfg.BaseURL,
-			"--api_key", cfg.Key, "--max_turns", "20", "--enabled_toolsets", "terminal", "--verbose"}
+			"--api_key", cfg.Key, "--max_turns", fmt.Sprint(cfg.MaxTurns), "--enabled_toolsets", "terminal", "--verbose"}
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 		extraEnv["OPENROUTER_API_KEY"] = cfg.Key
 	case "grok":
 		argv = []string{"grok", "-p", t.Prompt, "--cwd", dir, "--always-approve", "--output-format", "json",
-			"--model", cfg.Model, "--max-turns", "20", "--disable-web-search"}
+			"--model", cfg.Model, "--max-turns", fmt.Sprint(cfg.MaxTurns), "--disable-web-search"}
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 		grokHomeMu.Lock()
 		home := grokHomePath
