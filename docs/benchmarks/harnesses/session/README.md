@@ -52,8 +52,10 @@ anecdotal:
 Zero calls in 54 runs across two models, counted from the saved event
 logs, and the multi-prompt session shape the tool was built for is nine of
 them. The two earlier single-run qwen sessions — one with a system-prompt
-line naming the tool — were also zero, by hand. `expand_output`, `repo_map`
-and `task` were never called in these runs either.
+line naming the tool — were also zero, by hand. `repo_map` and `task` were never
+called in these runs either. `expand_output` was not either, but that one
+is correct rather than a defect: those runs compacted zero times, so there
+was nothing archived for it to fetch.
 
 **The tool was not the problem; the instruction was.** Asked directly, the
 tool works: qwen3.7-plus writes a plan, marks a step in progress and marks
@@ -75,6 +77,13 @@ to judge, and to write the plan before starting.
 | before, qwen3.7-plus, 9 session runs | 0 |
 | after, a request with three explicit parts | 4 (plan first, then marked off as it went) |
 | after, qwen3.7-plus, 6 session runs | 3, in 1 of 6 runs |
+| after, qwen3.7-plus, 9 fanout runs | 0 |
+
+The last row is the honest limit of the fix. One of those nine tasks
+(`59-three-part-request`) asks for three things in one prompt, which is
+precisely the trigger, and the model did not write a plan — while the same
+model on a similar three-part request did. Adoption went from never to
+sometimes, not from never to reliably.
 
 One in six looks low until you read the prompts: each step of a session
 task asks for a single thing ("add a Timeout field", "make the server use
