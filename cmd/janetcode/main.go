@@ -658,20 +658,14 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		// ones that need a terminal or the network. A benchmark run
 		// against a smaller agent measures something nobody uses.
 		ag := &agent.Agent{
-			Provider:  prov,
-			Off:       off,
-			Prepare:   prep,
-			PlanCheck: repo.CheckPlan,
-			Log:       &session.Memory{},
-			Archive:   archive,
-			Price:     cfg.PriceFor(cfg.Model),
-			Tools: tool.NewRegistry(
-				tool.ReadFile{Root: root}, tool.WriteFile{Root: root}, tool.EditFile{Root: root, NoLines: off["lineedit"]},
-				tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root},
-				tool.Bash{Root: root, Cache: &tool.ShellCache{}},
-				repomap.Tool{Cache: repo},
-				expand,
-			),
+			Provider:      prov,
+			Off:           off,
+			Prepare:       prep,
+			PlanCheck:     repo.CheckPlan,
+			Log:           &session.Memory{},
+			Archive:       archive,
+			Price:         cfg.PriceFor(cfg.Model),
+			Tools:         evalTools(root, repo, expand, off),
 			System:        prompt.System(root),
 			Model:         cfg.Model,
 			MaxTokens:     cfg.MaxTokens,
@@ -823,6 +817,28 @@ var (
 	evalToolNames []string
 	evalToolsOnce sync.Once
 )
+
+// evalTools is the eval agent's registry. --eval-off extratools strips it
+// to the four tools a session actually leans on — read, write, edit and a
+// shell — so that the cost of a wide tool surface can be measured rather
+// than assumed: every schema is in the prefix of every request, and every
+// tool is one more thing to choose between each turn.
+func evalTools(root string, repo *repomap.Cache, expand *agent.ExpandOutput, off map[string]bool) *tool.Registry {
+	core := []tool.Tool{
+		tool.ReadFile{Root: root},
+		tool.WriteFile{Root: root},
+		tool.EditFile{Root: root, NoLines: off["lineedit"]},
+		tool.Bash{Root: root, Cache: &tool.ShellCache{}},
+	}
+	if off["extratools"] {
+		return tool.NewRegistry(core...)
+	}
+	return tool.NewRegistry(append(core,
+		tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root},
+		repomap.Tool{Cache: repo},
+		expand,
+	)...)
+}
 
 // envOff reads JANETCODE_OFF, a comma-separated list of behaviours to
 // disable for this session.
