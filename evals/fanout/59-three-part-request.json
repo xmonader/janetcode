@@ -1,5 +1,5 @@
 {
-  "name": "35-three-part-request",
+  "name": "59-three-part-request",
   "prompt": "Three things: add a /healthz route to Handler returning 200 with the body 'ok'; add a doc comment above Handler saying what routes it serves; and add a file s/README.md listing the routes. The package must build.",
   "files": {
     "go.mod": "module example.com/s\n\ngo 1.22\n",

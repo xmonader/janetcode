@@ -1,5 +1,5 @@
 {
-  "name": "28-same-edit-everywhere",
+  "name": "52-same-edit-everywhere",
   "prompt": "Every file in pkg/ has a fmt.Println debug line inside its Handler function. Remove all of those Println lines, and remove the now-unused fmt import from each file. The package must still build with go build ./... when you are done.",
   "files": {
     "pkg/h01.go": "package pkg\n\nimport \"fmt\"\n\n// Handler1 does the work of module 1.\nfunc Handler1(name string) string {\n\tfmt.Println(\"handler 1 starting\")\n\treturn name + \"-1\"\n}\n",

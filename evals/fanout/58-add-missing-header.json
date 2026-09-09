@@ -1,5 +1,5 @@
 {
-  "name": "34-add-missing-header",
+  "name": "58-add-missing-header",
   "prompt": "Every file in c/ should start with the line '// Copyright 2026 Example'. Some already have it. Add it to the ones that do not, without duplicating it on the ones that do.",
   "files": {
     "c/c01.go": "package c\n\nfunc C1() int { return 1 }\n",

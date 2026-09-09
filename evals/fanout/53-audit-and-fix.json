@@ -1,5 +1,5 @@
 {
-  "name": "29-audit-and-fix",
+  "name": "53-audit-and-fix",
   "prompt": "Each file in audit/ defines a Check function that must return errEmpty for an empty string. Some of them wrongly return nil instead. Find every one that is wrong, fix it, and report which files you fixed. The package must still build.",
   "files": {
     "audit/c01.go": "package audit\n\n// Check1 validates input for rule 1.\nfunc Check1(s string) error {\n\tif s == \"\" {\n\t\treturn errEmpty\n\t}\n\treturn nil\n}\n",

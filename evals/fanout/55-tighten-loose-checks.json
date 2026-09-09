@@ -1,5 +1,5 @@
 {
-  "name": "31-tighten-loose-checks",
+  "name": "55-tighten-loose-checks",
   "prompt": "Every file in v/ has a Validate function. Some just 'return true', which accepts anything. Replace each of those bodies with 'return len(s) > 0 && len(s) < 100' so every validator is strict. Leave the ones that are already strict alone. The package must build.",
   "files": {
     "go.mod": "module example.com/v\n\ngo 1.22\n",

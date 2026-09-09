@@ -1,8 +1,9 @@
 # Does calling tools from a script actually pay?
 
 - Model: `anthropic/claude-sonnet-4.5` via OpenRouter
-- Tasks: `evals/27-survey-many-files`, `28-same-edit-everywhere`, `29-audit-and-fix` (tag `fanout`)
-- 3 tasks × 5 runs per arm, `--eval-only fanout --eval-runs 5`
+- Tasks: `evals/fanout` (nine tasks; three at the time of this run, then numbered 27-29)
+- 3 tasks × 5 runs per arm. The set has since grown to nine, because a
+  bootstrap over three tasks cannot resolve the effects being claimed.
 - Arms: `execute_code` available vs `--eval-off script`
 
 These three tasks are the shape the tool exists for: a dozen files to look
@@ -86,8 +87,8 @@ twelvefold saving", which is what the anecdote implied.
 Reproduce, or check the numbers without paying for them:
 
 ```
-janetcode --eval evals --eval-only fanout --eval-runs 5 --eval-json a.json
-janetcode --eval evals --eval-only fanout --eval-runs 5 --eval-off script \
+janetcode --eval evals/fanout --eval-runs 5 --eval-json a.json
+janetcode --eval evals/fanout --eval-runs 5 --eval-off script \
           --eval-json b.json --eval-compare a.json
 janetcode --eval-report b.json --eval-compare a.json   # offline, no API calls
 ```

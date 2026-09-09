@@ -1,5 +1,5 @@
 {
-  "name": "33-find-the-outlier",
+  "name": "57-find-the-outlier",
   "prompt": "Every file in d/ sets a threshold. All but one use the same value. Name the file that differs and give both values.",
   "files": {
     "d/d01.txt": "name: item1\nthreshold: 7\nenabled: true\n",

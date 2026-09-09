@@ -1,5 +1,5 @@
 {
-  "name": "32-rename-type-everywhere",
+  "name": "56-rename-type-everywhere",
   "prompt": "Rename the type Cache to Store everywhere in this module: the declaration, every use, and every doc comment mentioning it. Nothing may still say Cache when you are done, and the module must build.",
   "files": {
     "go.mod": "module example.com/r\n\ngo 1.22\n",
