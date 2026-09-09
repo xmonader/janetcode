@@ -223,9 +223,16 @@ type Agent struct {
 	loops    loopDetector
 	loopMu   sync.Mutex
 	usageMu  sync.Mutex   // the status bar reads Usage while a turn runs
+	turnUse  llm.Usage    // what the turn in progress has cost so far
 	estimate atomic.Int64 // last EstimateTokens, published for the status bar
 	stuck    bool
 	integ    integrity
+
+	// emitNow is the current turn's event sink. A tool that dispatches
+	// further tool calls of its own — a script does — needs it to show
+	// them as they happen, and it is not on the Tool interface.
+	emitMu  sync.Mutex
+	emitNow func(Event)
 
 	// Real input size of the last call, and how many messages it covered,
 	// so EstimateTokens only has to guess about what came after.
@@ -250,6 +257,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		return errors.New("agent: no provider")
 	}
 	a.stats.turn()
+	a.startTurn()
 	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {
 		a.Tools = tool.NewRegistry()
@@ -359,7 +367,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			}
 			a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
 			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(resp.StopReason)})
-			emit(Event{Kind: EvTurnDone, Usage: resp.Usage, StopReason: resp.StopReason})
+			emit(Event{Kind: EvTurnDone, Usage: a.TurnUsage(), StopReason: resp.StopReason})
 			return nil
 		}
 		uses := resp.Message.ToolUses()
@@ -368,7 +376,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			// rather than looping forever.
 			a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
 			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(llm.StopEndTurn)})
-			emit(Event{Kind: EvTurnDone, Usage: resp.Usage, StopReason: llm.StopEndTurn})
+			emit(Event{Kind: EvTurnDone, Usage: a.TurnUsage(), StopReason: llm.StopEndTurn})
 			return nil
 		}
 		planNote := ""
@@ -434,6 +442,9 @@ const MaxParallelTools = 8
 // returns one result per call so the history stays valid, even when ctx is
 // cancelled part-way; the error is then ctx.Err().
 func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Event)) ([]llm.Block, error) {
+	a.emitMu.Lock()
+	a.emitNow = emit
+	a.emitMu.Unlock()
 	results := make([]llm.Block, len(uses))
 	filled := make([]bool, len(uses))
 	parallel := func(u llm.Block) bool {
@@ -568,6 +579,24 @@ func (a *Agent) appendUserText(text string) {
 func (a *Agent) addUsage(u llm.Usage) {
 	a.usageMu.Lock()
 	a.Usage.Add(u)
+	a.turnUse.Add(u)
+	a.usageMu.Unlock()
+}
+
+// TurnUsage is what the current turn has cost across all of its model
+// calls. The last call's usage is not the turn's: a turn that took four
+// calls to finish paid for four, and reporting only the last one makes a
+// long turn look like a short one.
+func (a *Agent) TurnUsage() llm.Usage {
+	a.usageMu.Lock()
+	defer a.usageMu.Unlock()
+	return a.turnUse
+}
+
+// startTurn resets the per-turn usage.
+func (a *Agent) startTurn() {
+	a.usageMu.Lock()
+	a.turnUse = llm.Usage{}
 	a.usageMu.Unlock()
 }
 
@@ -626,27 +655,22 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	return out, isErr, err
 }
 
-func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) (string, bool, error) {
-	call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
-	t, ok := a.Tools.Get(u.Name)
-	if !ok {
-		msg := fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames())
-		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
-		return msg, true, nil
-	}
-	if a.readOnly() && t.Mutating() {
-		msg := fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", u.Name, a.modeName())
-		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
-		return msg, true, nil
-	}
+// authorize is everything that has to happen before a tool call may run:
+// the pre-tool hook (which can rewrite the input or refuse the call), the
+// preview and warning shown to the user, the permission rules, and the
+// approval prompt for a mutating call. It returns the notes the hooks
+// added, or the message explaining why the call must not proceed.
+//
+// It is separate from executeTool because a call made from inside a script
+// has to pass exactly the same gates as one the model made directly: a
+// script is a way to save round trips, not a way around the user.
+func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *ToolCall, emit func(Event)) ([]string, string, error) {
 	var hookNotes []string
 	hookAllowed := false
 	if a.Hooks.Has(hook.PreTool) {
 		res := a.Hooks.Run(ctx, hook.Input{Event: hook.PreTool, Cwd: a.Hooks.Cwd, Tool: u.Name, Input: u.Input})
 		if res.Denied {
-			msg := "Blocked by a hook: " + res.Reason
-			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
-			return msg, true, nil
+			return nil, "Blocked by a hook: " + res.Reason, nil
 		}
 		hookAllowed = res.Allowed
 		if !bytes.Equal(res.Input, u.Input) {
@@ -681,9 +705,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	subject := perm.Subject(u.Name, u.Input)
 	verdict, rule := a.Rules.Decide(u.Name, subject)
 	if verdict == perm.Denied {
-		msg := fmt.Sprintf("Denied by permission rule %s. Do not retry this call; choose another approach or ask the user to change the rule.", rule)
-		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
-		return msg, true, nil
+		return nil, fmt.Sprintf("Denied by permission rule %s. Do not retry this call; choose another approach or ask the user to change the rule.", rule), nil
 	}
 	switch {
 	case verdict == perm.Allowed:
@@ -693,9 +715,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	if t.Mutating() && (mustAsk || !a.AutoApprove && !a.allowed[u.Name] && verdict != perm.Allowed && !hookAllowed) {
 		if a.Approver == nil {
-			msg := "Permission denied: no approver configured for mutating tools."
-			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
-			return msg, true, nil
+			return nil, "Permission denied: no approver configured for mutating tools.", nil
 		}
 		var (
 			d      Decision
@@ -703,12 +723,12 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 			err    error
 		)
 		if ra, ok := a.Approver.(ReasonApprover); ok {
-			d, reason, err = ra.ApproveWithReason(ctx, call)
+			d, reason, err = ra.ApproveWithReason(ctx, *call)
 		} else {
-			d, err = a.Approver.Approve(ctx, call)
+			d, err = a.Approver.Approve(ctx, *call)
 		}
 		if err != nil {
-			return "", true, err
+			return nil, "", err
 		}
 		switch d {
 		case AllowSession:
@@ -733,9 +753,32 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 			if reason = strings.TrimSpace(reason); reason != "" {
 				msg += " The user said: " + reason
 			}
-			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
-			return msg, true, nil
+			return nil, msg, nil
 		}
+	}
+	return hookNotes, "", nil
+}
+
+func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) (string, bool, error) {
+	call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
+	t, ok := a.Tools.Get(u.Name)
+	if !ok {
+		msg := fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames())
+		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+		return msg, true, nil
+	}
+	if a.readOnly() && t.Mutating() {
+		msg := fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", u.Name, a.modeName())
+		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+		return msg, true, nil
+	}
+	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
+	if err != nil {
+		return "", true, err
+	}
+	if deny != "" {
+		emit(Event{Kind: EvToolResult, Call: &call, Output: deny, IsError: true})
+		return deny, true, nil
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
 	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: u.ID, Name: u.Name, Arguments: string(u.Input)})

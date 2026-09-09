@@ -68,6 +68,7 @@ func registerSubjects(r *inspect.Registry, d subjectDeps) {
 		return verdictsReport(d.session)
 	})
 	r.AddText("todos", "the plan the model is working from", func() string { return todosReport(d.agent) })
+	r.AddText("scripts", "the scripts run for the model, and the calls they made", func() string { return scriptsReport(d.agent) })
 	r.AddText("goals", "session goals and their rounds", func() string { return goalsReport(d.agent) })
 	r.AddText("memory", "the working memory carried across compactions", func() string { return workingReport(d.agent) })
 	r.AddText("tools", "the tools the model can call, with their sizes", func() string { return toolsReport(d.agent) })
@@ -579,6 +580,17 @@ func verdictsReport(s *session.Session) string {
 	return head.String() + strings.Join(rows, "\n")
 }
 
+// scriptsReport shows what execute_code actually did. A script is the one
+// place where tool calls happen without their output passing in front of
+// the model, so it is the one place where the log is the only record of
+// what the session did on the user's machine.
+func scriptsReport(a *agent.Agent) string {
+	if a == nil || a.Log == nil {
+		return "no agent"
+	}
+	return agent.RenderScripts(a.Log.Events())
+}
+
 func todosReport(a *agent.Agent) string {
 	if a == nil {
 		return "no agent"
@@ -1053,6 +1065,7 @@ func registerOfflineSubjects(r *inspect.Registry, cfg *config.Config, cfgPath, c
 		{"messages", "the conversation as the model will see it"},
 		{"tools", "the tools the model can call"},
 		{"todos", "the plan the model is working from"},
+		{"scripts", "the scripts run for the model, and the calls they made"},
 	} {
 		needsSession(s.name, s.summary)
 	}

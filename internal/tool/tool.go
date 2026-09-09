@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -122,21 +123,38 @@ func (r *Registry) Defs() []llm.ToolDef { return r.DefsIf(nil) }
 
 // DefsIf is Defs restricted to tools the predicate keeps; nil keeps all.
 func (r *Registry) DefsIf(keep func(Tool) bool) []llm.ToolDef {
+	// The snapshot is taken under the lock and the descriptions are built
+	// outside it: a tool may describe itself in terms of the others (a
+	// script can call them), and that would otherwise re-enter the lock.
 	r.mu.RLock()
-	defer r.mu.RUnlock()
-	names := make([]string, 0, len(r.tools))
-	for n := range r.tools {
-		if !r.deferred[n] && (keep == nil || keep(r.tools[n])) {
-			names = append(names, n)
+	kept := make([]Tool, 0, len(r.tools))
+	for n, t := range r.tools {
+		if !r.deferred[n] && (keep == nil || keep(t)) {
+			kept = append(kept, t)
 		}
 	}
-	sort.Strings(names)
-	defs := make([]llm.ToolDef, 0, len(names))
-	for _, n := range names {
-		t := r.tools[n]
-		defs = append(defs, llm.ToolDef{Name: n, Description: t.Description(), InputSchema: t.Schema()})
+	r.mu.RUnlock()
+	sort.Slice(kept, func(i, j int) bool { return kept[i].Name() < kept[j].Name() })
+	defs := make([]llm.ToolDef, 0, len(kept))
+	for _, t := range kept {
+		defs = append(defs, llm.ToolDef{Name: t.Name(), Description: t.Description(), InputSchema: t.Schema()})
 	}
 	return defs
+}
+
+// Names lists the tools the model can see, in order. It does not ask them
+// to describe themselves, so a tool may call it from its own description.
+func (r *Registry) Names() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]string, 0, len(r.tools))
+	for n := range r.tools {
+		if !r.deferred[n] {
+			out = append(out, n)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // MaxOutput is the hard cap on what a tool returns, in bytes. The agent
@@ -233,3 +251,7 @@ type Guard interface {
 type Warner interface {
 	Warn(input json.RawMessage) string
 }
+
+// SetProcessGroup puts a command in its own process group, so cancelling
+// it kills everything it started and not just the process itself.
+func SetProcessGroup(cmd *exec.Cmd) { setProcessGroup(cmd) }

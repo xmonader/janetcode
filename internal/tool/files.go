@@ -260,7 +260,7 @@ type EditFile struct {
 
 func (EditFile) Name() string { return "edit_file" }
 func (EditFile) Description() string {
-	return "Replace an exact string in a file. old_string must match exactly once (including whitespace) unless replace_all is true. Fails if no match or ambiguous."
+	return "Replace exact strings in a file. old_string must match exactly once (including whitespace) unless replace_all is true; it fails if there is no match or the match is ambiguous. To make several changes to the same file, pass them all in edits — they are applied in order and either all land or none do, which is one call instead of one per change. The result shows the file around what changed, so there is usually no need to read it back."
 }
 func (EditFile) Mutating() bool { return true }
 func (EditFile) Schema() json.RawMessage {
@@ -268,8 +268,14 @@ func (EditFile) Schema() json.RawMessage {
 "path":{"type":"string","description":"File path"},
 "old_string":{"type":"string","description":"Exact text to find"},
 "new_string":{"type":"string","description":"Replacement text"},
+"replace_all":{"type":"boolean","description":"Replace every occurrence (default false)"},
+"edits":{"type":"array","description":"Several edits to this one file, applied in order; use instead of old_string/new_string when you have more than one change to make","items":{
+"type":"object","properties":{
+"old_string":{"type":"string","description":"Exact text to find"},
+"new_string":{"type":"string","description":"Replacement text"},
 "replace_all":{"type":"boolean","description":"Replace every occurrence (default false)"}},
-"required":["path","old_string","new_string"],"additionalProperties":false}`)
+"required":["old_string","new_string"],"additionalProperties":false}}},
+"required":["path"],"additionalProperties":false}`)
 }
 
 type editPlan struct {
@@ -278,21 +284,59 @@ type editPlan struct {
 	replacements  int
 }
 
+// oneEdit is a single substring replacement.
+type oneEdit struct {
+	Old        string `json:"old_string"`
+	New        string `json:"new_string"`
+	ReplaceAll bool   `json:"replace_all"`
+}
+
+// apply performs one replacement on content, reporting how many times the
+// text was found. The errors name the edit's position when there are
+// several, so the model can tell which of them did not fit.
+func (e oneEdit) apply(content, display string, index, total int) (string, int, error) {
+	where := ""
+	if total > 1 {
+		where = fmt.Sprintf("edit %d of %d: ", index+1, total)
+	}
+	if e.Old == "" {
+		return "", 0, fmt.Errorf("%sold_string must not be empty", where)
+	}
+	if e.Old == e.New {
+		return "", 0, fmt.Errorf("%sold_string and new_string are identical", where)
+	}
+	n := strings.Count(content, e.Old)
+	switch {
+	case n == 0:
+		return "", 0, fmt.Errorf("%sold_string not found in %s", where, display)
+	case n > 1 && !e.ReplaceAll:
+		return "", 0, fmt.Errorf("%sold_string matches %d times in %s; make it unique or set replace_all", where, n, display)
+	}
+	if e.ReplaceAll {
+		return strings.ReplaceAll(content, e.Old, e.New), n, nil
+	}
+	return strings.Replace(content, e.Old, e.New, 1), n, nil
+}
+
 func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 	var in struct {
-		Path       string `json:"path"`
-		Old        string `json:"old_string"`
-		New        string `json:"new_string"`
-		ReplaceAll bool   `json:"replace_all"`
+		Path       string    `json:"path"`
+		Old        string    `json:"old_string"`
+		New        string    `json:"new_string"`
+		ReplaceAll bool      `json:"replace_all"`
+		Edits      []oneEdit `json:"edits"`
 	}
 	if err := decode(input, &in); err != nil {
 		return nil, err
 	}
-	if in.Old == "" {
-		return nil, fmt.Errorf("old_string must not be empty")
+	edits := in.Edits
+	if in.Old != "" || in.New != "" {
+		// The single-edit form and the list are the same thing; a call
+		// that uses both is applying the loose one first.
+		edits = append([]oneEdit{{Old: in.Old, New: in.New, ReplaceAll: in.ReplaceAll}}, edits...)
 	}
-	if in.Old == in.New {
-		return nil, fmt.Errorf("old_string and new_string are identical")
+	if len(edits) == 0 {
+		return nil, fmt.Errorf("no edits: give old_string and new_string, or a list in edits")
 	}
 	p, err := resolvePath(t.Root, in.Path)
 	if err != nil {
@@ -302,21 +346,59 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	content := string(data)
-	n := strings.Count(content, in.Old)
-	switch {
-	case n == 0:
-		return nil, fmt.Errorf("old_string not found in %s", in.Path)
-	case n > 1 && !in.ReplaceAll:
-		return nil, fmt.Errorf("old_string matches %d times in %s; make it unique or set replace_all", n, in.Path)
+	before := string(data)
+	content, total := before, 0
+	for i, e := range edits {
+		updated, n, err := e.apply(content, in.Path, i, len(edits))
+		if err != nil {
+			return nil, err
+		}
+		content, total = updated, total+n
 	}
-	var updated string
-	if in.ReplaceAll {
-		updated = strings.ReplaceAll(content, in.Old, in.New)
-	} else {
-		updated = strings.Replace(content, in.Old, in.New, 1)
+	return &editPlan{path: p, display: in.Path, before: before, after: content, replacements: total}, nil
+}
+
+// window renders the file around everything the edit changed, so the model
+// can see the result in place instead of reading the file back. A change
+// that is spread over more of the file than is worth quoting is reported by
+// its size alone.
+func window(after string, first, last int) string {
+	const pad, cap = 4, 80
+	lines := strings.Split(after, "\n")
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
 	}
-	return &editPlan{path: p, display: in.Path, before: content, after: updated, replacements: n}, nil
+	from, to := max(0, first-pad), min(len(lines), last+pad)
+	if from >= to {
+		return ""
+	}
+	if to-from > cap {
+		return fmt.Sprintf("(the change spans lines %d-%d, too much to quote)", from+1, to)
+	}
+	var b strings.Builder
+	for i := from; i < to; i++ {
+		fmt.Fprintf(&b, "%6d\t%s\n", i+1, lines[i])
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// changed reports the first and last line of after that differ from before,
+// as 0-based indices into after's lines. It returns ok=false when the two
+// are identical.
+func changed(before, after string) (first, last int, ok bool) {
+	a, b := strings.Split(before, "\n"), strings.Split(after, "\n")
+	i := 0
+	for i < len(a) && i < len(b) && a[i] == b[i] {
+		i++
+	}
+	if i == len(a) && i == len(b) {
+		return 0, 0, false
+	}
+	j, k := len(a)-1, len(b)-1
+	for j >= i && k >= i && a[j] == b[k] {
+		j, k = j-1, k-1
+	}
+	return i, max(i, k), true
 }
 
 func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) {
@@ -332,7 +414,13 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	}
 	t.Seen.Record(pl.path, []byte(pl.after))
 	added, removed := diff.Stats(pl.before, pl.after)
-	return fmt.Sprintf("Edited %s (%s, +%d -%d lines)", pl.display, plural(pl.replacements, "replacement"), added, removed), nil
+	out := fmt.Sprintf("Edited %s (%s, +%d -%d lines)", pl.display, plural(pl.replacements, "replacement"), added, removed)
+	if first, last, ok := changed(pl.before, pl.after); ok {
+		if w := window(pl.after, first, last); w != "" {
+			out += "\n\n" + w
+		}
+	}
+	return out, nil
 }
 
 // Preview implements Previewer with a unified diff of the edit.

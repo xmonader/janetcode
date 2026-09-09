@@ -69,7 +69,7 @@ Flags:
 Environment: ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL
              (a key may be a comma-separated list; they are rotated on rate limits),
              JANETCODE_PROVIDER, JANETCODE_MODEL, JANETCODE_EFFORT, JANETCODE_THEME
-             JANETCODE_DEBUG=<file> appends a timestamped event log
+             JANETCODE_OFF=<names> disables behaviours for a session (see -eval-off)\n             JANETCODE_DEBUG=<file> appends a timestamped event log
 Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode/config.json)
 `)
 	}
@@ -675,6 +675,9 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		if !off["todo"] {
 			ag.Tools.Add(&agent.TodoTool{Parent: ag})
 		}
+		if !off["script"] {
+			ag.Tools.Add(&agent.Script{Parent: ag, Root: root})
+		}
 		return ag, nil
 	}}
 	results := r.Run(ctx, tasks)
@@ -769,6 +772,18 @@ func chainPrep(hooks ...func([]llm.Block) ([]llm.Block, string)) func([]llm.Bloc
 
 // diagnoseNote turns language-server diagnostics for a just-edited file
 // into the note appended to the tool result.
+// envOff reads JANETCODE_OFF, a comma-separated list of behaviours to
+// disable for this session.
+func envOff() map[string]bool {
+	out := map[string]bool{}
+	for _, n := range strings.Split(os.Getenv("JANETCODE_OFF"), ",") {
+		if n = strings.TrimSpace(n); n != "" {
+			out[n] = true
+		}
+	}
+	return out
+}
+
 func diagnoseNote(m *lsp.Manager) func(context.Context, string) string {
 	return func(ctx context.Context, path string) string {
 		if m.ServerFor(path) == "" {
@@ -908,6 +923,12 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	task.Parent = ag
 	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
 	ag.Tools.Add(&agent.TodoTool{Parent: ag})
+	// JANETCODE_OFF is the ablation switch a session has: the eval runner
+	// takes -eval-off, and a real session takes the same names here, so a
+	// behaviour can be turned off without a rebuild.
+	if off := envOff(); !off["script"] {
+		ag.Tools.Add(&agent.Script{Parent: ag, Root: d.cwd})
+	}
 	skills := func() []skill.Skill { return skill.Load(d.cwd, cfgDir) }
 	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(d.cwd, cfgDir) }
 	ag.Tools.Add(&skill.Tool{Skills: skills})

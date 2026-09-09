@@ -77,8 +77,14 @@ func TestWriteAndEdit(t *testing.T) {
 	if got, _ := os.ReadFile(filepath.Join(root, "sub/dir/f.go")); strings.Contains(string(got), "Alpha") {
 		t.Fatal("preview must not modify the file")
 	}
-	if out, err := e.Run(context.Background(), raw(`{"path":"sub/dir/f.go","old_string":"func A","new_string":"func Alpha"}`)); err != nil || out != "Edited sub/dir/f.go (1 replacement, +1 -1 lines)" {
+	out, err = e.Run(context.Background(), raw(`{"path":"sub/dir/f.go","old_string":"func A","new_string":"func Alpha"}`))
+	if err != nil || !strings.HasPrefix(out, "Edited sub/dir/f.go (1 replacement, +1 -1 lines)") {
 		t.Fatalf("edit: %v %q", err, out)
+	}
+	// The result shows the file around the change, so the model does not
+	// have to read it back.
+	if !strings.Contains(out, "     3\tfunc Alpha() {}") {
+		t.Fatalf("edit result should quote the changed region: %q", out)
 	}
 	if _, err := e.Run(context.Background(), raw(`{"path":"sub/dir/f.go","old_string":"() {}","new_string":"() { return }","replace_all":true}`)); err != nil {
 		t.Fatal(err)
@@ -159,5 +165,45 @@ func TestTruncateKeepsBothEnds(t *testing.T) {
 	}
 	if got := TruncateTo("short", 100); got != "short" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// TestEditFileList checks that several edits to one file go in a single
+// call, in order, and that a bad one leaves the file untouched.
+func TestEditFileList(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "f.go")
+	if err := os.WriteFile(path, []byte("package x\n\nfunc A() {}\nfunc B() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e := EditFile{Root: root}
+	in := raw(`{"path":"f.go","edits":[{"old_string":"func A","new_string":"func Alpha"},{"old_string":"func B","new_string":"func Beta"}]}`)
+	out, err := e.Run(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(out, "Edited f.go (2 replacements, +2 -2 lines)") {
+		t.Fatalf("got %q", out)
+	}
+	got, _ := os.ReadFile(path)
+	if want := "package x\n\nfunc Alpha() {}\nfunc Beta() {}\n"; string(got) != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+	// The preview of a list is the diff of the whole batch.
+	if err := os.WriteFile(path, []byte("package x\n\nfunc A() {}\nfunc B() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	prev, err := e.Preview(context.Background(), in)
+	if err != nil || !strings.Contains(prev, "+func Alpha() {}") || !strings.Contains(prev, "+func Beta() {}") {
+		t.Fatalf("preview: %v\n%s", err, prev)
+	}
+	// One bad edit fails the whole call and writes nothing.
+	bad := raw(`{"path":"f.go","edits":[{"old_string":"func A","new_string":"func Alpha"},{"old_string":"missing","new_string":"x"}]}`)
+	if _, err := e.Run(context.Background(), bad); err == nil || !strings.Contains(err.Error(), "edit 2 of 2") {
+		t.Fatalf("expected the second edit to be named: %v", err)
+	}
+	got, _ = os.ReadFile(path)
+	if strings.Contains(string(got), "Alpha") {
+		t.Fatalf("a failed batch must not write: %q", got)
 	}
 }

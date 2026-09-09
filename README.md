@@ -117,7 +117,7 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `list_dir` | List a directory | no |
 | `glob` | Find files by pattern (`**/*.go`) | no |
 | `grep` | Search file contents with a regex | no |
-| `edit_file` | Replace an exact string in a file | yes, shows a diff |
+| `edit_file` | Replace exact strings in a file; several edits to one file in one call | yes, shows a diff |
 | `write_file` | Create or overwrite a file | yes, shows a diff |
 | `bash` | Run a shell command with a timeout | yes |
 | `fetch_url` | Fetch a web page or API response as text | yes |
@@ -126,6 +126,7 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `task` | Delegate a job to a subagent with its own context, optionally on another model; several run in parallel | no |
 | `symbols` | Ask the language server where a name is defined, who uses it, its type, what a file declares | no |
 | `expand_output` | Read back tool output and conversation that compaction archived, by search or by line | no |
+| `execute_code` | Run a Python script that calls these tools, so a chain of calls costs one turn and their output stays out of the context | yes, shows the code |
 | `todo` | Keep the plan for a multi-step task and mark steps off | no |
 | `inspect` | Look at the session's own state: context, archive, verdicts, config, servers | no |
 | `diagnostics` | Compile and type errors from the language server, for a file or the project | no |
@@ -518,6 +519,51 @@ that a small model fails some of the time; 35 live runs with 3 failures
 were not enough to beat the baseline, so more failing runs are needed
 before the critic earns its place.
 
+### Calling tools from a script
+
+Some work cannot be batched. Reading twenty files and keeping the two that
+matter, looping over search hits, retrying something flaky, making the same
+change across a set of files — you cannot know the next call until you have
+seen the last one, so it costs one round trip per step, and every round trip
+re-sends the whole conversation.
+
+`execute_code` collapses it. The model writes a Python script; the script
+imports the session's own tools and calls them; only what it prints comes
+back:
+
+```python
+from janetcode_tools import glob, read_file, plain
+hits = []
+for f in glob(pattern="**/*.go").splitlines():
+    if "LegacyTimeout" in plain(read_file(path=f)):
+        hits.append(f)
+print("\n".join(hits))
+```
+
+Twenty file bodies went through that loop and none of them entered the
+context. On a twenty-file survey of a real tree, Sonnet 4.5 spent 62,163
+input tokens and $0.25 reading the files itself, and 4,281 tokens and $0.03
+through a script — the same two model calls, an eighth of the cost. (One
+run each; the tool the model reaches for varies, so treat it as an
+illustration of the mechanism, not a benchmark.)
+
+The calls a script makes are real calls. They go through the same hooks,
+the same permission rules, the same approval prompt with the same diff, and
+onto the same event log — a script saves round trips, it does not get
+around the user. Read-only mode refuses a script's edits exactly as it
+refuses the model's. A script gets five minutes, fifty tool calls and 40 KB
+of output, and what it read is copied to the archive, so `expand_output`
+can still find it afterwards. `inspect scripts` shows every script that
+ran, the calls it made and what it printed.
+
+The one sharp edge is that a script parses tool output as text, and a wrong
+guess about the format becomes a confident wrong answer rather than an
+error. `read_file` and `grep` number their lines; `plain()` strips that,
+and the tool's description says so.
+
+`JANETCODE_OFF=script` turns it off for a session, along with the other
+`-eval-off` names.
+
 ### Inspecting the session
 
 A session should not have to be guessed at. `/inspect <subject>` in the
@@ -535,6 +581,7 @@ the model can call on itself all report the same thing:
 | `compaction` | when the history was summarised and what the summaries cost |
 | `verdicts` | what each turn demonstrated, against what it claimed |
 | `todos`, `goals` | the plan and the session goals |
+| `scripts` | every `execute_code` run: the code, the calls it made, what it printed |
 | `memory` | the working record carried across compactions |
 | `tools`, `stats`, `trajectory` | what is loaded, what has run, what the critic scores |
 | `config`, `providers`, `permissions` | how it resolved and what may run unasked |
@@ -543,7 +590,7 @@ the model can call on itself all report the same thing:
 | `undo` | file changes recorded this session |
 | `all` | every subject at once |
 
-Thirty subjects in all; `inspect list` names them. They report the live
+Thirty-one subjects in all; `inspect list` names them. They report the live
 state, and each is reachable the same way from the terminal, the command
 line and the model, so "why did it do that" is one question rather than
 three different ones.
