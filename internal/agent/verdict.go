@@ -45,12 +45,14 @@ const (
 // TurnOutcome is the verdict with what it was decided from, so the user
 // and the model can both see the reasoning rather than a bare word.
 type TurnOutcome struct {
-	Verdict Verdict `json:"verdict"`
-	Edited  int     `json:"edited"`  // files changed
-	Ran     int     `json:"ran"`     // check commands run
-	Passed  int     `json:"passed"`  // of those, that exited 0
-	Failed  int     `json:"failed"`  // of those, that did not
-	Flipped bool    `json:"flipped"` // a command that had failed now passes
+	Verdict  Verdict `json:"verdict"`
+	Edited   int     `json:"edited"`   // files changed
+	Ran      int     `json:"ran"`      // check commands run
+	Passed   int     `json:"passed"`   // of those, that exited 0
+	Failed   int     `json:"failed"`   // of those, that did not
+	Flipped  bool    `json:"flipped"`  // a command that had failed now passes
+	Tested   bool    `json:"tested"`   // a check reported tests actually running
+	Executed bool    `json:"executed"` // a command ran a file edited this turn
 	// Checks are the commands counted as checks, newest last.
 	Checks []string `json:"checks,omitempty"`
 	// Why is the one-line reason for the verdict.
@@ -79,10 +81,63 @@ func (o TurnOutcome) Line() string {
 	return fmt.Sprintf("%s %s: %s", mark, o.Verdict, o.Why)
 }
 
-// vacuousRe matches the ways a check says it exercised nothing while
-// still exiting 0. A green that collected no tests proves nothing, and it
-// is the easiest way for a change to look done when it is not.
-var vacuousRe = regexp.MustCompile(`(?i)(no tests? (ran|were run|to run|found|collected)|0 tests?|ran 0 tests|no test files|collected 0 items|no tests executed|empty test suite|matched no files)`)
+// Reading a check's output for what it actually exercised. Exit 0 is not
+// evidence on its own: a build proves the code compiles, a test run that
+// collected nothing proves less than that, and only tests that ran and
+// passed say the change behaves. These patterns are deliberately the ones
+// the common runners print, and anything unrecognised counts as no
+// evidence rather than as evidence.
+
+// ranRe matches a runner reporting that tests actually executed.
+var ranRe = regexp.MustCompile(`(?im)(^ok\s+\S+|PASS|\d+ passed|\d+ tests?,|test result: ok\.|Tests:\s+\d+|OK \(\d+ test|Ran \d+ test|\d+ examples?, \d+ failures)`)
+
+// nothingRe matches a runner saying it found nothing to run. A green that
+// collected no tests is the easiest way for a change to look done when
+// nothing checked it.
+var nothingRe = regexp.MustCompile(`(?i)(no tests? (ran|were run|to run|found|collected|executed)|collected 0 items|ran 0 tests|0 passed|empty test suite|no test suites found)`)
+
+// exercised reports what a passing check's output shows. ran is true when
+// tests executed; nothing is true when the runner said it found none. A
+// Go run that reports "ok" for one package and "[no test files]" for
+// another has exercised something, so the two are not opposites.
+func exercised(out string) (ran, nothing bool) {
+	ran = ranRe.MatchString(out)
+	nothing = !ran && nothingRe.MatchString(out)
+	return ran, nothing
+}
+
+// checkRe recognises a command that checks something. It is looser than
+// the trajectory features' pattern on purpose: that one matches whole
+// words, so `python test_ini.py` — a real test run — slipped past it,
+// because "_" is a word character and \btest\b never reached the "test"
+// in "test_ini". A detector that misses a check accuses the model of not
+// running one, which is worse than counting a stray command.
+var checkRe = regexp.MustCompile(`(?i)(test|spec|pytest|jest|vitest|mocha|rspec|junit|check|verify|assert|vet\b|lint|tsc\b|mypy|ruff|clippy|build|make\b|ctest|tox|nox|gradle|mvn\b)`)
+
+// isCheck reports whether a shell command is checking something.
+func isCheck(cmd string) bool { return cmd != "" && checkRe.MatchString(cmd) }
+
+// ranEdited reports whether a command executes a file edited in this
+// turn — running the script you just wrote. It is evidence the code at
+// least executes, which is not nothing and is not a test either.
+func ranEdited(cmd string, edited map[string]bool) bool {
+	if cmd == "" {
+		return false
+	}
+	for path := range edited {
+		base := path
+		if i := strings.LastIndexAny(base, "/\\"); i >= 0 {
+			base = base[i+1:]
+		}
+		if base == "" || len(base) < 3 {
+			continue
+		}
+		if strings.Contains(cmd, base) {
+			return true
+		}
+	}
+	return false
+}
 
 // claimRe matches an assertion a check could have demonstrated. It is
 // deliberately narrow: a claim about tests, builds or verification, not
@@ -99,7 +154,13 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 	// flip rather than a state that was already green.
 	failedBefore := map[string]bool{}
 	var lastText string
-	vacuous := false
+	ranTests, foundNothing, ranTheCode := false, false, false
+	// Commands seen in this turn, replayed once the edits are known so a
+	// command naming an edited file counts however the two were ordered.
+	var turnCmds []struct {
+		cmd   string
+		isErr bool
+	}
 
 	for _, e := range events {
 		if e.Type == session.TypeAssistant && e.Turn == turn && e.Message != nil {
@@ -111,7 +172,7 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 			continue
 		}
 		cmd := commandOf(e.Arguments)
-		check := e.Name == "bash" && testCommandRe.MatchString(cmd)
+		check := e.Name == "bash" && isCheck(cmd)
 		if e.Turn != turn {
 			// Earlier in the session: remember what was red, so a pass in
 			// this turn can be told from a check that was always green.
@@ -127,7 +188,14 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 			} else {
 				edited[fmt.Sprintf("call:%s", e.CallID)] = true
 			}
-		case check:
+		case e.Name == "bash":
+			turnCmds = append(turnCmds, struct {
+				cmd   string
+				isErr bool
+			}{cmd, e.IsError})
+			if !check {
+				continue
+			}
 			o.Ran++
 			o.Checks = append(o.Checks, firstLineOf(cmd))
 			switch {
@@ -136,8 +204,10 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 				failedBefore[cmd] = true
 			default:
 				o.Passed++
-				if vacuousRe.MatchString(e.Output) {
-					vacuous = true
+				if ran, nothing := exercised(e.Output); ran {
+					ranTests = true
+				} else if nothing {
+					foundNothing = true
 				}
 				if failedBefore[cmd] {
 					o.Flipped = true
@@ -145,7 +215,16 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 			}
 		}
 	}
+	// A command that runs a file edited in this turn shows the code at
+	// least executes. It is weaker than a test and stronger than nothing.
+	for _, c := range turnCmds {
+		if !c.isErr && ranEdited(c.cmd, edited) {
+			ranTheCode = true
+		}
+	}
 	o.Edited = len(edited)
+	o.Tested = ranTests
+	o.Executed = ranTheCode
 
 	switch {
 	case o.Edited == 0 && o.Ran == 0:
@@ -155,18 +234,24 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 	case o.Failed > 0:
 		o.Verdict = VerdictCheckFailed
 		o.Why = fmt.Sprintf("%d file(s) edited and a check came back red", o.Edited)
-	case o.Ran == 0:
+	case o.Ran == 0 && !ranTheCode:
 		o.Verdict = VerdictUnverified
 		o.Why = fmt.Sprintf("%d file(s) edited and nothing was run against them", o.Edited)
-	case vacuous:
-		o.Verdict = VerdictVacuous
-		o.Why = "a check passed without exercising anything (no tests collected)"
-	case o.Flipped:
+	case o.Ran == 0:
+		o.Verdict = VerdictNotDemonstrated
+		o.Why = fmt.Sprintf("%d file(s) edited and the code was run, but nothing asserted the result", o.Edited)
+	case ranTests && o.Flipped:
 		o.Verdict = VerdictVerified
-		o.Why = fmt.Sprintf("%d file(s) edited; a check that had been failing now passes", o.Edited)
+		o.Why = fmt.Sprintf("%d file(s) edited; tests that had been failing now pass", o.Edited)
+	case ranTests:
+		o.Verdict = VerdictVerified
+		o.Why = fmt.Sprintf("%d file(s) edited and tests ran and passed afterwards", o.Edited)
+	case foundNothing:
+		o.Verdict = VerdictVacuous
+		o.Why = "a check passed having found no tests to run, so it shows nothing"
 	default:
 		o.Verdict = VerdictNotDemonstrated
-		o.Why = fmt.Sprintf("%d file(s) edited and %d check(s) passed, but none of them was failing first", o.Edited, o.Passed)
+		o.Why = fmt.Sprintf("%d file(s) edited and %d check(s) passed, but no test was exercised — it compiles, which is not the same as working", o.Edited, o.Passed)
 	}
 	if lastText != "" && claimRe.MatchString(lastText) {
 		if m := claimRe.FindString(lastText); m != "" {
@@ -199,10 +284,12 @@ func (o TurnOutcome) Correction() string {
 	switch o.Verdict {
 	case VerdictUnverified:
 		b.WriteString("Run the project's tests or build now and report the real result. If you cannot run them, say so plainly instead of implying they passed.")
+	case VerdictNotDemonstrated:
+		b.WriteString("Run something that asserts the result — the project's tests, or a command whose output shows the change behaves — and report what it said.")
 	case VerdictCheckFailed:
 		b.WriteString("A check came back red in this turn. Fix the cause and re-run it, or say that it is still failing.")
 	case VerdictVacuous:
-		b.WriteString("The command exited 0 but collected no tests, so it demonstrates nothing. Run one that actually exercises the change.")
+		b.WriteString("The command exited 0 but found no tests to run, so it demonstrates nothing. Run one that actually exercises the change.")
 	}
 	return b.String()
 }

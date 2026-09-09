@@ -36,19 +36,28 @@ func TestVerdicts(t *testing.T) {
 			result(1, "edit_file", edit, "ok", false),
 			result(1, "bash", test, "FAIL\n[exit code 1]", true),
 		}, VerdictCheckFailed},
-		{"edited, check green but never was red", []session.Event{
+		{"edited, tests ran and passed", []session.Event{
 			result(1, "edit_file", edit, "ok", false),
-			result(1, "bash", test, "ok  example.com/x\n[exit code 0]", false),
+			result(1, "bash", test, "ok  \texample.com/x\t0.02s\n[exit code 0]", false),
+		}, VerdictVerified},
+		{"edited, only a build passed", []session.Event{
+			result(1, "edit_file", edit, "ok", false),
+			result(1, "bash", `{"command":"go build ./..."}`, "\n[exit code 0]", false),
 		}, VerdictNotDemonstrated},
+		{"go run where one package has no test files but another passes", []session.Event{
+			result(1, "edit_file", edit, "ok", false),
+			result(1, "bash", test, "ok  \texample.com/cfg\t0.002s\n?   \texample.com/cfg/cmd/app\t[no test files]\n[exit code 0]", false),
+		}, VerdictVerified},
+		{"pytest that collected nothing", []session.Event{
+			result(1, "edit_file", edit, "ok", false),
+			result(1, "bash", `{"command":"pytest tests/"}`, "collected 0 items\n\nno tests ran in 0.01s\n[exit code 0]", false),
+		}, VerdictVacuous},
 		{"edited, check went red to green", []session.Event{
 			result(0, "bash", test, "FAIL\n[exit code 1]", true),
 			result(1, "edit_file", edit, "ok", false),
 			result(1, "bash", test, "ok  example.com/x\n[exit code 0]", false),
 		}, VerdictVerified},
-		{"green that collected nothing", []session.Event{
-			result(1, "edit_file", edit, "ok", false),
-			result(1, "bash", test, "no tests to run\n[exit code 0]", false),
-		}, VerdictVacuous},
+
 		{"check ran but nothing was edited", []session.Event{
 			result(1, "bash", test, "ok\n[exit code 0]", false),
 		}, VerdictNoChanges},
@@ -64,16 +73,73 @@ func TestVerdicts(t *testing.T) {
 	}
 }
 
-// A red-to-green flip must be the same command; fixing one thing while a
-// different check happens to pass is not a demonstration.
-func TestVerifiedNeedsTheSameCommandToFlip(t *testing.T) {
+// A build passing is not a test passing. Compiling proves the change is
+// valid, not that it works, and the reason has to say so.
+func TestBuildAloneIsNotADemonstration(t *testing.T) {
 	ev := []session.Event{
 		result(0, "bash", `{"command":"go test ./parser"}`, "FAIL\n[exit code 1]", true),
 		result(1, "edit_file", `{"path":"a.go"}`, "ok", false),
 		result(1, "bash", `{"command":"go build ./..."}`, "\n[exit code 0]", false),
 	}
-	if got := FoldOutcome(ev, 1); got.Verdict != VerdictNotDemonstrated {
-		t.Fatalf("verdict = %q (%s)", got.Verdict, got.Why)
+	got := FoldOutcome(ev, 1)
+	if got.Verdict != VerdictNotDemonstrated || got.Tested {
+		t.Fatalf("verdict = %q tested=%v (%s)", got.Verdict, got.Tested, got.Why)
+	}
+	if !strings.Contains(got.Why, "compiles") {
+		t.Fatalf("the reason should say what is missing: %q", got.Why)
+	}
+}
+
+// A red-to-green flip is the strongest evidence and is named as such,
+// but only when it is the same command that flipped.
+func TestFlipIsNamedWhenItHappens(t *testing.T) {
+	pass := "ok  \texample.com/x\t0.02s\n[exit code 0]"
+	flipped := FoldOutcome([]session.Event{
+		result(0, "bash", `{"command":"go test ./..."}`, "FAIL\n[exit code 1]", true),
+		result(1, "edit_file", `{"path":"a.go"}`, "ok", false),
+		result(1, "bash", `{"command":"go test ./..."}`, pass, false),
+	}, 1)
+	if flipped.Verdict != VerdictVerified || !flipped.Flipped || !strings.Contains(flipped.Why, "had been failing") {
+		t.Fatalf("flip = %+v", flipped)
+	}
+	// Passing without ever having been red is still verified, since the
+	// tests ran — just without the stronger wording.
+	fresh := FoldOutcome([]session.Event{
+		result(1, "edit_file", `{"path":"a.go"}`, "ok", false),
+		result(1, "bash", `{"command":"go test ./..."}`, pass, false),
+	}, 1)
+	if fresh.Verdict != VerdictVerified || fresh.Flipped || strings.Contains(fresh.Why, "had been failing") {
+		t.Fatalf("fresh = %+v", fresh)
+	}
+}
+
+// The runners agree on very little, so what counts as "tests ran" is
+// checked against what each of them actually prints.
+func TestExercisedReadsRealRunnerOutput(t *testing.T) {
+	for out, wantRan := range map[string]bool{
+		"ok  \texample.com/x\t0.02s":                           true,
+		"?   \texample.com/y\t[no test files]":                 false,
+		"ok  \texample.com/x\t0.02s\n?\tex/y\t[no test files]": true,
+		"===== 12 passed in 0.11s =====":                       true,
+		"collected 0 items\n\nno tests ran in 0.01s":           false,
+		"OK (7 tests)":                           true,
+		"Ran 3 tests in 0.001s\n\nOK":            true,
+		"test result: ok. 5 passed; 0 failed":    true,
+		"Tests:       4 passed, 4 total":         true,
+		"":                                       false,
+		"Compiling foo v0.1.0\n    Finished dev": false,
+	} {
+		ran, _ := exercised(out)
+		if ran != wantRan {
+			t.Fatalf("exercised(%q) ran=%v, want %v", out, ran, wantRan)
+		}
+	}
+	// "found nothing" is only reported when nothing ran at all.
+	if _, nothing := exercised("ok  \tx\t0.1s\n?\ty\t[no test files]"); nothing {
+		t.Fatal("a partly-tested run was called empty")
+	}
+	if _, nothing := exercised("collected 0 items"); !nothing {
+		t.Fatal("a run that collected nothing was not noticed")
 	}
 }
 
@@ -173,5 +239,62 @@ func TestTurnCorrectsAnOverclaimOnce(t *testing.T) {
 	}
 	if len(g.requests) != 2 {
 		t.Fatalf("%d model calls with the verdict off", len(g.requests))
+	}
+}
+
+// Both of these were wrong on real recorded sessions, and each produced a
+// false accusation: the harness told the model it had not verified
+// something when it had. A detector that misses a check is worse than one
+// that counts a stray command, so both shapes are pinned here.
+func TestCheckDetectionOnRealCommands(t *testing.T) {
+	for cmd, want := range map[string]bool{
+		"python test_ini.py":          true, // "_" is a word char, so \btest\b missed this
+		"python -m pytest tests/ -v":  true,
+		"go test ./...":               true,
+		"npm run test:unit":           true,
+		"cargo clippy":                true,
+		"make check":                  true,
+		"python -m unittest discover": true,
+		"./run_tests.sh":              true,
+		"ls -la":                      false,
+		"cat access.log":              false,
+		"git status":                  false,
+	} {
+		if got := isCheck(cmd); got != want {
+			t.Fatalf("isCheck(%q) = %v, want %v", cmd, got, want)
+		}
+	}
+}
+
+// Running the script that was just written is evidence the code executes.
+// It is not a test, and the verdict has to say which of the two it is
+// rather than claiming nothing ran.
+func TestRunningTheEditedCodeIsNotNothing(t *testing.T) {
+	ev := []session.Event{
+		result(1, "write_file", `{"path":"summarize.sh"}`, "ok", false),
+		result(1, "bash", `{"command":"chmod +x summarize.sh && ./summarize.sh access.log"}`, "10 1.2.3.4\n[exit code 0]", false),
+	}
+	got := FoldOutcome(ev, 1)
+	if got.Verdict != VerdictNotDemonstrated {
+		t.Fatalf("verdict = %q (%s)", got.Verdict, got.Why)
+	}
+	if !got.Executed || got.Tested {
+		t.Fatalf("executed=%v tested=%v", got.Executed, got.Tested)
+	}
+	if !strings.Contains(got.Why, "nothing asserted") {
+		t.Fatalf("the reason should say what is missing: %q", got.Why)
+	}
+	// Editing without running anything is still unverified.
+	quiet := FoldOutcome([]session.Event{result(1, "write_file", `{"path":"summarize.sh"}`, "ok", false)}, 1)
+	if quiet.Verdict != VerdictUnverified {
+		t.Fatalf("verdict = %q", quiet.Verdict)
+	}
+	// A command that names an unrelated file is not evidence either.
+	other := FoldOutcome([]session.Event{
+		result(1, "write_file", `{"path":"summarize.sh"}`, "ok", false),
+		result(1, "bash", `{"command":"cat access.log"}`, "…", false),
+	}, 1)
+	if other.Verdict != VerdictUnverified || other.Executed {
+		t.Fatalf("unrelated command counted: %+v", other)
 	}
 }
