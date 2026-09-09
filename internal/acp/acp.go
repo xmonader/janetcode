@@ -286,7 +286,7 @@ func (s *Server) prompt(ctx context.Context, raw json.RawMessage) (any, error) {
 	err = as.agent.RunBlocks(turnCtx, blocks, s.emitter(as))
 	switch {
 	case err == nil:
-		return promptResult{StopReason: stopCompleted}, nil
+		return promptResult{StopReason: stopEndTurn}, nil
 	case errors.Is(err, context.Canceled), errors.Is(turnCtx.Err(), context.Canceled):
 		return promptResult{StopReason: stopCancelled}, nil
 	case errors.Is(err, agent.ErrMaxIterations):

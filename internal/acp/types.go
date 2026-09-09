@@ -163,12 +163,15 @@ const (
 	statusFailed     = "failed"
 )
 
-// Stop reasons.
+// Stop reasons, as the protocol defines them. "completed" is not among
+// them — the published schema says end_turn — and an agent that sends it
+// has every finished turn rejected by a validating client.
 const (
-	stopCompleted = "completed"
+	stopEndTurn   = "end_turn"
 	stopCancelled = "cancelled"
 	stopRefusal   = "refusal"
 	stopMaxTurns  = "max_turn_requests"
+	stopMaxTokens = "max_tokens"
 )
 
 type requestPermissionParams struct {

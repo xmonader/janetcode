@@ -225,7 +225,7 @@ func TestInitializeNewSessionAndPrompt(t *testing.T) {
 	if err := json.Unmarshal(final.Result, &pr); err != nil {
 		t.Fatal(err)
 	}
-	if pr.StopReason != stopCompleted {
+	if pr.StopReason != stopEndTurn {
 		t.Fatalf("stopReason = %q", pr.StopReason)
 	}
 
@@ -302,7 +302,7 @@ func TestPermissionDenialEndsTheCallNotTheTurn(t *testing.T) {
 	if err := json.Unmarshal(final.Result, &pr); err != nil {
 		t.Fatal(err)
 	}
-	if pr.StopReason != stopCompleted {
+	if pr.StopReason != stopEndTurn {
 		t.Fatalf("stopReason = %q", pr.StopReason)
 	}
 	if _, err := os.Stat(filepath.Join(root, "out.txt")); err == nil {
@@ -462,7 +462,7 @@ func TestCancelEndsTheTurnAndLeavesTheSessionUsable(t *testing.T) {
 	slow.answer = true
 	c.call("session/prompt", promptParams{SessionID: ns.SessionID, Prompt: []contentBlock{textBlock("again")}})
 	final, _ = c.readUntil(isResponse)
-	if err := json.Unmarshal(final.Result, &pr); err != nil || pr.StopReason != stopCompleted {
+	if err := json.Unmarshal(final.Result, &pr); err != nil || pr.StopReason != stopEndTurn {
 		t.Fatalf("second prompt after cancel: %v %q", err, pr.StopReason)
 	}
 }
@@ -512,5 +512,40 @@ func TestBadInputDoesNotKillTheConnection(t *testing.T) {
 	var ns newSessionResult
 	if err := json.Unmarshal(c.read().Result, &ns); err != nil || ns.SessionID == "" {
 		t.Fatalf("the connection did not survive: %v", err)
+	}
+}
+
+// The stop reasons are the protocol's, not ours. "completed" reads like
+// the right word and is not one of them; sending it had every finished
+// turn rejected by a validating client, which is how it was found. This
+// pins the set against the published schema.
+func TestStopReasonsAreTheProtocolsOwn(t *testing.T) {
+	allowed := map[string]bool{
+		"end_turn": true, "max_tokens": true, "max_turn_requests": true,
+		"refusal": true, "cancelled": true,
+	}
+	for _, r := range []string{stopEndTurn, stopCancelled, stopRefusal, stopMaxTurns, stopMaxTokens} {
+		if !allowed[r] {
+			t.Fatalf("%q is not a protocol stop reason", r)
+		}
+	}
+	if stopEndTurn != "end_turn" {
+		t.Fatalf("a finished turn reports %q; the protocol calls it end_turn", stopEndTurn)
+	}
+	// Permission option kinds are likewise the protocol's own.
+	for _, k := range []string{optAllowOnce, optAllowAlways, optRejectOnce, optRejectAlways} {
+		switch k {
+		case "allow_once", "allow_always", "reject_once", "reject_always":
+		default:
+			t.Fatalf("%q is not a protocol permission kind", k)
+		}
+	}
+	// And so are the tool kinds this adapter emits.
+	for _, k := range []string{kindRead, kindEdit, kindDelete, kindSearch, kindExecute, kindThink, kindFetch, kindOther} {
+		switch k {
+		case "read", "edit", "delete", "move", "search", "execute", "think", "fetch", "switch_mode", "other":
+		default:
+			t.Fatalf("%q is not a protocol tool kind", k)
+		}
 	}
 }
