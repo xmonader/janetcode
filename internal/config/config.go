@@ -178,7 +178,11 @@ const Example = `{
   "providers": {
     "anthropic": {"type": "anthropic", "api_key": ""},
     "openrouter": {"type": "openai", "base_url": "https://openrouter.ai/api/v1", "api_key": "", "api_keys": [], "model": "deepseek/deepseek-v4-flash"},
+    "zhipu": {"type": "openai", "base_url": "https://open.bigmodel.cn/api/paas/v4", "api_key": "", "models": ["glm-5"]},
     "ollama": {"type": "openai", "base_url": "http://localhost:11434/v1"}
+  },
+  "routes": {
+    "glm-5": "zhipu"
   },
   "prices": {
     "example-model": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75}
