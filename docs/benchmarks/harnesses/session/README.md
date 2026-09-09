@@ -48,3 +48,29 @@ only model it has been measured against.
 985k to 865k context across the three sessions, all still passing — 0.88x,
 and 0.77x on the longest session, which is the one that compacts hardest.
 Single runs, so treat the total as indicative and the direction as real.
+
+## How noisy is this benchmark? (three runs of each task)
+
+Every comparison above this line was a single run per configuration.
+Running the set three times says how much that is worth:
+
+| task | run 1 | run 2 | run 3 | spread | passed |
+|---|---:|---:|---:|---:|---:|
+| 41-session-go-service | 358k | 366k | 388k | 8% | 3/3 |
+| 42-session-records | 242k | 113k | 143k | **113%** | 3/3 |
+| 43-session-python-ledger | 339k | 294k | 311k | 15% | 3/3 |
+| **whole set** | **940k** | **774k** | **843k** | **21%** | **9/9** |
+
+The pass rate is stable — 9/9. The token cost is not: the set swings 21%
+between identical runs, and the search-heavy task swings by more than it
+costs, because how widely the model searches a large tree varies from run
+to run.
+
+**So single-run comparisons on this benchmark are not evidence**, and the
+ones above should be read as indicative only. The mean of three runs is
+853k against a single-run baseline of 985k; every run came in under the
+baseline, which is suggestive, but with n=1 on the baseline side it is not
+a measured improvement and is not claimed as one.
+
+Anything reported from this set should be at least three runs
+(`--eval-runs 3`), and a difference under about 20% needs more than that.
