@@ -81,7 +81,10 @@ func run(args []string) error {
 	}
 	batches := eval.BatchesOfFive(tasks)
 
-	key := strings.TrimSpace(firstEnv("DASHSCOPE_API_KEY", "OPENAI_API_KEY"))
+	// The key must match the endpoint. Preferring one vendor's variable
+	// over another sends the wrong key when both are set, which arrives
+	// as a 401 that looks like the model rejecting the work.
+	key := strings.TrimSpace(keyFor(*baseURL))
 	names := splitCSV(*harnesses)
 	cfg := runConfig{
 		Model:       *model,
@@ -277,6 +280,27 @@ func failOpenclaw(cfg runConfig, tasks []eval.Task) ([]eval.BenchTaskResult, str
 	}
 	note := fmt.Sprintf("Tried `%s`. Failure:\n\n```\n%s\n```\n", cmd, excerpt)
 	return eval.UnavailableResults("openclaw", reason, cmd, excerpt, tasks), note
+}
+
+// keyFor picks the credential that belongs to the endpoint, falling back
+// to whichever is set when the host is not one it knows.
+func keyFor(baseURL string) string {
+	host := strings.ToLower(baseURL)
+	switch {
+	case strings.Contains(host, "openrouter"):
+		if k := os.Getenv("OPENROUTER_API_KEY"); k != "" {
+			return k
+		}
+	case strings.Contains(host, "dashscope"):
+		if k := os.Getenv("DASHSCOPE_API_KEY"); k != "" {
+			return k
+		}
+	case strings.Contains(host, "api.anthropic.com"):
+		if k := os.Getenv("ANTHROPIC_API_KEY"); k != "" {
+			return k
+		}
+	}
+	return firstEnv("OPENAI_API_KEY", "OPENROUTER_API_KEY", "DASHSCOPE_API_KEY", "ANTHROPIC_API_KEY")
 }
 
 func splitCSV(s string) []string {
