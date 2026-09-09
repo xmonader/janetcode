@@ -748,3 +748,37 @@ func TestReadStreamWholeArgumentResend(t *testing.T) {
 		t.Fatalf("arguments %s — a resent whole value must replace, not append", got)
 	}
 }
+
+// TestPromptCacheKey: a session's growing prefix must keep hitting the
+// same cache shard, and the field must not be sent to servers that would
+// reject it.
+func TestPromptCacheKey(t *testing.T) {
+	for _, tc := range []struct {
+		url  string
+		want bool
+	}{
+		{"https://api.openai.com/v1", true},
+		{"https://openrouter.ai/api/v1", true},
+		{"http://localhost:11434/v1", false},
+		{"https://coding-intl.dashscope.aliyuncs.com/v1", false},
+	} {
+		p, err := New(Config{BaseURL: tc.url, APIKey: "k"})
+		if err != nil {
+			t.Fatalf("%s: %v", tc.url, err)
+		}
+		if got := p.cfg.CacheKey != ""; got != tc.want {
+			t.Errorf("%s: cache key present = %v, want %v", tc.url, got, tc.want)
+		}
+	}
+	// Stable across calls within one provider, distinct between sessions.
+	a, _ := New(Config{BaseURL: "https://api.openai.com/v1", APIKey: "k"})
+	b, _ := New(Config{BaseURL: "https://api.openai.com/v1", APIKey: "k"})
+	if a.cfg.CacheKey == "" || a.cfg.CacheKey == b.cfg.CacheKey {
+		t.Fatalf("keys should exist and differ per session: %q %q", a.cfg.CacheKey, b.cfg.CacheKey)
+	}
+	// An explicit key wins.
+	c, _ := New(Config{BaseURL: "https://api.openai.com/v1", APIKey: "k", CacheKey: "mine"})
+	if c.cfg.CacheKey != "mine" {
+		t.Fatalf("explicit key overridden: %q", c.cfg.CacheKey)
+	}
+}

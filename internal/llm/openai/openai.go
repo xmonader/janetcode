@@ -8,6 +8,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,6 +45,12 @@ type Config struct {
 	// MaxRetries for connection errors, 429 and 5xx before any bytes are
 	// streamed. Default 2.
 	MaxRetries int
+	// CacheKey is a stable per-session string sent as prompt_cache_key.
+	// Servers that shard their prompt cache hash the prefix together with
+	// this key, so without one a session's growing prefix can land on a
+	// different shard each turn and be billed as fresh. Empty means the
+	// field is not sent; a server that rejects it is not asked twice.
+	CacheKey string
 }
 
 // Provider is an OpenAI-compatible chat backend.
@@ -57,6 +65,7 @@ type Provider struct {
 	useMaxCompletion bool // send max_completion_tokens instead of max_tokens
 	noStreamOptions  bool // server rejects stream_options
 	noCacheControl   bool // server rejects cache_control / array content
+	noCacheKey       bool // server rejects prompt_cache_key
 	noJSONSchema     bool // server rejects response_format json_schema
 }
 
@@ -65,6 +74,9 @@ func New(cfg Config) (*Provider, error) {
 	ring := llm.NewKeyRing(append([]string{cfg.APIKey}, cfg.APIKeys...))
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.openai.com/v1"
+	}
+	if cfg.CacheKey == "" && shardsPromptCache(cfg.BaseURL) {
+		cfg.CacheKey = defaultCacheKey()
 	}
 	// Local servers (Ollama, LM Studio) accept requests without a key;
 	// hosted ones never do, so refuse early with a clear error.
@@ -304,6 +316,11 @@ type wireRequest struct {
 		IncludeUsage bool `json:"include_usage"`
 	} `json:"stream_options,omitempty"`
 	ResponseFormat *wireResponseFormat `json:"response_format,omitempty"`
+	// PromptCacheKey routes the request to a cache shard. Without a stable
+	// key an agent loop's growing prefix can be load-balanced onto a
+	// different shard from one turn to the next and re-billed as fresh, so
+	// the session id is sent when the server understands the field.
+	PromptCacheKey string `json:"prompt_cache_key,omitempty"`
 }
 
 // wireResponseFormat constrains the reply to a JSON shape. Servers that
@@ -494,6 +511,26 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 	return w, nil
 }
 
+// shardsPromptCache is true for endpoints that route to a prompt-cache
+// shard by hashing the prefix together with prompt_cache_key. Sending the
+// field elsewhere risks a 400 mid-session for no benefit, which is worse
+// than the cache miss it would avoid.
+func shardsPromptCache(base string) bool {
+	u := strings.ToLower(base)
+	return strings.Contains(u, "api.openai.com") || strings.Contains(u, "openrouter.ai")
+}
+
+// defaultCacheKey is stable for the life of the process, which is the life
+// of a session. It only has to be the same from one turn to the next; it
+// is not a secret and identifies nothing.
+func defaultCacheKey() string {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("janetcode-%d", time.Now().UnixNano())
+	}
+	return "janetcode-" + hex.EncodeToString(b[:])
+}
+
 // cacheableURL is true for endpoints that honour Anthropic-style
 // cache_control breakpoints (and, for DashScope, need an opt-in header).
 func cacheableURL(base string) bool {
@@ -625,6 +662,9 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if err != nil {
 		return nil, err
 	}
+	if key := p.cfg.CacheKey; key != "" && !p.noCacheKey {
+		w.PromptCacheKey = key
+	}
 	if cacheableURL(p.cfg.BaseURL) {
 		applyCacheBreakpoints(&w)
 	}
@@ -706,6 +746,8 @@ func (p *Provider) learnDialect(err error) bool {
 	case !p.noStreamOptions && strings.Contains(msg, "stream_options"):
 		p.noStreamOptions = true
 		return true
+	case !p.noCacheKey && strings.Contains(msg, "prompt_cache_key"):
+		p.noCacheKey = true
 	case !p.noCacheControl && (strings.Contains(msg, "cache_control") || strings.Contains(msg, "cachecontrol")):
 		p.noCacheControl = true
 		return true

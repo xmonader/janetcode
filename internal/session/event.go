@@ -130,6 +130,42 @@ func FoldSurface(events []Event) []llm.Message {
 	if len(out) == 0 {
 		return nil
 	}
+	return answerOrphans(out)
+}
+
+// answerOrphans gives every tool_use a tool_result.
+//
+// A session killed between a tool call and its result — ^C during a long
+// command, a crash, a machine going to sleep — logs the assistant message
+// and never logs the result. Providers reject a history where a tool_use
+// is unanswered, so resuming such a session fails on its first request
+// with nothing to tell the user what is wrong. The missing results are
+// synthesised here, in the position they would have occupied, saying what
+// actually happened.
+func answerOrphans(msgs []llm.Message) []llm.Message {
+	answered := map[string]bool{}
+	for _, m := range msgs {
+		for _, b := range m.Blocks {
+			if b.Type == llm.BlockToolResult {
+				answered[b.ToolUseID] = true
+			}
+		}
+	}
+	out := make([]llm.Message, 0, len(msgs)+1)
+	for _, m := range msgs {
+		out = append(out, m)
+		var missing []llm.Block
+		for _, b := range m.Blocks {
+			if b.Type == llm.BlockToolUse && !answered[b.ID] {
+				answered[b.ID] = true // a repeated id is answered once
+				missing = append(missing, llm.ToolResult(b.ID,
+					"No result: the session ended while this call was running, so whether it took effect is unknown. Check before assuming either way.", true))
+			}
+		}
+		if len(missing) > 0 {
+			out = append(out, llm.ToolResultMessage(missing...))
+		}
+	}
 	return out
 }
 
