@@ -55,13 +55,37 @@ them. The two earlier single-run qwen sessions — one with a system-prompt
 line naming the tool — were also zero, by hand. `expand_output`, `repo_map`
 and `task` were never called in these runs either.
 
-It is still left in place rather than removed, and that is a judgement, not
-a finding: its schema costs 207 bytes in a cached prefix, which is close to
-nothing, and models differ in whether they keep a written plan. But it
-should not be read as a working feature. Nothing measured here shows it
-being used at all, let alone helping.
+**The tool was not the problem; the instruction was.** Asked directly, the
+tool works: qwen3.7-plus writes a plan, marks a step in progress and marks
+it done. So the model was seeing it and declining it, 54 times.
 
-Check it against any run's saved results without paying for new ones:
+The trigger is why. Both the system prompt and the tool's own description
+said to use it "when a job has several parts that are easy to lose track
+of", and both then spent a clause discouraging it ("skip it for a single
+edit", "not for a single edit"). A model asked whether it might lose track
+answers no, every time. The judgement was subjective and it was always
+resolved the same way.
+
+Both now use a countable trigger instead — three or more distinct steps, or
+the user listing several things — with the instruction to count rather than
+to judge, and to write the plan before starting.
+
+| | `todo` calls |
+|---|---|
+| before, qwen3.7-plus, 9 session runs | 0 |
+| after, a request with three explicit parts | 4 (plan first, then marked off as it went) |
+| after, qwen3.7-plus, 6 session runs | 3, in 1 of 6 runs |
+
+One in six looks low until you read the prompts: each step of a session
+task asks for a single thing ("add a Timeout field", "make the server use
+it"), so under a three-step rule most correctly do not warrant a plan. The
+run that did use it was the one prompt that asked for four things, and it
+planned all four. That is the rule working, not failing.
+
+What is still not measured is whether keeping the plan makes any of these
+runs *better*. Adoption is not benefit, and 6/6 passed either way.
+
+Check any of this against saved results without paying for new runs:
 
 ```
 janetcode --eval-report <results.json>

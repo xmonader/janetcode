@@ -84,7 +84,11 @@ type TodoTool struct{ Parent *Agent }
 
 func (*TodoTool) Name() string { return "todo" }
 func (*TodoTool) Description() string {
-	return "Keep the plan for a multi-step task: write the whole list of steps with their status, and rewrite it as you go. Use it when a job has several parts that are easy to lose track of — not for a single edit. Mark exactly one step in_progress while you work on it, mark it completed as soon as it is done rather than in a batch at the end, and add steps as you discover them. Calling it with no todos shows the current plan."
+	return "Keep the plan for a multi-step task: write the whole list of steps with their status, and rewrite it as you go. " +
+		"Call it whenever the work has three or more distinct steps, or the user asked for several things — count them rather than judging whether the job feels complicated, and write the plan before starting rather than partway through. " +
+		"Mark exactly one step in_progress while you work on it, mark it completed as soon as it is done rather than in a batch at the end, and add steps as you discover them. " +
+		"The plan is what the user watches to see what is done and what is left, and it survives compaction, so it is also how you remember your own work on a long job. " +
+		"One edit or one question needs no plan. Calling it with no todos shows the current plan."
 }
 func (*TodoTool) Mutating() bool { return false }
 func (*TodoTool) Schema() json.RawMessage {

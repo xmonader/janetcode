@@ -127,7 +127,7 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `symbols` | Ask the language server where a name is defined, who uses it, its type, what a file declares | no |
 | `expand_output` | Read back tool output and conversation that compaction archived, by search or by line | no |
 | `execute_code` | Run a Python script that calls these tools, so a chain of calls costs one turn and their output stays out of the context | yes, shows the code |
-| `todo` | Keep the plan for a multi-step task and mark steps off — [never called in 54 measured runs across two models](docs/benchmarks/harnesses/session/README.md) | no |
+| `todo` | Keep the plan for a multi-step task and mark steps off; triggered by a countable rule (three or more distinct steps) after [a subjective one was never reached for](docs/benchmarks/harnesses/session/README.md) | no |
 | `inspect` | Look at the session's own state: context, archive, verdicts, config, servers | no |
 | `diagnostics` | Compile and type errors from the language server, for a file or the project | no |
 | `job` | List, read, wait on or kill a background job | no |
