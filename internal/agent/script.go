@@ -419,7 +419,12 @@ func (r *rpc) dispatch(ctx context.Context, name string, input json.RawMessage) 
 // snapshot, the event log — is the same.
 func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMessage) (string, bool) {
 	emit := a.emitter()
-	call := ToolCall{ID: id, Name: name, Input: input}
+	// A script sees the same tool schemas the model does, so it passes
+	// intent= as a keyword argument. It has to come off here too, or every
+	// such call fails on an unknown field.
+	intent, stripped := tool.TakeIntent(input)
+	input = stripped
+	call := ToolCall{ID: id, Name: name, Input: input, Intent: intent}
 	t, ok := a.Tools.Get(name)
 	if !ok {
 		return fmt.Sprintf("Unknown tool %q. Available: %s", name, a.toolNames()), true
@@ -437,7 +442,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 		return deny, true
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
-	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: id, Name: name, Arguments: string(u.Input)})
+	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: id, Name: name, Arguments: string(u.Input), Intent: intent})
 	var pend []pending
 	if t.Mutating() {
 		a.cp.snapshot(a.Snapshots, t, u.Input)

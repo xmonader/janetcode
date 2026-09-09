@@ -45,6 +45,9 @@ func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	if err != nil {
 		return "", err
 	}
+	if st, serr := os.Stat(p); serr == nil && st.IsDir() {
+		return "", fmt.Errorf("%s is a directory; list_dir shows what is in it and glob finds files by pattern", in.Path)
+	}
 	data, err := os.ReadFile(p)
 	if err != nil {
 		return "", err
@@ -263,9 +266,9 @@ type EditFile struct {
 
 func (EditFile) Name() string { return "edit_file" }
 func (t EditFile) Description() string {
-	d := "Replace exact strings in a file. old_string must match exactly once (including whitespace) unless replace_all is true; it fails if there is no match or the match is ambiguous. To make several changes to the same file, pass them all in edits — they are applied in order and either all land or none do, which is one call instead of one per change. The result shows the file around what changed, so there is usually no need to read it back."
+	d := "Replace text inside one file, named by path. Each change needs a place to go as well as the text to write: old_string must match exactly once (including whitespace) unless replace_all is true; it fails if there is no match or the match is ambiguous. To make several changes to the same file, pass them all in edits — they are applied in order and either all land or none do, which is one call instead of one per change. The result shows the file around what changed, so there is usually no need to read it back."
 	if !t.NoLines {
-		d += " When you already know the line numbers — read_file gives them to you — give from_line and to_line instead of old_string, and only the replacement text: retyping the old text to say where an edit goes is the single most expensive thing you write. Line numbers always refer to the file as it is before this call, so a list of line edits does not have to account for its own shifting."
+		d += " A change can be located by line instead of by text: when you already know the line numbers — read_file gives them to you — give from_line and to_line instead of old_string, and only the replacement text: retyping the old text to say where an edit goes is the single most expensive thing you write. Line numbers always refer to the file as it is before this call, so a list of line edits does not have to account for its own shifting."
 	}
 	return d
 }
@@ -280,12 +283,12 @@ func (t EditFile) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
 "path":{"type":"string","description":"File path"},
 ` + locator + `
-"new_string":{"type":"string","description":"Replacement text"},
+"new_string":{"type":"string","description":"The text to write. Pair it with old_string (or from_line/to_line) saying where it goes; new_string on its own is rejected"},
 "replace_all":{"type":"boolean","description":"Replace every occurrence (default false); only with old_string"},
 "edits":{"type":"array","description":"Several edits to this one file; use instead of a single edit when you have more than one change to make. Every edit must locate itself the same way — all by old_string, or all by line range","items":{
 "type":"object","properties":{
 ` + locator + `
-"new_string":{"type":"string","description":"Replacement text"},
+"new_string":{"type":"string","description":"The text to write. Pair it with old_string (or from_line/to_line) saying where it goes; new_string on its own is rejected"},
 "replace_all":{"type":"boolean","description":"Replace every occurrence (default false); only with old_string"}},
 "required":["new_string"],"additionalProperties":false}}},
 "required":["path"],"additionalProperties":false}`)
@@ -324,7 +327,9 @@ func (e oneEdit) apply(content, display string, index, total int) (string, int, 
 		where = fmt.Sprintf("edit %d of %d: ", index+1, total)
 	}
 	if e.Old == "" {
-		return "", 0, fmt.Errorf("%sold_string must not be empty", where)
+		// A replacement with no location at all is the common shape of
+		// this mistake; saying so beats naming the field that is empty.
+		return "", 0, fmt.Errorf("%sthis edit says what to write but not where: give old_string (the exact text to replace) or from_line and to_line", where)
 	}
 	if e.Old == e.New {
 		return "", 0, fmt.Errorf("%sold_string and new_string are identical", where)
@@ -445,12 +450,31 @@ func applyLineEdits(before string, edits []oneEdit) (string, int, []string, erro
 		}
 		spans = append(spans, span{from: from, to: to, text: e.New, index: i})
 	}
-	sort.Slice(spans, func(i, j int) bool { return spans[i].from < spans[j].from })
-	for i := 1; i < len(spans); i++ {
-		if spans[i].from <= spans[i-1].to {
-			return "", 0, nil, fmt.Errorf("edits %d and %d both cover line %d", spans[i-1].index+1, spans[i].index+1, spans[i].from)
+	sort.Slice(spans, func(i, j int) bool {
+		if spans[i].from != spans[j].from {
+			return spans[i].from < spans[j].from
 		}
+		return spans[i].index < spans[j].index
+	})
+	// A range repeated with the same replacement is a duplicate, not a
+	// conflict: the model said the same thing twice and meant it once.
+	// Refusing those costs a round trip to be told something unambiguous,
+	// and models do repeat themselves. Overlapping ranges that disagree
+	// are still refused, because there is no way to choose between them.
+	kept := spans[:0]
+	for i, sp := range spans {
+		if i > 0 {
+			prev := kept[len(kept)-1]
+			if sp.from == prev.from && sp.to == prev.to && sp.text == prev.text {
+				continue
+			}
+			if sp.from <= prev.to {
+				return "", 0, nil, fmt.Errorf("edits %d and %d both cover line %d with different replacements; merge them or target separate lines", prev.index+1, sp.index+1, sp.from)
+			}
+		}
+		kept = append(kept, sp)
 	}
+	spans = kept
 	out := append([]string(nil), lines...)
 	for i := len(spans) - 1; i >= 0; i-- {
 		sp := spans[i]

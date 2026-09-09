@@ -352,3 +352,71 @@ func FuzzEditFileLines(f *testing.F) {
 		}
 	})
 }
+
+// TestEditFileDuplicateLineEdits: a real model sent the same line edit
+// three times. Repeating a range with the same replacement is the model
+// saying one thing twice, not a conflict, and refusing it costs a round
+// trip to be told something unambiguous. Disagreeing edits still fail.
+func TestEditFileDuplicateLineEdits(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "v.go")
+	orig := "package v\n\nfunc V(s string) bool {\n\treturn true\n}\n"
+	os.WriteFile(path, []byte(orig), 0o644)
+	e := EditFile{Root: root}
+
+	in := raw(`{"path":"v.go","edits":[
+{"from_line":4,"to_line":4,"new_string":"\treturn len(s) > 0"},
+{"from_line":4,"to_line":4,"new_string":"\treturn len(s) > 0"},
+{"from_line":4,"to_line":4,"new_string":"\treturn len(s) > 0"}]}`)
+	if _, err := e.Run(context.Background(), in); err != nil {
+		t.Fatalf("identical repeats should collapse: %v", err)
+	}
+	got, _ := os.ReadFile(path)
+	if want := "package v\n\nfunc V(s string) bool {\n\treturn len(s) > 0\n}\n"; string(got) != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+
+	// Two edits to the same line that disagree cannot be resolved.
+	os.WriteFile(path, []byte(orig), 0o644)
+	bad := raw(`{"path":"v.go","edits":[
+{"from_line":4,"to_line":4,"new_string":"\treturn a"},
+{"from_line":4,"to_line":4,"new_string":"\treturn b"}]}`)
+	if _, err := e.Run(context.Background(), bad); err == nil || !strings.Contains(err.Error(), "different replacements") {
+		t.Fatalf("disagreeing edits must still fail: %v", err)
+	}
+	if got, _ = os.ReadFile(path); string(got) != orig {
+		t.Fatal("a refused batch must not write")
+	}
+	// Overlapping ranges that disagree are still refused.
+	os.WriteFile(path, []byte(orig), 0o644)
+	overlap := raw(`{"path":"v.go","edits":[
+{"from_line":3,"to_line":4,"new_string":"x"},
+{"from_line":4,"to_line":5,"new_string":"y"}]}`)
+	if _, err := e.Run(context.Background(), overlap); err == nil {
+		t.Fatal("overlapping ranges must still fail")
+	}
+}
+
+// TestActionableErrors: an error the model cannot act on costs a whole
+// round trip. Both of these came from watching a real model fail.
+func TestActionableErrors(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "pkg"), 0o755)
+	os.WriteFile(filepath.Join(root, "f.txt"), []byte("one\ntwo\n"), 0o644)
+
+	// Reading a directory should name the tools that do the job.
+	_, err := ReadFile{Root: root}.Run(context.Background(), raw(`{"path":"pkg"}`))
+	if err == nil || !strings.Contains(err.Error(), "list_dir") {
+		t.Fatalf("want a pointer to list_dir, got %v", err)
+	}
+
+	// A replacement with no location says so, rather than naming an
+	// empty field the model may not have known it was sending.
+	_, err = EditFile{Root: root}.Run(context.Background(), raw(`{"path":"f.txt","new_string":"x"}`))
+	if err == nil || !strings.Contains(err.Error(), "not where") {
+		t.Fatalf("want a message about the missing location, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "from_line") {
+		t.Fatalf("the message should name both ways to locate an edit: %v", err)
+	}
+}

@@ -335,3 +335,38 @@ print("listing:", "a.txt" in list_dir("."))
 		t.Fatalf("description should show the first argument: %s", d)
 	}
 }
+
+// TestScriptStripsIntent: a script sees the same tool schemas the model
+// does, so it passes intent= as a keyword. A real model did exactly that
+// and every call in the script failed on an unknown field.
+func TestScriptStripsIntent(t *testing.T) {
+	pythonOrSkip(t)
+	root := t.TempDir()
+	ag, s := scriptAgent(t, root)
+	ag.Tools.Intent = true
+	if _, err := (tool.WriteFile{Root: root}).Run(context.Background(),
+		json.RawMessage(`{"path":"f.txt","content":"one\ntwo\n"}`)); err != nil {
+		t.Fatal(err)
+	}
+	out := runScript(t, s, `
+from janetcode_tools import edit_file
+print(edit_file(path="f.txt", intent="rename the first line", old_string="one", new_string="ONE").splitlines()[0])
+`)
+	if !strings.Contains(out, "Edited f.txt") {
+		t.Fatalf("an intent keyword must not fail the call: %q", out)
+	}
+	got, _ := os.ReadFile(filepath.Join(root, "f.txt"))
+	if string(got) != "ONE\ntwo\n" {
+		t.Fatalf("file is %q", got)
+	}
+	// And it is recorded, like any other call's reason.
+	var seen string
+	for _, e := range ag.Log.Events() {
+		if e.Type == session.TypeToolCall && e.Intent != "" {
+			seen = e.Intent
+		}
+	}
+	if seen != "rename the first line" {
+		t.Fatalf("the intent should be logged, got %q", seen)
+	}
+}
