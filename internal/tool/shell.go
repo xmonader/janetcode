@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"time"
 	"context"
 	"encoding/base64"
 	"os/exec"
@@ -78,4 +79,12 @@ func encodePowerShell(command string) string {
 		b = append(b, byte(c), byte(c>>8))
 	}
 	return base64.StdEncoding.EncodeToString(b)
+}
+
+// Supervise puts cmd in its own process group so cancellation kills the
+// whole tree, and bounds how long Wait blocks on pipes held open by
+// orphaned grandchildren. Use it for any command a context may cancel.
+func Supervise(cmd *exec.Cmd) {
+	setProcessGroup(cmd)
+	cmd.WaitDelay = 5 * time.Second
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/eval"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 var (
@@ -50,6 +51,7 @@ func runJanetBatch(ctx context.Context, cfg runConfig, batchN int, tasks []eval.
 		"--eval-no-tool-limit",
 	}
 	cmd := exec.CommandContext(ctx, bin, args...)
+	tool.Supervise(cmd)
 	cmd.Dir = cfg.RepoRoot
 	cmd.Env = childEnv(cfg, map[string]string{
 		"XDG_CONFIG_HOME":    xdg,
@@ -230,6 +232,7 @@ func runCheck(ctx context.Context, t eval.Task, dir, outPath string) (bool, stri
 	cctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(cctx, "bash", "-c", t.Check)
+	tool.Supervise(cmd)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir)
 	out, err := cmd.CombinedOutput()
@@ -281,6 +284,7 @@ func invoke(ctx context.Context, cfg runConfig, harness string, t eval.Task, dir
 	default:
 		return "", "", nil, 1, fmt.Errorf("unknown harness %s", harness)
 	}
+	tool.Supervise(cmd) // kill the harness's whole tree on timeout; never block on an orphan
 	cmd.Dir = dir
 	cmd.Env = childEnv(cfg, extraEnv)
 	var outb, errb bytes.Buffer
@@ -312,6 +316,7 @@ context_window = 128000
 	defer cancel()
 	cmd := exec.CommandContext(pctx, "grok", "-p", "Reply with the single word pong and nothing else.",
 		"--always-approve", "--output-format", "json", "--model", cfg.Model, "--max-turns", "2")
+	tool.Supervise(cmd)
 	cmd.Env = childEnv(cfg, map[string]string{
 		"GROK_HOME":         home,
 		"OPENAI_API_KEY":    cfg.Key,
@@ -360,6 +365,7 @@ var (
 
 func probeCmd(ctx context.Context, cfg runConfig, name string, args ...string) (command, stdout, stderr string, err error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	tool.Supervise(cmd)
 	cmd.Env = childEnv(cfg, nil)
 	var outb, errb bytes.Buffer
 	cmd.Stdout = &outb
