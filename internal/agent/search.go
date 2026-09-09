@@ -5,6 +5,7 @@ import (
 	"math"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -94,6 +95,125 @@ func anchor(t string) bool {
 	return digits > 0 && digits >= len(t)/2
 }
 
+var (
+	lineRe = regexp.MustCompile(`(?i)\b(?:line|:)\s*(\d{1,6})\b`)
+	pathRe = regexp.MustCompile(`[\w./-]*[\w-]+\.[A-Za-z][\w]{0,8}\b`)
+	// numbered matches a read_file result's "12\tcode" line prefix.
+	numbered = regexp.MustCompile(`(?m)^(\d+)\t`)
+)
+
+// lineLookup answers "line N of <file>" from the archive. Tool output that
+// numbers its lines — read_file's does — carries the file's own numbering
+// into the archive, so the line can be found exactly rather than guessed
+// at by word overlap. It returns "" when the query is not of that shape or
+// nothing matches, and the caller falls back to ranking.
+func lineLookup(ar *Archive, ids []string, query string) string {
+	lm := lineRe.FindStringSubmatch(query)
+	if lm == nil {
+		return ""
+	}
+	want, err := strconv.Atoi(lm[1])
+	if err != nil || want <= 0 {
+		return ""
+	}
+	path := ""
+	for _, cand := range pathRe.FindAllString(query, -1) {
+		if strings.Contains(cand, "/") || strings.Contains(cand, ".") {
+			path = cand
+			break
+		}
+	}
+	if path == "" {
+		return ""
+	}
+	entries := entriesFor(ar, ids)
+	var b strings.Builder
+	for _, e := range entries {
+		// The entry must be about this file: either the call's subject is
+		// the path, or the archived text names it (a compacted
+		// conversation holds many files' reads).
+		_, body, err := ar.Get(e.ID)
+		if err != nil {
+			continue
+		}
+		subjectMatch := e.Subject != "" && (strings.HasSuffix(e.Subject, path) || strings.HasSuffix(path, e.Subject))
+		if !subjectMatch && !strings.Contains(body, path) {
+			continue
+		}
+		lines := strings.Split(strings.TrimSuffix(body, "\n"), "\n")
+		// Inside a compacted conversation the file's read starts after the
+		// line naming it; restrict to the nearest such block so line 36 of
+		// this file is not confused with line 36 of another.
+		from, to := blockFor(lines, path, subjectMatch)
+		for i := from; i < to; i++ {
+			m := numbered.FindStringSubmatch(lines[i] + "\n")
+			if m == nil || m[1] != lm[1] {
+				continue
+			}
+			lo, hi := max(i-2, from), min(i+3, to)
+			fmt.Fprintf(&b, "%s (%s) — line %d of %s:\n", e.ID, e.Name, want, path)
+			for j := lo; j < hi; j++ {
+				marker := "  "
+				if j == i {
+					marker = "> "
+				}
+				fmt.Fprintf(&b, "%s%s\n", marker, lines[j])
+			}
+			b.WriteString("\n")
+			break
+		}
+		if b.Len() > 0 {
+			break
+		}
+	}
+	if b.Len() == 0 {
+		return ""
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// blockFor narrows a body to the part about path. When the entry is that
+// file's own output the whole body is it; inside a compacted conversation
+// it is the span from the mention of the path to the next one.
+func blockFor(lines []string, path string, subjectMatch bool) (int, int) {
+	if subjectMatch {
+		return 0, len(lines)
+	}
+	start := -1
+	for i, l := range lines {
+		if strings.Contains(l, path) {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		return 0, len(lines)
+	}
+	end := len(lines)
+	for i := start + 1; i < len(lines); i++ {
+		// The next tool call ends this file's output.
+		if strings.HasPrefix(lines[i], "[tool call ") || strings.HasPrefix(lines[i], "=== message ") {
+			end = i
+			break
+		}
+	}
+	return start, end
+}
+
+// entriesFor is the entries to search: the named ones, or all of them.
+func entriesFor(ar *Archive, ids []string) []Entry {
+	if len(ids) == 0 {
+		return ar.List()
+	}
+	var out []Entry
+	for _, id := range ids {
+		if e, _, err := ar.Get(id); err == nil {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 type window struct {
 	entry   string // archive id
 	name    string
@@ -106,23 +226,21 @@ type window struct {
 // searchArchive ranks the windows of the given entries (all when ids is
 // empty) against query and renders the best within the budget.
 func searchArchive(ar *Archive, ids []string, query string, budget int) string {
+	if budget <= 0 {
+		budget = searchBudget
+	}
+	// "line 36 of ledger/parse.py" is the commonest thing to want back
+	// after a compaction, and it is the one question ranking by words
+	// cannot answer: the query shares no vocabulary with the line. When a
+	// query names a file and a line, the line is looked up directly.
+	if out := lineLookup(ar, ids, query); out != "" {
+		return out
+	}
 	q := terms(query)
 	if len(q) == 0 {
 		return "The query has no searchable words."
 	}
-	if budget <= 0 {
-		budget = searchBudget
-	}
-	var entries []Entry
-	if len(ids) == 0 {
-		entries = ar.List()
-	} else {
-		for _, id := range ids {
-			if e, _, err := ar.Get(id); err == nil {
-				entries = append(entries, e)
-			}
-		}
-	}
+	entries := entriesFor(ar, ids)
 	var wins []window
 	df := map[string]int{}
 	totalLen := 0

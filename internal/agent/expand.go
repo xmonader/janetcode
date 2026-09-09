@@ -21,7 +21,7 @@ const expandDefaultLimit = 200
 
 func (*ExpandOutput) Name() string { return "expand_output" }
 func (*ExpandOutput) Description() string {
-	return "Read archived output: tool results that were too long to show inline, and the text of earlier conversation that was compacted away (ids like ctx-12; results and compaction notes say which). Give an id with offset/limit to read a slice of lines; grep (a regexp) for matching lines with line numbers; or query (plain words: what you are looking for, e.g. a path, an error message, a value) to get the best-matching passages ranked — use query when you do not know the exact wording. Without an id, grep and query search every archived output. With no arguments it lists what is archived."
+	return "Read archived output: tool results that were too long to show inline, and the text of earlier conversation that was compacted away (ids like ctx-12; results and compaction notes say which). Give an id with offset/limit to read a slice of lines; grep (a regexp) for matching lines with line numbers; or query (plain words: what you are looking for) to get the best-matching passages ranked — use query when you do not know the exact wording. A query naming a file and a line, such as line 36 of ledger/parse.py, returns that line exactly. Without an id, grep and query search every archived output. With no arguments it lists what is archived."
 }
 func (*ExpandOutput) Mutating() bool { return false }
 func (*ExpandOutput) Schema() json.RawMessage {
