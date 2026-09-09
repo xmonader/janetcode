@@ -26,11 +26,16 @@ ANTHROPIC_AUTH_TOKEN=<anything>
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 ```
 
-The proxy (about sixty lines) swaps the `model` field for the one under
+`cmd/modelproxy` does this: it swaps the `model` field for the one under
 test and strips the duplicate `/v1` prefix, since Claude Code posts to
 `/v1/messages?beta=true` while the OpenRouter root already ends in `/v1`.
-Verified before use: a request naming sonnet comes back marked
-`inception/mercury-2.5`.
+It streams, so server-sent events arrive as they are sent. Verified before
+use: a request naming sonnet comes back marked `inception/mercury-2.5`.
+
+It is a benchmarking aid and not a gateway — no retries, no rate limiting,
+no auth of its own, bind it to localhost. General-purpose routers do this
+properly and do far more; this exists so the measurement below reproduces
+from this repository alone.
 
 ## The result
 
@@ -77,7 +82,8 @@ measurement still needs an account with credit on a provider serving it.
 ## Reproduce
 
 ```
-python3 px.py 8820 &          # the rewriting proxy, see this directory
+go build -o bin/modelproxy ./cmd/modelproxy
+./bin/modelproxy -model inception/mercury-2.5 -key $OPENROUTER_API_KEY -addr 127.0.0.1:8820 &
 ANTHROPIC_BASE_URL=http://127.0.0.1:8820 ANTHROPIC_AUTH_TOKEN=proxy \
   ./bin/harnessbench --evals evals/session --filter session \
   --harnesses claudecode --claude-model sonnet --out cc-merc
