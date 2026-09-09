@@ -551,3 +551,43 @@ func TestLearnDialectDropsJSONSchema(t *testing.T) {
 		t.Fatal("retried a second time for the same reason")
 	}
 }
+
+// TestReadStreamSeparatesToolCallsWithoutIndex reproduces a real failure:
+// a provider that streams two tool calls without an "index" field on the
+// deltas had both of them accumulate into one, producing the tool name
+// "read_fileedit_file" and two JSON objects glued together as its
+// arguments. The whole turn died on it.
+func TestReadStreamSeparatesToolCallsWithoutIndex(t *testing.T) {
+	// Each chunk carries one tool-call delta and no index, which is what
+	// made the old position-in-chunk fallback collapse them.
+	chunks := []string{
+		`{"choices":[{"delta":{"tool_calls":[{"id":"call_a","type":"function","function":{"name":"read_file","arguments":""}}]}}]}`,
+		`{"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"{\"path\":\"a.go\"}"}}]}}]}`,
+		`{"choices":[{"delta":{"tool_calls":[{"id":"call_b","type":"function","function":{"name":"edit_file","arguments":""}}]}}]}`,
+		`{"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"{\"path\":\"b.go\"}"}}]}}]}`,
+		`{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+	}
+	var b strings.Builder
+	for _, c := range chunks {
+		b.WriteString("data: " + c + "\n\n")
+	}
+	b.WriteString("data: [DONE]\n\n")
+
+	resp, err := readStream(strings.NewReader(b.String()), func(llm.Event) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	uses := resp.Message.ToolUses()
+	if len(uses) != 2 {
+		t.Fatalf("got %d tool calls, want 2: %+v", len(uses), uses)
+	}
+	if uses[0].Name != "read_file" || string(uses[0].Input) != `{"path":"a.go"}` {
+		t.Fatalf("first call is %q %s", uses[0].Name, uses[0].Input)
+	}
+	if uses[1].Name != "edit_file" || string(uses[1].Input) != `{"path":"b.go"}` {
+		t.Fatalf("second call is %q %s", uses[1].Name, uses[1].Input)
+	}
+	if uses[0].ID == uses[1].ID {
+		t.Fatalf("both calls share the id %q", uses[0].ID)
+	}
+}

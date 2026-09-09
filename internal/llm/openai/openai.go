@@ -760,6 +760,42 @@ func retryable(err error) bool {
 }
 
 // toolAcc accumulates a streamed tool call.
+// slotFor decides which tool call a streamed delta belongs to.
+//
+// A well-behaved stream numbers its tool calls and this is just the index.
+// Some providers omit it, and then the only signals are that a delta which
+// carries an id or a function name begins a call, while one carrying only
+// argument text continues the call in progress. Falling back to the
+// delta's position within its chunk — as this once did — puts every call
+// in slot 0 when each chunk holds one delta, which silently concatenates
+// two calls into a tool named "read_fileedit_file" and kills the turn.
+func slotFor(index *int, pos int, id, name string, tools map[int]*toolAcc, order []int, next *int) int {
+	if index != nil {
+		if *index >= *next {
+			*next = *index + 1
+		}
+		return *index
+	}
+	if len(order) == 0 {
+		*next = 1
+		return 0
+	}
+	cur := order[len(order)-1]
+	acc := tools[cur]
+	// Several deltas in one chunk are distinct calls; otherwise a new id,
+	// or a name arriving after the current call already has one, means the
+	// stream has moved on to the next call.
+	fresh := pos > 0 ||
+		(id != "" && acc.id != "" && id != acc.id) ||
+		(name != "" && acc.name != "" && (acc.args.Len() > 0 || id != ""))
+	if !fresh {
+		return cur
+	}
+	slot := *next
+	*next++
+	return slot
+}
+
 type toolAcc struct {
 	id, name string
 	args     strings.Builder
@@ -774,6 +810,7 @@ func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
 		thinking strings.Builder
 		tools    = map[int]*toolAcc{}
 		order    []int
+		nextSlot int
 		finish   string
 		usage    llm.Usage
 		gotDone  bool
@@ -832,10 +869,7 @@ func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
 				emit(llm.Event{Type: llm.EventTextDelta, Text: d.Content})
 			}
 			for i, tc := range d.ToolCalls {
-				idx := i
-				if tc.Index != nil {
-					idx = *tc.Index
-				}
+				idx := slotFor(tc.Index, i, tc.ID, tc.Function.Name, tools, order, &nextSlot)
 				acc, ok := tools[idx]
 				if !ok {
 					acc = &toolAcc{}
