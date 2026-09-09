@@ -85,6 +85,191 @@ func registerSubjects(r *inspect.Registry, d subjectDeps) {
 		Report: func(ctx context.Context, arg string) (string, error) { return repomapReport(ctx, d.repo, arg) },
 	})
 	r.AddText("undo", "file changes that can still be undone", func() string { return undoReport(d.agent) })
+	r.Add(inspect.Subject{
+		Name: "messages", Summary: "the conversation as the model will see it", Usage: "[N|#index]",
+		Report: func(_ context.Context, arg string) (string, error) { return messagesReport(d.agent, arg), nil },
+	})
+	r.AddText("prompt", "the system prompt, verbatim", func() string { return promptReport(d.agent) })
+	r.AddText("hooks", "the hooks that can interrupt a turn", func() string { return hooksReport(d.agent) })
+	r.AddText("verify", "the checks a turn must pass before it is done", func() string { return verifyReport(d.agent) })
+	r.AddText("providers", "the model endpoint in use and how requests are shaped", func() string {
+		return providersReport(d.cfg, d.agent)
+	})
+	r.AddText("all", "every subject at once", func() string { return allReport(r) })
+}
+
+// messagesReport is the conversation as the model will receive it, which
+// is not what the transcript shows: pruned results, injected notes and
+// compaction summaries are all in here and none of them were typed.
+func messagesReport(a *agent.Agent, arg string) string {
+	if a == nil {
+		return "no agent"
+	}
+	msgs := a.Messages
+	if len(msgs) == 0 {
+		return "the conversation is empty"
+	}
+	if strings.HasPrefix(arg, "#") {
+		i, err := strconv.Atoi(strings.TrimPrefix(arg, "#"))
+		if err != nil || i < 1 || i > len(msgs) {
+			return fmt.Sprintf("no message #%s (there are %d)", strings.TrimPrefix(arg, "#"), len(msgs))
+		}
+		m := msgs[i-1]
+		var b strings.Builder
+		fmt.Fprintf(&b, "message %d of %d · %s\n\n", i, len(msgs), m.Role)
+		for _, blk := range m.Blocks {
+			switch blk.Type {
+			case llm.BlockText, llm.BlockThinking:
+				fmt.Fprintf(&b, "%s\n", trunc(blk.Text, 6000))
+			case llm.BlockToolUse:
+				fmt.Fprintf(&b, "[call %s %s] %s\n", blk.Name, blk.ID, trunc(string(blk.Input), 1000))
+			case llm.BlockToolResult:
+				tag := "result"
+				if blk.IsError {
+					tag = "error"
+				}
+				fmt.Fprintf(&b, "[%s %s]\n%s\n", tag, blk.ToolUseID, trunc(blk.Text, 4000))
+			case llm.BlockImage:
+				fmt.Fprintf(&b, "[image %s]\n", blk.MediaType)
+			}
+		}
+		return b.String()
+	}
+	limit := 30
+	if n, err := strconv.Atoi(arg); err == nil && n > 0 {
+		limit = n
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d messages (inspect messages #<n> for one in full)\n", len(msgs))
+	from := 0
+	if len(msgs) > limit {
+		from = len(msgs) - limit
+	}
+	for i := from; i < len(msgs); i++ {
+		m := msgs[i]
+		kinds := map[string]int{}
+		for _, blk := range m.Blocks {
+			kinds[string(blk.Type)]++
+		}
+		var parts []string
+		for _, k := range []string{"text", "thinking", "tool_use", "tool_result", "image"} {
+			if kinds[k] > 0 {
+				parts = append(parts, fmt.Sprintf("%d %s", kinds[k], k))
+			}
+		}
+		fmt.Fprintf(&b, "  %-4d %-9s %-28s %s\n", i+1, m.Role, strings.Join(parts, ", "), trunc(oneLine(m.Text()), 60))
+	}
+	return b.String()
+}
+
+func promptReport(a *agent.Agent) string {
+	if a == nil {
+		return "no agent"
+	}
+	out := a.System
+	if extra := a.SystemExtra; extra != nil {
+		if e := strings.TrimSpace(extra()); e != "" {
+			out += "\n\n" + e
+		}
+	}
+	if len(a.Pins) > 0 {
+		out += "\n\n# Pins\n"
+		for _, p := range a.Pins {
+			out += "- " + p + "\n"
+		}
+	}
+	return out
+}
+
+func hooksReport(a *agent.Agent) string {
+	if a == nil || a.Hooks == nil || len(a.Hooks.Config) == 0 {
+		return "no hooks are configured"
+	}
+	events := make([]string, 0, len(a.Hooks.Config))
+	for e := range a.Hooks.Config {
+		events = append(events, e)
+	}
+	sort.Strings(events)
+	var b strings.Builder
+	fmt.Fprintf(&b, "hooks run in %s:\n", a.Hooks.Cwd)
+	for _, e := range events {
+		for _, h := range a.Hooks.Config[e] {
+			fmt.Fprintf(&b, "  %-14s %s\n", e, trunc(h.Command, 80))
+		}
+	}
+	return b.String()
+}
+
+func verifyReport(a *agent.Agent) string {
+	if a == nil || a.Verify == nil || !a.Verify.Enabled() {
+		return "no verification is configured for this project"
+	}
+	c := a.Verify.Config
+	var b strings.Builder
+	b.WriteString("a turn is not done until these pass:\n")
+	for _, cmd := range c.Commands {
+		fmt.Fprintf(&b, "  %s\n", cmd)
+	}
+	if c.Timeout > 0 {
+		fmt.Fprintf(&b, "timeout %ds per command\n", c.Timeout)
+	}
+	if strings.TrimSpace(c.Mutate) != "" {
+		fmt.Fprintf(&b, "\nmutation testing with: %s\n", c.Mutate)
+		if c.MaxMutants > 0 {
+			fmt.Fprintf(&b, "at most %d mutants per run\n", c.MaxMutants)
+		}
+	}
+	return b.String()
+}
+
+func providersReport(cfg *config.Config, a *agent.Agent) string {
+	if a == nil {
+		return "no agent"
+	}
+	var b strings.Builder
+	name := "(none)"
+	if a.Provider != nil {
+		name = a.Provider.Name()
+	}
+	fmt.Fprintf(&b, "provider   %s\n", name)
+	fmt.Fprintf(&b, "model      %s\n", a.Model)
+	fmt.Fprintf(&b, "max tokens %d\n", a.MaxTokens)
+	if cfg != nil {
+		if m := cfg.MetaFor(a.Model); m.ContextWindow > 0 {
+			fmt.Fprintf(&b, "window     %s\n", tokensOf(m.ContextWindow))
+		}
+		if p := cfg.PriceFor(a.Model); p != nil {
+			fmt.Fprintf(&b, "price      $%.2f in / $%.2f out per million\n", p.Input, p.Output)
+		}
+	}
+	u := a.UsageSnapshot()
+	if pct, ok := a.CacheRate(); ok {
+		fmt.Fprintf(&b, "cache      %d%% of input served from cache\n", pct)
+	}
+	if usd, ok := u.Cost(a.Price); ok {
+		fmt.Fprintf(&b, "spent      %s\n", llm.FormatUSD(usd))
+	}
+	return b.String()
+}
+
+// allReport renders every subject, for a transcript of the whole state.
+func allReport(r *inspect.Registry) string {
+	var b strings.Builder
+	for _, s := range r.Subjects() {
+		if s.Name == "all" {
+			continue
+		}
+		out, err := s.Report(context.Background(), "")
+		if err != nil {
+			out = "error: " + err.Error()
+		}
+		fmt.Fprintf(&b, "\n=== %s — %s ===\n%s\n", s.Name, s.Summary, strings.TrimRight(out, "\n"))
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 func contextReport(a *agent.Agent) string {
