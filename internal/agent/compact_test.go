@@ -536,3 +536,36 @@ func TestRichSkipNeedsAnEarlierSummaryAndNoNewAsk(t *testing.T) {
 		t.Fatal("not rich with 10 commands and a record to carry")
 	}
 }
+
+// What compaction drops is archived first, so the note can point at it
+// and expand_output can search it.
+func TestCompactArchivesTheHead(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text(`{"facts":["done"]}`)}}
+	ar := NewArchive(t.TempDir())
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Archive: ar, Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, strings.Repeat("please investigate the flaky suite ", 80)),
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "c1", Name: "bash", Input: json.RawMessage(`{"command":"go test ./..."}`)}}},
+		llm.ToolResultMessage(llm.ToolResult("c1", "--- FAIL: TestParse (0.00s)\n    parse_test.go:17: got 3 want 4\n[exit code 1]", true)),
+		llm.TextMessage(llm.RoleAssistant, "the parser is off by one"),
+	}}
+	// Enough later traffic that the failure sits in the head, not the
+	// verbatim tail.
+	for i := 0; i < 4; i++ {
+		a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, "go on"), llm.TextMessage(llm.RoleAssistant, "working"))
+	}
+	if err := a.ForceCompact(context.Background(), func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	note := a.Messages[0].Text()
+	if !strings.Contains(note, "compacted conversation is archived as ctx-") {
+		t.Fatalf("note does not point at the archive:\n%s", note)
+	}
+	entries := ar.List()
+	if len(entries) != 1 || entries[0].Name != "compacted conversation" {
+		t.Fatalf("archive = %+v", entries)
+	}
+	out := searchArchive(ar, nil, "why did TestParse fail", 0)
+	if !strings.Contains(out, "got 3 want 4") || !strings.Contains(out, "go test ./...") {
+		t.Fatalf("head not searchable:\n%s", out)
+	}
+}

@@ -1,0 +1,216 @@
+package agent
+
+import (
+	"fmt"
+	"math"
+	"regexp"
+	"sort"
+	"strings"
+	"unicode"
+
+	"github.com/xmonader/janetcode/internal/tool"
+)
+
+// Ranked search over the archive. A model recovering an exact value it no
+// longer has (a path, an error line, a number) does not know the regexp
+// that finds it; it knows roughly what it was about. A grep that demands
+// every word match returns nothing for such queries — a retriever with
+// exactly that AND semantics scored 0% on model-written questions until
+// it was made to rank by any-term overlap. This one scores every window
+// of lines by BM25 over the query's words, gives literal anchors (paths,
+// identifiers, numbers) an exact-match boost, expands each hit to its
+// neighbouring lines, and returns the best windows within a token budget.
+
+const (
+	searchWindow  = 6     // lines per scored window
+	searchStride  = 3     // windows overlap by half
+	searchContext = 2     // extra lines shown around a hit
+	searchBudget  = 6_000 // bytes of output, about 1.5k tokens
+	searchTopK    = 12
+	bm25K1        = 1.2
+	bm25B         = 0.75
+)
+
+var (
+	tokenRe = regexp.MustCompile(`[A-Za-z0-9_][A-Za-z0-9_./:-]*`)
+	partRe  = regexp.MustCompile(`[A-Za-z]+|[0-9]+`)
+)
+
+// terms splits text into lowercase search terms. A literal such as
+// internal/server/router.go:42 is indexed whole (so an exact mention
+// anchors) and by its parts (so "router" finds it), and words are lightly
+// stemmed so "compiling" meets "compile".
+func terms(s string) []string {
+	var out []string
+	for _, t := range tokenRe.FindAllString(s, -1) {
+		t = strings.ToLower(strings.Trim(t, "./:-"))
+		if len(t) < 2 || stopword[t] {
+			continue
+		}
+		parts := partRe.FindAllString(t, -1)
+		if len(parts) > 1 {
+			out = append(out, t)
+		}
+		for _, p := range parts {
+			if p = stem(p); len(p) >= 2 && !stopword[p] {
+				out = append(out, p)
+			}
+		}
+	}
+	return out
+}
+
+// stem trims the commonest English suffixes; enough to match a query's
+// "compile" or "fail" against "compiling" and "failed" without a
+// dictionary, and cheap enough to run on every archived line.
+func stem(w string) string {
+	for _, suf := range []string{"ing", "ies", "ed", "es", "s"} {
+		if strings.HasSuffix(w, suf) && len(w)-len(suf) >= 3 {
+			w = strings.TrimSuffix(w, suf)
+			if suf == "ies" {
+				w += "y"
+			}
+			break
+		}
+	}
+	return w
+}
+
+var stopword = map[string]bool{"the": true, "a": true, "an": true, "of": true, "in": true, "to": true, "was": true, "what": true, "is": true, "did": true, "and": true, "or": true, "it": true, "that": true, "for": true, "on": true, "with": true, "this": true, "be": true, "by": true, "at": true, "from": true, "as": true}
+
+// anchor reports whether a term is a literal worth an exact-match boost:
+// something a model would not paraphrase, like a path, an identifier
+// with punctuation, or a number.
+func anchor(t string) bool {
+	if strings.ContainsAny(t, "_./:-") {
+		return true
+	}
+	digits := 0
+	for _, r := range t {
+		if unicode.IsDigit(r) {
+			digits++
+		}
+	}
+	return digits > 0 && digits >= len(t)/2
+}
+
+type window struct {
+	entry string // archive id
+	name  string
+	start int // first line index
+	lines []string
+	score float64
+}
+
+// searchArchive ranks the windows of the given entries (all when ids is
+// empty) against query and renders the best within the budget.
+func searchArchive(ar *Archive, ids []string, query string, budget int) string {
+	q := terms(query)
+	if len(q) == 0 {
+		return "The query has no searchable words."
+	}
+	if budget <= 0 {
+		budget = searchBudget
+	}
+	var entries []Entry
+	if len(ids) == 0 {
+		entries = ar.List()
+	} else {
+		for _, id := range ids {
+			if e, _, err := ar.Get(id); err == nil {
+				entries = append(entries, e)
+			}
+		}
+	}
+	var wins []window
+	df := map[string]int{}
+	totalLen := 0
+	for _, e := range entries {
+		_, body, err := ar.Get(e.ID)
+		if err != nil {
+			continue
+		}
+		lines := strings.Split(strings.TrimSuffix(body, "\n"), "\n")
+		for start := 0; start < len(lines); start += searchStride {
+			end := min(start+searchWindow, len(lines))
+			w := window{entry: e.ID, name: e.Name, start: start, lines: lines[start:end]}
+			seen := map[string]bool{}
+			n := 0
+			for _, l := range w.lines {
+				for _, t := range terms(l) {
+					n++
+					if !seen[t] {
+						seen[t] = true
+						df[t]++
+					}
+				}
+			}
+			totalLen += n
+			wins = append(wins, w)
+			if end == len(lines) {
+				break
+			}
+		}
+	}
+	if len(wins) == 0 {
+		return "Nothing is archived to search."
+	}
+	avg := float64(totalLen) / float64(len(wins))
+	for i := range wins {
+		w := &wins[i]
+		tf := map[string]int{}
+		n := 0
+		for _, l := range w.lines {
+			for _, t := range terms(l) {
+				tf[t]++
+				n++
+			}
+		}
+		text := strings.ToLower(strings.Join(w.lines, "\n"))
+		for _, t := range q {
+			f := float64(tf[t])
+			if f == 0 {
+				continue
+			}
+			idf := math.Log(1 + (float64(len(wins))-float64(df[t])+0.5)/(float64(df[t])+0.5))
+			w.score += idf * (f * (bm25K1 + 1)) / (f + bm25K1*(1-bm25B+bm25B*float64(n)/math.Max(avg, 1)))
+			if anchor(t) && strings.Contains(text, t) {
+				w.score += idf // an exact literal counts twice
+			}
+		}
+	}
+	sort.SliceStable(wins, func(i, j int) bool { return wins[i].score > wins[j].score })
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Best matches for %q, ranked:\n", query)
+	shown := 0
+	covered := map[string]bool{} // entry:start already printed
+	for _, w := range wins {
+		if w.score <= 0 || shown >= searchTopK || sb.Len() >= budget {
+			break
+		}
+		key := fmt.Sprintf("%s:%d", w.entry, w.start/searchStride/2)
+		if covered[key] {
+			continue
+		}
+		covered[key] = true
+		_, body, err := ar.Get(w.entry)
+		if err != nil {
+			continue
+		}
+		all := strings.Split(strings.TrimSuffix(body, "\n"), "\n")
+		from := max(w.start-searchContext, 0)
+		to := min(w.start+len(w.lines)+searchContext, len(all))
+		fmt.Fprintf(&sb, "\n%s (%s) lines %d-%d:\n", w.entry, w.name, from+1, to)
+		for i := from; i < to; i++ {
+			fmt.Fprintf(&sb, "%d\t%s\n", i+1, all[i])
+		}
+		shown++
+	}
+	if shown == 0 {
+		return fmt.Sprintf("No archived output mentions any of: %s.", strings.Join(q, ", "))
+	}
+	if sb.Len() > budget {
+		return tool.Truncate(sb.String()[:budget]) + "\n[more matches not shown; narrow the query or give an id]"
+	}
+	return sb.String()
+}

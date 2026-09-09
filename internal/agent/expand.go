@@ -21,13 +21,14 @@ const expandDefaultLimit = 200
 
 func (*ExpandOutput) Name() string { return "expand_output" }
 func (*ExpandOutput) Description() string {
-	return "Read tool output that was too long to show inline. Long results are archived under ids like ctx-12 (the result says which). Give an id with offset/limit to read a slice of lines, or grep (a regexp) to get the matching lines with line numbers; grep without an id searches every archived output. With no arguments it lists what is archived."
+	return "Read archived output: tool results that were too long to show inline, and the text of earlier conversation that was compacted away (ids like ctx-12; results and compaction notes say which). Give an id with offset/limit to read a slice of lines; grep (a regexp) for matching lines with line numbers; or query (plain words: what you are looking for, e.g. a path, an error message, a value) to get the best-matching passages ranked — use query when you do not know the exact wording. Without an id, grep and query search every archived output. With no arguments it lists what is archived."
 }
 func (*ExpandOutput) Mutating() bool { return false }
 func (*ExpandOutput) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
 "id":{"type":"string","description":"Archive id from a truncated result, e.g. ctx-12"},
 "grep":{"type":"string","description":"Regexp; returns matching lines with line numbers"},
+"query":{"type":"string","description":"Words describing what to find; returns the best-matching passages ranked, any word may match"},
 "offset":{"type":"integer","description":"First line to return (1-based, default 1)"},
 "limit":{"type":"integer","description":"Lines to return (default 200)"}},
 "additionalProperties":false}`)
@@ -37,6 +38,7 @@ func (t *ExpandOutput) Run(ctx context.Context, input json.RawMessage) (string, 
 	var in struct {
 		ID     string `json:"id"`
 		Grep   string `json:"grep"`
+		Query  string `json:"query"`
 		Offset int    `json:"offset"`
 		Limit  int    `json:"limit"`
 	}
@@ -54,6 +56,13 @@ func (t *ExpandOutput) Run(ctx context.Context, input json.RawMessage) (string, 
 		if re, err = regexp.Compile("(?i)" + in.Grep); err != nil {
 			return "", fmt.Errorf("bad grep pattern: %w", err)
 		}
+	}
+	if strings.TrimSpace(in.Query) != "" {
+		var ids []string
+		if in.ID != "" {
+			ids = []string{in.ID}
+		}
+		return searchArchive(t.Archive, ids, in.Query, 0), nil
 	}
 	switch {
 	case in.ID == "" && re == nil:

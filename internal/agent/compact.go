@@ -439,6 +439,15 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	if midTurn {
 		note += "\n\n[The previous turn was interrupted mid-task by compaction. Continue the work described above.]"
 	}
+	// The head leaves the model's reach now; its text goes to the archive
+	// first so that what the summary dropped — reasoning, tool inputs, the
+	// small results that were never archived on their own — stays one
+	// expand_output call away instead of being gone.
+	if a.Archive != nil {
+		if id, err := a.Archive.Put(fmt.Sprintf("compaction-%d-%d", a.turnN, time.Now().UnixNano()), "compacted conversation", renderMessages(head)); err == nil && id != "" {
+			note += fmt.Sprintf("\n\nThe full text of the compacted conversation is archived as %s: expand_output {\"id\":%q,\"query\":\"<what you are looking for>\"} finds passages in it, offset/limit reads it in order.", id, id)
+		}
+	}
 	a.Messages = append([]llm.Message{llm.TextMessage(llm.RoleUser, note)}, tail...)
 	a.RefreshExtra() // the prefix is rebuilt anyway; pick up new memory and skills
 	mergedPending := false
@@ -519,6 +528,33 @@ func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction s
 	}
 	cold.Usage.Add(resp.Usage) // both calls were paid for
 	return cold, nil
+}
+
+// renderMessages flattens messages to readable text for the archive:
+// role-tagged text, tool calls with their inputs, results with their ids.
+// Thinking blocks are dropped; images are noted.
+func renderMessages(msgs []llm.Message) string {
+	var sb strings.Builder
+	for i, m := range msgs {
+		fmt.Fprintf(&sb, "=== message %d (%s) ===\n", i+1, m.Role)
+		for _, b := range m.Blocks {
+			switch b.Type {
+			case llm.BlockText:
+				sb.WriteString(strings.TrimRight(b.Text, "\n") + "\n")
+			case llm.BlockToolUse:
+				fmt.Fprintf(&sb, "[tool call %s %s] %s\n", b.Name, b.ID, strings.TrimSpace(string(b.Input)))
+			case llm.BlockToolResult:
+				tag := "result"
+				if b.IsError {
+					tag = "error"
+				}
+				fmt.Fprintf(&sb, "[tool %s %s]\n%s\n", tag, b.ToolUseID, strings.TrimRight(b.Text, "\n"))
+			case llm.BlockImage:
+				sb.WriteString("[image]\n")
+			}
+		}
+	}
+	return sb.String()
 }
 
 func chars(msgs []llm.Message) int {
