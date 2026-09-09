@@ -38,11 +38,15 @@ func TestMineFactsFromShadowedResults(t *testing.T) {
 		t.Fatalf("max ignored: %d", len(got))
 	}
 	p := Probe{Want: "boom happened here"}
-	Score(&p, "The line was:  boom   happened here")
-	if !p.Correct || p.Unknown {
+	Score(&p, "The line was:  boom   happened here", "")
+	if !p.Correct || p.Unknown || p.Grounded {
 		t.Fatalf("score = %+v", p)
 	}
-	Score(&p, "I don't know, that output is no longer in my context.")
+	Score(&p, "The line was: boom happened here", "12\tboom happened here\n")
+	if !p.Grounded {
+		t.Fatalf("not grounded: %+v", p)
+	}
+	Score(&p, "I don't know, that output is no longer in my context.", "")
 	if p.Correct || !p.Unknown {
 		t.Fatalf("unknown = %+v", p)
 	}

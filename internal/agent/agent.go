@@ -286,7 +286,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}
 
 	compactAt := a.CompactThreshold()
-	stops := 0
+	stops, needs := 0, 0
 	gate := gateState{}
 	for iter := 0; iter < maxIter; iter++ {
 		if err := ctx.Err(); err != nil {
@@ -332,6 +332,9 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		emit(Event{Kind: EvTextBlockDone})
 
 		if resp.StopReason != llm.StopToolUse {
+			if more := a.faultNeeds(resp.Message.Text(), &needs, emit); more {
+				continue
+			}
 			if more := a.stopHook(ctx, resp.Message.Text(), &stops, emit); more {
 				continue
 			}

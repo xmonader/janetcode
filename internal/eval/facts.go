@@ -29,17 +29,19 @@ type Probe struct {
 	Want     string `json:"want"`
 	Got      string `json:"got,omitempty"`
 	Correct  bool   `json:"correct"`
-	Unknown  bool   `json:"unknown"` // the model said it could not find it
-	Fetched  bool   `json:"fetched"` // it called expand_output
+	Unknown  bool   `json:"unknown"`  // the model said it could not find it
+	Fetched  bool   `json:"fetched"`  // it called expand_output, or faulted with NEED
+	Grounded bool   `json:"grounded"` // the answer appears verbatim in what it fetched
 }
 
 // FactProbe is the outcome of probing one run.
 type FactProbe struct {
-	Asked   int     `json:"asked"`
-	Correct int     `json:"correct"`
-	Unknown int     `json:"unknown"`
-	Fetched int     `json:"fetched"`
-	Probes  []Probe `json:"probes,omitempty"`
+	Asked    int     `json:"asked"`
+	Correct  int     `json:"correct"`
+	Unknown  int     `json:"unknown"`
+	Fetched  int     `json:"fetched"`
+	Grounded int     `json:"grounded"`
+	Probes   []Probe `json:"probes,omitempty"`
 }
 
 var (
@@ -154,12 +156,16 @@ func distinctiveLine(out string) (int, string) {
 	return bestN, best
 }
 
-// Score marks a probe against the model's reply.
-func Score(p *Probe, reply string) {
+func normWS(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
+
+// Score marks a probe against the model's reply. excerpts is what the
+// model fetched on the way; a correct answer that appears in them is
+// grounded — read back, not remembered or reconstructed.
+func Score(p *Probe, reply, excerpts string) {
 	p.Got = strings.TrimSpace(reply)
-	norm := func(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
-	p.Correct = strings.Contains(norm(p.Got), norm(p.Want))
+	p.Correct = strings.Contains(normWS(p.Got), normWS(p.Want))
 	p.Unknown = !p.Correct && reUnknown.MatchString(p.Got)
+	p.Grounded = p.Correct && excerpts != "" && strings.Contains(normWS(excerpts), normWS(p.Want))
 }
 
 // ProbeFacts asks the agent each probe against its current history. Every
@@ -186,7 +192,7 @@ func ProbeFacts(ctx context.Context, ag *agent.Agent, probes []Probe, blind bool
 			Archive:       ag.Archive,
 			CompactAt:     -1,
 		}
-		var out strings.Builder
+		var out, excerpts strings.Builder
 		var mu sync.Mutex
 		fetched := false
 		_ = clone.Run(ctx, p.Question+" If you cannot find it in your context or the archive, reply UNKNOWN.", func(e agent.Event) {
@@ -197,9 +203,21 @@ func ProbeFacts(ctx context.Context, ag *agent.Agent, probes []Probe, blind bool
 				out.WriteString(e.Text)
 			case agent.EvToolRun:
 				fetched = true
+			case agent.EvToolResult:
+				excerpts.WriteString(e.Output + "\n")
+			case agent.EvNotice:
+				if strings.HasPrefix(e.Text, "archive fault") {
+					fetched = true
+				}
 			}
 		})
-		Score(p, out.String())
+		// A NEED round hands excerpts back as a user message; count them.
+		for _, m := range clone.Messages[len(ag.Messages):] {
+			if m.Role == llm.RoleUser && strings.HasPrefix(m.Text(), "[Archive excerpts") {
+				excerpts.WriteString(m.Text() + "\n")
+			}
+		}
+		Score(p, out.String(), excerpts.String())
 		p.Fetched = fetched
 		fp.Asked++
 		if p.Correct {
@@ -210,6 +228,9 @@ func ProbeFacts(ctx context.Context, ag *agent.Agent, probes []Probe, blind bool
 		}
 		if fetched {
 			fp.Fetched++
+		}
+		if p.Grounded {
+			fp.Grounded++
 		}
 	}
 	fp.Probes = probes

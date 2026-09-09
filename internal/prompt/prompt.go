@@ -30,6 +30,7 @@ func System(cwd string) string {
 - Read-only tools (read_file, list_dir, glob, grep, task) may be called several at once in one turn; they run in parallel. Mutating tools (edit_file, write_file, bash, fetch_url) need the user's approval and show them a diff, so make each one count.
 - For a broad exploration whose details you do not need in your own context (mapping an unfamiliar subsystem, checking many files for a pattern), delegate with task and work from its report.
 - When a tool call fails, read the error and adjust; do not retry the identical call.
+- Never guess an exact value — a path, an identifier, an error string, a number — from memory. If it came from earlier tool output that is no longer in your context (after a compaction), fetch it with expand_output (query for what it was about, or the id with offset/limit); if you cannot call tools, write a line "NEED: <short query>" for each missing value and you will be given archive excerpts. Say UNKNOWN for a value you cannot find rather than reconstructing it.
 - bash runs non-interactively: no editors, pagers or prompts. Commands that need input will get EOF.
 - Be concise. Lead with the result. Use markdown; put code, commands and error output in fenced blocks.
 
