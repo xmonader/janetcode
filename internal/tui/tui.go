@@ -25,6 +25,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/hook"
+	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
@@ -48,6 +49,8 @@ type Options struct {
 	Verify *VerifyOptions
 	// LSP reports language-server status (/lsp).
 	LSP *lsp.Manager
+	// Inspect answers for every part of the session; /inspect reads it.
+	Inspect *inspect.Registry
 	// Jobs are background commands; finished ones are announced while idle.
 	Jobs *tool.Jobs
 	// AutoTitle asks the model for a short session title after the first turn.
@@ -381,6 +384,24 @@ func (m *model) sessionEvents() []session.Event {
 		return nil
 	}
 	return m.opts.Session.Events()
+}
+
+// inspectCommand reports one part of the session state. Everything the
+// harness knows about itself is reachable from here, so a surprising turn
+// can be looked into rather than guessed at.
+func (m *model) inspectCommand(arg string) {
+	if m.opts.Inspect == nil {
+		m.transcript.errorf("nothing is registered for inspection in this session")
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	out, err := m.opts.Inspect.Report(ctx, arg)
+	if err != nil {
+		m.transcript.errorf("%v", err)
+		return
+	}
+	m.transcript.info(out)
 }
 
 func (m *model) trajectoryCommand(args []string) {
@@ -952,6 +973,7 @@ var commands = []command{
 	{"/lsp", "", "language servers and the diagnostics they reported"},
 	{"/jobs", "[kill <n>]", "background commands started with bash background:true"},
 	{"/context", "", "what fills the context window: prompt, tools, messages, largest tool results"},
+	{"/inspect", "[subject]", "look at any part of the session: context, events, archive, retrieval, config, tools, lsp, mcp, jobs, repomap… (no subject lists them)"},
 	{"/reload", "", "rebuild the memory and skill indexes in the prompt now instead of at compaction"},
 	{"/pin", "[note or @file]", "keep a note in the system prompt for the whole session; alone lists pins"},
 	{"/unpin", "<n>", "remove a pin"},
@@ -2122,6 +2144,8 @@ func (m *model) command(text string) tea.Cmd {
 		m.transcript.info("memory and skill indexes will be rebuilt for the next call (one cache miss); they also refresh at compaction")
 	case "/context", "/ctx":
 		m.contextCommand()
+	case "/inspect", "/i":
+		m.inspectCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/pin":
 		m.pinCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/unpin":

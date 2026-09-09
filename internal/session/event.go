@@ -26,6 +26,10 @@ const (
 	TypeCompactEnd     = "compaction/end"
 	TypePlanMode       = "plan/mode"
 	TypeSpillSave      = "spill/save"
+	// TypeRetrieval records one lookup in the archive: what was asked,
+	// what came back, and whether anything did. Without it a failed
+	// recall cannot be told from a failed search.
+	TypeRetrieval = "archive/retrieval"
 	TypeGoalCreate     = "goal/create"
 	TypeGoalPhase      = "goal/phase"
 	TypeGoalRound      = "goal/round"

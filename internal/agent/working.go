@@ -292,6 +292,16 @@ func capItems(items []string) []string {
 	return out
 }
 
+// WorkingMemory renders the record the agent carries across compactions,
+// so it can be looked at without waiting for the next compaction to show
+// it. It is empty until something has been compacted.
+func (a *Agent) WorkingMemory() string {
+	if len(a.working.Edited)+len(a.working.Read)+len(a.working.Commands)+len(a.working.Decisions)+len(a.working.Facts) == 0 && a.working.Goal == "" {
+		return ""
+	}
+	return a.working.Render()
+}
+
 // Render writes the record as the note the model reads after compaction.
 func (w *WorkingMemory) Render() string {
 	var b strings.Builder

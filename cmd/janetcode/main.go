@@ -22,6 +22,7 @@ import (
 	"github.com/xmonader/janetcode/internal/eval"
 	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/hook"
+	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/llm/anthropic"
 	"github.com/xmonader/janetcode/internal/llm/openai"
@@ -93,6 +94,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalTimeout = fs.Duration("eval-timeout", 0, "replace every task's timeout with this wall budget (benchmarks give each harness the same)")
 		evalTurns   = fs.Int("eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
 		evalNoLimit = fs.Bool("eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
+		inspectWhat = fs.String("inspect", "", "print one part of the session state and exit: context, events, archive, retrieval, compaction, tools, config, lsp, mcp, jobs, skills, repomap and more; `list` names them all")
 		wtBranch    = fs.String("worktree", "", "run the session in a git worktree on this branch, in a checkout under .git: the real tree is untouched, two sessions can work on one repository at once, and the result is a branch to review and merge")
 		acpMode     = fs.Bool("acp", false, "serve the Agent Client Protocol on stdin/stdout, for an ACP editor that launches janetcode as a subprocess (nothing but protocol messages goes to stdout)")
 		evalFacts   = fs.Int("eval-facts", 0, "after each run that compacted, probe up to N facts mined from what compaction removed (exit codes, output lines, file lines) and record how many the model still recalls")
@@ -235,6 +237,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	defer built.close()
 	ag, task, diag, repo := built.agent, built.task, built.diag, built.repo
+	archive, skills := built.archive, built.skills
 	_ = task
 	_ = repo
 
@@ -313,6 +316,17 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		defer f.Close()
 		ag.Debug = f
 		servers.Options.Debug = f
+	}
+
+	subjects := inspect.New()
+	registerSubjects(subjects, subjectDeps{
+		agent: ag, session: sess, cfg: cfg, cfgPath: cfgPath, cwd: cwd, version: version,
+		archive: archive, mem: mem, repo: repo, diag: diag, mcp: &servers, jobs: jobs,
+		task: task, skills: skills,
+	})
+	ag.Tools.Add(inspect.Tool{Registry: subjects})
+	if *inspectWhat != "" {
+		return inspectOnce(subjects, *inspectWhat, os.Stdout)
 	}
 
 	if *acpMode {
@@ -404,6 +418,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		},
 		Hooks:     &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
 		LSP:       diag,
+		Inspect:   subjects,
 		Jobs:      jobs,
 		AutoTitle: true,
 		Verify:    &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: trust},
@@ -559,7 +574,8 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			prep = repomap.TurnPrep(repo, 0)
 		}
 		archive := agent.NewArchive(filepath.Join(archiveDir, filepath.Base(root)))
-		return &agent.Agent{
+		expand := &agent.ExpandOutput{Archive: archive}
+		ag := &agent.Agent{
 			Provider:  prov,
 			Off:       off,
 			Prepare:   prep,
@@ -572,14 +588,16 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 				tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root},
 				tool.Bash{Root: root, Cache: &tool.ShellCache{}},
 				repomap.Tool{Cache: repo},
-				&agent.ExpandOutput{Archive: archive},
+				expand,
 			),
 			System:        prompt.System(root),
 			Model:         cfg.Model,
 			MaxTokens:     cfg.MaxTokens,
 			MaxIterations: maxIter,
 			CompactAt:     compactAt,
-		}, nil
+		}
+		expand.Log = ag.LogEvent // the archive's lookups go on the same trail
+		return ag, nil
 	}}
 	results := r.Run(ctx, tasks)
 	passed := eval.Report(os.Stdout, results)
@@ -747,10 +765,12 @@ type agentDeps struct {
 // the subagent tool (its worktrees outlive a turn), the language-server
 // manager and the repository map.
 type builtAgent struct {
-	agent *agent.Agent
-	task  *agent.Task
-	diag  *lsp.Manager
-	repo  *repomap.Cache
+	agent   *agent.Agent
+	task    *agent.Task
+	diag    *lsp.Manager
+	repo    *repomap.Cache
+	archive *agent.Archive
+	skills  func() []skill.Skill
 }
 
 // close releases what the agent held. It is the caller's job, since the
@@ -770,6 +790,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	archive := agent.NewArchive(session.ArchiveDir(d.sessDir, d.cwd))
 	mem := d.mem
 	seen := &tool.Seen{}
+	expand := &agent.ExpandOutput{Archive: archive}
 	ag := &agent.Agent{
 		Provider: d.prov,
 		Archive:  archive,
@@ -786,7 +807,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 			tool.JobTool{Jobs: jobs},
 			tool.FetchURL{},
 			tool.WebSearch{Config: d.cfg.Search},
-			&agent.ExpandOutput{Archive: archive},
+			expand,
 			task,
 		),
 		System:        prompt.System(d.cwd),
@@ -801,7 +822,8 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		Jobs:          jobs,
 		ContextWindow: d.cfg.MetaFor(d.cfg.Model).ContextWindow,
 	}
-	ag.RestoreFromLog() // plan mode and the turn counter of a resumed session
+	expand.Log = ag.LogEvent // the archive's lookups go on the same trail
+	ag.RestoreFromLog()      // plan mode and the turn counter of a resumed session
 	task.Parent = ag
 	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
 	skills := func() []skill.Skill { return skill.Load(d.cwd, cfgDir) }
@@ -832,5 +854,5 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
 
-	return builtAgent{agent: ag, task: task, diag: diag, repo: repo}, nil
+	return builtAgent{agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills}, nil
 }

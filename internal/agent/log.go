@@ -2,6 +2,11 @@ package agent
 
 import "github.com/xmonader/janetcode/internal/session"
 
+// LogEvent records one event on the session log. It is how a tool that
+// the agent owns — the archive reader, for one — puts what it did on the
+// same trail as everything else, so a turn can be read back whole.
+func (a *Agent) LogEvent(e session.Event) { a.logEvent(e) }
+
 // SetPlanMode records plan/mode on the log so resume can fold it.
 func (a *Agent) SetPlanMode(on bool) {
 	a.PlanMode = on

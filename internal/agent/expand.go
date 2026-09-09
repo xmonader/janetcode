@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -15,6 +16,11 @@ import (
 // Its own output is never archived, only capped.
 type ExpandOutput struct {
 	Archive *Archive
+	// Log, when set, records every lookup: the query, the mode, and how
+	// much came back. A recall that failed because the search found
+	// nothing looks exactly like one that failed for any other reason
+	// until this says which.
+	Log func(session.Event)
 }
 
 const expandDefaultLimit = 200
@@ -62,13 +68,17 @@ func (t *ExpandOutput) Run(ctx context.Context, input json.RawMessage) (string, 
 		if in.ID != "" {
 			ids = []string{in.ID}
 		}
-		return searchArchive(t.Archive, ids, in.Query, 0), nil
+		out := searchArchive(t.Archive, ids, in.Query, 0)
+		t.record("query", in.Query, in.ID, out)
+		return out, nil
 	}
 	switch {
 	case in.ID == "" && re == nil:
 		return t.list(), nil
 	case in.ID == "":
-		return t.grepAll(re), nil
+		out := t.grepAll(re)
+		t.record("grep", in.Grep, "", out)
+		return out, nil
 	}
 	e, body, err := t.Archive.Get(in.ID)
 	if err != nil {
@@ -104,6 +114,35 @@ func (t *ExpandOutput) Run(ctx context.Context, input json.RawMessage) (string, 
 		fmt.Fprintf(&sb, "[%d more lines; continue with offset %d]\n", len(lines)-end, end+1)
 	}
 	return tool.Truncate(sb.String()), nil
+}
+
+// record logs one lookup. A result that only says nothing was found is
+// reported as a miss, so the log distinguishes an empty search from a
+// full one.
+func (t *ExpandOutput) record(mode, query, id, out string) {
+	if t.Log == nil {
+		return
+	}
+	miss := strings.HasPrefix(out, "No archived output") || strings.HasPrefix(out, "Nothing is archived") ||
+		strings.Contains(out, "no line matches") || strings.HasPrefix(out, "The query has no searchable words")
+	t.Log(session.Event{
+		Type:      session.TypeRetrieval,
+		Name:      mode,
+		Arguments: query,
+		CallID:    id,
+		Output:    firstLines(out, 2),
+		Tokens:    len(out),
+		IsError:   miss,
+	})
+}
+
+// firstLines is the head of a result, enough to say what came back.
+func firstLines(s string, n int) string {
+	lines := strings.Split(s, "\n")
+	if len(lines) > n {
+		lines = lines[:n]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (t *ExpandOutput) list() string {
