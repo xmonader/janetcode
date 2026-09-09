@@ -16,18 +16,36 @@ func TestMineFactsFromShadowedResults(t *testing.T) {
 	kept := llm.ToolResultMessage(llm.ToolResult("c3", "z", false))
 	ev := []session.Event{
 		{Seq: 1, Type: session.TypeToolResult, CallID: "c1", Name: "bash", Arguments: `{"command":"go test ./..."}`, Output: "ok  \texample.com/x\t0.01s\n--- FAIL: TestY (0.00s)\n    y_test.go:9: boom happened here\n[exit code 1]"},
-		{Seq: 2, Type: session.TypeToolResult, CallID: "c2", Name: "read_file", Arguments: `{"path":"main.go"}`, Output: "1\tpackage main\n2\t\n3\tfunc main() { run(loadConfig(\"cfg.json\")) }\n4\t}"},
+		{Seq: 2, Type: session.TypeToolResult, CallID: "c2", Name: "read_file", Arguments: `{"path":"main.go"}`, Output: "1\tpackage main\n2\t\n3\tfunc main() { run(loadConfig(\"cfg.json\")) }\n4\t\n5\tvar defaultTimeout = 30 * time.Second\n6\t}"},
 		{Seq: 3, Type: session.TypeToolResult, Surface: true, Message: &gone},
 		{Seq: 4, Type: session.TypeToolResult, CallID: "c3", Name: "bash", Arguments: `{"command":"ls"}`, Output: "a.go\n[exit code 0]"},
 		{Seq: 5, Type: session.TypeToolResult, Surface: true, Message: &kept},
 		{Seq: 6, Type: session.TypeCompactSummary, Shadowed: []int{3}},
 	}
 	probes := MineFacts(ev, 0)
-	if len(probes) != 3 {
-		t.Fatalf("probes = %+v", probes)
+	// Both shapes are produced: content questions that name something in
+	// the answer's line, and positional ones that name only a line number.
+	var content, positional int
+	for _, p := range probes {
+		if strings.Contains(p.Question, "what was on line") {
+			positional++
+		} else {
+			content++
+		}
 	}
-	if probes[0].Want != "1" || probes[1].Want != "y_test.go:9: boom happened here" || !strings.Contains(probes[2].Question, "line 3") || probes[2].Want != `func main() { run(loadConfig("cfg.json")) }` {
-		t.Fatalf("probes = %+v", probes)
+	if content == 0 || positional == 0 {
+		t.Fatalf("one-sided probes (%d content, %d positional): %+v", content, positional, probes)
+	}
+	if !hasWant(probes, "y_test.go:9: boom happened here") {
+		t.Fatalf("the failing line was not asked about: %+v", probes)
+	}
+	if !hasWant(probes, `func main() { run(loadConfig("cfg.json")) }`) {
+		t.Fatalf("the read file's line was not asked about: %+v", probes)
+	}
+	for _, p := range probes {
+		if strings.Contains(strings.ToLower(p.Question), strings.ToLower(p.Want)) {
+			t.Fatalf("a question contains its own answer: %+v", p)
+		}
 	}
 	for _, p := range probes {
 		if strings.Contains(p.Question, "ls") && strings.Contains(p.Question, "`ls`") {
@@ -67,6 +85,34 @@ func (a *answers) Stream(ctx context.Context, req llm.Request, emit func(llm.Eve
 		emit(llm.Event{Type: llm.EventTextDelta, Text: "UNKNOWN"})
 	}
 	return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "UNKNOWN"), StopReason: llm.StopEndTurn}, nil
+}
+
+func hasWant(probes []Probe, want string) bool {
+	for _, p := range probes {
+		if p.Want == want {
+			return true
+		}
+	}
+	return false
+}
+
+// An answer repeated all over the session identifies nothing, so it is
+// not asked about; nor is one short enough to be guessed.
+func TestDistinctivenessFilter(t *testing.T) {
+	common := "package main"
+	var evs []session.Event
+	for i := 0; i < 5; i++ {
+		evs = append(evs, session.Event{Type: session.TypeToolResult, CallID: "c", Name: "read_file", Output: common})
+	}
+	probes := distinctive([]Probe{
+		{Question: "q1", Want: common},
+		{Question: "q2", Want: "tiny"},
+		{Question: "q3 mentioning parseTimeout", Want: "func parseTimeout() error { return nil }"},
+		{Question: "q4", Want: "func parseTimeout() error { return nil }"},
+	}, append(evs, session.Event{Type: session.TypeToolResult, Output: "func parseTimeout() error { return nil }"}))
+	if len(probes) != 1 || probes[0].Question != "q3 mentioning parseTimeout" {
+		t.Fatalf("filter kept %+v", probes)
+	}
 }
 
 func TestInArchiveFindsWhatIsRecoverable(t *testing.T) {

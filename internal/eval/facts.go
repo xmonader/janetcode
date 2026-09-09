@@ -53,17 +53,31 @@ type FactProbe struct {
 	Probes    []Probe `json:"probes,omitempty"`
 }
 
+// distinctiveMax is how often an answer may appear in the session before
+// it is too common to identify anything (ctxresearch uses the same bound).
+const distinctiveMax = 3
+
 var (
 	reExit     = regexp.MustCompile(`\[exit code (\d+)\]`)
 	reNumbered = regexp.MustCompile(`^(\d+)\t(.*)$`)
+	reErrorish = regexp.MustCompile(`(?i)(error|failed|fail:|cannot|not found|undefined|panic|traceback|exception|no such|refused|denied|expected)`)
+	reIdent    = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]{4,}`)
 	reUnknown  = regexp.MustCompile(`(?i)\b(unknown|don't know|do not know|not available|cannot find|could not find|couldn't find|no longer have|not in my context)\b`)
 )
 
-// MineFacts turns the compacted-away tool results in events into probes:
-// a bash command's exit code and last output line, a read file's numbered
-// line. Only results the log shadowed count — what the model still has
-// verbatim is not a test of compaction. At most max probes, earliest
-// first, since the oldest facts are the ones a summary chain loses.
+// MineFacts turns the compacted-away tool results in events into probes.
+// Two shapes, deliberately: content questions, which name a distinctive
+// string from the output and can be answered by searching for what the
+// question is about; and positional ones, which ask for a numbered line
+// and cannot. A generator that produces only the second measures one
+// lookup path and says nothing about the other, which is what an earlier
+// run of this did.
+//
+// A fact must be distinctive to be worth asking: an answer that appears
+// all over the session identifies nothing, so one occurring more than
+// distinctiveMax times is dropped, as is one that appears in its own
+// question. Only results the log shadowed count — what the model still
+// has verbatim is not a test of compaction.
 func MineFacts(events []session.Event, max int) []Probe {
 	hidden := session.Shadowed(events)
 	// The per-call tool/result events are log-only; the surface event that
@@ -101,6 +115,7 @@ func MineFacts(events []session.Event, max int) []Probe {
 		var in struct {
 			Path    string `json:"path"`
 			Command string `json:"command"`
+			Pattern string `json:"pattern"`
 		}
 		_ = json.Unmarshal([]byte(e.Arguments), &in)
 		switch e.Name {
@@ -114,22 +129,142 @@ func MineFacts(events []session.Event, max int) []Probe {
 			if last := lastOutputLine(e.Output); len(last) >= 12 {
 				out = append(out, Probe{Question: fmt.Sprintf("Earlier in this session the command `%s` was run. Quote, exactly, the last line of its output (ignoring the exit-code marker).", firstLine(in.Command)), Want: last})
 			}
-		case "read_file":
-			if in.Path == "" {
+			// The line a failure was reported on, asked for by what it says
+			// rather than by where it was.
+			if bad := errorLine(e.Output); bad != "" {
+				out = append(out, Probe{
+					Question: fmt.Sprintf("Earlier in this session the command `%s` reported a problem. Quote, exactly, the line of its output that says what went wrong.", firstLine(in.Command)),
+					Want:     bad,
+				})
+			}
+		case "read_file", "grep":
+			subject := in.Path
+			if subject == "" {
+				subject = in.Pattern
+			}
+			if subject == "" {
 				continue
 			}
-			if n, line := distinctiveLine(e.Output); n > 0 {
-				out = append(out, Probe{Question: fmt.Sprintf("Earlier in this session you read the file %s. Quote, exactly, what was on line %d of it.", in.Path, n), Want: line})
+			// A content question: it names something the answer's line is
+			// about, so a search over words can find it. This is the shape
+			// ctxresearch mines, and the one a ranked archive answers.
+			anchor, anchored := anchoredLine(e.Output)
+			if anchor != "" {
+				out = append(out, Probe{
+					Question: fmt.Sprintf("Earlier in this session you looked at %s. Quote, exactly, the full line there that mentions %s.", subject, anchor),
+					Want:     anchored,
+				})
+			}
+			// A positional question: nothing in it matches the answer, so
+			// only a direct line lookup can serve it. It asks about a
+			// different line from the content probe, so the two shapes
+			// test two paths rather than collapsing into one fact.
+			if e.Name == "read_file" {
+				if n, line := distinctiveLine(e.Output, anchored); n > 0 {
+					out = append(out, Probe{Question: fmt.Sprintf("Earlier in this session you read the file %s. Quote, exactly, what was on line %d of it.", subject, n), Want: line})
+				}
 			}
 		}
 		if max > 0 && len(out) >= max {
 			break
 		}
 	}
+	out = distinctive(out, events)
 	if max > 0 && len(out) > max {
 		out = out[:max]
 	}
 	return out
+}
+
+// distinctive drops probes whose answer is not a usable key: too short,
+// contained in its own question, or so common across the session that
+// producing it proves nothing.
+func distinctive(probes []Probe, events []session.Event) []Probe {
+	var all strings.Builder
+	for _, e := range events {
+		all.WriteString(e.Output)
+		all.WriteByte('\n')
+		if e.Message != nil {
+			all.WriteString(e.Message.Text())
+			all.WriteByte('\n')
+		}
+	}
+	text := all.String()
+	seen := map[string]bool{}
+	var out []Probe
+	for _, p := range probes {
+		w := strings.TrimSpace(p.Want)
+		// Short answers are guessable — an exit code is one of two or
+		// three numbers — so producing one is not evidence of recall.
+		if len(w) < 8 || seen[w] {
+			continue
+		}
+		if strings.Contains(strings.ToLower(p.Question), strings.ToLower(w)) {
+			continue
+		}
+		if n := strings.Count(text, w); n == 0 || n > distinctiveMax {
+			continue
+		}
+		seen[w] = true
+		out = append(out, p)
+	}
+	return out
+}
+
+// anchoredLine picks a line worth asking about by naming something in it:
+// an error, or failing that a distinctive identifier. It returns the
+// anchor to name in the question and the line to expect back.
+func anchoredLine(out string) (string, string) {
+	best, anchor := "", ""
+	for _, raw := range strings.Split(out, "\n") {
+		line := strings.TrimSpace(stripNumber(raw))
+		if len(line) < 16 || len(line) > 160 {
+			continue
+		}
+		ids := reIdent.FindAllString(line, -1)
+		if len(ids) == 0 {
+			continue
+		}
+		// Prefer a line that reports a problem: those are the facts a
+		// resumed agent actually needs.
+		score := len(ids)
+		if reErrorish.MatchString(line) {
+			score += 10
+		}
+		if score > len(anchor) && (anchor == "" || score > 1) {
+			pick := ids[0]
+			for _, id := range ids {
+				if len(id) > len(pick) {
+					pick = id
+				}
+			}
+			// The anchor must not be the whole answer, or the question
+			// would contain what it asks for.
+			if len(pick) < len(line)/2 {
+				best, anchor = line, pick
+			}
+		}
+	}
+	return anchor, best
+}
+
+// errorLine is the first line of output that reports a failure.
+func errorLine(out string) string {
+	for _, raw := range strings.Split(out, "\n") {
+		line := strings.TrimSpace(stripNumber(raw))
+		if len(line) >= 16 && len(line) <= 200 && reErrorish.MatchString(line) && !strings.HasPrefix(line, "[") {
+			return line
+		}
+	}
+	return ""
+}
+
+// stripNumber removes a read_file result's "12\t" line-number prefix.
+func stripNumber(line string) string {
+	if m := reNumbered.FindStringSubmatch(line); m != nil {
+		return m[2]
+	}
+	return line
 }
 
 func lastOutputLine(out string) string {
@@ -145,8 +280,9 @@ func lastOutputLine(out string) string {
 }
 
 // distinctiveLine picks a numbered line of a read_file result worth
-// asking about: long enough to be a real fact, short enough to quote.
-func distinctiveLine(out string) (int, string) {
+// asking about: long enough to be a real fact, short enough to quote, and
+// not the one a content probe already asked about.
+func distinctiveLine(out, avoid string) (int, string) {
 	bestN, best := 0, ""
 	for _, l := range strings.Split(out, "\n") {
 		m := reNumbered.FindStringSubmatch(l)
@@ -155,6 +291,9 @@ func distinctiveLine(out string) (int, string) {
 		}
 		text := strings.TrimSpace(m[2])
 		if len(text) < 24 || len(text) > 100 || strings.HasPrefix(text, "//") || strings.HasPrefix(text, "#") {
+			continue
+		}
+		if avoid != "" && text == avoid {
 			continue
 		}
 		if len(text) > len(best) {
