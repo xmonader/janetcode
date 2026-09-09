@@ -19,18 +19,27 @@ import (
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
-type fake struct{ responses []*llm.Response }
+type fake struct {
+	responses []*llm.Response
+	calls     int
+}
 
 func (f *fake) Name() string { return "fake" }
 func (f *fake) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
 	if emit == nil {
 		emit = func(llm.Event) {}
 	}
+	f.calls++
 	r := f.responses[0]
 	f.responses = f.responses[1:]
 	for _, b := range r.Message.Blocks {
-		if b.Type == llm.BlockText {
+		switch b.Type {
+		case llm.BlockText:
 			emit(llm.Event{Type: llm.EventTextDelta, Text: b.Text})
+		case llm.BlockToolUse:
+			bb := b
+			emit(llm.Event{Type: llm.EventToolUseStart, Block: &bb})
+			emit(llm.Event{Type: llm.EventToolUseEnd, Block: &bb})
 		}
 	}
 	return r, nil
@@ -203,4 +212,60 @@ func (s *syncBuffer) String() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.b.String()
+}
+
+// --until re-enters the turn loop, and so does the verdict correction
+// when an answer claims more than the turn shows. They work at different
+// levels — the correction inside a turn, --until between turns — and this
+// pins that they compose rather than fighting: the run still finishes,
+// the round limit still bounds it, and neither swallows the other.
+func TestUntilComposesWithTheVerdictCorrection(t *testing.T) {
+	root := t.TempDir()
+	write := `{"path":"a.txt","content":"x"}`
+	f := &fake{responses: []*llm.Response{
+		// Round 1: edit, then claim the tests pass without running any.
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(write)}}}, StopReason: llm.StopToolUse},
+		{Message: llm.TextMessage(llm.RoleAssistant, "Done, all tests pass."), StopReason: llm.StopEndTurn},
+		// The correction lands; the model admits it and stops.
+		{Message: llm.TextMessage(llm.RoleAssistant, "You are right, I did not run them."), StopReason: llm.StopEndTurn},
+		// Round 2, after --until fails: answer plainly.
+		{Message: llm.TextMessage(llm.RoleAssistant, "second round"), StopReason: llm.StopEndTurn},
+	}}
+	ag := &agent.Agent{Provider: f, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m",
+		AutoApprove: true, Log: &session.Memory{}}
+	var out, errOut bytes.Buffer
+	check := "test -f flag || { touch flag; echo 'not yet'; exit 3; }"
+	if err := Run(context.Background(), Options{Agent: ag, Prompt: "do it", Stdout: &out, Stderr: &errOut,
+		Until: check, Cwd: root}); err != nil {
+		t.Fatalf("err = %v\n%s", err, errOut.String())
+	}
+	// Four model calls: the tool turn, the overclaim, the correction, and
+	// the second --until round.
+	if f.calls != 4 {
+		t.Fatalf("%d model calls, want 4:\n%s", f.calls, errOut.String())
+	}
+	// The correction went in as a user message inside the first turn.
+	var corrected bool
+	for _, m := range ag.Messages {
+		if m.Role == llm.RoleUser && strings.Contains(m.Text(), "[harness]") && strings.Contains(m.Text(), "all tests pass") {
+			corrected = true
+		}
+	}
+	if !corrected {
+		t.Fatal("the overclaim was not put back to the model")
+	}
+	// And --until still drove its own round afterwards.
+	if !strings.Contains(errOut.String(), "round 1/5 failed (exit 3)") || !strings.Contains(errOut.String(), "[until] passed") {
+		t.Fatalf("until did not run its rounds: %q", errOut.String())
+	}
+	// The verdict for each turn is on the log either way.
+	verdicts := 0
+	for _, e := range ag.Log.Events() {
+		if e.Type == session.TypeVerdict {
+			verdicts++
+		}
+	}
+	if verdicts != 2 {
+		t.Fatalf("%d verdicts for 2 turns", verdicts)
+	}
 }

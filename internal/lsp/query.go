@@ -3,6 +3,7 @@ package lsp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -220,14 +221,72 @@ func (m *Manager) locationQuery(ctx context.Context, method, path string, pos Po
 	for k, v := range extra {
 		params[k] = v
 	}
-	qctx, cancel := context.WithTimeout(ctx, m.queryTimeout())
-	defer cancel()
-	raw, err := c.call(qctx, method, params)
-	if err != nil {
-		return nil, err
-	}
-	return m.decodeLocations(raw), nil
+	// A server that is still indexing answers immediately and says
+	// nothing, which is indistinguishable from "there is no such symbol"
+	// and far worse: the model reads it as a fact. rust-analyzer on a cold
+	// Cargo project does exactly this. An empty answer is retried, briefly
+	// and with a widening gap, before it is believed.
+	locs, err := m.retryEmpty(ctx, func(qctx context.Context) ([]Location, error) {
+		raw, err := c.call(qctx, method, params)
+		if err != nil {
+			return nil, err
+		}
+		return m.decodeLocations(raw), nil
+	})
+	return locs, err
 }
+
+// Codes a server uses for "ask again", not for "no". The protocol
+// defines both: ContentModified when the document changed while the
+// request was in flight, RequestCancelled when the server dropped it.
+// Neither is a fact about the code, and passing either to the model as an
+// error is worse than saying nothing.
+const (
+	codeContentModified  = -32801
+	codeRequestCancelled = -32800
+)
+
+// transient reports whether an error is the server asking to be asked
+// again rather than answering.
+func transient(err error) bool {
+	var re *rpcError
+	if !errors.As(err, &re) {
+		return false
+	}
+	return re.Code == codeContentModified || re.Code == codeRequestCancelled
+}
+
+// retryEmpty runs a query until it returns something, the deadline
+// passes, or it errors. A server with a genuine empty answer costs the
+// extra wait once; a server that was not ready gets the chance to become
+// ready, which is the difference between a right answer and a wrong one.
+func (m *Manager) retryEmpty(ctx context.Context, q func(context.Context) ([]Location, error)) ([]Location, error) {
+	deadline := time.Now().Add(m.queryTimeout())
+	wait := 250 * time.Millisecond
+	for attempt := 0; ; attempt++ {
+		qctx, cancel := context.WithDeadline(ctx, deadline)
+		locs, err := q(qctx)
+		cancel()
+		if err != nil && !transient(err) {
+			return nil, err
+		}
+		if err == nil && len(locs) > 0 {
+			return locs, nil
+		}
+		if attempt >= maxEmptyRetries || time.Now().Add(wait).After(deadline) {
+			return nil, nil
+		}
+		select {
+		case <-time.After(wait):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		wait *= 2
+	}
+}
+
+// maxEmptyRetries bounds the wait for a server that is still indexing.
+const maxEmptyRetries = 4
 
 // Hover is the type and documentation of the symbol at pos.
 func (m *Manager) Hover(ctx context.Context, path string, pos Point) (string, error) {
@@ -245,6 +304,9 @@ func (m *Manager) Hover(ctx context.Context, path string, pos Point) (string, er
 		"textDocument": map[string]any{"uri": toURI(abs)},
 		"position":     map[string]any{"line": line, "character": col},
 	})
+	if transient(err) {
+		return "", nil // the server asked to be asked again; say nothing rather than erroring
+	}
 	if err != nil {
 		return "", err
 	}
@@ -295,6 +357,9 @@ func (m *Manager) Outline(ctx context.Context, path string) ([]Symbol, error) {
 	raw, err := c.call(qctx, "textDocument/documentSymbol", map[string]any{
 		"textDocument": map[string]any{"uri": toURI(abs)},
 	})
+	if transient(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -340,6 +405,9 @@ func (m *Manager) WorkspaceSymbols(ctx context.Context, query, hint string) ([]S
 	qctx, cancel := context.WithTimeout(ctx, m.queryTimeout())
 	defer cancel()
 	raw, err := c.call(qctx, "workspace/symbol", map[string]any{"query": query})
+	if transient(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
