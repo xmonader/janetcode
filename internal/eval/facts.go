@@ -32,16 +32,25 @@ type Probe struct {
 	Unknown  bool   `json:"unknown"`  // the model said it could not find it
 	Fetched  bool   `json:"fetched"`  // it called expand_output, or faulted with NEED
 	Grounded bool   `json:"grounded"` // the answer appears verbatim in what it fetched
+	// InArchive says the value is still on disk, so it could in principle
+	// be recovered; Retrieved says the model's own searches actually
+	// returned it. Together with Correct they split a miss three ways:
+	// the value was gone, the search did not find it, or the model had it
+	// and did not use it.
+	InArchive bool `json:"in_archive"`
+	Retrieved bool `json:"retrieved"`
 }
 
 // FactProbe is the outcome of probing one run.
 type FactProbe struct {
-	Asked    int     `json:"asked"`
-	Correct  int     `json:"correct"`
-	Unknown  int     `json:"unknown"`
-	Fetched  int     `json:"fetched"`
-	Grounded int     `json:"grounded"`
-	Probes   []Probe `json:"probes,omitempty"`
+	Asked     int     `json:"asked"`
+	Correct   int     `json:"correct"`
+	Unknown   int     `json:"unknown"`
+	Fetched   int     `json:"fetched"`
+	Grounded  int     `json:"grounded"`
+	InArchive int     `json:"in_archive"`
+	Retrieved int     `json:"retrieved"`
+	Probes    []Probe `json:"probes,omitempty"`
 }
 
 var (
@@ -158,6 +167,26 @@ func distinctiveLine(out string) (int, string) {
 
 func normWS(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
 
+// inArchive reports whether the value is still recoverable at all: it
+// scans every archived entry for the text. A miss here is a loss no
+// retrieval could have prevented.
+func inArchive(ar *agent.Archive, want string) bool {
+	if ar == nil || want == "" {
+		return false
+	}
+	w := normWS(want)
+	for _, e := range ar.List() {
+		_, body, err := ar.Get(e.ID)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(normWS(body), w) {
+			return true
+		}
+	}
+	return false
+}
+
 // Score marks a probe against the model's reply. excerpts is what the
 // model fetched on the way; a correct answer that appears in them is
 // grounded — read back, not remembered or reconstructed.
@@ -219,6 +248,8 @@ func ProbeFacts(ctx context.Context, ag *agent.Agent, probes []Probe, blind bool
 		}
 		Score(p, out.String(), excerpts.String())
 		p.Fetched = fetched
+		p.InArchive = inArchive(ag.Archive, p.Want)
+		p.Retrieved = strings.Contains(normWS(excerpts.String()), normWS(p.Want))
 		fp.Asked++
 		if p.Correct {
 			fp.Correct++
@@ -231,6 +262,12 @@ func ProbeFacts(ctx context.Context, ag *agent.Agent, probes []Probe, blind bool
 		}
 		if p.Grounded {
 			fp.Grounded++
+		}
+		if p.InArchive {
+			fp.InArchive++
+		}
+		if p.Retrieved {
+			fp.Retrieved++
 		}
 	}
 	fp.Probes = probes

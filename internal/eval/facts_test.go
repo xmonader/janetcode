@@ -69,6 +69,26 @@ func (a *answers) Stream(ctx context.Context, req llm.Request, emit func(llm.Eve
 	return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "UNKNOWN"), StopReason: llm.StopEndTurn}, nil
 }
 
+func TestInArchiveFindsWhatIsRecoverable(t *testing.T) {
+	ar := agent.NewArchive(t.TempDir())
+	if _, err := ar.PutSubject("c1", "bash", "go test", "--- FAIL: TestParse\n    got 3 want 4\n"); err != nil {
+		t.Fatal(err)
+	}
+	if !inArchive(ar, "got 3 want 4") {
+		t.Fatal("archived value reported missing")
+	}
+	// Whitespace is normalised, since a model re-wraps what it quotes.
+	if !inArchive(ar, "got  3   want 4") {
+		t.Fatal("whitespace should not decide recoverability")
+	}
+	if inArchive(ar, "never written anywhere") {
+		t.Fatal("absent value reported present")
+	}
+	if inArchive(nil, "x") {
+		t.Fatal("no archive should report nothing")
+	}
+}
+
 func TestProbeFactsRunsEachOnACopy(t *testing.T) {
 	prov := &answers{}
 	ag := &agent.Agent{Provider: prov, Model: "m", Tools: tool.NewRegistry(tool.WriteFile{Root: t.TempDir()}), Archive: agent.NewArchive(t.TempDir()),
