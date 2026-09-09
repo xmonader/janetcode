@@ -548,10 +548,20 @@ func verdictsReport(s *session.Session) string {
 		}
 		row := fmt.Sprintf("%sturn %-3d %-17s %s", mark, e.Turn, e.Name, e.Output)
 		var o struct {
-			Claimed string `json:"claimed"`
+			Claimed     string   `json:"claimed"`
+			Checks      []string `json:"checks"`
+			TestsEdited []string `json:"tests_edited"`
 		}
-		if len(e.Extra) > 0 && json.Unmarshal(e.Extra, &o) == nil && o.Claimed != "" {
-			row += fmt.Sprintf("\n            the answer said: %q", o.Claimed)
+		if len(e.Extra) > 0 && json.Unmarshal(e.Extra, &o) == nil {
+			if len(o.Checks) > 0 {
+				row += fmt.Sprintf("\n            ran: %s", trunc(strings.Join(o.Checks, " · "), 80))
+			}
+			if len(o.TestsEdited) > 0 {
+				row += fmt.Sprintf("\n            tests changed in the same turn: %s", trunc(strings.Join(o.TestsEdited, ", "), 70))
+			}
+			if o.Claimed != "" {
+				row += fmt.Sprintf("\n            the answer said: %q", o.Claimed)
+			}
 		}
 		rows = append(rows, row)
 	}
@@ -560,7 +570,7 @@ func verdictsReport(s *session.Session) string {
 	}
 	var head strings.Builder
 	head.WriteString("what each turn demonstrated:\n")
-	for _, k := range []string{string(agent.VerdictVerified), string(agent.VerdictNotDemonstrated), string(agent.VerdictUnverified), string(agent.VerdictCheckFailed), string(agent.VerdictVacuous)} {
+	for _, k := range []string{string(agent.VerdictVerified), string(agent.VerdictSelfChecked), string(agent.VerdictNotDemonstrated), string(agent.VerdictUnverified), string(agent.VerdictCheckFailed), string(agent.VerdictVacuous)} {
 		if counts[k] > 0 {
 			fmt.Fprintf(&head, "  %-17s %d\n", k, counts[k])
 		}
