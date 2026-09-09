@@ -128,6 +128,12 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `expand_output` | Read back tool output and conversation that compaction archived, by search or by line | no |
 | `todo` | Keep the plan for a multi-step task and mark steps off | no |
 | `inspect` | Look at the session's own state: context, archive, verdicts, config, servers | no |
+| `diagnostics` | Compile and type errors from the language server, for a file or the project | no |
+| `job` | List, read, wait on or kill a background job | no |
+| `memory` | Remember a fact about the project, or search what is remembered | no |
+| `skill` | Load a skill's instructions on demand | no |
+| `goal_status` | Mark the session goal complete or blocked | no |
+| `tool_search` | Find a tool by what it does, when many are loaded | no |
 
 All paths are confined to the working directory, symlinks included.
 Read-only tools run concurrently; mutating tools run one at a time, in order.
@@ -399,6 +405,16 @@ mode do change the prompt, and each change costs one cache miss. The
 footer shows the session's cache hit rate (`cache 87%`) whenever the
 provider reports cached tokens.
 
+### Asking for a shape
+
+Where a reply is parsed rather than read, the request carries a JSON
+schema and the provider is asked to conform to it — the compaction record
+is the case that matters, since a reply that is nearly JSON loses the
+whole structure. It is safe everywhere: a provider that does not know
+`response_format` never sees the field, one that rejects it is learned
+from on the 400 and the call retried without, and the reply is parsed the
+same way regardless. The constraint raises the odds; nothing depends on it.
+
 ### File viewer and hunk review
 
 `/open internal/x/x.go:120` shows the file inline with line numbers,
@@ -527,10 +543,46 @@ the model can call on itself all report the same thing:
 | `undo` | file changes recorded this session |
 | `all` | every subject at once |
 
+Thirty subjects in all; `inspect list` names them. They report the live
+state, and each is reachable the same way from the terminal, the command
+line and the model, so "why did it do that" is one question rather than
+three different ones.
+
 `/context` remains a shortcut for the first. `/pin <note>` or `/pin @path`
 keeps a note (or a file's content, up to 16 KB) in the system prompt for the
 rest of the session; pins survive compaction and session resume, `/pin`
 lists them and `/unpin <n>` drops one.
+
+### Getting back what compaction dropped
+
+Compaction summarises the old part of a conversation and drops the rest,
+which is where the tokens go — and a summary keeps *that* a file was read,
+not what was in it. So nothing is actually thrown away: the full text of
+every long tool result, and of the conversation compaction replaces, goes
+to an archive on disk, and `expand_output` reads it back.
+
+- `query` searches it in words — "the compile error in the router" — and
+  returns the best passages ranked, with their neighbours.
+- A query naming a file and a line, like `line 36 of ledger/parse.py`,
+  looks that line up exactly; numbered tool output carries the file's own
+  line numbers into the archive.
+- `grep` takes a regexp, and an `id` with `offset`/`limit` reads a slice.
+- Entries are labelled with what the call was about, so the listing says
+  `ctx-12 read_file ledger/parse.py` rather than just `read_file`.
+
+Every compaction note ends by saying it is a summary and that exact values
+live in the archive, because a model that takes a summary for the whole
+truth reconstructs paths and error strings plausibly and wrongly. A model
+without tools to hand can write `NEED: <query>` instead and gets the
+excerpts back.
+
+`inspect retrieval` lists every lookup and whether it found anything —
+which is how the recall numbers below were arrived at rather than guessed.
+
+Measured on sessions with compaction forced: **0 of 16** exact facts
+recalled with no archive to read, **9 of 20 (45%)** with it, and every
+correct answer appears verbatim in what the model fetched rather than
+coming from memory. See `docs/benchmarks/compaction/FACTS.md`.
 
 ### What a turn actually demonstrated
 
@@ -658,6 +710,20 @@ Name the symbol rather than pointing at a line; occurrences are ranked so
 a declaration wins over the doc comment above it, which is where the first
 textual match usually lands.
 
+Before a project-wide question the other files of that language are
+opened, because a server reports uses only in files it knows about and a
+cold project would otherwise answer "used nowhere". A document is sent
+when it changes and not otherwise. An empty answer from a server that is
+still indexing is retried before it is believed, `ContentModified` is
+treated as the protocol's "ask again" rather than as a failure, and a
+server that dies is restarted rather than being handed to every later
+query.
+
+The query surface is tested against the real binaries of all five
+supported servers — gopls, pyright, typescript-language-server,
+rust-analyzer and clangd — for definition, references across files, hover,
+outline and workspace search.
+
 ### Hooks
 
 Hooks are shell commands run at fixed points of the loop. They live under
@@ -754,6 +820,13 @@ is about, and the file it touches; approvals go to the editor as
 
 Nothing but protocol frames reaches stdout — logs go to stderr. Point your
 editor's ACP agent configuration at the binary with `--acp`.
+
+It is driven in the tests by Zed's own client library
+(`@zed-industries/agent-client-protocol`), with every frame checked
+against their published schemas, and the stop reasons, permission kinds
+and tool kinds are pinned to that schema so they cannot drift. Cancelling
+mid-turn returns `cancelled` and leaves the session usable; a frame that
+is not JSON is answered with a parse error and the connection carries on.
 
 ## Configuration
 
@@ -954,6 +1027,28 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--version` | print the version |
 
 Eval flags (`--eval` and the rest) are documented under [Evals](#evals).
+
+## What has been measured
+
+Numbers live in `docs/benchmarks/`, with the runs that produced them.
+
+- **Against other harnesses**, same model and endpoint: on three
+  multi-prompt sessions every harness passed every task, and the context
+  read to get there was janetcode 985k, pi 1.95M, grok 3.31M, qwencode
+  16.4M. The gap is mostly fixed per-call overhead — janetcode's prompt
+  and schemas come to about 1.8k tokens, against 18k, 23k and 70k.
+- **Compaction** is safe on this set: forcing it on tasks that would not
+  otherwise reach the threshold lost no task, 11/11 either way.
+- **Recall after compaction**: 0/16 exact facts with no archive, 9/20 with
+  it, every correct answer grounded in what was fetched.
+- **What turns demonstrate**, replayed over 97 real turns: 42% verified,
+  32% self-checked, 10% not demonstrated, 10% unverified, no false
+  accusations.
+
+One caution the benchmark makes plain: running the session set three times
+gives 940k, 774k and 843k — a **21% spread between identical runs**, and
+113% on the search-heavy task. Single-run comparisons on it are not
+evidence, and anything reported from it should be `--eval-runs 3` or more.
 
 ## Development
 
