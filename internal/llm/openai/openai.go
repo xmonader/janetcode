@@ -793,10 +793,42 @@ func (p *Provider) do(ctx context.Context, body []byte, key string) (*http.Respo
 	return resp, nil
 }
 
+// exhausted are the ways a provider says the account has run out, rather
+// than that this request arrived too fast. Both come back as 429, and
+// retrying the first only delays a failure that was never going to clear —
+// with the real reason buried under the retries.
+var exhausted = []string{
+	"insufficient_quota",
+	"quota exceeded",
+	"exceeded your current quota",
+	"available balance",
+	"insufficient balance",
+	"out of budget",
+	"billing",
+	"usage limit reached",
+	"credit balance is too low",
+}
+
+// permanentLimit reports whether a rate-limit response is really an
+// exhausted account.
+func permanentLimit(msg string) bool {
+	msg = strings.ToLower(msg)
+	for _, needle := range exhausted {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
+}
+
 func retryable(err error) bool {
 	var ae *APIError
 	if errors.As(err, &ae) {
-		return ae.Status == 429 || ae.Status == 408 || ae.Status >= 500
+		if permanentLimit(ae.Error()) {
+			return false
+		}
+		// 529 is Anthropic's "overloaded", which gateways pass through.
+		return ae.Status == 429 || ae.Status == 408 || ae.Status == 529 || ae.Status >= 500
 	}
 	// Connection-level failures.
 	return !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)

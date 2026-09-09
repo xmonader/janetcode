@@ -782,3 +782,28 @@ func TestPromptCacheKey(t *testing.T) {
 		t.Fatalf("explicit key overridden: %q", c.cfg.CacheKey)
 	}
 }
+
+// TestRetryableDistinguishesExhaustedFromThrottled: both arrive as 429,
+// but retrying an exhausted account only buries the real reason under a
+// backoff that was never going to help.
+func TestRetryableDistinguishesExhaustedFromThrottled(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		msg    string
+		retry  bool
+	}{
+		{429, "Rate limit reached for gpt-4 in organization org-x", true},
+		{429, "You exceeded your current quota, please check your plan and billing details", false},
+		{429, "Your credit balance is too low to access the API", false},
+		{429, "insufficient_quota", false},
+		{529, "Overloaded", true},
+		{503, "upstream unavailable", true},
+		{400, "bad request", false},
+		{401, "invalid api key", false},
+	} {
+		err := &APIError{Status: tc.status, Message: tc.msg}
+		if got := retryable(err); got != tc.retry {
+			t.Errorf("status %d %q: retryable = %v, want %v", tc.status, tc.msg, got, tc.retry)
+		}
+	}
+}
