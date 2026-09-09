@@ -420,3 +420,97 @@ func TestSessionCwdReachesTheAgent(t *testing.T) {
 		t.Fatal("session/new with no cwd was accepted")
 	}
 }
+
+// An editor cancels: the user presses stop, or closes the panel while a
+// turn is running. The prompt must come back as cancelled rather than
+// hanging or erroring, and the session must still be usable afterwards.
+func TestCancelEndsTheTurnAndLeavesTheSessionUsable(t *testing.T) {
+	dir := t.TempDir()
+	release := make(chan struct{})
+	slow := &blockingProvider{release: release}
+	o := Options{
+		Version: "test",
+		NewAgent: func(cwd, resume string) (*agent.Agent, *session.Session, error) {
+			s, err := session.New(dir, cwd, "fake", "m")
+			if err != nil {
+				return nil, nil, err
+			}
+			return &agent.Agent{Provider: slow, Model: "m", Log: s, Tools: tool.NewRegistry()}, s, nil
+		},
+	}
+	slow.started.Add(1)
+	c, stop := newClient(t, o)
+	defer stop()
+	c.call("session/new", newSessionParams{Cwd: t.TempDir()})
+	var ns newSessionResult
+	if err := json.Unmarshal(c.read().Result, &ns); err != nil {
+		t.Fatal(err)
+	}
+	c.call("session/prompt", promptParams{SessionID: ns.SessionID, Prompt: []contentBlock{textBlock("think about it")}})
+	slow.started.Wait()
+	c.notify("session/cancel", cancelParams{SessionID: ns.SessionID})
+	final, _ := c.readUntil(isResponse)
+	var pr promptResult
+	if err := json.Unmarshal(final.Result, &pr); err != nil {
+		t.Fatalf("cancel produced %v (%s)", err, final.Error)
+	}
+	if pr.StopReason != stopCancelled {
+		t.Fatalf("stopReason = %q, want %q", pr.StopReason, stopCancelled)
+	}
+	// The session survives: a second prompt still runs.
+	close(release)
+	slow.answer = true
+	c.call("session/prompt", promptParams{SessionID: ns.SessionID, Prompt: []contentBlock{textBlock("again")}})
+	final, _ = c.readUntil(isResponse)
+	if err := json.Unmarshal(final.Result, &pr); err != nil || pr.StopReason != stopCompleted {
+		t.Fatalf("second prompt after cancel: %v %q", err, pr.StopReason)
+	}
+}
+
+// blockingProvider holds the first call open until released, so a cancel
+// can arrive mid-turn the way it does from an editor.
+type blockingProvider struct {
+	release chan struct{}
+	started sync.WaitGroup
+	once    sync.Once
+	answer  bool
+}
+
+func (b *blockingProvider) Name() string { return "blocking" }
+func (b *blockingProvider) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	if b.answer {
+		return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn}, nil
+	}
+	b.once.Do(func() { b.started.Done() })
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-b.release:
+		return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "late"), StopReason: llm.StopEndTurn}, nil
+	}
+}
+
+// A frame that is not JSON, and a request for a session that does not
+// exist, must not take the connection down: an editor that sends one bad
+// line should still be able to keep working.
+func TestBadInputDoesNotKillTheConnection(t *testing.T) {
+	o, root := testOptions(t)
+	c, stop := newClient(t, o)
+	defer stop()
+	if _, err := c.in.Write([]byte("this is not json\n")); err != nil {
+		t.Fatal(err)
+	}
+	m := c.read()
+	if m.Error == nil || m.Error.Code != codeParse {
+		t.Fatalf("parse error = %+v", m.Error)
+	}
+	// Cancelling an unknown session is a notification, so it is logged
+	// and ignored rather than answered or fatal.
+	c.notify("session/cancel", cancelParams{SessionID: "nope"})
+	// The connection still works.
+	c.call("session/new", newSessionParams{Cwd: root})
+	var ns newSessionResult
+	if err := json.Unmarshal(c.read().Result, &ns); err != nil || ns.SessionID == "" {
+		t.Fatalf("the connection did not survive: %v", err)
+	}
+}
