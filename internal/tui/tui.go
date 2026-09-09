@@ -51,6 +51,9 @@ type Options struct {
 	LSP *lsp.Manager
 	// Inspect answers for every part of the session; /inspect reads it.
 	Inspect *inspect.Registry
+	// Models resolves a model name to the backend serving it, so /model
+	// can follow a name to another provider.
+	Models func(string) (llm.Provider, string, error)
 	// Jobs are background commands; finished ones are announced while idle.
 	Jobs *tool.Jobs
 	// AutoTitle asks the model for a short session title after the first turn.
@@ -2108,6 +2111,21 @@ func (m *model) command(text string) tea.Cmd {
 				break
 			}
 			return m.openConnect(stepModel)
+		}
+		if cfg := m.opts.Config; cfg != nil && m.opts.Models != nil {
+			// The name may belong to a provider other than the one in
+			// use; follow it rather than sending it to the wrong endpoint.
+			if name, ok := cfg.RouteFor(fields[1]); ok && name != cfg.Provider {
+				prov, _, err := m.opts.Models(fields[1])
+				if err != nil {
+					m.transcript.errorf("%v", err)
+					break
+				}
+				m.opts.Agent.Provider = prov
+				cfg.Provider = name
+				m.opts.Provider = name
+				m.transcript.info("switched to provider " + name + " for " + fields[1])
+			}
 		}
 		m.opts.Agent.Model = fields[1]
 		m.applyModelMeta(fields[1])

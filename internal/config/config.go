@@ -50,6 +50,11 @@ type Config struct {
 	// Models holds what /connect learned about models: context window,
 	// output limit and prices. A key may be a prefix like Prices.
 	Models map[string]ModelMeta `json:"models,omitempty"`
+	// Routes send a model name, or a prefix of one, to the provider that
+	// serves it, so a model can be asked for by name alone. Without an
+	// entry the name's family decides (glm-* is Zhipu), and failing that
+	// the active provider is used.
+	Routes map[string]string `json:"routes,omitempty"`
 	// MCPServers are started for every project. Project-specific ones go
 	// in <project>/.mcp.json and need a one-time approval.
 	MCPServers map[string]mcp.ServerConfig `json:"mcp_servers,omitempty"`

@@ -249,6 +249,16 @@ func providersReport(cfg *config.Config, a *agent.Agent) string {
 	if usd, ok := u.Cost(a.Price); ok {
 		fmt.Fprintf(&b, "spent      %s\n", llm.FormatUSD(usd))
 	}
+	if cfg != nil {
+		if routes := cfg.RoutableModels(); len(routes) > 0 {
+			b.WriteString("\nmodels reachable by name (task can send a job to one):\n")
+			for _, r := range routes {
+				fmt.Fprintf(&b, "  %-24s %-18s %s\n", r.Model, r.Provider, r.Why)
+			}
+		}
+		b.WriteString("\nany other name is routed by its family (glm-* to Zhipu, claude-* to Anthropic…)\n")
+		b.WriteString("when that provider is configured, and otherwise to the active one.\n")
+	}
 	return b.String()
 }
 

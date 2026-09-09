@@ -27,6 +27,12 @@ type Task struct {
 	// Root is the project directory; editing subagents check it out into
 	// a git worktree and return their changes as a patch.
 	Root string
+	// Models, when set, resolves a model name to the provider that serves
+	// it, so a job can be given to a different model than the one running
+	// the session: a cheap one to read a lot of code, a strong one for
+	// the part that has to be right. Without it the model parameter is
+	// refused rather than silently ignored.
+	Models func(model string) (llm.Provider, string, error)
 
 	mu       sync.Mutex
 	usage    llm.Usage
@@ -75,6 +81,7 @@ func (*Task) Schema() json.RawMessage {
 "tools":{"type":"array","items":{"type":"string"},"description":"Optional: only these read-only tools are given to the subagent, e.g. [\"grep\",\"read_file\"]"},
 "agent":{"type":"string","description":"Optional: name of a custom agent definition to run the job as"},
 "edit":{"type":"boolean","description":"Optional: let the subagent edit files and run commands in an isolated git worktree of the project. Its changes come back as a patch (also saved to a file) for you to review and apply with git apply; the real tree is untouched."},
+"model":{"type":"string","description":"Optional: run the job on this model instead of the session's, by name (e.g. glm-5). Use a cheaper or faster model for wide reading, or a stronger one for a job that has to be right."},
 "continue":{"type":"string","description":"Optional: id of a previous subagent to send another prompt. Omit prompt to list ids."}},
 "required":["description","prompt"],"additionalProperties":false}`)
 }
@@ -136,6 +143,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		Tools       []string `json:"tools"`
 		Agent       string   `json:"agent"`
 		Edit        bool     `json:"edit"`
+		Model       string   `json:"model"`
 		Continue    string   `json:"continue"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
@@ -195,9 +203,30 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	if profile != nil && in.Continue == "" {
 		kid.agent.System += "\n\n# Agent: " + profile.Name + "\n" + profile.Body
-		if profile.Model != "" {
+		// A profile names a model for the setup it was written for, and
+		// worked before there was any routing; it keeps the session's
+		// provider unless the caller asked for a model by name.
+		if profile.Model != "" && in.Model == "" {
 			kid.agent.Model = profile.Model
+			if t.Models != nil {
+				if prov, resolved, err := t.Models(profile.Model); err == nil {
+					kid.agent.Provider, kid.agent.Model = prov, resolved
+				}
+			}
 		}
+	}
+	// A model asked for by name is resolved to whatever backend serves
+	// it, which may not be the one running this session. Refusing is
+	// better than sending the name to an endpoint that does not have it.
+	if in.Model != "" && in.Continue == "" {
+		if t.Models == nil {
+			return "", fmt.Errorf("this session cannot route to another model; run the job without model, or switch the session with /model")
+		}
+		prov, resolved, err := t.Models(in.Model)
+		if err != nil {
+			return "", err
+		}
+		kid.agent.Provider, kid.agent.Model = prov, resolved
 	}
 	if childID == "" {
 		t.mu.Lock()
@@ -240,7 +269,11 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			report += "\n\n```diff\n" + patch + "\n```"
 		}
 	}
-	return fmt.Sprintf("%s\n\n[subagent %q id=%s: %d tool calls, %s, %s in / %s out; continue with task continue=%s]", report, in.Description, childID, countToolUses(child.Messages), time.Since(start).Round(time.Millisecond), tokens(child.Usage.InputTokens+child.Usage.CacheReadTokens), tokens(child.Usage.OutputTokens), childID), nil
+	on := ""
+	if child.Model != "" && child.Model != t.Parent.Model {
+		on = " on " + child.Model
+	}
+	return fmt.Sprintf("%s\n\n[subagent %q id=%s%s: %d tool calls, %s, %s in / %s out; continue with task continue=%s]", report, in.Description, childID, on, countToolUses(child.Messages), time.Since(start).Round(time.Millisecond), tokens(child.Usage.InputTokens+child.Usage.CacheReadTokens), tokens(child.Usage.OutputTokens), childID), nil
 }
 
 // editingChild builds a subagent with the full tool set rooted at the

@@ -26,6 +26,9 @@ type Provider struct {
 	// Model is the last model chosen for this provider; used when the
 	// top-level model does not apply.
 	Model string `json:"model,omitempty"`
+	// Models are the model names this provider serves, so one can be
+	// asked for by name and routed here without a Routes entry.
+	Models []string `json:"models,omitempty"`
 
 	// envKeys is set when the keys came from the environment, so Update
 	// does not copy them into the config file.

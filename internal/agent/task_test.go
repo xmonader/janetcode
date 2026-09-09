@@ -357,3 +357,50 @@ func TestTaskWithholdsGoalStatus(t *testing.T) {
 		t.Fatal("goal_status accepted in the tools list")
 	}
 }
+
+// A job can be given to a different model than the session's: a cheap one
+// to read a lot of code, a strong one for the part that has to be right.
+func TestTaskRunsOnAnotherModel(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha"), 0o644)
+	other := &scriptedByPrompt{}
+	parent := &Agent{Provider: &scriptedByPrompt{}, Model: "session-model", System: "sys", AutoApprove: true}
+	var asked string
+	task := &Task{Parent: parent, Models: func(name string) (llm.Provider, string, error) {
+		asked = name
+		if name == "nowhere-5" {
+			return nil, "", errorf("no configured provider serves %s", name)
+		}
+		return other, name, nil
+	}}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+
+	out, err := task.Run(context.Background(), json.RawMessage(`{"description":"explore","prompt":"explore first","model":"glm-5"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if asked != "glm-5" {
+		t.Fatalf("resolver asked for %q", asked)
+	}
+	if !strings.Contains(out, "on glm-5") {
+		t.Fatalf("the report should say which model ran it:\n%s", out)
+	}
+	kid := task.children[task.ChildIDs()[0]].agent
+	if kid.Model != "glm-5" || kid.Provider != other {
+		t.Fatalf("child ran on %q with the wrong provider", kid.Model)
+	}
+	// The parent is untouched.
+	if parent.Model != "session-model" {
+		t.Fatalf("the session's model changed to %q", parent.Model)
+	}
+	// A model nothing serves is refused, with the resolver's reason.
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"explore","model":"nowhere-5"}`)); err == nil {
+		t.Fatal("an unroutable model was accepted")
+	}
+	// Without a resolver the parameter is refused rather than ignored.
+	bare := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, bare)
+	if _, err := bare.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"explore","model":"glm-5"}`)); err == nil {
+		t.Fatal("model accepted with no way to route it")
+	}
+}

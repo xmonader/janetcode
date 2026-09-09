@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -230,7 +231,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		model := cfg.EmbeddingModel
 		mem.Embed = func(ctx context.Context, texts []string) ([][]float32, error) { return em.Embed(ctx, model, texts) }
 	}
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly}
+	pool := newProviderPool(cfg, prov)
+	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, models: pool.For}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return err
@@ -419,6 +421,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Hooks:     &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
 		LSP:       diag,
 		Inspect:   subjects,
+		Models:    pool.For,
 		Jobs:      jobs,
 		AutoTitle: true,
 		Verify:    &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: trust},
@@ -476,6 +479,49 @@ func printSessions() error {
 }
 
 // buildProvider constructs the backend selected by cfg.Provider.
+// providerPool builds one backend per configured provider and keeps it,
+// so a session can send work to more than one model without rebuilding a
+// client for every call.
+type providerPool struct {
+	cfg *config.Config
+	mu  sync.Mutex
+	by  map[string]llm.Provider
+}
+
+func newProviderPool(cfg *config.Config, active llm.Provider) *providerPool {
+	p := &providerPool{cfg: cfg, by: map[string]llm.Provider{}}
+	if active != nil && cfg != nil && cfg.Provider != "" {
+		p.by[cfg.Provider] = active
+	}
+	return p
+}
+
+// For resolves a model name to the backend that serves it. The name is
+// returned as well, so the caller records what actually ran.
+func (p *providerPool) For(model string) (llm.Provider, string, error) {
+	if p == nil || p.cfg == nil {
+		return nil, "", fmt.Errorf("no providers are configured")
+	}
+	name, ok := p.cfg.RouteFor(model)
+	if !ok {
+		return nil, "", fmt.Errorf("no configured provider serves %q; add one with /connect, or route it in the config", model)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if prov, ok := p.by[name]; ok {
+		return prov, model, nil
+	}
+	// Build the named provider by copying the config with it selected.
+	sub := *p.cfg
+	sub.Provider = name
+	prov, err := buildProvider(&sub)
+	if err != nil {
+		return nil, "", fmt.Errorf("%s (for model %s): %w", name, model, err)
+	}
+	p.by[name] = prov
+	return prov, model, nil
+}
+
 func buildProvider(cfg *config.Config) (llm.Provider, error) {
 	p := cfg.Active()
 	switch p.Type {
@@ -750,13 +796,16 @@ func authorizeMCP(name string, global, project map[string]mcp.ServerConfig, toke
 // gets its own history, log and undo state over the same wiring rather
 // than a second copy of the wiring.
 type agentDeps struct {
-	prov     llm.Provider
-	cfg      *config.Config
-	cwd      string
-	cfgDir   string
-	sessDir  string
-	mem      *memory.Store
-	jobs     *tool.Jobs
+	prov    llm.Provider
+	cfg     *config.Config
+	cwd     string
+	cfgDir  string
+	sessDir string
+	mem     *memory.Store
+	jobs    *tool.Jobs
+	// models resolves a model name to the backend serving it, so a job
+	// can be handed to a different model than the session's.
+	models   func(string) (llm.Provider, string, error)
 	version  string
 	readOnly bool
 }
@@ -784,7 +833,7 @@ func (b builtAgent) close() {
 // the system prompt, skills and memory, diagnostics, the repository map
 // and the trajectory critic.
 func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (builtAgent, error) {
-	task := &agent.Task{Root: d.cwd}
+	task := &agent.Task{Root: d.cwd, Models: d.models}
 	jobs := d.jobs
 	cfgDir := d.cfgDir
 	archive := agent.NewArchive(session.ArchiveDir(d.sessDir, d.cwd))
