@@ -228,6 +228,7 @@ type Agent struct {
 	usageMu sync.Mutex  // the status bar reads Usage while a turn runs
 	turnUse llm.Usage   // what the turn in progress has cost so far
 	cache   cacheLedger // prefix paid for twice, and why
+	prefix  prefixWatch // where the cached prefix stopped matching
 	// historyRewritten says a prune or compaction edited messages since
 	// the last model call, so the next cache miss is expected and is not
 	// counted as waste. It is separate from integ.shrunkOK, which the
@@ -578,6 +579,9 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 	a.debugf("call start: %d messages, ~%d tokens", len(a.Messages), a.EstimateTokens())
 	system := a.systemPrompt()
 	defs := a.turnTools()
+	a.usageMu.Lock()
+	a.prefix.note(a.turnN, system, a.Messages, defs)
+	a.usageMu.Unlock()
 	resp, err := a.Provider.Stream(ctx, llm.Request{
 		Model:     a.Model,
 		System:    system,
@@ -883,6 +887,14 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if a.Diagnose != nil && !isErr && (u.Name == "write_file" || u.Name == "edit_file") {
 		if note := a.Diagnose(ctx, perm.Subject(u.Name, u.Input)); note != "" {
 			out += "\n" + note
+		}
+	}
+	// A result that would take an unreasonable share of what is left is
+	// withheld with its price rather than truncated: truncation bills the
+	// caller for a prefix that is rarely the answer.
+	if !isErr && !a.Off["oversized"] {
+		if msg := oversized(u.Name, subjectOf(u.Name, u.Input), out, a.EstimateTokens(), a.ContextWindow, tookLargeOutput(u.Input)); msg != "" {
+			out, isErr = msg, true
 		}
 	}
 	out = a.stash(u.ID, u.Name, subjectOf(u.Name, u.Input), out)

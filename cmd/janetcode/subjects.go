@@ -68,6 +68,12 @@ func registerSubjects(r *inspect.Registry, d subjectDeps) {
 		return verdictsReport(d.session)
 	})
 	r.AddText("todos", "the plan the model is working from", func() string { return todosReport(d.agent) })
+	r.AddText("prefix", "where the cached request prefix stopped matching, and why", func() string {
+		if d.agent == nil {
+			return "no agent"
+		}
+		return d.agent.PrefixReport()
+	})
 	r.AddText("cache", "what the prompt cache saved, and what was paid for twice", func() string {
 		if d.agent == nil {
 			return "no agent"
@@ -1073,6 +1079,7 @@ func registerOfflineSubjects(r *inspect.Registry, cfg *config.Config, cfgPath, c
 		{"todos", "the plan the model is working from"},
 		{"scripts", "the scripts run for the model, and the calls they made"},
 		{"cache", "what the prompt cache saved, and what was paid for twice"},
+		{"prefix", "where the cached request prefix stopped matching, and why"},
 	} {
 		needsSession(s.name, s.summary)
 	}

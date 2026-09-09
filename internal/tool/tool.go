@@ -35,6 +35,9 @@ type Registry struct {
 	mu       sync.RWMutex
 	tools    map[string]Tool
 	deferred map[string]bool
+	// LargeOutputOption, when set, adds the opt-in that lets a model take
+	// the cost of a result the harness withheld for size.
+	LargeOutputOption func(json.RawMessage) json.RawMessage
 	// Intent adds a short "why this call" field to every tool's schema.
 	// It is set on the registry rather than per tool so that MCP tools and
 	// anything registered at runtime carry it too.
@@ -144,6 +147,9 @@ func (r *Registry) DefsIf(keep func(Tool) bool) []llm.ToolDef {
 		schema := t.Schema()
 		if r.Intent {
 			schema = WithIntent(schema)
+		}
+		if r.LargeOutputOption != nil {
+			schema = r.LargeOutputOption(schema)
 		}
 		defs = append(defs, llm.ToolDef{Name: t.Name(), Description: t.Description(), InputSchema: schema})
 	}
