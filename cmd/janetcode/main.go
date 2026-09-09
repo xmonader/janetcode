@@ -2,7 +2,9 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,6 +29,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/llm/anthropic"
 	"github.com/xmonader/janetcode/internal/llm/openai"
+	"github.com/xmonader/janetcode/internal/llm/replay"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/memory"
@@ -86,6 +89,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalJobs    = fs.Int("eval-jobs", 2, "eval tasks to run at once")
 		evalOnly    = fs.String("eval-only", "", "comma-separated task names or tags to run")
 		evalJSON    = fs.String("eval-json", "", "write eval results to this JSON file")
+		replayPath  = fs.String("replay", "", "re-run a saved session against the current code, with the model's replies read from the recording instead of bought: reports the tool calls it makes now against the ones recorded, and needs no API key")
 		evalReport  = fs.String("eval-report", "", "re-read a saved results file and print its report and tool adoption, without running anything; with --eval-compare it prints the paired comparison of two saved files")
 		evalKeep    = fs.Bool("eval-keep", false, "keep eval work directories")
 		evalRuns    = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips). One run per task is a coin flip: this set swings 21% between identical runs, so a comparison wants 3 or more")
@@ -198,6 +202,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			return err
 		}
 		cwd = wt.Path
+	}
+	if *replayPath != "" {
+		return runReplay(*replayPath)
 	}
 	// Re-reading saved results needs no provider and no money: the data is
 	// already on disk, and a comparison that was printed once should be
@@ -783,6 +790,87 @@ func chainPrep(hooks ...func([]llm.Block) ([]llm.Block, string)) func([]llm.Bloc
 
 // diagnoseNote turns language-server diagnostics for a just-edited file
 // into the note appended to the tool result.
+// recordedCalls is the tool calls a session made, in order, read straight
+// from its log.
+func recordedCalls(path string) ([]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var out []string
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 1024*1024), 64*1024*1024)
+	for sc.Scan() {
+		var e session.Event
+		if json.Unmarshal(sc.Bytes(), &e) != nil {
+			continue
+		}
+		if e.Type == session.TypeToolCall && !strings.HasPrefix(e.CallID, "script-") {
+			out = append(out, e.Name)
+		}
+	}
+	return out, sc.Err()
+}
+
+// runReplay re-runs a recorded session with the model's part read from
+// disk. Every bug fixed in this project's history that changed how a
+// response is turned into tool calls would have shown up here as a
+// different call sequence, for free and without a key.
+func runReplay(path string) error {
+	rp, err := replay.Load(path)
+	if err != nil {
+		return err
+	}
+	want, err := recordedCalls(path)
+	if err != nil {
+		return err
+	}
+	root, err := os.MkdirTemp("", "janetcode-replay-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(root)
+
+	var got []string
+	ag := &agent.Agent{
+		Provider:    rp,
+		Log:         &session.Memory{},
+		AutoApprove: true,
+		ReadOnly:    true, // a replay must not touch the machine
+		Tools: tool.NewRegistry(
+			tool.ReadFile{Root: root}, tool.ListDir{Root: root},
+			tool.Glob{Root: root}, tool.Grep{Root: root},
+		),
+		System:        prompt.System(root),
+		MaxIterations: 200,
+	}
+	ctx := context.Background()
+	prompts := rp.Prompts()
+	fmt.Fprintf(os.Stdout, "replaying %s: %d prompt(s), %d recorded model call(s)\n", filepath.Base(path), len(prompts), rp.Remaining())
+	for _, p := range prompts {
+		if rp.Remaining() == 0 {
+			break
+		}
+		err := ag.Run(ctx, p, func(e agent.Event) {
+			if e.Kind == agent.EvToolRun && e.Call != nil {
+				got = append(got, e.Call.Name)
+			}
+		})
+		if err != nil && !errors.Is(err, agent.ErrMaxIterations) {
+			fmt.Fprintf(os.Stdout, "  turn ended early: %v\n", err)
+			break
+		}
+	}
+	fmt.Fprintf(os.Stdout, "\nrecorded: %s\nnow:      %s\n", strings.Join(want, " "), strings.Join(got, " "))
+	if strings.Join(want, " ") == strings.Join(got, " ") {
+		fmt.Fprintln(os.Stdout, "\nthe same calls in the same order: no behaviour change")
+		return nil
+	}
+	fmt.Fprintln(os.Stdout, "\nthe call sequence changed. That is a regression unless it was intended.")
+	return nil
+}
+
 // reportEval prints a saved results file, and the paired comparison
 // against a second one when given.
 func reportEval(path, base string) error {
