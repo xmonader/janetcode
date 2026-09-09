@@ -298,3 +298,79 @@ func TestRunningTheEditedCodeIsNotNothing(t *testing.T) {
 		t.Fatalf("unrelated command counted: %+v", other)
 	}
 }
+
+// A green produced by a suite the same turn edited is not the same as a
+// green against tests that were already there. The harness cannot tell an
+// honest regression test from marking your own homework, so it names the
+// difference and leaves the judgement to the reader.
+func TestTestsEditedInTheSameTurn(t *testing.T) {
+	pass := "ok  \texample.com/x\t0.02s\n[exit code 0]"
+	got := FoldOutcome([]session.Event{
+		result(1, "edit_file", `{"path":"parse.go"}`, "ok", false),
+		result(1, "edit_file", `{"path":"parse_test.go"}`, "ok", false),
+		result(1, "bash", `{"command":"go test ./..."}`, pass, false),
+	}, 1)
+	if got.Verdict != VerdictSelfChecked {
+		t.Fatalf("verdict = %q (%s)", got.Verdict, got.Why)
+	}
+	if len(got.TestsEdited) != 1 || got.TestsEdited[0] != "parse_test.go" {
+		t.Fatalf("tests edited = %v", got.TestsEdited)
+	}
+	if !strings.Contains(got.Why, "changed in the same turn") {
+		t.Fatalf("the reason should name the caveat: %q", got.Why)
+	}
+	// The same turn without touching the tests is plainly verified.
+	clean := FoldOutcome([]session.Event{
+		result(1, "edit_file", `{"path":"parse.go"}`, "ok", false),
+		result(1, "bash", `{"command":"go test ./..."}`, pass, false),
+	}, 1)
+	if clean.Verdict != VerdictVerified || len(clean.TestsEdited) != 0 {
+		t.Fatalf("clean turn = %+v", clean)
+	}
+}
+
+func TestTestFileDetection(t *testing.T) {
+	for path, want := range map[string]bool{
+		"parse_test.go":               true,
+		"internal/agent/todo_test.go": true,
+		"tests/test_ledger.py":        true,
+		"test_ini.py":                 true,
+		"src/foo.spec.ts":             true,
+		"src/foo.test.tsx":            true,
+		"spec/models/user_spec.rb":    true,
+		"conftest.py":                 true,
+		"parse.go":                    false,
+		"internal/agent/todo.go":      false,
+		"latest/contest.go":           false,
+		"README.md":                   false,
+	} {
+		if got := isTestFile(path); got != want {
+			t.Fatalf("isTestFile(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+// Writing code with its tests and running them is the normal shape of the
+// job, so it must not be reported as a failure — a third of real turns
+// look like this, and an alarm that often is no alarm at all.
+func TestSelfCheckedIsACaveatNotAnAlarm(t *testing.T) {
+	o := FoldOutcome([]session.Event{
+		result(1, "write_file", `{"path":"ledger.py"}`, "ok", false),
+		result(1, "write_file", `{"path":"tests/test_ledger.py"}`, "ok", false),
+		result(1, "bash", `{"command":"pytest tests/"}`, "12 passed in 0.11s\n[exit code 0]", false),
+		say(1, "The tests pass."),
+	}, 1)
+	if o.Verdict != VerdictSelfChecked {
+		t.Fatalf("verdict = %q", o.Verdict)
+	}
+	if !o.OK() {
+		t.Fatal("a turn that wrote code, wrote tests and ran them is not a failure")
+	}
+	if o.Overclaimed() {
+		t.Fatal("saying the tests pass, when they did, is not an overclaim")
+	}
+	// The caveat is still visible in the line the user reads.
+	if !strings.Contains(o.Line(), "self-checked") || !strings.Contains(o.Line(), "same turn") {
+		t.Fatalf("line = %q", o.Line())
+	}
+}

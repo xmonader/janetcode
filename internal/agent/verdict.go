@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/session"
@@ -40,6 +41,11 @@ const (
 	// VerdictVacuous: a check passed without exercising anything — no
 	// tests collected, no files matched. Green, and worth nothing.
 	VerdictVacuous Verdict = "vacuous"
+	// VerdictSelfChecked: tests passed, but the tests themselves were
+	// edited in the same turn. Legitimate when a rename or a new
+	// regression test required it, and the shape of marking your own
+	// homework otherwise; the harness cannot tell which, so it says so.
+	VerdictSelfChecked Verdict = "self-checked"
 )
 
 // TurnOutcome is the verdict with what it was decided from, so the user
@@ -53,6 +59,9 @@ type TurnOutcome struct {
 	Flipped  bool    `json:"flipped"`  // a command that had failed now passes
 	Tested   bool    `json:"tested"`   // a check reported tests actually running
 	Executed bool    `json:"executed"` // a command ran a file edited this turn
+	// TestsEdited are the test files changed in this turn, which weakens
+	// a green produced by running them.
+	TestsEdited []string `json:"tests_edited,omitempty"`
 	// Checks are the commands counted as checks, newest last.
 	Checks []string `json:"checks,omitempty"`
 	// Why is the one-line reason for the verdict.
@@ -62,9 +71,17 @@ type TurnOutcome struct {
 	Claimed string `json:"claimed,omitempty"`
 }
 
-// OK reports whether the turn ended in a state worth trusting.
+// OK reports whether the turn checked its work. A self-checked turn
+// counts: writing code with the tests for it and running them is the
+// normal shape of the job, and treating it as a failure would cry wolf on
+// a third of all turns. The caveat lives in the verdict and its reason,
+// not in an alarm. Only Verdict == VerdictVerified is the strong claim.
 func (o TurnOutcome) OK() bool {
-	return o.Verdict == VerdictVerified || o.Verdict == VerdictNoChanges
+	switch o.Verdict {
+	case VerdictVerified, VerdictSelfChecked, VerdictNoChanges:
+		return true
+	}
+	return false
 }
 
 // Line renders the verdict for the user, in one line.
@@ -75,7 +92,7 @@ func (o TurnOutcome) Line() string {
 		mark = "✓"
 	case VerdictCheckFailed, VerdictVacuous:
 		mark = "✗"
-	case VerdictUnverified, VerdictNotDemonstrated:
+	case VerdictUnverified, VerdictNotDemonstrated, VerdictSelfChecked:
 		mark = "⚠"
 	}
 	return fmt.Sprintf("%s %s: %s", mark, o.Verdict, o.Why)
@@ -139,6 +156,18 @@ func ranEdited(cmd string, edited map[string]bool) bool {
 	return false
 }
 
+// testFileRe matches a path that holds tests. A green produced by a suite
+// that was itself edited in the same turn is weaker evidence than one
+// against tests that were already there: at the honest end the model
+// wrote a regression test with the fix, and at the other it changed the
+// thing that was failing until it stopped failing. The harness cannot
+// tell those apart, so it says which kind of green this is and leaves the
+// judgement to the reader.
+var testFileRe = regexp.MustCompile(`(?i)((^|/)tests?/|(^|/)spec/|_test\.[a-z]+$|_spec\.[a-z]+$|(^|/)test_[^/]+$|\.test\.[a-z]+$|\.spec\.[a-z]+$|(^|/)conftest\.py$|Test[A-Z][^/]*\.java$)`)
+
+// isTestFile reports whether a path holds tests.
+func isTestFile(path string) bool { return path != "" && testFileRe.MatchString(path) }
+
 // claimRe matches an assertion a check could have demonstrated. It is
 // deliberately narrow: a claim about tests, builds or verification, not
 // every use of the word "done".
@@ -154,6 +183,7 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 	// flip rather than a state that was already green.
 	failedBefore := map[string]bool{}
 	var lastText string
+	testsEdited := map[string]bool{}
 	ranTests, foundNothing, ranTheCode := false, false, false
 	// Commands seen in this turn, replayed once the edits are known so a
 	// command naming an edited file counts however the two were ordered.
@@ -185,6 +215,9 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 		case (e.Name == "write_file" || e.Name == "edit_file") && !e.IsError:
 			if p := argPathOf(e.Arguments); p != "" {
 				edited[p] = true
+				if isTestFile(p) {
+					testsEdited[p] = true
+				}
 			} else {
 				edited[fmt.Sprintf("call:%s", e.CallID)] = true
 			}
@@ -225,6 +258,10 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 	o.Edited = len(edited)
 	o.Tested = ranTests
 	o.Executed = ranTheCode
+	for p := range testsEdited {
+		o.TestsEdited = append(o.TestsEdited, p)
+	}
+	sort.Strings(o.TestsEdited)
 
 	switch {
 	case o.Edited == 0 && o.Ran == 0:
@@ -240,6 +277,12 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 	case o.Ran == 0:
 		o.Verdict = VerdictNotDemonstrated
 		o.Why = fmt.Sprintf("%d file(s) edited and the code was run, but nothing asserted the result", o.Edited)
+	case ranTests && len(o.TestsEdited) > 0:
+		// Green, but the suite that produced it was changed in the same
+		// turn, so it shows the tests as they now stand pass — not that
+		// the behaviour they used to check is intact.
+		o.Verdict = VerdictSelfChecked
+		o.Why = fmt.Sprintf("%d file(s) edited and tests passed, but %s changed in the same turn", o.Edited, strings.Join(o.TestsEdited, ", "))
 	case ranTests && o.Flipped:
 		o.Verdict = VerdictVerified
 		o.Why = fmt.Sprintf("%d file(s) edited; tests that had been failing now pass", o.Edited)
