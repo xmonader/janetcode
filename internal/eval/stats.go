@@ -85,6 +85,16 @@ type Summary struct {
 	CostPerSolved float64 // CostUSD / Passed, 0 when nothing passed
 	ToolCalls     int
 	Duration      time.Duration
+	// Usage is the token total over every run; Context is its
+	// input+cache part, the size of what the model read.
+	Usage   llm.Usage
+	Context int
+	// ContextPerSolved is Context / Passed, 0 when nothing passed.
+	ContextPerSolved int
+	// Compactions and SummaryUsage total the context pipeline's work.
+	Compactions  int
+	SummaryUsage llm.Usage
+	Expands      int
 	// ByTask is the pass fraction per task name, sorted by name.
 	ByTask []TaskRate
 }
@@ -109,6 +119,10 @@ func Summarize(rs []Result) Summary {
 		s.CostKnown = s.CostKnown && r.CostKnown
 		s.ToolCalls += r.ToolCalls
 		s.Duration += r.Duration
+		s.Usage.Add(r.Usage)
+		s.Compactions += r.Compaction.Count
+		s.SummaryUsage.Add(r.Compaction.Summary)
+		s.Expands += r.Compaction.Expands
 		tr := byTask[r.Name]
 		if tr == nil {
 			tr = &TaskRate{Name: r.Name}
@@ -132,6 +146,10 @@ func Summarize(rs []Result) Summary {
 	}
 	if s.Passed > 0 && s.CostKnown {
 		s.CostPerSolved = s.CostUSD / float64(s.Passed)
+	}
+	s.Context = contextTokens(s.Usage)
+	if s.Passed > 0 {
+		s.ContextPerSolved = s.Context / s.Passed
 	}
 	return s
 }
@@ -165,6 +183,9 @@ type Comparison struct {
 	// CostDelta is current − base cost per solved task, when both known.
 	CostDelta float64
 	CostKnown bool
+	// ContextDelta is current − base context tokens per solved task; the
+	// ratio is Current.ContextPerSolved / Base.ContextPerSolved.
+	ContextDelta int
 }
 
 // Compare pairs the two sets by task name. Tasks present in only one set
@@ -208,6 +229,9 @@ func Compare(base, cur []Result) Comparison {
 	if c.Base.CostKnown && c.Current.CostKnown && c.Base.Passed > 0 && c.Current.Passed > 0 {
 		c.CostKnown = true
 		c.CostDelta = c.Current.CostPerSolved - c.Base.CostPerSolved
+	}
+	if c.Base.Passed > 0 && c.Current.Passed > 0 {
+		c.ContextDelta = c.Current.ContextPerSolved - c.Base.ContextPerSolved
 	}
 	return c
 }
@@ -269,6 +293,11 @@ func WriteComparison(w io.Writer, c Comparison) {
 		}
 		fmt.Fprintf(w, "cost per solved task %s → %s (%s%s)\n", llm.FormatUSD(c.Base.CostPerSolved), llm.FormatUSD(c.Current.CostPerSolved), sign, llm.FormatUSD(math.Abs(c.CostDelta)))
 	}
+	if c.Base.Passed > 0 && c.Current.Passed > 0 {
+		ratio := float64(c.Current.ContextPerSolved) / math.Max(float64(c.Base.ContextPerSolved), 1)
+		fmt.Fprintf(w, "context per solved task %s → %s (×%.2f) · compactions %d → %d\n",
+			shortTokens(c.Base.ContextPerSolved), shortTokens(c.Current.ContextPerSolved), ratio, c.Base.Compactions, c.Current.Compactions)
+	}
 	if len(c.Improved) > 0 {
 		fmt.Fprintf(w, "improved:  %s\n", strings.Join(c.Improved, ", "))
 	}
@@ -291,6 +320,13 @@ func summaryLine(s Summary) string {
 			cost += " (" + llm.FormatUSD(s.CostPerSolved) + " per solved)"
 		}
 	}
-	return fmt.Sprintf("%d/%d passed (%.0f%%, 95%% CI %.0f–%.0f%%) · %d task(s) × %d run(s) · %d tool calls · %s · %s",
-		s.Passed, s.Total, 100*s.PassRate, 100*s.Lo, 100*s.Hi, s.Tasks, s.Runs, s.ToolCalls, s.Duration.Round(time.Second), cost)
+	ctx := fmt.Sprintf("context %s (in %s · cache %s · out %s)", shortTokens(s.Context), shortTokens(s.Usage.InputTokens), shortTokens(s.Usage.CacheReadTokens), shortTokens(s.Usage.OutputTokens))
+	if s.Passed > 0 {
+		ctx += fmt.Sprintf(" · %s per solved", shortTokens(s.ContextPerSolved))
+	}
+	if s.Compactions > 0 {
+		ctx += fmt.Sprintf(" · %d compaction(s), summaries %s in / %s out, %d expand(s)", s.Compactions, shortTokens(contextTokens(s.SummaryUsage)), shortTokens(s.SummaryUsage.OutputTokens), s.Expands)
+	}
+	return fmt.Sprintf("%d/%d passed (%.0f%%, 95%% CI %.0f–%.0f%%) · %d task(s) × %d run(s) · %d tool calls · %s · %s\n%s",
+		s.Passed, s.Total, 100*s.PassRate, 100*s.Lo, 100*s.Hi, s.Tasks, s.Runs, s.ToolCalls, s.Duration.Round(time.Second), cost, ctx)
 }

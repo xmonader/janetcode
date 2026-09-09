@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -135,5 +136,29 @@ func TestWorkingMemoryBounds(t *testing.T) {
 	}
 	if w.merge("no json here") || w.Notes != "no json here" {
 		t.Fatal("prose should land in Notes")
+	}
+}
+
+func TestAsksSurviveCompactionVerbatim(t *testing.T) {
+	var w WorkingMemory
+	w.absorb([]llm.Message{
+		llm.TextMessage(llm.RoleUser, "Add rate limiting to the API server."),
+		llm.TextMessage(llm.RoleAssistant, "ok"),
+		llm.TextMessage(llm.RoleUser, "Also make the limit configurable via LIMIT_RPS."),
+		llm.TextMessage(llm.RoleUser, "[harness note: not a request]"),
+	})
+	if len(w.Asks) != 2 || w.Goal != "Add rate limiting to the API server." {
+		t.Fatalf("asks = %v goal = %q", w.Asks, w.Goal)
+	}
+	out := w.Render()
+	if !strings.Contains(out, "User requests so far") || !strings.Contains(out, "2. Also make the limit configurable via LIMIT_RPS.") {
+		t.Fatalf("render:\n%s", out)
+	}
+	// Bounded: the first ask and the latest survive, the middle is dropped.
+	for i := 0; i < 20; i++ {
+		w.absorb([]llm.Message{llm.TextMessage(llm.RoleUser, fmt.Sprintf("request %d", i))})
+	}
+	if len(w.Asks) != maxAsks || w.Asks[0] != w.Goal || w.Asks[maxAsks-1] != "request 19" {
+		t.Fatalf("asks after 20 more = %v", w.Asks)
 	}
 }

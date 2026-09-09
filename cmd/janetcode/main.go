@@ -90,6 +90,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalTimeout = fs.Duration("eval-timeout", 0, "replace every task's timeout with this wall budget (benchmarks give each harness the same)")
 		evalTurns   = fs.Int("eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
 		evalNoLimit = fs.Bool("eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
+		evalCompact = fs.Int("eval-compact-at", 0, "compact the history at this many estimated tokens instead of the default: a low value forces compaction on tasks that would not otherwise reach it, to measure what it costs and what it loses")
 		allow       = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
 		deny        = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
 		cont        = fs.Bool("continue", false, "resume the latest session for this directory")
@@ -164,7 +165,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		defer stop()
 		return runEval(ctx, cfg, prov, evalOptions{path: *evalPath, jobs: *evalJobs, only: *evalOnly, jsonOut: *evalJSON, keep: *evalKeep,
 			runs: *evalRuns, compare: *evalCompare, off: *evalOff, label: *evalLabel,
-			timeout: *evalTimeout, maxTurns: *evalTurns, noToolLimit: *evalNoLimit})
+			timeout: *evalTimeout, maxTurns: *evalTurns, noToolLimit: *evalNoLimit, compactAt: *evalCompact})
 	}
 
 	sessDir, err := session.Dir()
@@ -473,6 +474,7 @@ type evalOptions struct {
 	timeout             time.Duration
 	maxTurns            int
 	noToolLimit         bool
+	compactAt           int
 	compare, off, label string
 }
 
@@ -520,30 +522,47 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	if o.maxTurns > 0 {
 		maxIter = o.maxTurns
 	}
+	compactAt := cfg.CompactAt
+	if o.compactAt > 0 {
+		compactAt = o.compactAt
+		fmt.Fprintf(os.Stderr, "compacting at ~%d tokens\n", compactAt)
+	}
+	// Archived tool outputs live beside the work directories, so the eval
+	// agent has the same expand_output round-trip the real one does.
+	archiveDir, err := os.MkdirTemp("", "janetcode-eval-archive-")
+	if err != nil {
+		return err
+	}
+	if !o.keep {
+		defer os.RemoveAll(archiveDir)
+	}
 	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, Timeout: o.timeout, IgnoreToolLimit: o.noToolLimit, NewAgent: func(root string) (*agent.Agent, error) {
 		repo := &repomap.Cache{Root: root}
 		var prep func([]llm.Block) ([]llm.Block, string)
 		if !off["repomap"] {
 			prep = repomap.TurnPrep(repo, 0)
 		}
+		archive := agent.NewArchive(filepath.Join(archiveDir, filepath.Base(root)))
 		return &agent.Agent{
 			Provider:  prov,
 			Off:       off,
 			Prepare:   prep,
 			PlanCheck: repo.CheckPlan,
 			Log:       &session.Memory{},
+			Archive:   archive,
 			Price:     cfg.PriceFor(cfg.Model),
 			Tools: tool.NewRegistry(
 				tool.ReadFile{Root: root}, tool.WriteFile{Root: root}, tool.EditFile{Root: root},
 				tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root},
 				tool.Bash{Root: root, Cache: &tool.ShellCache{}},
 				repomap.Tool{Cache: repo},
+				&agent.ExpandOutput{Archive: archive},
 			),
 			System:        prompt.System(root),
 			Model:         cfg.Model,
 			MaxTokens:     cfg.MaxTokens,
 			MaxIterations: maxIter,
-			CompactAt:     cfg.CompactAt,
+			CompactAt:     compactAt,
 		}, nil
 	}}
 	results := r.Run(ctx, tasks)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -212,5 +213,26 @@ func TestRunFailsWhenModelErrors(t *testing.T) {
 	res := r.Run(context.Background(), []Task{{Name: "t", Prompt: "p", Check: "test -f hello.txt"}})
 	if res[0].Passed || !strings.Contains(res[0].Reason, "check failed") || res[0].CostKnown {
 		t.Fatalf("res = %+v", res[0])
+	}
+}
+
+func TestFoldCompaction(t *testing.T) {
+	u := llm.Usage{InputTokens: 100, CacheReadTokens: 900, OutputTokens: 50}
+	ev := []session.Event{
+		{Type: session.TypeToolCall, Name: "read_file"},
+		{Type: session.TypeCompactSummary, Usage: &u},
+		{Type: session.TypeToolCall, Name: "expand_output"},
+		{Type: session.TypeCompactSummary},
+	}
+	c := FoldCompaction(ev)
+	if c.Count != 2 || c.Expands != 1 || c.Summary.CacheReadTokens != 900 {
+		t.Fatalf("compaction = %+v", c)
+	}
+	s := Summarize([]Result{{Name: "a", Passed: true, Usage: u, Compaction: c}, {Name: "b", Usage: u}})
+	if s.Context != 2000 || s.ContextPerSolved != 2000 || s.Compactions != 2 {
+		t.Fatalf("summary = %+v", s)
+	}
+	if line := summaryLine(s); !strings.Contains(line, "context 2.0k") || !strings.Contains(line, "2 compaction(s)") {
+		t.Fatalf("line = %s", line)
 	}
 }

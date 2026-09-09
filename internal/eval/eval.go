@@ -115,14 +115,44 @@ type Result struct {
 	Usage     llm.Usage     `json:"usage"`
 	CostUSD   float64       `json:"cost_usd"`
 	CostKnown bool          `json:"cost_known"`
-	Output    string        `json:"output"`
-	CheckOut  string        `json:"check_output,omitempty"`
-	Dir       string        `json:"dir,omitempty"`
+	// Compaction is what the context pipeline did during the run: how often
+	// the history was summarised, what the summariser calls cost (a subset
+	// of Usage), and how many archived outputs the model fetched back.
+	Compaction Compaction `json:"compaction"`
+	Output     string     `json:"output"`
+	CheckOut   string     `json:"check_output,omitempty"`
+	Dir        string     `json:"dir,omitempty"`
 	// Features is the agent's trajectory at the end of the run, the
 	// training data for the success predictor (agent.Train).
 	Features map[string]float64 `json:"features,omitempty"`
 	// Events is the append-only trajectory log when the agent had a Log.
 	Events []session.Event `json:"events,omitempty"`
+}
+
+// Compaction summarises the context pipeline's work in one run.
+type Compaction struct {
+	Count   int       `json:"count"`
+	Summary llm.Usage `json:"summary_usage"`
+	Expands int       `json:"expands"`
+}
+
+// FoldCompaction reads the compaction metrics from a run's event log.
+func FoldCompaction(events []session.Event) Compaction {
+	var c Compaction
+	for _, e := range events {
+		switch e.Type {
+		case session.TypeCompactSummary:
+			c.Count++
+			if e.Usage != nil {
+				c.Summary.Add(*e.Usage)
+			}
+		case session.TypeToolCall:
+			if e.Name == "expand_output" {
+				c.Expands++
+			}
+		}
+	}
+	return c
 }
 
 // Runner executes tasks with fresh agents.
@@ -248,6 +278,7 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 		res.Events = ag.Log.Events()
 		if len(res.Events) > 0 {
 			res.Features = agent.FoldTrajectory(res.Events)
+			res.Compaction = FoldCompaction(res.Events)
 		}
 	}
 	res.CostUSD, res.CostKnown = ag.Usage.Cost(ag.Price)
@@ -319,9 +350,9 @@ func Report(w io.Writer, results []Result) (passed int) {
 		fmt.Fprintf(w, "\n%s\n", summaryLine(s))
 		return s.Passed
 	}
-	fmt.Fprintf(w, "%-4s %-28s %8s %6s %10s\n", "", "task", "time", "tools", "cost")
+	fmt.Fprintf(w, "%-4s %-28s %8s %6s %8s %4s %10s\n", "", "task", "time", "tools", "context", "cmp", "cost")
 	for _, r := range results {
-		fmt.Fprintf(w, "%-4s %-28s %8s %6d %10s\n", mark(r.Passed), trunc(r.Name, 28), r.Duration.Round(100*time.Millisecond), r.ToolCalls, costString(r))
+		fmt.Fprintf(w, "%-4s %-28s %8s %6d %8s %4d %10s\n", mark(r.Passed), trunc(r.Name, 28), r.Duration.Round(100*time.Millisecond), r.ToolCalls, shortTokens(contextTokens(r.Usage)), r.Compaction.Count, costString(r))
 		if !r.Passed {
 			fmt.Fprintf(w, "     %s\n", trunc(firstLine(r.Reason), 100))
 		}
@@ -339,6 +370,25 @@ func (r *Runner) logf(format string, args ...any) {
 	if r.Log != nil {
 		fmt.Fprintf(r.Log, format+"\n", args...)
 	}
+}
+
+// contextTokens is what the model read over a run: uncached input plus
+// cache reads plus cache writes. It is the number that compaction and
+// pruning exist to hold down, so it is the one the report leads with.
+func contextTokens(u llm.Usage) int {
+	return u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
+}
+
+func shortTokens(n int) string {
+	switch {
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1e6)
+	case n >= 10_000:
+		return fmt.Sprintf("%dk", n/1000)
+	case n >= 1000:
+		return fmt.Sprintf("%.1fk", float64(n)/1000)
+	}
+	return fmt.Sprint(n)
 }
 
 func mark(ok bool) string {

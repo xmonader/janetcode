@@ -389,26 +389,34 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	midTurn := len(tail) == 0 && history[len(history)-1].Role == llm.RoleUser // ends with tool results
 
 	typed := !a.Off["working"]
-	req := llm.Request{Model: a.Model, System: compactSystem, MaxTokens: a.MaxTokens}
-	ask := "Write the handoff note now."
+	instruction := compactSystem + "\n\nWrite the handoff note now."
 	if typed {
 		a.working.absorb(head)
-		req.System = workingSystem
-		ask = "Previous working memory (update it):\n" + a.working.modelSections() + "\n\nWrite the updated JSON object now."
+		instruction = workingSystem + "\n\nPrevious working memory (update it):\n" + a.working.modelSections() + "\n\nWrite the updated JSON object now."
 	}
-	req.Messages = append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, ask))
-	resp, err := a.Provider.Stream(ctx, req, nil)
-	if err != nil {
-		a.summaryFailedAt = time.Now()
-		return fmt.Errorf("compact: %w", err)
-	}
-	summary := strings.TrimSpace(resp.Message.Text())
-	if summary == "" {
-		a.summaryFailedAt = time.Now()
-		return errors.New("compact: model returned an empty summary")
+	var summary string
+	var usage llm.Usage
+	if typed && !a.Off["richskip"] && a.working.rich(head) {
+		// The harness observed enough of this head itself — which files
+		// changed, what ran and how it exited — and the model-maintained
+		// sections already exist from an earlier summary. Carry them
+		// forward as they are instead of paying for a summary call.
+		summary = a.working.modelSections()
+	} else {
+		resp, err := a.summarise(ctx, head, instruction)
+		if err != nil {
+			a.summaryFailedAt = time.Now()
+			return fmt.Errorf("compact: %w", err)
+		}
+		summary = strings.TrimSpace(resp.Message.Text())
+		if summary == "" {
+			a.summaryFailedAt = time.Now()
+			return errors.New("compact: model returned an empty summary")
+		}
+		usage = resp.Usage
 	}
 	a.summaryFailedAt = time.Time{}
-	a.addUsage(resp.Usage)
+	a.addUsage(usage)
 
 	if a.Log != nil {
 		a.logEvent(session.Event{Type: session.TypeCompactStart, Turn: a.turnN})
@@ -458,7 +466,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 			}
 		}
 		sum := a.Messages[0]
-		u := resp.Usage
+		u := usage
 		a.logEvent(session.Event{Type: session.TypeCompactSummary, Turn: a.turnN, Shadowed: shadowed, Tokens: before, Usage: &u})
 		a.logEvent(session.Event{Type: session.TypeUserMessage, Turn: a.turnN, Surface: true, SurfaceOp: session.SurfaceOpReplace, Replaces: shadowed, Message: &sum})
 		if relog {
@@ -475,6 +483,42 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	}
 	emit(Event{Kind: EvCompacted, Text: fmt.Sprintf("context compacted: ~%d → ~%d tokens (%d recent messages kept)", before, after, len(tail))})
 	return nil
+}
+
+// summarise asks the model for the compaction summary of head. The call
+// is a strict extension of the conversation's own requests — the same
+// system prompt and tool schemas, the head verbatim, one instruction
+// appended as the last user message — so a provider with prefix caching
+// serves the replayed head from cache instead of re-billing it fresh,
+// which was most of what a summary cost. A model that answers the
+// instruction with a tool call instead of text gets one cold retry with
+// the instruction as the system prompt and no tools.
+func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction string) (*llm.Response, error) {
+	msgs := append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, instruction+"\n\nReply with text only; do not call tools."))
+	resp, err := a.Provider.Stream(ctx, llm.Request{
+		Model:     a.Model,
+		System:    a.systemPrompt(),
+		Messages:  msgs,
+		Tools:     a.Tools.Defs(),
+		MaxTokens: a.MaxTokens,
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(resp.Message.Text()) != "" {
+		return resp, nil
+	}
+	cold, err := a.Provider.Stream(ctx, llm.Request{
+		Model:     a.Model,
+		System:    instruction,
+		Messages:  append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, "Now.")),
+		MaxTokens: a.MaxTokens,
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+	cold.Usage.Add(resp.Usage) // both calls were paid for
+	return cold, nil
 }
 
 func chars(msgs []llm.Message) int {

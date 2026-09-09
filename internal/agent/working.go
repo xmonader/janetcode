@@ -22,8 +22,12 @@ import (
 // what was ruled out, facts, open questions, next steps), starting from
 // the previous record so nothing drifts from summary to summary.
 type WorkingMemory struct {
-	Goal     string
-	Latest   string // the current user request
+	Goal   string
+	Latest string // the current user request
+	// Asks are the user's requests so far, verbatim prefixes, so the
+	// literal requirements survive a chain of summaries instead of
+	// eroding through paraphrase. Goal is the first of them.
+	Asks     []string
 	Edited   []FileNote
 	Read     []string
 	Commands []CommandNote
@@ -62,6 +66,12 @@ const (
 	maxRead       = 40
 	maxCommands   = 15
 	maxItems      = 12
+	maxAsks       = 8
+	askChars      = 300
+	// richSlots is how many harness-observed facts a head must hold for
+	// the model-maintained sections to be carried forward without a new
+	// summary call (see rich).
+	richSlots = 12
 )
 
 const workingSystem = `You are compacting a coding-agent conversation so work can continue in a fresh context. The harness has already recorded exactly which files were edited and read, which commands ran and how they exited, and the last verification result; do not repeat those. Update the working memory from the conversation and return only a JSON object with these keys:
@@ -95,8 +105,11 @@ func (w *WorkingMemory) absorb(msgs []llm.Message) {
 		for _, b := range m.Blocks {
 			switch b.Type {
 			case llm.BlockText:
-				if m.Role == llm.RoleUser && w.Goal == "" && !strings.HasPrefix(b.Text, "[") {
-					w.Goal = prefix(b.Text, 600)
+				if m.Role == llm.RoleUser && !strings.HasPrefix(b.Text, "[") && strings.TrimSpace(b.Text) != "" {
+					if w.Goal == "" {
+						w.Goal = prefix(b.Text, 600)
+					}
+					w.Asks = appendUnique(w.Asks, prefix(b.Text, askChars))
 				}
 			case llm.BlockToolUse:
 				uses[b.ID] = b
@@ -152,6 +165,9 @@ func (w *WorkingMemory) absorb(msgs []llm.Message) {
 	if len(w.Read) > maxRead {
 		w.Read = w.Read[len(w.Read)-maxRead:]
 	}
+	if len(w.Asks) > maxAsks {
+		w.Asks = append(w.Asks[:1:1], w.Asks[len(w.Asks)-maxAsks+1:]...) // keep the first and the latest
+	}
 	if len(w.Commands) > maxCommands {
 		sort.SliceStable(w.Commands, func(i, j int) bool { return w.Commands[i].order > w.Commands[j].order })
 		w.Commands = w.Commands[:maxCommands]
@@ -169,6 +185,36 @@ func appendUnique(list []string, s string) []string {
 		}
 	}
 	return append(list, s)
+}
+
+// rich reports whether the model-maintained sections can be carried
+// forward unchanged: an earlier summary wrote them, the head being
+// compacted brought no new user request the model must weigh, and the
+// harness observed enough of it — files changed, commands run — that the
+// record already tells the next context what happened. The summary call
+// is then skipped; it is the one part of compaction that costs tokens.
+func (w *WorkingMemory) rich(head []llm.Message) bool {
+	if len(w.Decisions)+len(w.Facts)+len(w.Next) == 0 {
+		return false
+	}
+	slots := 0
+	for _, m := range head {
+		for _, b := range m.Blocks {
+			if b.Type == llm.BlockText && m.Role == llm.RoleUser && !strings.HasPrefix(b.Text, "[") && strings.TrimSpace(b.Text) != "" {
+				return false
+			}
+			if b.Type != llm.BlockToolUse {
+				continue
+			}
+			switch b.Name {
+			case "write_file", "edit_file", "bash":
+				slots += 2
+			case "read_file":
+				slots++
+			}
+		}
+	}
+	return slots >= richSlots
 }
 
 // hash records the current content hash of every edited file under root.
@@ -255,6 +301,12 @@ func (w *WorkingMemory) Render() string {
 	}
 	if w.Latest != "" && w.Latest != w.Goal {
 		fmt.Fprintf(&b, "\nCurrent request: %s\n", prefix(w.Latest, 600))
+	}
+	if len(w.Asks) > 1 {
+		b.WriteString("\nUser requests so far (verbatim):\n")
+		for i, ask := range w.Asks {
+			fmt.Fprintf(&b, "%d. %s\n", i+1, ask)
+		}
 	}
 	if len(w.Edited) > 0 {
 		b.WriteString("\nFiles edited (content hash now; re-read before editing if the hash changed):\n")

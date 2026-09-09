@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -60,7 +61,10 @@ func TestCompactKeepsPendingUserText(t *testing.T) {
 		t.Fatal(err)
 	}
 	req := f.requests[0]
-	if req.System != workingSystem || len(req.Tools) != 0 || len(req.Messages) != 3 || !strings.HasPrefix(req.Messages[2].Text(), "Previous working memory") {
+	// The summary call replays the conversation's own prefix (system prompt,
+	// tool schemas, the head verbatim) so the provider serves it from cache;
+	// the instruction rides in the last user message.
+	if req.System != a.systemPrompt() || len(req.Tools) != len(a.Tools.Defs()) || len(req.Messages) != 3 || !strings.Contains(req.Messages[2].Text(), "Previous working memory") {
 		t.Fatalf("compaction request = %+v", req)
 	}
 	if len(a.Messages) != 1 || a.Messages[0].Role != llm.RoleUser || len(a.Messages[0].Blocks) != 2 {
@@ -444,5 +448,91 @@ func TestPrunedMessagesAreLogged(t *testing.T) {
 	a.syncSurface()
 	if len(mem.Events()) != n {
 		t.Fatalf("syncSurface logged an unchanged message")
+	}
+}
+
+// A model that answers the warm-prefix summary request with a tool call
+// instead of text gets one cold retry, and both calls are billed.
+func TestSummaryRetriesColdWhenModelCallsTool(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "read_file", `{"path":"a.txt"}`),
+		text(`{"facts":["done"]}`),
+	}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(tool.ReadFile{Root: t.TempDir()}), Model: "m", System: "sys", Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, strings.Repeat("investigate the flaky suite ", 100)),
+		llm.TextMessage(llm.RoleAssistant, "working"),
+	}}
+	if err := a.ForceCompact(context.Background(), func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.requests) != 2 {
+		t.Fatalf("%d summary requests, want a warm call and a cold retry", len(f.requests))
+	}
+	warm, cold := f.requests[0], f.requests[1]
+	if warm.System != a.systemPrompt() || len(warm.Tools) != 1 {
+		t.Fatalf("warm call: system %q tools %d", warm.System, len(warm.Tools))
+	}
+	if !strings.HasPrefix(cold.System, "You are compacting") || len(cold.Tools) != 0 {
+		t.Fatalf("cold retry: system %q tools %d", cold.System[:min(40, len(cold.System))], len(cold.Tools))
+	}
+	if a.Usage.InputTokens != 2 {
+		t.Fatalf("usage = %+v, want both calls billed", a.Usage)
+	}
+	if !strings.Contains(a.Messages[0].Text(), "done") {
+		t.Fatalf("summary not applied: %q", a.Messages[0].Text())
+	}
+}
+
+// Once an earlier summary wrote the model-maintained sections, a head the
+// harness observed richly — edits and commands, no new user request — is
+// compacted without a summary call.
+func TestRichHeadSkipsSummaryCall(t *testing.T) {
+	f := &fake{} // any call fails: no responses scripted
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m"}
+	a.working.Decisions = []string{"use the token bucket"}
+	a.working.Next = []string{"wire the limiter"}
+	a.Messages = []llm.Message{llm.TextMessage(llm.RoleUser, "[Context was compacted. Working memory for this session:]\nGoal: limiter")}
+	// Twelve edits: the recent tail keeps the last few verbatim, and the
+	// head that remains must still hold richSlots worth of observed work.
+	for i := 0; i < 12; i++ {
+		a.Messages = append(a.Messages,
+			llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: fmt.Sprintf("e%d", i), Name: "edit_file", Input: json.RawMessage(fmt.Sprintf(`{"path":"f%d.go","old_str":"a","new_str":"b"}`, i))}}},
+			llm.ToolResultMessage(llm.ToolResult(fmt.Sprintf("e%d", i), strings.Repeat("edited f.go ok\n", 40), false)))
+	}
+	if err := a.ForceCompact(context.Background(), func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.requests) != 0 {
+		t.Fatalf("summary call made for a rich head: %d requests", len(f.requests))
+	}
+	note := a.Messages[0].Text()
+	if !strings.Contains(note, "use the token bucket") || !strings.Contains(note, "wire the limiter") || !strings.Contains(note, "f0.go") {
+		t.Fatalf("carried record lost content:\n%s", note)
+	}
+	// The switch restores the old behaviour.
+	b := &Agent{Provider: &fake{}, Tools: tool.NewRegistry(), Model: "m", Off: map[string]bool{"richskip": true}, Messages: append([]llm.Message(nil), a.Messages...)}
+	b.working = a.working
+	if err := b.ForceCompact(context.Background(), func(Event) {}); err == nil {
+		t.Fatal("richskip off: expected the summary call (and its scripted failure)")
+	}
+}
+
+// The first compaction, or one whose head carries a new user request,
+// always asks the model: the record has nothing to carry forward yet.
+func TestRichSkipNeedsAnEarlierSummaryAndNoNewAsk(t *testing.T) {
+	var w WorkingMemory
+	head := []llm.Message{llm.TextMessage(llm.RoleUser, "please fix it")}
+	for i := 0; i < 10; i++ {
+		head = append(head, llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: fmt.Sprint(i), Name: "bash", Input: json.RawMessage(`{"command":"go test"}`)}}})
+	}
+	if w.rich(head) {
+		t.Fatal("rich without any model-maintained sections")
+	}
+	w.Next = []string{"x"}
+	if w.rich(head) {
+		t.Fatal("rich despite a new user request in the head")
+	}
+	if !w.rich(head[1:]) {
+		t.Fatal("not rich with 10 commands and a record to carry")
 	}
 }
