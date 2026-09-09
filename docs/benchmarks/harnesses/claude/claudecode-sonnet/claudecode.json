@@ -1,0 +1,550 @@
+[
+  {
+    "harness": "claudecode",
+    "task": "41-session-go-service",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 91150,
+    "input_tokens": {
+      "value": 984,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 6709,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 1282286,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "value": 38927,
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 32,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.9604624000000002,
+      "set": true
+    },
+    "command": "claude -p Run go vet ./... and go test ./... and fix anything that fails. When everything passes, reply with exactly the name of the timeout environment variable you added and nothing else. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet --resume 2959f726-b8e1-44ae-a7dc-596c1ef92bee",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 938,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 95992,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 26278,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1419,
+          "set": true
+        },
+        "turns": {
+          "value": 9,
+          "set": true
+        },
+        "wall_time_ms": 16080
+      },
+      {
+        "input_tokens": {
+          "value": 10,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 232739,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 3895,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 2220,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 23148
+      },
+      {
+        "input_tokens": {
+          "value": 6,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 146988,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 935,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 545,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 9412
+      },
+      {
+        "input_tokens": {
+          "value": 12,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 306866,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 3686,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1394,
+          "set": true
+        },
+        "turns": {
+          "value": 6,
+          "set": true
+        },
+        "wall_time_ms": 18853
+      },
+      {
+        "input_tokens": {
+          "value": 8,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 216845,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 2682,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 448,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 9725
+      },
+      {
+        "input_tokens": {
+          "value": 6,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 168553,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 1099,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 612,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 9623
+      },
+      {
+        "input_tokens": {
+          "value": 4,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 114303,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 352,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 71,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 4306
+      }
+    ]
+  },
+  {
+    "harness": "claudecode",
+    "task": "42-session-records",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 72771,
+    "input_tokens": {
+      "value": 998,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1791,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 648738,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "value": 26315,
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 16,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.5077552000000001,
+      "set": true
+    },
+    "command": "claude -p Update inventory.txt so it reflects the renames you made in the previous step (the archived ids appear with their new prefix; keep it sorted, one id per line). Then reply with just the number of files you changed in the previous step. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet --resume e7dce963-5cf9-46b4-86f8-f36992ec999a",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 974,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 136723,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 22310,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 532,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 14238
+      },
+      {
+        "input_tokens": {
+          "value": 4,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 82019,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 699,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 207,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 6489
+      },
+      {
+        "input_tokens": {
+          "value": 6,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 125569,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 781,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 241,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 9180
+      },
+      {
+        "input_tokens": {
+          "value": 4,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 84982,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 762,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 289,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 8958
+      },
+      {
+        "input_tokens": {
+          "value": 6,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 130370,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 1415,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 385,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 16162
+      },
+      {
+        "input_tokens": {
+          "value": 4,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 89075,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 348,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 137,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 17742
+      }
+    ]
+  },
+  {
+    "harness": "claudecode",
+    "task": "43-session-python-ledger",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 90240,
+    "input_tokens": {
+      "value": 983,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 7302,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 1295489,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "value": 39582,
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 32,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.9828156000000001,
+      "set": true
+    },
+    "command": "claude -p Run the tests and fix anything that fails. When they pass, reply with only the name of the CLI option you added and nothing else. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet --resume 51aac8a4-ba42-4164-b2be-0552d47ef95a",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 937,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 136834,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 24367,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1096,
+          "set": true
+        },
+        "turns": {
+          "value": 8,
+          "set": true
+        },
+        "wall_time_ms": 14413
+      },
+      {
+        "input_tokens": {
+          "value": 14,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 315050,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 4849,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 2461,
+          "set": true
+        },
+        "turns": {
+          "value": 7,
+          "set": true
+        },
+        "wall_time_ms": 27533
+      },
+      {
+        "input_tokens": {
+          "value": 8,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 194224,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 2471,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1326,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 15675
+      },
+      {
+        "input_tokens": {
+          "value": 8,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 204596,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 3484,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 548,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 9415
+      },
+      {
+        "input_tokens": {
+          "value": 12,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 330054,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 3601,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1779,
+          "set": true
+        },
+        "turns": {
+          "value": 7,
+          "set": true
+        },
+        "wall_time_ms": 19093
+      },
+      {
+        "input_tokens": {
+          "value": 4,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 114731,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "value": 810,
+          "set": true
+        },
+        "output_tokens": {
+          "value": 92,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 4109
+      }
+    ]
+  }
+]

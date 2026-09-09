@@ -1032,6 +1032,11 @@ Eval flags (`--eval` and the rest) are documented under [Evals](#evals).
 
 Numbers live in `docs/benchmarks/`, with the runs that produced them.
 
+- **Against Claude Code**, on Claude models, all twelve cells passing: on
+  haiku janetcode read 2.6M tokens to Claude Code's 4.2M and cost $0.54
+  against $1.49; on sonnet the token counts are a dead heat (3.25M against
+  3.23M) but Claude Code got there in 80 model calls to janetcode's 173.
+  `docs/benchmarks/harnesses/claude/`.
 - **Against other harnesses**, same model and endpoint: on three
   multi-prompt sessions every harness passed every task, and the context
   read to get there was janetcode 985k, pi 1.95M, grok 3.31M, qwencode

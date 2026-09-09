@@ -4,97 +4,530 @@
       "harness": "janetcode",
       "task": "41-session-go-service",
       "batch": 1,
-      "passed": false,
-      "reason": "run: Missing Authentication header (HTTP 401)",
-      "wall_time_ms": 66,
+      "passed": true,
+      "wall_time_ms": 310699,
       "input_tokens": {
+        "value": 64938,
         "set": true
       },
       "output_tokens": {
+        "value": 15471,
         "set": true
       },
       "cache_read_tokens": {
+        "value": 1860546,
         "set": true
       },
       "cache_write_tokens": {
         "set": true
       },
       "tool_calls": {
+        "value": 83,
         "set": true
       },
       "turns": {
+        "value": 84,
         "set": true
       },
       "cost_usd": {
-        "set": false
+        "value": 1.0126570500000003,
+        "set": true
       },
       "command": "janetcode --eval --eval-only 41-session-go-service --provider openai --model anthropic/claude-sonnet-4.5",
-      "exit_code": 1,
-      "stderr_excerpt": "running 3 eval tasks × 1 with openai/anthropic/claude-sonnet-4.5 (3 at a time)\nFAIL 41-session-go-service (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nFAIL 43-session-python-ledger (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nFAIL 42-session-records (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nwrote /tmp/janetcode-batch1-1788957114287043610.json\njanetcode: 3 of 3 eval tasks failed"
+      "steps": [
+        {
+          "input_tokens": {
+            "value": 9389,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 7130,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 788,
+            "set": true
+          },
+          "turns": {
+            "value": 3,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 11121,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 143641,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 2827,
+            "set": true
+          },
+          "turns": {
+            "value": 14,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 8386,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 172873,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 1795,
+            "set": true
+          },
+          "turns": {
+            "value": 11,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 11882,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 338289,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 3471,
+            "set": true
+          },
+          "turns": {
+            "value": 16,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 16921,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 849045,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 5398,
+            "set": true
+          },
+          "turns": {
+            "value": 30,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 5630,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 240640,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 1029,
+            "set": true
+          },
+          "turns": {
+            "value": 7,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 1609,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 108928,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 163,
+            "set": true
+          },
+          "turns": {
+            "value": 3,
+            "set": true
+          },
+          "wall_time_ms": 0
+        }
+      ]
     },
     {
       "harness": "janetcode",
       "task": "42-session-records",
       "batch": 1,
-      "passed": false,
-      "reason": "run: Missing Authentication header (HTTP 401)",
-      "wall_time_ms": 67,
+      "passed": true,
+      "wall_time_ms": 64633,
       "input_tokens": {
+        "value": 11165,
         "set": true
       },
       "output_tokens": {
+        "value": 2043,
         "set": true
       },
       "cache_read_tokens": {
+        "value": 118428,
         "set": true
       },
       "cache_write_tokens": {
         "set": true
       },
       "tool_calls": {
+        "value": 24,
         "set": true
       },
       "turns": {
+        "value": 22,
         "set": true
       },
       "cost_usd": {
-        "set": false
+        "value": 0.10545465,
+        "set": true
       },
       "command": "janetcode --eval --eval-only 42-session-records --provider openai --model anthropic/claude-sonnet-4.5",
-      "exit_code": 1,
-      "stderr_excerpt": "running 3 eval tasks × 1 with openai/anthropic/claude-sonnet-4.5 (3 at a time)\nFAIL 41-session-go-service (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nFAIL 43-session-python-ledger (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nFAIL 42-session-records (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nwrote /tmp/janetcode-batch1-1788957114287043610.json\njanetcode: 3 of 3 eval tasks failed"
+      "steps": [
+        {
+          "input_tokens": {
+            "value": 6915,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 14013,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 567,
+            "set": true
+          },
+          "turns": {
+            "value": 5,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 819,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 15269,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 280,
+            "set": true
+          },
+          "turns": {
+            "value": 3,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 718,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 22934,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 273,
+            "set": true
+          },
+          "turns": {
+            "value": 4,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 654,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 18205,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 303,
+            "set": true
+          },
+          "turns": {
+            "value": 3,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 1324,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 26165,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 434,
+            "set": true
+          },
+          "turns": {
+            "value": 4,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 735,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 21842,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 186,
+            "set": true
+          },
+          "turns": {
+            "value": 3,
+            "set": true
+          },
+          "wall_time_ms": 0
+        }
+      ]
     },
     {
       "harness": "janetcode",
       "task": "43-session-python-ledger",
       "batch": 1,
-      "passed": false,
-      "reason": "run: Missing Authentication header (HTTP 401)",
-      "wall_time_ms": 66,
+      "passed": true,
+      "wall_time_ms": 250151,
       "input_tokens": {
+        "value": 52027,
         "set": true
       },
       "output_tokens": {
+        "value": 12970,
         "set": true
       },
       "cache_read_tokens": {
+        "value": 1146089,
         "set": true
       },
       "cache_write_tokens": {
         "set": true
       },
       "tool_calls": {
+        "value": 67,
         "set": true
       },
       "turns": {
+        "value": 67,
         "set": true
       },
       "cost_usd": {
-        "set": false
+        "value": 0.7162489500000001,
+        "set": true
       },
       "command": "janetcode --eval --eval-only 43-session-python-ledger --provider openai --model anthropic/claude-sonnet-4.5",
-      "exit_code": 1,
-      "stderr_excerpt": "running 3 eval tasks × 1 with openai/anthropic/claude-sonnet-4.5 (3 at a time)\nFAIL 41-session-go-service (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nFAIL 43-session-python-ledger (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nFAIL 42-session-records (100ms, 0 tool calls, ?)\n    run: Missing Authentication header (HTTP 401)\nwrote /tmp/janetcode-batch1-1788957114287043610.json\njanetcode: 3 of 3 eval tasks failed"
+      "steps": [
+        {
+          "input_tokens": {
+            "value": 7192,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 5793,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 582,
+            "set": true
+          },
+          "turns": {
+            "value": 3,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 11143,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 106682,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 3394,
+            "set": true
+          },
+          "turns": {
+            "value": 13,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 7704,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 117578,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 1853,
+            "set": true
+          },
+          "turns": {
+            "value": 9,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 10032,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 343920,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 2984,
+            "set": true
+          },
+          "turns": {
+            "value": 19,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 14139,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 515145,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 4071,
+            "set": true
+          },
+          "turns": {
+            "value": 21,
+            "set": true
+          },
+          "wall_time_ms": 0
+        },
+        {
+          "input_tokens": {
+            "value": 1817,
+            "set": true
+          },
+          "cache_read_tokens": {
+            "value": 56971,
+            "set": true
+          },
+          "cache_write_tokens": {
+            "set": true
+          },
+          "output_tokens": {
+            "value": 86,
+            "set": true
+          },
+          "turns": {
+            "value": 2,
+            "set": true
+          },
+          "wall_time_ms": 0
+        }
+      ]
     }
   ]
 }
