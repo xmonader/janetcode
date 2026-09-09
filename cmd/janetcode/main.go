@@ -826,6 +826,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	ag.RestoreFromLog()      // plan mode and the turn counter of a resumed session
 	task.Parent = ag
 	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
+	ag.Tools.Add(&agent.TodoTool{Parent: ag})
 	skills := func() []skill.Skill { return skill.Load(d.cwd, cfgDir) }
 	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(d.cwd, cfgDir) }
 	ag.Tools.Add(&skill.Tool{Skills: skills})

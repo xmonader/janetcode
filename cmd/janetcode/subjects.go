@@ -64,6 +64,8 @@ func registerSubjects(r *inspect.Registry, d subjectDeps) {
 		return retrievalReport(d.session)
 	})
 	r.AddText("compaction", "when the history was summarised and what it cost", func() string { return compactionReport(d.session) })
+	r.AddText("todos", "the plan the model is working from", func() string { return todosReport(d.agent) })
+	r.AddText("goals", "session goals and their rounds", func() string { return goalsReport(d.agent) })
 	r.AddText("memory", "the working memory carried across compactions", func() string { return workingReport(d.agent) })
 	r.AddText("tools", "the tools the model can call, with their sizes", func() string { return toolsReport(d.agent) })
 	r.AddText("stats", "tool calls, model calls and timings so far", func() string { return statsReport(d.agent) })
@@ -326,6 +328,31 @@ func compactionReport(s *session.Session) string {
 	}
 	head := fmt.Sprintf("%d compactions · summaries cost %s in / %s out in total\n", len(rows), tokensOf(totalIn), tokensOf(totalOut))
 	return head + strings.Join(rows, "\n")
+}
+
+func todosReport(a *agent.Agent) string {
+	if a == nil {
+		return "no agent"
+	}
+	return agent.RenderTodos(a.Todos())
+}
+
+func goalsReport(a *agent.Agent) string {
+	if a == nil || a.Log == nil {
+		return "no session log"
+	}
+	gs := agent.FoldGoals(a.Log.Events())
+	if len(gs) == 0 {
+		return "no goals in this session"
+	}
+	var b strings.Builder
+	for _, g := range gs {
+		fmt.Fprintf(&b, "  %-5s %-9s %d/%d rounds  %s\n", g.ID, g.Phase, g.Rounds, g.MaxRounds, trunc(g.Objective, 70))
+		if g.Reason != "" {
+			fmt.Fprintf(&b, "        %s\n", trunc(g.Reason, 80))
+		}
+	}
+	return b.String()
 }
 
 func workingReport(a *agent.Agent) string {

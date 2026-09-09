@@ -29,10 +29,13 @@ const (
 	// TypeRetrieval records one lookup in the archive: what was asked,
 	// what came back, and whether anything did. Without it a failed
 	// recall cannot be told from a failed search.
-	TypeRetrieval = "archive/retrieval"
-	TypeGoalCreate     = "goal/create"
-	TypeGoalPhase      = "goal/phase"
-	TypeGoalRound      = "goal/round"
+	TypeRetrieval  = "archive/retrieval"
+	TypeGoalCreate = "goal/create"
+	TypeGoalPhase  = "goal/phase"
+	TypeGoalRound  = "goal/round"
+	// TypeTodoWrite carries the whole plan each time it is rewritten, so
+	// the latest one is the plan and it outlives the tool result.
+	TypeTodoWrite = "todo/write"
 )
 
 const (

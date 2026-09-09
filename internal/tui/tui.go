@@ -973,6 +973,7 @@ var commands = []command{
 	{"/lsp", "", "language servers and the diagnostics they reported"},
 	{"/jobs", "[kill <n>]", "background commands started with bash background:true"},
 	{"/context", "", "what fills the context window: prompt, tools, messages, largest tool results"},
+	{"/todos", "", "the plan the model is working from"},
 	{"/inspect", "[subject]", "look at any part of the session: context, events, archive, retrieval, config, tools, lsp, mcp, jobs, repomap… (no subject lists them)"},
 	{"/reload", "", "rebuild the memory and skill indexes in the prompt now instead of at compaction"},
 	{"/pin", "[note or @file]", "keep a note in the system prompt for the whole session; alone lists pins"},
@@ -2144,6 +2145,8 @@ func (m *model) command(text string) tea.Cmd {
 		m.transcript.info("memory and skill indexes will be rebuilt for the next call (one cache miss); they also refresh at compaction")
 	case "/context", "/ctx":
 		m.contextCommand()
+	case "/todos", "/todo":
+		m.transcript.info(agent.RenderTodos(m.opts.Agent.Todos()))
 	case "/inspect", "/i":
 		m.inspectCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/pin":

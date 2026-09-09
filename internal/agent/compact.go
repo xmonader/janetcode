@@ -439,6 +439,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	if typed {
 		w := &a.working
 		w.Latest = a.integ.userText
+		w.Todos = openTodos(a.Todos())
 		if !w.merge(summary) {
 			emit(Event{Kind: EvNotice, Text: "working memory: the model returned prose instead of the record; kept as notes"})
 		}

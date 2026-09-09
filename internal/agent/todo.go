@@ -1,0 +1,171 @@
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/xmonader/janetcode/internal/session"
+)
+
+// A plan of steps the model keeps as it works. A long task drifts: the
+// model finishes something, moves on, and three turns later has lost the
+// two things it had not started. Writing the steps down and marking them
+// off keeps the whole of the work in view — and because each write is an
+// event, the plan survives compaction, can be read back afterwards, and
+// says what the agent thought it was doing at any point in the session.
+
+// Todo states. At most one step is in progress at a time: a plan with
+// three things half-done is not a plan.
+const (
+	TodoPending = "pending"
+	TodoDoing   = "in_progress"
+	TodoDone    = "completed"
+)
+
+// Todo is one step of the plan.
+type Todo struct {
+	Text   string `json:"text"`
+	Status string `json:"status"`
+}
+
+// Done reports whether the step is finished.
+func (t Todo) Done() bool { return t.Status == TodoDone }
+
+// FoldTodos returns the plan as of the last write, or nil when none was
+// made. The whole list is written each time, so the latest event is the
+// plan and no merging is needed.
+func FoldTodos(events []session.Event) []Todo {
+	var out []Todo
+	for _, e := range events {
+		if e.Type != session.TypeTodoWrite || len(e.Extra) == 0 {
+			continue
+		}
+		var list []Todo
+		if json.Unmarshal(e.Extra, &list) == nil {
+			out = list
+		}
+	}
+	return out
+}
+
+// Todos is the current plan.
+func (a *Agent) Todos() []Todo {
+	if a.Log == nil {
+		return nil
+	}
+	return FoldTodos(a.Log.Events())
+}
+
+// RenderTodos draws the plan the way the model and the user both read it.
+func RenderTodos(todos []Todo) string {
+	if len(todos) == 0 {
+		return "no plan has been written"
+	}
+	done := 0
+	var b strings.Builder
+	for _, t := range todos {
+		mark := "[ ]"
+		switch t.Status {
+		case TodoDone:
+			mark, done = "[x]", done+1
+		case TodoDoing:
+			mark = "[>]"
+		}
+		fmt.Fprintf(&b, "%s %s\n", mark, t.Text)
+	}
+	fmt.Fprintf(&b, "\n%d of %d done", done, len(todos))
+	return b.String()
+}
+
+// TodoTool lets the model keep its plan.
+type TodoTool struct{ Parent *Agent }
+
+func (*TodoTool) Name() string { return "todo" }
+func (*TodoTool) Description() string {
+	return "Keep the plan for a multi-step task: write the whole list of steps with their status, and rewrite it as you go. Use it when a job has several parts that are easy to lose track of — not for a single edit. Mark exactly one step in_progress while you work on it, mark it completed as soon as it is done rather than in a batch at the end, and add steps as you discover them. Calling it with no todos shows the current plan."
+}
+func (*TodoTool) Mutating() bool { return false }
+func (*TodoTool) Schema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{
+"todos":{"type":"array","description":"The whole plan, in order; omit to read the current one","items":{
+"type":"object","properties":{
+"text":{"type":"string","description":"What the step is, in a few words"},
+"status":{"type":"string","enum":["pending","in_progress","completed"]}},
+"required":["text","status"],"additionalProperties":false}}},
+"additionalProperties":false}`)
+}
+
+func (t *TodoTool) Run(_ context.Context, input json.RawMessage) (string, error) {
+	var in struct {
+		Todos *[]Todo `json:"todos"`
+	}
+	if len(input) > 0 {
+		if err := json.Unmarshal(input, &in); err != nil {
+			return "", fmt.Errorf("bad input: %w", err)
+		}
+	}
+	if t.Parent == nil {
+		return "", fmt.Errorf("the todo tool has no agent")
+	}
+	if in.Todos == nil {
+		return RenderTodos(t.Parent.Todos()), nil
+	}
+	todos, err := validateTodos(*in.Todos)
+	if err != nil {
+		return "", err
+	}
+	t.Parent.WriteTodos(todos)
+	return RenderTodos(todos), nil
+}
+
+// WriteTodos records a plan on the log, so it outlives the tool result
+// that carried it and can be read back after a compaction.
+func (a *Agent) WriteTodos(todos []Todo) {
+	raw, err := json.Marshal(todos)
+	if err != nil {
+		return
+	}
+	a.logEvent(session.Event{Type: session.TypeTodoWrite, Tokens: len(todos), Extra: raw})
+}
+
+// validateTodos rejects a plan that cannot be worked from: empty steps,
+// an unknown status, or several steps claimed to be in progress at once.
+func validateTodos(todos []Todo) ([]Todo, error) {
+	out := make([]Todo, 0, len(todos))
+	doing := 0
+	for i, t := range todos {
+		text := strings.TrimSpace(t.Text)
+		if text == "" {
+			return nil, fmt.Errorf("step %d has no text", i+1)
+		}
+		switch t.Status {
+		case TodoPending, TodoDoing, TodoDone:
+		case "":
+			t.Status = TodoPending
+		default:
+			return nil, fmt.Errorf("step %d has status %q; use pending, in_progress or completed", i+1, t.Status)
+		}
+		if t.Status == TodoDoing {
+			doing++
+		}
+		out = append(out, Todo{Text: text, Status: t.Status})
+	}
+	if doing > 1 {
+		return nil, fmt.Errorf("%d steps are in_progress; work on one at a time", doing)
+	}
+	return out, nil
+}
+
+// openTodos is the part of the plan still to do, for the note carried
+// across a compaction. A finished plan carries nothing forward.
+func openTodos(todos []Todo) []Todo {
+	var out []Todo
+	for _, t := range todos {
+		if !t.Done() {
+			out = append(out, t)
+		}
+	}
+	return out
+}

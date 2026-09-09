@@ -32,6 +32,10 @@ type WorkingMemory struct {
 	Read     []string
 	Commands []CommandNote
 	Verify   string // last verification outcome
+	// Todos is the part of the plan still open, carried across a
+	// compaction so the next context knows what is left rather than
+	// rediscovering it.
+	Todos []Todo
 	// Model-maintained sections.
 	Decisions []string `json:"decisions"`
 	RuledOut  []string `json:"ruled_out"`
@@ -296,7 +300,7 @@ func capItems(items []string) []string {
 // so it can be looked at without waiting for the next compaction to show
 // it. It is empty until something has been compacted.
 func (a *Agent) WorkingMemory() string {
-	if len(a.working.Edited)+len(a.working.Read)+len(a.working.Commands)+len(a.working.Decisions)+len(a.working.Facts) == 0 && a.working.Goal == "" {
+	if len(a.working.Edited)+len(a.working.Read)+len(a.working.Commands)+len(a.working.Decisions)+len(a.working.Facts)+len(a.working.Todos) == 0 && a.working.Goal == "" {
 		return ""
 	}
 	return a.working.Render()
@@ -339,6 +343,16 @@ func (w *WorkingMemory) Render() string {
 	}
 	if w.Verify != "" {
 		b.WriteString("\nLast verification: " + w.Verify + "\n")
+	}
+	if len(w.Todos) > 0 {
+		b.WriteString("\nPlan still open (rewrite it with the todo tool as you go):\n")
+		for _, t := range w.Todos {
+			mark := "[ ]"
+			if t.Status == TodoDoing {
+				mark = "[>]"
+			}
+			fmt.Fprintf(&b, "%s %s\n", mark, t.Text)
+		}
 	}
 	section := func(title string, items []string) {
 		if len(items) == 0 {
