@@ -361,6 +361,14 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 			"--api_key", cfg.Key, "--max_turns", fmt.Sprint(cfg.MaxTurns), "--enabled_toolsets", "terminal", "--verbose"}
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 		extraEnv["OPENROUTER_API_KEY"] = cfg.Key
+		// hermes-agent's terminal tool takes its directory from
+		// TERMINAL_CWD, not from the process working directory. Without
+		// it every task runs in the user's home: the agent does the work
+		// correctly and the check then looks for the files in the task
+		// directory and finds nothing. It scored 0/20 here for that
+		// reason alone, which is a bug in this launcher and not in it.
+		extraEnv["TERMINAL_CWD"] = dir
+		extraEnv["TERMINAL_ENV"] = "local"
 	case "claudecode":
 		// Claude Code speaks to Anthropic on its own credentials; the
 		// endpoint flags do not apply to it, and the model is named the
