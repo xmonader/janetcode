@@ -39,10 +39,11 @@ type Config struct {
 	Intent *bool `json:"intent,omitempty"`
 	// LeanTools defers the search tools (list_dir, glob, grep, repo_map)
 	// behind tool_search, leaving read/write/edit/bash in the prefix.
-	// Measured at 23% less context on a fan-out set with an unchanged pass
-	// rate; off by default because that is one model on nine tasks over
-	// small trees, and a large unfamiliar repository is the case the
-	// search tools exist for.
+	// On fan-out work this is 23% less context for an unchanged pass rate,
+	// replicated on two models over 234 runs; on a large corpus it is
+	// indistinguishable either way. Better or neutral everywhere measured,
+	// so it is on — and the tools are deferred rather than removed, so the
+	// worst case is one tool_search call to get them back.
 	LeanTools_ *bool `json:"lean_tools,omitempty"`
 	// ShowThinking renders the model's reasoning. Turning it off asks the
 	// provider to omit the text while still returning the signature that
@@ -450,7 +451,7 @@ func (c *Config) LeanTools() bool {
 	if c.LeanTools_ != nil {
 		return *c.LeanTools_
 	}
-	return false
+	return true
 }
 
 // ThinkingShown reports whether the reasoning text should be requested at

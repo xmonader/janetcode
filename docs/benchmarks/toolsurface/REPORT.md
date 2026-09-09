@@ -37,13 +37,48 @@ schema is roughly 1.1k tokens against a 15k-per-task baseline. The rest is
 behavioural — with `list_dir`, `glob`, `grep` and `repo_map` available the
 model takes more, smaller steps; with only a shell it composes one pipeline.
 
+## Replicated on a second model
+
+The same arms on `inception/mercury-2.5`, nine tasks x 8 runs each — 144
+runs:
+
+| | passed | context per solved |
+|---|---:|---:|
+| four tools | 72/72 | **23k** |
+| nine tools | 72/72 | 28k |
+
+**x1.23 [1.07, 1.39]** — the same point estimate as qwen3.7-plus, on a
+model of a completely different kind, with overlapping intervals. Two
+models, 234 runs, one answer.
+
+## And it does not hurt on a large corpus
+
+The obvious objection to the above is that fan-out tasks over small trees
+are exactly where a shell one-liner substitutes for a search tool, and that
+a large unfamiliar repository is the case the search tools exist for. So
+the same arms were run against `evals/large`, five tasks x 4 runs:
+
+| | passed | context per solved |
+|---|---:|---:|
+| four tools | 20/20 | 54k |
+| nine tools | 20/20 | 57k |
+
+**x1.07 [0.83, 1.69]** — inside the noise, and the pass rate is identical.
+Withholding the search tools neither helped nor hurt on the corpus they
+were supposed to be needed for.
+
+Better on fan-out, neutral on large trees, unchanged pass rate in all 254
+runs. `lean_tools` is therefore **on by default**, and the tools are
+deferred rather than removed: the worst case is one `tool_search` call.
+
 ## What this does not show
 
-That the five tools are worthless. These are fan-out tasks over small
-trees, which is exactly where a shell one-liner substitutes for a search
-tool. A large unfamiliar repository is the case `repo_map` and `grep` exist
-for, and it is not in this set. Nor does it transfer to another model
-unexamined: the whole result is one model on nine tasks.
+That the five tools are worthless — a model that wants one asks for it, and
+`tool_search` hands it over with its schema. Nor is the large-corpus arm as
+strong as the fan-out one: five tasks x 4 runs on one model, and those
+tasks are still tractable with a shell. What is missing from the evidence
+is a genuinely exploratory job on an unfamiliar tree, which no eval here
+provides.
 
 It also did not make anything faster — 11m15s against 11m29s, well inside
 the noise — so this is a context and cost result, not the latency win the
