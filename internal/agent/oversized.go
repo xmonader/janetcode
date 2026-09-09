@@ -96,8 +96,31 @@ func tookLargeOutput(input json.RawMessage) bool {
 	return ok && v
 }
 
-// WithLargeOutputOption adds the opt-in to a tool's schema. It rides on
-// every request, so it is one sentence.
+// takeLargeOutput removes the opt-in from a tool input. The field is
+// deliberately absent from every schema: it is needed on a small fraction
+// of calls and a property declared on every tool is paid for on every
+// request forever, which measured at 21% more context when it and the
+// intent field were both added. The refusal that needs it names it, which
+// is the only place it is relevant.
+func takeLargeOutput(input json.RawMessage) json.RawMessage {
+	var obj map[string]json.RawMessage
+	if len(input) == 0 || json.Unmarshal(input, &obj) != nil {
+		return input
+	}
+	if _, ok := obj[AcceptLargeOutput]; !ok {
+		return input
+	}
+	delete(obj, AcceptLargeOutput)
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return input
+	}
+	return out
+}
+
+// WithLargeOutputOption adds the opt-in to a tool's schema. Unused by
+// default; kept for a caller that would rather declare it than rely on the
+// refusal to name it.
 func WithLargeOutputOption(schema json.RawMessage) json.RawMessage {
 	const prop = `"` + AcceptLargeOutput + `":{"type":"boolean","description":"Re-run accepting the stated token cost of a withheld result."}`
 	var obj map[string]json.RawMessage

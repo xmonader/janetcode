@@ -29,17 +29,46 @@ run-to-run spread. On a 25k output budget a 7% point estimate is about
 1.7k tokens across 27 runs — under two seconds a run at the generation
 rates measured on sonnet.
 
-## Kept on, and why that is a judgement rather than a result
+## With more runs, and measured together with a second schema field, it is not
+
+The 27-run arms above could not resolve a ten percent effect. Six runs per
+task on nine tasks — 108 runs — measured against a baseline with both
+`intent` and the `accept_large_output` opt-in removed:
+
+| | ratio | |
+|---|---|---|
+| context per solved | **x1.21 [1.15, 1.26]** | real increase |
+| output tokens | **x1.25 [1.17, 1.34]** | real increase |
+| cost per solved | x1.10 [1.05, 1.15] | real increase |
+
+54/54 passed either way. Twenty-one percent more context and twenty-five
+percent more output, for a benefit nothing has measured.
+
+This also explained a regression that had appeared elsewhere: the sonnet
+session benchmark came back 24% worse in context than the same tasks
+earlier the same day, and these two fields were the difference.
+
+**So both defaults changed.** `intent` is off unless asked for, and the
+`accept_large_output` opt-in was taken off every tool schema entirely — the
+refusal that needs it names it instead, which is the only place it is
+relevant. A property declared on every tool is paid for on every request
+forever; a sentence in a refusal is paid for when it is needed.
+
+Re-measured after the change, against the same baseline: context x1.01
+[0.92, 1.12], output x1.04 [0.92, 1.16], both inside the noise. The
+regression is gone.
+
+## Why it was kept on, and why that judgement was wrong
 
 What it buys is not measured here at all: a label the user reads while a
 call runs, a record of intent that survives compaction, and a session
 narrative for resuming or forking. Those are real and none of them are in
 the table above.
 
-The honest summary is that the cost is small and not demonstrated, the
-benefit is real and not quantified, and the default is a product decision
-rather than a finding. `intent: false` in the config turns it off, and
-`--eval-off intent` turns it off for a measurement.
+That reasoning held while the cost looked small and undemonstrated. It was
+neither: it was 21% of context, and the earlier arms were simply too few
+runs to see it. The benefit is still real and still unquantified, which is
+exactly why it should not be spent by default. `intent: true` turns it on.
 
 Two implementation details decide whether it works at all, both learned the
 hard way:

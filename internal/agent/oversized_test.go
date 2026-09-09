@@ -76,3 +76,25 @@ func TestLargeOutputOptIn(t *testing.T) {
 		}
 	}
 }
+
+// TestTakeLargeOutput: the opt-in is not declared on any schema, so it has
+// to be stripped before a tool that disallows unknown fields sees it.
+func TestTakeLargeOutput(t *testing.T) {
+	got := takeLargeOutput(json.RawMessage(`{"accept_large_output":true,"pattern":"x"}`))
+	var obj map[string]any
+	if err := json.Unmarshal(got, &obj); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := obj[AcceptLargeOutput]; ok {
+		t.Fatal("the opt-in must be removed")
+	}
+	if obj["pattern"] != "x" {
+		t.Fatal("the rest of the input must survive")
+	}
+	// Untouched when absent, and unparseable input passes through.
+	for _, in := range []string{`{"pattern":"x"}`, `nope`} {
+		if got := string(takeLargeOutput(json.RawMessage(in))); got != in {
+			t.Fatalf("%s became %s", in, got)
+		}
+	}
+}

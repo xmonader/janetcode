@@ -33,9 +33,11 @@ type Config struct {
 	Effort    string `json:"effort,omitempty"`
 	Thinking  *bool  `json:"thinking,omitempty"`
 	// Intent asks the model for a one-line reason on every tool call. It
-	// costs about ten output tokens a call and buys a label the user sees,
-	// a record that survives compaction, and a readable narrative of the
-	// session. Default true.
+	// buys a label the user sees, a record that survives compaction and a
+	// readable narrative of the session — and it was measured at 21% more
+	// context and 25% more output, with the pass rate unchanged. That is
+	// too much to spend by default on a benefit nothing has measured, so
+	// it is off; turn it on if the narrative is worth it to you.
 	Intent *bool `json:"intent,omitempty"`
 	// LeanTools defers the search tools (list_dir, glob, grep, repo_map)
 	// behind tool_search, leaving read/write/edit/bash in the prefix.
@@ -443,7 +445,7 @@ func (c *Config) IntentEnabled() bool {
 	if c.Intent != nil {
 		return *c.Intent
 	}
-	return true
+	return false
 }
 
 // LeanTools reports whether the search tools are deferred.

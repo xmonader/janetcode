@@ -830,7 +830,11 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	// taken off before anything else looks at the input, because the tools
 	// decode with unknown fields disallowed.
 	intent, stripped := tool.TakeIntent(u.Input)
-	u.Input = stripped
+	// accept_large_output is not declared on any schema — it is named only
+	// in the refusal that needs it — so it must come off before a tool
+	// that disallows unknown fields sees it.
+	accepted := tookLargeOutput(stripped)
+	u.Input = takeLargeOutput(stripped)
 	call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input, Intent: intent}
 	t, ok := a.Tools.Get(u.Name)
 	if !ok {
@@ -893,7 +897,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	// withheld with its price rather than truncated: truncation bills the
 	// caller for a prefix that is rarely the answer.
 	if !isErr && !a.Off["oversized"] {
-		if msg := oversized(u.Name, subjectOf(u.Name, u.Input), out, a.EstimateTokens(), a.ContextWindow, tookLargeOutput(u.Input)); msg != "" {
+		if msg := oversized(u.Name, subjectOf(u.Name, u.Input), out, a.EstimateTokens(), a.ContextWindow, accepted); msg != "" {
 			out, isErr = msg, true
 		}
 	}
