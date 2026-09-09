@@ -439,7 +439,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	if a.Log != nil {
 		a.logEvent(session.Event{Type: session.TypeCompactStart, Turn: a.turnN})
 	}
-	note := "[Context was compacted. Handoff note from the earlier part of this conversation:]\n\n" + summary + "\n\n" + faultDiscipline
+	note := "[Context was compacted. Handoff note from the earlier part of this conversation:]\n\n" + summary + touchedNote(head) + "\n\n" + faultDiscipline
 	if typed {
 		w := &a.working
 		w.Latest = a.integ.userText
@@ -511,6 +511,71 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	}
 	emit(Event{Kind: EvCompacted, Text: fmt.Sprintf("context compacted: ~%d → ~%d tokens (%d recent messages kept)", before, after, len(tail))})
 	return nil
+}
+
+// touchedNote lists the files the compacted part of the conversation read
+// and changed, taken from the tool calls themselves rather than from the
+// summary.
+//
+// A summariser drops what it judges unimportant, and which files have
+// already been read looks unimportant right up until the model reads them
+// again. Under forced compaction that is exactly what happened: a run
+// re-read the same file five times, each time having just been told a
+// story in which it had never seen it, until the loop detector stopped the
+// turn. Eleven of eighteen runs ended that way. A path extracted
+// mechanically cannot be forgotten, because nothing had to remember it.
+func touchedNote(head []llm.Message) string {
+	read, changed := map[string]bool{}, map[string]bool{}
+	for _, m := range head {
+		for _, b := range m.Blocks {
+			if b.Type != llm.BlockToolUse {
+				continue
+			}
+			p := pathArg(b.Input)
+			if p == "" {
+				continue
+			}
+			switch b.Name {
+			case "read_file":
+				read[p] = true
+			case "write_file", "edit_file":
+				changed[p] = true
+			}
+		}
+	}
+	// A file that was changed was necessarily seen; listing it twice
+	// wastes the space this note is trying to save.
+	for p := range changed {
+		delete(read, p)
+	}
+	var b strings.Builder
+	if list := sortedKeys(read); len(list) > 0 {
+		fmt.Fprintf(&b, "\n\nAlready read (do not read again unless you need a part you did not keep): %s", strings.Join(list, ", "))
+	}
+	if list := sortedKeys(changed); len(list) > 0 {
+		fmt.Fprintf(&b, "\n\nAlready changed by you: %s", strings.Join(list, ", "))
+	}
+	return b.String()
+}
+
+// pathArg is the path a tool call names, or "".
+func pathArg(input json.RawMessage) string {
+	var in struct {
+		Path string `json:"path"`
+	}
+	if json.Unmarshal(input, &in) != nil {
+		return ""
+	}
+	return strings.TrimSpace(in.Path)
+}
+
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // summarise asks the model for the compaction summary of head. The call

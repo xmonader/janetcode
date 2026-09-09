@@ -602,3 +602,35 @@ func TestCompactionAsksForTheRecordShape(t *testing.T) {
 		t.Fatalf("prose summary asked for a schema: %+v", g.requests[0].Schema)
 	}
 }
+
+// TestTouchedNoteSurvivesTheSummariser: which files have already been read
+// looks unimportant to a summariser right up until the model reads them
+// again. Under forced compaction a run re-read one file five times and the
+// loop detector had to stop the turn, so the paths are taken from the tool
+// calls rather than left to the summary.
+func TestTouchedNoteSurvivesTheSummariser(t *testing.T) {
+	call := func(name, path string) llm.Block {
+		return llm.Block{Type: llm.BlockToolUse, Name: name, Input: json.RawMessage(`{"path":"` + path + `"}`)}
+	}
+	head := []llm.Message{
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{call("read_file", "a.go"), call("read_file", "b.go")}},
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{call("edit_file", "b.go"), call("write_file", "c.go")}},
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{call("bash", "")}},
+	}
+	got := touchedNote(head)
+	if !strings.Contains(got, "Already read") || !strings.Contains(got, "a.go") {
+		t.Fatalf("a file that was read must be named: %q", got)
+	}
+	if !strings.Contains(got, "Already changed by you") || !strings.Contains(got, "b.go") || !strings.Contains(got, "c.go") {
+		t.Fatalf("changed files must be named: %q", got)
+	}
+	// b.go was read and then edited; listing it under both wastes the
+	// space the note exists to save.
+	if strings.Count(got, "b.go") != 1 {
+		t.Fatalf("b.go should appear once, as changed: %q", got)
+	}
+	// Nothing to say means nothing added.
+	if n := touchedNote([]llm.Message{{Role: llm.RoleAssistant, Blocks: []llm.Block{call("bash", "")}}}); n != "" {
+		t.Fatalf("want an empty note, got %q", n)
+	}
+}
