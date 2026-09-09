@@ -997,6 +997,67 @@ func orNone(s string) string {
 	return s
 }
 
+// registerOfflineSubjects is what can be reported without a working
+// provider: the configuration itself, and why it is not working. Anything
+// describing a live session says it needs one rather than being absent,
+// so the list does not change shape depending on how the run started.
+func registerOfflineSubjects(r *inspect.Registry, cfg *config.Config, cfgPath, cwd string, why error) {
+	r.AddText("config", "the resolved configuration and where it came from", func() string {
+		out := configReport(cfg, cfgPath, version, cwd)
+		if why != nil {
+			out += "\nthis run has no provider: " + why.Error() + "\n"
+			out += "set a key in the environment, or run janetcode --init and edit " + cfgPath + "\n"
+		}
+		return out
+	})
+	r.AddText("providers", "the backends configured and the models they serve", func() string {
+		if cfg == nil {
+			return "no configuration"
+		}
+		var b strings.Builder
+		if len(cfg.Providers) == 0 {
+			b.WriteString("no providers are configured; run janetcode --init or set a key in the environment\n")
+		}
+		for _, name := range cfg.ProviderNames() {
+			p := cfg.Providers[name]
+			key := "no key"
+			if len(p.Keys()) > 0 {
+				key = fmt.Sprintf("%d key(s)", len(p.Keys()))
+			}
+			mark := "  "
+			if name == cfg.Provider {
+				mark = "* "
+			}
+			fmt.Fprintf(&b, "%s%-18s %-10s %-12s %s\n", mark, name, p.Type, key, p.BaseURL)
+		}
+		if routes := cfg.RoutableModels(); len(routes) > 0 {
+			b.WriteString("\nmodels reachable by name:\n")
+			for _, rt := range routes {
+				fmt.Fprintf(&b, "  %-24s %-18s %s\n", rt.Model, rt.Provider, rt.Why)
+			}
+		}
+		return b.String()
+	})
+	needsSession := func(name, summary string) {
+		r.AddText(name, summary, func() string {
+			return name + " describes a running session; this run has no provider, so there is none.\nSet a key, or run janetcode --init, and try again."
+		})
+	}
+	for _, s := range []struct{ name, summary string }{
+		{"context", "what the next request will carry, by part"},
+		{"session", "the session file, its metadata and size"},
+		{"events", "the append-only log of the session"},
+		{"archive", "the full tool outputs kept for retrieval"},
+		{"retrieval", "every archive lookup and whether it found anything"},
+		{"verdicts", "what each turn demonstrated, against what it claimed"},
+		{"messages", "the conversation as the model will see it"},
+		{"tools", "the tools the model can call"},
+		{"todos", "the plan the model is working from"},
+	} {
+		needsSession(s.name, s.summary)
+	}
+}
+
 // inspectOnce runs one subject and prints it, for the --inspect flag.
 func inspectOnce(r *inspect.Registry, request string, out *os.File) error {
 	report, err := r.Report(context.Background(), request)

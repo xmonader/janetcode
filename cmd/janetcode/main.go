@@ -154,6 +154,17 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	// Interactive first run: open the TUI and ask for a provider instead
 	// of failing. Headless runs still need working credentials.
 	needsConnect := err != nil && errors.Is(err, config.ErrNoCredentials) && *promptText == "" && term.IsTerminal(int(os.Stdin.Fd()))
+	// Inspecting the configuration is what you reach for when the
+	// configuration is the problem, so it must not need a working one.
+	// The subjects that describe a running session are unavailable, and
+	// the listing says which those are.
+	if *inspectWhat != "" && err != nil && errors.Is(err, config.ErrNoCredentials) {
+		r := inspect.New()
+		cfgPath, _ := config.Path()
+		cwd, _ := os.Getwd()
+		registerOfflineSubjects(r, cfg, cfgPath, cwd, err)
+		return inspectOnce(r, *inspectWhat, os.Stdout)
+	}
 	if err != nil && !needsConnect {
 		return err
 	}
