@@ -177,6 +177,7 @@ func runHarness(ctx context.Context, cfg runConfig, harness string, tasks []eval
 	case "openclaw":
 		return failOpenclaw(cfg, tasks)
 	case "grok":
+		defer cleanupGrokHome()
 		if rs, note, ok := probeGrok(ctx, cfg, tasks); !ok {
 			return rs, note
 		}

@@ -317,6 +317,7 @@ context_window = 128000
 	cmd := exec.CommandContext(pctx, "grok", "-p", "Reply with the single word pong and nothing else.",
 		"--always-approve", "--output-format", "json", "--model", cfg.Model, "--max-turns", "2")
 	tool.Supervise(cmd)
+	cmd.Dir = home // auto-approve must never run in the real repository
 	cmd.Env = childEnv(cfg, map[string]string{
 		"GROK_HOME":         home,
 		"OPENAI_API_KEY":    cfg.Key,
@@ -330,8 +331,9 @@ context_window = 128000
 	err = cmd.Run()
 	out := stdout.String() + "\n" + stderr.String()
 	low := strings.ToLower(out)
-	aimed := strings.Contains(low, `"qwen3.7-plus"`) || strings.Contains(low, "qwen3.7-plus")
-	if strings.Contains(low, `"model": "grok-4`) && !strings.Contains(low, "qwen3.7-plus") {
+	model := strings.ToLower(cfg.Model)
+	aimed := strings.Contains(low, model)
+	if strings.Contains(low, `"model": "grok-4`) && !strings.Contains(low, model) {
 		aimed = false
 	}
 	if strings.Contains(low, cfg.BaseURL) || strings.Contains(low, "dashscope") {
@@ -341,7 +343,7 @@ context_window = 128000
 		aimed = false
 	}
 	if !aimed {
-		reason := "grok cannot be aimed at Dashscope qwen3.7-plus without using xAI; probe output did not confirm the custom model"
+		reason := "grok cannot be aimed at " + cfg.Model + " on " + cfg.BaseURL + " without using xAI; probe output did not confirm the custom model"
 		if err != nil {
 			reason += ": " + err.Error()
 		}
@@ -363,9 +365,20 @@ var (
 	grokHomePath string
 )
 
+// cleanupGrokHome removes the temporary GROK_HOME after the run.
+func cleanupGrokHome() {
+	grokHomeMu.Lock()
+	defer grokHomeMu.Unlock()
+	if grokHomePath != "" {
+		os.RemoveAll(grokHomePath)
+		grokHomePath = ""
+	}
+}
+
 func probeCmd(ctx context.Context, cfg runConfig, name string, args ...string) (command, stdout, stderr string, err error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	tool.Supervise(cmd)
+	cmd.Dir = os.TempDir() // never the repository
 	cmd.Env = childEnv(cfg, nil)
 	var outb, errb bytes.Buffer
 	cmd.Stdout = &outb
