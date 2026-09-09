@@ -1,0 +1,15 @@
+{
+  "name": "35-three-part-request",
+  "prompt": "Three things: add a /healthz route to Handler returning 200 with the body 'ok'; add a doc comment above Handler saying what routes it serves; and add a file s/README.md listing the routes. The package must build.",
+  "files": {
+    "go.mod": "module example.com/s\n\ngo 1.22\n",
+    "s/server.go": "package s\n\nimport \"net/http\"\n\n// Handler serves requests.\nfunc Handler() http.Handler {\n\tmux := http.NewServeMux()\n\treturn mux\n}\n"
+  },
+  "check": "grep -q 'healthz' s/server.go && grep -q 'ok' s/server.go && test -f s/README.md && grep -q 'healthz' s/README.md && go build ./...",
+  "timeout": 300,
+  "tags": [
+    "fanout",
+    "edit",
+    "multipart"
+  ]
+}

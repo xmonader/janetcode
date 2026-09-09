@@ -1,0 +1,24 @@
+{
+  "name": "32-rename-type-everywhere",
+  "prompt": "Rename the type Cache to Store everywhere in this module: the declaration, every use, and every doc comment mentioning it. Nothing may still say Cache when you are done, and the module must build.",
+  "files": {
+    "go.mod": "module example.com/r\n\ngo 1.22\n",
+    "r/core.go": "package r\n\n// Cache stores things.\ntype Cache struct{ n int }\n\nfunc New() *Cache { return &Cache{} }\n",
+    "r/use01.go": "package r\n\n// Use1 uses the cache.\nfunc Use1(c *Cache) int {\n\treturn c.n + 1\n}\n",
+    "r/use02.go": "package r\n\n// Use2 uses the cache.\nfunc Use2(c *Cache) int {\n\treturn c.n + 2\n}\n",
+    "r/use03.go": "package r\n\n// Use3 uses the cache.\nfunc Use3(c *Cache) int {\n\treturn c.n + 3\n}\n",
+    "r/use04.go": "package r\n\n// Use4 uses the cache.\nfunc Use4(c *Cache) int {\n\treturn c.n + 4\n}\n",
+    "r/use05.go": "package r\n\n// Use5 uses the cache.\nfunc Use5(c *Cache) int {\n\treturn c.n + 5\n}\n",
+    "r/use06.go": "package r\n\n// Use6 uses the cache.\nfunc Use6(c *Cache) int {\n\treturn c.n + 6\n}\n",
+    "r/use07.go": "package r\n\n// Use7 uses the cache.\nfunc Use7(c *Cache) int {\n\treturn c.n + 7\n}\n",
+    "r/use08.go": "package r\n\n// Use8 uses the cache.\nfunc Use8(c *Cache) int {\n\treturn c.n + 8\n}\n",
+    "r/use09.go": "package r\n\n// Use9 uses the cache.\nfunc Use9(c *Cache) int {\n\treturn c.n + 9\n}\n",
+    "r/use10.go": "package r\n\n// Use10 uses the cache.\nfunc Use10(c *Cache) int {\n\treturn c.n + 10\n}\n"
+  },
+  "check": "! grep -rq 'Cache' r/ && grep -q 'type Store struct' r/core.go && go build ./...",
+  "timeout": 300,
+  "tags": [
+    "fanout",
+    "edit"
+  ]
+}

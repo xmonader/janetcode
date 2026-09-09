@@ -130,11 +130,16 @@ func Filter(tasks []Task, words []string) []Task {
 
 // Result is the outcome of one task.
 type Result struct {
-	Name      string        `json:"name"`
-	Run       int           `json:"run"` // 0-based repetition index
-	Passed    bool          `json:"passed"`
-	Reason    string        `json:"reason,omitempty"`
-	Duration  time.Duration `json:"duration"`
+	Name     string        `json:"name"`
+	Run      int           `json:"run"` // 0-based repetition index
+	Passed   bool          `json:"passed"`
+	Reason   string        `json:"reason,omitempty"`
+	Duration time.Duration `json:"duration"`
+	// ModelTime is time spent waiting on the provider; ToolTime is time
+	// spent running tools. They do not sum to Duration — checks, setup and
+	// the harness itself are the rest.
+	ModelTime time.Duration `json:"model_time,omitempty"`
+	ToolTime  time.Duration `json:"tool_time,omitempty"`
 	ToolCalls int           `json:"tool_calls"`
 	Turns     int           `json:"turns"` // model calls
 	Usage     llm.Usage     `json:"usage"`
@@ -369,6 +374,15 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 	}
 	res.Output = out.String()
 	res.Usage = ag.Usage
+	// Where the wall time went. A harness change aimed at speed has to
+	// know whether it is fighting the model or its own tools, and the
+	// totals alone never say: janetcode is faster per model call than
+	// Claude Code and still slower overall.
+	st := ag.Stats()
+	res.ModelTime = st.ModelTime
+	for _, t := range st.Tools {
+		res.ToolTime += t.Time
+	}
 	res.Features = ag.Trajectory()
 	if ag.Log != nil {
 		res.Events = ag.Log.Events()

@@ -591,3 +591,99 @@ func TestReadStreamSeparatesToolCallsWithoutIndex(t *testing.T) {
 		t.Fatalf("both calls share the id %q", uses[0].ID)
 	}
 }
+
+// TestReadStreamProviderQuirks drives the shapes real providers actually
+// send. The tool-call merge bug was found by a benchmark failing, not by a
+// test, so these are the neighbouring cases that would have failed the
+// same way.
+func TestReadStreamProviderQuirks(t *testing.T) {
+	stream := func(chunks ...string) string {
+		var b strings.Builder
+		for _, c := range chunks {
+			b.WriteString("data: " + c + "\n\n")
+		}
+		b.WriteString("data: [DONE]\n\n")
+		return b.String()
+	}
+	type want struct {
+		names []string
+		args  []string
+		text  string
+	}
+	cases := []struct {
+		name   string
+		chunks []string
+		want   want
+	}{{
+		name: "two calls in one chunk, no index",
+		chunks: []string{
+			`{"choices":[{"delta":{"tool_calls":[{"id":"a","function":{"name":"read_file","arguments":"{\"path\":\"a\"}"}},{"id":"b","function":{"name":"grep","arguments":"{\"pattern\":\"x\"}"}}]}}]}`,
+			`{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		},
+		want: want{names: []string{"read_file", "grep"}, args: []string{`{"path":"a"}`, `{"pattern":"x"}`}},
+	}, {
+		name: "indices arrive out of order",
+		chunks: []string{
+			`{"choices":[{"delta":{"tool_calls":[{"index":1,"id":"b","function":{"name":"grep","arguments":""}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"a","function":{"name":"read_file","arguments":""}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"path\":\"a\"}"}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\"pattern\":\"x\"}"}}]}}]}`,
+			`{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		},
+		// The index decides the order, not the order the deltas arrived in.
+		want: want{names: []string{"read_file", "grep"}, args: []string{`{"path":"a"}`, `{"pattern":"x"}`}},
+	}, {
+		name: "no ids at all, name then arguments",
+		chunks: []string{
+			`{"choices":[{"delta":{"tool_calls":[{"function":{"name":"read_file"}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"{\"path\":"}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"\"a\"}"}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"function":{"name":"grep","arguments":"{\"pattern\":\"x\"}"}}]}}]}`,
+			`{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		},
+		want: want{names: []string{"read_file", "grep"}, args: []string{`{"path":"a"}`, `{"pattern":"x"}`}},
+	}, {
+		name: "a function name split across deltas",
+		chunks: []string{
+			`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"a","function":{"name":"read_"}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"file","arguments":"{\"path\":\"a\"}"}}]}}]}`,
+			`{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		},
+		want: want{names: []string{"read_file"}, args: []string{`{"path":"a"}`}},
+	}, {
+		name: "text alongside a tool call",
+		chunks: []string{
+			`{"choices":[{"delta":{"content":"Let me look. "}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"id":"a","function":{"name":"read_file","arguments":"{\"path\":\"a\"}"}}]}}]}`,
+			`{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		},
+		want: want{names: []string{"read_file"}, args: []string{`{"path":"a"}`}, text: "Let me look. "},
+	}}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := readStream(strings.NewReader(stream(tc.chunks...)), func(llm.Event) {})
+			if err != nil {
+				t.Fatalf("readStream: %v", err)
+			}
+			uses := resp.Message.ToolUses()
+			if len(uses) != len(tc.want.names) {
+				t.Fatalf("got %d calls, want %d: %+v", len(uses), len(tc.want.names), uses)
+			}
+			for i, u := range uses {
+				if u.Name != tc.want.names[i] {
+					t.Errorf("call %d is %q, want %q", i, u.Name, tc.want.names[i])
+				}
+				if string(u.Input) != tc.want.args[i] {
+					t.Errorf("call %d args %s, want %s", i, u.Input, tc.want.args[i])
+				}
+				if u.ID == "" {
+					t.Errorf("call %d has no id; a tool result cannot be matched to it", i)
+				}
+			}
+			if tc.want.text != "" && resp.Message.Text() != tc.want.text {
+				t.Errorf("text %q, want %q", resp.Message.Text(), tc.want.text)
+			}
+		})
+	}
+}

@@ -88,7 +88,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalJSON    = fs.String("eval-json", "", "write eval results to this JSON file")
 		evalReport  = fs.String("eval-report", "", "re-read a saved results file and print its report and tool adoption, without running anything; with --eval-compare it prints the paired comparison of two saved files")
 		evalKeep    = fs.Bool("eval-keep", false, "keep eval work directories")
-		evalRuns    = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips)")
+		evalRuns    = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips). One run per task is a coin flip: this set swings 21% between identical runs, so a comparison wants 3 or more")
 		evalCompare = fs.String("eval-compare", "", "results file of a baseline run to compare against (paired by task, bootstrap interval)")
 		evalOff     = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify, repomap, working, plan, critic")
 		evalLabel   = fs.String("eval-label", "", "name recorded in the results file for this variant")
@@ -700,6 +700,9 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			label = o.compare
 		}
 		fmt.Fprintf(os.Stdout, "\ncompared with %s (%s):\n", label, baseline.When.Format("2006-01-02 15:04"))
+		if o.runs < 3 || baseline.Runs < 3 {
+			fmt.Fprintln(os.Stdout, "note: fewer than 3 runs per task on one side; this set swings 21% between identical runs, so read the intervals, not the point estimates.")
+		}
 		eval.WriteComparison(os.Stdout, eval.Compare(baseline.Results, results))
 	}
 	if o.jsonOut != "" {

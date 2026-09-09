@@ -1,0 +1,28 @@
+{
+  "name": "33-find-the-outlier",
+  "prompt": "Every file in d/ sets a threshold. All but one use the same value. Name the file that differs and give both values.",
+  "files": {
+    "d/d01.txt": "name: item1\nthreshold: 7\nenabled: true\n",
+    "d/d02.txt": "name: item2\nthreshold: 7\nenabled: true\n",
+    "d/d03.txt": "name: item3\nthreshold: 7\nenabled: true\n",
+    "d/d04.txt": "name: item4\nthreshold: 7\nenabled: true\n",
+    "d/d05.txt": "name: item5\nthreshold: 7\nenabled: true\n",
+    "d/d06.txt": "name: item6\nthreshold: 7\nenabled: true\n",
+    "d/d07.txt": "name: item7\nthreshold: 7\nenabled: true\n",
+    "d/d08.txt": "name: item8\nthreshold: 7\nenabled: true\n",
+    "d/d09.txt": "name: item9\nthreshold: 13\nenabled: true\n",
+    "d/d10.txt": "name: item10\nthreshold: 7\nenabled: true\n",
+    "d/d11.txt": "name: item11\nthreshold: 7\nenabled: true\n",
+    "d/d12.txt": "name: item12\nthreshold: 7\nenabled: true\n",
+    "d/d13.txt": "name: item13\nthreshold: 7\nenabled: true\n",
+    "d/d14.txt": "name: item14\nthreshold: 7\nenabled: true\n",
+    "d/d15.txt": "name: item15\nthreshold: 7\nenabled: true\n",
+    "d/d16.txt": "name: item16\nthreshold: 7\nenabled: true\n"
+  },
+  "check": "grep -q 'd09' \"$EVAL_OUTPUT\" && grep -q '13' \"$EVAL_OUTPUT\" && grep -q '7' \"$EVAL_OUTPUT\"",
+  "timeout": 300,
+  "tags": [
+    "fanout",
+    "read"
+  ]
+}

@@ -297,3 +297,58 @@ func TestEditFileByLine(t *testing.T) {
 		t.Fatal("the withdrawn form must not be advertised")
 	}
 }
+
+// FuzzEditFileLines checks the invariants of the line-range form against
+// arbitrary input: it must never panic, never lose or invent a trailing
+// newline, and never write a file it reported an error for. Line ranges
+// are a new way to destroy the wrong part of a file, and --yolo runs them
+// without a human looking at the diff.
+func FuzzEditFileLines(f *testing.F) {
+	f.Add("a\nb\nc\n", 1, 1, "X")
+	f.Add("a\nb\nc", 2, 3, "")
+	f.Add("", 1, 1, "x")
+	f.Add("only\n", 1, 1, "one\ntwo\nthree")
+	f.Add("a\nb\nc\n", 3, 1, "bad range")
+	f.Fuzz(func(t *testing.T, body string, from, to int, repl string) {
+		// Keep the inputs in a range where the interesting cases live.
+		if len(body) > 4000 || len(repl) > 400 || from < -5 || from > 60 || to < -5 || to > 60 {
+			t.Skip()
+		}
+		root := t.TempDir()
+		path := filepath.Join(root, "f.txt")
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Skip()
+		}
+		in, err := json.Marshal(map[string]any{
+			"path": "f.txt", "from_line": from, "to_line": to, "new_string": repl,
+		})
+		if err != nil {
+			t.Skip()
+		}
+		out, runErr := EditFile{Root: root}.Run(context.Background(), json.RawMessage(in))
+		after, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatalf("the file is gone after an edit: %v", readErr)
+		}
+		if runErr != nil {
+			if string(after) != body {
+				t.Fatalf("a refused edit wrote anyway:\nbefore %q\nafter  %q\nerr %v", body, after, runErr)
+			}
+			return
+		}
+		got := string(after)
+		// A file that ended with a newline still does, and one that did
+		// not still does not: silently changing it churns every diff.
+		// A replacement that itself ends in a newline is asking for a
+		// final empty line, so it is exempt.
+		if !strings.HasSuffix(repl, "\n") && got != "" && body != "" &&
+			strings.HasSuffix(body, "\n") != strings.HasSuffix(got, "\n") {
+			t.Fatalf("trailing newline changed: before %q after %q repl %q", body, got, repl)
+		}
+		// The result must say which lines it replaced, or a mistargeted
+		// range is invisible.
+		if !strings.Contains(out, "replaced lines") {
+			t.Fatalf("no account of what was replaced: %q", out)
+		}
+	})
+}

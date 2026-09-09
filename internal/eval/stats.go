@@ -99,6 +99,8 @@ type Summary struct {
 	// FactsAsked/FactsCorrect/FactsUnknown total the fact-survival probes.
 	FactsAsked, FactsCorrect, FactsUnknown, FactsFetched, FactsGrounded int
 	FactsInArchive, FactsRetrieved                                      int
+	// ModelTime and ToolTime say where the wall time went.
+	ModelTime, ToolTime time.Duration
 	// ByTask is the pass fraction per task name, sorted by name.
 	ByTask []TaskRate
 	// ByTool is how often each tool was actually reached for. A tool the
@@ -145,6 +147,8 @@ func Summarize(rs []Result) Summary {
 		s.CostKnown = s.CostKnown && r.CostKnown
 		s.ToolCalls += r.ToolCalls
 		s.Duration += r.Duration
+		s.ModelTime += r.ModelTime
+		s.ToolTime += r.ToolTime
 		s.Usage.Add(r.Usage)
 		s.Compactions += r.Compaction.Count
 		s.SummaryUsage.Add(r.Compaction.Summary)
@@ -582,6 +586,11 @@ func summaryLine(s Summary) string {
 			cost += " (" + llm.FormatUSD(s.CostPerSolved) + " per solved)"
 		}
 	}
+	timing := ""
+	if s.ModelTime > 0 {
+		pct := func(d time.Duration) float64 { return 100 * d.Seconds() / math.Max(s.Duration.Seconds(), 1) }
+		timing = fmt.Sprintf(" · %.0f%% waiting on the model, %.0f%% in tools", pct(s.ModelTime), pct(s.ToolTime))
+	}
 	ctx := fmt.Sprintf("context %s (in %s · cache %s · out %s)", shortTokens(s.Context), shortTokens(s.Usage.InputTokens), shortTokens(s.Usage.CacheReadTokens), shortTokens(s.Usage.OutputTokens))
 	if s.Passed > 0 {
 		ctx += fmt.Sprintf(" · %s per solved", shortTokens(s.ContextPerSolved))
@@ -593,6 +602,6 @@ func summaryLine(s Summary) string {
 		ctx += fmt.Sprintf("\nfacts after compaction: %d/%d recalled (%.0f%%) · %d still in the archive · %d actually retrieved · %d grounded · %d unknown · %d searched",
 			s.FactsCorrect, s.FactsAsked, 100*float64(s.FactsCorrect)/float64(s.FactsAsked), s.FactsInArchive, s.FactsRetrieved, s.FactsGrounded, s.FactsUnknown, s.FactsFetched)
 	}
-	return fmt.Sprintf("%d/%d passed (%.0f%%, 95%% CI %.0f–%.0f%%) · %d task(s) × %d run(s) · %d tool calls · %s · %s\n%s",
-		s.Passed, s.Total, 100*s.PassRate, 100*s.Lo, 100*s.Hi, s.Tasks, s.Runs, s.ToolCalls, s.Duration.Round(time.Second), cost, ctx)
+	return fmt.Sprintf("%d/%d passed (%.0f%%, 95%% CI %.0f–%.0f%%) · %d task(s) × %d run(s) · %d tool calls · %s%s · %s\n%s",
+		s.Passed, s.Total, 100*s.PassRate, 100*s.Lo, 100*s.Hi, s.Tasks, s.Runs, s.ToolCalls, s.Duration.Round(time.Second), timing, cost, ctx)
 }

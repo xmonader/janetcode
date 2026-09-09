@@ -1,0 +1,25 @@
+{
+  "name": "31-tighten-loose-checks",
+  "prompt": "Every file in v/ has a Validate function. Some just 'return true', which accepts anything. Replace each of those bodies with 'return len(s) > 0 && len(s) < 100' so every validator is strict. Leave the ones that are already strict alone. The package must build.",
+  "files": {
+    "go.mod": "module example.com/v\n\ngo 1.22\n",
+    "v/v01.go": "package v\n\n// Validate1 checks input 1.\nfunc Validate1(s string) bool {\n\treturn true\n}\n",
+    "v/v02.go": "package v\n\n// Validate2 checks input 2.\nfunc Validate2(s string) bool {\n\treturn true\n}\n",
+    "v/v03.go": "package v\n\n// Validate3 checks input 3.\nfunc Validate3(s string) bool {\n\treturn true\n}\n",
+    "v/v04.go": "package v\n\n// Validate4 checks input 4.\nfunc Validate4(s string) bool {\n\treturn len(s) > 0 && len(s) < 100\n}\n",
+    "v/v05.go": "package v\n\n// Validate5 checks input 5.\nfunc Validate5(s string) bool {\n\treturn true\n}\n",
+    "v/v06.go": "package v\n\n// Validate6 checks input 6.\nfunc Validate6(s string) bool {\n\treturn true\n}\n",
+    "v/v07.go": "package v\n\n// Validate7 checks input 7.\nfunc Validate7(s string) bool {\n\treturn true\n}\n",
+    "v/v08.go": "package v\n\n// Validate8 checks input 8.\nfunc Validate8(s string) bool {\n\treturn len(s) > 0 && len(s) < 100\n}\n",
+    "v/v09.go": "package v\n\n// Validate9 checks input 9.\nfunc Validate9(s string) bool {\n\treturn true\n}\n",
+    "v/v10.go": "package v\n\n// Validate10 checks input 10.\nfunc Validate10(s string) bool {\n\treturn true\n}\n",
+    "v/v11.go": "package v\n\n// Validate11 checks input 11.\nfunc Validate11(s string) bool {\n\treturn true\n}\n",
+    "v/v12.go": "package v\n\n// Validate12 checks input 12.\nfunc Validate12(s string) bool {\n\treturn len(s) > 0 && len(s) < 100\n}\n"
+  },
+  "check": "! grep -rq 'return true' v/ && test $(grep -rc 'len(s) > 0' v/ | grep -c ':1') -eq 12 && go build ./...",
+  "timeout": 300,
+  "tags": [
+    "fanout",
+    "edit"
+  ]
+}

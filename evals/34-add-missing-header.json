@@ -1,0 +1,24 @@
+{
+  "name": "34-add-missing-header",
+  "prompt": "Every file in c/ should start with the line '// Copyright 2026 Example'. Some already have it. Add it to the ones that do not, without duplicating it on the ones that do.",
+  "files": {
+    "c/c01.go": "package c\n\nfunc C1() int { return 1 }\n",
+    "c/c02.go": "package c\n\nfunc C2() int { return 2 }\n",
+    "c/c03.go": "// Copyright 2026 Example\npackage c\n\nfunc C3() int { return 3 }\n",
+    "c/c04.go": "package c\n\nfunc C4() int { return 4 }\n",
+    "c/c05.go": "package c\n\nfunc C5() int { return 5 }\n",
+    "c/c06.go": "// Copyright 2026 Example\npackage c\n\nfunc C6() int { return 6 }\n",
+    "c/c07.go": "package c\n\nfunc C7() int { return 7 }\n",
+    "c/c08.go": "package c\n\nfunc C8() int { return 8 }\n",
+    "c/c09.go": "// Copyright 2026 Example\npackage c\n\nfunc C9() int { return 9 }\n",
+    "c/c10.go": "package c\n\nfunc C10() int { return 10 }\n",
+    "c/c11.go": "package c\n\nfunc C11() int { return 11 }\n",
+    "c/c12.go": "// Copyright 2026 Example\npackage c\n\nfunc C12() int { return 12 }\n"
+  },
+  "check": "test $(grep -c 'Copyright 2026 Example' c/*.go | grep -c ':1') -eq 12",
+  "timeout": 300,
+  "tags": [
+    "fanout",
+    "edit"
+  ]
+}
