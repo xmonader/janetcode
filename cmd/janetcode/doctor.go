@@ -22,6 +22,7 @@ import (
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
+	"github.com/xmonader/janetcode/internal/treesitter"
 	"github.com/xmonader/janetcode/internal/verify"
 )
 
@@ -75,6 +76,23 @@ func doctor(w io.Writer, ov config.Overrides) error {
 			}
 			row(keys > 0 || !p.NeedsKey(), "provider "+n, detail)
 		}
+		// A route that names a provider with no key resolves fine and
+		// then fails at the first call, which is exactly the sort of
+		// thing this command exists to catch before the call.
+		for _, rt := range cfg.RoutableModels() {
+			if rt.Model == cfg.Model && rt.Provider == cfg.Provider {
+				continue // the selected model is reported on its own below
+			}
+			p, ok := cfg.Providers[rt.Provider]
+			switch {
+			case !ok:
+				row(false, "route "+rt.Model, "routed to "+rt.Provider+", which is not configured")
+			case len(p.Keys()) == 0 && p.NeedsKey():
+				row(false, "route "+rt.Model, "routed to "+rt.Provider+", which has no key")
+			default:
+				row(true, "route "+rt.Model, "→ "+rt.Provider+" ("+rt.Why+")")
+			}
+		}
 		if err == nil {
 			row(true, "selected", fmt.Sprintf("%s / %s", cfg.Provider, cfg.Model))
 			prov, perr := buildProvider(cfg)
@@ -93,6 +111,15 @@ func doctor(w io.Writer, ov config.Overrides) error {
 				}
 			}
 		}
+	}
+
+	// Which parser the repository map will use. Not a failure either way,
+	// but it decides whether the map can tell a declaration from the same
+	// words in a comment for everything that is not Go.
+	if treesitter.Supported("x.py") {
+		row(true, "grammars", "tree-sitter compiled in: Python, JavaScript, TypeScript, Rust and C are parsed, not matched")
+	} else {
+		warn("grammars", "tree-sitter not compiled in; the map reads non-Go languages with regular expressions (make build-treesitter)")
 	}
 
 	sessDir, err := session.Dir()
