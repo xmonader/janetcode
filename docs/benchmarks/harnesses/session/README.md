@@ -38,16 +38,53 @@ it costs 4%. The 865k and 897k runs are one run each, and identical
 configurations have swung 15% between runs on this set, so the difference
 is inside the noise.
 
-It is left in place rather than removed: models differ in whether they
-keep a written plan, and one that does would use it. But nothing here
-shows it helping, and the honest summary is that it is unproven on the
-only model it has been measured against.
+**Update, with more runs and a second model.** The eval runner now reports
+tool adoption from the runs' event logs, so this is countable rather than
+anecdotal:
+
+| runs | model | tasks | `todo` calls |
+|---:|---|---|---:|
+| 9 | qwen3.7-plus | session ×3 (6–7 dependent prompts each) | 0 |
+| 15 | claude-sonnet-4.5 | fanout ×3, `execute_code` on | 0 |
+| 15 | claude-sonnet-4.5 | fanout ×3, `execute_code` off | 0 |
+| 15 | claude-sonnet-4.5 | fanout ×3, after the stub fix | 0 |
+
+Zero calls in 54 runs across two models, counted from the saved event
+logs, and the multi-prompt session shape the tool was built for is nine of
+them. The two earlier single-run qwen sessions — one with a system-prompt
+line naming the tool — were also zero, by hand. `expand_output`, `repo_map`
+and `task` were never called in these runs either.
+
+It is still left in place rather than removed, and that is a judgement, not
+a finding: its schema costs 207 bytes in a cached prefix, which is close to
+nothing, and models differ in whether they keep a written plan. But it
+should not be read as a working feature. Nothing measured here shows it
+being used at all, let alone helping.
+
+Check it against any run's saved results without paying for new ones:
+
+```
+janetcode --eval-report <results.json>
+```
 
 ## What today's compaction and retrieval work did do
 
 985k to 865k context across the three sessions, all still passing — 0.88x,
 and 0.77x on the longest session, which is the one that compacts hardest.
-Single runs, so treat the total as indicative and the direction as real.
+
+That is one run of each configuration, and the next section measures the
+run-to-run spread of this set at 21%. A 12% difference is inside it. The
+direction is not established either: a 0.88x that could as easily have been
+1.05x says nothing about which way the work moved the number. What can be
+said is that the set still passes 9/9 and that nothing here shows a
+regression.
+
+`--eval-report <file> --eval-compare <base>` now re-reads saved results and
+prints the paired bootstrap over tasks, so a claim like this one can be
+checked against its own data without paying for another run. Applied to the
+compaction ablation pair in `docs/benchmarks/compaction`, a 17% context
+difference comes back as x1.17 [0.92, 1.76] — inside the noise. Any future
+claim on this set has to clear that interval before it is a claim.
 
 ## How noisy is this benchmark? (three runs of each task)
 

@@ -6,6 +6,23 @@
 
 Neither eval set reaches the default compaction threshold (80k estimated tokens), so `--eval-compact-at 8000` forces the whole pipeline — pruning tiers, attention-ordered placeholders, the working-memory summary — onto tasks that pass without it. The question is what compaction costs and what it loses. Context tokens are input + cache read + cache write over the run; "summaries" is the summariser calls' share of that.
 
+## What these totals are and are not
+
+Every row below is one run of one configuration. The session benchmark
+measures this task set's run-to-run spread at 21%, so a difference under
+that is not a difference. Re-reading these same files through the paired
+bootstrap that `--eval-report <file> --eval-compare <base>` now prints:
+
+| pair | context ratio | 95% interval | reading |
+|---|---:|---|---|
+| hard-baseline → hard-compact8k | x1.17 | [0.92, 1.76] | inside the noise |
+| large-baseline → large-compact8k | x0.92 | [0.58, 1.51] | inside the noise |
+
+So forcing compaction at 8k neither demonstrably cost context nor saved it
+on these sets, at one run each. What the tables below do show, and what
+does not depend on the interval, is the *shape*: how often the pipeline
+fired, what the summariser calls cost, and which tasks still passed.
+
 ## Totals
 
 | run | passed | context tokens | per solved | compactions | summary calls (in / cached / out) |

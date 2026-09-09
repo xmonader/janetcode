@@ -99,7 +99,19 @@ func (a *Agent) Stats() Stats {
 }
 
 // switches are the behaviours Agent.Off can disable.
-var switches = map[string]bool{"coach": true, "syntax": true, "loops": true, "prune": true, "verify": true, "repomap": true, "working": true, "richskip": true, "faults": true, "verdict": true, "todo": true, "plan": true, "critic": true}
+var switches = map[string]bool{"coach": true, "syntax": true, "loops": true, "prune": true, "verify": true, "repomap": true, "working": true, "richskip": true, "faults": true, "verdict": true, "todo": true, "script": true, "plan": true, "critic": true}
+
+// Switches names every behaviour Off understands, in order. The error for
+// a misspelled one lists these rather than a copy that drifts: a switch
+// that exists but is not listed is a switch nobody finds.
+func Switches() []string {
+	out := make([]string, 0, len(switches))
+	for n := range switches {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
 
 // KnownSwitch reports whether Off understands the name.
 func KnownSwitch(name string) bool { return switches[name] }

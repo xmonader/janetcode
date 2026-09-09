@@ -67,7 +67,15 @@ func (s *Script) Description() string {
 		"Use ordinary tool calls for a single call, or when you need to read the full result yourself.\n\n" +
 		"Import the tools you want from janetcode_tools and call them with the same arguments as the tool takes; " +
 		"each returns the tool's output as a string and raises ToolError if the call fails. Available: ")
-	b.WriteString(strings.Join(s.tools(), ", "))
+	names := make([]string, 0, len(s.tools()))
+	for _, t := range s.tools() {
+		if t.primary != "" {
+			names = append(names, t.name+"("+t.primary+", ...)")
+		} else {
+			names = append(names, t.name+"(...)")
+		}
+	}
+	b.WriteString(strings.Join(names, ", "))
 	b.WriteString(".\n\nOnly what the script prints comes back to you — everything the tools returned inside it stays out of your context, " +
 		"so print the conclusion, not the raw output. Also available without importing: plain(text), which strips the line-number gutter that read_file and grep put on every line — match on plain(read_file(...)), not on the raw string; shell_quote(s); and retry(fn, attempts=3). " +
 		fmt.Sprintf("Limits: %s, %d tool calls, %dKB of output. The script runs in the working directory.",
@@ -96,20 +104,105 @@ func (s *Script) Preview(_ context.Context, input json.RawMessage) (string, erro
 	return in.Code, nil
 }
 
-// tools lists the tool names a script may call, in the order they are
-// shown to the model.
-func (s *Script) tools() []string {
+// stubbed is one tool as a Python function: its name and the argument a
+// caller most likely passes first.
+type stubbed struct{ name, primary string }
+
+// tools lists the tools a script may call, in the order they are shown to
+// the model, each with its first required argument. A stub that took
+// keyword arguments only made a quarter of the scripts in a measured run
+// fail on read_file("path") with a TypeError, and every one of those cost
+// a whole extra turn, so the first argument is positional.
+func (s *Script) tools() []stubbed {
 	if s.Parent == nil || s.Parent.Tools == nil {
 		return nil
 	}
-	var out []string
+	var out []stubbed
 	for _, n := range s.Parent.Tools.Names() {
 		if scriptSkip[n] || !pyName(n) {
 			continue
 		}
-		out = append(out, n)
+		out = append(out, stubbed{name: n, primary: primaryArg(s.Parent.Tools, n)})
 	}
 	return out
+}
+
+// primaryArg is a tool's first required argument, when it has one that can
+// be a Python parameter name. It comes from the schema the model is
+// already reading, so the stub and the tool cannot disagree.
+func primaryArg(reg *tool.Registry, name string) string {
+	t, ok := reg.Get(name)
+	if !ok {
+		return ""
+	}
+	raw := t.Schema()
+	var schema struct {
+		Required []string `json:"required"`
+	}
+	if json.Unmarshal(raw, &schema) == nil && len(schema.Required) > 0 {
+		if first := schema.Required[0]; usableArg(first) {
+			return first
+		}
+	}
+	// A tool whose arguments are all optional still has a natural first
+	// one: list_dir(".") is how it is called, and a stub that refuses it
+	// was a quarter of the script failures in a measured run.
+	if first := firstProperty(raw); usableArg(first) {
+		return first
+	}
+	return ""
+}
+
+func usableArg(s string) bool { return s != "" && pyName(s) && !pyKeyword(s) }
+
+// firstProperty is the first key of the schema's properties object, in the
+// order the schema declares it. Decoding into a map would lose that order,
+// so the token stream is read directly.
+func firstProperty(raw json.RawMessage) string {
+	dec := json.NewDecoder(strings.NewReader(string(raw)))
+	depth := 0
+	for {
+		t, err := dec.Token()
+		if err != nil {
+			return ""
+		}
+		switch v := t.(type) {
+		case json.Delim:
+			switch v {
+			case '{', '[':
+				depth++
+			case '}', ']':
+				depth--
+			}
+		case string:
+			if depth == 1 && v == "properties" {
+				// The next tokens are '{' then the first key.
+				if d, err := dec.Token(); err != nil {
+					return ""
+				} else if delim, ok := d.(json.Delim); !ok || delim != '{' {
+					return ""
+				}
+				key, err := dec.Token()
+				if err != nil {
+					return ""
+				}
+				name, _ := key.(string)
+				return name
+			}
+		}
+	}
+}
+
+// pyKeyword guards against naming a parameter after a Python keyword.
+func pyKeyword(s string) bool {
+	switch s {
+	case "and", "as", "assert", "async", "await", "break", "class", "continue",
+		"def", "del", "elif", "else", "except", "finally", "for", "from",
+		"global", "if", "import", "in", "is", "lambda", "none", "nonlocal",
+		"not", "or", "pass", "raise", "return", "try", "while", "with", "yield":
+		return true
+	}
+	return false
 }
 
 // pyName reports whether a tool name can be a Python identifier. An MCP
@@ -387,8 +480,15 @@ func (a *Agent) emitter() func(Event) {
 func (s *Script) stub() string {
 	var b strings.Builder
 	b.WriteString(scriptStub)
-	for _, name := range s.tools() {
-		fmt.Fprintf(&b, "\ndef %s(**kwargs):\n    return call(%q, **kwargs)\n", name, name)
+	for _, t := range s.tools() {
+		if t.primary == "" {
+			fmt.Fprintf(&b, "\ndef %s(**kwargs):\n    return call(%q, **kwargs)\n", t.name, t.name)
+			continue
+		}
+		// The first argument may be given positionally or by name; the
+		// sentinel keeps an explicit None from overriding a keyword form.
+		fmt.Fprintf(&b, "\ndef %s(%s=_unset, **kwargs):\n    if %s is not _unset:\n        kwargs[%q] = %s\n    return call(%q, **kwargs)\n",
+			t.name, t.primary, t.primary, t.primary, t.primary, t.name)
 	}
 	return b.String()
 }
@@ -404,6 +504,13 @@ __all__ = ["call", "ToolError", "plain", "shell_quote", "retry"]
 
 _lock = threading.Lock()
 _fh = None
+
+
+class _Unset:
+    """Sentinel for an argument that was not given at all."""
+
+
+_unset = _Unset()
 
 
 class ToolError(Exception):

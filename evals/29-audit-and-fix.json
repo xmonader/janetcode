@@ -1,0 +1,28 @@
+{
+  "name": "29-audit-and-fix",
+  "prompt": "Each file in audit/ defines a Check function that must return errEmpty for an empty string. Some of them wrongly return nil instead. Find every one that is wrong, fix it, and report which files you fixed. The package must still build.",
+  "files": {
+    "audit/c01.go": "package audit\n\n// Check1 validates input for rule 1.\nfunc Check1(s string) error {\n\tif s == \"\" {\n\t\treturn errEmpty\n\t}\n\treturn nil\n}\n",
+    "audit/c02.go": "package audit\n\n// Check2 validates input for rule 2.\nfunc Check2(s string) error {\n\tif s == \"\" {\n\t\treturn errEmpty\n\t}\n\treturn nil\n}\n",
+    "audit/c03.go": "package audit\n\n// Check3 validates input for rule 3.\nfunc Check3(s string) error {\n\tif s == \"\" {\n\t\treturn nil\n\t}\n\treturn nil\n}\n",
+    "audit/c04.go": "package audit\n\n// Check4 validates input for rule 4.\nfunc Check4(s string) error {\n\tif s == \"\" {\n\t\treturn errEmpty\n\t}\n\treturn nil\n}\n",
+    "audit/c05.go": "package audit\n\n// Check5 validates input for rule 5.\nfunc Check5(s string) error {\n\tif s == \"\" {\n\t\treturn errEmpty\n\t}\n\treturn nil\n}\n",
+    "audit/c06.go": "package audit\n\n// Check6 validates input for rule 6.\nfunc Check6(s string) error {\n\tif s == \"\" {\n\t\treturn nil\n\t}\n\treturn nil\n}\n",
+    "audit/c07.go": "package audit\n\n// Check7 validates input for rule 7.\nfunc Check7(s string) error {\n\tif s == \"\" {\n\t\treturn errEmpty\n\t}\n\treturn nil\n}\n",
+    "audit/c08.go": "package audit\n\n// Check8 validates input for rule 8.\nfunc Check8(s string) error {\n\tif s == \"\" {\n\t\treturn errEmpty\n\t}\n\treturn nil\n}\n",
+    "audit/c09.go": "package audit\n\n// Check9 validates input for rule 9.\nfunc Check9(s string) error {\n\tif s == \"\" {\n\t\treturn nil\n\t}\n\treturn nil\n}\n",
+    "audit/c10.go": "package audit\n\n// Check10 validates input for rule 10.\nfunc Check10(s string) error {\n\tif s == \"\" {\n\t\treturn errEmpty\n\t}\n\treturn nil\n}\n",
+    "audit/c11.go": "package audit\n\n// Check11 validates input for rule 11.\nfunc Check11(s string) error {\n\tif s == \"\" {\n\t\treturn errEmpty\n\t}\n\treturn nil\n}\n",
+    "audit/c12.go": "package audit\n\n// Check12 validates input for rule 12.\nfunc Check12(s string) error {\n\tif s == \"\" {\n\t\treturn nil\n\t}\n\treturn nil\n}\n",
+    "audit/c13.go": "package audit\n\n// Check13 validates input for rule 13.\nfunc Check13(s string) error {\n\tif s == \"\" {\n\t\treturn errEmpty\n\t}\n\treturn nil\n}\n",
+    "audit/c14.go": "package audit\n\n// Check14 validates input for rule 14.\nfunc Check14(s string) error {\n\tif s == \"\" {\n\t\treturn errEmpty\n\t}\n\treturn nil\n}\n",
+    "audit/errs.go": "package audit\n\nimport \"errors\"\n\nvar errEmpty = errors.New(\"empty input\")\n",
+    "go.mod": "module example.com/audit\n\ngo 1.22\n"
+  },
+  "check": "! grep -rlE 'if s == \"\\\"\\\"\" \\{' audit/ >/dev/null; ! grep -A2 'if s == \"\"' audit/c03.go | grep -q 'return nil' && ! grep -A2 'if s == \"\"' audit/c06.go | grep -q 'return nil' && ! grep -A2 'if s == \"\"' audit/c09.go | grep -q 'return nil' && ! grep -A2 'if s == \"\"' audit/c12.go | grep -q 'return nil' && grep -A2 'if s == \"\"' audit/c01.go | grep -q 'errEmpty' && go build ./...",
+  "timeout": 300,
+  "tags": [
+    "fanout",
+    "edit"
+  ]
+}

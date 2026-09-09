@@ -305,3 +305,33 @@ func TestRenderScripts(t *testing.T) {
 		}
 	}
 }
+
+// TestScriptPositionalArgs is the regression test for the defect a
+// measured run found: stubs that took keyword arguments only made a
+// quarter of the scripts in that run die on read_file("path") with a
+// TypeError, and each death cost a whole extra turn.
+func TestScriptPositionalArgs(t *testing.T) {
+	pythonOrSkip(t)
+	root := t.TempDir()
+	_, s := scriptAgent(t, root)
+	if _, err := (tool.WriteFile{Root: root}).Run(context.Background(),
+		json.RawMessage(`{"path":"a.txt","content":"hello\n"}`)); err != nil {
+		t.Fatal(err)
+	}
+	out := runScript(t, s, `
+from janetcode_tools import read_file, list_dir
+print("positional:", "hello" in read_file("a.txt"))
+print("keyword:", "hello" in read_file(path="a.txt"))
+print("listing:", "a.txt" in list_dir("."))
+`)
+	for _, want := range []string{"positional: True", "keyword: True", "listing: True"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in %q", want, out)
+		}
+	}
+	// The description shows the signature, so the model does not have to
+	// guess which argument comes first.
+	if d := s.Description(); !strings.Contains(d, "read_file(path, ...)") {
+		t.Fatalf("description should show the first argument: %s", d)
+	}
+}

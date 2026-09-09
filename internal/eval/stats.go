@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 // File is the on-disk shape of a results file: the run's identity plus
@@ -100,6 +101,28 @@ type Summary struct {
 	FactsInArchive, FactsRetrieved                                      int
 	// ByTask is the pass fraction per task name, sorted by name.
 	ByTask []TaskRate
+	// ByTool is how often each tool was actually reached for. A tool the
+	// model never calls is not a feature, however good it is, and that is
+	// only visible across runs: one session proves nothing either way.
+	ByTool []ToolUse
+}
+
+// ToolUse is one tool's adoption across the runs of a set.
+type ToolUse struct {
+	Name string
+	// Runs is how many runs called it at least once, out of Total.
+	Runs, Total int
+	// Calls is how many times in all. Nested is the subset made from
+	// inside a script, whose output never reached the model.
+	Calls, Nested int
+}
+
+// Rate is the fraction of runs that reached for the tool.
+func (t ToolUse) Rate() float64 {
+	if t.Total == 0 {
+		return 0
+	}
+	return float64(t.Runs) / float64(t.Total)
 }
 
 // TaskRate is one task's outcome across runs.
@@ -150,6 +173,7 @@ func Summarize(rs []Result) Summary {
 		s.ByTask = append(s.ByTask, *tr)
 	}
 	sort.Slice(s.ByTask, func(i, j int) bool { return s.ByTask[i].Name < s.ByTask[j].Name })
+	s.ByTool = toolUse(rs)
 	s.Tasks = len(s.ByTask)
 	s.Runs = runsIn(rs)
 	if s.Total > 0 {
@@ -164,6 +188,75 @@ func Summarize(rs []Result) Summary {
 		s.ContextPerSolved = s.Context / s.Passed
 	}
 	return s
+}
+
+// toolUse counts, per tool, how many runs reached for it and how often.
+// It reads the runs' event logs, so it sees the calls a script made on the
+// model's behalf as well as the ones the model made itself.
+func toolUse(rs []Result) []ToolUse {
+	byName := map[string]*ToolUse{}
+	for _, r := range rs {
+		seen := map[string]bool{}
+		for _, e := range r.Events {
+			if e.Type != session.TypeToolCall || e.Name == "" {
+				continue
+			}
+			u := byName[e.Name]
+			if u == nil {
+				u = &ToolUse{Name: e.Name}
+				byName[e.Name] = u
+			}
+			u.Calls++
+			if strings.HasPrefix(e.CallID, "script-") {
+				u.Nested++
+			}
+			if !seen[e.Name] {
+				seen[e.Name] = true
+				u.Runs++
+			}
+		}
+	}
+	out := make([]ToolUse, 0, len(byName))
+	for _, u := range byName {
+		u.Total = len(rs)
+		out = append(out, *u)
+	}
+	// Most-used first: the question is which tools carry the work.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Runs != out[j].Runs {
+			return out[i].Runs > out[j].Runs
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+// WriteToolUse reports adoption, one line per tool, and names the tools
+// that were available and never called at all.
+func WriteToolUse(w io.Writer, s Summary, available []string) {
+	if len(s.ByTool) == 0 {
+		return
+	}
+	called := map[string]bool{}
+	fmt.Fprintf(w, "\ntool adoption over %d run(s):\n", s.Total)
+	for _, u := range s.ByTool {
+		called[u.Name] = true
+		nested := ""
+		if u.Nested > 0 {
+			nested = fmt.Sprintf(", %d from inside a script", u.Nested)
+		}
+		fmt.Fprintf(w, "  %-16s %2d/%-2d runs (%.0f%%) · %d call(s)%s\n", u.Name, u.Runs, u.Total, 100*u.Rate(), u.Calls, nested)
+	}
+	var never []string
+	for _, n := range available {
+		if !called[n] {
+			never = append(never, n)
+		}
+	}
+	if len(never) > 0 {
+		sort.Strings(never)
+		fmt.Fprintf(w, "  never called: %s\n", strings.Join(never, ", "))
+	}
 }
 
 // wilson is the 95% score interval for a binomial proportion; unlike the
@@ -198,6 +291,83 @@ type Comparison struct {
 	// ContextDelta is current − base context tokens per solved task; the
 	// ratio is Current.ContextPerSolved / Base.ContextPerSolved.
 	ContextDelta int
+
+	// Cost and context are what a change to the context pipeline is
+	// usually claimed on, and a point estimate of either is not a result:
+	// run-to-run spread on this task set is wide enough to produce a
+	// confident double-digit "improvement" from noise alone. So they get
+	// the same paired bootstrap over tasks that the pass rate gets, and
+	// the ratio — the form the claim is actually made in — gets its own
+	// interval rather than being computed from the totals.
+	CostRatio, CostRatioLo, CostRatioHi          float64
+	ContextRatio, ContextRatioLo, ContextRatioHi float64
+	// Paired reports whether there were enough shared tasks with usable
+	// numbers to bootstrap the ratios at all.
+	Paired bool
+}
+
+// CostSignificant reports whether the cost ratio's interval excludes 1,
+// i.e. whether the difference survived the noise.
+func (c Comparison) CostSignificant() bool {
+	return c.Paired && (c.CostRatioLo > 1 || c.CostRatioHi < 1)
+}
+
+// ContextSignificant reports whether the context ratio's interval
+// excludes 1.
+func (c Comparison) ContextSignificant() bool {
+	return c.Paired && (c.ContextRatioLo > 1 || c.ContextRatioHi < 1)
+}
+
+// pair is one task's mean cost and context in each set, for the paired
+// bootstrap. Means are per run of that task, passed or not: a change that
+// makes runs cheaper by failing sooner is a change worth seeing, and the
+// pass-rate delta printed beside it is what says whether that happened.
+type pair struct {
+	base, cur       float64
+	baseCtx, curCtx float64
+}
+
+// ratioCI bootstraps the ratio of summed current to summed base over the
+// shared tasks. Resampling whole tasks, not runs, is what makes it paired:
+// a task that is expensive in both sets cannot move the ratio on its own.
+func ratioCI(pairs []pair, pick func(pair) (float64, float64)) (ratio, lo, hi float64, ok bool) {
+	if len(pairs) == 0 {
+		return 0, 0, 0, false
+	}
+	sum := func(idx []int) (b, c float64) {
+		for _, i := range idx {
+			pb, pc := pick(pairs[i])
+			b, c = b+pb, c+pc
+		}
+		return
+	}
+	all := make([]int, len(pairs))
+	for i := range all {
+		all[i] = i
+	}
+	b, cu := sum(all)
+	if b <= 0 {
+		return 0, 0, 0, false
+	}
+	ratio = cu / b
+	rng := rand.New(rand.NewSource(1))
+	const resamples = 4000
+	ratios := make([]float64, 0, resamples)
+	idx := make([]int, len(pairs))
+	for range resamples {
+		for i := range idx {
+			idx[i] = rng.Intn(len(pairs))
+		}
+		rb, rc := sum(idx)
+		if rb > 0 {
+			ratios = append(ratios, rc/rb)
+		}
+	}
+	if len(ratios) < resamples/2 {
+		return ratio, 0, 0, false
+	}
+	sort.Float64s(ratios)
+	return ratio, ratios[int(0.025*float64(len(ratios)))], ratios[int(0.975*float64(len(ratios)))-1], true
 }
 
 // Compare pairs the two sets by task name. Tasks present in only one set
@@ -245,7 +415,49 @@ func Compare(base, cur []Result) Comparison {
 	if c.Base.Passed > 0 && c.Current.Passed > 0 {
 		c.ContextDelta = c.Current.ContextPerSolved - c.Base.ContextPerSolved
 	}
+	c.pairCosts(base, cur)
 	return c
+}
+
+// pairCosts bootstraps the cost and context ratios over the tasks the two
+// sets share.
+func (c *Comparison) pairCosts(base, cur []Result) {
+	bc, bctx, bknown := perTask(base)
+	cc, cctx, cknown := perTask(cur)
+	var pairs []pair
+	for name, b := range bc {
+		cv, ok := cc[name]
+		if !ok {
+			continue
+		}
+		pairs = append(pairs, pair{base: b, cur: cv, baseCtx: bctx[name], curCtx: cctx[name]})
+	}
+	if len(pairs) == 0 {
+		return
+	}
+	c.Paired = true
+	if bknown && cknown {
+		c.CostRatio, c.CostRatioLo, c.CostRatioHi, _ = ratioCI(pairs, func(p pair) (float64, float64) { return p.base, p.cur })
+	}
+	c.ContextRatio, c.ContextRatioLo, c.ContextRatioHi, _ = ratioCI(pairs, func(p pair) (float64, float64) { return p.baseCtx, p.curCtx })
+}
+
+// perTask is each task's mean cost and mean context tokens across its runs.
+func perTask(rs []Result) (cost, ctx map[string]float64, costKnown bool) {
+	cost, ctx = map[string]float64{}, map[string]float64{}
+	n := map[string]int{}
+	costKnown = true
+	for _, r := range rs {
+		cost[r.Name] += r.CostUSD
+		ctx[r.Name] += float64(contextTokens(r.Usage))
+		n[r.Name]++
+		costKnown = costKnown && r.CostKnown
+	}
+	for name, k := range n {
+		cost[name] /= float64(k)
+		ctx[name] /= float64(k)
+	}
+	return cost, ctx, costKnown
 }
 
 // Significant reports whether the interval excludes zero.
@@ -303,12 +515,17 @@ func WriteComparison(w io.Writer, c Comparison) {
 		if c.CostDelta < 0 {
 			sign = "-"
 		}
-		fmt.Fprintf(w, "cost per solved task %s → %s (%s%s)\n", llm.FormatUSD(c.Base.CostPerSolved), llm.FormatUSD(c.Current.CostPerSolved), sign, llm.FormatUSD(math.Abs(c.CostDelta)))
+		fmt.Fprintf(w, "cost per solved task %s → %s (%s%s)%s\n", llm.FormatUSD(c.Base.CostPerSolved), llm.FormatUSD(c.Current.CostPerSolved), sign, llm.FormatUSD(math.Abs(c.CostDelta)),
+			ratioNote(c.CostRatio, c.CostRatioLo, c.CostRatioHi, c.Paired && c.CostRatio > 0))
 	}
 	if c.Base.Passed > 0 && c.Current.Passed > 0 {
 		ratio := float64(c.Current.ContextPerSolved) / math.Max(float64(c.Base.ContextPerSolved), 1)
-		fmt.Fprintf(w, "context per solved task %s → %s (×%.2f) · compactions %d → %d\n",
-			shortTokens(c.Base.ContextPerSolved), shortTokens(c.Current.ContextPerSolved), ratio, c.Base.Compactions, c.Current.Compactions)
+		fmt.Fprintf(w, "context per solved task %s → %s (×%.2f) · compactions %d → %d%s\n",
+			shortTokens(c.Base.ContextPerSolved), shortTokens(c.Current.ContextPerSolved), ratio, c.Base.Compactions, c.Current.Compactions,
+			ratioNote(c.ContextRatio, c.ContextRatioLo, c.ContextRatioHi, c.Paired))
+	}
+	if c.Paired && !c.CostSignificant() && !c.ContextSignificant() {
+		fmt.Fprintf(w, "neither cost nor context moved beyond the run-to-run spread: this is not evidence of a saving.\n")
 	}
 	if c.Base.FactsAsked > 0 && c.Current.FactsAsked > 0 {
 		fmt.Fprintf(w, "facts recalled after compaction %d/%d → %d/%d\n", c.Base.FactsCorrect, c.Base.FactsAsked, c.Current.FactsCorrect, c.Current.FactsAsked)
@@ -325,6 +542,24 @@ func WriteComparison(w io.Writer, c Comparison) {
 	if len(c.OnlyCurrent) > 0 {
 		fmt.Fprintf(w, "only in current: %s\n", strings.Join(c.OnlyCurrent, ", "))
 	}
+}
+
+// ratioNote is the paired-bootstrap interval for a ratio, and the plain
+// statement of what it means. A ratio without its interval is the thing
+// that produced a withdrawn "12% better" on this task set, so the interval
+// is printed on the same line as the number, not somewhere below it.
+func ratioNote(r, lo, hi float64, ok bool) string {
+	if !ok || r == 0 {
+		return ""
+	}
+	verdict := "inside the noise"
+	switch {
+	case hi < 1:
+		verdict = "real saving"
+	case lo > 1:
+		verdict = "real increase"
+	}
+	return fmt.Sprintf("\n  paired ×%.2f [%.2f, %.2f] over shared tasks · %s", r, lo, hi, verdict)
 }
 
 func summaryLine(s Summary) string {

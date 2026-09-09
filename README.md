@@ -127,7 +127,7 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `symbols` | Ask the language server where a name is defined, who uses it, its type, what a file declares | no |
 | `expand_output` | Read back tool output and conversation that compaction archived, by search or by line | no |
 | `execute_code` | Run a Python script that calls these tools, so a chain of calls costs one turn and their output stays out of the context | yes, shows the code |
-| `todo` | Keep the plan for a multi-step task and mark steps off | no |
+| `todo` | Keep the plan for a multi-step task and mark steps off — [never called in 54 measured runs across two models](docs/benchmarks/harnesses/session/README.md) | no |
 | `inspect` | Look at the session's own state: context, archive, verdicts, config, servers | no |
 | `diagnostics` | Compile and type errors from the language server, for a file or the project | no |
 | `job` | List, read, wait on or kill a background job | no |
@@ -540,12 +540,20 @@ for f in glob(pattern="**/*.go").splitlines():
 print("\n".join(hits))
 ```
 
-Twenty file bodies went through that loop and none of them entered the
-context. On a twenty-file survey of a real tree, Sonnet 4.5 spent 62,163
-input tokens and $0.25 reading the files itself, and 4,281 tokens and $0.03
-through a script — the same two model calls, an eighth of the cost. (One
-run each; the tool the model reaches for varies, so treat it as an
-illustration of the mechanism, not a benchmark.)
+The file bodies that went through that loop never entered the context.
+
+Measured over three fan-out tasks × five runs each, with Sonnet 4.5, and
+compared against the same tasks with the tool switched off: **cost per
+solved task x0.88 [0.75, 0.99]** — about a tenth cheaper — with the pass
+rate unchanged at 15/15 and context within 3%. The model reached for it in
+9 of 15 runs, and 164 of its 252 file reads happened inside a script.
+
+That is a smaller claim than it started as. The first version of this tool
+*lost* 26% of context in the same measurement, because a quarter of the
+scripts died on `read_file("path")` — the generated stubs took keyword
+arguments only. [The report](docs/benchmarks/script/REPORT.md) has the
+diagnosis, the fix, and the caveat that a bootstrap over three tasks is
+coarse.
 
 The calls a script makes are real calls. They go through the same hooks,
 the same permission rules, the same approval prompt with the same diff, and
@@ -1039,12 +1047,43 @@ solved task:
 ```
 pass-rate delta +8.3% [+1.7%, +15.0%] over 20 shared task(s) · significant improvement
 cost per solved task $0.0031 → $0.0027 (-$0.0004)
+  paired ×0.88 [0.75, 0.99] over shared tasks · real saving
+context per solved task 26k → 27k (×1.03) · compactions 0 → 0
+  paired ×1.03 [1.00, 1.05] over shared tasks · real increase
 improved:  05-rename-symbol, 13-multi-file-package
 ```
 
+Cost and context get the same paired bootstrap the pass rate gets, because
+they are what a context-pipeline change is usually claimed on and this task
+set swings 21% between identical runs. A ratio is printed with the interval
+on the line beneath it and labelled `inside the noise` when it does not
+clear 1 — a point estimate on its own is how this project once published a
+"12% better" that had to be withdrawn.
+
+The run also prints which tools the model actually reached for:
+
+```
+tool adoption over 15 run(s):
+  read_file        15/15 runs (100%) · 252 call(s), 164 from inside a script
+  execute_code      9/15 runs (60%) · 14 call(s)
+  never called: expand_output, grep, repo_map, todo, write_file
+```
+
+A tool nothing ever calls is not a feature, and only a set of runs can say
+so; `todo` is listed above for that reason and not by accident.
+
+`--eval-report <file>` re-reads a saved results file and prints all of
+that again, and with `--eval-compare <base>` the paired comparison of two
+saved files — no provider, no API calls, no money. Re-analysing data you
+already paid for should be free, and it means a published claim can be
+checked against its own published data.
+
 `EVAL_OFF=coach,prune` runs an ablation with named behaviours disabled
-(`coach`, `syntax`, `loops`, `prune`, `verify`, `repomap`, `working`, `plan`, `critic`); the variant name is
-recorded in the results file so a comparison says what it compared.
+(`coach`, `critic`, `faults`, `loops`, `plan`, `prune`, `repomap`,
+`richskip`, `script`, `syntax`, `todo`, `verdict`, `verify`, `working`);
+the variant name is recorded in the results file so a comparison says what
+it compared. The same names work as `JANETCODE_OFF=script` for a real
+session.
 
 ## Command-line reference
 

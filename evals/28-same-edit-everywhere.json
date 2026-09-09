@@ -1,0 +1,23 @@
+{
+  "name": "28-same-edit-everywhere",
+  "prompt": "Every file in pkg/ has a fmt.Println debug line inside its Handler function. Remove all of those Println lines, and remove the now-unused fmt import from each file. The package must still build with go build ./... when you are done.",
+  "files": {
+    "pkg/h01.go": "package pkg\n\nimport \"fmt\"\n\n// Handler1 does the work of module 1.\nfunc Handler1(name string) string {\n\tfmt.Println(\"handler 1 starting\")\n\treturn name + \"-1\"\n}\n",
+    "pkg/h02.go": "package pkg\n\nimport \"fmt\"\n\n// Handler2 does the work of module 2.\nfunc Handler2(name string) string {\n\tfmt.Println(\"handler 2 starting\")\n\treturn name + \"-2\"\n}\n",
+    "pkg/h03.go": "package pkg\n\nimport \"fmt\"\n\n// Handler3 does the work of module 3.\nfunc Handler3(name string) string {\n\tfmt.Println(\"handler 3 starting\")\n\treturn name + \"-3\"\n}\n",
+    "pkg/h04.go": "package pkg\n\nimport \"fmt\"\n\n// Handler4 does the work of module 4.\nfunc Handler4(name string) string {\n\tfmt.Println(\"handler 4 starting\")\n\treturn name + \"-4\"\n}\n",
+    "pkg/h05.go": "package pkg\n\nimport \"fmt\"\n\n// Handler5 does the work of module 5.\nfunc Handler5(name string) string {\n\tfmt.Println(\"handler 5 starting\")\n\treturn name + \"-5\"\n}\n",
+    "pkg/h06.go": "package pkg\n\nimport \"fmt\"\n\n// Handler6 does the work of module 6.\nfunc Handler6(name string) string {\n\tfmt.Println(\"handler 6 starting\")\n\treturn name + \"-6\"\n}\n",
+    "pkg/h07.go": "package pkg\n\nimport \"fmt\"\n\n// Handler7 does the work of module 7.\nfunc Handler7(name string) string {\n\tfmt.Println(\"handler 7 starting\")\n\treturn name + \"-7\"\n}\n",
+    "pkg/h08.go": "package pkg\n\nimport \"fmt\"\n\n// Handler8 does the work of module 8.\nfunc Handler8(name string) string {\n\tfmt.Println(\"handler 8 starting\")\n\treturn name + \"-8\"\n}\n",
+    "pkg/h09.go": "package pkg\n\nimport \"fmt\"\n\n// Handler9 does the work of module 9.\nfunc Handler9(name string) string {\n\tfmt.Println(\"handler 9 starting\")\n\treturn name + \"-9\"\n}\n",
+    "pkg/h10.go": "package pkg\n\nimport \"fmt\"\n\n// Handler10 does the work of module 10.\nfunc Handler10(name string) string {\n\tfmt.Println(\"handler 10 starting\")\n\treturn name + \"-10\"\n}\n",
+    "go.mod": "module example.com/pkg\n\ngo 1.22\n"
+  },
+  "check": "! grep -rq 'fmt.Println' pkg/ && ! grep -rq '\"fmt\"' pkg/ && go build ./... && test $(ls pkg/*.go | wc -l) -eq 10",
+  "timeout": 300,
+  "tags": [
+    "fanout",
+    "edit"
+  ]
+}

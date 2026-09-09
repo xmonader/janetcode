@@ -86,6 +86,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalJobs    = fs.Int("eval-jobs", 2, "eval tasks to run at once")
 		evalOnly    = fs.String("eval-only", "", "comma-separated task names or tags to run")
 		evalJSON    = fs.String("eval-json", "", "write eval results to this JSON file")
+		evalReport  = fs.String("eval-report", "", "re-read a saved results file and print its report and tool adoption, without running anything; with --eval-compare it prints the paired comparison of two saved files")
 		evalKeep    = fs.Bool("eval-keep", false, "keep eval work directories")
 		evalRuns    = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips)")
 		evalCompare = fs.String("eval-compare", "", "results file of a baseline run to compare against (paired by task, bootstrap interval)")
@@ -197,6 +198,12 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			return err
 		}
 		cwd = wt.Path
+	}
+	// Re-reading saved results needs no provider and no money: the data is
+	// already on disk, and a comparison that was printed once should be
+	// printable again when the statistics behind it change.
+	if *evalReport != "" {
+		return reportEval(*evalReport, *evalCompare)
 	}
 	if *evalPath != "" {
 		if prov == nil {
@@ -598,7 +605,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	for _, f := range strings.Split(o.off, ",") {
 		if f = strings.TrimSpace(f); f != "" {
 			if !agent.KnownSwitch(f) {
-				return fmt.Errorf("--eval-off: unknown behaviour %q (coach, syntax, loops, prune, verify, repomap, working, plan, critic)", f)
+				return fmt.Errorf("--eval-off: unknown behaviour %q (%s)", f, strings.Join(agent.Switches(), ", "))
 			}
 			off[f] = true
 		}
@@ -678,10 +685,15 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		if !off["script"] {
 			ag.Tools.Add(&agent.Script{Parent: ag, Root: root})
 		}
+		evalToolsOnce.Do(func() { evalToolNames = ag.Tools.Names() })
 		return ag, nil
 	}}
 	results := r.Run(ctx, tasks)
 	passed := eval.Report(os.Stdout, results)
+	// Which tools the model actually reached for. A tool that is never
+	// called is not a feature however well it works, and only a set of
+	// runs can say so.
+	eval.WriteToolUse(os.Stdout, eval.Summarize(results), evalToolNames)
 	if baseline != nil {
 		label := baseline.Variant
 		if label == "" {
@@ -772,6 +784,43 @@ func chainPrep(hooks ...func([]llm.Block) ([]llm.Block, string)) func([]llm.Bloc
 
 // diagnoseNote turns language-server diagnostics for a just-edited file
 // into the note appended to the tool result.
+// reportEval prints a saved results file, and the paired comparison
+// against a second one when given.
+func reportEval(path, base string) error {
+	f, err := eval.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	label := f.Variant
+	if label == "" {
+		label = filepath.Base(path)
+	}
+	fmt.Fprintf(os.Stdout, "%s — %d result(s), %s\n\n", label, len(f.Results), f.Model)
+	eval.Report(os.Stdout, f.Results)
+	eval.WriteToolUse(os.Stdout, eval.Summarize(f.Results), nil)
+	if base == "" {
+		return nil
+	}
+	b, err := eval.ReadFile(base)
+	if err != nil {
+		return err
+	}
+	blabel := b.Variant
+	if blabel == "" {
+		blabel = filepath.Base(base)
+	}
+	fmt.Fprintf(os.Stdout, "\ncompared with %s (%s):\n", blabel, b.When.Format("2006-01-02 15:04"))
+	eval.WriteComparison(os.Stdout, eval.Compare(b.Results, f.Results))
+	return nil
+}
+
+// evalToolNames is what the eval agent was given, so the adoption report
+// can name the tools nothing ever called.
+var (
+	evalToolNames []string
+	evalToolsOnce sync.Once
+)
+
 // envOff reads JANETCODE_OFF, a comma-separated list of behaviours to
 // disable for this session.
 func envOff() map[string]bool {
