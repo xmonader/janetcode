@@ -1,12 +1,12 @@
 package tool
 
 import (
-	"time"
 	"context"
 	"encoding/base64"
 	"os/exec"
 	"runtime"
 	"sync"
+	"time"
 	"unicode/utf16"
 )
 

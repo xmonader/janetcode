@@ -29,3 +29,6 @@ Unavailable: Node.js >=22.22.3 required (current v22.22.2).
 ## grok
 
 Temp `GROK_HOME` `[model."qwen3.7-plus"]` with `env_key = "OPENAI_API_KEY"`.
+
+---
+Data caveat (2026-09-09): in these recorded reports the qwencode and hermes-agent input-token columns include the cached portion (their CLIs report prompt totals), while pi and janetcode report uncached input. Runs made after this date subtract cache reads for every harness.

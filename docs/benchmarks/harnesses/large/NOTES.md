@@ -17,3 +17,6 @@ Rerun of `32-large-rename` and `34-large-headers` after seed fixes (Widget in th
 - qwencode 2/2
 - hermes-agent 0/2
 - grok 2/2
+
+---
+Data caveat (2026-09-09): in these recorded reports the qwencode and hermes-agent input-token columns include the cached portion (their CLIs report prompt totals), while pi and janetcode report uncached input. Runs made after this date subtract cache reads for every harness.

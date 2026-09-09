@@ -214,9 +214,13 @@ func fromStats(m map[string]any) UsageMetrics {
 			u = u.Add(usageFromMap(mm))
 			continue
 		}
-		u.Input = u.Input.Add(pickInt(tok, "prompt", "input", "uncached"))
+		// qwen-code's "prompt" is the whole prompt, cached part included;
+		// report uncached input like pi and janetcode do.
+		prompt := pickInt(tok, "prompt", "input", "uncached")
+		cached := pickInt(tok, "cached", "cache", "cacheRead")
+		u.Input = u.Input.Add(uncached(prompt, cached))
 		u.Output = u.Output.Add(pickInt(tok, "candidates", "output", "completion"))
-		u.CacheRead = u.CacheRead.Add(pickInt(tok, "cached", "cache", "cacheRead"))
+		u.CacheRead = u.CacheRead.Add(cached)
 		u.CacheWrite = u.CacheWrite.Add(pickInt(tok, "cacheWrite", "cachedWrite"))
 	}
 	if tools := asMap(stats["tools"]); tools != nil {
@@ -453,11 +457,16 @@ func parseHermesAPICalls(s string) UsageMetrics {
 	var u UsageMetrics
 	n := 0
 	for _, m := range hermesAPICall.FindAllStringSubmatch(s, -1) {
-		u.Input = u.Input.Add(Int(atoiComma(m[1])))
-		u.Output = u.Output.Add(Int(atoiComma(m[2])))
+		// "in=3741 ... cache=2048/3741": the prompt total includes the
+		// cached part; store the uncached remainder as input.
+		in := Int(atoiComma(m[1]))
+		var cached OptInt
 		if m[3] != "" {
-			u.CacheRead = u.CacheRead.Add(Int(atoiComma(m[3])))
+			cached = Int(atoiComma(m[3]))
+			u.CacheRead = u.CacheRead.Add(cached)
 		}
+		u.Input = u.Input.Add(uncached(in, cached))
+		u.Output = u.Output.Add(Int(atoiComma(m[2])))
 		n++
 	}
 	if n > 0 {
@@ -621,4 +630,14 @@ func blocksText(v any) string {
 	default:
 		return ""
 	}
+}
+
+// uncached is the prompt total minus its cached part, for harnesses whose
+// prompt count includes cache reads; an unset or implausible cached count
+// leaves the total alone.
+func uncached(total, cached OptInt) OptInt {
+	if !total.Set || !cached.Set || cached.Value > total.Value {
+		return total
+	}
+	return Int(total.Value - cached.Value)
 }

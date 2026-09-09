@@ -136,7 +136,7 @@ func run(args []string) error {
 		Model:    cfg.Model,
 		Endpoint: cfg.BaseURL,
 		When:     time.Now().UTC(),
-		Note:     fmt.Sprintf("pass/fail is the eval JSON shell check; token fields are only those the harness emitted. Limits: %s wall budget for every harness and a fresh 2m for each check; %d model calls per task for qwencode, hermes-agent, grok and janetcode (pi has no cap flag); hermes-agent runs with its terminal toolset only; the tasks' max_tool_calls are not enforced for any harness", cfg.Timeout, cfg.MaxTurns),
+		Note:     fmt.Sprintf("pass/fail is the eval JSON shell check; token fields are only those the harness emitted. Limits: %s wall budget for every harness and a fresh 2m for each check; %d model calls per task for qwencode, hermes-agent, grok and janetcode (pi has no cap flag); hermes-agent runs with its terminal toolset only; the tasks' max_tool_calls are not enforced for any harness. Input tokens exclude cache reads for every harness (qwencode and hermes-agent report prompt totals that include them; the bench subtracts)", cfg.Timeout, cfg.MaxTurns),
 	}
 	if *filter == "large" {
 		meta.Tasks = "31–35 (five large evals, one batch of five); openclaw excluded"

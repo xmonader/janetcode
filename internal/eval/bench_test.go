@@ -188,14 +188,20 @@ func TestParseUsageJSONAndText(t *testing.T) {
 22:53:31 - root - DEBUG [20260908_225311_ad8b1e] - Token usage: prompt=3,741, completion=64, total=3,805
 `
 	u = ParseUsageText(hermes)
-	if !u.Input.Set || u.Input.Value != 3500+3741 || u.Output.Value != 80+64 || u.CacheRead.Value != 1024+2048 || u.Turns.Value != 2 {
+	// hermes counts the cached part inside in=; input is the uncached rest.
+	if !u.Input.Set || u.Input.Value != (3500-1024)+(3741-2048) || u.Output.Value != 80+64 || u.CacheRead.Value != 1024+2048 || u.Turns.Value != 2 {
 		t.Fatalf("hermes usage = %+v", u)
+	}
+	// qwen-code stats: "prompt" includes "cached".
+	qstats := ParseUsageJSON([]byte(`{"type":"result","stats":{"models":{"m":{"tokens":{"prompt":1000,"cached":600,"candidates":50}}}}}`))
+	if !qstats.Input.Set || qstats.Input.Value != 400 || qstats.CacheRead.Value != 600 || qstats.Output.Value != 50 {
+		t.Fatalf("qwen stats usage = %+v", qstats)
 	}
 
 	saved := filepath.Join("..", "..", "docs", "benchmarks", "harnesses", "hermes-agent.json")
 	if rs, err := ReadBenchJSON(saved); err == nil && len(rs) > 0 && strings.Contains(rs[0].StderrExcerpt, "in=3741") {
 		got := ParseUsageText(rs[0].StderrExcerpt)
-		if !got.Input.Set || got.Input.Value != 3741 || got.Output.Value != 64 || got.CacheRead.Value != 2048 {
+		if !got.Input.Set || got.Input.Value != 3741-2048 || got.Output.Value != 64 || got.CacheRead.Value != 2048 {
 			t.Fatalf("saved hermes 01 excerpt = %+v", got)
 		}
 	}
