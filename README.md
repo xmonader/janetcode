@@ -117,7 +117,7 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `list_dir` | List a directory | no |
 | `glob` | Find files by pattern (`**/*.go`) | no |
 | `grep` | Search file contents with a regex | no |
-| `edit_file` | Replace exact strings in a file; several edits to one file in one call | yes, shows a diff |
+| `edit_file` | Replace text in a file, located by exact string, line range or content anchor; several edits in one call | yes, shows a diff |
 | `write_file` | Create or overwrite a file | yes, shows a diff |
 | `bash` | Run a shell command with a timeout | yes |
 | `fetch_url` | Fetch a web page or API response as text | yes |

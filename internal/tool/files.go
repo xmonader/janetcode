@@ -21,7 +21,7 @@ type ReadFile struct {
 
 func (ReadFile) Name() string { return "read_file" }
 func (ReadFile) Description() string {
-	return "Read a text file. Returns numbered lines. Use offset/limit for large files (max 2000 lines per call)."
+	return "Read a text file. Returns numbered lines. Use offset/limit for large files (max 2000 lines per call). Set anchors to number them as 12:abc instead, where the letters mark the line's content: edit_file takes those in from_anchor/to_anchor and they keep pointing at the right line even after earlier edits move it."
 }
 func (ReadFile) Mutating() bool { return false }
 func (ReadFile) Schema() json.RawMessage {
@@ -34,9 +34,10 @@ func (ReadFile) Schema() json.RawMessage {
 
 func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) {
 	var in struct {
-		Path   string `json:"path"`
-		Offset int    `json:"offset"`
-		Limit  int    `json:"limit"`
+		Path    string `json:"path"`
+		Offset  int    `json:"offset"`
+		Limit   int    `json:"limit"`
+		Anchors bool   `json:"anchors"`
 	}
 	if err := decode(input, &in); err != nil {
 		return "", err
@@ -75,7 +76,13 @@ func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	}
 	var sb strings.Builder
 	for i := in.Offset - 1; i < end; i++ {
-		fmt.Fprintf(&sb, "%d\t%s\n", i+1, lines[i])
+		if in.Anchors {
+			// The mark travels with the line, so an edit aimed at it still
+			// lands after something above it moves.
+			fmt.Fprintf(&sb, "%s\t%s\n", Anchor(i+1, lines[i]), lines[i])
+		} else {
+			fmt.Fprintf(&sb, "%d\t%s\n", i+1, lines[i])
+		}
 	}
 	if end < len(lines) {
 		fmt.Fprintf(&sb, "... (%d more lines)\n", len(lines)-end)
@@ -278,7 +285,9 @@ func (t EditFile) Schema() json.RawMessage {
 	if !t.NoLines {
 		locator = `"old_string":{"type":"string","description":"Exact text to find; omit when giving from_line and to_line"},
 "from_line":{"type":"integer","description":"First line to replace, 1-based and inclusive, as numbered by read_file. Cheaper than old_string: give this and to_line instead of retyping the text"},
-"to_line":{"type":"integer","description":"Last line to replace, 1-based and inclusive; equal to from_line replaces one line"},`
+"to_line":{"type":"integer","description":"Last line to replace, 1-based and inclusive; equal to from_line replaces one line"},
+"from_anchor":{"type":"string","description":"First line to replace, as the mark read_file showed beside it (12:abc). Survives earlier edits moving the line, and is refused rather than guessed if the line has changed"},
+"to_anchor":{"type":"string","description":"Last line to replace, as its mark; equal to from_anchor replaces one line"},`
 	}
 	return json.RawMessage(`{"type":"object","properties":{
 "path":{"type":"string","description":"File path"},
@@ -313,10 +322,48 @@ type oneEdit struct {
 	ReplaceAll bool   `json:"replace_all"`
 	From       int    `json:"from_line"`
 	To         int    `json:"to_line"`
+	FromAnchor string `json:"from_anchor"`
+	ToAnchor   string `json:"to_anchor"`
 }
 
-// byLine reports whether the edit locates itself by line range.
-func (e oneEdit) byLine() bool { return e.From > 0 || e.To > 0 }
+// byLine reports whether the edit locates itself by position rather than
+// by the text it replaces. An anchor is a position too — a sturdier one.
+func (e oneEdit) byLine() bool {
+	return e.From > 0 || e.To > 0 || e.FromAnchor != "" || e.ToAnchor != ""
+}
+
+// resolve turns an edit's anchors into line numbers against the file as it
+// is now, leaving a plain line range alone.
+func (e oneEdit) resolve(lines []string) (oneEdit, error) {
+	if e.FromAnchor == "" && e.ToAnchor == "" {
+		return e, nil
+	}
+	first, last := e.FromAnchor, e.ToAnchor
+	if first == "" {
+		first = last
+	}
+	if last == "" {
+		last = first
+	}
+	ref, err := parseAnchor(first)
+	if err != nil {
+		return e, err
+	}
+	from, err := resolveAnchor(ref, lines)
+	if err != nil {
+		return e, err
+	}
+	ref2, err := parseAnchor(last)
+	if err != nil {
+		return e, err
+	}
+	to, err := resolveAnchor(ref2, lines)
+	if err != nil {
+		return e, err
+	}
+	e.From, e.To = from, to
+	return e, nil
+}
 
 // apply performs one replacement on content, reporting how many times the
 // text was found. The errors name the edit's position when there are
@@ -356,16 +403,18 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 		ReplaceAll bool      `json:"replace_all"`
 		From       int       `json:"from_line"`
 		To         int       `json:"to_line"`
+		FromAnchor string    `json:"from_anchor"`
+		ToAnchor   string    `json:"to_anchor"`
 		Edits      []oneEdit `json:"edits"`
 	}
 	if err := decode(input, &in); err != nil {
 		return nil, err
 	}
 	edits := in.Edits
-	if in.Old != "" || in.New != "" || in.From > 0 || in.To > 0 {
+	if in.Old != "" || in.New != "" || in.From > 0 || in.To > 0 || in.FromAnchor != "" || in.ToAnchor != "" {
 		// The single-edit form and the list are the same thing; a call
 		// that uses both is applying the loose one first.
-		edits = append([]oneEdit{{Old: in.Old, New: in.New, ReplaceAll: in.ReplaceAll, From: in.From, To: in.To}}, edits...)
+		edits = append([]oneEdit{{Old: in.Old, New: in.New, ReplaceAll: in.ReplaceAll, From: in.From, To: in.To, FromAnchor: in.FromAnchor, ToAnchor: in.ToAnchor}}, edits...)
 	}
 	if len(edits) == 0 {
 		return nil, fmt.Errorf("no edits: give old_string and new_string, or from_line and to_line, or a list in edits")
@@ -394,6 +443,21 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 	}
 	before := string(data)
 	if lines > 0 {
+		// Anchors are resolved against the file as it is now, before any
+		// of this batch is applied, so a list of them is written against
+		// one consistent view exactly as a list of line numbers is.
+		fileLines, _ := splitKeepingEnd(before)
+		for i, e := range edits {
+			r, err := e.resolve(fileLines)
+			if err != nil {
+				where := ""
+				if len(edits) > 1 {
+					where = fmt.Sprintf("edit %d of %d: ", i+1, len(edits))
+				}
+				return nil, fmt.Errorf("%s%w", where, err)
+			}
+			edits[i] = r
+		}
 		after, n, removed, err := applyLineEdits(before, edits)
 		if err != nil {
 			return nil, err
@@ -489,7 +553,7 @@ func applyLineEdits(before string, edits []oneEdit) (string, int, []string, erro
 		}
 		switch {
 		case e.Old != "" || e.ReplaceAll:
-			return "", 0, nil, fmt.Errorf("%sgive either a line range or old_string, not both", where)
+			return "", 0, nil, fmt.Errorf("%sgive either a position (line or anchor) or old_string, not both", where)
 		case from < 1:
 			return "", 0, nil, fmt.Errorf("%sfrom_line is %d; lines are numbered from 1", where, from)
 		case to < from:
