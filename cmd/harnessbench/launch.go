@@ -36,7 +36,17 @@ func runJanetBatch(ctx context.Context, cfg runConfig, batchN int, tasks []eval.
 	for i, t := range tasks {
 		names[i] = t.Name
 	}
-	jsonOut := filepath.Join(os.TempDir(), fmt.Sprintf("janetcode-batch%d-%d.json", batchN, time.Now().UnixNano()))
+	// The results file goes in a directory this process owns and removes,
+	// not loose in the temp root. A bare temp file there can be swept up
+	// by whatever else cleans /tmp while a long run is still going, and
+	// the run then fails with "did not write eval JSON" — which reads as
+	// the harness under test misbehaving rather than as housekeeping.
+	batchDir, err := os.MkdirTemp("", "janetcode-batch-")
+	if err != nil {
+		return eval.UnavailableResults("janetcode", "scratch batch dir: "+err.Error(), bin+" --eval", err.Error(), tasks)
+	}
+	defer os.RemoveAll(batchDir)
+	jsonOut := filepath.Join(batchDir, fmt.Sprintf("batch%d.json", batchN))
 	xdg, err := os.MkdirTemp("", "janetcode-xdg-")
 	if err != nil {
 		// Without a private config dir janetcode would read the operator's
