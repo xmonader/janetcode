@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 // Command harnessbench runs janetcode evals 01–20 in batches of five against
 // several coding-agent CLIs pointed at one OpenAI-compatible endpoint.
 package main

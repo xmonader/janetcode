@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 // Package prompt builds the system prompt for the agent.
 package prompt
 

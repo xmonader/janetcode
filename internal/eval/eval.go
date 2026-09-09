@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 // Package eval runs small end-to-end tasks against a real provider and
 // reports pass/fail, cost and tool-call counts. It is the regression test
 // for the agent's behaviour, as opposed to its code: a prompt change that

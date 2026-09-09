@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 // Package agent runs the model/tool loop: send the conversation, execute the
 // tool calls the model asks for (subject to permission), feed results back,
 // repeat until the model ends its turn.

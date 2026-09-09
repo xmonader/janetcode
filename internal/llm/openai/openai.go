@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 // Package openai implements llm.Provider over the OpenAI chat-completions
 // wire format, which OpenAI, xAI, Qwen, DeepSeek, OpenRouter, vLLM and Ollama
 // all speak. The client is hand-rolled so it stays tolerant of the small

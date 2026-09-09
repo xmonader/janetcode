@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 package openai
 
 import (
