@@ -2082,6 +2082,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	switch {
 	case errors.Is(msg.err, context.Canceled):
 		m.transcript.dropEmptyTrailing()
+		m.transcript.abortUnfinished("cancelled")
 		m.transcript.errorf("cancelled after %s", elapsed)
 		m.status = "cancelled"
 	case errors.Is(msg.err, agent.ErrMaxIterations):
@@ -2092,6 +2093,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		m.status = "stuck"
 	case msg.err != nil:
 		m.transcript.dropEmptyTrailing()
+		m.transcript.abortUnfinished("the turn ended before this call returned")
 		m.transcript.errorf("%s", friendlyError(msg.err, m.opts.Provider))
 		m.status = "error"
 	case compacting:

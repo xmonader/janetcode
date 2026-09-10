@@ -382,7 +382,7 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 	case entryCode:
 		return renderCode(e.text, width)
 	case entryError:
-		return styleErr.Render(wrap("✗ " + e.text))
+		return styleErr.Render(errorBlock(e.text, width))
 	case entryVerdict:
 		style := styleWarn
 		switch {
@@ -662,6 +662,44 @@ func planDelta(prev, cur string) string {
 		changed = append(changed, tally)
 	}
 	return strings.Join(changed, "\n")
+}
+
+// errorBlock renders an error as "✗ first line" with every following line
+// indented two columns under it, whether the break came from the message
+// (friendlyError adds a second line saying what to do) or from wrapping.
+// The whole block is one colour: an error is one thing to read.
+func errorBlock(text string, width int) string {
+	var src []string
+	for _, l := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+		src = append(src, strings.TrimLeft(l, " \t"))
+	}
+	body := unpad(lipgloss.NewStyle().Width(width - 4).Render(strings.Join(src, "\n")))
+	lines := strings.Split(body, "\n")
+	for i := range lines {
+		if i == 0 {
+			lines[i] = "✗ " + lines[i]
+			continue
+		}
+		lines[i] = "  " + strings.TrimLeft(lines[i], " ")
+	}
+	return strings.Join(lines, "\n")
+}
+
+// abortUnfinished closes tool entries that never got a result, so a turn
+// that ended in a provider error does not leave a spinner turning against
+// a call that will never come back. It reports how many it closed.
+func (t *transcript) abortUnfinished(reason string) int {
+	n := 0
+	for _, e := range t.entries {
+		if e.kind == entryTool && !e.done {
+			e.running, e.done, e.isError, e.final = false, true, true, false
+			if strings.TrimSpace(e.output) == "" {
+				e.output = reason
+			}
+			n++
+		}
+	}
+	return n
 }
 
 // unpad strips the trailing spaces lipgloss pads every wrapped line with.

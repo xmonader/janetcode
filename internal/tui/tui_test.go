@@ -1912,3 +1912,64 @@ func TestHeaderNarrowWidths(t *testing.T) {
 		at(w)
 	}
 }
+
+// failMidStream emits some assistant text and the start of a tool call and
+// then fails, the way a provider does when the connection drops.
+type failMidStream struct{ err error }
+
+func (failMidStream) Name() string { return "fake" }
+func (p failMidStream) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	b := llm.Block{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(`{"path":"x"}`)}
+	emit(llm.Event{Type: llm.EventTextDelta, Text: "I will start by"})
+	emit(llm.Event{Type: llm.EventToolUseStart, Block: &b})
+	return nil, p.err
+}
+
+// TestErrorRendering covers item 9: a multi-line error is one colour with
+// its continuation indented under the mark, and a provider failure
+// mid-stream leaves no half-rendered assistant or tool block behind.
+func TestErrorRendering(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Agent.Provider = failMidStream{err: errors.New("Post \"https://api.example.com/v1/messages\": dial tcp 10.0.0.1:443: connect: connection refused")}
+	h.update(tea.WindowSizeMsg{Width: 60, Height: 30})
+	h.keys("do it")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	v := plain(h.m.View())
+	if !strings.Contains(v, "✗ cannot reach the API") {
+		t.Fatalf("error not shown:\n%s", v)
+	}
+	// Every continuation line of the error is indented two columns under
+	// the mark, including the ones wrapping made.
+	var seen, indented int
+	for _, l := range strings.Split(v, "\n") {
+		switch {
+		case strings.HasPrefix(l, "✗ cannot reach the API"):
+			seen++
+		case strings.Contains(l, "check the base URL") || strings.Contains(l, "connection refused"):
+			seen++
+			if strings.HasPrefix(l, "  ") && !strings.HasPrefix(l, "   ") {
+				indented++
+			}
+		}
+	}
+	if seen < 2 || indented == 0 {
+		t.Errorf("error continuation lines are not indented under the mark:\n%s", v)
+	}
+	// Nothing is left streaming: no cursor, and the tool that never ran is
+	// marked failed rather than spinning.
+	if strings.Contains(v, "▍") {
+		t.Errorf("assistant block left half-rendered:\n%s", v)
+	}
+	if !strings.Contains(v, "✗ write_file") {
+		t.Errorf("the unfinished tool call is still open:\n%s", v)
+	}
+	for _, e := range h.m.transcript.entries {
+		switch e.kind {
+		case entryAssistant, entryThinking, entryTool:
+			if !e.done {
+				t.Errorf("a %v entry was left streaming after the error", e.kind)
+			}
+		}
+	}
+}
