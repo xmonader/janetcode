@@ -172,9 +172,9 @@ func (m *model) memoryCommand(cmd, arg string) {
 		case status == memory.Unchanged:
 			m.transcript.info("already remembered as " + e.Name)
 		case status == memory.Updated:
-			m.transcript.info("🧠 updated " + memoryLine(e))
+			m.transcript.info("◆ memory updated: " + memoryLine(e))
 		default:
-			m.transcript.info("🧠 remembered " + memoryLine(e))
+			m.transcript.info("◆ remembered: " + memoryLine(e))
 		}
 	case "/forget":
 		if arg == "" {
@@ -1156,15 +1156,16 @@ func (m *model) welcome() string {
 		fmt.Fprintf(&sb, " on %s", m.branch)
 	}
 	sb.WriteString("\n")
-	if m.opts.Agent.AutoApprove {
-		sb.WriteString("auto-approve is ON: tools run without asking\n")
-	} else if m.opts.Agent.AutoEdits {
-		sb.WriteString("auto-accept edits is ON: file changes go through, commands ask · /edits turns it off\n")
-	} else {
-		sb.WriteString("edits and commands ask first and show a diff · y allow · a always · n deny\n")
+	switch {
+	case m.opts.Agent.AutoApprove:
+		sb.WriteString("auto-approve is on: tools run without asking")
+	case m.opts.Agent.AutoEdits:
+		sb.WriteString("edits go through, commands ask (/edits)")
+	default:
+		sb.WriteString("edits and commands ask first · y allow · a always · n deny")
 	}
-	sb.WriteString("enter sends · ctrl+j newline · esc cancels · /help for more\n")
-	sb.WriteString("@file attaches a file · !cmd runs a command and shares its output · /undo reverts a bad change")
+	sb.WriteString(" · esc cancels · /help\n")
+	sb.WriteString("@file attaches · !cmd runs and shares the output · /undo reverts a bad change")
 	return sb.String()
 }
 
@@ -1382,7 +1383,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.transcript.info("memory: extraction failed: " + msg.err.Error())
 		}
 		for _, e := range msg.added {
-			m.transcript.info("🧠 remembered " + memoryLine(e))
+			m.transcript.info("◆ remembered: " + memoryLine(e))
 		}
 		m.refresh(false)
 		return m, nil
@@ -1439,19 +1440,12 @@ func (m *model) applyEvent(ev agent.Event) {
 		u := ev.Usage
 		m.lastUsage = u
 		in := u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
-		s := fmt.Sprintf("in %s", shortTokens(in))
-		if u.CacheReadTokens > 0 && in > 0 {
-			s += fmt.Sprintf(" (%d%% from cache)", u.CacheReadTokens*100/in)
-		}
-		s += " · out " + shortTokens(u.OutputTokens)
+		s := fmt.Sprintf("in %s · out %s", shortTokens(in), shortTokens(u.OutputTokens))
 		if usd, ok := u.Cost(m.opts.Agent.Price); ok {
-			s += " · this turn " + llm.FormatUSD(usd)
+			s += " · " + llm.FormatUSD(usd)
 			if u.CostSource(m.opts.Agent.Price) != "reported" {
-				s += " at list price"
+				s += " est."
 			}
-		}
-		if usd, ok := m.opts.Agent.UsageSnapshot().Cost(m.opts.Agent.Price); ok {
-			s += " · session " + llm.FormatUSD(usd)
 		}
 		if ev.StopReason != "" && ev.StopReason != "end_turn" {
 			s += " · stopped: " + string(ev.StopReason)

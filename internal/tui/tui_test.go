@@ -1138,7 +1138,7 @@ func TestMemoryCommandsAndAutoExtraction(t *testing.T) {
 	if e, ok := store.Get("hand-maintained"); !ok || e.Source != "auto" {
 		t.Fatalf("entries after extraction = %+v", store.Entries())
 	}
-	if v := plain(h.m.View()); !strings.Contains(v, "remembered hand-maintained (project): The x file is hand-maintained.") {
+	if v := plain(h.m.View()); !strings.Contains(v, "remembered: hand-maintained (project): The x file is hand-maintained.") {
 		t.Fatalf("view:\n%s", v)
 	}
 	h.keys("/forget hand-maintained")

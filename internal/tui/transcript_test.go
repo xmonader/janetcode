@@ -182,7 +182,7 @@ func TestVerdictAndDiagnosticsAreShown(t *testing.T) {
 		t.Fatalf("no diagnostics: %q / %q", b, d)
 	}
 	tr.apply(agent.Event{Kind: agent.EvNotice, Text: "skills attached: go-testing"})
-	if e := tr.last(entryInfo); e == nil || !strings.HasPrefix(e.text, "📎 ") {
+	if e := tr.last(entryInfo); e == nil || !strings.HasPrefix(e.text, "» ") {
 		t.Fatalf("attach note = %+v", e)
 	}
 	if verdictBrief("✓ verified: tests that had been failing now pass") != "✓ verified" || verdictBrief("") != "" {
@@ -252,7 +252,7 @@ func TestGoalEndIsALineOfItsOwn(t *testing.T) {
 	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &c})
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &c, Output: "goal g1 is now complete"})
 	e := tr.last(entryVerdict)
-	if e == nil || !strings.Contains(e.text, "🎯 goal g1 is now complete") {
+	if e == nil || !strings.Contains(e.text, "◎ goal g1 is now complete") {
 		t.Fatalf("goal end entry = %+v", e)
 	}
 }

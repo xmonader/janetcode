@@ -145,7 +145,7 @@ func (t *transcript) apply(ev agent.Event) {
 			// The goal's end is the one line the user is waiting for; a
 			// tool result in faint text is not where they look for it.
 			t.closeOpen()
-			t.add(&entry{kind: entryVerdict, text: "🎯 " + strings.TrimSpace(ev.Output) + " · nothing more runs for it; /goal starts another"})
+			t.add(&entry{kind: entryVerdict, text: "◎ " + strings.TrimSpace(ev.Output) + " · nothing more runs for it; /goal starts another"})
 		}
 		e := t.findTool(ev.Call.ID)
 		if e == nil {
@@ -174,7 +174,7 @@ func (t *transcript) apply(ev agent.Event) {
 	case agent.EvNotice:
 		t.closeOpen()
 		if isAttachNote(ev.Text) {
-			t.info("📎 " + ev.Text)
+			t.info("» " + ev.Text)
 		} else {
 			t.info("⚑ " + ev.Text)
 		}
@@ -334,16 +334,19 @@ func (t *transcript) needsRender(e *entry, o renderOpts, now time.Time) bool {
 }
 
 func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
-	wrap := lipgloss.NewStyle().Width(width - 2)
+	// wrap folds text to the width and drops the padding lipgloss adds
+	// to the right edge: padding spaces carry the style, and a terminal
+	// that draws faint or italic as reverse video turns them into a bar.
+	wrap := func(s string) string { return unpad(lipgloss.NewStyle().Width(width - 2).Render(s)) }
 	switch e.kind {
 	case entryBanner:
-		return styleDim.Render(wrap.Render(e.text))
+		return styleDim.Render(wrap(e.text))
 	case entryInfo:
-		return styleDim.Render(wrap.Render(e.text))
+		return styleDim.Render(wrap(e.text))
 	case entryCode:
 		return renderCode(e.text, width)
 	case entryError:
-		return styleErr.Render(wrap.Render("✗ " + e.text))
+		return styleErr.Render(wrap("✗ " + e.text))
 	case entryVerdict:
 		style := styleWarn
 		switch {
@@ -352,12 +355,14 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 		case strings.HasPrefix(e.text, "✗"):
 			style = styleErr
 		}
-		return style.Render(wrap.Render(e.text))
+		return style.Render(wrap(e.text))
 	case entryUser:
-		body := lipgloss.NewStyle().Width(width - 4).Render(e.text)
+		body := unpad(lipgloss.NewStyle().Width(width - 4).Render(e.text))
 		return styleUser.Render("❯ ") + styleUserBody.Render(strings.ReplaceAll(body, "\n", "\n  "))
 	case entryThinking:
-		return styleFaint.Italic(true).Render(wrap.Render(thinkingView(e.text, e.done)))
+		// Faint, never italic: many terminals have no italic face and
+		// draw SGR italic as reverse video.
+		return styleFaint.Render(wrap(thinkingView(e.text, e.done)))
 	case entryAssistant:
 		return t.renderMarkdown(e, width)
 	case entryTool:
@@ -610,6 +615,15 @@ func planDelta(prev, cur string) string {
 		changed = append(changed, tally)
 	}
 	return strings.Join(changed, "\n")
+}
+
+// unpad strips the trailing spaces lipgloss pads every wrapped line with.
+func unpad(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = strings.TrimRight(l, " ")
+	}
+	return strings.Join(lines, "\n")
 }
 
 // isAttachNote reports a notice about what the harness attached to the
