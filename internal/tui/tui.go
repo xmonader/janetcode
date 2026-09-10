@@ -2717,7 +2717,10 @@ func (m *model) helpText() string {
 // permissionKeys is the keys line of the permission box, in the longest
 // wording that fits on one line. The box has a fixed height in the
 // layout, so a wrapped keys line would run over the input.
-func (m *model) permissionKeys(tool, rule string) string {
+// permissionKeys is the key line of the permission box. expandable says
+// whether there is more of the call to see: without that, the line used to
+// offer ctrl+o even for a two-line diff that was already shown whole.
+func (m *model) permissionKeys(tool, rule string, expandable bool) string {
 	type seg struct{ key, text string }
 	// Box width minus its border and padding, with two columns to spare
 	// so a line measured at the limit never wraps inside the box.
@@ -2734,7 +2737,10 @@ func (m *model) permissionKeys(tool, rule string) string {
 		}
 		return sb.String(), lipgloss.Width(plain.String())
 	}
-	long := []seg{{"y", " allow once"}, {"a", " always for " + tool + " this session"}, {"r", " save rule " + rule}, {"n", " deny (and say why)"}, {"c", " cancel the turn"}, {"", "(ctrl+o expands)"}}
+	long := []seg{{"y", " allow once"}, {"a", " always for " + tool + " this session"}, {"r", " save rule " + rule}, {"n", " deny (and say why)"}, {"c", " cancel the turn"}}
+	if expandable {
+		long = append(long, seg{"", "(ctrl+o expands)"})
+	}
 	if s, w := render(long, "   "); w <= room {
 		return s
 	}
@@ -3221,7 +3227,7 @@ func (m *model) permissionView() string {
 		sb.WriteString("\n" + styleErr.Bold(true).Render("⚠ "+c.Warning))
 	}
 	rule := perm.Suggest(c.Name, perm.Subject(c.Name, c.Input)).String()
-	sb.WriteString("\n" + m.permissionKeys(c.Name, rule))
+	sb.WriteString("\n" + m.permissionKeys(c.Name, rule, pendingExpandable(c)))
 	return stylePermBox.Width(m.width - 2).Render(sb.String())
 }
 

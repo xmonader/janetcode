@@ -1671,9 +1671,11 @@ func TestPermissionKeysFitOneLine(t *testing.T) {
 	h := newHarness(t)
 	for _, w := range []int{60, 80, 110, 200} {
 		h.m.width = w
-		line := plain(h.m.permissionKeys("edit_file", "edit_file(/tmp/claude-1000/-home-driver-wspace-janetcode/dd12e125-65a6-415a-b19b-31de5e8c912b/scratchpad/tuiproj/*)"))
-		if lipgloss.Width(line) > w-6 || !strings.Contains(line, "n") {
-			t.Fatalf("width %d: %d cols: %q", w, lipgloss.Width(line), line)
+		for _, expandable := range []bool{false, true} {
+			line := plain(h.m.permissionKeys("edit_file", "edit_file(/tmp/claude-1000/-home-driver-wspace-janetcode/dd12e125-65a6-415a-b19b-31de5e8c912b/scratchpad/tuiproj/*)", expandable))
+			if lipgloss.Width(line) > w-6 || !strings.Contains(line, "n") {
+				t.Fatalf("width %d expandable=%v: %d cols: %q", w, expandable, lipgloss.Width(line), line)
+			}
 		}
 	}
 }
@@ -2170,4 +2172,48 @@ func TestCompletionMenusMatch(t *testing.T) {
 	if got := h.m.input.Value(); got != c[1].name+" " {
 		t.Errorf("command tab after down = %q, want %q", got, c[1].name+" ")
 	}
+}
+
+// TestPermissionBoxExpandHint covers item 13: the box offers ctrl+o only
+// when there is more of the call to see, and wears the same warning
+// colour as the "approval needed" status.
+func TestPermissionBoxExpandHint(t *testing.T) {
+	short := agent.ToolCall{ID: "e1", Name: "edit_file", Input: json.RawMessage(`{"path":"a.go"}`),
+		Preview: "--- a.go\n+++ a.go\n@@ -1,1 +1,1 @@\n-old\n+new\n"}
+	if pendingExpandable(short) {
+		t.Error("a five-line diff has nothing to expand")
+	}
+	long := short
+	for i := 0; i < 200; i++ {
+		long.Preview += fmt.Sprintf("+line %d\n", i)
+	}
+	if !pendingExpandable(long) {
+		t.Error("a 200-line diff should offer ctrl+o")
+	}
+	// A bash command is shown whole on the tool line: never expandable.
+	if pendingExpandable(agent.ToolCall{Name: "bash", Input: json.RawMessage(`{"command":"ls"}`)}) {
+		t.Error("bash offered ctrl+o")
+	}
+
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"n.txt","content":"x\n"}`)}}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn},
+	)
+	h.keys("make n.txt")
+	h.enter()
+	h.pump(func() bool { return h.m.pending != nil })
+	v := plain(h.m.permissionView())
+	if !strings.Contains(v, "allow write_file") {
+		t.Fatalf("permission box:\n%s", v)
+	}
+	if strings.Contains(v, "ctrl+o") {
+		t.Errorf("a one-line write offered ctrl+o:\n%s", v)
+	}
+	// The box border and the status word are the same warning colour.
+	if stylePermBox.GetBorderTopForeground() != styleWarn.GetForeground() {
+		t.Errorf("permission box border %v, warning text %v",
+			stylePermBox.GetBorderTopForeground(), styleWarn.GetForeground())
+	}
+	h.keys("y")
+	h.pump(func() bool { return !h.m.running })
 }

@@ -519,10 +519,14 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		}
 	}
 	if o.pending != nil && o.pending.call.ID == e.call.ID {
+		previewMax, inputMax := pendingPreviewLines, pendingInputLines
+		if o.verbose {
+			previewMax, inputMax = 400, 400
+		}
 		if o.pending.call.Preview != "" {
-			sb.WriteString("\n" + renderPreview(o.pending.call.Preview, width, 60))
+			sb.WriteString("\n" + renderPreview(o.pending.call.Preview, width, previewMax))
 		} else if full := prettyInput(e.inputJSON()); full != "" && e.call.Name != "bash" {
-			sb.WriteString("\n" + styleDim.Render(indent(clip(full, 30), "  ")))
+			sb.WriteString("\n" + styleDim.Render(indent(clipTool(full, inputMax), "  ")))
 		}
 		return sb.String()
 	}
@@ -758,6 +762,40 @@ func thinkingView(text string, done bool) string {
 		return strings.Join(lines, "\n")
 	}
 	return "· " + strings.Join(lines, "\n")
+}
+
+// How much of a call awaiting approval is shown before ctrl+o expands it.
+const (
+	pendingPreviewLines = 60
+	pendingInputLines   = 30
+)
+
+// pendingExpandable reports whether ctrl+o would actually show more of a
+// call awaiting approval, so the key line can offer it only when it would
+// do something.
+func pendingExpandable(c agent.ToolCall) bool {
+	if c.Preview != "" {
+		return previewLines(c.Preview) >= pendingPreviewLines+clipSlack
+	}
+	if c.Name == "bash" {
+		return false
+	}
+	if full := prettyInput(string(c.Input)); full != "" {
+		return len(strings.Split(full, "\n")) >= pendingInputLines+clipSlack
+	}
+	return false
+}
+
+// previewLines counts the lines renderPreview would draw for a preview.
+func previewLines(preview string) int {
+	n := 0
+	for _, l := range strings.Split(strings.TrimRight(preview, "\n"), "\n") {
+		if strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ ") {
+			continue
+		}
+		n++
+	}
+	return n
 }
 
 // renderPreview colours a unified diff (or shows plain preview text).
