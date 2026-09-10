@@ -2102,3 +2102,72 @@ func TestClearAndResumeBanners(t *testing.T) {
 		t.Errorf("banners=%d, first entry kind=%v", banners, h.m.transcript.entries[0].kind)
 	}
 }
+
+// TestCompletionMenusMatch covers item 12: the "/" menu and the @path menu
+// are the same menu — same height whatever they contain, so the transcript
+// above does not reflow on every keystroke, and the same keys.
+func TestCompletionMenusMatch(t *testing.T) {
+	h := newHarness(t)
+	os.WriteFile(filepath.Join(h.m.opts.Cwd, "alpha.go"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(h.m.opts.Cwd, "alpine.go"), []byte("x"), 0o644)
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	closed := h.m.viewport.Height
+	h.keys("/")
+	openHeight := h.m.viewport.Height
+	if openHeight >= closed {
+		t.Fatal("the menu should take room from the transcript")
+	}
+	// Narrowing the menu must not move the viewport again.
+	for _, s := range []string{"c", "o", "n"} {
+		h.keys(s)
+		if h.m.viewport.Height != openHeight {
+			t.Fatalf("typing %q resized the transcript: %d → %d", s, openHeight, h.m.viewport.Height)
+		}
+	}
+	rows := func() int { return strings.Count(h.m.footerView(), "\n") }
+	withOne := rows()
+	h.inputReset()
+	h.keys("/")
+	if got := rows(); got != withOne {
+		t.Errorf("a full menu is %d rows and a one-row menu is %d", got, withOne)
+	}
+	// The @path menu is the same size, and says the same thing at the foot.
+	h.inputReset()
+	h.keys("see @")
+	if got := rows(); got != withOne {
+		t.Errorf("the @path menu is %d rows, the command menu %d", got, withOne)
+	}
+	if !strings.Contains(plain(h.m.footerView()), "tab or enter accepts") {
+		t.Errorf("the @path menu is missing the key line:\n%s", plain(h.m.footerView()))
+	}
+	// Tab extends to what the matches share, in both menus.
+	h.inputReset()
+	h.keys("see @a")
+	h.update(tea.KeyMsg{Type: tea.KeyTab})
+	if got := h.m.input.Value(); got != "see @alp" {
+		t.Errorf("path tab = %q, want the shared prefix", got)
+	}
+	h.inputReset()
+	h.keys("/conn")
+	h.update(tea.KeyMsg{Type: tea.KeyTab})
+	if got := h.m.input.Value(); got != "/connect " {
+		t.Errorf("command tab = %q", got)
+	}
+	// Down then tab takes the highlighted row in both.
+	h.inputReset()
+	h.keys("see @alp")
+	h.update(tea.KeyMsg{Type: tea.KeyDown})
+	h.update(tea.KeyMsg{Type: tea.KeyTab})
+	if got := h.m.input.Value(); got != "see @alpine.go " {
+		t.Errorf("path tab after down = %q", got)
+	}
+	h.inputReset()
+	h.keys("/co")
+	c, _ := h.m.menu()
+	h.update(tea.KeyMsg{Type: tea.KeyDown})
+	h.update(tea.KeyMsg{Type: tea.KeyTab})
+	if got := h.m.input.Value(); got != c[1].name+" " {
+		t.Errorf("command tab after down = %q, want %q", got, c[1].name+" ")
+	}
+}

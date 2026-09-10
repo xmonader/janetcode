@@ -1421,10 +1421,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	before := m.input.LineCount()
+	// The footer grows and shrinks with the input box and with the
+	// completion menu; the viewport has to be told, or the view is taller
+	// than the terminal and the transcript scrolls under it.
+	before := m.footerHeight()
 	m.input, cmd = m.input.Update(msg)
 	cmds = append(cmds, cmd)
-	if m.input.LineCount() != before {
+	if m.footerHeight() != before {
 		m.layout()
 		m.refresh(false)
 	}
@@ -1898,25 +1901,24 @@ func (m *model) complete() bool {
 	if len(c) == 0 {
 		return false
 	}
+	// One rule for both menus: with the highlight where it started and
+	// several matches, extend to what they all share so a second tab
+	// narrows the list; otherwise take the highlighted row.
 	v := m.input.Value()
-	if strings.HasPrefix(v, "/") {
-		m.input.SetValue(c[idx].name + " ")
-	} else {
-		i := strings.LastIndexAny(v, " \n\t")
-		name := c[idx].name
-		if idx == 0 && len(c) > 1 {
-			for _, o := range c[1:] {
-				name = commonPrefix(name, o.name)
-			}
-			if name == v[i+1:] { // nothing to extend: take the highlighted one
-				name = c[idx].name
-			}
+	i := strings.LastIndexAny(v, " \n\t")
+	name := c[idx].name
+	if idx == 0 && len(c) > 1 {
+		for _, o := range c[1:] {
+			name = commonPrefix(name, o.name)
 		}
-		if !strings.HasSuffix(name, "/") && (len(c) == 1 || name == c[idx].name) {
-			name += " "
+		if name == v[i+1:] { // nothing to extend: take the highlighted one
+			name = c[idx].name
 		}
-		m.input.SetValue(v[:i+1] + name)
 	}
+	if !strings.HasSuffix(name, "/") && (len(c) == 1 || name == c[idx].name) {
+		name += " "
+	}
+	m.input.SetValue(v[:i+1] + name)
 	m.input.CursorEnd()
 	m.compFor, m.compIdx = m.input.Value(), 0
 	return true
@@ -2853,11 +2855,11 @@ func (m *model) footerHeight() int {
 		return m.permissionBoxHeight()
 	}
 	h := m.inputHeight() + 2 // border
-	if c := m.completions(); len(c) > 0 {
-		h += min(len(c), menuRows)
-		if len(c) > menuRows {
-			h++
-		}
+	if len(m.completions()) > 0 {
+		// The menu always claims the same height, however many rows it has
+		// to show: narrowing it as you type used to resize the viewport on
+		// every keystroke, and the transcript flickered above it.
+		h += menuRows + 1
 	}
 	if m.denying {
 		h++
@@ -3166,6 +3168,8 @@ func (m *model) footerView() string {
 	if m.denying {
 		parts = append(parts, "  "+styleWarn.Bold(true).Render("denied "+m.pending.call.Name)+styleDim.Render(" · tell the model why (optional) · enter sends · esc skips"))
 	}
+	// The command menu and the @path menu are the same menu: same rows,
+	// same highlight, same footer line, same height whatever is in them.
 	if c, idx := m.menu(); len(c) > 0 {
 		start := 0
 		if idx >= menuRows {
@@ -3174,17 +3178,16 @@ func (m *model) footerView() string {
 		end := min(len(c), start+menuRows)
 		for i := start; i < end; i++ {
 			cmd := c[i]
-			row := styleKey.Render(cmd.name) + " " + styleDim.Render(cmd.args) + "  " + styleFaint.Render(cmd.help)
+			mark, name, help := "  ", styleKey.Render(cmd.name), styleFaint.Render(cmd.help)
 			if i == idx {
-				row = styleAccent.Render("▸ ") + styleKey.Bold(true).Render(cmd.name) + " " + styleDim.Render(cmd.args) + "  " + styleDim.Render(cmd.help)
-			} else {
-				row = "  " + row
+				mark, name, help = styleAccent.Render("▸ "), styleKey.Bold(true).Render(cmd.name), styleDim.Render(cmd.help)
 			}
-			parts = append(parts, truncateLine(row, m.width-1))
+			parts = append(parts, fitLine(mark+name+" "+styleDim.Render(cmd.args)+"  "+help, m.width-1))
 		}
-		if len(c) > menuRows {
-			parts = append(parts, styleFaint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))
+		for i := end - start; i < menuRows; i++ {
+			parts = append(parts, "")
 		}
+		parts = append(parts, styleFaint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))
 	}
 	for i, q := range m.queued {
 		parts = append(parts, "  "+styleFaint.Render(fmt.Sprintf("queued %d ", i+1))+styleDim.Render(truncateLine(strings.ReplaceAll(q, "\n", " "), m.width-14)))
