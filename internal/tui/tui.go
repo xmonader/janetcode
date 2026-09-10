@@ -3115,6 +3115,7 @@ func (m *model) refresh(resized bool) {
 		spinner: m.spinner.View(),
 		verbose: m.verbose,
 		cap:     outputCap(m.viewport.Height),
+		preview: m.previewCall,
 		tight:   m.tight(),
 		compact: m.compactMode(),
 	})
@@ -3977,6 +3978,31 @@ func (m *model) completeFile(partial string) []command {
 			help = "directory"
 		}
 		out = append(out, command{name: name + p, help: help})
+	}
+	return out
+}
+
+// previewCall asks a tool what a call would do, for a call whose
+// arguments have finished streaming but which has not run yet. The edit
+// tools answer with a unified diff against the file on disk; anything
+// else, and any error, answers with nothing.
+func (m *model) previewCall(name string, input []byte) string {
+	if m.opts.Agent == nil || m.opts.Agent.Tools == nil {
+		return ""
+	}
+	t, ok := m.opts.Agent.Tools.Get(name)
+	if !ok {
+		return ""
+	}
+	pv, ok := t.(tool.Previewer)
+	if !ok {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	out, err := pv.Preview(ctx, input)
+	if err != nil {
+		return ""
 	}
 	return out
 }

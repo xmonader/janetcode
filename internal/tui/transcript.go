@@ -82,6 +82,9 @@ type entry struct {
 	// /verbose flag says. ctrl+o sets it on the last turn's entries and a
 	// mouse click on a tool line sets it on that entry alone.
 	expanded bool
+	// livePreview is the diff computed while the call was still being
+	// written, kept against the input it came from so it is computed once.
+	livePreview, livePreviewFor string
 	// lineFrom and lineTo are the entry's line range in the last rendered
 	// transcript, so a mouse click can be traced back to it.
 	lineFrom, lineTo int
@@ -118,6 +121,9 @@ type renderOpts struct {
 	// tight drops what is optional in a very short window (the welcome
 	// banner); compact narrows what is left.
 	tight, compact bool
+	// preview computes what a call would do, for a call whose arguments
+	// have finished streaming but which has not run yet.
+	preview func(name string, input []byte) string
 }
 
 // outputCap is the fold height for a viewport: a third of it, never fewer
@@ -572,6 +578,19 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 	case e.running && !e.started.IsZero():
 		if el := time.Since(e.started); el > time.Second {
 			sb.WriteString(styleFaint.Render(" " + shortDuration(el)))
+		}
+	}
+	if !e.done && !e.running && !pendingHere && o.preview != nil && (e.call.Name == "edit_file" || e.call.Name == "write_file") {
+		// The arguments are complete but the call has not run: show what
+		// it would do now, while the model is still writing the rest of
+		// the turn, rather than after the fact.
+		if raw := e.inputJSON(); json.Valid([]byte(raw)) {
+			if e.livePreviewFor != raw {
+				e.livePreview, e.livePreviewFor = o.preview(e.call.Name, []byte(raw)), raw
+			}
+			if e.livePreview != "" {
+				sb.WriteString("\n" + renderPreview(e.livePreview, width, o.lines(12)))
+			}
 		}
 	}
 	if o.pending != nil && o.pending.call.ID == e.call.ID {

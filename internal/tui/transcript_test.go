@@ -588,3 +588,33 @@ func TestFailedCommandKeepsItsTail(t *testing.T) {
 		t.Fatalf("no marker for what was dropped:\n%s", out)
 	}
 }
+
+// TestPreviewBeforeTheCallRuns: once an edit's arguments have finished
+// streaming, the diff against the file on disk is shown while the model
+// is still writing the rest of the turn.
+func TestPreviewBeforeTheCallRuns(t *testing.T) {
+	asked := 0
+	o := renderOpts{width: 80, preview: func(name string, input []byte) string {
+		asked++
+		return "--- a.go\n+++ a.go\n@@ -1,1 +1,1 @@\n-old line\n+new line\n"
+	}}
+	tr := newTranscript()
+	call := agent.ToolCall{ID: "e1", Name: "edit_file"}
+	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &call})
+	tr.apply(agent.Event{Kind: agent.EvToolInput, Call: &call, Text: `{"path":"a.go",`})
+	if v := plain(tr.render(o)); strings.Contains(v, "new line") {
+		t.Fatalf("a half-written call must not be previewed:\n%s", v)
+	}
+	tr.apply(agent.Event{Kind: agent.EvToolInput, Call: &call, Text: `"old_string":"old line","new_string":"new line"}`})
+	v := plain(tr.render(o))
+	if !strings.Contains(v, "+new line") || !strings.Contains(v, "-old line") {
+		t.Fatalf("no diff before the call ran:\n%s", v)
+	}
+	// Re-rendering the same call does not recompute it.
+	before := asked
+	tr.render(o)
+	tr.render(o)
+	if asked != before {
+		t.Fatalf("preview recomputed %d times", asked-before+1)
+	}
+}
