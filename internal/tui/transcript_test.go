@@ -382,8 +382,9 @@ func TestToolResultCollapsing(t *testing.T) {
 	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &other})
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &other, Output: long})
 	out = plain(tr.render(renderOpts{width: 80}))
-	if !strings.Contains(out, "… (4 more lines, ctrl+o to expand)") {
-		t.Errorf("twelve lines were not collapsed to eight:\n%s", out)
+	// Command output keeps its tail: two lines of head, three of tail.
+	if !strings.Contains(out, "… +7 lines") || !strings.Contains(out, "line 12") || strings.Contains(out, "line 6") {
+		t.Errorf("twelve lines were not folded head 2 / tail 3:\n%s", out)
 	}
 
 	// read_file folds to one line, and expands again with ctrl+o.
@@ -561,5 +562,29 @@ func TestFoldedThoughtReopens(t *testing.T) {
 	tr.toggleLastTurn()
 	if v := plain(tr.render(o)); !strings.Contains(v, "four") {
 		t.Fatalf("expanded thought should show its text:\n%s", v)
+	}
+}
+
+// TestFailedCommandKeepsItsTail: the reason a build failed is on its last
+// line, so a clipped error must keep the end and not the preamble.
+func TestFailedCommandKeepsItsTail(t *testing.T) {
+	call := agent.ToolCall{ID: "b", Name: "bash", Input: json.RawMessage(`{"command":"go build ./..."}`)}
+	body := ""
+	for i := 1; i <= 30; i++ {
+		body += fmt.Sprintf("noise %d\n", i)
+	}
+	body += "main.go:9:2: undefined: Sub"
+	tr := newTranscript()
+	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &call, Output: body, IsError: true})
+	out := plain(tr.render(renderOpts{width: 100}))
+	if !strings.Contains(out, "undefined: Sub") {
+		t.Fatalf("the error line was clipped away:\n%s", out)
+	}
+	if strings.Contains(out, "noise 1\n") {
+		t.Fatalf("the preamble survived instead:\n%s", out)
+	}
+	if !strings.Contains(out, "… +") {
+		t.Fatalf("no marker for what was dropped:\n%s", out)
 	}
 }

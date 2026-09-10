@@ -588,6 +588,18 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 			max = 20
 		}
 		out := clipTool(body, max)
+		switch {
+		case e.isError:
+			// A failed build says what went wrong at the end. Keeping the
+			// head kept the compiler's preamble and dropped the error.
+			out = tailLines(body, max)
+		case !o.expand(e) && (e.call.Name == "bash" || e.call.Name == "shell"):
+			out = headTail(body, 2, 3)
+		case o.expand(e) && e.call.Name == "read_file":
+			// Expanded, a read is a sample of the file rather than the
+			// whole numbered window the model was given.
+			out = headTail(body, 5, 3)
+		}
 		style := styleFaint
 		if e.isError {
 			style = styleErr
@@ -1021,6 +1033,29 @@ func clipTool(s string, max int) string {
 		return s
 	}
 	return clip(s, max)
+}
+
+// headTail keeps the first head and the last tail lines of s, with a
+// count of what it dropped between them. The head alone is the wrong half
+// of a build log: the error is at the end.
+func headTail(s string, head, tail int) string {
+	lines := strings.Split(s, "\n")
+	if len(lines) < head+tail+clipSlack {
+		return s
+	}
+	out := append([]string{}, lines[:head]...)
+	out = append(out, fmt.Sprintf("… +%d lines", len(lines)-head-tail))
+	return strings.Join(append(out, lines[len(lines)-tail:]...), "\n")
+}
+
+// tailLines keeps the last max lines of s: what an error ends with is
+// what says why it failed.
+func tailLines(s string, max int) string {
+	lines := strings.Split(s, "\n")
+	if len(lines) < max+clipSlack {
+		return s
+	}
+	return fmt.Sprintf("… +%d lines\n", len(lines)-max) + strings.Join(lines[len(lines)-max:], "\n")
 }
 
 func clip(s string, lines int) string {
