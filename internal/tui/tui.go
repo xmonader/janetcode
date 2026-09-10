@@ -2918,14 +2918,19 @@ func (m *model) View() string {
 	)
 }
 
+// headerView is the one-line header: the name and model on the left, the
+// mode prefix, working directory and branch on the right. When they do not
+// all fit the session title goes first, then the branch, then the path is
+// shortened — nothing is ever cut mid-glyph or allowed to wrap.
 func (m *model) headerView() string {
 	left := styleHeaderHi.Render(" ◆ janetcode ") + styleHeader.Render(m.headerModel())
+	title := ""
 	if m.opts.Session != nil && m.opts.Session.Meta.Title != "" {
-		left += styleHeader.Render(" · " + truncateLine(m.opts.Session.Meta.Title, max(12, m.width/3)))
+		title = " · " + truncateLine(m.opts.Session.Meta.Title, max(12, m.width/3))
 	}
-	suffix := ""
+	branch := ""
 	if m.branch != "" {
-		suffix = " ⎇ " + m.branch
+		branch = " ⎇ " + m.branch
 	}
 	prefix := ""
 	switch {
@@ -2938,14 +2943,41 @@ func (m *model) headerView() string {
 	case m.opts.Agent.AutoEdits:
 		prefix = "EDITS · "
 	}
-	avail := m.width - lipgloss.Width(left) - lipgloss.Width(prefix) - lipgloss.Width(suffix) - 3
-	right := styleHeader.Render(prefix + fitPath(shortPath(m.opts.Cwd), avail) + suffix + " ")
-	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap < 1 {
-		gap = 1
+	// minPath is the shortest useful path: fitPath never goes below it.
+	const minPath = 10
+	line := func(withTitle, withBranch bool) (string, bool) {
+		t, b := "", ""
+		if withTitle {
+			t = title
+		}
+		if withBranch {
+			b = branch
+		}
+		fixed := lipgloss.Width(left) + lipgloss.Width(t) + lipgloss.Width(prefix) + lipgloss.Width(b) + 2
+		room := m.width - fixed
+		if room < minPath {
+			return "", false
+		}
+		p := fitPath(shortPath(m.opts.Cwd), room)
+		gap := m.width - fixed - lipgloss.Width(p) + 1
+		if gap < 1 {
+			return "", false
+		}
+		return styleHeader.Width(m.width).MaxHeight(1).Render(
+			left + styleHeader.Render(t+strings.Repeat(" ", gap)+prefix+p+b+" ")), true
 	}
-	line := left + styleHeader.Render(strings.Repeat(" ", gap)) + right
-	return styleHeader.Width(m.width).MaxHeight(1).Render(line)
+	for _, drop := range [][2]bool{{true, true}, {false, true}, {false, false}} {
+		if s, ok := line(drop[0], drop[1]); ok {
+			return s
+		}
+	}
+	// Narrower than the name and the mode together: the mode without its
+	// separator, and the whole line cut to the width.
+	mode := strings.TrimSuffix(prefix, " · ")
+	if mode != "" {
+		mode = " " + mode
+	}
+	return styleHeader.Width(m.width).MaxHeight(1).Render(fitLine(left+styleHeader.Render(mode), m.width))
 }
 
 // fitPath shows a path in max columns by dropping leading components:

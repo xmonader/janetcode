@@ -1860,3 +1860,55 @@ func TestStatusBarFitsWidth(t *testing.T) {
 	}
 	h.m.pinned = true
 }
+
+// TestHeaderNarrowWidths covers item 7: the header drops the session
+// title first, then the branch, then shortens the path, and never wraps
+// or spills past the width.
+func TestHeaderNarrowWidths(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "x"), StopReason: llm.StopEndTurn})
+	h.m.opts.Cwd = "/home/someone/work/projects/janetcode/internal/tui"
+	h.m.branch = "feature/very-long-branch-name"
+	h.m.opts.Session.Meta.Title = "polishing the terminal interface"
+	h.m.opts.Agent.AutoApprove = true
+	at := func(w int) string {
+		h.update(tea.WindowSizeMsg{Width: w, Height: 24})
+		line := h.m.headerView()
+		if got := lipgloss.Width(line); got != w {
+			t.Fatalf("width %d: header is %d columns:\n%s", w, got, plain(line))
+		}
+		if strings.Contains(line, "\n") {
+			t.Fatalf("width %d: header wrapped:\n%s", w, plain(line))
+		}
+		return plain(line)
+	}
+	wide := at(120)
+	for _, want := range []string{"janetcode", "polishing the terminal", "YOLO", "tui", "feature/very-long-branch-name"} {
+		if !strings.Contains(wide, want) {
+			t.Errorf("at 120 columns the header lost %q:\n%s", want, wide)
+		}
+	}
+	// The title is the first thing to go, and the branch outlives it.
+	narrow := at(90)
+	if strings.Contains(narrow, "polishing") {
+		t.Errorf("at 90 columns the title should be dropped first:\n%s", narrow)
+	}
+	if !strings.Contains(narrow, "feature/very-long-branch-name") {
+		t.Errorf("at 90 columns the branch should still be whole:\n%s", narrow)
+	}
+	// Then the branch goes, whole rather than cut in half.
+	narrower := at(60)
+	if strings.Contains(narrower, "⎇") || strings.Contains(narrower, "feature/very-") {
+		t.Errorf("at 60 columns the branch should be dropped, not clipped:\n%s", narrower)
+	}
+	if !strings.Contains(narrower, "tui") {
+		t.Errorf("at 60 columns the path should survive:\n%s", narrower)
+	}
+	// Then the path is shortened from the front, keeping the leaf.
+	if got := at(40); !strings.Contains(got, "…/tui") {
+		t.Errorf("at 40 columns the path should be shortened to its tail:\n%s", got)
+	}
+	// Below that, whatever is left still fits exactly.
+	for _, w := range []int{30, 24, 20} {
+		at(w)
+	}
+}
