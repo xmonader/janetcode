@@ -4,7 +4,9 @@ Part of the [janetcode manual](README.md); the [README](../../README.md) has the
 
 The transcript streams the model's markdown as it arrives, shows each tool
 call on one line with what it did and how long it took, and renders every
-edit as a coloured diff. The status line shows what the agent is doing, the
+edit as a diff with line numbers: three lines of context around each
+change, "… N unchanged lines" where a gap was skipped, and for a
+single-line replacement the changed tokens picked out in inverse video. The status line shows what the agent is doing, the
 elapsed time, and a gauge of how full the context window is. The input box
 grows with your text.
 

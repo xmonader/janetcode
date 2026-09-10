@@ -1,0 +1,247 @@
+package tui
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+// A diff is the densest thing the transcript shows, and it was the least
+// legible: every line coloured by its leading + or -, no line numbers, no
+// hint of how far apart two hunks were, and for a one-word rename two
+// whole lines in red and green to compare by eye.
+//
+// What is drawn now, from the unified diff the edit tools already
+// produce:
+//
+//	  12 │  func Add(a, b int) int {
+//	  13 │ -	return a + b
+//	  13 │ +	return a - b
+//	     … 40 unchanged lines
+//	  54 │  }
+//
+// The gutter is sized to the file, hunks are separated by a count of what
+// lies between them, each hunk keeps three lines of context, and when a
+// hunk is one line replaced by one line only the tokens that differ are
+// picked out in inverse video.
+
+// diffContext is how many unchanged lines are kept around a change.
+const diffContext = 3
+
+type diffLine struct {
+	kind byte // ' ', '+', '-'
+	text string
+}
+
+type diffHunk struct {
+	oldStart, newStart int
+	lines              []diffLine
+}
+
+// parseUnifiedDiff reads the hunks of a unified diff. It reports false for
+// anything that is not one, so a plain preview still renders as text.
+func parseUnifiedDiff(s string) ([]diffHunk, bool) {
+	var hunks []diffHunk
+	for _, l := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
+		switch {
+		case strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ "):
+			// The file name is already on the tool line.
+		case strings.HasPrefix(l, "@@"):
+			o, n, ok := parseHunkHeader(l)
+			if !ok {
+				return nil, false
+			}
+			hunks = append(hunks, diffHunk{oldStart: o, newStart: n})
+		case len(hunks) == 0:
+			return nil, false // content before any hunk header
+		default:
+			kind := byte(' ')
+			text := l
+			if l != "" && (l[0] == '+' || l[0] == '-' || l[0] == ' ') {
+				kind, text = l[0], l[1:]
+			}
+			h := &hunks[len(hunks)-1]
+			h.lines = append(h.lines, diffLine{kind, text})
+		}
+	}
+	return hunks, len(hunks) > 0
+}
+
+// parseHunkHeader reads the old and new start lines out of "@@ -1,2 +1,3 @@".
+func parseHunkHeader(l string) (old, new int, ok bool) {
+	f := strings.Fields(l)
+	if len(f) < 3 || !strings.HasPrefix(f[1], "-") || !strings.HasPrefix(f[2], "+") {
+		return 0, 0, false
+	}
+	num := func(s string) (int, bool) {
+		s = s[1:]
+		if i := strings.IndexByte(s, ','); i >= 0 {
+			s = s[:i]
+		}
+		n, err := strconv.Atoi(s)
+		return n, err == nil
+	}
+	o, ok1 := num(f[1])
+	n, ok2 := num(f[2])
+	return o, n, ok1 && ok2
+}
+
+// trimContext keeps at most diffContext unchanged lines at each end of a
+// hunk, adjusting the start lines for what it dropped.
+func (h diffHunk) trimContext() diffHunk {
+	first, last := -1, -1
+	for i, l := range h.lines {
+		if l.kind != ' ' {
+			if first < 0 {
+				first = i
+			}
+			last = i
+		}
+	}
+	if first < 0 {
+		return h
+	}
+	from := max(0, first-diffContext)
+	to := min(len(h.lines), last+diffContext+1)
+	h.oldStart += from
+	h.newStart += from
+	h.lines = h.lines[from:to]
+	return h
+}
+
+// changePair reports the single old and new line of a hunk that replaces
+// exactly one line with exactly one line — the case worth a word-level
+// comparison.
+func (h diffHunk) changePair() (int, int, bool) {
+	del, add := -1, -1
+	for i, l := range h.lines {
+		switch l.kind {
+		case '-':
+			if del >= 0 {
+				return 0, 0, false
+			}
+			del = i
+		case '+':
+			if add >= 0 {
+				return 0, 0, false
+			}
+			add = i
+		}
+	}
+	if del < 0 || add != del+1 {
+		return 0, 0, false
+	}
+	return del, add, true
+}
+
+// renderDiff draws the hunks with a gutter, elisions between them and the
+// changed tokens picked out where a single line was replaced.
+func renderDiff(hunks []diffHunk, width, maxLines int) string {
+	last := 0
+	for _, h := range hunks {
+		if e := h.newStart + len(h.lines); e > last {
+			last = e
+		}
+	}
+	gw := len(strconv.Itoa(max(last, 1)))
+	var out []string
+	prevEnd := 0
+	for i, raw := range hunks {
+		h := raw.trimContext()
+		if i > 0 {
+			if gap := h.newStart - prevEnd; gap > 0 {
+				out = append(out, styleFaint.Render(fmt.Sprintf("  %s … %d unchanged lines", strings.Repeat(" ", gw), gap)))
+			}
+		}
+		hiDel, hiAdd := -1, -1
+		if d, a, ok := h.changePair(); ok {
+			hiDel, hiAdd = d, a
+		}
+		oldN, newN := h.oldStart, h.newStart
+		for j, l := range h.lines {
+			n := newN
+			style := styleDim
+			switch l.kind {
+			case '+':
+				style, newN = styleDiffAdd, newN+1
+			case '-':
+				n, style, oldN = oldN, styleDiffDel, oldN+1
+			default:
+				oldN, newN = oldN+1, newN+1
+			}
+			text := l.text
+			switch j {
+			case hiDel:
+				text = highlightChanged(l.text, h.lines[hiAdd].text, style)
+			case hiAdd:
+				text = highlightChanged(l.text, h.lines[hiDel].text, style)
+			default:
+				text = style.Render(text)
+			}
+			gutter := styleFaint.Render(fmt.Sprintf("  %*d │ ", gw, n))
+			out = append(out, fitLine(gutter+style.Render(string(l.kind))+text, width-2))
+		}
+		prevEnd = newN
+	}
+	hidden := 0
+	if len(out) >= maxLines+clipSlack {
+		hidden, out = len(out)-maxLines, out[:maxLines]
+	}
+	if hidden > 0 {
+		out = append(out, styleFaint.Render(fmt.Sprintf("  … (%d more lines, ctrl+o to expand)", hidden)))
+	}
+	return strings.Join(out, "\n")
+}
+
+// highlightChanged renders line with the run of characters that differs
+// from other in inverse video.
+func highlightChanged(line, other string, style lipgloss.Style) string {
+	from, to := changedSpan(line, other)
+	if from >= to {
+		return style.Render(line)
+	}
+	a := []rune(line)
+	return style.Render(string(a[:from])) +
+		style.Reverse(true).Render(string(a[from:to])) +
+		style.Render(string(a[to:]))
+}
+
+// changedSpan is the half-open rune range of line that differs from
+// other. Indentation is never part of it: a line that only moved would
+// otherwise light up from its first column, and a token is never cut in
+// half.
+func changedSpan(line, other string) (from, to int) {
+	if line == other {
+		return 0, 0
+	}
+	a, b := []rune(line), []rune(other)
+	indent := 0
+	for indent < len(a) && (a[indent] == ' ' || a[indent] == '\t') {
+		indent++
+	}
+	p := indent
+	for p < len(a) && p < len(b) && a[p] == b[p] {
+		p++
+	}
+	s := 0
+	for s < len(a)-p && s < len(b)-p && a[len(a)-1-s] == b[len(b)-1-s] {
+		s++
+	}
+	// Widen to token boundaries so half a word is never picked out.
+	for p > indent && wordRune(a[p-1]) {
+		p--
+	}
+	for s > 0 && s < len(a)-p && wordRune(a[len(a)-s]) {
+		s--
+	}
+	if p >= len(a)-s {
+		return 0, 0
+	}
+	return p, len(a) - s
+}
+
+func wordRune(r rune) bool {
+	return r == '_' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r > 127
+}

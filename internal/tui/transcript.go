@@ -832,8 +832,13 @@ func previewLines(preview string) int {
 	return n
 }
 
-// renderPreview colours a unified diff (or shows plain preview text).
+// renderPreview draws a unified diff with line numbers, elided gaps and
+// word-level highlighting (see diff.go), or shows plain preview text as
+// it is when the preview is not a diff.
 func renderPreview(preview string, width, maxLines int) string {
+	if hunks, ok := parseUnifiedDiff(preview); ok {
+		return renderDiff(hunks, width, maxLines)
+	}
 	var lines []string
 	for _, l := range strings.Split(strings.TrimRight(preview, "\n"), "\n") {
 		if strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ ") {
