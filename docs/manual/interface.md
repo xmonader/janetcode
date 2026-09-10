@@ -538,6 +538,10 @@ A model that edits three files and reports "done, tests pass" is making a
 claim. The harness watched the turn, so it decides for itself and says so
 at the end of every turn that changed code:
 
+The TUI shows the verdict as a line under each turn, with its mark, and
+leads the status bar with it; headless mode prints it as `[verdict]` on
+stderr.
+
 | verdict | what it means |
 |---|---|
 | **verified** | tests ran and passed afterwards (and it says so when a failing check flipped to green) |
