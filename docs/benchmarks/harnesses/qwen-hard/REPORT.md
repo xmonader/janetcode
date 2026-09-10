@@ -53,10 +53,14 @@ three failures — and it is also where every harness wrote the most
 output by a factor of four to ten.
 
 janetcode wrote 14k output tokens on it per run and took four minutes,
-against qwencode's 3.4k and 73 seconds. That is not waste: janetcode's
-model wrote its own tests for the rules in the prompt and ran them, and
-passed the hidden ones 3/3; qwencode wrote the parser once, said done,
-and failed 2/3. On this task the output tokens bought the pass. The
+against qwencode's 3.4k and 73 seconds. That is not waste. Re-running the
+task headlessly to see what the tokens buy: janetcode's model writes the
+parser, then runs five rounds of assertion scripts against the rules in
+the prompt, hits a failure on the third, fixes it and re-runs — and
+passes the hidden tests 3/3. qwencode's three calls and 3.4k output are
+consistent with writing the parser once without that check; its
+transcript is not on record, only that it failed 2/3. On this task the
+output tokens bought the pass. The
 harness does not force this; it is the model's choice under janetcode's
 prompt, which asks for evidence before a claim. It is also why
 janetcode's output total across the set (70k) is twice qwencode's (35k)
