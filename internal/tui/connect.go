@@ -322,13 +322,7 @@ func (m *model) visible() ([]row, int) {
 	default:
 		return nil, 0
 	}
-	q := strings.ToLower(strings.TrimSpace(c.field.Value()))
-	var out []row
-	for _, r := range src {
-		if q == "" || strings.Contains(strings.ToLower(r.key), q) {
-			out = append(out, r)
-		}
-	}
+	out := matchRows(src, c.field.Value())
 	if v := c.field.Value(); v != c.idxFor {
 		c.idxFor, c.idx = v, 0
 	}
@@ -626,6 +620,34 @@ func (m *model) listLines(inner int) []string {
 		}
 		return out
 	}
+	return renderRows(rows, idx, inner)
+}
+
+// matchRows keeps the rows whose key contains every word of the query, so
+// "gpt mini" finds a model however its parts are ordered.
+func matchRows(src []row, query string) []row {
+	words := strings.Fields(strings.ToLower(strings.TrimSpace(query)))
+	var out []row
+	for _, r := range src {
+		key := strings.ToLower(r.key)
+		ok := true
+		for _, w := range words {
+			if !strings.Contains(key, w) {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// renderRows draws a window of a row list with its sections, columns and
+// highlight. Every searchable list in the interface goes through it.
+func renderRows(rows []row, idx, inner int) []string {
+	var out []string
 	start := 0
 	if idx >= dialogRows {
 		start = idx - dialogRows + 1

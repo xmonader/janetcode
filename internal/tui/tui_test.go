@@ -388,10 +388,31 @@ func TestResumePicker(t *testing.T) {
 	}
 	h.keys("/resume")
 	h.enter()
+	if h.m.picker == nil {
+		t.Fatal("/resume with no argument should open the picker")
+	}
 	v := plain(h.m.View())
-	if !strings.Contains(v, " 1  "+old) || !strings.Contains(v, "2 msgs") || !strings.Contains(v, "old question") {
+	if !strings.Contains(v, old[:12]) || !strings.Contains(v, "2 msgs") || !strings.Contains(v, "old question") {
 		t.Fatalf("listing:\n%s", v)
 	}
+	// Typing filters the list; esc closes it without resuming anything.
+	h.keys("nothing like this")
+	if v := plain(h.m.View()); !strings.Contains(v, "nothing matches") {
+		t.Fatalf("search did not filter:\n%s", v)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if h.m.picker != nil || h.m.opts.Session.Meta.ID == old {
+		t.Fatal("esc should close the picker without resuming")
+	}
+	// enter on the highlighted row resumes it.
+	h.keys("/resume")
+	h.enter()
+	h.enter()
+	if h.m.picker != nil || h.m.opts.Session.Meta.ID != old {
+		t.Fatalf("enter did not resume: session %s", h.m.opts.Session.Meta.ID)
+	}
+	h.keys("/clear")
+	h.enter()
 	h.keys("/resume 1")
 	h.enter()
 	if h.m.opts.Session.Meta.ID != old || len(h.m.opts.Agent.Messages) != 2 {

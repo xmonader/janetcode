@@ -979,7 +979,7 @@ var commands = []command{
 	{"/help", "", "keys and commands"},
 	{"/compact", "", "summarise the conversation to free context"},
 	{"/clear", "", "start a new session"},
-	{"/resume", "[n|id]", "list earlier sessions here, or reopen one"},
+	{"/resume", "[n|id]", "reopen an earlier session here: alone opens a searchable list, or name one"},
 	{"/open", "<path[:line]>", "show a file inline, centred on a line"},
 	{"/diff", "[path|revert path:n]", "changes against HEAD; a file's hunks; revert one hunk"},
 	{"/fork", "[title]", "branch this conversation into a new session and continue there"},
@@ -1088,6 +1088,7 @@ type model struct {
 	compFor        string                   // input value the highlight belongs to
 	lastFind       string                   // last /find query, for repeats
 	lastFindAt     int                      // line of the last hit, so repeats advance past it
+	picker         *picker                  // open searchable list
 	connect        *connect                 // open provider/model dialog
 	connectGen     int
 	quitting       bool
@@ -1520,6 +1521,9 @@ func (m *model) applyEvent(ev agent.Event) {
 }
 
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if m.picker != nil {
+		return m.handlePickerKey(msg)
+	}
 	if m.connect != nil {
 		return m.handleConnectKey(msg)
 	}
@@ -1817,7 +1821,7 @@ func (m *model) recall(i int) string {
 // completions lists slash commands matching the input, or files matching
 // the @path being typed at its end.
 func (m *model) completions() []command {
-	if m.connect != nil {
+	if m.connect != nil || m.picker != nil {
 		return nil
 	}
 	v := m.input.Value()
@@ -2488,8 +2492,7 @@ func (m *model) command(text string) tea.Cmd {
 			break
 		}
 		if len(fields) < 2 {
-			m.listSessions()
-			break
+			return m.openSessionPicker()
 		}
 		m.resume(fields[1])
 	case "/compact":
@@ -2663,39 +2666,6 @@ func (m *model) mcpCommand(args []string) {
 		}
 	}
 	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
-}
-
-// listSessions shows the sessions recorded for this directory, numbered so
-// "/resume 2" can pick one.
-func (m *model) listSessions() {
-	infos, err := session.List(dirOf(m.opts.Session), m.opts.Cwd)
-	if err != nil {
-		m.transcript.errorf("list sessions: %v", err)
-		return
-	}
-	var sb strings.Builder
-	n := 0
-	for _, in := range infos {
-		if in.Meta.ID == m.opts.Session.Meta.ID || in.Messages == 0 {
-			continue
-		}
-		n++
-		if n > 15 {
-			sb.WriteString(fmt.Sprintf("  … %d more (janetcode --sessions lists all)\n", len(infos)-n+1))
-			break
-		}
-		age := shortAge(time.Since(in.Updated))
-		mark := " "
-		if in.Meta.Settled {
-			mark = "✓"
-		}
-		fmt.Fprintf(&sb, "  %2d %s%s  %-6s %3d msgs  %s\n", n, mark, in.Meta.ID, age, in.Messages, in.Label())
-	}
-	if n == 0 {
-		m.transcript.info("no earlier sessions in " + shortPath(m.opts.Cwd))
-		return
-	}
-	m.transcript.info("sessions here (most recent activity first, ✓ settled last) · /resume <n> or /resume <id> reopens one\n" + strings.TrimRight(sb.String(), "\n"))
 }
 
 // resume swaps the conversation for a saved one.
@@ -3053,7 +3023,10 @@ func (m *model) View() string {
 		return ""
 	}
 	body := m.viewport.View()
-	if m.connect != nil {
+	switch {
+	case m.picker != nil:
+		body = m.pickerView(m.viewport.Height)
+	case m.connect != nil:
 		body = m.connectView(m.viewport.Height)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left,

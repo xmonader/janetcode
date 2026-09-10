@@ -66,7 +66,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /readonly  (toggle read-only: the model can inspect but change nothing)
 /connect   /model     /compact (summarise the context to free the window)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost)
-/resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)   /settle (list it last)
+/resume    /verbose   /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /settle (list it last)
 /undo [preview]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
 /fork [title]  /title <text>  /history <words> (search every saved session)
 /open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)
