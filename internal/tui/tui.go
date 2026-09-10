@@ -1175,6 +1175,7 @@ func newModel(opts Options) *model {
 
 	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(styleAccent))
 
+	applyColorProfile(os.Getenv)
 	style := detectTheme(opts.Theme)
 	m := &model{
 		opts:       opts,

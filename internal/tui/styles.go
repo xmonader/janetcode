@@ -1,6 +1,9 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
+)
 
 // Colours adapt to the terminal background detectTheme settled on. Every
 // foreground here clears a contrast ratio of about 3.5:1 against white for
@@ -24,21 +27,24 @@ var (
 	colDiffDel = lipgloss.AdaptiveColor{Light: "#991b1b", Dark: "#ff8a8a"}
 )
 
+// styles are rebuilt whenever the palette changes, so a fallback palette
+// reaches every line the interface draws and not only the ones built
+// after the switch.
 var (
-	styleAccent   = lipgloss.NewStyle().Foreground(colAccent)
-	styleDim      = lipgloss.NewStyle().Foreground(colDim)
-	styleFaint    = lipgloss.NewStyle().Foreground(colFaint)
-	styleWarn     = lipgloss.NewStyle().Foreground(colWarn)
-	styleErr      = lipgloss.NewStyle().Foreground(colErr)
-	styleOK       = lipgloss.NewStyle().Foreground(colOK)
-	styleUser     = lipgloss.NewStyle().Foreground(colUser).Bold(true)
-	styleUserBody = lipgloss.NewStyle().Foreground(colUser)
-	styleTool     = lipgloss.NewStyle().Foreground(colTool)
-	styleDiffAdd  = lipgloss.NewStyle().Foreground(colDiffAdd)
-	styleDiffDel  = lipgloss.NewStyle().Foreground(colDiffDel)
-	styleHeader   = lipgloss.NewStyle().Background(colHeadBg).Foreground(colHeadFg)
-	styleHeaderHi = lipgloss.NewStyle().Background(colHeadBg).Foreground(colAccent).Bold(true)
-	styleKey      = lipgloss.NewStyle().Foreground(colAccent).Bold(true)
+	styleAccent   lipgloss.Style
+	styleDim      lipgloss.Style
+	styleFaint    lipgloss.Style
+	styleWarn     lipgloss.Style
+	styleErr      lipgloss.Style
+	styleOK       lipgloss.Style
+	styleUser     lipgloss.Style
+	styleUserBody lipgloss.Style
+	styleTool     lipgloss.Style
+	styleDiffAdd  lipgloss.Style
+	styleDiffDel  lipgloss.Style
+	styleHeader   lipgloss.Style
+	styleHeaderHi lipgloss.Style
+	styleKey      lipgloss.Style
 
 	// Every box the footer can show is the same rounded border; only its
 	// colour changes, and it says whose turn it is:
@@ -52,8 +58,81 @@ var (
 	//
 	// model.placeholder names the same states in words, so the border and
 	// the hint inside it never disagree.
+	styleBoxIdle lipgloss.Style
+	styleBoxBusy lipgloss.Style
+	styleBoxWarn lipgloss.Style
+	stylePermBox lipgloss.Style
+
+	styleDialog   lipgloss.Style
+	styleSection  lipgloss.Style
+	styleSelected lipgloss.Style
+	styleTag      lipgloss.Style
+)
+
+func init() { buildStyles() }
+
+// buildStyles derives every style from the current palette.
+func buildStyles() {
+	styleAccent = lipgloss.NewStyle().Foreground(colAccent)
+	styleDim = lipgloss.NewStyle().Foreground(colDim)
+	styleFaint = lipgloss.NewStyle().Foreground(colFaint)
+	styleWarn = lipgloss.NewStyle().Foreground(colWarn)
+	styleErr = lipgloss.NewStyle().Foreground(colErr)
+	styleOK = lipgloss.NewStyle().Foreground(colOK)
+	styleUser = lipgloss.NewStyle().Foreground(colUser).Bold(true)
+	styleUserBody = lipgloss.NewStyle().Foreground(colUser)
+	styleTool = lipgloss.NewStyle().Foreground(colTool)
+	styleDiffAdd = lipgloss.NewStyle().Foreground(colDiffAdd)
+	styleDiffDel = lipgloss.NewStyle().Foreground(colDiffDel)
+	styleHeader = lipgloss.NewStyle().Background(colHeadBg).Foreground(colHeadFg)
+	styleHeaderHi = lipgloss.NewStyle().Background(colHeadBg).Foreground(colAccent).Bold(true)
+	styleKey = lipgloss.NewStyle().Foreground(colAccent).Bold(true)
 	styleBoxIdle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(colBorderA)
 	styleBoxBusy = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(colBorder)
 	styleBoxWarn = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(colWarn)
 	stylePermBox = styleBoxWarn.Padding(0, 1)
-)
+	styleDialog = styleBoxIdle.Padding(0, 1) // the dialog is waiting for you: same border as an idle input box
+	styleSection = lipgloss.NewStyle().Foreground(colFaint).Bold(true)
+	styleSelected = lipgloss.NewStyle().Foreground(colAccent).Bold(true)
+	styleTag = lipgloss.NewStyle().Foreground(colOK)
+}
+
+// A terminal that reports only the sixteen ANSI colours cannot be given
+// truecolor hex: termenv quantises it to the nearest of the sixteen, and
+// several of the palette's dark foregrounds land on black, which is the
+// terminal's own background on a dark theme — invisible text. The
+// fallback names the ANSI slots outright, so every colour is one the
+// terminal actually has and the user's own theme decides its shade.
+func usePalette16() {
+	colAccent = lipgloss.AdaptiveColor{Light: "4", Dark: "12"}
+	colDim = lipgloss.AdaptiveColor{Light: "8", Dark: "7"}
+	colFaint = lipgloss.AdaptiveColor{Light: "8", Dark: "8"}
+	colWarn = lipgloss.AdaptiveColor{Light: "3", Dark: "11"}
+	colErr = lipgloss.AdaptiveColor{Light: "1", Dark: "9"}
+	colOK = lipgloss.AdaptiveColor{Light: "2", Dark: "10"}
+	colUser = lipgloss.AdaptiveColor{Light: "4", Dark: "12"}
+	colTool = lipgloss.AdaptiveColor{Light: "5", Dark: "13"}
+	colHeadBg = lipgloss.AdaptiveColor{Light: "7", Dark: "8"}
+	colHeadFg = lipgloss.AdaptiveColor{Light: "0", Dark: "15"}
+	colBorder = lipgloss.AdaptiveColor{Light: "8", Dark: "8"}
+	colBorderA = lipgloss.AdaptiveColor{Light: "4", Dark: "12"}
+	colDiffAdd = lipgloss.AdaptiveColor{Light: "2", Dark: "10"}
+	colDiffDel = lipgloss.AdaptiveColor{Light: "1", Dark: "9"}
+	buildStyles()
+}
+
+// applyColorProfile settles what colour the interface may use at all.
+// NO_COLOR is honoured whatever the terminal claims: every style renders
+// plain. A terminal that reports only sixteen colours gets the ANSI
+// palette instead of quantised truecolor.
+func applyColorProfile(env func(string) string) termenv.Profile {
+	if env("NO_COLOR") != "" {
+		lipgloss.SetColorProfile(termenv.Ascii)
+		return termenv.Ascii
+	}
+	p := lipgloss.ColorProfile()
+	if p == termenv.ANSI {
+		usePalette16()
+	}
+	return p
+}

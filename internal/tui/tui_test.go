@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -2658,4 +2659,57 @@ func TestPromptDoesNotJump(t *testing.T) {
 	}
 	close(block)
 	h.pump(func() bool { return !h.m.running })
+}
+
+// TestColourFallbacks: NO_COLOR renders every style plain, and a
+// sixteen-colour terminal gets ANSI slots instead of truecolor hex
+// quantised down to black.
+func TestColourFallbacks(t *testing.T) {
+	saved := []lipgloss.AdaptiveColor{colAccent, colDim, colFaint, colWarn, colErr, colOK, colUser, colTool, colHeadBg, colHeadFg, colBorder, colBorderA, colDiffAdd, colDiffDel}
+	profile := lipgloss.ColorProfile()
+	defer func() {
+		colAccent, colDim, colFaint, colWarn, colErr, colOK = saved[0], saved[1], saved[2], saved[3], saved[4], saved[5]
+		colUser, colTool, colHeadBg, colHeadFg = saved[6], saved[7], saved[8], saved[9]
+		colBorder, colBorderA, colDiffAdd, colDiffDel = saved[10], saved[11], saved[12], saved[13]
+		buildStyles()
+		lipgloss.SetColorProfile(profile)
+	}()
+
+	// Truecolor: the palette is hex and the styles carry SGR colours.
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	buildStyles()
+	if !strings.Contains(styleErr.Render("x"), "\x1b[38;2;") {
+		t.Fatalf("truecolor error style = %q", styleErr.Render("x"))
+	}
+
+	// Sixteen colours: ANSI slots, never a dark hex quantised to black.
+	lipgloss.SetColorProfile(termenv.ANSI)
+	if got := applyColorProfile(func(string) string { return "" }); got != termenv.ANSI {
+		t.Fatalf("profile = %v", got)
+	}
+	if colErr.Dark != "9" || colAccent.Dark != "12" {
+		t.Fatalf("palette not switched: %+v %+v", colErr, colAccent)
+	}
+	out := styleErr.Render("x")
+	if !strings.Contains(out, "\x1b[9") && !strings.Contains(out, "\x1b[3") {
+		t.Fatalf("ansi error style = %q", out)
+	}
+	if strings.Contains(out, "38;2;") {
+		t.Fatalf("truecolor survived on a 16-colour terminal: %q", out)
+	}
+
+	// NO_COLOR: nothing at all.
+	if got := applyColorProfile(func(k string) string {
+		if k == "NO_COLOR" {
+			return "1"
+		}
+		return ""
+	}); got != termenv.Ascii {
+		t.Fatalf("NO_COLOR profile = %v", got)
+	}
+	for _, s := range []lipgloss.Style{styleErr, styleAccent, styleWarn, styleKey, styleHeader} {
+		if got := s.Render("x"); strings.Contains(got, "\x1b[3") || strings.Contains(got, "\x1b[4") {
+			t.Fatalf("NO_COLOR left colour behind: %q", got)
+		}
+	}
 }

@@ -24,6 +24,14 @@ pgup / pgdn      scroll (mouse wheel works)
 ctrl+c           cancel the turn; when idle, press twice to quit
 ```
 
+## Colour
+
+One palette, adapted to the terminal's background, which is asked for once
+at start. `NO_COLOR` in the environment renders everything plain. A
+terminal that reports only the sixteen ANSI colours gets a palette named
+in those slots rather than truecolor hex quantised down — several of the
+dark foregrounds would otherwise land on black, which is the background.
+
 ## The terminal takes part
 
 janetcode tells the terminal what is happening, so the terminal can help:

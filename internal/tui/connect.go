@@ -497,13 +497,6 @@ func (m *model) closeConnect(note string) {
 
 // --- rendering ---
 
-var (
-	styleDialog   = styleBoxIdle.Padding(0, 1) // the dialog is waiting for you: same border as an idle input box
-	styleSection  = lipgloss.NewStyle().Foreground(colFaint).Bold(true)
-	styleSelected = lipgloss.NewStyle().Foreground(colAccent).Bold(true)
-	styleTag      = lipgloss.NewStyle().Foreground(colOK)
-)
-
 // connectView draws the modal centred in the body area.
 func (m *model) connectView(height int) string {
 	c := m.connect
