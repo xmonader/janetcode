@@ -116,3 +116,24 @@ janetcode --eval evals/fanout --eval-runs 3 --eval-off extratools,script --eval-
 janetcode --eval evals/fanout --eval-runs 3 --eval-off script --eval-json b.json --eval-compare a.json
 janetcode --eval-report b.json --eval-compare a.json   # offline, no API calls
 ```
+
+## And it does not cost turns on multi-prompt work
+
+A sonnet session run came back with 153 turns where the same tasks earlier
+had taken 106, and the obvious suspect was this: deferring `grep` and
+`glob` might cost a `tool_search` round trip on work that spans many
+prompts, which no arm here had covered — every earlier measurement was
+single-prompt.
+
+Three session tasks x 3 runs on `inception/mercury-2.5`, lean on against
+lean off:
+
+- cost x1.01 [0.69, 1.13] · inside the noise
+- context x1.05 [0.71, 1.23] · inside the noise
+- output x1.03 [0.91, 1.06] · inside the noise
+
+So the deferral does not cost turns on multi-prompt work, and the sonnet
+difference is something else. What that is remains unexplained; it is
+smaller than it first looked once fresh tokens are separated from cache
+reads (48% of cost rather than 106% of "context"), and single runs on a
+route whose upstream can change between them are weak evidence either way.
