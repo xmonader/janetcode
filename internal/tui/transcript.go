@@ -297,6 +297,7 @@ func (t *transcript) closeOpen() {
 			if !e.done {
 				e.done = true
 				e.final = false
+				e.ended = time.Now()
 			}
 			continue
 		}
@@ -791,7 +792,9 @@ func thinkingView(text string, done bool, took time.Duration) string {
 	if done {
 		first := cutWords(strings.TrimSpace(lines[0]), 100)
 		head := "· thought"
-		if took > 0 {
+		// Only when it was long enough to have been waited for: "thought
+		// for 40ms" is noise on every line.
+		if took >= time.Second {
 			head = "· thought for " + shortDuration(took)
 		}
 		if len(lines) > 1 {
@@ -1143,6 +1146,7 @@ func (t *transcript) toolLines(e *entry, body string, o renderOpts, max int) []s
 		Expanded: o.expand(e),
 		Max:      max,
 		Prev:     t.previousResult(e),
+		Cwd:      o.cwd,
 	})
 }
 

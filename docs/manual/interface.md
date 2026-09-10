@@ -6,7 +6,9 @@ The transcript streams the model's markdown as it arrives, shows each tool
 call on one line with what it did and how long it took, and renders every
 edit as a diff with line numbers: three lines of context around each
 change, "… N unchanged lines" where a gap was skipped, and for a
-single-line replacement the changed tokens picked out in inverse video. The status line shows what the agent is doing, the
+single-line replacement the changed tokens picked out in inverse video.
+The status line shows what the agent is doing (including what it is
+waiting on: a retry and its countdown, a compaction, a subagent), the
 elapsed time, and a gauge of how full the context window is. The input box
 grows with your text.
 
@@ -86,7 +88,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /readonly  (toggle read-only: the model can inspect but change nothing)
 /connect   /model     /compact (summarise the context to free the window)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost)
-/resume    /verbose   /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /settle (list it last)
+/resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
 /undo [preview]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
 /fork [title]  /title <text>  /history <words> (search every saved session)
 /open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)

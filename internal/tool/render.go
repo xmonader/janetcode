@@ -3,6 +3,7 @@ package tool
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -34,6 +35,21 @@ type RenderContext struct {
 	// Prev is this tool's previous result in the same conversation, for a
 	// tool whose output is worth showing as a change rather than whole.
 	Prev string
+	// Cwd is the working directory, so a path can be named the short way
+	// the rest of the interface names it.
+	Cwd string
+}
+
+// relTo names p the way the reader thinks of it: relative to the working
+// directory when it lies under it.
+func relTo(cwd, p string) string {
+	if cwd == "" || !filepath.IsAbs(p) {
+		return p
+	}
+	if r, err := filepath.Rel(cwd, p); err == nil && !strings.HasPrefix(r, "..") {
+		return r
+	}
+	return p
 }
 
 // HeadTail keeps the first head and the last tail lines of s with a count
@@ -78,7 +94,7 @@ func (ReadFile) RenderResult(input json.RawMessage, out string, o RenderContext)
 		Offset int    `json:"offset"`
 	}
 	json.Unmarshal(input, &in)
-	label := in.Path
+	label := relTo(o.Cwd, in.Path)
 	if label != "" && in.Offset > 1 {
 		label += fmt.Sprintf(" from line %d", in.Offset)
 	}

@@ -698,9 +698,12 @@ func TestFinishedCallFlashesAndThoughtSaysHowLong(t *testing.T) {
 	if got := thinkingView(th.text, true, th.thoughtFor()); !strings.Contains(got, "thought for 12.3s") {
 		t.Fatalf("thought header = %q", got)
 	}
-	// A resumed conversation has no timings and says so by saying nothing.
-	if got := thinkingView("a", true, 0); !strings.HasPrefix(got, "· thought: ") {
-		t.Fatalf("untimed thought = %q", got)
+	// A resumed conversation has no timings, and a thought too short to
+	// have been waited for says nothing about how long it took.
+	for _, d := range []time.Duration{0, 40 * time.Millisecond} {
+		if got := thinkingView("a", true, d); !strings.HasPrefix(got, "· thought: ") {
+			t.Fatalf("thought after %s = %q", d, got)
+		}
 	}
 }
 
