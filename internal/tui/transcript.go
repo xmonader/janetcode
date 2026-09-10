@@ -29,6 +29,38 @@ const (
 	entryTool
 	entryBanner
 	entryVerdict // what the turn demonstrated, with its mark
+	entryTip     // a one-time hint about a feature, fainter than the rest
+)
+
+// The glyph on an information line is a small fixed vocabulary. A line
+// that answers something you just typed carries none; a line that arrives
+// on its own says in one glyph where it came from:
+//
+//	»  what the harness added to this request: skills, recalled memory,
+//	   the repository map
+//	⚑  something the harness noticed and you should know about
+//	◆  the memory store changed
+//	⚙  a background job
+//	⇣  the context was compacted
+//	↶  an undo or redo moved the tree or the conversation
+//	◎  the session goal
+//
+// Two marks outside this vocabulary keep their own meaning: the ◆ in the
+// header is the application's own mark, and the run of marks at the head
+// of a tool line (⚙ queued, ▶ or the spinner running, ✓ done, ✗ failed,
+// ⊘ denied) reports that call's state.
+//
+// Tips are the exception that carries no glyph: they are one-time hints
+// about a feature, the least urgent line on the screen, and are rendered
+// fainter than everything else.
+const (
+	noteAttached = "» "
+	noteNotice   = "⚑ "
+	noteMemory   = "◆ "
+	noteJob      = "⚙ "
+	noteCompact  = "⇣ "
+	noteUndo     = "↶ "
+	noteGoal     = "◎ "
 )
 
 type entry struct {
@@ -94,6 +126,7 @@ func (t *transcript) add(e *entry) *entry {
 }
 
 func (t *transcript) info(s string)   { t.add(&entry{kind: entryInfo, text: s}) }
+func (t *transcript) tip(s string)    { t.add(&entry{kind: entryTip, text: s}) }
 func (t *transcript) code(s string)   { t.add(&entry{kind: entryCode, text: s}) }
 func (t *transcript) banner(s string) { t.add(&entry{kind: entryBanner, text: s}) }
 func (t *transcript) user(s string)   { t.add(&entry{kind: entryUser, text: s}) }
@@ -146,7 +179,7 @@ func (t *transcript) apply(ev agent.Event) {
 			// The goal's end is the one line the user is waiting for; a
 			// tool result in faint text is not where they look for it.
 			t.closeOpen()
-			t.add(&entry{kind: entryVerdict, text: "◎ " + strings.TrimSpace(ev.Output) + " · nothing more runs for it; /goal starts another"})
+			t.add(&entry{kind: entryVerdict, text: noteGoal + strings.TrimSpace(ev.Output) + " · nothing more runs for it; /goal starts another"})
 		}
 		e := t.findTool(ev.Call.ID)
 		if e == nil {
@@ -166,7 +199,7 @@ func (t *transcript) apply(ev agent.Event) {
 		t.closeOpen()
 	case agent.EvCompacted:
 		t.closeOpen()
-		t.info("⇣ " + ev.Text + " · expand_output brings archived output back; /context shows what remains")
+		t.info(noteCompact + ev.Text + " · expand_output brings archived output back; /context shows what remains")
 	case agent.EvVerdict:
 		// The one line that says whether the turn showed its work. It was
 		// dropped here for a long time while headless mode printed it.
@@ -175,9 +208,9 @@ func (t *transcript) apply(ev agent.Event) {
 	case agent.EvNotice:
 		t.closeOpen()
 		if isAttachNote(ev.Text) {
-			t.info("» " + ev.Text)
+			t.info(noteAttached + ev.Text)
 		} else {
-			t.info("⚑ " + ev.Text)
+			t.info(noteNotice + ev.Text)
 		}
 	}
 }
@@ -344,6 +377,8 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 		return styleDim.Render(wrap(e.text))
 	case entryInfo:
 		return styleDim.Render(wrap(e.text))
+	case entryTip:
+		return styleFaint.Render(wrap("tip · " + e.text))
 	case entryCode:
 		return renderCode(e.text, width)
 	case entryError:

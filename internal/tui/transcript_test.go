@@ -416,3 +416,40 @@ func TestToolResultCollapsing(t *testing.T) {
 		t.Errorf("the numbered window is still shown:\n%s", out)
 	}
 }
+
+// TestNoticeVocabulary covers item 8: every line that arrives on its own
+// carries one glyph from the small vocabulary documented in transcript.go,
+// and a tip is rendered fainter than an ordinary notice.
+func TestNoticeVocabulary(t *testing.T) {
+	tr := newTranscript()
+	tr.apply(agent.Event{Kind: agent.EvNotice, Text: "skills attached: release"})
+	tr.apply(agent.Event{Kind: agent.EvNotice, Text: "verification gate failed"})
+	tr.apply(agent.Event{Kind: agent.EvCompacted, Text: "compacted 40k tokens"})
+	tr.tip("/verify set \"go test ./...\" runs the project's checks")
+	out := tr.render(renderOpts{width: 80})
+	flat := plain(out)
+	for _, want := range []string{
+		noteAttached + "skills attached: release",
+		noteNotice + "verification gate failed",
+		noteCompact + "compacted 40k tokens",
+		"tip · /verify set",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("missing %q in:\n%s", want, flat)
+		}
+	}
+	// No line ends in a full stop, and none starts with two glyphs.
+	for _, l := range strings.Split(strings.TrimRight(flat, "\n"), "\n") {
+		if strings.HasSuffix(strings.TrimSpace(l), ".") {
+			t.Errorf("notice ends with a full stop: %q", l)
+		}
+	}
+	// The tip is faint where a notice is dim: the two must differ.
+	tipOnly := newTranscript()
+	tipOnly.tip("x")
+	infoOnly := newTranscript()
+	infoOnly.info("x")
+	if tipOnly.render(renderOpts{width: 80}) == infoOnly.render(renderOpts{width: 80}) {
+		t.Error("a tip is styled the same as an ordinary notice")
+	}
+}

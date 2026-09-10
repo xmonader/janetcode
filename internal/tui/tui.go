@@ -172,9 +172,9 @@ func (m *model) memoryCommand(cmd, arg string) {
 		case status == memory.Unchanged:
 			m.transcript.info("already remembered as " + e.Name)
 		case status == memory.Updated:
-			m.transcript.info("◆ memory updated: " + memoryLine(e))
+			m.transcript.info(noteMemory + "memory updated: " + memoryLine(e))
 		default:
-			m.transcript.info("◆ remembered: " + memoryLine(e))
+			m.transcript.info(noteMemory + "remembered: " + memoryLine(e))
 		}
 	case "/forget":
 		if arg == "" {
@@ -190,7 +190,7 @@ func (m *model) memoryCommand(cmd, arg string) {
 	default:
 		entries := store.Entries()
 		if len(entries) == 0 {
-			m.transcript.info("nothing remembered yet (project " + store.Key + "). /remember <fact> adds one, -g for something about you; facts are also extracted automatically after turns that change something or give feedback.")
+			m.transcript.info("nothing remembered yet (project " + store.Key + ") · /remember <fact> adds one, -g for something about you; facts are also extracted automatically after turns that change something or give feedback")
 			return
 		}
 		var sb strings.Builder
@@ -1199,7 +1199,7 @@ func (m *model) startMCP() {
 			names = append(names, n)
 		}
 		sort.Strings(names)
-		m.transcript.info(fmt.Sprintf("%s lists MCP servers (%s) that have not been trusted for this directory. They would run commands on your machine: inspect the file, then /mcp trust to start them.", mcp.ProjectFile, strings.Join(names, ", ")))
+		m.transcript.info(fmt.Sprintf("%s%s lists MCP servers (%s) that have not been trusted here · they would run commands on your machine: inspect the file, then /mcp trust starts them", noteNotice, mcp.ProjectFile, strings.Join(names, ", ")))
 	}
 	if n := len(o.Global) + len(o.Project); n > 0 && (o.ProjectTrusted || len(o.Global) > 0) {
 		m.status = "starting MCP servers…"
@@ -1260,7 +1260,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Someone may have checked out another branch in this tree
 			// (or in the session's worktree) from outside; follow it.
 			if b, ok := prompt.GitBranch(m.opts.Cwd); ok && b != "" && b != m.branch {
-				m.transcript.info("branch changed: " + m.branch + " → " + b)
+				m.transcript.info(noteNotice + "branch changed: " + m.branch + " → " + b)
 				m.branch = b
 				m.refresh(false)
 			}
@@ -1269,7 +1269,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refresh(false)
 		} else if notes := m.opts.Jobs.Finished(); len(notes) > 0 {
 			for _, n := range notes {
-				m.transcript.info("⚙ " + strings.SplitN(n, "\n", 2)[0])
+				m.transcript.info(noteJob + strings.SplitN(n, "\n", 2)[0])
 				m.opts.Agent.AddHarnessContext("[background job update]\n" + n)
 			}
 			m.refresh(false)
@@ -1319,11 +1319,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case mcpAuthMsg:
 		switch {
 		case !msg.done:
-			m.transcript.info("mcp " + msg.name + ": " + msg.text)
+			m.transcript.info(noteNotice + "mcp " + msg.name + ": " + msg.text)
 		case msg.err != nil:
 			m.transcript.errorf("mcp %s: authorization failed: %v", msg.name, msg.err)
 		default:
-			m.transcript.info("mcp " + msg.name + ": authorized · restarting the server")
+			m.transcript.info(noteNotice + "mcp " + msg.name + ": authorized · restarting the server")
 			m.restartMCP(msg.name)
 		}
 		m.refresh(false)
@@ -1337,7 +1337,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if n := len(m.mcpPrompts(msg.name)); n > 0 {
 				line += fmt.Sprintf(" · %d prompts as /mcp__%s__<name>", n, msg.name)
 			}
-			m.transcript.info(line + " (see /mcp)")
+			m.transcript.info(noteNotice + line + " (see /mcp)")
 		}
 		if m.status == "starting MCP servers…" {
 			m.status = ""
@@ -1381,10 +1381,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case memoryMsg:
 		if msg.err != nil {
-			m.transcript.info("memory: extraction failed: " + msg.err.Error())
+			m.transcript.info(noteNotice + "memory: extraction failed: " + msg.err.Error())
 		}
 		for _, e := range msg.added {
-			m.transcript.info("◆ remembered: " + memoryLine(e))
+			m.transcript.info(noteMemory + "remembered: " + memoryLine(e))
 		}
 		m.refresh(false)
 		return m, nil
@@ -1944,7 +1944,7 @@ func (m *model) submit(text string) tea.Cmd {
 				names[i] += " (" + shortBytes(a.Size) + ")"
 			}
 		}
-		m.transcript.info("attached " + strings.Join(names, " · "))
+		m.transcript.info(noteAttached + "attached " + strings.Join(names, " · "))
 	}
 	blocks := append([]llm.Block{{Type: llm.BlockText, Text: text}}, prompt.ImageBlocks(atts)...)
 	m.startTurn("thinking")
@@ -2085,10 +2085,10 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		m.transcript.errorf("cancelled after %s", elapsed)
 		m.status = "cancelled"
 	case errors.Is(msg.err, agent.ErrMaxIterations):
-		m.transcript.errorf("stopped after %d tool rounds in one turn. Send a message to continue.", m.opts.Agent.MaxIterations)
+		m.transcript.errorf("stopped after %d tool rounds in one turn · send a message to continue", m.opts.Agent.MaxIterations)
 		m.status = "stopped"
 	case errors.Is(msg.err, agent.ErrStuck):
-		m.transcript.errorf("stopped: the model kept repeating the same tool call. Its changes so far are kept; tell it what to do differently.")
+		m.transcript.errorf("stopped: the model kept repeating the same tool call · its changes so far are kept; tell it what to do differently")
 		m.status = "stuck"
 	case msg.err != nil:
 		m.transcript.dropEmptyTrailing()
@@ -2108,13 +2108,13 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 			m.status += fmt.Sprintf(" · %s changed · /undo reverts", plural(n, "file"))
 			if m.opts.Verify != nil && len(m.opts.Verify.Config.Commands) == 0 && !m.verifyTipShown {
 				m.verifyTipShown = true
-				m.transcript.info("tip: /verify set \"go test ./...\" runs the project's checks after every change and sends failures back to the model; it is saved in .janetcode/verify.json")
+				m.transcript.tip("/verify set \"go test ./...\" runs the project's checks after every change and sends failures back to the model; it is saved in .janetcode/verify.json")
 			}
 		}
 	}
 	if msg.err == nil && len(m.queued) == 0 {
 		if cont := m.opts.Agent.GoalContinuation(); cont != "" {
-			m.transcript.info("goal: continuing")
+			m.transcript.info(noteGoal + "goal continuing")
 			return m.submit(cont)
 		}
 	}
@@ -2761,7 +2761,7 @@ func (m *model) liveWork() string {
 			}
 		}
 		if n > 0 {
-			parts = append(parts, "⚙ "+plural(n, "job")+" (/jobs)")
+			parts = append(parts, noteJob+plural(n, "job")+" (/jobs)")
 		}
 	}
 	if ag := m.opts.Agent; ag != nil && ag.Log != nil {
@@ -3210,7 +3210,7 @@ func (m *model) undoChange(n int) {
 	if i := strings.LastIndex(done, " "); i > 0 {
 		verb, path = done[:i], done[i+1:]
 	}
-	m.transcript.info(fmt.Sprintf("↶ #%d: %s %s", n, verb, m.relPath(path)))
+	m.transcript.info(fmt.Sprintf("%s#%d: %s %s", noteUndo, n, verb, m.relPath(path)))
 	m.opts.Agent.AddContext(fmt.Sprintf("I undid change #%d (%s) on my own; later changes to the file stayed.", n, m.relPath(path)))
 }
 
@@ -3376,7 +3376,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 	if n := m.opts.Agent.LastUndoRemoved(); n > 0 {
 		// The turn's messages left the context with its files; the
 		// agent put one note in their place, so nothing more to add.
-		m.transcript.info(fmt.Sprintf("↶ the undone turn's %d message(s) were removed from the model's context as well", n))
+		m.transcript.info(fmt.Sprintf("%sthe undone turn's %s removed from the model's context as well", noteUndo, plural(n, "message")))
 	} else {
 		m.opts.Agent.AddContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
 	}
