@@ -853,3 +853,41 @@ func (n *namedTool) Description() string                                { return
 func (*namedTool) Mutating() bool                                       { return false }
 func (*namedTool) Schema() json.RawMessage                              { return json.RawMessage(`{"type":"object"}`) }
 func (*namedTool) Run(context.Context, json.RawMessage) (string, error) { return "ok", nil }
+
+// TestSteerReachesTheRunningTurn: a note typed while the turn is running
+// is handed to the model before its next call, not after the turn.
+func TestSteerReachesTheRunningTurn(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "c1", Name: "bash", Input: []byte(`{"command":"true"}`)}}}, StopReason: llm.StopToolUse},
+		text("done"),
+	}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(tool.Bash{Root: t.TempDir()}), Model: "m", AutoApprove: true}
+	var steered bool
+	emit := func(e Event) {
+		if e.Kind == EvToolResult && !steered {
+			steered = true
+			a.Steer("stop, use the other file")
+		}
+	}
+	if err := a.Run(context.Background(), "go", emit); err != nil {
+		t.Fatal(err)
+	}
+	last := f.requests[len(f.requests)-1]
+	found := false
+	for _, m := range last.Messages {
+		for _, b := range m.Blocks {
+			if b.Type == llm.BlockText && strings.Contains(b.Text, "stop, use the other file") {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("the steering note never reached the model: %+v", last.Messages)
+	}
+	// It was delivered once and cleared.
+	a.steerMu.Lock()
+	defer a.steerMu.Unlock()
+	if len(a.steer) != 0 {
+		t.Fatalf("steer not cleared: %v", a.steer)
+	}
+}

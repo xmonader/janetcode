@@ -2479,3 +2479,63 @@ func TestPromptHistoryOutlivesTheProcess(t *testing.T) {
 		t.Fatalf("esc left %q, want the draft back", got)
 	}
 }
+
+// TestSteerAndTakeBackQueuedMessages: text typed while a turn runs must
+// never be out of reach — ↑ takes the last queued message back, ctrl+s
+// hands it to the running turn, and esc gives everything back.
+func TestSteerAndTakeBackQueuedMessages(t *testing.T) {
+	block := make(chan struct{})
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+	h.m.opts.Agent.Provider = &heldOpen{until: block, inner: h.m.opts.Agent.Provider}
+	h.keys("do the thing")
+	h.enter()
+	h.keys("also this")
+	h.enter()
+	if len(h.m.queued) != 1 {
+		t.Fatalf("queued = %v", h.m.queued)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyUp})
+	if h.m.input.Value() != "also this" || len(h.m.queued) != 0 {
+		t.Fatalf("up did not take the queued message back: %q %v", h.m.input.Value(), h.m.queued)
+	}
+	// ctrl+s hands it to the running turn instead.
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	if h.m.input.Value() != "" {
+		t.Fatalf("ctrl+s left the input alone: %q", h.m.input.Value())
+	}
+	if !strings.Contains(plain(h.m.View()), "steering") {
+		t.Fatalf("no sign of the steering message:\n%s", plain(h.m.View()))
+	}
+	// Queue two more, then cancel: both come back, joined by blank lines.
+	h.keys("one")
+	h.enter()
+	h.keys("two")
+	h.enter()
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if got := h.m.input.Value(); got != "one\n\ntwo" {
+		t.Fatalf("cancel left %q", got)
+	}
+	close(block)
+	h.pump(func() bool { return !h.m.running })
+}
+
+// heldOpen holds the first call open until a channel closes, so a test can
+// act while a turn is running.
+type heldOpen struct {
+	until chan struct{}
+	inner llm.Provider
+	done  bool
+}
+
+func (b *heldOpen) Name() string { return "heldOpen" }
+func (b *heldOpen) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	if !b.done {
+		b.done = true
+		select {
+		case <-b.until:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return b.inner.Stream(ctx, req, emit)
+}

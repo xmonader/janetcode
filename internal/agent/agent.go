@@ -236,6 +236,8 @@ type Agent struct {
 	loops   loopDetector
 	loopMu  sync.Mutex
 	usageMu sync.Mutex  // the status bar reads Usage while a turn runs
+	steerMu sync.Mutex  // guards steer, written from the UI goroutine
+	steer   []string    // notes for the running turn (see Steer)
 	turnUse llm.Usage   // what the turn in progress has cost so far
 	cache   cacheLedger // prefix paid for twice, and why
 	prefix  prefixWatch // where the cached prefix stopped matching
@@ -339,6 +341,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		}
 		a.checkIntegrity(emit)
 		a.reportJobs(emit)
+		a.deliverSteering(emit)
 		a.stepN++
 		a.logEvent(session.Event{Type: session.TypeStepStart, Turn: a.turnN, Step: a.stepN})
 		resp, err := a.call(ctx, emit)
@@ -638,8 +641,47 @@ func (a *Agent) traced(emit func(Event)) func(Event) {
 }
 
 // AddContext records text the user produced outside the model's view (a
-// shell command they ran, a note) as user content for the next turn.
+// shell command they ran, a note) as user content for the next turn. It
+// mutates the history and is only safe between turns; use Steer to say
+// something to a turn that is already running.
 func (a *Agent) AddContext(text string) { a.appendUserText(text) }
+
+// Steer queues a note for the running turn. The history belongs to the
+// turn goroutine while it runs, so the note is held here and delivered by
+// that goroutine before its next model call — which is the difference
+// between steering a turn and starting another one.
+func (a *Agent) Steer(text string) {
+	if strings.TrimSpace(text) == "" {
+		return
+	}
+	a.steerMu.Lock()
+	a.steer = append(a.steer, text)
+	a.steerMu.Unlock()
+}
+
+// deliverSteering hands any queued notes to the model. It runs on the
+// turn goroutine, just before the call that will read them.
+func (a *Agent) deliverSteering(emit func(Event)) {
+	a.steerMu.Lock()
+	notes := a.steer
+	a.steer = nil
+	a.steerMu.Unlock()
+	if len(notes) == 0 {
+		return
+	}
+	text := strings.Join(notes, "\n\n")
+	n := len(a.Messages)
+	if n > 0 && a.Messages[n-1].Role == llm.RoleUser {
+		// The trailing message is this step's tool results. The note
+		// rides with them: two user messages in a row are not something
+		// every provider accepts.
+		a.Messages[n-1].Blocks = append(a.Messages[n-1].Blocks, llm.Block{Type: llm.BlockText, Text: text})
+		a.logUserMessage(true)
+	} else {
+		a.appendUserText(text)
+	}
+	emit(Event{Kind: EvNotice, Text: "steering the turn: " + strings.SplitN(text, "\n", 2)[0]})
+}
 
 // appendUserText adds text as a new user message. It never mutates a message
 // already sent to the provider: editing a cached prefix (especially a tool-

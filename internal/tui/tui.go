@@ -1082,6 +1082,7 @@ type model struct {
 	lastUsage      llm.Usage                // the last turn's usage
 	verifyTipShown bool                     // the one-time hint about verification gates
 	queued         []string                 // prompts typed while a turn was running
+	steering       []string                 // notes handed to the running turn (ctrl+s)
 	custom         map[string]prompt.Custom // user-defined slash commands
 	clipboard      func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
 	compIdx        int                      // highlighted row of the completion menu
@@ -1623,6 +1624,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	case "esc":
 		if m.running {
 			m.cancelTurn()
+			m.restoreQueued()
 			return nil, true
 		}
 		if m.histIdx < len(m.history) {
@@ -1663,6 +1665,25 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 				return nil, true
 			}
 		}
+	case "ctrl+s":
+		// Say something to the turn that is running, rather than queueing
+		// it for the next one. The agent holds the note and hands it to
+		// the model before its next call.
+		text := strings.TrimSpace(m.input.Value())
+		switch {
+		case !m.running:
+			m.status = "ctrl+s steers a running turn; there is none · enter sends"
+		case text == "":
+			m.status = "type what the model should do differently, then ctrl+s"
+		default:
+			m.opts.Agent.Steer(m.inflatePastes(text))
+			m.steering = append(m.steering, text)
+			m.remember(text)
+			m.input.Reset()
+			m.layout()
+		}
+		m.refresh(false)
+		return nil, true
 	case "ctrl+l":
 		return tea.ClearScreen, true
 	case "ctrl+v":
@@ -1678,6 +1699,17 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		}
 	case "up":
 		if m.moveMenu(-1) {
+			return nil, true
+		}
+		if m.running && len(m.queued) > 0 && m.input.Value() == "" {
+			// Take the last queued message back to edit it: queued text
+			// was unreachable until the turn ended.
+			m.input.SetValue(m.queued[len(m.queued)-1])
+			m.queued = m.queued[:len(m.queued)-1]
+			m.input.CursorEnd()
+			m.layout()
+			m.status = "took the queued message back · enter queues it again, ctrl+s steers this turn"
+			m.refresh(false)
 			return nil, true
 		}
 		if m.input.Line() == 0 && len(m.history) > 0 && m.histIdx > 0 {
@@ -2148,6 +2180,7 @@ func (m *model) finishShell(msg shellDoneMsg) {
 }
 
 func (m *model) startTurn(phase string) {
+	m.steering = nil
 	m.term.turnStarted()
 	m.running = true
 	m.cancelling = false
@@ -2253,6 +2286,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 			}
 		}
 	}
+	m.steering = nil
 	m.term.turnEnded(msg.err == nil, m.status)
 	if msg.err == nil && len(m.queued) == 0 {
 		if cont := m.opts.Agent.GoalContinuation(); cont != "" {
@@ -2266,13 +2300,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	if msg.err != nil {
 		// Do not fire queued prompts into a failed or cancelled turn; hand
 		// them back so nothing typed is lost.
-		text := strings.Join(m.queued, "\n")
-		m.queued = nil
-		if m.input.Value() == "" {
-			m.input.SetValue(text)
-			m.input.CursorEnd()
-			m.layout()
-		}
+		m.restoreQueued()
 		return nil
 	}
 	next := m.queued[0]
@@ -2737,7 +2765,7 @@ func (m *model) helpText() string {
 	sb.WriteString("  enter send · ctrl+j / alt+enter newline · up/down recall prompts, or move in an open menu · tab/enter accept a menu row\n")
 	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, or when idle twice to quit · ctrl+d quit\n")
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand the last turn (again folds it) · click a tool line or a thought to fold or unfold it · /verbose does the whole transcript · ctrl+l redraw\n")
-	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends\n")
+	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends · ctrl+s hands it to the running turn instead · up takes the last queued one back · esc cancels and gives them all back\n")
 	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
 	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · r save a rule so matching calls never ask again · n deny (then type why, or enter to skip) · esc deny · c cancel the whole turn\n")
@@ -2944,7 +2972,7 @@ func (m *model) footerHeight() int {
 	if m.denying {
 		h++
 	}
-	return h + len(m.queued)
+	return h + len(m.queued) + len(m.steering)
 }
 
 func (m *model) permissionBoxHeight() int {
@@ -3271,6 +3299,9 @@ func (m *model) footerView() string {
 			parts = append(parts, "")
 		}
 		parts = append(parts, styleFaint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))
+	}
+	for _, q := range m.steering {
+		parts = append(parts, "  "+styleWarn.Render("steering ")+styleDim.Render(truncateLine(strings.ReplaceAll(q, "\n", " "), m.width-14)))
 	}
 	for i, q := range m.queued {
 		parts = append(parts, "  "+styleFaint.Render(fmt.Sprintf("queued %d ", i+1))+styleDim.Render(truncateLine(strings.ReplaceAll(q, "\n", " "), m.width-14)))
@@ -3699,4 +3730,22 @@ func (m *model) inflatePastes(text string) string {
 		}
 		return m.pastes[n-1]
 	})
+}
+
+// restoreQueued puts queued messages back in the input, under whatever is
+// already there, separated by blank lines. Nothing typed is ever thrown
+// away by a cancel: it goes back where it came from.
+func (m *model) restoreQueued() {
+	if len(m.queued) == 0 {
+		return
+	}
+	parts := m.queued
+	m.queued = nil
+	if v := strings.TrimSpace(m.input.Value()); v != "" {
+		parts = append(parts, v)
+	}
+	m.input.SetValue(strings.Join(parts, "\n\n"))
+	m.input.CursorEnd()
+	m.layout()
+	m.refresh(false)
 }
