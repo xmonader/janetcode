@@ -344,6 +344,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	if len(a.Messages) == 0 {
 		return ErrNothingToCompact
 	}
+	emit(Event{Kind: EvPhase, Text: "compacting"})
 	before := a.EstimateTokens()
 	limit := a.CompactThreshold()
 	if !force && !a.Off["prune"] {

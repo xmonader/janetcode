@@ -57,7 +57,11 @@ func TestCompactKeepsPendingUserText(t *testing.T) {
 		llm.TextMessage(llm.RoleUser, "second request"),
 	}}
 	var evs []Event
-	if err := a.Compact(context.Background(), func(e Event) { evs = append(evs, e) }); err != nil {
+	if err := a.Compact(context.Background(), func(e Event) {
+		if e.Kind != EvPhase { // a phase is a status line, not a loop event
+			evs = append(evs, e)
+		}
+	}); err != nil {
 		t.Fatal(err)
 	}
 	req := f.requests[0]
@@ -93,7 +97,11 @@ func TestAutoCompactBeforeCallAndOnOverflow(t *testing.T) {
 	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", CompactAt: 500}
 	a.Messages = []llm.Message{llm.TextMessage(llm.RoleUser, big), llm.TextMessage(llm.RoleAssistant, "ok")}
 	var kinds []EventKind
-	emit := func(e Event) { kinds = append(kinds, e.Kind) }
+	emit := func(e Event) {
+		if e.Kind != EvPhase {
+			kinds = append(kinds, e.Kind)
+		}
+	}
 	if err := a.Run(context.Background(), "q1", emit); err != nil {
 		t.Fatal(err)
 	}

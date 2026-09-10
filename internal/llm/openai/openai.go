@@ -712,10 +712,12 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		if attempt >= p.cfg.MaxRetries || !retryable(err) || ctx.Err() != nil {
 			return nil, err
 		}
+		wait := time.Duration(500*(1<<attempt)) * time.Millisecond
+		emit(llm.Event{Type: llm.EventStatus, Text: fmt.Sprintf("retrying %d/%d · %s · in %s", attempt+1, p.cfg.MaxRetries, retryReason(err), wait.Round(time.Second/10))})
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(time.Duration(500*(1<<attempt)) * time.Millisecond):
+		case <-time.After(wait):
 		}
 	}
 	defer resp.Body.Close()
@@ -834,6 +836,22 @@ func permanentLimit(msg string) bool {
 		}
 	}
 	return false
+}
+
+// retryReason names why a call is being retried, in the few words the
+// status line has room for.
+func retryReason(err error) string {
+	var ae *APIError
+	if errors.As(err, &ae) {
+		switch {
+		case ae.Status == 429:
+			return "rate limited"
+		case ae.Status >= 500:
+			return fmt.Sprintf("server error %d", ae.Status)
+		}
+		return fmt.Sprintf("http %d", ae.Status)
+	}
+	return "connection failed"
 }
 
 func retryable(err error) bool {

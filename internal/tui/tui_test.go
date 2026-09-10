@@ -2276,3 +2276,24 @@ func TestUserVisibleStringStyle(t *testing.T) {
 		t.Errorf("plural() = %q / %q", plural(1, "file"), plural(2, "file"))
 	}
 }
+
+// TestPhaseNamesWhatTheTurnWaitsOn: a retry countdown and a subagent both
+// reach the status line, so a stalled turn says what it is stalled on.
+func TestPhaseNamesWhatTheTurnWaitsOn(t *testing.T) {
+	h := newHarness(t)
+	h.m.running = true
+	h.m.applyEvent(agent.Event{Kind: agent.EvPhase, Text: "retrying 2/5 · rate limited · in 12s"})
+	h.m.refresh(false)
+	if v := plain(h.m.View()); !strings.Contains(v, "retrying 2/5 · rate limited · in 12s") {
+		t.Fatalf("retry phase missing from the status line:\n%s", v)
+	}
+	if n := len(h.m.transcript.entries); n != 1 {
+		t.Fatalf("a phase must not add a transcript entry (%d entries)", n)
+	}
+	call := agent.ToolCall{ID: "t1", Name: "task"}
+	h.m.applyEvent(agent.Event{Kind: agent.EvToolRun, Call: &call})
+	h.m.refresh(false)
+	if v := plain(h.m.View()); !strings.Contains(v, "waiting on subagent") {
+		t.Fatalf("subagent phase missing:\n%s", v)
+	}
+}

@@ -807,3 +807,32 @@ func TestRetryableDistinguishesExhaustedFromThrottled(t *testing.T) {
 		}
 	}
 }
+
+// TestRetryAnnouncesItself: a stalled call must not look like a slow one,
+// so every backoff says what it is waiting for and for how long.
+func TestRetryAnnouncesItself(t *testing.T) {
+	var calls int32
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		if atomic.AddInt32(&calls, 1) < 3 {
+			w.WriteHeader(429)
+			io.WriteString(w, `{"error":{"message":"slow down"}}`)
+			return
+		}
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+	})
+	var status []string
+	_, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, func(e llm.Event) {
+		if e.Type == llm.EventStatus {
+			status = append(status, e.Text)
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(status) != 2 {
+		t.Fatalf("status events = %v", status)
+	}
+	if !strings.HasPrefix(status[0], "retrying 1/") || !strings.Contains(status[0], "rate limited") || !strings.Contains(status[0], " in ") {
+		t.Fatalf("status[0] = %q", status[0])
+	}
+}

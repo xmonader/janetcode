@@ -241,6 +241,10 @@ const (
 	EventToolUseStart  EventType = "tool_use_start"
 	EventToolUseDelta  EventType = "tool_use_delta"
 	EventToolUseEnd    EventType = "tool_use_end"
+	// EventStatus reports what the provider is doing between attempts —
+	// a retry and its countdown — so a stalled call does not look like a
+	// slow one. Text carries the phrase to show; no content is implied.
+	EventStatus EventType = "status"
 )
 
 // Event is one streamed increment. Text carries the delta for text, thinking

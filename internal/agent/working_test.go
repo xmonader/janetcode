@@ -86,7 +86,11 @@ func TestWorkingMemoryReplacesHandoffNote(t *testing.T) {
 	a.Messages = append(a.Messages, chatter(3)...)
 	a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, "more"))
 	var evs []Event
-	if err := a.ForceCompact(context.Background(), func(e Event) { evs = append(evs, e) }); err != nil {
+	if err := a.ForceCompact(context.Background(), func(e Event) {
+		if e.Kind != EvPhase {
+			evs = append(evs, e)
+		}
+	}); err != nil {
 		t.Fatal(err)
 	}
 	note = a.Messages[0].Text()

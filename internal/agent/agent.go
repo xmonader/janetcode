@@ -93,6 +93,10 @@ const (
 	EvTurnDone      EventKind = "turn_done"      // Usage, StopReason
 	EvTextBlockDone EventKind = "text_block_end" // one assistant message finished streaming
 	EvVerdict       EventKind = "verdict"        // Text: what the turn demonstrated
+	// EvPhase names what the turn is waiting on right now — a retry and
+	// its countdown, a compaction, a subagent. It is a status line, never
+	// a transcript entry, and the next event supersedes it.
+	EvPhase EventKind = "phase"
 )
 
 // Event is a loop notification for the UI.
@@ -1068,6 +1072,8 @@ func forward(e llm.Event, emit func(Event)) {
 		emit(Event{Kind: EvToolStart, Call: &ToolCall{ID: e.Block.ID, Name: e.Block.Name}})
 	case llm.EventToolUseDelta:
 		emit(Event{Kind: EvToolInput, Text: e.Text})
+	case llm.EventStatus:
+		emit(Event{Kind: EvPhase, Text: e.Text})
 	}
 }
 

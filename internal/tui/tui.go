@@ -1463,8 +1463,15 @@ func (m *model) applyEvent(ev agent.Event) {
 				m.phase = e.call.Name + " " + s
 			}
 		}
+	case agent.EvPhase:
+		// The provider or the loop said what it is waiting on: a retry
+		// countdown, a compaction, a subagent.
+		m.phase = ev.Text
 	case agent.EvToolRun:
 		m.phase = "running " + ev.Call.Name
+		if ev.Call.Name == "task" {
+			m.phase = "waiting on subagent"
+		}
 	case agent.EvToolResult:
 		m.phase = "thinking"
 		if ev.Call != nil && ev.Call.Name == "goal_status" && !ev.IsError {
