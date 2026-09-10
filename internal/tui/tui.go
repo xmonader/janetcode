@@ -555,12 +555,30 @@ func (m *model) goalCommand(arg string) tea.Cmd {
 		ag.SetGoalPhase(g.ID, phase, "")
 		m.transcript.info("goal " + g.ID + " " + phase)
 		m.refresh(false)
+		if phase == agent.GoalActive {
+			return m.startGoalRound()
+		}
 		return nil
 	default:
 		id := ag.CreateGoal(arg, 0)
 		m.transcript.info("goal " + id + " active: " + arg)
+		return m.startGoalRound()
+	}
+}
+
+// startGoalRound begins the active goal's next round now when the model
+// is idle. Setting a goal and seeing nothing happen was the alternative:
+// the loop only advanced when a turn ended, and there was no turn.
+func (m *model) startGoalRound() tea.Cmd {
+	if m.running {
+		m.transcript.info("the goal continues when this turn ends")
 		return nil
 	}
+	cont := m.opts.Agent.GoalContinuation()
+	if cont == "" {
+		return nil
+	}
+	return m.submit(cont)
 }
 
 func (m *model) agentsCommand() {
@@ -991,7 +1009,7 @@ var commands = []command{
 	{"/plan", "[request|approve|off]", "plan mode: the model explores and writes a plan; approve executes it"},
 	{"/trajectory", "[n|grep <words>]", "event ledger of this session (turn/step/tool/compaction); n shows one record"},
 	{"/feedback", "up|down [note]", "rate the last assistant message (not sent to the model)"},
-	{"/goal", "[objective|pause|resume|done]", "same-session goal: keep going until complete or blocked"},
+	{"/goal", "[objective|pause|resume|done]", "set a goal and start on it now; the model keeps going round after round until it is complete or blocked"},
 	{"/agents", "", "list continuable subagents started with the task tool"},
 	{"/readonly", "", "toggle read-only mode (no edits or commands)"},
 	{"/memory", "", "what janetcode remembers about this project"},
@@ -2751,6 +2769,11 @@ func (m *model) liveWork() string {
 		}
 		if n > 0 {
 			parts = append(parts, "⚙ "+plural(n, "job")+" (/jobs)")
+		}
+	}
+	if ag := m.opts.Agent; ag != nil && ag.Log != nil {
+		if g := agent.ActiveGoal(ag.Log.Events()); g != nil {
+			parts = append(parts, fmt.Sprintf("goal %s round %d/%d (/goal pause)", g.ID, g.Rounds, g.MaxRounds))
 		}
 	}
 	if ag := m.opts.Agent; ag != nil && ag.Tools != nil {

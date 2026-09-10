@@ -1675,3 +1675,23 @@ func TestPermissionKeysFitOneLine(t *testing.T) {
 		}
 	}
 }
+
+// TestGoalStartsWorkingAtOnce: /goal <objective> used to record the goal
+// and stop, since the loop only advanced when a turn ended. It starts
+// the first round immediately, and the status bar shows the goal.
+func TestGoalStartsWorkingAtOnce(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "on it"), StopReason: llm.StopEndTurn})
+	h.keys("/goal make the tests green")
+	h.enter()
+	if !h.m.running {
+		t.Fatal("setting a goal should start a turn")
+	}
+	reqs := h.m.opts.Agent.Provider.(*scripted).reqs()
+	if len(reqs) == 0 || !strings.Contains(reqs[0].Messages[len(reqs[0].Messages)-1].Text(), "make the tests green") {
+		t.Fatalf("the first round should carry the objective: %+v", reqs)
+	}
+	h.pump(func() bool { return !h.m.running })
+	if v := plain(h.m.statusView()); !strings.Contains(v, "goal g1") {
+		t.Fatalf("status = %q", v)
+	}
+}

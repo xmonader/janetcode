@@ -113,7 +113,11 @@ func (a *Agent) GoalContinuation() string {
 		return ""
 	}
 	a.logEvent(session.Event{Type: session.TypeGoalRound, Name: g.ID})
-	return "Continue the goal: " + g.Objective + "\n(round " + fmt.Sprint(g.Rounds+1) + "/" + fmt.Sprint(g.MaxRounds) + "; call goal_status when done or blocked)"
+	lead := "Continue the goal: "
+	if g.Rounds == 0 {
+		lead = "Work on this goal until it is complete or you are blocked: "
+	}
+	return lead + g.Objective + "\n(round " + fmt.Sprint(g.Rounds+1) + "/" + fmt.Sprint(g.MaxRounds) + "; call goal_status when done or blocked)"
 }
 
 // GoalStatus is the model-facing tool to finish or block the active goal.
