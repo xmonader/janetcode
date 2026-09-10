@@ -41,6 +41,7 @@ endpoint per series.
 | `gemma4-five/` | `google/gemma-4-31b-it` | OpenRouter |
 | `mimo-five/` | `xiaomi/mimo-v2.5` | OpenRouter |
 | `qwen-hard/` | `qwen3.7-plus`, tasks 21–26 (the hard set) | DashScope |
+| `qwen-session/` | `qwen3.7-plus`, sessions 41–43, five harnesses, two runs | DashScope |
 
 `eleven-models/REPORT.md` puts them side by side: tokens in, cached, out,
 and cost at list price.

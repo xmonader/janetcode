@@ -195,6 +195,12 @@ func runOne(ctx context.Context, cfg runConfig, harness string, batchN int, t ev
 			break
 		}
 	}
+	if harness == "openclaw" && sess != nil {
+		// A session keeps its profile and workspace between prompts;
+		// the last prompt has run, so remove them here.
+		key := filepath.Base(dir)
+		openclawCleanup(openclawTaskProfile(key), filepath.Join(os.TempDir(), "openclaw-bench", evalSanitize(key)))
+	}
 	res.SetWall(wall)
 	res.Command = redact(strings.Join(argv, " "), cfg.Key)
 	res.ExitCode = code
@@ -580,9 +586,16 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 			}
 		}()
 		extraEnv["PATH"] = "/usr/bin:/usr/local/bin:" + os.Getenv("PATH")
+		// A session's prompts share one id so openclaw continues the
+		// conversation the way pi and qwencode do; a single-prompt task
+		// gets a fresh one so nothing from the last task carries over.
+		sessionID := fmt.Sprintf("bench-%d-%d", step, time.Now().UnixNano())
+		if sess != nil {
+			sessionID = "bench-" + sess.id
+		}
 		argv = []string{"openclaw", "--profile", profile, "agent", "--local", "--json",
 			"--model", "bench/" + cfg.Model,
-			"--session-id", fmt.Sprintf("bench-%d-%d", step, time.Now().UnixNano()),
+			"--session-id", sessionID,
 			"--message", prompt}
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 	case "claudecode":

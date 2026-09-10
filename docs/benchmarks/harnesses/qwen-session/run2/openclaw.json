@@ -1,0 +1,531 @@
+[
+  {
+    "harness": "openclaw",
+    "task": "41-session-go-service",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 274262,
+    "input_tokens": {
+      "value": 64340,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 7267,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 1126272,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 31,
+      "set": true
+    },
+    "turns": {
+      "value": 28,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-41-session-go-service-2238620050 agent --local --json --model bench/qwen3.7-plus --session-id bench-7ae170f9-3a01-4363-b1d5-ea9a3916d7cf --message Run go vet ./... and go test ./... and fix anything that fails. When everything passes, reply with exactly the name of the timeout environment variable you added and nothing else.",
+    "stderr_excerpt": "der-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3865 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=2996 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 53496903-79f9-4e3d-b42b-ff7cd1706f2b ended with stopReason=stop\u001b[39m",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 14862,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 93568,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 747,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 30570
+      },
+      {
+        "input_tokens": {
+          "value": 10669,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 189184,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 2412,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 67314
+      },
+      {
+        "input_tokens": {
+          "value": 5468,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 118912,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 448,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 23534
+      },
+      {
+        "input_tokens": {
+          "value": 10883,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 246272,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1227,
+          "set": true
+        },
+        "turns": {
+          "value": 6,
+          "set": true
+        },
+        "wall_time_ms": 48303
+      },
+      {
+        "input_tokens": {
+          "value": 11913,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 257152,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1415,
+          "set": true
+        },
+        "turns": {
+          "value": 6,
+          "set": true
+        },
+        "wall_time_ms": 52616
+      },
+      {
+        "input_tokens": {
+          "value": 6570,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 131840,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 749,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 34396
+      },
+      {
+        "input_tokens": {
+          "value": 3975,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 89344,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 269,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 17526
+      }
+    ]
+  },
+  {
+    "harness": "openclaw",
+    "task": "42-session-records",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 143505,
+    "input_tokens": {
+      "value": 61887,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 2463,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 609664,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 12,
+      "set": true
+    },
+    "turns": {
+      "value": 18,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-42-session-records-1088869392 agent --local --json --model bench/qwen3.7-plus --session-id bench-aed362ec-a177-4b80-8b81-73a77571d46f --message Update inventory.txt so it reflects the renames you made in the previous step (the archived ids appear with their new prefix; keep it sorted, one id per line). Then reply with just the number of files you changed in the previous step.",
+    "stderr_excerpt": "der-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=2730 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=5108 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 1f2268f3-812d-4fe9-ba64-27155b83a5f6 ended with stopReason=stop\u001b[39m",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 39450,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 104192,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 533,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 31786
+      },
+      {
+        "input_tokens": {
+          "value": 3741,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 70144,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 227,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 16203
+      },
+      {
+        "input_tokens": {
+          "value": 3499,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 108288,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 305,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 22771
+      },
+      {
+        "input_tokens": {
+          "value": 2924,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 72192,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 375,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 17699
+      },
+      {
+        "input_tokens": {
+          "value": 9595,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 180480,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 754,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 36746
+      },
+      {
+        "input_tokens": {
+          "value": 2678,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 74368,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 269,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 18298
+      }
+    ]
+  },
+  {
+    "harness": "openclaw",
+    "task": "43-session-python-ledger",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 266795,
+    "input_tokens": {
+      "value": 72639,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 7653,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 994560,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 37,
+      "set": true
+    },
+    "turns": {
+      "value": 25,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-43-session-python-ledger-3528887094 agent --local --json --model bench/qwen3.7-plus --session-id bench-f937b6ef-bff6-4d92-b9b7-373fe4f092bf --message Run the tests and fix anything that fails. When they pass, reply with only the name of the CLI option you added and nothing else.",
+    "stderr_excerpt": "*********************d1c5. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3728 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run fab63774-bcab-4c4e-acb0-09242472e305 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 24336,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 84992,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 924,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 37675
+      },
+      {
+        "input_tokens": {
+          "value": 14126,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 265728,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1870,
+          "set": true
+        },
+        "turns": {
+          "value": 7,
+          "set": true
+        },
+        "wall_time_ms": 63538
+      },
+      {
+        "input_tokens": {
+          "value": 9552,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 201728,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1258,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 47395
+      },
+      {
+        "input_tokens": {
+          "value": 10480,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 216832,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 2359,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 65831
+      },
+      {
+        "input_tokens": {
+          "value": 8477,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 133888,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1098,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 36254
+      },
+      {
+        "input_tokens": {
+          "value": 5668,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 91392,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 144,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 16099
+      }
+    ]
+  }
+]

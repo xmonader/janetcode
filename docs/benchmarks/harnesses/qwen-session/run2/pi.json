@@ -1,0 +1,525 @@
+[
+  {
+    "harness": "pi",
+    "task": "41-session-go-service",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 210859,
+    "input_tokens": {
+      "value": 59783,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 6362,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 774784,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 32,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --session-id 7eb74d83-fb54-461e-a2d8-7d8f100a5e7d --session-dir /tmp/pi-sessions-3013512593 Run go vet ./... and go test ./... and fix anything that fails. When everything passes, reply with exactly the name of the timeout environment variable you added and nothing else.",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 5914,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 51072,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 731,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 19920
+      },
+      {
+        "input_tokens": {
+          "value": 13723,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 150656,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1842,
+          "set": true
+        },
+        "turns": {
+          "value": 7,
+          "set": true
+        },
+        "wall_time_ms": 48037
+      },
+      {
+        "input_tokens": {
+          "value": 8811,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 91136,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 418,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 18650
+      },
+      {
+        "input_tokens": {
+          "value": 13150,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 173952,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1194,
+          "set": true
+        },
+        "turns": {
+          "value": 7,
+          "set": true
+        },
+        "wall_time_ms": 38255
+      },
+      {
+        "input_tokens": {
+          "value": 8356,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 106240,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1305,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 32913
+      },
+      {
+        "input_tokens": {
+          "value": 5933,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 144384,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 710,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 26446
+      },
+      {
+        "input_tokens": {
+          "value": 3896,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 57344,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 162,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 26635
+      }
+    ]
+  },
+  {
+    "harness": "pi",
+    "task": "42-session-records",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 85879,
+    "input_tokens": {
+      "value": 46520,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 2078,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 390528,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 21,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --session-id 52fdfbf9-1665-43a5-b22d-e54b9e73d5a9 --session-dir /tmp/pi-sessions-4083749985 Update inventory.txt so it reflects the renames you made in the previous step (the archived ids appear with their new prefix; keep it sorted, one id per line). Then reply with just the number of files you changed in the previous step.",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 21826,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 53120,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 364,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 15145
+      },
+      {
+        "input_tokens": {
+          "value": 5776,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 55168,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 245,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 10997
+      },
+      {
+        "input_tokens": {
+          "value": 5320,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 57216,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 268,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 11997
+      },
+      {
+        "input_tokens": {
+          "value": 6567,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 78464,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 467,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 17844
+      },
+      {
+        "input_tokens": {
+          "value": 4242,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 82816,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 483,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 17760
+      },
+      {
+        "input_tokens": {
+          "value": 2789,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 63744,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 251,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 12134
+      }
+    ]
+  },
+  {
+    "harness": "pi",
+    "task": "43-session-python-ledger",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 163510,
+    "input_tokens": {
+      "value": 50159,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 6131,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 467072,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 21,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --session-id 431e42bd-bebd-40fb-aaf4-212d87cfac7b --session-dir /tmp/pi-sessions-3676878709 Run the tests and fix anything that fails. When they pass, reply with only the name of the CLI option you added and nothing else.",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 4944,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 51072,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 898,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 23881
+      },
+      {
+        "input_tokens": {
+          "value": 9174,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 78592,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1724,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 38689
+      },
+      {
+        "input_tokens": {
+          "value": 8115,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 63616,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 888,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 23668
+      },
+      {
+        "input_tokens": {
+          "value": 10836,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 118784,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1196,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 32495
+      },
+      {
+        "input_tokens": {
+          "value": 10826,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 101888,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1279,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 35677
+      },
+      {
+        "input_tokens": {
+          "value": 6264,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 53120,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 146,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 9098
+      }
+    ]
+  }
+]

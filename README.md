@@ -1174,6 +1174,13 @@ Numbers live in `docs/benchmarks/`, with the runs that produced them.
   writing and running its own tests on the INI parser with hidden tests,
   which it passed 3/3 where qwencode passed 1/3.
   `docs/benchmarks/harnesses/qwen-hard/`.
+- **The session set across five harnesses** (three sessions of six or
+  seven dependent prompts, qwen3.7-plus, two runs): every harness that
+  continues a session passed all six; hermes-agent, which cannot, passed
+  two. Context read for the six sessions: janetcode 2.0M, pi 3.9M,
+  openclaw 6.1M, qwencode 34.2M — the widest gap of any set, and at list
+  price $0.22 against $0.37, $0.55 and $3.64.
+  `docs/benchmarks/harnesses/qwen-session/`.
 - **Compaction** is safe on this set: forcing it on tasks that would not
   otherwise reach the threshold lost no task, 11/11 either way.
 - **Recall after compaction**: 0/16 exact facts with no archive, 9/20 with
