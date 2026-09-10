@@ -12,6 +12,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
@@ -46,12 +48,54 @@ import (
 	"github.com/xmonader/janetcode/internal/worktree"
 )
 
-// version is set at build time via -ldflags "-X main.version=...".
+// version is set at build time via -ldflags "-X main.version=...". A
+// plain `go install .../cmd/janetcode@v0.2.0` has no ldflags, so the
+// module version or the commit the Go toolchain recorded stands in.
 var version = "dev"
+
+// pseudoVersionRe matches a Go pseudo-version: a timestamp and a commit
+// where a tag would be.
+var pseudoVersionRe = regexp.MustCompile(`\.\d{14}-[0-9a-f]{12}`)
+
+func init() {
+	if version != "dev" {
+		return
+	}
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+	// A tagged module version is the release; a pseudo-version
+	// (v0.2.1-0.20260910193945-02799f51583f) is a local build and the
+	// commit it names says more, so it falls through to the VCS fields.
+	if v := bi.Main.Version; v != "" && v != "(devel)" && !pseudoVersionRe.MatchString(v) {
+		version = v
+		return
+	}
+	var rev, dirty string
+	for _, s := range bi.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			if len(s.Value) >= 12 {
+				rev = s.Value[:12]
+			}
+		case "vcs.modified":
+			if s.Value == "true" {
+				dirty = "-dirty"
+			}
+		}
+	}
+	if rev != "" {
+		version = "dev-" + rev + dirty
+	}
+}
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "janetcode:", err)
+		if s := err.Error(); strings.Contains(s, "(HTTP 401)") || strings.Contains(s, "(HTTP 403)") {
+			fmt.Fprintln(os.Stderr, "janetcode: the endpoint rejected the API key; check the key for the provider in use (janetcode --doctor shows which key each provider has)")
+		}
 		os.Exit(1)
 	}
 }
@@ -197,6 +241,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		cwd, _ := os.Getwd()
 		registerOfflineSubjects(r, cfg, cfgPath, cwd, err)
 		return inspectOnce(r, *inspectWhat, os.Stdout)
+	}
+	if err == nil && *promptText != "" {
+		for _, n := range cfg.Notes {
+			fmt.Fprintln(os.Stderr, "janetcode:", n)
+		}
 	}
 	if err != nil && !needsConnect {
 		return err
@@ -476,6 +525,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		})
 	}
 	return tui.Run(tui.Options{
+		Notes: cfg.Notes,
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: cfgDir,
 		Memory: mem, AutoMemory: cfg.AutoMemory(),
 		Config: cfg, ConfigPath: cfgPath, Build: buildProvider, Connect: needsConnect,

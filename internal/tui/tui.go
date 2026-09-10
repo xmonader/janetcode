@@ -39,6 +39,9 @@ import (
 
 // Options configures the UI.
 type Options struct {
+	// Notes are decisions the configuration made on the user's behalf
+	// (a provider switched for one that has a key); shown once at start.
+	Notes []string
 	// ConfigDir holds global custom commands under commands/*.md.
 	ConfigDir string
 	// MCP, when set, describes the servers to start.
@@ -1165,6 +1168,9 @@ func (m *model) startMCP() {
 }
 
 func (m *model) Init() tea.Cmd {
+	for _, n := range m.opts.Notes {
+		m.transcript.info(n)
+	}
 	m.startMCP()
 	return tea.Batch(textarea.Blink, m.spinner.Tick, tick())
 }

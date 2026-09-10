@@ -209,8 +209,13 @@ func TestUpdateEditsOnlyProviderKeys(t *testing.T) {
 	if err != nil || cfg.MaxTokens != 5 || cfg.Theme != "dark" || cfg.Active().APIKey != "xx" {
 		t.Fatalf("cfg = %+v, %v", cfg, err)
 	}
-	if _, err := load(p, env(nil), Overrides{}); err == nil || !strings.Contains(err.Error(), "OPENAI_API_KEY") {
-		t.Fatalf("openai entry without key should fail: %v", err)
+	// The file's provider has no key while two others do: the load says
+	// so and uses one of them rather than failing.
+	if cfg, err := load(p, env(nil), Overrides{}); err != nil || cfg.Provider == "openai" || len(cfg.Active().Keys()) == 0 || len(cfg.Notes) != 1 || !strings.Contains(cfg.Notes[0], `"openai" has no API key`) {
+		t.Fatalf("keyless file provider: %+v %v", cfg, err)
+	}
+	if _, err := load(p, env(nil), Overrides{Provider: "openai"}); err == nil || !strings.Contains(err.Error(), "OPENAI_API_KEY") {
+		t.Fatalf("an insisted-on openai entry without key should fail: %v", err)
 	}
 	// Existing file keys are kept when the in-memory keys came from env.
 	cfg, err = load(p, env(map[string]string{"OPENAI_API_KEY": "secret"}), Overrides{Provider: "openrouter", Model: "m"})
@@ -307,5 +312,38 @@ func TestModelMetaSaveAndLookup(t *testing.T) {
 	}
 	if m := cfg.MetaFor("mystery"); m.ContextWindow != 0 || m.Price != nil {
 		t.Fatalf("unknown = %+v", m)
+	}
+}
+
+// TestKeylessFileProviderYieldsToOneWithAKey: the --init template names
+// anthropic with an empty key. A user who then exports an OpenAI-
+// compatible key and model gets that provider, not "no API key". An
+// explicit choice, on the command line or in the environment, is kept
+// as given, and a local server is not abandoned for having no key.
+func TestKeylessFileProviderYieldsToOneWithAKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(path, []byte(`{"provider":"anthropic","model":"claude-opus-5","providers":{"anthropic":{"type":"anthropic","api_key":""},"openrouter":{"type":"openai","base_url":"https://openrouter.ai/api/v1","api_key":""}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := load(path, env(map[string]string{"OPENAI_API_KEY": "k", "OPENAI_BASE_URL": "https://openrouter.ai/api/v1", "JANETCODE_MODEL": "qwen/qwen3.7-flash"}), Overrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Providers[cfg.Provider].Type != "openai" || cfg.Model != "qwen/qwen3.7-flash" || len(cfg.Providers[cfg.Provider].Keys()) == 0 || len(cfg.Notes) != 1 {
+		t.Fatalf("provider = %q model = %q notes = %v", cfg.Provider, cfg.Model, cfg.Notes)
+	}
+	if _, err := load(path, env(map[string]string{"OPENAI_API_KEY": "k", "JANETCODE_MODEL": "m"}), Overrides{Provider: "anthropic"}); err == nil {
+		t.Fatal("an explicit provider without a key must still fail")
+	}
+	if _, err := load(path, env(map[string]string{"OPENAI_API_KEY": "k", "JANETCODE_MODEL": "m", "JANETCODE_PROVIDER": "anthropic"}), Overrides{}); err == nil {
+		t.Fatal("a provider named in the environment must be kept")
+	}
+	local := filepath.Join(dir, "local.json")
+	if err := os.WriteFile(local, []byte(`{"provider":"ollama","model":"qwen3-coder","providers":{"ollama":{"type":"openai","base_url":"http://localhost:11434/v1"},"openrouter":{"type":"openai","base_url":"https://openrouter.ai/api/v1","api_key":"k2"}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err := load(local, env(nil), Overrides{}); err != nil || cfg.Provider != "ollama" {
+		t.Fatalf("local server abandoned: %v %+v", err, cfg)
 	}
 }

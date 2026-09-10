@@ -27,6 +27,10 @@ type ProviderConfig struct {
 
 // Config is the resolved configuration.
 type Config struct {
+	// Notes are things load decided on the user's behalf and should say
+	// so: a provider switched because the configured one had no key.
+	Notes []string `json:"-"`
+
 	Provider  string `json:"provider"`
 	Model     string `json:"model"`
 	MaxTokens int    `json:"max_tokens"`
@@ -207,9 +211,7 @@ const Example = `{
   "prices": {
     "example-model": {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75}
   },
-  "mcp_servers": {
-    "example": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."], "env": {}}
-  }
+  "mcp_servers": {}
 }
 `
 
@@ -352,6 +354,18 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	cfg.Provider = strings.ToLower(strings.TrimSpace(cfg.Provider))
 	if cfg.Provider == "" {
 		cfg.Provider = inferProvider(cfg)
+	} else if ov.Provider == "" && getenv("JANETCODE_PROVIDER") == "" {
+		// The file names a provider that has no key while another does.
+		// The --init template names anthropic; a user who then exports
+		// an OpenAI-compatible key must not be told there is no key.
+		// A provider chosen on the command line or in the environment
+		// is honoured as given, and a local server needs no key.
+		if p, ok := cfg.Providers[cfg.Provider]; ok && len(p.Keys()) == 0 && p.NeedsKey() {
+			if alt := inferProvider(cfg); alt != cfg.Provider && len(cfg.Providers[alt].Keys()) > 0 {
+				cfg.Notes = append(cfg.Notes, fmt.Sprintf("provider %q has no API key; using %q, which has one (--provider %s insists on it)", cfg.Provider, alt, cfg.Provider))
+				cfg.Provider = alt
+			}
+		}
 	}
 	active, ok := cfg.Providers[cfg.Provider]
 	if !ok {
