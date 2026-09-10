@@ -501,7 +501,8 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 	}
 	name := styleTool.Bold(true).Render(e.call.Name)
 	summary := summarizeInput(e.call.Name, e.inputJSON(), width-len(e.call.Name)-14, o.cwd)
-	if !e.done && !e.running && e.input.Len() > 0 {
+	pendingHere := o.pending != nil && o.pending.call.ID == e.call.ID
+	if !e.done && !e.running && !pendingHere && e.input.Len() > 0 {
 		// The model is still streaming the call's input. For a file write
 		// that can be a minute of silence otherwise; say what is being
 		// written and how much has arrived.

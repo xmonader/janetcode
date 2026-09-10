@@ -453,3 +453,22 @@ func TestNoticeVocabulary(t *testing.T) {
 		t.Error("a tip is styled the same as an ordinary notice")
 	}
 }
+
+// TestPendingCallIsNotStillStreaming: once a call waits for permission
+// its input is complete, so the line shows the call, not "editing N
+// lines so far".
+func TestPendingCallIsNotStillStreaming(t *testing.T) {
+	tr := newTranscript()
+	c := agent.ToolCall{ID: "e", Name: "edit_file"}
+	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &c})
+	tr.apply(agent.Event{Kind: agent.EvToolInput, Text: `{"path":"main.go","edits":[{"old_string":"a","new_string":"b"}]}`})
+	e := tr.findTool("e")
+	if got := plain(tr.renderTool(e, 80, renderOpts{})); !strings.Contains(got, "so far") {
+		t.Fatalf("while streaming: %q", got)
+	}
+	full := agent.ToolCall{ID: "e", Name: "edit_file", Input: []byte(`{"path":"main.go","edits":[{"old_string":"a","new_string":"b"}]}`)}
+	got := plain(tr.renderTool(e, 80, renderOpts{pending: &permissionMsg{call: full}}))
+	if strings.Contains(got, "so far") || !strings.Contains(got, "main.go") {
+		t.Fatalf("while pending: %q", got)
+	}
+}
