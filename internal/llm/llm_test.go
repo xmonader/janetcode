@@ -2,6 +2,7 @@ package llm
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -73,5 +74,26 @@ func TestUsageCost(t *testing.T) {
 		if got := FormatUSD(in); got != want {
 			t.Fatalf("FormatUSD(%v) = %q", in, got)
 		}
+	}
+}
+
+// TestHarnessMessageIsMarkedSynthetic: text the harness writes into the
+// user role carries the mark, survives a session round trip, and a plain
+// user message never carries it.
+func TestHarnessMessageIsMarkedSynthetic(t *testing.T) {
+	m := HarnessMessage(RoleUser, "The check command has not passed yet.")
+	if len(m.Blocks) != 1 || !m.Blocks[0].Synthetic || m.Blocks[0].Type != BlockText {
+		t.Fatalf("harness message = %+v", m)
+	}
+	if TextMessage(RoleUser, "hi").Blocks[0].Synthetic {
+		t.Fatal("a user message must not be synthetic")
+	}
+	b, _ := json.Marshal(m)
+	var back Message
+	if err := json.Unmarshal(b, &back); err != nil || !back.Blocks[0].Synthetic {
+		t.Fatalf("round trip lost the mark: %s %v", b, err)
+	}
+	if b, _ := json.Marshal(TextMessage(RoleUser, "hi")); strings.Contains(string(b), "synthetic") {
+		t.Fatalf("plain message serialises the mark: %s", b)
 	}
 }

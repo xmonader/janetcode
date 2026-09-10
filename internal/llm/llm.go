@@ -48,6 +48,14 @@ type Block struct {
 	ToolUseID string `json:"tool_use_id,omitempty"`
 	IsError   bool   `json:"is_error,omitempty"`
 
+	// Synthetic marks text the harness itself wrote into the user role —
+	// a verdict correction, a failing check's output, a background job
+	// update, a compaction note — as opposed to what the user typed.
+	// Providers send it like any text. Anything that reads the transcript
+	// for what the user wants (memory extraction) must not take it as the
+	// user's words.
+	Synthetic bool `json:"synthetic,omitempty"`
+
 	// Image fields (BlockImage): MediaType like "image/png", Data base64.
 	MediaType string `json:"media_type,omitempty"`
 	Data      string `json:"data,omitempty"`
@@ -66,6 +74,11 @@ type Message struct {
 // TextMessage builds a single-text-block message.
 func TextMessage(role Role, text string) Message {
 	return Message{Role: role, Blocks: []Block{{Type: BlockText, Text: text}}}
+}
+
+// HarnessMessage is TextMessage for text the harness wrote, marked so.
+func HarnessMessage(role Role, text string) Message {
+	return Message{Role: role, Blocks: []Block{{Type: BlockText, Text: text, Synthetic: true}}}
 }
 
 // ToolResultMessage wraps tool results as a user turn. All results for one

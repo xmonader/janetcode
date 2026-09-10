@@ -89,7 +89,7 @@ func Run(ctx context.Context, opts Options) error {
 		if round >= rounds {
 			return fmt.Errorf("%w after %d rounds: %s", ErrUntilFailed, rounds, oneLine(out, 300))
 		}
-		blocks = []llm.Block{{Type: llm.BlockText, Text: fmt.Sprintf("The check command has not passed yet.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nKeep working until this command exits 0, then stop.", opts.Until, exit, tool.TruncateTo(strings.TrimSpace(out), 4000))}}
+		blocks = []llm.Block{{Type: llm.BlockText, Synthetic: true, Text: fmt.Sprintf("The check command has not passed yet.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nKeep working until this command exits 0, then stop.", opts.Until, exit, tool.TruncateTo(strings.TrimSpace(out), 4000))}}
 	}
 }
 
@@ -139,7 +139,7 @@ func watch(ctx context.Context, opts Options) error {
 		}
 		fmt.Fprintf(&sb, "The watched command failed after files changed.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nFind the cause and fix it (fix attempt %d of %d). Do not weaken the check itself.", opts.Watch, exit, tool.TruncateTo(strings.TrimSpace(out), 4000), fixes, rounds)
 		fmt.Fprintf(opts.Stderr, "[watch] asking the model to fix it (%d/%d)\n", fixes, rounds)
-		if err := turn(ctx, opts, []llm.Block{{Type: llm.BlockText, Text: sb.String()}}); err != nil {
+		if err := turn(ctx, opts, []llm.Block{{Type: llm.BlockText, Synthetic: true, Text: sb.String()}}); err != nil {
 			if ctx.Err() != nil {
 				return nil
 			}

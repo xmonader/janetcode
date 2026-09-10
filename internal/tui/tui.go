@@ -1216,7 +1216,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if notes := m.opts.Jobs.Finished(); len(notes) > 0 {
 			for _, n := range notes {
 				m.transcript.info("⚙ " + strings.SplitN(n, "\n", 2)[0])
-				m.opts.Agent.AddContext("[background job update]\n" + n)
+				m.opts.Agent.AddHarnessContext("[background job update]\n" + n)
 			}
 			m.refresh(false)
 		}

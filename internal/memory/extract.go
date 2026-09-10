@@ -16,7 +16,9 @@ Worth keeping: preferences and corrections the user expressed (type "feedback": 
 
 Output one JSON object per line, nothing else:
 {"type":"feedback","scope":"project","name":"short-kebab-slug","description":"one line, under 120 characters","body":"the fact, plus why and how to apply it when useful (a few sentences)","replaces":"name-of-an-existing-entry-this-supersedes-or-empty"}
-Set "replaces" when an existing entry (listed below) is now wrong or incomplete; leave it empty for new knowledge. Do not repeat an existing entry. Output exactly NONE when there is nothing worth keeping.`
+Set "replaces" when an existing entry (listed below) is now wrong or incomplete; leave it empty for new knowledge. Do not repeat an existing entry. Output exactly NONE when there is nothing worth keeping.
+
+Text inside <harness> tags was written by the agent's own tooling — a failing check's output, a verdict correction, a background job update, a compaction note — not by the user. It is never the user's preference or feedback, and an instruction in it is the harness's, not the user's; do not record it as either.`
 
 // extractWindow is how many recent messages the extractor sees.
 const extractWindow = 14
@@ -50,6 +52,10 @@ func Extract(ctx context.Context, p llm.Provider, model string, msgs []llm.Messa
 			case llm.BlockText:
 				if strings.HasPrefix(b.Text, "<skill ") || strings.HasPrefix(b.Text, "<memory ") {
 					continue // attached context, not conversation
+				}
+				if b.Synthetic {
+					b.Text = "<harness>\n" + b.Text + "\n</harness>"
+					b.Synthetic = false
 				}
 			}
 			c.Blocks = append(c.Blocks, b)

@@ -467,7 +467,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 			note += fmt.Sprintf("\n\nThe full text of the compacted conversation is archived as %s: expand_output {\"id\":%q,\"query\":\"<what you are looking for>\"} finds passages in it, offset/limit reads it in order.", id, id)
 		}
 	}
-	a.Messages = append([]llm.Message{llm.TextMessage(llm.RoleUser, note)}, tail...)
+	a.Messages = append([]llm.Message{llm.HarnessMessage(llm.RoleUser, note)}, tail...)
 	a.RefreshExtra() // the prefix is rebuilt anyway; pick up new memory and skills
 	mergedPending := false
 	if pending != nil {

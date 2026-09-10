@@ -395,7 +395,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			if !a.Off["verdict"] && outcome.Overclaimed() && corrections == 0 {
 				corrections++
 				emit(Event{Kind: EvNotice, Text: "the answer claims more than this turn shows: " + outcome.Why})
-				a.appendUserText(outcome.Correction())
+				a.appendHarnessText(outcome.Correction())
 				continue
 			}
 			a.logOutcome(outcome)
@@ -633,6 +633,17 @@ func (a *Agent) AddContext(text string) { a.appendUserText(text) }
 func (a *Agent) appendUserText(text string) {
 	a.logUserMessage(a.appendUserBlocks(llm.Block{Type: llm.BlockText, Text: text}))
 }
+
+// appendHarnessText adds text the harness itself wrote — a correction, a
+// check's output, a job update — as a user message marked synthetic, so
+// nothing downstream mistakes it for something the user said.
+func (a *Agent) appendHarnessText(text string) {
+	a.logUserMessage(a.appendUserBlocks(llm.Block{Type: llm.BlockText, Text: text, Synthetic: true}))
+}
+
+// AddHarnessContext is AddContext for text the UI's own machinery
+// produces (a finished background job), not the user.
+func (a *Agent) AddHarnessContext(text string) { a.appendHarnessText(text) }
 
 // addUsage accumulates the usage of one model call. The status bar reads it
 // from the UI goroutine while the turn runs, so it is guarded.
@@ -948,7 +959,7 @@ func (a *Agent) stopHook(ctx context.Context, text string, stops *int, emit func
 	}
 	*stops++
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("stop hook sent the model back to work (%d/%d): %s", *stops, maxStopContinues, res.Continue)})
-	a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, "[A stop hook did not accept this as done]\n"+res.Continue))
+	a.Messages = append(a.Messages, llm.HarnessMessage(llm.RoleUser, "[A stop hook did not accept this as done]\n"+res.Continue))
 	return true
 }
 
@@ -959,7 +970,7 @@ func (a *Agent) readOnly() bool { return a.ReadOnly || a.PlanMode }
 func (a *Agent) reportJobs(emit func(Event)) {
 	for _, n := range a.Jobs.Finished() {
 		emit(Event{Kind: EvNotice, Text: strings.SplitN(n, "\n", 2)[0]})
-		a.appendUserText("[background job update]\n" + n)
+		a.appendHarnessText("[background job update]\n" + n)
 	}
 }
 
@@ -1008,7 +1019,7 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 		return false
 	}
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("%s · sending the model back to fix it (%d/%d)", res.Summary(), g.rounds, verify.MaxRounds)})
-	a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, res.Feedback()))
+	a.Messages = append(a.Messages, llm.HarnessMessage(llm.RoleUser, res.Feedback()))
 	return true
 }
 

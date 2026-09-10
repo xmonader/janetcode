@@ -187,6 +187,7 @@ func TestExtractParsesAppliesAndReplaces(t *testing.T) {
 		{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockThinking, Text: "secret"}, {Type: llm.BlockText, Text: "ok"}}},
 		{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockText, Text: "more"}, {Type: llm.BlockText, Text: "<skill name=\"x\">attached</skill>"}}},
 		llm.ToolResultMessage(llm.ToolResult("t", strings.Repeat("o", 5000), false)),
+		llm.HarnessMessage(llm.RoleUser, "The check command has not passed yet. Do not weaken the check itself."),
 	}
 	xs, err := Extract(context.Background(), f, "m", msgs, s.Entries())
 	if err != nil || len(xs) != 3 || xs[0].Replaces != "commit-size" || xs[1].Scope != "global" || !strings.HasPrefix(xs[2].Description, "Tests run with make test") {
@@ -195,12 +196,25 @@ func TestExtractParsesAppliesAndReplaces(t *testing.T) {
 	if f.req.System != extractSystem || f.req.MaxTokens != 800 || !strings.Contains(f.req.Messages[len(f.req.Messages)-1].Text(), "- commit-size (project, project): Commits under 100 lines") {
 		t.Fatalf("request = %+v", f.req)
 	}
+	wrapped := false
 	for _, m := range f.req.Messages {
 		for _, b := range m.Blocks {
 			if b.Type == llm.BlockThinking || len(b.Text) > 1000 || strings.HasPrefix(b.Text, "<skill") {
 				t.Fatalf("thinking, attachment or untrimmed result sent: %q", b.Text[:40])
 			}
+			// Text the harness wrote (a failing check's output, a verdict
+			// correction) reaches the extractor marked as the harness's,
+			// or its instructions come back as "the user asked for".
+			if strings.Contains(b.Text, "Do not weaken the check") {
+				wrapped = strings.HasPrefix(b.Text, "<harness>\n") && strings.HasSuffix(b.Text, "\n</harness>")
+			}
 		}
+	}
+	if !wrapped {
+		t.Fatal("harness-written text was not marked as such for the extractor")
+	}
+	if !strings.Contains(extractSystem, "<harness>") {
+		t.Fatal("the extractor is not told what <harness> means")
 	}
 	changed, err := s.Apply(xs)
 	if err != nil || len(changed) != 3 {
