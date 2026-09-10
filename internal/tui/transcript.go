@@ -345,9 +345,16 @@ func (t *transcript) loadHistory(msgs []llm.Message) {
 			case b.Type == llm.BlockToolUse:
 				e := &entry{kind: entryTool, call: agent.ToolCall{ID: b.ID, Name: b.Name, Input: b.Input}, done: true}
 				e.input.Write(b.Input)
-				if r, ok := results[b.ID]; ok {
-					e.output, e.isError = r.Text, r.IsError
+				r, ok := results[b.ID]
+				if !ok {
+					// Only terminal states are replayed. A call with no
+					// result never reached one — the session ended first
+					// — and must not come back wearing a tick.
+					e.isError, e.output = true, "no result recorded: the session ended before this call returned"
+					t.add(e)
+					continue
 				}
+				e.output, e.isError = r.Text, r.IsError
 				t.add(e)
 			}
 		}
@@ -1163,4 +1170,21 @@ func (e *entry) thoughtFor() time.Duration {
 		return 0
 	}
 	return e.ended.Sub(e.started)
+}
+
+// sanitize strips the control characters from text that came out of the
+// repository — a tool's argument, a server's name, a skill's description
+// — before it is shown in a prompt. A C0 or C1 sequence in a file the
+// model was asked to look at could otherwise move the cursor, repaint the
+// prompt, or hide what is actually being approved.
+func sanitize(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\t':
+			return ' '
+		case r < 0x20, r == 0x7f, r >= 0x80 && r <= 0x9f:
+			return -1
+		}
+		return r
+	}, s)
 }

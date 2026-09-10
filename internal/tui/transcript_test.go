@@ -703,3 +703,46 @@ func TestFinishedCallFlashesAndThoughtSaysHowLong(t *testing.T) {
 		t.Fatalf("untimed thought = %q", got)
 	}
 }
+
+// TestControlCharactersNeverReachThePrompt: a file the model was asked to
+// look at could carry an escape sequence into the approval prompt, where
+// it could repaint the box and hide what is being approved.
+func TestControlCharactersNeverReachThePrompt(t *testing.T) {
+	nasty := "rm -rf /" + "\x1b[2K\x1b[A" + "echo safe" + "\a" + "more"
+	got := sanitize(nasty)
+	for _, r := range got {
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) {
+			t.Fatalf("control character %q survived: %q", r, got)
+		}
+	}
+	if !strings.Contains(got, "rm -rf /") || !strings.Contains(got, "echo safe") {
+		t.Fatalf("the text itself was lost: %q", got)
+	}
+	if sanitize("a\tb") != "a b" {
+		t.Fatalf("a tab should become a space, got %q", sanitize("a\tb"))
+	}
+}
+
+// TestResumeReplaysTerminalStatesOnly: a call whose result never reached
+// the session must not come back looking as though it succeeded.
+func TestResumeReplaysTerminalStatesOnly(t *testing.T) {
+	tr := newTranscript()
+	tr.loadHistory([]llm.Message{
+		{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockText, Text: "go"}}},
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "a", Name: "bash", Input: []byte(`{"command":"true"}`)},
+			{Type: llm.BlockToolUse, ID: "b", Name: "bash", Input: []byte(`{"command":"hang"}`)},
+		}},
+		{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockToolResult, ToolUseID: "a", Text: "ok"}}},
+	})
+	done, hung := tr.findTool("a"), tr.findTool("b")
+	if done.isError {
+		t.Fatal("a call with a result is not an error")
+	}
+	if !hung.isError || !strings.Contains(hung.output, "session ended") {
+		t.Fatalf("a call with no result replayed as %v %q", hung.isError, hung.output)
+	}
+	if v := plain(tr.render(renderOpts{width: 80})); !strings.Contains(v, "\u2717") {
+		t.Fatalf("the unfinished call is not marked:\n%s", v)
+	}
+}

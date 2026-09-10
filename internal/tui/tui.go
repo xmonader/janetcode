@@ -1297,7 +1297,7 @@ func (m *model) startMCP() {
 	} else if len(o.Project) > 0 {
 		names := make([]string, 0, len(o.Project))
 		for n := range o.Project {
-			names = append(names, n)
+			names = append(names, sanitize(n))
 		}
 		sort.Strings(names)
 		m.transcript.info(fmt.Sprintf("%s%s lists MCP servers (%s) that have not been trusted here · they would run commands on your machine: inspect the file, then /mcp trust starts them", noteNotice, mcp.ProjectFile, strings.Join(names, ", ")))
@@ -1958,11 +1958,11 @@ func (m *model) allCommands() []command {
 	sort.Strings(names)
 	for _, n := range names {
 		c := m.custom[n]
-		out = append(out, command{name: n, args: "[args]", help: c.Help + " · " + shortPath(c.Path)})
+		out = append(out, command{name: n, args: "[args]", help: sanitize(c.Help) + " · " + shortPath(c.Path)})
 	}
 	for _, sk := range skill.Load(m.opts.Cwd, m.opts.ConfigDir) {
 		if sk.UserInvocable && m.custom["/"+sk.Name].Name == "" {
-			out = append(out, command{name: "/" + sk.Name, args: "[args]", help: sk.Description + " · skill"})
+			out = append(out, command{name: "/" + sanitize(sk.Name), args: "[args]", help: sanitize(sk.Description) + " · skill"})
 		}
 	}
 	if m.opts.MCP != nil && m.opts.MCP.Manager != nil {
@@ -1976,7 +1976,7 @@ func (m *model) allCommands() []command {
 						args = append(args, "["+a.Name+"]")
 					}
 				}
-				help := strings.TrimSpace(p.Description)
+				help := sanitize(strings.TrimSpace(p.Description))
 				if help == "" {
 					help = "prompt from " + st.Name
 				}
@@ -3434,9 +3434,11 @@ func (m *model) footerView() string {
 func (m *model) permissionView() string {
 	c := m.pending.call
 	var sb strings.Builder
-	sb.WriteString(styleWarn.Bold(true).Render("allow ") + styleTool.Bold(true).Render(c.Name) + " " + styleDim.Render(summarizeInput(c.Name, string(c.Input), m.width-len(c.Name)-16, m.opts.Cwd)))
+	// Everything in this box came from the model or from the repository;
+	// none of it may carry control characters into the terminal.
+	sb.WriteString(styleWarn.Bold(true).Render("allow ") + styleTool.Bold(true).Render(sanitize(c.Name)) + " " + styleDim.Render(sanitize(summarizeInput(c.Name, string(c.Input), m.width-len(c.Name)-16, m.opts.Cwd))))
 	if c.Warning != "" {
-		sb.WriteString("\n" + styleErr.Bold(true).Render("⚠ "+c.Warning))
+		sb.WriteString("\n" + styleErr.Bold(true).Render("⚠ "+sanitize(c.Warning)))
 	}
 	rule := perm.Suggest(c.Name, perm.Subject(c.Name, c.Input)).String()
 	sb.WriteString("\n" + m.permissionKeys(c.Name, rule, pendingExpandable(c)))
