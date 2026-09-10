@@ -2713,3 +2713,33 @@ func TestColourFallbacks(t *testing.T) {
 		}
 	}
 }
+
+// TestErrorMessageShape: every provider failure reads the same way —
+// Headline (code): why. What to do.
+func TestErrorMessageShape(t *testing.T) {
+	cases := []struct{ in, head, code, todo string }{
+		{"Post \"https://x/v1\": dial tcp 10.0.0.1:443: connect: connection refused", "cannot reach the API", "refused", "/connect"},
+		{"http 401: invalid x-api-key", "authentication failed", "http 401", "/connect"},
+		{"http 429: rate limit exceeded", "rate limited or out of quota", "http 429", "/model"},
+		{"http 404: model not found", "model not available", "http 404", "/model"},
+		{"context deadline exceeded", "the request timed out", "timeout", "Resend"},
+		{"http 503: upstream unavailable", "the provider failed", "http 503", "Resend"},
+	}
+	for _, c := range cases {
+		got := friendlyError(errors.New(c.in), "openai")
+		if !strings.HasPrefix(got, c.head+" ("+c.code+"): ") {
+			t.Errorf("%q\n  got %q\n want it to start %q", c.in, got, c.head+" ("+c.code+"): ")
+		}
+		if !strings.HasSuffix(got, ".") || !strings.Contains(got, c.todo) {
+			t.Errorf("%q gave no advice: %q", c.in, got)
+		}
+		// The provider's own words survive between the two.
+		if !strings.Contains(got, strings.SplitN(c.in, ":", 2)[len(strings.SplitN(c.in, ":", 2))-1][:5]) {
+			t.Errorf("%q lost the reason: %q", c.in, got)
+		}
+	}
+	// Anything unrecognised is passed through rather than dressed up.
+	if got := friendlyError(errors.New("something odd"), "openai"); got != "something odd" {
+		t.Errorf("unrecognised error = %q", got)
+	}
+}

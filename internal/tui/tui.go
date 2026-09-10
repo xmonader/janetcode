@@ -2376,24 +2376,58 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	return m.submit(next)
 }
 
-// friendlyError turns provider failures into something actionable.
+// friendlyError turns a provider failure into one shape:
+//
+//	Headline (code): why. What to do.
+//
+// The headline says what failed in three words, the code is what you
+// would search for, the reason is the provider's own words, and the last
+// sentence is the one thing to try. A bare Go error is none of those.
 func friendlyError(err error, provider string) string {
-	s := err.Error()
+	s := strings.TrimSpace(err.Error())
 	l := strings.ToLower(s)
+	shape := func(head, code, todo string) string {
+		if code != "" {
+			head += " (" + code + ")"
+		}
+		why := strings.TrimRight(s, ".")
+		return head + ": " + why + ". " + todo
+	}
 	switch {
 	case strings.Contains(l, "connection refused") || strings.Contains(l, "no such host") || strings.Contains(l, "dial tcp"):
-		return "cannot reach the API: " + s + "\n  check the base URL for provider " + provider + " (/connect) and your network"
+		return shape("cannot reach the API", errorCode(l), "Check the base URL for provider "+provider+" with /connect, and your network.")
 	case strings.Contains(l, "http 401") || strings.Contains(l, "authentication") || strings.Contains(l, "invalid x-api-key") || strings.Contains(l, "incorrect api key"):
-		return "authentication failed: " + s + "\n  check the API key for provider " + provider + " (/connect)"
+		return shape("authentication failed", errorCode(l), "Check the API key for provider "+provider+" with /connect.")
 	case strings.Contains(l, "http 429") || strings.Contains(l, "rate limit") || strings.Contains(l, "quota"):
-		return "rate limited or out of quota: " + s + "\n  wait and resend, add keys with /connect, or switch model with /model"
+		return shape("rate limited or out of quota", errorCode(l), "Wait and resend, add keys with /connect, or switch model with /model.")
 	case strings.Contains(l, "http 404") || strings.Contains(l, "model not found") || strings.Contains(l, "not_found"),
 		strings.Contains(l, "http 400") && strings.Contains(l, "model"):
-		return "model not available: " + s + "\n  pick another with /model"
+		return shape("model not available", errorCode(l), "Pick another with /model.")
 	case strings.Contains(l, "deadline exceeded") || strings.Contains(l, "timeout"):
-		return "the request timed out: " + s
+		return shape("the request timed out", errorCode(l), "Resend it; if it keeps happening the model may be overloaded.")
+	case strings.Contains(l, "http 5"):
+		return shape("the provider failed", errorCode(l), "Resend it; the failure is on their side.")
 	}
 	return s
+}
+
+// errorCode is the short thing you would search for: the HTTP status when
+// there is one, otherwise the kind of network failure.
+var httpStatusRe = regexp.MustCompile(`(?:http |status |code )(\d{3})`)
+
+func errorCode(l string) string {
+	if m := httpStatusRe.FindStringSubmatch(l); m != nil {
+		return "http " + m[1]
+	}
+	switch {
+	case strings.Contains(l, "no such host"):
+		return "dns"
+	case strings.Contains(l, "connection refused"):
+		return "refused"
+	case strings.Contains(l, "deadline exceeded") || strings.Contains(l, "timeout"):
+		return "timeout"
+	}
+	return ""
 }
 
 func (m *model) command(text string) tea.Cmd {
