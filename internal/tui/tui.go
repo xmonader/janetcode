@@ -3041,18 +3041,36 @@ func (m *model) footerHeight() int {
 	if m.pending != nil && !m.denying {
 		return m.permissionBoxHeight()
 	}
-	h := m.inputHeight() + 2 // border
+	h := m.inputHeight() + 2 + 1 // border, and the reserved notice row
 	if len(m.completions()) > 0 {
 		// The menu always claims the same height, however many rows it has
 		// to show: narrowing it as you type used to resize the viewport on
 		// every keystroke, and the transcript flickered above it.
 		h += m.menuRows() + 1
 	}
-	if m.denying {
-		h++
-	}
-	return h + len(m.queued) + len(m.steering)
+	return h
 }
+
+// footerNotice is the one reserved row above the input: what the prompt
+// is waiting for, or what is queued behind the running turn. It is always
+// exactly one line, blank when there is nothing.
+func (m *model) footerNotice() string {
+	room := m.width - 4
+	switch {
+	case m.denying && m.pending != nil:
+		return "  " + styleWarn.Bold(true).Render("denied "+m.pending.call.Name) + styleDim.Render(" · tell the model why (optional) · enter sends · esc skips")
+	case len(m.steering) > 0 && len(m.queued) > 0:
+		return fitLine("  "+styleWarn.Render(fmt.Sprintf("steering %d", len(m.steering)))+styleFaint.Render(fmt.Sprintf(" · queued %d · ", len(m.queued)))+styleDim.Render(oneLine(m.queued[len(m.queued)-1])), room)
+	case len(m.steering) > 0:
+		return fitLine("  "+styleWarn.Render("steering ")+styleDim.Render(oneLine(m.steering[len(m.steering)-1])), room)
+	case len(m.queued) > 0:
+		return fitLine("  "+styleFaint.Render(fmt.Sprintf("queued %d · ", len(m.queued)))+styleDim.Render(oneLine(m.queued[len(m.queued)-1]))+styleFaint.Render(" · up takes it back"), room)
+	}
+	return ""
+}
+
+// oneLine flattens text for a one-row notice.
+func oneLine(s string) string { return strings.TrimSpace(strings.ReplaceAll(s, "\n", " ")) }
 
 func (m *model) permissionBoxHeight() int {
 	lines := 2 // tool line + keys line
@@ -3361,10 +3379,11 @@ func (m *model) footerView() string {
 	if m.pending != nil && !m.denying {
 		return m.permissionView()
 	}
-	var parts []string
-	if m.denying {
-		parts = append(parts, "  "+styleWarn.Bold(true).Render("denied "+m.pending.call.Name)+styleDim.Render(" · tell the model why (optional) · enter sends · esc skips"))
-	}
+	// One row above the input is always there, blank when there is
+	// nothing to say. Notices used to push the prompt down as they
+	// arrived and pull it up as they went, so the box moved under the
+	// cursor while typing.
+	parts := []string{m.footerNotice()}
 	// The command menu and the @path menu are the same menu: same rows,
 	// same highlight, same footer line, same height whatever is in them.
 	if c, idx := m.menu(); len(c) > 0 {
@@ -3386,12 +3405,6 @@ func (m *model) footerView() string {
 			parts = append(parts, "")
 		}
 		parts = append(parts, styleFaint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))
-	}
-	for _, q := range m.steering {
-		parts = append(parts, "  "+styleWarn.Render("steering ")+styleDim.Render(truncateLine(strings.ReplaceAll(q, "\n", " "), m.width-14)))
-	}
-	for i, q := range m.queued {
-		parts = append(parts, "  "+styleFaint.Render(fmt.Sprintf("queued %d ", i+1))+styleDim.Render(truncateLine(strings.ReplaceAll(q, "\n", " "), m.width-14)))
 	}
 	box := m.inputBox()
 	prompt := styleAccent.Render("❯ ")

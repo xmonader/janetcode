@@ -282,7 +282,7 @@ func TestQueuedPromptSendsAfterTurn(t *testing.T) {
 	if len(h.m.queued) != 1 || h.m.input.Value() != "" {
 		t.Fatalf("queued = %v input = %q", h.m.queued, h.m.input.Value())
 	}
-	if v := plain(h.m.View()); !strings.Contains(v, "queued 1 two") {
+	if v := plain(h.m.View()); !strings.Contains(v, "queued 1 · two") {
 		t.Fatalf("queue not shown:\n%s", v)
 	}
 	h.pump(func() bool { return !h.m.running && len(h.m.queued) == 0 && len(h.m.opts.Agent.Messages) == 4 })
@@ -2516,7 +2516,7 @@ func TestSteerAndTakeBackQueuedMessages(t *testing.T) {
 		t.Fatalf("cancel left %q", got)
 	}
 	close(block)
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.running && len(h.m.queued) == 0 })
 }
 
 // heldOpen holds the first call open until a channel closes, so a test can
@@ -2620,4 +2620,42 @@ func TestShortWindowScalesTheInterface(t *testing.T) {
 	if h.m.tight() || h.m.compactMode() || !strings.Contains(plain(h.m.View()), "janetcode test") {
 		t.Fatal("the compact choice outlived the window that caused it")
 	}
+}
+
+// TestPromptDoesNotJump: the row above the input is reserved, so a
+// notice arriving or leaving never moves the input box.
+func TestPromptDoesNotJump(t *testing.T) {
+	block := make(chan struct{})
+	rs := make([]*llm.Response, 5)
+	for i := range rs {
+		rs[i] = &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn}
+	}
+	h := newHarness(t, rs...)
+	h.m.opts.Agent.Provider = &heldOpen{until: block, inner: h.m.opts.Agent.Provider}
+	promptRow := func() int {
+		for i, l := range strings.Split(plain(h.m.View()), "\n") {
+			if strings.Contains(l, "❯ ") && strings.Contains(l, "│") {
+				return i
+			}
+		}
+		return -1
+	}
+	h.keys("go")
+	h.enter()
+	before := promptRow()
+	if before < 0 {
+		t.Fatalf("no input box:\n%s", plain(h.m.View()))
+	}
+	for i := 0; i < 3; i++ {
+		h.keys(fmt.Sprintf("queued %d", i))
+		h.enter()
+	}
+	if got := promptRow(); got != before {
+		t.Fatalf("three queued messages moved the prompt from %d to %d", before, got)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "queued 3") {
+		t.Fatalf("the queue is not reported:\n%s", v)
+	}
+	close(block)
+	h.pump(func() bool { return !h.m.running })
 }
