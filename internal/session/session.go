@@ -179,6 +179,26 @@ func Latest(dir, cwd string) (string, error) {
 		}
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(names)))
+	// The newest session with a conversation in it. A newer one that
+	// never got past its first prompt (a goal set and abandoned, a start
+	// that was quit) would otherwise be what --continue lands in, with
+	// nothing to continue.
+	empty := ""
+	for _, id := range names {
+		s, msgs, err := Open(dir, id)
+		if err != nil || s.Meta.Cwd != cwd {
+			continue
+		}
+		if len(msgs) > 0 {
+			return id, nil
+		}
+		if empty == "" {
+			empty = id
+		}
+	}
+	if empty != "" {
+		return empty, nil
+	}
 	for _, id := range names {
 		s, _, err := Open(dir, id)
 		if err != nil {

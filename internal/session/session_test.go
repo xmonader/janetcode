@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -253,5 +254,28 @@ func TestSettledSessionsListLast(t *testing.T) {
 	infos, _ = List(dir, "/w")
 	if infos[0].Meta.ID != b.Meta.ID || infos[0].Meta.Settled {
 		t.Fatalf("revived session should lead: %+v", infos)
+	}
+}
+
+// TestLatestSkipsEmptySessions: --continue lands in the newest session
+// that has a conversation, not in a newer one that never got a message.
+func TestLatestSkipsEmptySessions(t *testing.T) {
+	dir := t.TempDir()
+	a, _ := New(dir, "/w", "p", "m")
+	put(t, a, llm.TextMessage(llm.RoleUser, "real conversation"))
+	time.Sleep(1100 * time.Millisecond) // ids carry seconds
+	b, _ := New(dir, "/w", "p", "m")
+	if err := b.SetTitle("started and abandoned"); err != nil {
+		t.Fatal(err)
+	}
+	if id, err := Latest(dir, "/w"); err != nil || id != a.Meta.ID {
+		t.Fatalf("latest = %q (%v), want the one with messages %q", id, err, a.Meta.ID)
+	}
+	c, _ := New(dir, "/only-empty", "p", "m")
+	if err := c.SetTitle("x"); err != nil {
+		t.Fatal(err)
+	}
+	if id, _ := Latest(dir, "/only-empty"); id != c.Meta.ID {
+		t.Fatalf("with nothing better, an empty session is still latest: %q", id)
 	}
 }

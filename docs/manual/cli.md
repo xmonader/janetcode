@@ -14,7 +14,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--effort` | reasoning effort where the provider supports it |
 | `--yolo` | run mutating tools without asking |
 | `--readonly` | read, search and answer, but change nothing |
-| `--continue`, `--resume [id]` | carry on the last session here, or a named one |
+| `--continue` (or `-c`), `--resume [id]` | carry on the last session here, or a named one |
 | `--sessions` | list the sessions recorded for this directory |
 | `--worktree <branch>` | run the session in a git worktree on that branch |
 | `--until "<cmd>"` | keep going until the command exits 0, at most five rounds |

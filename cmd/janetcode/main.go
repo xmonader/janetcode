@@ -158,6 +158,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		effort      = fs.String("effort", "", "anthropic effort: low, medium, high, xhigh, max")
 		yolo        = fs.Bool("yolo", false, "auto-approve every tool call")
 		readonly    = fs.Bool("readonly", false, "read-only: no edits or commands, the model can only inspect")
+		continueC   = fs.Bool("c", false, "short for -continue")
+		resumeR     = fs.String("r", "", "short for -resume <id>")
 		autoEdits   = fs.Bool("auto-edits", false, "auto-accept file edits; commands still ask (/edits toggles it)")
 		evalPath    = fs.String("eval", "", "run the eval tasks in this file or directory against the configured provider and exit")
 		evalJobs    = fs.Int("eval-jobs", 2, "eval tasks to run at once")
@@ -195,6 +197,12 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			return nil
 		}
 		return err
+	}
+	if *continueC {
+		*cont = true
+	}
+	if *resumeR != "" {
+		*resume = *resumeR
 	}
 	if *showVersion {
 		fmt.Println("janetcode", version)
