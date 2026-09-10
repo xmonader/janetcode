@@ -42,6 +42,7 @@ endpoint per series.
 | `mimo-five/` | `xiaomi/mimo-v2.5` | OpenRouter |
 | `qwen-hard/` | `qwen3.7-plus`, tasks 21–26 (the hard set) | DashScope |
 | `qwen-session/` | `qwen3.7-plus`, sessions 41–43, five harnesses, two runs | DashScope |
+| `claude-qwen/` | `qwen/qwen3.7-plus`, janetcode against Claude Code via modelproxy, easy/hard/session, three runs | OpenRouter |
 
 `eleven-models/REPORT.md` puts them side by side: tokens in, cached, out,
 and cost at list price.

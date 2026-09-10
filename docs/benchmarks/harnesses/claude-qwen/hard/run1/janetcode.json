@@ -1,0 +1,212 @@
+[
+  {
+    "harness": "janetcode",
+    "task": "21-go-data-race",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 17481,
+    "input_tokens": {
+      "value": 5849,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 881,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 14306,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0038834720000000002,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 21-go-data-race --provider openai --model qwen/qwen3.7-plus"
+  },
+  {
+    "harness": "janetcode",
+    "task": "22-go-interface-refactor",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 22657,
+    "input_tokens": {
+      "value": 6148,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1265,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 23703,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 7,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.004774576,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 22-go-interface-refactor --provider openai --model qwen/qwen3.7-plus"
+  },
+  {
+    "harness": "janetcode",
+    "task": "23-python-ini-parser",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 163393,
+    "input_tokens": {
+      "value": 6436,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 11716,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9462,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.017845024,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 23-python-ini-parser --provider openai --model qwen/qwen3.7-plus"
+  },
+  {
+    "harness": "janetcode",
+    "task": "24-rename-everywhere",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 17079,
+    "input_tokens": {
+      "value": 5145,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 907,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 18419,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0037836479999999997,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 24-rename-everywhere --provider openai --model qwen/qwen3.7-plus"
+  },
+  {
+    "harness": "janetcode",
+    "task": "25-pagination-bugs",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 37384,
+    "input_tokens": {
+      "value": 7805,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 2345,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 20598,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.006673216,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 25-pagination-bugs --provider openai --model qwen/qwen3.7-plus"
+  },
+  {
+    "harness": "janetcode",
+    "task": "26-log-summary-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 17968,
+    "input_tokens": {
+      "value": 7419,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 982,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 19723,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.004727856,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 26-log-summary-script --provider openai --model qwen/qwen3.7-plus"
+  }
+]

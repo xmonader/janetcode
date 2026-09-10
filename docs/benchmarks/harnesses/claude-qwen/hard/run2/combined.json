@@ -1,0 +1,426 @@
+{
+  "claudecode": [
+    {
+      "harness": "claudecode",
+      "task": "21-go-data-race",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 17223,
+      "input_tokens": {
+        "value": 24,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 802,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 74640,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 25529,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.173637,
+        "set": true
+      },
+      "command": "claude -p `go test -race ./...` fails in this repository. Fix package counter so the race detector is happy and all tests pass. Do not modify counter_test.go. --output-format json --dangerously-skip-permissions --max-turns 60 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "22-go-interface-refactor",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 38127,
+      "input_tokens": {
+        "value": 24,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 2630,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 74688,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 25650,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.21082120000000004,
+        "set": true
+      },
+      "command": "claude -p In package store, FileStore keeps values as files in the current directory. Refactor: (1) add an interface named Store with exactly the methods Put(key string, value []byte) error, Get(key string) ([]byte, error) and Delete(key string) error; (2) make *FileStore implement it; (3) add an in-memory MemStore type (pointer receiver) implementing it, where Get of a missing key and Delete of a missing key return errors; (4) add func NewStore(kind string) (Store, error) returning a *FileStore for \"file\", a *MemStore for \"mem\", and an error for anything else. Keep the existing behaviour of FileStore. Make sure `go vet ./...` passes. --output-format json --dangerously-skip-permissions --max-turns 60 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "23-python-ini-parser",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 75714,
+      "input_tokens": {
+        "value": 18,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 5328,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 49569,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 25482,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.25386960000000003,
+        "set": true
+      },
+      "command": "claude -p Create ini.py with a function parse(text) that parses INI text and returns a dict mapping section names to dicts of key/value pairs. Rules: sections are `[name]` lines; keys are `key = value` (spaces around `=` optional); lines starting with `#` or `;` are comments, and a ` ;` or ` #` (space then the character) after a value or after a section header starts a trailing comment that is ignored; blank lines are ignored; values may be double- or single-quoted, in which case the quotes are stripped and everything inside is kept verbatim (including spaces and `#`/`;`); unquoted values `true`/`false` in any case become booleans and unquoted values that are valid integers (optional sign, digits) become ints, everything else stays a string; a repeated key keeps the last value; a repeated section merges into the earlier one; keys before any section header go into a section named `DEFAULT`; a line that is not a comment, section or key=value raises ValueError, as does a section header without the closing bracket. Empty input returns {}. --output-format json --dangerously-skip-permissions --max-turns 60 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "24-rename-everywhere",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 33319,
+      "input_tokens": {
+        "value": 30,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 2143,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 103901,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 27959,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 15,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.22433540000000002,
+        "set": true
+      },
+      "command": "claude -p Rename the function LoadConfig to ReadConfig everywhere in this repository: code, tests, documentation, the Makefile comment and the shell script's usage text. Nothing may still say LoadConfig (in any letter case) when you are done, and the module must still build and pass its tests. --output-format json --dangerously-skip-permissions --max-turns 60 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "25-pagination-bugs",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 38710,
+      "input_tokens": {
+        "value": 30,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 2527,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 101218,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 26104,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.22166719999999998,
+        "set": true
+      },
+      "command": "claude -p `go test ./...` fails in this repository. Fix pager.go so every test passes. Do not modify pager_test.go. --output-format json --dangerously-skip-permissions --max-turns 60 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "26-log-summary-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 53124,
+      "input_tokens": {
+        "value": 30,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 3695,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 108388,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 29595,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.2653502,
+        "set": true
+      },
+      "command": "claude -p Write an executable shell script summarize.sh that reads a web server log in the common log format from the file given as its first argument and prints the three client IPs with the most requests, one per line, as `\u003ccount\u003e \u003cip\u003e` with a single space, most requests first; when two IPs have the same count, order them by IP address as plain strings ascending. Only count lines with status 200. Print nothing else. Verify it on access.log before finishing. --output-format json --dangerously-skip-permissions --max-turns 60 --model sonnet"
+    }
+  ],
+  "janetcode": [
+    {
+      "harness": "janetcode",
+      "task": "21-go-data-race",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 18740,
+      "input_tokens": {
+        "value": 5626,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 964,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14597,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.003930384,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 21-go-data-race --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "22-go-interface-refactor",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 19639,
+      "input_tokens": {
+        "value": 7582,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1123,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 19626,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.004976432,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 22-go-interface-refactor --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "23-python-ini-parser",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 86053,
+      "input_tokens": {
+        "value": 6648,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 5875,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8709,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.010341488000000001,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 23-python-ini-parser --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "24-rename-everywhere",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 20063,
+      "input_tokens": {
+        "value": 6429,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1175,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15334,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 10,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.004554528,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 24-rename-everywhere --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "25-pagination-bugs",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 32855,
+      "input_tokens": {
+        "value": 7324,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 2143,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15706,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.006102672,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 25-pagination-bugs --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "26-log-summary-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 32896,
+      "input_tokens": {
+        "value": 6403,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 2080,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 26733,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.006033936,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 26-log-summary-script --provider openai --model qwen/qwen3.7-plus"
+    }
+  ]
+}

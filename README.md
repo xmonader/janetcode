@@ -1181,6 +1181,14 @@ Numbers live in `docs/benchmarks/`, with the runs that produced them.
   openclaw 6.1M, qwencode 34.2M — the widest gap of any set, and at list
   price $0.22 against $0.37, $0.55 and $3.64.
   `docs/benchmarks/harnesses/qwen-session/`.
+- **Against Claude Code on the same model** (qwen3.7-plus through
+  OpenRouter for both, Claude Code via `cmd/modelproxy` under an empty
+  config, easy/hard/session sets, three runs each): janetcode 87/87,
+  Claude Code 77/87, and janetcode reads 2.4–6.2x less context, takes
+  fewer model calls on every set and costs 1.6–2.7x less at list price.
+  Eight of Claude Code's ten misses are files written outside the task
+  directory: its 27,700-character prompt states the directory once and
+  this model loses it. `docs/benchmarks/harnesses/claude-qwen/`.
 - **Compaction** is safe on this set: forcing it on tasks that would not
   otherwise reach the threshold lost no task, 11/11 either way.
 - **Recall after compaction**: 0/16 exact facts with no archive, 9/20 with

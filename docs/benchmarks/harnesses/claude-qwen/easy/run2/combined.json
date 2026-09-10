@@ -1,0 +1,1410 @@
+{
+  "claudecode": [
+    {
+      "harness": "claudecode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 3976,
+      "input_tokens": {
+        "value": 12,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 96,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 24084,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 24195,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.1325766,
+        "set": true
+      },
+      "command": "claude -p Create a file named hello.txt containing exactly the text: hello world --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 14435,
+      "input_tokens": {
+        "value": 36,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 560,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 122359,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 24986,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.1852176,
+        "set": true
+      },
+      "command": "claude -p math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 21173,
+      "input_tokens": {
+        "value": 42,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1001,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 147189,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 25262,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 10,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.2053736,
+        "set": true
+      },
+      "command": "claude -p go test fails. Find the bug and fix it in the implementation, not the test. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": false,
+      "reason": "check failed: exit status 1: python3: can't open file '/tmp/harness-claudecode-04-python-fizzbuzz-851475608/fizzbuzz.py': [Errno 2] No such file or directory",
+      "wall_time_ms": 6339,
+      "input_tokens": {
+        "value": 12,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 274,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 24123,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 24343,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.1368922,
+        "set": true
+      },
+      "command": "claude -p Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet",
+      "stderr_excerpt": "python3: can't open file '/tmp/harness-claudecode-04-python-fizzbuzz-851475608/fizzbuzz.py': [Errno 2] No such file or directory"
+    },
+    {
+      "harness": "claudecode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 18764,
+      "input_tokens": {
+        "value": 36,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 903,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 122953,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 25443,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 12,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.19460019999999997,
+        "set": true
+      },
+      "command": "claude -p Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 33263,
+      "input_tokens": {
+        "value": 72,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1561,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 155322,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 43366,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 1,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.31046679999999993,
+        "set": true
+      },
+      "command": "claude -p What does Compute(3) return? Reply with just the number. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11086,
+      "input_tokens": {
+        "value": 30,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 423,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 97182,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 24718,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.1710428,
+        "set": true
+      },
+      "command": "claude -p In config.json change the port to 8080. Keep every other key exactly as it is. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": false,
+      "reason": "check failed: exit status 1: bash: count.sh: No such file or directory",
+      "wall_time_ms": 6921,
+      "input_tokens": {
+        "value": 12,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 264,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 24085,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 24209,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.136007,
+        "set": true
+      },
+      "command": "claude -p Write count.sh that prints the number of lines in input.txt and nothing else. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet",
+      "stderr_excerpt": "bash: count.sh: No such file or directory"
+    },
+    {
+      "harness": "claudecode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 13770,
+      "input_tokens": {
+        "value": 36,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 526,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 121719,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 24772,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.18321160000000003,
+        "set": true
+      },
+      "command": "claude -p Add a greet target to the Makefile that prints hi. Keep the existing targets. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 9461,
+      "input_tokens": {
+        "value": 24,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 384,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 72626,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 24510,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.15937639999999997,
+        "set": true
+      },
+      "command": "claude -p Append the line 'four' to the end of list.txt. Do not change the existing lines. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 31257,
+      "input_tokens": {
+        "value": 54,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1251,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 201326,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 26382,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 11,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.2376764,
+        "set": true
+      },
+      "command": "claude -p Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 15020,
+      "input_tokens": {
+        "value": 36,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 633,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 122631,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 25090,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.18730639999999998,
+        "set": true
+      },
+      "command": "claude -p python3 test_stats.py fails. Fix the bug in stats.py. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 29898,
+      "input_tokens": {
+        "value": 48,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1685,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 173776,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 25929,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 11,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.23304740000000002,
+        "set": true
+      },
+      "command": "claude -p Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 7073,
+      "input_tokens": {
+        "value": 18,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 261,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 48255,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 24316,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.146174,
+        "set": true
+      },
+      "command": "claude -p Add node_modules/ and dist/ to .gitignore, keeping what is there. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 4005,
+      "input_tokens": {
+        "value": 12,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 119,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 24105,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 24213,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.133135,
+        "set": true
+      },
+      "command": "claude -p Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 13328,
+      "input_tokens": {
+        "value": 30,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 523,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 97569,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 25018,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.1746976,
+        "set": true
+      },
+      "command": "claude -p Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 15739,
+      "input_tokens": {
+        "value": 36,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 600,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 121694,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 24710,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.1843716,
+        "set": true
+      },
+      "command": "claude -p Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 4427,
+      "input_tokens": {
+        "value": 12,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 100,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 24091,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 24196,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.13266440000000002,
+        "set": true
+      },
+      "command": "claude -p Which files mention 'flux capacitor'? List only the file names. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 41599,
+      "input_tokens": {
+        "value": 72,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1536,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 279960,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 26763,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 12,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.2768070000000001,
+        "set": true
+      },
+      "command": "claude -p Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    },
+    {
+      "harness": "claudecode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 13369,
+      "input_tokens": {
+        "value": 30,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 550,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 97278,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "value": 24688,
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.1734712,
+        "set": true
+      },
+      "command": "claude -p Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --output-format json --dangerously-skip-permissions --max-turns 40 --model sonnet"
+    }
+  ],
+  "janetcode": [
+    {
+      "harness": "janetcode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 5172,
+      "input_tokens": {
+        "value": 4462,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 142,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8484,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0022262880000000003,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 01-create-file --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 8319,
+      "input_tokens": {
+        "value": 5033,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 352,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13172,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002855344,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 10127,
+      "input_tokens": {
+        "value": 5064,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 500,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13405,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0030740800000000003,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 7713,
+      "input_tokens": {
+        "value": 4786,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 355,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8527,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0026156639999999997,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 13104,
+      "input_tokens": {
+        "value": 4990,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 636,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13547,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.003231664,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6867,
+      "input_tokens": {
+        "value": 4583,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 274,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8489,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002446848,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 5841,
+      "input_tokens": {
+        "value": 4650,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 240,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8497,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0024153440000000003,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6278,
+      "input_tokens": {
+        "value": 4503,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 222,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8487,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002342784,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 8510,
+      "input_tokens": {
+        "value": 4739,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 360,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12811,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002743312,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 8507,
+      "input_tokens": {
+        "value": 4725,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 316,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12809,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002679488,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 9955,
+      "input_tokens": {
+        "value": 5026,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 444,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13432,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0029868639999999997,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 10075,
+      "input_tokens": {
+        "value": 4854,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 415,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13281,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0028805920000000004,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 14644,
+      "input_tokens": {
+        "value": 5053,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 745,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17633,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0035172960000000005,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 6640,
+      "input_tokens": {
+        "value": 4502,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 236,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8490,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0023586400000000004,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 3886,
+      "input_tokens": {
+        "value": 4456,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 122,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4236,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002061872,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 9597,
+      "input_tokens": {
+        "value": 4779,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 436,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13021,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002865872,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 16-readme --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 10910,
+      "input_tokens": {
+        "value": 4718,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 468,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12831,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002881232,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 3210,
+      "input_tokens": {
+        "value": 4367,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 99,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4235,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00199992,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 13209,
+      "input_tokens": {
+        "value": 5474,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 639,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17980,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00353648,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 19-write-test --provider openai --model qwen/qwen3.7-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 9531,
+      "input_tokens": {
+        "value": 4706,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 380,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12877,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0027587840000000002,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 20-env-default --provider openai --model qwen/qwen3.7-plus"
+    }
+  ]
+}
