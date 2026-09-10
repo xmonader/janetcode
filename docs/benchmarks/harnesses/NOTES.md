@@ -24,7 +24,12 @@ Live 01–20; usage is the sum of every `API call #N: in=… out=… cache=…/�
 
 ## openclaw
 
-Unavailable: Node.js >=22.22.3 required (current v22.22.2).
+`openclaw --profile janetbench-<task> agent --local --json --model bench/qwen3.7-plus --session-id <fresh> --message <prompt>`
+
+Runs under `/usr/bin/node` (24.x; the bundled 22.22.2 is below its minimum) with a
+profile and workspace per task, both removed after the run. Usage is
+`meta.agentMeta.usage` of the `--json` object only; the reply is
+`meta.finalAssistantVisibleText`.
 
 ## grok
 

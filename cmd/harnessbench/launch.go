@@ -418,6 +418,28 @@ func copyTree(from, to string, skip map[string]bool) error {
 	})
 }
 
+// openclawCleanup removes what one task's run left behind: its workspace
+// and its profile under ~/.openclaw-<profile>. Every task gets a profile of
+// its own with a fresh suffix per run, so nothing reclaims them otherwise;
+// three runs of twenty tasks had left 116 of them in the home directory.
+// Only profiles this benchmark named are touched.
+func openclawCleanup(profile, ws string) {
+	if os.Getenv("HARNESSBENCH_KEEP") != "" {
+		return
+	}
+	if ws != "" {
+		_ = os.RemoveAll(ws)
+	}
+	if !strings.HasPrefix(profile, openclawProfile+"-") {
+		return
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	_ = os.RemoveAll(filepath.Join(home, ".openclaw-"+profile))
+}
+
 // openclawConfigure writes everything one task's profile needs: the
 // endpoint under test, and the workspace it must work in.
 func openclawConfigure(ctx context.Context, profile string, cfg runConfig, ws string) error {
@@ -452,12 +474,27 @@ func openclawConfigure(ctx context.Context, profile string, cfg runConfig, ws st
 		return err
 	}
 	f.Close()
-	cmd := exec.CommandContext(ctx, "openclaw", "--profile", profile, "config", "patch", "--file", f.Name())
+	cmd := exec.CommandContext(ctx, "openclaw", "--profile", profile, "config", "patch", "--replace-path", "models.providers.bench.models", "--file", f.Name())
 	cmd.Env = openclawEnv(os.Environ())
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// piProvider names the pi provider that serves the endpoint under test.
+// pi reaches an endpoint through a provider entry, not a base URL: its
+// built-in "openrouter" for OpenRouter, and a "dashscope" entry in the
+// user's models.json for DashScope, which must list the model by id.
+func piProvider(baseURL string) string {
+	host := strings.ToLower(baseURL)
+	switch {
+	case strings.Contains(host, "openrouter"):
+		return "openrouter"
+	case strings.Contains(host, "deepseek.com"):
+		return "deepseek"
+	}
+	return "dashscope"
 }
 
 // hermes-agent has no non-interactive continuation; it runs each prompt
@@ -472,7 +509,7 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 	}
 	switch harness {
 	case "pi":
-		argv = []string{"pi", "-p", "--mode", "json", "--provider", "dashscope", "--model", cfg.Model}
+		argv = []string{"pi", "-p", "--mode", "json", "--provider", piProvider(cfg.BaseURL), "--model", cfg.Model}
 		if sess == nil {
 			argv = append(argv, "--no-session")
 		} else {
@@ -538,6 +575,9 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 			// Whatever the run produced lives in the shared workspace;
 			// the check looks in the task directory.
 			_ = openclawHarvest(openclawWS, dir)
+			if sess == nil {
+				openclawCleanup(profile, openclawWS)
+			}
 		}()
 		extraEnv["PATH"] = "/usr/bin:/usr/local/bin:" + os.Getenv("PATH")
 		argv = []string{"openclaw", "--profile", profile, "agent", "--local", "--json",

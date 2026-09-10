@@ -1369,602 +1369,700 @@
       "task": "01-create-file",
       "batch": 1,
       "passed": true,
-      "wall_time_ms": 16793,
+      "wall_time_ms": 17296,
       "input_tokens": {
-        "set": false
+        "value": 16846,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 128,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 53120,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 1,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 2,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-194852534 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010610122475595 --message Create a file named hello.txt containing exactly the text: hello world",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-3902188542 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026064299698731 --message Create a file named hello.txt containing exactly the text: hello world",
+      "stderr_excerpt": "[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3836 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3381 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run e5957862-4d57-48f5-9a2c-b5dc46644f7a ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "02-go-add-function",
       "batch": 1,
       "passed": true,
-      "wall_time_ms": 40873,
+      "wall_time_ms": 32994,
       "input_tokens": {
-        "set": false
+        "value": 21123,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 592,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 155264,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 6,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 5,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-2164566579 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010610325556588 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
-      "stderr_excerpt": "\"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-3857779295 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026064005299990 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+      "stderr_excerpt": "e\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=2797 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3193 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 0e777b36-589e-4fe7-a135-2ed5120af8a1 ended with stopReason=toolUse\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "03-fix-failing-test",
       "batch": 1,
       "passed": true,
-      "wall_time_ms": 38759,
+      "wall_time_ms": 34798,
       "input_tokens": {
-        "set": false
+        "value": 21487,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 729,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 155264,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 5,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 5,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-938310566 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010609941858125 --message go test fails. Find the bug and fix it in the implementation, not the test.",
-      "stderr_excerpt": "\"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-2987394283 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026064087963582 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+      "stderr_excerpt": "[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=2237 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3068 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 67c099e0-ff87-4d17-9161-c3c045f6874d ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "04-python-fizzbuzz",
       "batch": 1,
       "passed": true,
-      "wall_time_ms": 23898,
+      "wall_time_ms": 21406,
       "input_tokens": {
-        "set": false
+        "value": 17025,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 368,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 53120,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 1,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 2,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-3337442728 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010609996241207 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-87646697 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026064059120509 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+      "stderr_excerpt": "der-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3744 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3646 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run e848ffc1-fce0-4500-bc96-0b934e81f113 ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "05-rename-symbol",
       "batch": 1,
       "passed": true,
-      "wall_time_ms": 38748,
+      "wall_time_ms": 28257,
       "input_tokens": {
-        "set": false
+        "value": 18361,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 419,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 87168,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 3,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 3,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-746849342 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010610105708985 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
-      "stderr_excerpt": "\"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-1814814872 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026063919300929 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+      "stderr_excerpt": "[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=7272 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3044 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run f3bd057e-cf1a-4d46-bdd7-5349c6532016 ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "06-read-and-answer",
       "batch": 2,
-      "passed": false,
-      "reason": "check failed: exit status 1",
-      "wall_time_ms": 21279,
+      "passed": true,
+      "wall_time_ms": 26894,
       "input_tokens": {
-        "set": false
+        "value": 19565,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 372,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 87168,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 2,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 3,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-3581279055 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010651071626851 --message What does Compute(3) return? Reply with just the number.",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-4005562255 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026099157010703 --message What does Compute(3) return? Reply with just the number.",
+      "stderr_excerpt": "7-plus status=200 elapsedMs=5928 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=2982 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3433 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run f887ea68-ac62-40ed-8c2a-d3a1ebbc799d ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "07-json-config-edit",
       "batch": 2,
       "passed": true,
-      "wall_time_ms": 24633,
+      "wall_time_ms": 28133,
       "input_tokens": {
-        "set": false
+        "value": 18027,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 355,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 87168,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 2,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 3,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-2953751310 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010651302779465 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-2811485363 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026098882555740 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+      "stderr_excerpt": "[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=6368 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=4750 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 9a78f3e7-a216-4589-aa05-407908665999 ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "08-shell-script",
       "batch": 2,
       "passed": true,
-      "wall_time_ms": 23605,
+      "wall_time_ms": 21101,
       "input_tokens": {
-        "set": false
+        "value": 17945,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 222,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 87168,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 2,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 3,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-1711442899 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010651100305881 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-4130222320 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026099142156541 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+      "stderr_excerpt": "[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=2262 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3300 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run f3c2ea39-f665-4656-9c34-99c4f228409a ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "09-makefile-target",
       "batch": 2,
       "passed": true,
-      "wall_time_ms": 28716,
+      "wall_time_ms": 34921,
       "input_tokens": {
-        "set": false
+        "value": 20848,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 637,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 155264,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 5,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 5,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-4172844745 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010651542268864 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-4066124583 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026099103525777 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+      "stderr_excerpt": "*********************d1c5. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=2832 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 6c2b54ca-c550-4b36-81f3-43e71e8b5d9c ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "10-append-preserve",
       "batch": 2,
       "passed": true,
-      "wall_time_ms": 28218,
+      "wall_time_ms": 26690,
       "input_tokens": {
-        "set": false
+        "value": 17834,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 273,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 87168,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 2,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 3,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-506078959 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010651158868744 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-4092849070 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026098929909757 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+      "stderr_excerpt": "*********************d1c5. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3580 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b530476f-4bcf-471f-9f00-909d6efffafa ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "11-go-return-error",
       "batch": 3,
       "passed": true,
-      "wall_time_ms": 49428,
+      "wall_time_ms": 38709,
       "input_tokens": {
-        "set": false
+        "value": 21785,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 788,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 155264,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 7,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 5,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-665616301 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010679932033586 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
-      "stderr_excerpt": "\"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-2123302354 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026134276013004 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+      "stderr_excerpt": "lus status=200 elapsedMs=2978 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3514 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3342 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 92edf0a9-266f-4805-b81b-8d87ee964baa ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "12-python-bugfix",
       "batch": 3,
       "passed": true,
-      "wall_time_ms": 40888,
+      "wall_time_ms": 35836,
       "input_tokens": {
-        "set": false
+        "value": 20227,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 598,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 121216,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 5,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 4,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-228221691 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010679949734883 --message python3 test_stats.py fails. Fix the bug in stats.py.",
-      "stderr_excerpt": "\"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-3303879181 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026133869680604 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+      "stderr_excerpt": "-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3125 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=4679 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 217052e6-ac78-4f8a-92de-775ceff153be ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "13-multi-file-package",
       "batch": 3,
-      "passed": false,
-      "reason": "check failed: exit status 1: # ./stack\nmain module (example.com/m) does not contain package example.com/m/stack\nFAIL\t./stack [setup failed]\nFAIL",
-      "wall_time_ms": 28606,
+      "passed": true,
+      "wall_time_ms": 42099,
       "input_tokens": {
-        "set": false
+        "value": 20567,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 885,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 121216,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 4,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 4,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-147402043 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010679855288182 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-3980103747 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026133901488426 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+      "stderr_excerpt": "-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3686 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=6907 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 9ea01136-da3c-4b3f-af1c-aacc13c2f898 ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "14-gitignore",
       "batch": 3,
       "passed": true,
-      "wall_time_ms": 23197,
+      "wall_time_ms": 22835,
       "input_tokens": {
-        "set": false
+        "value": 17900,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 248,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 87168,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 2,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 3,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-3530829375 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010679980804666 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-2148202522 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026133973283736 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+      "stderr_excerpt": "type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3320 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3303 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run bfb057ed-b4c3-4f3c-859a-f5b7226cb226 ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "15-yes-no-question",
       "batch": 3,
       "passed": true,
-      "wall_time_ms": 16989,
+      "wall_time_ms": 21985,
       "input_tokens": {
-        "set": false
+        "value": 16898,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 174,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 53120,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 1,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 2,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-1589043856 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010679805389286 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-4266390888 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026134021264126 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+      "stderr_excerpt": "der-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3828 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=7199 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 6e5a9747-009f-49db-a12d-cd27c2c7889f ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "16-readme",
       "batch": 4,
       "passed": true,
-      "wall_time_ms": 31602,
+      "wall_time_ms": 37924,
       "input_tokens": {
-        "set": false
+        "value": 20144,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 648,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 121216,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 4,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 4,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-16-readme-1669879518 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010729630556530 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
-      "stderr_excerpt": "\"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-16-readme-2836764858 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026176163570229 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+      "stderr_excerpt": "-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=2797 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=5489 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 7d104a9c-bb49-41fc-92cb-31258b8dc84f ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "17-csv-sort",
       "batch": 4,
       "passed": true,
-      "wall_time_ms": 19072,
+      "wall_time_ms": 32166,
       "input_tokens": {
-        "set": false
+        "value": 19113,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 481,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 121216,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 3,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 4,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-155242298 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010729540879311 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-2184586554 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026176638540654 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+      "stderr_excerpt": "-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3401 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=5567 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 82eed274-e616-4c49-8290-5f1d45f4e943 ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "18-find-mentions",
       "batch": 4,
       "passed": true,
-      "wall_time_ms": 17078,
+      "wall_time_ms": 17733,
       "input_tokens": {
-        "set": false
+        "value": 16902,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 167,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 53120,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 1,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 2,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-3270412415 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010729654856207 --message Which files mention 'flux capacitor'? List only the file names.",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-4271821774 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026176127242288 --message Which files mention 'flux capacitor'? List only the file names.",
+      "stderr_excerpt": "[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3773 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3133 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 8e06d922-1cb7-45d3-859e-3d70784266c2 ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "19-write-test",
       "batch": 4,
       "passed": true,
-      "wall_time_ms": 48538,
+      "wall_time_ms": 39930,
       "input_tokens": {
-        "set": false
+        "value": 22670,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 815,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 157312,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 6,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 5,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-3943473290 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010729625459066 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
-      "stderr_excerpt": "\"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-1298551493 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026176377972136 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+      "stderr_excerpt": "-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=4348 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3196 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 5a973b4f-50e7-4063-97fe-d236e9c4f52b ended with stopReason=stop\u001b[39m"
     },
     {
       "harness": "openclaw",
       "task": "20-env-default",
       "batch": 4,
       "passed": true,
-      "wall_time_ms": 23482,
+      "wall_time_ms": 18744,
       "input_tokens": {
-        "set": false
+        "value": 16864,
+        "set": true
       },
       "output_tokens": {
-        "set": false
+        "value": 182,
+        "set": true
       },
       "cache_read_tokens": {
-        "set": false
+        "value": 53120,
+        "set": true
       },
       "cache_write_tokens": {
         "set": false
       },
       "tool_calls": {
-        "set": false
+        "value": 1,
+        "set": true
       },
       "turns": {
-        "set": false
+        "value": 2,
+        "set": true
       },
       "cost_usd": {
         "set": false
       },
-      "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-866966725 agent --local --model bench/qwen3.7-plus --session-id bench-0-1789010729661422064 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
-      "stderr_excerpt": "\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+      "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-1411088583 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789026176184430201 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+      "stderr_excerpt": "der-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3395 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=4400 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d40fa2a5-5f78-4cf6-80ed-526e8e1cc522 ended with stopReason=stop\u001b[39m"
     }
   ],
   "pi": [

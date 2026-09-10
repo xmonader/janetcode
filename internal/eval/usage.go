@@ -15,6 +15,9 @@ func ParseUsageJSON(data []byte) UsageMetrics {
 	if len(data) == 0 {
 		return UsageMetrics{}
 	}
+	if u, ok := openclawUsage(data); ok {
+		return u
+	}
 	if events := ndjsonEvents(data); len(events) > 1 {
 		return parseEvents(events)
 	}
@@ -240,6 +243,101 @@ func fromModelUsage(m map[string]any) UsageMetrics {
 		}
 	}
 	return u
+}
+
+// openclawResult is the part of openclaw's `agent --json` object this
+// benchmark reads. The object also carries a large diagnostic block
+// (system-prompt report, context budget, execution trace) that the generic
+// walker must not see: it holds figures such as promptTokens that look like
+// token counts and are not spend.
+type openclawResult struct {
+	Payloads []struct {
+		Text string `json:"text"`
+	} `json:"payloads"`
+	Meta struct {
+		FinalAssistantVisibleText string `json:"finalAssistantVisibleText"`
+		AgentMeta                 struct {
+			Usage struct {
+				Input      *int `json:"input"`
+				Output     *int `json:"output"`
+				CacheRead  *int `json:"cacheRead"`
+				CacheWrite *int `json:"cacheWrite"`
+			} `json:"usage"`
+			AssistantTurns *int    `json:"assistantTurns"`
+			CostUSD        float64 `json:"costUsd"`
+		} `json:"agentMeta"`
+		ToolSummary struct {
+			Calls *int `json:"calls"`
+		} `json:"toolSummary"`
+	} `json:"meta"`
+}
+
+// parseOpenclaw recognises an openclaw result object. Anything that is not
+// one — including a foreign object that merely parses — reports false.
+func parseOpenclaw(stdout []byte) (openclawResult, bool) {
+	var v openclawResult
+	start := bytes.IndexByte(stdout, '{')
+	if start < 0 {
+		return v, false
+	}
+	if json.Unmarshal(stdout[start:], &v) != nil {
+		return v, false
+	}
+	if len(v.Payloads) == 0 && v.Meta.FinalAssistantVisibleText == "" && v.Meta.AgentMeta.Usage.Input == nil {
+		return v, false
+	}
+	return v, true
+}
+
+// openclawText pulls the reply out of an openclaw result object.
+func openclawText(stdout []byte) string {
+	v, ok := parseOpenclaw(stdout)
+	if !ok {
+		return ""
+	}
+	if t := strings.TrimSpace(v.Meta.FinalAssistantVisibleText); t != "" {
+		return t
+	}
+	var parts []string
+	for _, p := range v.Payloads {
+		if t := strings.TrimSpace(p.Text); t != "" {
+			parts = append(parts, t)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+// openclawUsage reads spend from meta.agentMeta.usage and nothing else.
+// usage.input is already the uncached part (usage.total = input + output +
+// cacheRead), so it means what the input column means for every other
+// harness. Left to the generic walker the same object came out with
+// promptTokens — the size of the last prompt, cache included — added on top
+// of usage.input, nearly tripling the figure. costUsd is 0 for a provider
+// openclaw has no price table for, which is unknown rather than free.
+func openclawUsage(stdout []byte) (UsageMetrics, bool) {
+	v, ok := parseOpenclaw(stdout)
+	if !ok || v.Meta.AgentMeta.Usage.Input == nil {
+		return UsageMetrics{}, false
+	}
+	opt := func(p *int) OptInt {
+		if p == nil {
+			return OptInt{}
+		}
+		return Int(*p)
+	}
+	am := v.Meta.AgentMeta
+	u := UsageMetrics{
+		Input:      opt(am.Usage.Input),
+		Output:     opt(am.Usage.Output),
+		CacheRead:  opt(am.Usage.CacheRead),
+		CacheWrite: opt(am.Usage.CacheWrite),
+		Turns:      opt(am.AssistantTurns),
+		ToolCalls:  opt(v.Meta.ToolSummary.Calls),
+	}
+	if am.CostUSD > 0 {
+		u.CostUSD = Float(am.CostUSD)
+	}
+	return u, true
 }
 
 func usageFromMap(m map[string]any) UsageMetrics {
@@ -505,6 +603,13 @@ func ExtractAssistantText(stdout []byte) string {
 		if t := strings.TrimSpace(rest); t != "" {
 			return t
 		}
+	}
+	// openclaw returns one object with the reply in a named field and a
+	// large diagnostic block beside it. Without this the whole object is
+	// handed to the check as "the model's answer", and a task judged on
+	// the final message fails on a harness that answered correctly.
+	if t := openclawText(stdout); t != "" {
+		return t
 	}
 	if events := ndjsonEvents(stdout); len(events) > 0 {
 		if t := textFromEvents(events); t != "" {

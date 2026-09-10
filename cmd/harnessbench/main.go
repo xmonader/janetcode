@@ -323,7 +323,11 @@ func prepareOpenclaw(cfg runConfig, tasks []eval.Task) ([]eval.BenchTaskResult, 
 		return eval.UnavailableResults("openclaw", "config patch: "+err.Error(), "openclaw config patch", "", tasks), "", false
 	}
 	f.Close()
-	cmd := exec.Command("openclaw", "--profile", openclawProfile, "config", "patch", "--file", f.Name())
+	// The base profile keeps the model list of the last endpoint this
+	// benchmark ran; a patch that would drop an entry from it is refused
+	// unless the list is named as one to replace, and openclaw then never
+	// launches for the second model tried.
+	cmd := exec.Command("openclaw", "--profile", openclawProfile, "config", "patch", "--replace-path", "models.providers.bench.models", "--file", f.Name())
 	cmd.Env = openclawEnv(os.Environ())
 	if out, err := cmd.CombinedOutput(); err != nil {
 		excerpt := strings.TrimSpace(string(out))
@@ -372,6 +376,10 @@ func keyFor(baseURL string) string {
 		}
 	case strings.Contains(host, "dashscope"):
 		if k := os.Getenv("DASHSCOPE_API_KEY"); k != "" {
+			return k
+		}
+	case strings.Contains(host, "deepseek.com"):
+		if k := os.Getenv("DEEPSEEK_API_KEY"); k != "" {
 			return k
 		}
 	case strings.Contains(host, "api.anthropic.com"):
