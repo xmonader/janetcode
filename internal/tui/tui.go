@@ -3000,26 +3000,36 @@ func (m *model) statusView() string {
 	if live := m.liveWork(); live != "" {
 		left += styleWarn.Render(" · " + live)
 	}
-	right := m.contextGauge()
-	if pct, ok := m.opts.Agent.CacheRate(); ok {
-		right = styleFaint.Render(fmt.Sprintf("cache %d%%", pct)) + "  " + right
-	}
+	// The gauge keeps its place whatever else happens. The scroll hint and
+	// the cache rate are next to it only while the status text still has
+	// room to say something; the cache rate goes first, then the hint.
+	parts := []string{}
 	if !m.pinned {
-		right = styleWarn.Render("↓ pgdn for latest") + "  " + right
+		parts = append(parts, styleWarn.Render("↓ pgdn for latest"))
 	}
-	// The gauge keeps its place; the status text gives way to it.
-	if avail := m.width - lipgloss.Width(right) - 3; avail > 8 && lipgloss.Width(left) > avail {
-		left = lipgloss.NewStyle().MaxWidth(avail-1).Render(left) + "…"
+	if pct, ok := m.opts.Agent.CacheRate(); ok {
+		parts = append(parts, styleFaint.Render(fmt.Sprintf("cache %d%%", pct)))
+	}
+	parts = append(parts, m.contextGauge())
+	const leastStatus = 12
+	for len(parts) > 1 && lipgloss.Width(strings.Join(parts, "  ")) > m.width-leastStatus {
+		parts = append(parts[:len(parts)-2], parts[len(parts)-1])
+	}
+	right := strings.Join(parts, "  ")
+	// The status text yields to the gauge, however little is left of it.
+	if avail := m.width - lipgloss.Width(right) - 3; lipgloss.Width(left) > avail {
+		left = fitLine(left, avail)
 	}
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 2
 	if gap < 1 {
 		gap = 1
 	}
-	return " " + left + strings.Repeat(" ", gap) + right + " "
+	return fitLine(" "+left+strings.Repeat(" ", gap)+right+" ", m.width)
 }
 
 // contextGauge shows how full the context window is relative to the
-// compaction threshold.
+// compaction threshold. It is the one thing on the status line that never
+// gives way; below 50 columns it drops the bar and keeps the number.
 func (m *model) contextGauge() string {
 	// While a turn runs the history belongs to the turn goroutine; the
 	// gauge reads the estimate the agent published instead.
@@ -3035,9 +3045,6 @@ func (m *model) contextGauge() string {
 	if pct > 100 {
 		pct = 100
 	}
-	const cells = 10
-	filled := pct * cells / 100
-	bar := strings.Repeat("▰", filled) + strings.Repeat("▱", cells-filled)
 	style := styleFaint
 	switch {
 	case pct >= 85:
@@ -3045,6 +3052,12 @@ func (m *model) contextGauge() string {
 	case pct >= 60:
 		style = styleWarn
 	}
+	if m.width < 50 {
+		return style.Render(fmt.Sprintf("ctx %d%%", pct))
+	}
+	const cells = 10
+	filled := pct * cells / 100
+	bar := strings.Repeat("▰", filled) + strings.Repeat("▱", cells-filled)
 	return style.Render(fmt.Sprintf("ctx %s %d%%", bar, pct))
 }
 

@@ -1808,3 +1808,55 @@ func TestInputBoxStates(t *testing.T) {
 		t.Error("the connect dialog border does not match an idle input box")
 	}
 }
+
+// TestStatusBarFitsWidth covers item 6: at 80 columns nothing on the
+// status line may overflow, in any state. The status text yields; the
+// context gauge never does.
+func TestStatusBarFitsWidth(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "x"), StopReason: llm.StopEndTurn})
+	states := []struct {
+		name string
+		set  func()
+	}{
+		{"idle", func() { h.m.running, h.m.pending, h.m.status = false, nil, "" }},
+		{"running with a long phase", func() {
+			h.m.running = true
+			h.m.startedAt = time.Now().Add(-90 * time.Second)
+			h.m.phase = "write_file scheme.py · writing 754 lines (21.3KB) so far"
+		}},
+		{"approval needed", func() {
+			h.m.running = false
+			h.m.pending = &permissionMsg{call: agent.ToolCall{Name: "bash"}}
+		}},
+		{"done with a verdict", func() {
+			h.m.pending = nil
+			h.m.status = "✓ verified · done in 12.4s · in 12k · out 3.1k · $0.02 · 3 files changed · /undo reverts"
+		}},
+		{"scrolled up", func() { h.m.pinned = false }},
+	}
+	for _, w := range []int{120, 80, 60, 40, 24} {
+		h.update(tea.WindowSizeMsg{Width: w, Height: 24})
+		for _, st := range states {
+			st.set()
+			line := h.m.statusView()
+			if got := lipgloss.Width(line); got > w {
+				t.Errorf("width %d, %s: status line is %d columns:\n%s", w, st.name, got, plain(line))
+			}
+			// The gauge is the one thing that never yields.
+			if !strings.Contains(plain(line), "ctx ") {
+				t.Errorf("width %d, %s: the gauge was dropped:\n%s", w, st.name, plain(line))
+			}
+		}
+		h.m.pinned = true
+	}
+	// At 80 columns with the scroll hint up, the hint survives and the
+	// status text is the part that gives way.
+	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	h.m.pinned = false
+	h.m.status = strings.Repeat("a very long status ", 6)
+	line := plain(h.m.statusView())
+	if !strings.Contains(line, "pgdn for latest") || !strings.Contains(line, "…") {
+		t.Errorf("at 80 columns the hint should stay and the text give way:\n%s", line)
+	}
+	h.m.pinned = true
+}

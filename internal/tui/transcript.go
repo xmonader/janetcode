@@ -855,6 +855,18 @@ func cutWords(s string, max int) string {
 	return strings.TrimRight(string(r[:cut]), " ,;:") + "…"
 }
 
+// fitLine cuts a rendered line to max columns, counting columns rather
+// than bytes so colour codes and wide runes are handled.
+func fitLine(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	if lipgloss.Width(s) <= max {
+		return s
+	}
+	return ansi.Truncate(s, max, "…")
+}
+
 func truncateLine(s string, max int) string {
 	s = strings.ReplaceAll(s, "\n", "⏎ ")
 	if max < 10 {
