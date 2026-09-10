@@ -141,6 +141,12 @@ func (t *transcript) apply(ev agent.Event) {
 		e.running = true
 		e.started = time.Now()
 	case agent.EvToolResult:
+		if ev.Call != nil && ev.Call.Name == "goal_status" && !ev.IsError {
+			// The goal's end is the one line the user is waiting for; a
+			// tool result in faint text is not where they look for it.
+			t.closeOpen()
+			t.add(&entry{kind: entryVerdict, text: "🎯 " + strings.TrimSpace(ev.Output) + " · nothing more runs for it; /goal starts another"})
+		}
 		e := t.findTool(ev.Call.ID)
 		if e == nil {
 			e = t.add(&entry{kind: entryTool, call: *ev.Call})

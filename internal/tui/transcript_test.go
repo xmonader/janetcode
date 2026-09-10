@@ -242,3 +242,17 @@ func TestPlanUpdatesRenderAsDeltas(t *testing.T) {
 		t.Fatalf("second plan rendered whole:\n%s", out)
 	}
 }
+
+// TestGoalEndIsALineOfItsOwn: the goal_status result is what the user is
+// waiting for, so it is shown as a marked line, not a faint tool result.
+func TestGoalEndIsALineOfItsOwn(t *testing.T) {
+	tr := newTranscript()
+	c := agent.ToolCall{ID: "g", Name: "goal_status"}
+	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &c})
+	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &c})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &c, Output: "goal g1 is now complete"})
+	e := tr.last(entryVerdict)
+	if e == nil || !strings.Contains(e.text, "🎯 goal g1 is now complete") {
+		t.Fatalf("goal end entry = %+v", e)
+	}
+}

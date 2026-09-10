@@ -1428,6 +1428,9 @@ func (m *model) applyEvent(ev agent.Event) {
 		m.phase = "running " + ev.Call.Name
 	case agent.EvToolResult:
 		m.phase = "thinking"
+		if ev.Call != nil && ev.Call.Name == "goal_status" && !ev.IsError {
+			m.status = strings.TrimSpace(ev.Output)
+		}
 	case agent.EvCompacted:
 		m.phase = "thinking"
 	case agent.EvVerdict:

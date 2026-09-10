@@ -117,7 +117,7 @@ func (a *Agent) GoalContinuation() string {
 	if g.Rounds == 0 {
 		lead = "Work on this goal until it is complete or you are blocked: "
 	}
-	return lead + g.Objective + "\n(round " + fmt.Sprint(g.Rounds+1) + "/" + fmt.Sprint(g.MaxRounds) + "; call goal_status when done or blocked)"
+	return lead + g.Objective + "\n(This is round " + fmt.Sprint(g.Rounds+1) + " of at most " + fmt.Sprint(g.MaxRounds) + ". Rounds are a budget, not a plan: finish in one if you can. Call goal_status complete only when the objective is fully met, or blocked with the reason; the user sees that call, so do not announce rounds in your reply.)"
 }
 
 // GoalStatus is the model-facing tool to finish or block the active goal.
