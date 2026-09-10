@@ -540,7 +540,7 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 			_ = openclawHarvest(openclawWS, dir)
 		}()
 		extraEnv["PATH"] = "/usr/bin:/usr/local/bin:" + os.Getenv("PATH")
-		argv = []string{"openclaw", "--profile", profile, "agent", "--local",
+		argv = []string{"openclaw", "--profile", profile, "agent", "--local", "--json",
 			"--model", "bench/" + cfg.Model,
 			"--session-id", fmt.Sprintf("bench-%d-%d", step, time.Now().UnixNano()),
 			"--message", prompt}
