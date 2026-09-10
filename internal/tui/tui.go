@@ -1111,15 +1111,7 @@ func newModel(opts Options) *model {
 
 	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(styleAccent))
 
-	// Detect the background once, before the program starts: the query
-	// talks to the terminal and must not race with key input later.
-	style := opts.Theme
-	if style != "dark" && style != "light" {
-		style = "light"
-		if lipgloss.HasDarkBackground() {
-			style = "dark"
-		}
-	}
+	style := detectTheme(opts.Theme)
 	m := &model{
 		opts:       opts,
 		pinned:     true,
@@ -1146,6 +1138,31 @@ func newModel(opts Options) *model {
 		m.transcript.loadHistory(opts.Agent.Messages)
 	}
 	return m
+}
+
+// detectTheme decides which palette the session uses. An explicit theme
+// from the config wins; otherwise the terminal is asked once, here, before
+// the program starts, because the query talks to the terminal and must not
+// race with key input later.
+//
+// When the terminal does not answer — a multiplexer that swallows OSC 11,
+// a CI pty, a pipe — we assume dark: most developer terminals are, and the
+// dark palette on a light terminal is merely pale where the light palette
+// on a dark terminal is unreadable.
+//
+// The answer is then pinned on lipgloss, so the adaptive colours in
+// styles.go and the glamour style in mdstyle.go can never disagree: with
+// "theme": "light" configured on a dark terminal the transcript used to
+// render our palette dark and the model's markdown light.
+func detectTheme(theme string) string {
+	if theme != "dark" && theme != "light" {
+		theme = "dark"
+		if !lipgloss.HasDarkBackground() {
+			theme = "light"
+		}
+	}
+	lipgloss.SetHasDarkBackground(theme == "dark")
+	return theme
 }
 
 func (m *model) welcome() string {

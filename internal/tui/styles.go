@@ -2,11 +2,15 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-// Colours adapt to the detected terminal background.
+// Colours adapt to the terminal background detectTheme settled on. Every
+// foreground here clears a contrast ratio of about 3.5:1 against white for
+// the light variant and against #1e1e1e for the dark one, which is the
+// floor at which faint text stays readable; the borders are allowed to sit
+// lower, but not so low that the input box disappears.
 var (
 	colAccent  = lipgloss.AdaptiveColor{Light: "#0b63c6", Dark: "#7cc4ff"}
 	colDim     = lipgloss.AdaptiveColor{Light: "#6b7280", Dark: "#8b93a1"}
-	colFaint   = lipgloss.AdaptiveColor{Light: "#9ca3af", Dark: "#5c6370"}
+	colFaint   = lipgloss.AdaptiveColor{Light: "#7c8494", Dark: "#6b7484"}
 	colWarn    = lipgloss.AdaptiveColor{Light: "#b45309", Dark: "#f5b642"}
 	colErr     = lipgloss.AdaptiveColor{Light: "#b91c1c", Dark: "#ff6b6b"}
 	colOK      = lipgloss.AdaptiveColor{Light: "#15803d", Dark: "#5fd38d"}
@@ -14,7 +18,7 @@ var (
 	colTool    = lipgloss.AdaptiveColor{Light: "#6d28d9", Dark: "#c4a7ff"}
 	colHeadBg  = lipgloss.AdaptiveColor{Light: "#e5e7eb", Dark: "#2b2f36"}
 	colHeadFg  = lipgloss.AdaptiveColor{Light: "#111827", Dark: "#e6e9ef"}
-	colBorder  = lipgloss.AdaptiveColor{Light: "#cbd5e1", Dark: "#3f4650"}
+	colBorder  = lipgloss.AdaptiveColor{Light: "#96a1b3", Dark: "#4b5361"}
 	colBorderA = lipgloss.AdaptiveColor{Light: "#0b63c6", Dark: "#7cc4ff"}
 	colDiffAdd = lipgloss.AdaptiveColor{Light: "#166534", Dark: "#7ee2a8"}
 	colDiffDel = lipgloss.AdaptiveColor{Light: "#991b1b", Dark: "#ff8a8a"}

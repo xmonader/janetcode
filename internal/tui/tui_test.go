@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -1972,4 +1974,78 @@ func TestErrorRendering(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestThemeDetection covers item 10: an unanswered background query means
+// dark, an explicit theme wins, and whatever is decided is pinned on
+// lipgloss so the palette and the markdown style agree.
+func TestThemeDetection(t *testing.T) {
+	defer lipgloss.SetHasDarkBackground(lipgloss.HasDarkBackground())
+	if got := detectTheme("light"); got != "light" || lipgloss.HasDarkBackground() {
+		t.Errorf("explicit light: theme=%q dark=%v", got, lipgloss.HasDarkBackground())
+	}
+	if got := detectTheme("dark"); got != "dark" || !lipgloss.HasDarkBackground() {
+		t.Errorf("explicit dark: theme=%q dark=%v", got, lipgloss.HasDarkBackground())
+	}
+	// Nothing to query in a test process: the fallback must be dark.
+	if got := detectTheme(""); got != "dark" {
+		t.Errorf("with no answer from the terminal the theme should be dark, got %q", got)
+	}
+	// A model built with a theme renders its markdown in that theme and
+	// pins lipgloss to it, so the palette cannot drift the other way.
+	h := newHarness(t)
+	m2 := newModel(Options{Agent: h.m.opts.Agent, Session: h.m.opts.Session, Cwd: h.m.opts.Cwd, Theme: "light"})
+	if m2.transcript.styleName != "light" || lipgloss.HasDarkBackground() {
+		t.Errorf("model theme=%q, lipgloss dark=%v: the palette and the markdown style disagree",
+			m2.transcript.styleName, lipgloss.HasDarkBackground())
+	}
+}
+
+// TestLightPaletteContrast covers the other half of item 10: faint text on
+// a white background was at 2.5:1, which is barely visible.
+func TestLightPaletteContrast(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		col  lipgloss.AdaptiveColor
+		min  float64
+	}{
+		{"faint", colFaint, 3.5}, {"dim", colDim, 4.0}, {"accent", colAccent, 4.0},
+		{"warn", colWarn, 4.0}, {"err", colErr, 4.0}, {"ok", colOK, 4.0},
+		{"user", colUser, 4.0}, {"tool", colTool, 4.0}, {"border", colBorder, 2.5},
+	} {
+		if got := contrast(c.col.Light, "#ffffff"); got < c.min {
+			t.Errorf("light %s (%s) on white is %.2f:1, want at least %.1f", c.name, c.col.Light, got, c.min)
+		}
+		if got := contrast(c.col.Dark, "#1e1e1e"); got < c.min-1 {
+			t.Errorf("dark %s (%s) on #1e1e1e is %.2f:1, want at least %.1f", c.name, c.col.Dark, got, c.min-1)
+		}
+	}
+}
+
+// contrast is the WCAG contrast ratio between two "#rrggbb" colours.
+func contrast(a, b string) float64 {
+	l1, l2 := relLuminance(a), relLuminance(b)
+	if l1 < l2 {
+		l1, l2 = l2, l1
+	}
+	return (l1 + 0.05) / (l2 + 0.05)
+}
+
+func relLuminance(hex string) float64 {
+	hex = strings.TrimPrefix(hex, "#")
+	var out float64
+	for i, w := range []float64{0.2126, 0.7152, 0.0722} {
+		v, err := strconv.ParseInt(hex[i*2:i*2+2], 16, 32)
+		if err != nil {
+			return 0
+		}
+		c := float64(v) / 255
+		if c <= 0.03928 {
+			c /= 12.92
+		} else {
+			c = math.Pow((c+0.055)/1.055, 2.4)
+		}
+		out += w * c
+	}
+	return out
 }
