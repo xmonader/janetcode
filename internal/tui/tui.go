@@ -1058,8 +1058,10 @@ type model struct {
 	// pastes holds the text behind each "[paste #N +M lines]" chip in the
 	// input, in the order they were pasted.
 	pastes []string
-	// history of submitted prompts for up/down recall.
-	history []string
+	// history of submitted prompts for up/down recall, loaded from and
+	// appended to a file per working directory (see history.go).
+	history  []histEntry
+	histFile string
 	// lastUserText is the prompt of the running or last turn.
 	lastUserText string
 	histIdx      int    // == len(history) when not browsing
@@ -1135,6 +1137,11 @@ func newModel(opts Options) *model {
 		}
 	}
 	m.clipboard = readClipboardImage
+	if opts.Session != nil {
+		m.histFile = histPath(dirOf(opts.Session), opts.Cwd)
+		m.history = loadPromptHistory(m.histFile)
+		m.histIdx = len(m.history)
+	}
 	m.custom = map[string]prompt.Custom{}
 	for _, c := range prompt.CustomCommands(opts.Cwd, opts.ConfigDir) {
 		m.custom["/"+c.Name] = c
@@ -1271,8 +1278,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if first && m.opts.InitialPrompt != "" {
 			text := m.opts.InitialPrompt
 			m.opts.InitialPrompt = ""
-			m.history = append(m.history, text)
-			m.histIdx = len(m.history)
+			m.remember(text)
 			return m, m.submit(text)
 		}
 		return m, nil
@@ -1615,6 +1621,16 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.cancelTurn()
 			return nil, true
 		}
+		if m.histIdx < len(m.history) {
+			// Browsing the history: esc puts back what was being typed
+			// before ↑ went looking, rather than throwing it away.
+			m.input.SetValue(m.draft)
+			m.input.CursorEnd()
+			m.histIdx = len(m.history)
+			m.layout()
+			m.refresh(false)
+			return nil, true
+		}
 		if m.input.Value() != "" {
 			m.input.Reset()
 			m.layout()
@@ -1665,7 +1681,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 				m.draft = m.input.Value()
 			}
 			m.histIdx--
-			m.input.SetValue(m.history[m.histIdx])
+			m.input.SetValue(m.recall(m.histIdx))
 			m.input.CursorEnd()
 			m.layout()
 			return nil, true
@@ -1679,7 +1695,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			if m.histIdx == len(m.history) {
 				m.input.SetValue(m.draft)
 			} else {
-				m.input.SetValue(m.history[m.histIdx])
+				m.input.SetValue(m.recall(m.histIdx))
 			}
 			m.input.CursorEnd()
 			m.layout()
@@ -1765,13 +1781,37 @@ func (m *model) pasteImage() {
 	m.refresh(false)
 }
 
-// remember adds a submitted prompt to the up/down history.
+// remember adds a submitted prompt to the up/down history and to the
+// file that outlives the process. A "!" command keeps its flag so
+// recalling it restores the shell prompt rather than asking the model.
 func (m *model) remember(text string) {
-	if n := len(m.history); n == 0 || m.history[n-1] != text {
-		m.history = append(m.history, text)
+	e := histEntry{Text: text}
+	if strings.HasPrefix(text, "!") {
+		e = histEntry{Text: strings.TrimPrefix(text, "!"), Bash: true}
+	}
+	if e.Text == "" {
+		return
+	}
+	if n := len(m.history); n == 0 || m.history[n-1] != e {
+		m.history = append(m.history, e)
+		if m.histFile != "" {
+			if err := appendPromptHistory(m.histFile, e, len(m.history)); err == nil && len(m.history) > histCap {
+				m.history = m.history[len(m.history)-histCap:]
+				rewritePromptHistory(m.histFile, m.history)
+			}
+		}
 	}
 	m.histIdx = len(m.history)
 	m.draft = ""
+}
+
+// recall renders one history entry back into the input's own language.
+func (m *model) recall(i int) string {
+	e := m.history[i]
+	if e.Bash {
+		return "!" + e.Text
+	}
+	return e.Text
 }
 
 // completions lists slash commands matching the input, or files matching

@@ -44,6 +44,12 @@ sudo, piping downloads into a shell) are flagged in the prompt.
 Typing while the model is working queues the message; it is sent as soon as
 the turn ends. Cancelling a turn hands queued text back to the input.
 
+`↑` and `↓` walk the prompts you have sent in this directory. The history
+outlives the process: it is a JSONL file keyed by the working directory,
+beside the sessions, capped at a thousand lines. A line typed with a `!`
+prefix comes back with the prefix. `esc` while browsing puts back whatever
+you were typing before `↑`.
+
 Pasting more than ten lines (or a thousand characters) puts a chip in the
 prompt — `[paste #1 +123 lines]` — instead of the text itself. The chip
 deletes as one unit and is replaced by the full text when you send, so a

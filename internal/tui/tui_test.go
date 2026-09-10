@@ -2421,3 +2421,40 @@ func TestPasteNeverSubmitsItself(t *testing.T) {
 		t.Fatal("the paste did not reach the input")
 	}
 }
+
+// TestPromptHistoryOutlivesTheProcess: prompts are written to a file per
+// working directory, with a flag for "!" commands, and a new model in the
+// same directory recalls them.
+func TestPromptHistoryOutlivesTheProcess(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+	if h.m.histFile == "" {
+		t.Fatal("no history file for the session")
+	}
+	h.keys("first prompt")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	h.keys("!ls -l")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+
+	got := loadPromptHistory(h.m.histFile)
+	want := []histEntry{{Text: "first prompt"}, {Text: "ls -l", Bash: true}}
+	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("history file = %+v", got)
+	}
+	// A fresh model in the same directory starts with them.
+	m2 := newModel(Options{Agent: h.m.opts.Agent, Session: h.m.opts.Session, Provider: "fake", Cwd: h.m.opts.Cwd, Version: "test"})
+	if len(m2.history) != 2 || m2.histIdx != 2 {
+		t.Fatalf("reloaded history = %+v idx=%d", m2.history, m2.histIdx)
+	}
+	// Up browses; the "!" comes back with the command; esc restores the draft.
+	h.keys("draft")
+	h.update(tea.KeyMsg{Type: tea.KeyUp})
+	if got := h.m.input.Value(); got != "!ls -l" {
+		t.Fatalf("recall = %q, want the bash prefix back", got)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if got := h.m.input.Value(); got != "draft" {
+		t.Fatalf("esc left %q, want the draft back", got)
+	}
+}
