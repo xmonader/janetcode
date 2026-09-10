@@ -88,7 +88,7 @@ type Options struct {
 // Run starts the interactive UI and blocks until the user quits.
 func Run(opts Options) error {
 	m := newModel(opts)
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus())
 	m.send = p.Send
 	m.queue.send = p.Send
 	m.approver.send = p.Send
@@ -1087,6 +1087,9 @@ type model struct {
 	connectGen     int
 	quitting       bool
 	branch         string
+	// term writes the escape sequences that let the terminal take part:
+	// OSC 133 zones, desktop notifications, the window title.
+	term *termIntegration
 }
 
 const (
@@ -1120,6 +1123,7 @@ func newModel(opts Options) *model {
 		queue:      &eventQueue{},
 		input:      ta,
 		spinner:    sp,
+		term:       newTermIntegration(),
 	}
 	if b, ok := prompt.GitBranch(opts.Cwd); ok {
 		m.branch = b
@@ -1242,7 +1246,7 @@ func (m *model) Init() tea.Cmd {
 		m.transcript.info(n)
 	}
 	m.startMCP()
-	return tea.Batch(textarea.Blink, m.spinner.Tick, tick())
+	return tea.Batch(textarea.Blink, m.spinner.Tick, tick(), tea.SetWindowTitle(m.windowTitle()))
 }
 
 func tick() tea.Cmd {
@@ -1277,6 +1281,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case modelsMsg:
 		m.handleModels(msg)
+		return m, nil
+
+	case tea.FocusMsg:
+		m.term.focused = true
+		return m, nil
+
+	case tea.BlurMsg:
+		m.term.focused = false
 		return m, nil
 
 	case tea.MouseMsg:
@@ -1333,6 +1345,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.drainEvents() // the tool entry must exist before the prompt shows
 		m.pending = &msg
 		m.phase = "waiting for your approval"
+		m.term.announce("janetcode", "approval needed: "+msg.call.Name)
 		m.refresh(false)
 		return m, nil
 
@@ -1406,11 +1419,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.gen == m.titleGen && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && msg.title != "" {
 			if err := m.opts.Session.SetTitle(msg.title); err != nil {
 				m.transcript.errorf("could not save the title: %v", err)
-			} else {
-				// The title shows in the header; the status keeps the
-				// turn's verdict and cost, which the title used to erase.
 			}
 			m.refresh(false)
+			return m, tea.SetWindowTitle(m.windowTitle())
 		}
 		return m, nil
 
@@ -2068,6 +2079,7 @@ func (m *model) finishShell(msg shellDoneMsg) {
 }
 
 func (m *model) startTurn(phase string) {
+	m.term.turnStarted()
 	m.running = true
 	m.cancelling = false
 	m.startedAt = time.Now()
@@ -2172,6 +2184,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 			}
 		}
 	}
+	m.term.turnEnded(msg.err == nil, m.status)
 	if msg.err == nil && len(m.queued) == 0 {
 		if cont := m.opts.Agent.GoalContinuation(); cont != "" {
 			m.transcript.info(noteGoal + "goal continuing")

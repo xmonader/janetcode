@@ -1,10 +1,12 @@
 package tui
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"os"
@@ -87,6 +89,7 @@ func newHarness(t *testing.T, responses ...*llm.Response) *harness {
 	}
 	ag := &agent.Agent{Provider: &scripted{responses: responses}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", Log: sess}
 	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"})
+	m.term.out = io.Discard // no escape sequences into the test's stdout
 	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
 	m.send = func(msg tea.Msg) { h.msgs <- msg }
 	m.queue.send = m.send
@@ -2295,5 +2298,75 @@ func TestPhaseNamesWhatTheTurnWaitsOn(t *testing.T) {
 	h.m.refresh(false)
 	if v := plain(h.m.View()); !strings.Contains(v, "waiting on subagent") {
 		t.Fatalf("subagent phase missing:\n%s", v)
+	}
+}
+
+// TestTerminalIntegration covers the escape sequences the terminal needs
+// to take part: OSC 133 zones around a turn, and a notification only
+// while the window is unfocused.
+func TestTerminalIntegration(t *testing.T) {
+	var buf bytes.Buffer
+	ti := &termIntegration{out: &buf, focused: true, notify: true}
+	ti.turnStarted()
+	ti.turnEnded(true, "done in 2s")
+	if got := buf.String(); got != "\x1b]133;A\x07\x1b]133;B\x07\x1b]133;C\x07\x1b]133;D;0\x07" {
+		t.Fatalf("zones = %q", got)
+	}
+	buf.Reset()
+	ti.announce("janetcode", "approval needed: bash")
+	if buf.Len() != 0 {
+		t.Fatalf("a focused window was notified: %q", buf.String())
+	}
+	ti.focused = false
+	ti.announce("janetcode", "approval needed: bash")
+	if got := buf.String(); !strings.Contains(got, "\x1b]9;approval needed: bash\x07") || !strings.Contains(got, "\a") {
+		t.Fatalf("notification = %q", got)
+	}
+	buf.Reset()
+	ti.brand = "kitty"
+	ti.announce("janetcode", "done")
+	if got := buf.String(); !strings.HasPrefix(got, "\x1b]99;") {
+		t.Fatalf("kitty notification = %q", got)
+	}
+	buf.Reset()
+	ti.notify = false
+	ti.announce("janetcode", "done")
+	if buf.Len() != 0 {
+		t.Fatalf("notifications were turned off: %q", buf.String())
+	}
+	// A failed turn closes the zone with a non-zero code.
+	buf.Reset()
+	ti.turnEnded(false, "error")
+	if !strings.Contains(buf.String(), "133;D;1") {
+		t.Fatalf("failed turn = %q", buf.String())
+	}
+	env := map[string]string{"JANETCODE_NOTIFY": "off"}
+	if notifyEnabled(func(k string) string { return env[k] }) {
+		t.Fatal("JANETCODE_NOTIFY=off should silence notifications")
+	}
+	env["JANETCODE_NOTIFY"] = ""
+	env["KITTY_WINDOW_ID"] = "3"
+	if !notifyEnabled(func(k string) string { return env[k] }) || termBrand(func(k string) string { return env[k] }) != "kitty" {
+		t.Fatal("kitty should be detected and notifications on by default")
+	}
+}
+
+// TestFocusTracksTerminal: DEC 1004 reports decide whether a turn's end
+// is announced at all.
+func TestFocusTracksTerminal(t *testing.T) {
+	h := newHarness(t)
+	if !h.m.term.focused {
+		t.Fatal("a terminal that never reports focus counts as focused")
+	}
+	h.update(tea.BlurMsg{})
+	if h.m.term.focused {
+		t.Fatal("blur should clear focus")
+	}
+	h.update(tea.FocusMsg{})
+	if !h.m.term.focused {
+		t.Fatal("focus should restore it")
+	}
+	if title := h.m.windowTitle(); !strings.HasPrefix(title, "janetcode · ") {
+		t.Fatalf("window title = %q", title)
 	}
 }

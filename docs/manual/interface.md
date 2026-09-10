@@ -20,6 +20,22 @@ pgup / pgdn      scroll (mouse wheel works)
 ctrl+c           cancel the turn; when idle, press twice to quit
 ```
 
+## The terminal takes part
+
+janetcode tells the terminal what is happening, so the terminal can help:
+
+- **OSC 133 zones** mark where each turn starts, where the model's answer
+  begins and where the turn ended, with its exit code. Terminals that
+  understand them give you prev/next-prompt keys that jump between turns.
+- **A desktop notification** when a permission prompt appears or a turn
+  ends *while the window is unfocused* — never while you are looking at
+  it. OSC 9, with the kitty (OSC 99) and rxvt (OSC 777) dialects, and a
+  bell as the fallback. Focus is tracked with DEC 1004 focus reports; a
+  terminal that never sends them is treated as focused and stays quiet.
+  `JANETCODE_NOTIFY=0` turns notifications and the bell off.
+- **The window and tab title** is the session title once one has been
+  generated, and the working directory before that.
+
 At a permission prompt: `y` allow once, `a` allow that tool for the session,
 `n` deny and type why (the reason goes to the model, enter skips it), `esc`
 deny silently, `c` cancel the whole turn. Destructive shell commands (recursive deletes, force pushes,

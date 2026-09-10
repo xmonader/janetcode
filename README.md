@@ -159,6 +159,11 @@ pgup / pgdn      scroll (mouse wheel works)
 ctrl+c           cancel the turn; when idle, press twice to quit
 ```
 
+While the window is unfocused, a permission prompt or a finished turn
+raises a desktop notification (`JANETCODE_NOTIFY=0` turns that off); the
+tab title carries the session title, and OSC 133 marks let the terminal's
+own prev/next-prompt keys jump between turns.
+
 At a permission prompt: `y` allow once, `a` allow that tool for the session,
 `n` deny and type why (the reason goes to the model, enter skips it), `esc`
 deny silently, `c` cancel the whole turn. Destructive shell commands (recursive deletes, force pushes,
