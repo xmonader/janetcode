@@ -12,7 +12,10 @@ grows with your text.
 enter            send        ctrl+j / alt+enter   newline
 up / down        recall earlier prompts          tab   complete a /command
 esc              cancel the running turn (or clear the input)
-ctrl+o           expand tool output and diffs    ctrl+l   redraw
+ctrl+o           expand the last turn's output   ctrl+l   redraw
+                 (again folds it; click a tool
+                 line or thought to fold one;
+                 /verbose does every turn)
 pgup / pgdn      scroll (mouse wheel works)
 ctrl+c           cancel the turn; when idle, press twice to quit
 ```

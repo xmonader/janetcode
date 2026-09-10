@@ -78,6 +78,14 @@ type entry struct {
 	dur     string
 	started time.Time
 
+	// expanded shows this one entry in full, whatever the global
+	// /verbose flag says. ctrl+o sets it on the last turn's entries and a
+	// mouse click on a tool line sets it on that entry alone.
+	expanded bool
+	// lineFrom and lineTo are the entry's line range in the last rendered
+	// transcript, so a mouse click can be traced back to it.
+	lineFrom, lineTo int
+
 	// render cache
 	rendered   string
 	width      int
@@ -104,6 +112,10 @@ type renderOpts struct {
 	verbose bool   // expand tool output
 	cwd     string // paths in tool lines are shown relative to it
 }
+
+// expand reports whether this entry is shown in full: either the session
+// is verbose or the entry was expanded on its own.
+func (o renderOpts) expand(e *entry) bool { return o.verbose || e.expanded }
 
 // transcript is the ordered list of things shown in the viewport.
 type transcript struct {
@@ -318,9 +330,11 @@ func (t *transcript) render(o renderOpts) string {
 	}
 	now := time.Now()
 	var sb strings.Builder
+	line := 0
 	for i, e := range t.entries {
 		if i > 0 {
 			sb.WriteByte('\n')
+			line++
 		}
 		if t.needsRender(e, o, now) {
 			start := time.Now()
@@ -330,16 +344,20 @@ func (t *transcript) render(o renderOpts) string {
 			e.final = e.done
 			e.renderedAt = now
 			e.renderedN = len(e.text)
-			e.verbose = o.verbose
+			e.verbose = o.expand(e)
 		}
+		e.lineFrom = line
+		line += strings.Count(e.rendered, "\n")
+		e.lineTo = line
 		sb.WriteString(e.rendered)
 		sb.WriteByte('\n')
+		line++
 	}
 	return sb.String()
 }
 
 func (t *transcript) needsRender(e *entry, o renderOpts, now time.Time) bool {
-	if e.rendered == "" || e.width != o.width || e.verbose != o.verbose {
+	if e.rendered == "" || e.width != o.width || e.verbose != o.expand(e) {
 		return true
 	}
 	if e.done && e.final {
@@ -398,6 +416,9 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 	case entryThinking:
 		// Faint, never italic: many terminals have no italic face and
 		// draw SGR italic as reverse video.
+		if o.expand(e) && e.done {
+			return styleFaint.Render(wrap("· thought: " + strings.TrimSpace(e.text)))
+		}
 		return styleFaint.Render(wrap(thinkingView(e.text, e.done)))
 	case entryAssistant:
 		return t.renderMarkdown(e, width)
@@ -521,7 +542,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 	}
 	if o.pending != nil && o.pending.call.ID == e.call.ID {
 		previewMax, inputMax := pendingPreviewLines, pendingInputLines
-		if o.verbose {
+		if o.expand(e) {
 			previewMax, inputMax = 400, 400
 		}
 		if o.pending.call.Preview != "" {
@@ -533,18 +554,18 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 	}
 	if e.done && !e.isError && e.call.Preview != "" && !e.denied {
 		max := 12
-		if o.verbose {
+		if o.expand(e) {
 			max = 200
 		}
 		sb.WriteString("\n" + renderPreview(e.call.Preview, width, max))
 	}
 	if e.done && e.output != "" {
 		max := 8
-		if o.verbose {
+		if o.expand(e) {
 			max = 60
 		}
 		body, diag := splitDiagnostics(strings.TrimRight(e.output, "\n"))
-		if !o.verbose && !e.isError {
+		if !o.expand(e) && !e.isError {
 			switch e.call.Name {
 			case "read_file":
 				// The lines are for the model; the reader wants to know
@@ -558,7 +579,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 				body = stripEditWindow(body)
 			}
 		}
-		if e.call.Name == "todo" && !o.verbose {
+		if e.call.Name == "todo" && !o.expand(e) {
 			// The plan is shown whole the first time and as what changed
 			// after that: the model rewrites the whole list on every
 			// status change, and printing it whole each time reads as
@@ -1066,4 +1087,60 @@ func renderCode(text string, width int) string {
 		}
 	}
 	return strings.Join(out, "\n")
+}
+
+// expandable reports whether showing this entry in full would say more
+// than the folded form does.
+func (e *entry) expandable() bool {
+	switch e.kind {
+	case entryTool:
+		return e.output != "" || e.call.Preview != "" || e.input.Len() > 0
+	case entryThinking:
+		return e.done && strings.TrimSpace(e.text) != ""
+	}
+	return false
+}
+
+// toggleLastTurn expands the entries of the most recent turn, or collapses
+// them when they are already expanded. Only the last turn: reopening the
+// whole transcript is what /verbose is for, and kimi's rule — recent turns
+// only — keeps the jump on screen. It reports what it did.
+func (t *transcript) toggleLastTurn() (expanded, any bool) {
+	start := 0
+	for i := len(t.entries) - 1; i >= 0; i-- {
+		if t.entries[i].kind == entryUser {
+			start = i
+			break
+		}
+	}
+	all := true
+	for _, e := range t.entries[start:] {
+		if e.expandable() {
+			any = true
+			if !e.expanded {
+				all = false
+			}
+		}
+	}
+	if !any {
+		return false, false
+	}
+	for _, e := range t.entries[start:] {
+		if e.expandable() {
+			e.expanded = !all
+			e.final = false
+		}
+	}
+	return !all, true
+}
+
+// entryAtLine finds the expandable entry drawn on a line of the rendered
+// transcript, for a mouse click.
+func (t *transcript) entryAtLine(line int) *entry {
+	for _, e := range t.entries {
+		if line >= e.lineFrom && line <= e.lineTo && e.expandable() {
+			return e
+		}
+	}
+	return nil
 }

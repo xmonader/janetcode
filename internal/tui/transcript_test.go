@@ -494,3 +494,72 @@ func TestPreviewTruncationKeepsUTF8(t *testing.T) {
 		t.Fatalf("expected an elided run of é: %q", out)
 	}
 }
+
+// TestExpandLastTurnOnly: ctrl+o reopens the entries of the most recent
+// turn and folds them again; an older turn keeps its folded form, which is
+// what /verbose is for.
+func TestExpandLastTurnOnly(t *testing.T) {
+	tr := newTranscript()
+	long := strings.Repeat("line\n", 40)
+	add := func(prompt string) {
+		tr.user(prompt)
+		call := agent.ToolCall{ID: prompt, Name: "bash"}
+		tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
+		tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &call, Output: long})
+	}
+	add("first")
+	add("second")
+	o := renderOpts{width: 80}
+	count := func() int { return strings.Count(plain(tr.render(o)), "line") }
+	folded := count()
+	expanded, any := tr.toggleLastTurn()
+	if !expanded || !any {
+		t.Fatalf("toggleLastTurn = %v %v", expanded, any)
+	}
+	after := count()
+	if after <= folded {
+		t.Fatalf("expanding showed no more lines: %d then %d", folded, after)
+	}
+	if tr.entries[0].expanded || !tr.entries[len(tr.entries)-1].expanded {
+		t.Fatal("expansion should cover the last turn only")
+	}
+	if expanded, _ := tr.toggleLastTurn(); expanded {
+		t.Fatal("a second ctrl+o should fold")
+	}
+	if count() != folded {
+		t.Fatalf("folding back gave %d lines, want %d", count(), folded)
+	}
+}
+
+// TestClickTogglesOneEntry: the line range recorded during rendering maps
+// a click back to the entry drawn there.
+func TestClickTogglesOneEntry(t *testing.T) {
+	tr := newTranscript()
+	tr.user("go")
+	call := agent.ToolCall{ID: "b", Name: "bash"}
+	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &call, Output: strings.Repeat("x\n", 40)})
+	tr.render(renderOpts{width: 80})
+	last := tr.entries[len(tr.entries)-1]
+	if got := tr.entryAtLine(last.lineFrom); got != last {
+		t.Fatalf("entryAtLine(%d) found the wrong entry", last.lineFrom)
+	}
+	if tr.entryAtLine(tr.entries[0].lineFrom) != nil {
+		t.Fatal("a user line is not expandable")
+	}
+}
+
+// TestFoldedThoughtReopens: a thought folded to one line can be read again.
+func TestFoldedThoughtReopens(t *testing.T) {
+	tr := newTranscript()
+	tr.apply(agent.Event{Kind: agent.EvThinking, Text: "one\ntwo\nthree\nfour"})
+	tr.apply(agent.Event{Kind: agent.EvTextBlockDone})
+	o := renderOpts{width: 80}
+	if v := plain(tr.render(o)); strings.Contains(v, "four") {
+		t.Fatalf("a finished thought should fold:\n%s", v)
+	}
+	tr.toggleLastTurn()
+	if v := plain(tr.render(o)); !strings.Contains(v, "four") {
+		t.Fatalf("expanded thought should show its text:\n%s", v)
+	}
+}

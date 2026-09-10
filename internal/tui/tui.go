@@ -1020,7 +1020,7 @@ var commands = []command{
 	{"/model", "[name]", "pick a model from a list, or set one by name"},
 	{"/usage", "", "tokens and cost for this session"},
 	{"/export", "[file.md]", "write this session as a Markdown transcript"},
-	{"/verbose", "", "toggle expanded tool output (ctrl+o)"},
+	{"/verbose", "", "toggle expanded tool output for the whole transcript (ctrl+o expands one turn)"},
 	{"/quit", "", "exit"},
 }
 
@@ -1280,6 +1280,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.MouseMsg:
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			if m.clickTranscript(msg.Y) {
+				return m, nil
+			}
+		}
 		return m, m.scroll(msg)
 
 	case tickMsg:
@@ -1534,7 +1539,10 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.answer(agent.Deny, "the user cancelled the turn")
 			m.cancelTurn()
 		case "ctrl+o":
-			m.verbose = !m.verbose
+			// At a prompt ctrl+o is about this one call, not the session.
+			if e := m.transcript.findTool(m.pending.call.ID); e != nil {
+				e.expanded, e.final = !e.expanded, false
+			}
 			m.refresh(false)
 		case "pgup", "pgdown":
 			return m.scroll(msg), true
@@ -1584,11 +1592,13 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 	case "ctrl+o":
-		m.verbose = !m.verbose
-		if m.verbose {
-			m.status = "verbose tool output on"
-		} else {
-			m.status = "verbose tool output off"
+		switch expanded, any := m.transcript.toggleLastTurn(); {
+		case !any:
+			m.status = "nothing folded in the last turn · /verbose expands every turn"
+		case expanded:
+			m.status = "expanded the last turn · ctrl+o folds it again, click a line to fold one"
+		default:
+			m.status = "folded the last turn"
 		}
 		m.refresh(false)
 		return nil, true
@@ -2671,7 +2681,7 @@ func (m *model) helpText() string {
 	sb.WriteString("keys\n")
 	sb.WriteString("  enter send · ctrl+j / alt+enter newline · up/down recall prompts, or move in an open menu · tab/enter accept a menu row\n")
 	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, or when idle twice to quit · ctrl+d quit\n")
-	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand tool output · ctrl+l redraw\n")
+	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand the last turn (again folds it) · click a tool line or a thought to fold or unfold it · /verbose does the whole transcript · ctrl+l redraw\n")
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends\n")
 	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
@@ -3569,4 +3579,30 @@ func (m *model) restartMCP(name string) {
 		}
 		m.send(mcpDoneMsg{name: name, tools: n, err: err})
 	})
+}
+
+// clickTranscript toggles the entry drawn on the clicked row. It reports
+// whether the click landed on one; anything else falls through to the
+// viewport, which reads clicks as the start of a drag-scroll.
+func (m *model) clickTranscript(y int) bool {
+	if !m.ready || m.connect != nil {
+		return false
+	}
+	// The header owns row 0; the viewport starts under it.
+	row := y - 1
+	if row < 0 || row >= m.viewport.Height {
+		return false
+	}
+	e := m.transcript.entryAtLine(m.viewport.YOffset + row)
+	if e == nil {
+		return false
+	}
+	e.expanded, e.final = !e.expanded, false
+	if e.expanded {
+		m.status = "expanded · click again to fold"
+	} else {
+		m.status = "folded"
+	}
+	m.refresh(false)
+	return true
 }
