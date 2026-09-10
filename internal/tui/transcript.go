@@ -77,6 +77,8 @@ type entry struct {
 	denied  bool
 	dur     string
 	started time.Time
+	// ended is when the call finished, for the brief flash that says so.
+	ended time.Time
 
 	// expanded shows this one entry in full, whatever the global
 	// /verbose flag says. ctrl+o sets it on the last turn's entries and a
@@ -204,7 +206,7 @@ func (t *transcript) apply(ev agent.Event) {
 	case agent.EvThinking:
 		e := t.last(entryThinking)
 		if e == nil {
-			e = t.add(&entry{kind: entryThinking})
+			e = t.add(&entry{kind: entryThinking, started: time.Now()})
 		}
 		e.text += ev.Text
 	case agent.EvToolStart:
@@ -237,6 +239,7 @@ func (t *transcript) apply(ev agent.Event) {
 		e.call = *ev.Call
 		e.running = false
 		e.done = true
+		e.ended = time.Now()
 		e.output = ev.Output
 		e.isError = ev.IsError
 		if ev.Duration > 0 {
@@ -461,7 +464,7 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 		if o.expand(e) && e.done {
 			return styleFaint.Render(wrap("· thought: " + strings.TrimSpace(e.text)))
 		}
-		return styleFaint.Render(wrap(thinkingView(e.text, e.done)))
+		return styleFaint.Render(wrap(thinkingView(e.text, e.done, e.thoughtFor())))
 	case entryAssistant:
 		return t.renderMarkdown(e, width)
 	case entryTool:
@@ -555,6 +558,10 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		icon = styleErr.Render("⊘")
 	case e.done && e.isError:
 		icon = styleErr.Render("✗")
+	case e.done && !e.ended.IsZero() && time.Since(e.ended) < flashFor:
+		// A call that has just finished flashes for a moment, so a glance
+		// away and back still says which line moved.
+		icon = styleAccent.Bold(true).Render("✓")
 	case e.done:
 		icon = styleOK.Render("✓")
 	case e.running && o.spinner != "":
@@ -768,7 +775,7 @@ func splitDiagnostics(out string) (body, diag string) {
 // it to a single line once the model moves on, so it never swamps the
 // transcript. The streaming view is capped at three lines so the fold
 // costs the transcript two lines rather than seven.
-func thinkingView(text string, done bool) string {
+func thinkingView(text string, done bool, took time.Duration) string {
 	txt := strings.TrimSpace(text)
 	if txt == "" {
 		return "· thinking"
@@ -776,10 +783,14 @@ func thinkingView(text string, done bool) string {
 	lines := strings.Split(txt, "\n")
 	if done {
 		first := cutWords(strings.TrimSpace(lines[0]), 100)
-		if len(lines) > 1 {
-			return fmt.Sprintf("· thought: %s (%d lines)", first, len(lines))
+		head := "· thought"
+		if took > 0 {
+			head = "· thought for " + shortDuration(took)
 		}
-		return "· thought: " + first
+		if len(lines) > 1 {
+			return fmt.Sprintf("%s: %s (%d lines)", head, first, len(lines))
+		}
+		return head + ": " + first
 	}
 	// At most three lines while streaming. Eight was enough to make the
 	// transcript jump by seven lines the moment the model moved on and the
@@ -791,6 +802,9 @@ func thinkingView(text string, done bool) string {
 	}
 	return "· " + strings.Join(lines, "\n")
 }
+
+// flashFor is how long a finished tool line stays bright.
+const flashFor = 400 * time.Millisecond
 
 // How much of a call awaiting approval is shown before ctrl+o expands it.
 const (
@@ -1140,4 +1154,13 @@ func (t *transcript) previousResult(e *entry) string {
 		return ""
 	}
 	return ""
+}
+
+// thoughtFor is how long the model spent on a finished thought, or zero
+// when the entry did not record it (a resumed conversation).
+func (e *entry) thoughtFor() time.Duration {
+	if e.started.IsZero() || e.ended.IsZero() || !e.ended.After(e.started) {
+		return 0
+	}
+	return e.ended.Sub(e.started)
 }

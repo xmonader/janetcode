@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -134,15 +135,15 @@ func TestSummarizeInput(t *testing.T) {
 }
 
 func TestThinkingView(t *testing.T) {
-	if got := thinkingView("", false); got != "· thinking" {
+	if got := thinkingView("", false, 0); got != "· thinking" {
 		t.Fatalf("empty: %q", got)
 	}
 	long := strings.Repeat("line\n", 20) + "last"
-	got := thinkingView(long, false)
+	got := thinkingView(long, false, 0)
 	if !strings.HasPrefix(got, "· thinking… (19 earlier lines)") || !strings.HasSuffix(got, "last") || strings.Count(got, "\n") != 2 {
 		t.Fatalf("streaming tail: %q", got)
 	}
-	if got := thinkingView("plan first\nthen do", true); got != "· thought: plan first (2 lines)" {
+	if got := thinkingView("plan first\nthen do", true, 0); got != "· thought: plan first (2 lines)" {
 		t.Fatalf("done: %q", got)
 	}
 }
@@ -347,7 +348,7 @@ func TestThinkingViewCapsAtThreeLines(t *testing.T) {
 		lines = append(lines, fmt.Sprintf("step %d", i))
 	}
 	text := strings.Join(lines, "\n")
-	live := thinkingView(text, false)
+	live := thinkingView(text, false, 0)
 	if n := len(strings.Split(live, "\n")); n != 3 {
 		t.Fatalf("streaming thought is %d lines, want 3:\n%s", n, live)
 	}
@@ -357,7 +358,7 @@ func TestThinkingViewCapsAtThreeLines(t *testing.T) {
 	if !strings.Contains(live, "10 earlier lines") {
 		t.Errorf("streaming thought does not say what it hid:\n%s", live)
 	}
-	folded := thinkingView(text, true)
+	folded := thinkingView(text, true, 0)
 	if n := len(strings.Split(folded, "\n")); n != 1 {
 		t.Fatalf("folded thought is %d lines, want 1:\n%s", n, folded)
 	}
@@ -365,7 +366,7 @@ func TestThinkingViewCapsAtThreeLines(t *testing.T) {
 		t.Errorf("folded thought = %q", folded)
 	}
 	// Short thoughts are shown whole.
-	if got := thinkingView("only one", false); got != "· only one" {
+	if got := thinkingView("only one", false, 0); got != "· only one" {
 		t.Errorf("short thought = %q", got)
 	}
 }
@@ -663,5 +664,42 @@ func TestToolOwnedRenderingWithFallback(t *testing.T) {
 	// With no renderer at all — a headless render — the fallback holds.
 	if got := render("bash", nil); !strings.Contains(got, "more lines, ctrl+o to expand") {
 		t.Fatalf("no fallback without a registry:\n%s", got)
+	}
+}
+
+// TestFinishedCallFlashesAndThoughtSaysHowLong: a call that has just
+// finished is drawn brightly for a moment, and a folded thought says how
+// long the model spent on it.
+func TestFinishedCallFlashesAndThoughtSaysHowLong(t *testing.T) {
+	tr := newTranscript()
+	c := agent.ToolCall{ID: "1", Name: "bash"}
+	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &c})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &c, Output: "ok"})
+	e := tr.findTool("1")
+	if e.ended.IsZero() {
+		t.Fatal("a finished call must record when it finished")
+	}
+	// The flash is a colour, so the test needs a terminal that has them.
+	saved := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(saved)
+	fresh := tr.renderTool(e, 80, renderOpts{width: 80})
+	e.ended = time.Now().Add(-time.Second) // past the flash
+	settled := tr.renderTool(e, 80, renderOpts{width: 80})
+	if fresh == settled {
+		t.Fatal("a call that has just finished should be drawn differently")
+	}
+	if !strings.Contains(plain(fresh), "✓") || !strings.Contains(plain(settled), "✓") {
+		t.Fatal("the mark itself must not change")
+	}
+
+	th := &entry{kind: entryThinking, text: "a\nb", done: true,
+		started: time.Now().Add(-12300 * time.Millisecond), ended: time.Now()}
+	if got := thinkingView(th.text, true, th.thoughtFor()); !strings.Contains(got, "thought for 12.3s") {
+		t.Fatalf("thought header = %q", got)
+	}
+	// A resumed conversation has no timings and says so by saying nothing.
+	if got := thinkingView("a", true, 0); !strings.HasPrefix(got, "· thought: ") {
+		t.Fatalf("untimed thought = %q", got)
 	}
 }
