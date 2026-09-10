@@ -1628,7 +1628,7 @@ func TestFitPathKeepsTheTail(t *testing.T) {
 // permission prompt closed was meant for the prompt; it must not become
 // a turn of the model guessing what "y" means.
 func TestStrayApprovalKeyIsNotAPrompt(t *testing.T) {
-	h := newHarness(t)
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "y?"), StopReason: llm.StopEndTurn})
 	h.m.pendingClosedAt = time.Now()
 	h.keys("y")
 	h.enter()
@@ -1642,6 +1642,7 @@ func TestStrayApprovalKeyIsNotAPrompt(t *testing.T) {
 	if !h.m.running {
 		t.Fatal("a y typed long after the prompt should be sent")
 	}
+	h.pump(func() bool { return !h.m.running })
 }
 
 // TestCtrlCWhenIdleArmsFirst: one ctrl+c when idle says "again to quit";
