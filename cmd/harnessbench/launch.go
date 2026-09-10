@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -327,10 +329,142 @@ func uuid4() string {
 // invoke runs one prompt on a harness in dir. With a session, the first
 // prompt creates the harness's session under the given id and later ones
 // resume it, so the conversation carries over the way it does for a user.
+// openclaw scaffolds these into any workspace it uses; they are its own
+// files, not the task's, and must not be copied back as results.
+var openclawScaffold = map[string]bool{
+	"AGENTS.md": true, "BOOTSTRAP.md": true, "IDENTITY.md": true,
+	"SOUL.md": true, "USER.md": true,
+}
+
+// openclawWorkspaceDir is one directory reused for every task in a run.
+//
+// Pointing openclaw at each task directory in turn does not work: it
+// attests a workspace on first use and refuses to start when that
+// directory later disappears — which is exactly what happens when the
+// previous task's directory is cleaned up. So the workspace is stable and
+// the task moves through it: seeded in before the run, results copied back
+// out after, openclaw's own scaffolding left behind.
+func openclawWorkspaceDir(task string) (string, error) {
+	dir := filepath.Join(os.TempDir(), "openclaw-bench", evalSanitize(task))
+	return dir, os.MkdirAll(dir, 0o755)
+}
+
+// openclawTaskProfile is a config namespace of its own for each task.
+// openclaw keeps exactly one workspace setting per profile, and this
+// benchmark runs tasks concurrently: with a shared profile the tasks
+// overwrite each other's workspace between the patch and the run, and each
+// one then works in some other task's directory. That is what made every
+// task fail while the same command by hand succeeded.
+func openclawTaskProfile(task string) string {
+	return openclawProfile + "-" + evalSanitize(task)
+}
+
+// openclawSeed empties the shared workspace of the last task's files and
+// copies this one's in.
+func openclawSeed(ws, taskDir string) error {
+	entries, err := os.ReadDir(ws)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if openclawScaffold[e.Name()] {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(ws, e.Name())); err != nil {
+			return err
+		}
+	}
+	return copyTree(taskDir, ws, nil)
+}
+
+// openclawHarvest copies what the run produced back to the task directory,
+// where the check will look for it.
+func openclawHarvest(ws, taskDir string) error {
+	return copyTree(ws, taskDir, openclawScaffold)
+}
+
+// copyTree copies a directory's contents, skipping top-level names in skip.
+func copyTree(from, to string, skip map[string]bool) error {
+	return filepath.WalkDir(from, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, rerr := filepath.Rel(from, path)
+		if rerr != nil || rel == "." {
+			return rerr
+		}
+		if skip != nil {
+			if top := strings.SplitN(rel, string(filepath.Separator), 2)[0]; skip[top] {
+				return nil
+			}
+		}
+		dest := filepath.Join(to, rel)
+		if d.IsDir() {
+			return os.MkdirAll(dest, 0o755)
+		}
+		data, rerr := os.ReadFile(path)
+		if rerr != nil {
+			return rerr
+		}
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			return err
+		}
+		info, _ := d.Info()
+		mode := fs.FileMode(0o644)
+		if info != nil {
+			mode = info.Mode().Perm()
+		}
+		return os.WriteFile(dest, data, mode)
+	})
+}
+
+// openclawConfigure writes everything one task's profile needs: the
+// endpoint under test, and the workspace it must work in.
+func openclawConfigure(ctx context.Context, profile string, cfg runConfig, ws string) error {
+	patch := map[string]any{
+		"agents": map[string]any{"defaults": map[string]any{"workspace": ws}},
+		"models": map[string]any{
+			"mode": "merge",
+			"providers": map[string]any{
+				"bench": map[string]any{
+					"baseUrl": cfg.BaseURL,
+					"apiKey":  cfg.Key,
+					"api":     "openai-completions",
+					"models": []any{map[string]any{
+						"id": cfg.Model, "name": cfg.Model,
+						"contextWindow": 128000, "maxTokens": 8192,
+					}},
+				},
+			},
+		},
+	}
+	data, err := json.Marshal(patch)
+	if err != nil {
+		return err
+	}
+	f, err := os.CreateTemp("", "openclaw-ws-*.json")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	f.Close()
+	cmd := exec.CommandContext(ctx, "openclaw", "--profile", profile, "config", "patch", "--file", f.Name())
+	cmd.Env = openclawEnv(os.Environ())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // hermes-agent has no non-interactive continuation; it runs each prompt
 // fresh and the report says so.
 func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir string, sess *session, step int) (stdout, stderr string, argv []string, code int, err error) {
 	var cmd *exec.Cmd
+	var openclawWS string
 	extraEnv := map[string]string{
 		"OPENAI_API_KEY":    cfg.Key,
 		"OPENAI_BASE_URL":   cfg.BaseURL,
@@ -379,6 +513,38 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 		// reason alone, which is a bug in this launcher and not in it.
 		extraEnv["TERMINAL_CWD"] = dir
 		extraEnv["TERMINAL_ENV"] = "local"
+	case "openclaw":
+		// openclaw works in its own workspace, not the process's working
+		// directory, so the workspace is repointed at this task before
+		// every run. The session id is fresh each time too: openclaw
+		// otherwise remembers the previous task and answers "already
+		// done" without looking at the directory it is now in.
+		// The task directory's name is unique per task and stable for the
+		// life of the run, which is exactly the key both need.
+		key := filepath.Base(dir)
+		profile := openclawTaskProfile(key)
+		ws, werr := openclawWorkspaceDir(key)
+		if werr == nil {
+			werr = openclawConfigure(ctx, profile, cfg, ws)
+		}
+		if werr == nil {
+			werr = openclawSeed(ws, dir)
+		}
+		if werr != nil {
+			return "", "", nil, 0, fmt.Errorf("openclaw workspace: %w", werr)
+		}
+		openclawWS = ws
+		defer func() {
+			// Whatever the run produced lives in the shared workspace;
+			// the check looks in the task directory.
+			_ = openclawHarvest(openclawWS, dir)
+		}()
+		extraEnv["PATH"] = "/usr/bin:/usr/local/bin:" + os.Getenv("PATH")
+		argv = []string{"openclaw", "--profile", profile, "agent", "--local",
+			"--model", "bench/" + cfg.Model,
+			"--session-id", fmt.Sprintf("bench-%d-%d", step, time.Now().UnixNano()),
+			"--message", prompt}
+		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 	case "claudecode":
 		// Claude Code speaks to Anthropic on its own credentials; the
 		// endpoint flags do not apply to it, and the model is named the
@@ -421,6 +587,11 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 	}
 	tool.Supervise(cmd) // kill the harness's whole tree on timeout; never block on an orphan
 	cmd.Dir = dir
+	if openclawWS != "" {
+		// openclaw is run from inside its own workspace: configuring the
+		// workspace is not enough on its own.
+		cmd.Dir = openclawWS
+	}
 	cmd.Env = childEnv(cfg, extraEnv)
 	var outb, errb bytes.Buffer
 	cmd.Stdout = &outb

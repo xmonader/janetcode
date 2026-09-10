@@ -202,7 +202,9 @@ type runConfig struct {
 func runHarness(ctx context.Context, cfg runConfig, harness string, tasks []eval.Task, batches [][]eval.Task) ([]eval.BenchTaskResult, string) {
 	switch harness {
 	case "openclaw":
-		return failOpenclaw(cfg, tasks)
+		if rs, note, ok := prepareOpenclaw(cfg, tasks); !ok {
+			return rs, note
+		}
 	case "claudecode":
 		if _, err := exec.LookPath("claude"); err != nil {
 			return eval.UnavailableResults("claudecode", "claude is not installed", "claude -p", err.Error(), tasks), "Not installed.\n"
@@ -266,6 +268,83 @@ func batchLog(cfg runConfig, harness string, n int) (io.Writer, func()) {
 		return io.Discard, func() {}
 	}
 	return f, func() { _ = f.Close() }
+}
+
+// openclawProfile isolates this benchmark's openclaw state, so a run
+// neither disturbs the operator's own gateway nor is blocked by it:
+// openclaw refuses --local while a Gateway holds the same state directory.
+const openclawProfile = "janetbench"
+
+// prepareOpenclaw configures a private openclaw profile to reach the
+// endpoint under test, and reports why it cannot when it cannot.
+//
+// Four separate things stop openclaw being benchmarked out of the box, and
+// each was found the hard way: it needs a Node newer than the one a
+// bundled runtime may put first on PATH; it refuses --local while a
+// Gateway is running for the same state directory; its provider catalogue
+// has to be told about a custom endpoint before it will accept the model
+// name; and it works in its own workspace rather than the process's
+// working directory, so tasks run somewhere else entirely unless
+// agents.defaults.workspace is pointed at them.
+func prepareOpenclaw(cfg runConfig, tasks []eval.Task) ([]eval.BenchTaskResult, string, bool) {
+	if _, err := exec.LookPath("openclaw"); err != nil {
+		return eval.UnavailableResults("openclaw", "openclaw is not installed", "openclaw", err.Error(), tasks), "Not installed.\n", false
+	}
+	if cfg.Key == "" {
+		return eval.UnavailableResults("openclaw", "no API key for the endpoint under test", "openclaw", "", tasks), "No key.\n", false
+	}
+	patch := map[string]any{
+		"models": map[string]any{
+			"mode": "merge",
+			"providers": map[string]any{
+				"bench": map[string]any{
+					"baseUrl": cfg.BaseURL,
+					"apiKey":  cfg.Key,
+					"api":     "openai-completions",
+					"models": []any{map[string]any{
+						"id": cfg.Model, "name": cfg.Model,
+						"contextWindow": 128000, "maxTokens": 8192,
+					}},
+				},
+			},
+		},
+	}
+	data, err := json.Marshal(patch)
+	if err != nil {
+		return eval.UnavailableResults("openclaw", "config patch: "+err.Error(), "openclaw config patch", "", tasks), "", false
+	}
+	f, err := os.CreateTemp("", "openclaw-patch-*.json")
+	if err != nil {
+		return eval.UnavailableResults("openclaw", "config patch: "+err.Error(), "openclaw config patch", "", tasks), "", false
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return eval.UnavailableResults("openclaw", "config patch: "+err.Error(), "openclaw config patch", "", tasks), "", false
+	}
+	f.Close()
+	cmd := exec.Command("openclaw", "--profile", openclawProfile, "config", "patch", "--file", f.Name())
+	cmd.Env = openclawEnv(os.Environ())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		excerpt := strings.TrimSpace(string(out))
+		return eval.UnavailableResults("openclaw", "openclaw config patch failed: "+firstLine(excerpt), "openclaw config patch", excerpt, tasks),
+			fmt.Sprintf("Configuring openclaw failed:\n\n```\n%s\n```\n", excerpt), false
+	}
+	return nil, "", true
+}
+
+// openclawEnv puts a Node that satisfies openclaw first on PATH. A
+// bundled runtime shipped with another tool can be older than its
+// minimum, and openclaw then refuses to start at all.
+func openclawEnv(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "PATH=") {
+			kv = "PATH=/usr/bin:/usr/local/bin:" + strings.TrimPrefix(kv, "PATH=")
+		}
+		out = append(out, kv)
+	}
+	return out
 }
 
 func failOpenclaw(cfg runConfig, tasks []eval.Task) ([]eval.BenchTaskResult, string) {
