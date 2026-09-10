@@ -1055,6 +1055,9 @@ type model struct {
 	pinned      bool
 	lastContent string // last transcript pushed into the viewport
 
+	// pastes holds the text behind each "[paste #N +M lines]" chip in the
+	// input, in the order they were pasted.
+	pastes []string
 	// history of submitted prompts for up/down recall.
 	history []string
 	// lastUserText is the prompt of the running or last turn.
@@ -1514,6 +1517,15 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	if m.connect != nil {
 		return m.handleConnectKey(msg)
 	}
+	if m.pending == nil && msg.Paste && bigPaste(string(msg.Runes)) {
+		// A file dropped into the prompt is one thing, not two hundred
+		// lines to scroll past. It becomes a chip; submit puts it back.
+		m.input.InsertString(m.storePaste(string(msg.Runes)))
+		m.layout()
+		m.status = fmt.Sprintf("pasted %s as a chip · it is sent in full", plural(strings.Count(string(msg.Runes), "\n")+1, "line"))
+		m.refresh(false)
+		return nil, true
+	}
 	// Permission prompt takes over the keyboard.
 	if m.pending != nil && m.denying {
 		// Collecting an optional reason: enter sends it, esc denies silently.
@@ -1620,6 +1632,17 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		m.refresh(false)
 		return nil, true
+	case "backspace":
+		// The chip is one thing: backspace takes all of it or none.
+		if v := m.input.Value(); pasteMarkerRe.MatchString(v) {
+			if loc := pasteMarkerRe.FindAllStringIndex(v, -1); loc[len(loc)-1][1] == len(v) {
+				m.input.SetValue(v[:loc[len(loc)-1][0]])
+				m.input.CursorEnd()
+				m.layout()
+				m.refresh(false)
+				return nil, true
+			}
+		}
 	case "ctrl+l":
 		return tea.ClearScreen, true
 	case "ctrl+v":
@@ -1985,6 +2008,7 @@ func (m *model) answer(d agent.Decision, reason string) {
 }
 
 func (m *model) submit(text string) tea.Cmd {
+	text = m.inflatePastes(text)
 	if m.opts.Agent.Provider == nil {
 		m.transcript.errorf("not connected to a provider yet: run /connect")
 		m.refresh(false)
@@ -2026,6 +2050,7 @@ func (m *model) submit(text string) tea.Cmd {
 // directory, shows it like a tool call, and hands the output to the model
 // as context for the next turn.
 func (m *model) shell(cmdline string) tea.Cmd {
+	cmdline = m.inflatePastes(cmdline)
 	if cmdline == "" {
 		m.transcript.errorf("usage: !<command> · runs in %s and shares the output with the model", shortPath(m.opts.Cwd))
 		m.refresh(false)
@@ -3625,4 +3650,40 @@ func (m *model) clickTranscript(y int) bool {
 	}
 	m.refresh(false)
 	return true
+}
+
+// A paste of any size arrives as one bracketed-paste key event. Over ten
+// lines or a thousand characters it is kept aside and shown as a chip,
+// so the prompt stays readable and a paste that ends in a newline cannot
+// send itself.
+const (
+	pasteChipLines = 10
+	pasteChipChars = 1000
+)
+
+var pasteMarkerRe = regexp.MustCompile(`\[paste #(\d+) \+\d+ lines?\]`)
+
+// bigPaste reports whether a paste is large enough to be worth a chip.
+func bigPaste(s string) bool {
+	return strings.Count(s, "\n") >= pasteChipLines || len(s) > pasteChipChars
+}
+
+// storePaste keeps the text and returns the chip that stands for it.
+func (m *model) storePaste(text string) string {
+	m.pastes = append(m.pastes, text)
+	return fmt.Sprintf("[paste #%d +%s]", len(m.pastes), plural(strings.Count(text, "\n")+1, "line"))
+}
+
+// inflatePastes puts the pasted text back in place of every chip.
+func (m *model) inflatePastes(text string) string {
+	if len(m.pastes) == 0 {
+		return text
+	}
+	return pasteMarkerRe.ReplaceAllStringFunc(text, func(s string) string {
+		n, err := strconv.Atoi(pasteMarkerRe.FindStringSubmatch(s)[1])
+		if err != nil || n < 1 || n > len(m.pastes) {
+			return s
+		}
+		return m.pastes[n-1]
+	})
 }

@@ -44,6 +44,11 @@ sudo, piping downloads into a shell) are flagged in the prompt.
 Typing while the model is working queues the message; it is sent as soon as
 the turn ends. Cancelling a turn hands queued text back to the input.
 
+Pasting more than ten lines (or a thousand characters) puts a chip in the
+prompt — `[paste #1 +123 lines]` — instead of the text itself. The chip
+deletes as one unit and is replaced by the full text when you send, so a
+paste that ends in a newline can never send itself.
+
 ```
 @path            attach a file, an image (png/jpg/gif/webp), or a directory listing; tab completes
 ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, pngpaste on macOS)

@@ -2370,3 +2370,54 @@ func TestFocusTracksTerminal(t *testing.T) {
 		t.Fatalf("window title = %q", title)
 	}
 }
+
+// TestPasteChip: a large paste becomes one chip in the input, deletes as
+// one unit, and is sent in full.
+func TestPasteChip(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+	body := strings.Repeat("a line of a log file\n", 40)
+	h.keys("look at ")
+	h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(body), Paste: true})
+	if got := h.m.input.Value(); got != "look at [paste #1 +41 lines]" {
+		t.Fatalf("input = %q", got)
+	}
+	if !strings.Contains(plain(h.m.View()), "[paste #1 +41 lines]") {
+		t.Fatal("the chip is not shown in the input")
+	}
+	// A small paste is left alone.
+	h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(" and this"), Paste: true})
+	if got := h.m.input.Value(); got != "look at [paste #1 +41 lines] and this" {
+		t.Fatalf("small paste = %q", got)
+	}
+	for range " and this" {
+		h.update(tea.KeyMsg{Type: tea.KeyBackspace})
+	}
+	// One more backspace takes the whole chip.
+	h.update(tea.KeyMsg{Type: tea.KeyBackspace})
+	if got := h.m.input.Value(); got != "look at " {
+		t.Fatalf("backspace over the chip left %q", got)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(body), Paste: true})
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	sent := h.m.opts.Agent.Messages[0].Text()
+	if !strings.Contains(sent, body) {
+		t.Fatalf("the paste was not re-inflated on submit: %q", sent)
+	}
+	if strings.Contains(sent, "[paste #") {
+		t.Fatalf("the chip was sent verbatim: %q", sent)
+	}
+}
+
+// TestPasteNeverSubmitsItself: a paste ending in a newline must not send
+// the prompt.
+func TestPasteNeverSubmitsItself(t *testing.T) {
+	h := newHarness(t)
+	h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(strings.Repeat("x\n", 30)), Paste: true})
+	if h.m.running {
+		t.Fatal("a paste submitted the prompt")
+	}
+	if h.m.input.Value() == "" {
+		t.Fatal("the paste did not reach the input")
+	}
+}

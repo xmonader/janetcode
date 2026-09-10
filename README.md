@@ -164,6 +164,9 @@ raises a desktop notification (`JANETCODE_NOTIFY=0` turns that off); the
 tab title carries the session title, and OSC 133 marks let the terminal's
 own prev/next-prompt keys jump between turns.
 
+A paste of more than ten lines becomes a chip — `[paste #1 +123 lines]` —
+that deletes as one unit and is expanded again when you send.
+
 At a permission prompt: `y` allow once, `a` allow that tool for the session,
 `n` deny and type why (the reason goes to the model, enter skips it), `esc`
 deny silently, `c` cancel the whole turn. Destructive shell commands (recursive deletes, force pushes,
