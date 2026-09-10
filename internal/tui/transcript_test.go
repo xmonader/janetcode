@@ -189,3 +189,56 @@ func TestVerdictAndDiagnosticsAreShown(t *testing.T) {
 		t.Fatal("verdictBrief")
 	}
 }
+
+// TestStreamingWriteShowsProgress: while a write_file's input streams,
+// the line names the file and how much has arrived, instead of a raw
+// JSON prefix and "preparing write_file" for a minute.
+func TestStreamingWriteShowsProgress(t *testing.T) {
+	partial := `{"path": "/work/proj/scheme.py", "content": "#!/usr/bin/env python3\nimport sys\n\ndef main():\n    pass\n`
+	got := streamingSummary("write_file", partial, "/work/proj")
+	if !strings.HasPrefix(got, "scheme.py · writing 6 lines") || !strings.Contains(got, "so far") {
+		t.Fatalf("got %q", got)
+	}
+	if got := streamingSummary("write_file", `{"pa`, "/work/proj"); got != "…" {
+		t.Fatalf("before the path: %q", got)
+	}
+	if got := streamingSummary("bash", `{"command": "go test ./... && echo o`, ""); !strings.HasPrefix(got, "go test ./... && echo o") || !strings.HasSuffix(got, "…") {
+		t.Fatalf("bash: %q", got)
+	}
+	if got := streamingSummary("read_file", `{"path":"a"}`, ""); got != "" {
+		t.Fatalf("other tools keep the normal summary: %q", got)
+	}
+}
+
+// TestPlanUpdatesRenderAsDeltas: the first plan shows whole; a later
+// rewrite shows only the lines that changed and the tally.
+func TestPlanUpdatesRenderAsDeltas(t *testing.T) {
+	first := "[ ] design\n[ ] parse\n[ ] eval\n\n0 of 3 done"
+	second := "[>] design\n[ ] parse\n[ ] eval\n\n0 of 3 done"
+	third := "[x] design\n[>] parse\n[ ] eval\n\n1 of 3 done"
+	if planDelta("", first) != first {
+		t.Fatal("first plan shows whole")
+	}
+	if got := planDelta(first, second); got != "[>] design\n0 of 3 done" {
+		t.Fatalf("second = %q", got)
+	}
+	if got := planDelta(second, third); got != "[x] design\n[>] parse\n1 of 3 done" {
+		t.Fatalf("third = %q", got)
+	}
+	if got := planDelta(third, third); got != third {
+		t.Fatalf("unchanged plan shown whole: %q", got)
+	}
+	tr := newTranscript()
+	c1 := agent.ToolCall{ID: "1", Name: "todo"}
+	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &c1})
+	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &c1})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &c1, Output: first})
+	c2 := agent.ToolCall{ID: "2", Name: "todo"}
+	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &c2})
+	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &c2})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &c2, Output: second})
+	out := plain(tr.renderTool(tr.findTool("2"), 80, renderOpts{}))
+	if strings.Contains(out, "[ ] parse") || !strings.Contains(out, "[>] design") {
+		t.Fatalf("second plan rendered whole:\n%s", out)
+	}
+}

@@ -1398,6 +1398,14 @@ func (m *model) applyEvent(ev agent.Event) {
 		m.phase = "writing"
 	case agent.EvToolStart:
 		m.phase = "preparing " + ev.Call.Name
+	case agent.EvToolInput:
+		// Streamed input: the status says what is being written and how
+		// much, instead of "preparing write_file" for a minute.
+		if e := m.transcript.lastTool(ev.Call); e != nil && e.call.Name != "" {
+			if s := streamingSummary(e.call.Name, e.input.String(), m.opts.Cwd); s != "" && s != "…" {
+				m.phase = e.call.Name + " " + s
+			}
+		}
 	case agent.EvToolRun:
 		m.phase = "running " + ev.Call.Name
 	case agent.EvToolResult:

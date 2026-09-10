@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/charmbracelet/x/ansi"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -453,6 +454,14 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 	}
 	name := styleTool.Bold(true).Render(e.call.Name)
 	summary := summarizeInput(e.call.Name, e.inputJSON(), width-len(e.call.Name)-14, o.cwd)
+	if !e.done && !e.running && e.input.Len() > 0 {
+		// The model is still streaming the call's input. For a file write
+		// that can be a minute of silence otherwise; say what is being
+		// written and how much has arrived.
+		if s := streamingSummary(e.call.Name, e.input.String(), o.cwd); s != "" {
+			summary = s
+		}
+	}
 	sb.WriteString(icon + " " + name + " " + styleDim.Render(summary))
 	switch {
 	case e.dur != "":
@@ -485,10 +494,15 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		if e.isError {
 			max = 8
 		}
-		if e.call.Name == "todo" {
-			max = 20 // the plan is the point; show it whole
-		}
 		body, diag := splitDiagnostics(strings.TrimRight(e.output, "\n"))
+		if e.call.Name == "todo" && !o.verbose {
+			// The plan is shown whole the first time and as what changed
+			// after that: the model rewrites the whole list on every
+			// status change, and printing it whole each time reads as
+			// the same conversation repeated.
+			body = planDelta(t.previousPlan(e), body)
+			max = 20
+		}
 		out := clip(body, max)
 		style := styleFaint
 		if e.isError {
@@ -504,6 +518,92 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		}
 	}
 	return sb.String()
+}
+
+// streamingSummary describes a tool call whose input is still arriving:
+// the path, once the model has written it, and how much content so far.
+func streamingSummary(name, partial, cwd string) string {
+	path := ""
+	if m := partialPathRe.FindStringSubmatch(partial); m != nil {
+		path = relTo(cwd, m[1])
+	}
+	switch name {
+	case "write_file", "edit_file":
+		if path == "" {
+			return "…"
+		}
+		body := partial
+		if i := strings.Index(partial, `"content"`); i >= 0 {
+			body = partial[i:]
+		} else if i := strings.Index(partial, `"new_string"`); i >= 0 {
+			body = partial[i:]
+		} else if i := strings.Index(partial, `"edits"`); i >= 0 {
+			body = partial[i:]
+		} else {
+			return path
+		}
+		lines := strings.Count(body, `\n`) + 1
+		verb := "writing"
+		if name == "edit_file" {
+			verb = "editing"
+		}
+		return fmt.Sprintf("%s · %s %d lines (%s) so far", path, verb, lines, shortBytes(int64(len(body))))
+	case "bash":
+		if m := partialCommandRe.FindStringSubmatch(partial); m != nil {
+			return truncateLine(strings.ReplaceAll(m[1], `\n`, " ⏎ "), 80) + "…"
+		}
+	}
+	return ""
+}
+
+var (
+	partialPathRe    = regexp.MustCompile(`"path"\s*:\s*"((?:[^"\\]|\\.)*)"`)
+	partialCommandRe = regexp.MustCompile(`"command"\s*:\s*"((?:[^"\\]|\\.)*)`)
+)
+
+// previousPlan is the output of the last todo call before e, or "".
+func (t *transcript) previousPlan(e *entry) string {
+	for i := len(t.entries) - 1; i >= 0; i-- {
+		if t.entries[i] == e {
+			for j := i - 1; j >= 0; j-- {
+				p := t.entries[j]
+				if p.kind == entryTool && p.call.Name == "todo" && p.done && !p.isError {
+					return strings.TrimRight(p.output, "\n")
+				}
+			}
+			return ""
+		}
+	}
+	return ""
+}
+
+// planDelta shows a plan whole the first time and as its changes after
+// that: the lines that differ from the previous plan, then the tally.
+func planDelta(prev, cur string) string {
+	if prev == "" || prev == cur {
+		return cur
+	}
+	before := map[string]bool{}
+	for _, l := range strings.Split(prev, "\n") {
+		before[l] = true
+	}
+	var changed []string
+	tally := ""
+	for _, l := range strings.Split(cur, "\n") {
+		switch {
+		case strings.HasPrefix(l, "[") && !before[l]:
+			changed = append(changed, l)
+		case strings.Contains(l, " of ") && strings.HasSuffix(l, "done"):
+			tally = l
+		}
+	}
+	if len(changed) == 0 {
+		return tally
+	}
+	if tally != "" {
+		changed = append(changed, tally)
+	}
+	return strings.Join(changed, "\n")
 }
 
 // isAttachNote reports a notice about what the harness attached to the
@@ -597,6 +697,11 @@ func summarizeInput(name, raw string, max int, cwd string) string {
 	var m map[string]any
 	if json.Unmarshal([]byte(raw), &m) != nil {
 		return truncateLine(raw, max)
+	}
+	if name == "todo" {
+		if todos, ok := m["todos"].([]any); ok {
+			return fmt.Sprintf("plan · %d steps", len(todos))
+		}
 	}
 	for _, k := range []string{"command", "pattern", "path", "url", "description"} {
 		if v, ok := m[k].(string); ok {
