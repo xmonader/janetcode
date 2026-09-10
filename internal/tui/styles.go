@@ -36,7 +36,20 @@ var (
 	styleHeaderHi = lipgloss.NewStyle().Background(colHeadBg).Foreground(colAccent).Bold(true)
 	styleKey      = lipgloss.NewStyle().Foreground(colAccent).Bold(true)
 
-	styleInputBox = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(colBorder)
-	styleInputHot = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(colBorderA)
-	stylePermBox  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(colWarn).Padding(0, 1)
+	// Every box the footer can show is the same rounded border; only its
+	// colour changes, and it says whose turn it is:
+	//
+	//   accent (colBorderA)  the box is waiting for you to type: idle,
+	//                        plan mode, read-only, and the /connect dialog.
+	//   dim (colBorder)      the model has the turn; typing queues a
+	//                        message instead of sending one.
+	//   warn (colWarn)       the box is answering a warning: the permission
+	//                        prompt, and the reason for a denial.
+	//
+	// model.placeholder names the same states in words, so the border and
+	// the hint inside it never disagree.
+	styleBoxIdle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(colBorderA)
+	styleBoxBusy = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(colBorder)
+	styleBoxWarn = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(colWarn)
+	stylePermBox = styleBoxWarn.Padding(0, 1)
 )

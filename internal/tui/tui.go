@@ -306,19 +306,16 @@ func (m *model) planCommand(arg string) tea.Cmd {
 			return nil
 		}
 		ag.SetPlanMode(false)
-		m.input.Placeholder = defaultPlaceholder
 		m.transcript.info("plan approved · leaving plan mode; each step is undoable with /undo")
 		return m.submit("The plan is approved. Execute it now, step by step, in the order written. Verify each step (build, tests) before starting the next, and stop to report if a step fails or the plan turns out to be wrong.")
 	case "off", "cancel", "exit":
 		ag.SetPlanMode(false)
-		m.input.Placeholder = defaultPlaceholder
 		m.transcript.info("left plan mode without executing")
 		m.refresh(false)
 		return nil
 	}
 	if !ag.PlanMode {
 		ag.SetPlanMode(true)
-		m.input.Placeholder = "Plan mode: describe the change; the model explores and writes a plan (/plan approve runs it, /plan off leaves)"
 		m.transcript.info("plan mode ON: the model reads and searches but changes nothing; /plan approve executes the plan, /plan off leaves")
 	}
 	if arg == "" {
@@ -1096,7 +1093,7 @@ const (
 	minInputLines = 1
 	maxInputLines = 6
 
-	defaultPlaceholder = "Ask for a change, a fix, or an explanation…  (/ for commands)"
+	defaultPlaceholder = "Ask for a change, a fix, or an explanation… · / for commands"
 )
 
 func newModel(opts Options) *model {
@@ -1494,7 +1491,6 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			// Ask why so the model can adapt; enter with nothing skips.
 			m.denying = true
 			m.input.Reset()
-			m.input.Placeholder = "why? the model reads this (optional)"
 			m.phase = "waiting for your reason"
 			m.layout()
 			m.refresh(false)
@@ -1924,7 +1920,6 @@ func (m *model) answer(d agent.Decision, reason string) {
 	m.pending = nil
 	m.pendingClosedAt = time.Now()
 	m.denying = false
-	m.input.Placeholder = defaultPlaceholder
 	m.phase = "thinking"
 	m.refresh(false)
 }
@@ -3053,6 +3048,37 @@ func (m *model) contextGauge() string {
 	return style.Render(fmt.Sprintf("ctx %s %d%%", bar, pct))
 }
 
+// inputBox is the border the input box wears in the current state; the
+// comment in styles.go says what each colour means.
+func (m *model) inputBox() lipgloss.Style {
+	switch {
+	case m.denying:
+		return styleBoxWarn
+	case m.running:
+		return styleBoxBusy
+	}
+	return styleBoxIdle
+}
+
+// placeholder is the hint shown in an empty input box. It names the same
+// states the border colours in styles.go do, and is recomputed every frame
+// so no transition can leave a stale hint behind.
+func (m *model) placeholder() string {
+	switch {
+	case m.denying:
+		return "Why? the model reads this · enter sends · esc skips"
+	case m.opts.Agent.Provider == nil:
+		return "No provider yet · /connect picks one"
+	case m.running:
+		return "Type to queue a message for when this turn ends · esc cancels"
+	case m.opts.Agent.PlanMode:
+		return "Plan mode: describe the change · /plan approve runs the plan"
+	case m.opts.Agent.ReadOnly:
+		return "Read-only: the model can inspect but change nothing"
+	}
+	return defaultPlaceholder
+}
+
 func (m *model) footerView() string {
 	if m.pending != nil && !m.denying {
 		return m.permissionView()
@@ -3084,14 +3110,15 @@ func (m *model) footerView() string {
 	for i, q := range m.queued {
 		parts = append(parts, "  "+styleFaint.Render(fmt.Sprintf("queued %d ", i+1))+styleDim.Render(truncateLine(strings.ReplaceAll(q, "\n", " "), m.width-14)))
 	}
-	box := styleInputBox
-	if !m.running {
-		box = styleInputHot
-	}
+	box := m.inputBox()
 	prompt := styleAccent.Render("❯ ")
-	if m.running {
+	switch {
+	case m.denying:
+		prompt = styleWarn.Render("❯ ")
+	case m.running:
 		prompt = styleFaint.Render("❯ ")
 	}
+	m.input.Placeholder = m.placeholder()
 	lines := strings.Split(m.input.View(), "\n")
 	for i := range lines {
 		if i == 0 {

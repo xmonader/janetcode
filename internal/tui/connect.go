@@ -504,7 +504,7 @@ func (m *model) closeConnect(note string) {
 // --- rendering ---
 
 var (
-	styleDialog   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true).BorderForeground(colBorderA).Padding(0, 1)
+	styleDialog   = styleBoxIdle.Padding(0, 1) // the dialog is waiting for you: same border as an idle input box
 	styleSection  = lipgloss.NewStyle().Foreground(colFaint).Bold(true)
 	styleSelected = lipgloss.NewStyle().Foreground(colAccent).Bold(true)
 	styleTag      = lipgloss.NewStyle().Foreground(colOK)

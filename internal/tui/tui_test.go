@@ -1761,3 +1761,50 @@ func TestViewportPinning(t *testing.T) {
 	}
 	h.pump(func() bool { return !h.m.running })
 }
+
+// TestInputBoxStates covers item 5: the border colour and the placeholder
+// must agree about whose turn it is. Idle and the connect dialog are
+// accent, a running turn is dim, and a denial reason is warn like the
+// permission box it answers.
+func TestInputBoxStates(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"n.txt","content":"x\n"}`)}}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn},
+	)
+	check := func(what string, want lipgloss.Style, wantHint string) {
+		t.Helper()
+		if got := h.m.inputBox().GetBorderTopForeground(); got != want.GetBorderTopForeground() {
+			t.Errorf("%s: border = %v, want %v", what, got, want.GetBorderTopForeground())
+		}
+		if !strings.Contains(h.m.placeholder(), wantHint) {
+			t.Errorf("%s: placeholder = %q, want it to mention %q", what, h.m.placeholder(), wantHint)
+		}
+	}
+	check("idle", styleBoxIdle, defaultPlaceholder)
+	h.keys("make n.txt")
+	h.enter()
+	h.pump(func() bool { return h.m.pending != nil })
+	// The permission box takes the footer over, in the same warning colour
+	// the denial box uses.
+	if stylePermBox.GetBorderTopForeground() != styleBoxWarn.GetBorderTopForeground() {
+		t.Error("the permission box does not match the warning palette")
+	}
+	h.keys("n")
+	if !h.m.denying {
+		t.Fatal("n opens the reason prompt")
+	}
+	check("denial reason", styleBoxWarn, "Why?")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	check("back to idle", styleBoxIdle, defaultPlaceholder)
+	h.m.opts.Agent.SetPlanMode(true)
+	check("plan mode", styleBoxIdle, "Plan mode")
+	h.m.opts.Agent.SetPlanMode(false)
+	h.m.running = true
+	check("running", styleBoxBusy, "queue")
+	h.m.running = false
+	// The connect dialog is another box you type into: same accent border.
+	if styleDialog.GetBorderTopForeground() != styleBoxIdle.GetBorderTopForeground() {
+		t.Error("the connect dialog border does not match an idle input box")
+	}
+}
