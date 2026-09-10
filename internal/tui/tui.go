@@ -1132,10 +1132,11 @@ func newModel(opts Options) *model {
 	for _, c := range prompt.CustomCommands(opts.Cwd, opts.ConfigDir) {
 		m.custom["/"+c.Name] = c
 	}
-	m.transcript.banner(m.welcome())
 	if opts.Resumed > 0 {
-		m.transcript.info(fmt.Sprintf("resumed session %s · %d messages", opts.Session.Meta.ID, opts.Resumed))
+		m.transcript.banner(m.welcome(resumedLine(opts.Session.Meta.ID, opts.Resumed)))
 		m.transcript.loadHistory(opts.Agent.Messages)
+	} else {
+		m.transcript.banner(m.welcome(""))
 	}
 	return m
 }
@@ -1165,11 +1166,18 @@ func detectTheme(theme string) string {
 	return theme
 }
 
-func (m *model) welcome() string {
+// welcome is the opening banner. A resumed conversation says so on its
+// first line instead of announcing the version: the two used to stack, a
+// banner saying hello with an information line under it explaining that
+// the conversation had in fact been going for a while.
+func (m *model) welcome(resumed string) string {
 	var sb strings.Builder
-	if m.opts.Agent.Provider == nil {
+	switch {
+	case resumed != "":
+		fmt.Fprintf(&sb, "janetcode %s · %s · ", m.opts.Version, resumed)
+	case m.opts.Agent.Provider == nil:
 		fmt.Fprintf(&sb, "janetcode %s · no provider configured yet: pick one below, or set ANTHROPIC_API_KEY / OPENAI_API_KEY\n", m.opts.Version)
-	} else {
+	default:
 		fmt.Fprintf(&sb, "janetcode %s · ", m.opts.Version)
 	}
 	fmt.Fprintf(&sb, "working in %s", fitPath(shortPath(m.opts.Cwd), 60))
@@ -1188,6 +1196,11 @@ func (m *model) welcome() string {
 	sb.WriteString(" · esc cancels · /help\n")
 	sb.WriteString("@file attaches · !cmd runs and shares the output · /undo reverts a bad change")
 	return sb.String()
+}
+
+// resumedLine names a reopened session for the banner.
+func resumedLine(id string, messages int) string {
+	return fmt.Sprintf("resumed session %s · %s", id, plural(messages, "message"))
 }
 
 // startMCP launches the configured servers in the background.
@@ -2203,9 +2216,11 @@ func (m *model) command(text string) tea.Cmd {
 		m.opts.Agent.Messages = nil
 		m.opts.Agent.SetLog(sess)
 		m.opts.Agent.UndoPath = sess.UndoPath()
+		m.titleGen++ // a title generated for the old conversation must not land here
 		m.transcript = newTranscriptStyled(m.transcript.styleName)
-		m.transcript.banner(m.welcome())
+		m.transcript.banner(m.welcome(""))
 		m.transcript.info("new session " + sess.Meta.ID)
+		m.lastTurn, m.lastVerdict, m.status = "", "", ""
 		m.pinned = true
 	case "/yolo":
 		m.opts.Agent.AutoApprove = !m.opts.Agent.AutoApprove
@@ -2617,9 +2632,9 @@ func (m *model) resume(arg string) {
 	if err := m.opts.Agent.LoadUndo(); err != nil {
 		m.transcript.errorf("%v", err)
 	}
+	m.titleGen++ // a title generated for the session we just left must not land here
 	m.transcript = newTranscriptStyled(m.transcript.styleName)
-	m.transcript.banner(m.welcome())
-	m.transcript.info(fmt.Sprintf("resumed session %s · %d messages", sess.Meta.ID, len(history)))
+	m.transcript.banner(m.welcome(resumedLine(sess.Meta.ID, len(history))))
 	m.transcript.loadHistory(history)
 	m.lastTurn = ""
 	m.lastVerdict = ""

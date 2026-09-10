@@ -2049,3 +2049,56 @@ func relLuminance(hex string) float64 {
 	}
 	return out
 }
+
+// TestClearAndResumeBanners covers item 11: /clear brings the welcome
+// banner back and clears the header title, and /resume replaces the
+// welcome with a resumed banner rather than stacking one under the other.
+func TestClearAndResumeBanners(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hello back"), StopReason: llm.StopEndTurn})
+	if err := h.m.opts.Session.SetTitle("an older conversation"); err != nil {
+		t.Fatal(err)
+	}
+	h.keys("hi")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	if !strings.Contains(plain(h.m.headerView()), "an older conversation") {
+		t.Fatal("the title should be in the header to begin with")
+	}
+	old := h.m.opts.Session.Meta.ID
+
+	h.keys("/clear")
+	h.enter()
+	v := plain(h.m.View())
+	if !strings.Contains(v, "janetcode test") || !strings.Contains(v, "@file attaches") {
+		t.Errorf("the welcome banner did not come back after /clear:\n%s", v)
+	}
+	if strings.Contains(plain(h.m.headerView()), "an older conversation") {
+		t.Errorf("/clear left the old title in the header:\n%s", plain(h.m.headerView()))
+	}
+	if strings.Contains(v, "hello back") {
+		t.Errorf("/clear kept the old conversation:\n%s", v)
+	}
+
+	h.keys("/resume " + old)
+	h.enter()
+	v = plain(h.m.View())
+	if !strings.Contains(v, "resumed session "+old) {
+		t.Errorf("no resumed banner:\n%s", v)
+	}
+	if n := strings.Count(v, "janetcode test"); n != 1 {
+		t.Errorf("the resumed banner should replace the welcome, found %d banners:\n%s", n, v)
+	}
+	if !strings.Contains(v, "hello back") {
+		t.Errorf("the resumed conversation is missing:\n%s", v)
+	}
+	// Exactly one banner entry, and it is the first thing in the transcript.
+	banners := 0
+	for _, e := range h.m.transcript.entries {
+		if e.kind == entryBanner {
+			banners++
+		}
+	}
+	if banners != 1 || h.m.transcript.entries[0].kind != entryBanner {
+		t.Errorf("banners=%d, first entry kind=%v", banners, h.m.transcript.entries[0].kind)
+	}
+}
