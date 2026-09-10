@@ -971,57 +971,110 @@ func (a *tuiApprover) ApproveWithReason(ctx context.Context, call agent.ToolCall
 
 // --- slash commands ---
 
+// availability says when a command can run. Resolving an idle-only
+// command while a turn is running returns a blocked message instead of
+// each command checking m.running for itself and saying it differently.
+type availability int
+
+const (
+	availAlways availability = iota
+	availIdle                // needs the turn to finish first
+)
+
 type command struct {
 	name, args, help string
+	avail            availability
+	// argsFor lists the completions for this command's argument, when
+	// they can be enumerated.
+	argsFor func(m *model, partial string) []command
 }
 
 var commands = []command{
-	{"/help", "", "keys and commands"},
-	{"/compact", "", "summarise the conversation to free context"},
-	{"/clear", "", "start a new session"},
-	{"/resume", "[n|id]", "reopen an earlier session here: alone opens a searchable list, or name one"},
-	{"/open", "<path[:line]>", "show a file inline, centred on a line"},
-	{"/diff", "[path|revert path:n]", "changes against HEAD; a file's hunks; revert one hunk"},
-	{"/fork", "[title]", "branch this conversation into a new session and continue there"},
-	{"/title", "<text>", "name this session (titles are generated after the first turn)"},
-	{"/history", "<words>", "find earlier sessions in any directory whose conversation mentions the words"},
-	{"/find", "<text>", "jump to the next line matching text; repeat to continue"},
-	{"/stats", "", "session statistics: turns, model calls, tool calls per tool, tokens, cost"},
-	{"/undo", "[preview|n]", "revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it; n reverts one change from /changes"},
-	{"/changes", "[n]", "this session's file changes grouped by turn and intent; n shows one change's hunks"},
-	{"/blame", "<path>", "which change wrote each line of a file changed this session"},
-	{"/redo", "", "reapply what the last /undo reverted (until the next change)"},
-	{"/mcp", "[trust|auth <server>|logout <server>]", "MCP servers and their tools; trust starts the project's .mcp.json servers; auth logs in to a remote server with OAuth"},
-	{"/hooks", "[trust]", "hooks in effect; trust enables the project's .janetcode/hooks.json"},
-	{"/permissions", "[allow|deny <rule>|trust]", "permission rules; add one, or trust the project's .janetcode/permissions.json"},
-	{"/verify", "[set <cmd>|mutate <test cmd>|clear|trust]", "run the project's checks now; set adds one to .janetcode/verify.json; mutate requires tests to catch mutations of changed lines"},
-	{"/lsp", "", "language servers and the diagnostics they reported"},
-	{"/jobs", "[kill <n>]", "background commands started with bash background:true"},
-	{"/context", "", "what fills the context window: prompt, tools, messages, largest tool results"},
-	{"/todos", "", "the plan the model is working from"},
-	{"/inspect", "[subject]", "look at any part of the session: context, events, archive, retrieval, config, tools, lsp, mcp, jobs, repomap… (no subject lists them)"},
-	{"/reload", "", "rebuild the memory and skill indexes in the prompt now instead of at compaction"},
-	{"/pin", "[note or @file]", "keep a note in the system prompt for the whole session; alone lists pins"},
-	{"/unpin", "<n>", "remove a pin"},
-	{"/plan", "[request|approve|off]", "plan mode: the model explores and writes a plan; approve executes it"},
-	{"/trajectory", "[n|grep <words>]", "event ledger of this session (turn/step/tool/compaction); n shows one record"},
-	{"/feedback", "up|down [note]", "rate the last assistant message (not sent to the model)"},
-	{"/goal", "[objective|pause|resume|done]", "set a goal and start on it now; the model keeps going round after round until it is complete or blocked"},
-	{"/agents", "", "list continuable subagents started with the task tool"},
-	{"/readonly", "", "toggle read-only mode (no edits or commands)"},
-	{"/memory", "", "what janetcode remembers about this project"},
-	{"/skills", "", "skill files available to the model"},
-	{"/remember", "<fact>", "add a fact to the project memory"},
-	{"/forget", "<n>", "remove memory entry n"},
-	{"/yolo", "", "toggle auto-approve for tools"},
-	{"/edits", "", "toggle auto-accept edits: file changes go through, commands still ask"},
-	{"/settle", "", "mark this session done with (or active again); settled sessions list last in /resume"},
-	{"/connect", "", "connect to a provider (preset or custom API) and pick a model"},
-	{"/model", "[name]", "pick a model from a list, or set one by name"},
-	{"/usage", "", "tokens and cost for this session"},
-	{"/export", "[file.md]", "write this session as a Markdown transcript"},
-	{"/verbose", "", "toggle expanded tool output for the whole transcript (ctrl+o expands one turn)"},
-	{"/quit", "", "exit"},
+	{name: "/help", args: "", help: "keys and commands"},
+	{name: "/compact", args: "", help: "summarise the conversation to free context"},
+	{name: "/clear", args: "", help: "start a new session"},
+	{name: "/resume", args: "[n|id]", help: "reopen an earlier session here: alone opens a searchable list, or name one"},
+	{name: "/open", args: "<path[:line]>", help: "show a file inline, centred on a line"},
+	{name: "/diff", args: "[path|revert path:n]", help: "changes against HEAD; a file's hunks; revert one hunk"},
+	{name: "/fork", args: "[title]", help: "branch this conversation into a new session and continue there"},
+	{name: "/title", args: "<text>", help: "name this session (titles are generated after the first turn)"},
+	{name: "/history", args: "<words>", help: "find earlier sessions in any directory whose conversation mentions the words"},
+	{name: "/find", args: "<text>", help: "jump to the next line matching text; repeat to continue"},
+	{name: "/stats", args: "", help: "session statistics: turns, model calls, tool calls per tool, tokens, cost"},
+	{name: "/undo", args: "[preview|n]", help: "revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it; n reverts one change from /changes"},
+	{name: "/changes", args: "[n]", help: "this session's file changes grouped by turn and intent; n shows one change's hunks"},
+	{name: "/blame", args: "<path>", help: "which change wrote each line of a file changed this session"},
+	{name: "/redo", args: "", help: "reapply what the last /undo reverted (until the next change)"},
+	{name: "/mcp", args: "[trust|auth <server>|logout <server>]", help: "MCP servers and their tools; trust starts the project's .mcp.json servers; auth logs in to a remote server with OAuth"},
+	{name: "/hooks", args: "[trust]", help: "hooks in effect; trust enables the project's .janetcode/hooks.json"},
+	{name: "/permissions", args: "[allow|deny <rule>|trust]", help: "permission rules; add one, or trust the project's .janetcode/permissions.json"},
+	{name: "/verify", args: "[set <cmd>|mutate <test cmd>|clear|trust]", help: "run the project's checks now; set adds one to .janetcode/verify.json; mutate requires tests to catch mutations of changed lines"},
+	{name: "/lsp", args: "", help: "language servers and the diagnostics they reported"},
+	{name: "/jobs", args: "[kill <n>]", help: "background commands started with bash background:true"},
+	{name: "/context", args: "", help: "what fills the context window: prompt, tools, messages, largest tool results"},
+	{name: "/todos", args: "", help: "the plan the model is working from"},
+	{name: "/inspect", args: "[subject]", help: "look at any part of the session: context, events, archive, retrieval, config, tools, lsp, mcp, jobs, repomap… (no subject lists them)"},
+	{name: "/reload", args: "", help: "rebuild the memory and skill indexes in the prompt now instead of at compaction"},
+	{name: "/pin", args: "[note or @file]", help: "keep a note in the system prompt for the whole session; alone lists pins"},
+	{name: "/unpin", args: "<n>", help: "remove a pin"},
+	{name: "/plan", args: "[request|approve|off]", help: "plan mode: the model explores and writes a plan; approve executes it"},
+	{name: "/trajectory", args: "[n|grep <words>]", help: "event ledger of this session (turn/step/tool/compaction); n shows one record"},
+	{name: "/feedback", args: "up|down [note]", help: "rate the last assistant message (not sent to the model)"},
+	{name: "/goal", args: "[objective|pause|resume|done]", help: "set a goal and start on it now; the model keeps going round after round until it is complete or blocked"},
+	{name: "/agents", args: "", help: "list continuable subagents started with the task tool"},
+	{name: "/readonly", args: "", help: "toggle read-only mode (no edits or commands)"},
+	{name: "/memory", args: "", help: "what janetcode remembers about this project"},
+	{name: "/skills", args: "", help: "skill files available to the model"},
+	{name: "/remember", args: "<fact>", help: "add a fact to the project memory"},
+	{name: "/forget", args: "<n>", help: "remove memory entry n"},
+	{name: "/yolo", args: "", help: "toggle auto-approve for tools"},
+	{name: "/edits", args: "", help: "toggle auto-accept edits: file changes go through, commands still ask"},
+	{name: "/settle", args: "", help: "mark this session done with (or active again); settled sessions list last in /resume"},
+	{name: "/connect", args: "", help: "connect to a provider (preset or custom API) and pick a model"},
+	{name: "/model", args: "[name]", help: "pick a model from a list, or set one by name"},
+	{name: "/usage", args: "", help: "tokens and cost for this session"},
+	{name: "/export", args: "[file.md]", help: "write this session as a Markdown transcript"},
+	{name: "/verbose", args: "", help: "toggle expanded tool output for the whole transcript (ctrl+o expands one turn)"},
+	{name: "/quit", args: "", help: "exit"},
+}
+
+// idleOnly names the commands that cannot run while a turn is: they swap
+// the conversation or the backend under the turn's feet. Resolving one
+// mid-turn is blocked with one message, in one place.
+var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo"}
+
+// argCompleters lists the commands whose argument can be enumerated.
+var argCompleters = map[string]func(m *model, partial string) []command{
+	"/resume": (*model).completeSession,
+	"/model":  (*model).completeModel,
+	"/forget": (*model).completeMemory,
+	"/undo":   (*model).completeUndo,
+	"/open":   (*model).completeFile,
+	"/diff":   (*model).completeFile,
+}
+
+func init() {
+	idle := map[string]bool{}
+	for _, n := range idleOnly {
+		idle[n] = true
+	}
+	for i := range commands {
+		c := &commands[i]
+		if idle[c.name] {
+			c.avail = availIdle
+		}
+		c.argsFor = argCompleters[c.name]
+	}
+}
+
+// lookup finds a built-in command by name.
+func lookup(name string) (command, bool) {
+	for _, c := range commands {
+		if c.name == name {
+			return c, true
+		}
+	}
+	return command{}, false
 }
 
 // --- model ---
@@ -1086,6 +1139,7 @@ type model struct {
 	custom         map[string]prompt.Custom // user-defined slash commands
 	clipboard      func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
 	compIdx        int                      // highlighted row of the completion menu
+	compArgs       bool                     // the menu is offering arguments, not commands
 	compFor        string                   // input value the highlight belongs to
 	lastFind       string                   // last /find query, for repeats
 	lastFindAt     int                      // line of the last hit, so repeats advance past it
@@ -1746,7 +1800,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		return nil, false
 	case "enter":
-		if c, idx := m.menu(); len(c) > 0 && strings.TrimSpace(m.input.Value()) != c[idx].name {
+		if c, idx := m.menu(); len(c) > 0 && !m.compArgs && strings.TrimSpace(m.input.Value()) != c[idx].name {
 			m.complete()
 			m.layout()
 			m.refresh(false)
@@ -1856,15 +1910,27 @@ func (m *model) completions() []command {
 	if m.connect != nil || m.picker != nil {
 		return nil
 	}
+	m.compArgs = false
 	v := m.input.Value()
 	if strings.HasPrefix(v, "/") && !strings.ContainsAny(v, " \n") {
-		var out []command
+		var exact, fuzzy []command
 		for _, c := range m.allCommands() {
-			if strings.HasPrefix(c.name, v) {
-				out = append(out, c)
+			switch {
+			case strings.HasPrefix(c.name, v):
+				exact = append(exact, c)
+			case fuzzyCommand(c.name, v):
+				fuzzy = append(fuzzy, c)
 			}
 		}
-		return out
+		return append(exact, fuzzy...)
+	}
+	if name, arg, ok := strings.Cut(v, " "); ok && strings.HasPrefix(name, "/") && !strings.Contains(arg, "\n") {
+		if c, found := lookup(name); found && c.argsFor != nil {
+			// An argument menu offers; it never takes enter, so a typed
+			// argument still runs the command the moment you send it.
+			m.compArgs = true
+			return c.argsFor(m, strings.TrimLeft(arg, " "))
+		}
 	}
 	if word, ok := mentionAtEnd(v); ok {
 		var out []command
@@ -2331,9 +2397,8 @@ func friendlyError(err error, provider string) string {
 func (m *model) command(text string) tea.Cmd {
 	fields := strings.Fields(text)
 	if m.running {
-		switch fields[0] {
-		case "/clear", "/new", "/resume", "/compact", "/fork", "/connect":
-			m.transcript.errorf("wait for the current turn to finish before %s (esc cancels it)", fields[0])
+		if c, ok := lookup(fields[0]); ok && c.avail == availIdle {
+			m.transcript.errorf("%s waits for the turn to finish (esc cancels it, ctrl+s steers it)", fields[0])
 			m.refresh(false)
 			return nil
 		}
@@ -2515,10 +2580,6 @@ func (m *model) command(text string) tea.Cmd {
 		m.find(q)
 		return nil
 	case "/resume", "/sessions":
-		if m.running {
-			m.transcript.errorf("wait for the current turn to finish before switching sessions")
-			break
-		}
 		if len(fields) < 2 {
 			return m.openSessionPicker()
 		}
@@ -2763,6 +2824,7 @@ func (m *model) helpText() string {
 	var sb strings.Builder
 	sb.WriteString("keys\n")
 	sb.WriteString("  enter send · ctrl+j / alt+enter newline · up/down recall prompts, or move in an open menu · tab/enter accept a menu row\n")
+	sb.WriteString("  /command names match on their letters in order (/rsm finds /resume) · tab completes the argument of /resume, /model, /forget, /undo, /open and /diff\n")
 	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, or when idle twice to quit · ctrl+d quit\n")
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand the last turn (again folds it) · click a tool line or a thought to fold or unfold it · /verbose does the whole transcript · ctrl+l redraw\n")
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends · ctrl+s hands it to the running turn instead · up takes the last queued one back · esc cancels and gives them all back\n")
@@ -3748,4 +3810,134 @@ func (m *model) restoreQueued() {
 	m.input.CursorEnd()
 	m.layout()
 	m.refresh(false)
+}
+
+// fuzzyCommand matches a command name against what has been typed so far
+// as a subsequence, so "/mcpa" finds /mcp__auth and "/rsm" finds /resume.
+// The query is split on "/" first: the separator in a namespaced command
+// is part of its shape, not a letter to match.
+func fuzzyCommand(name, query string) bool {
+	n := strings.ToLower(strings.TrimPrefix(name, "/"))
+	for _, part := range strings.Split(strings.ToLower(strings.TrimPrefix(query, "/")), "/") {
+		if part == "" {
+			continue
+		}
+		i := 0
+		for _, r := range part {
+			j := strings.IndexRune(n[i:], r)
+			if j < 0 {
+				return false
+			}
+			i += j + 1
+		}
+	}
+	return query != "/"
+}
+
+// --- argument completion ---
+//
+// Where a command's argument comes from a list the harness already has —
+// the sessions here, the models configured, what is remembered, the
+// changes this session made, the files in the tree — tab offers it rather
+// than making the user go and look it up.
+
+func (m *model) completeSession(partial string) []command {
+	if m.opts.Session == nil {
+		return nil
+	}
+	infos, err := session.List(dirOf(m.opts.Session), m.opts.Cwd)
+	if err != nil {
+		return nil
+	}
+	var out []command
+	n := 0
+	for _, in := range infos {
+		if in.Meta.ID == m.opts.Session.Meta.ID || in.Messages == 0 {
+			continue
+		}
+		n++
+		name := "/resume " + in.Meta.ID
+		if partial != "" && !strings.Contains(strings.ToLower(in.Meta.ID+" "+in.Label()), strings.ToLower(partial)) {
+			continue
+		}
+		out = append(out, command{name: name, args: shortAge(time.Since(in.Updated)), help: plural(in.Messages, "msg") + " · " + in.Label()})
+		if len(out) >= 20 {
+			break
+		}
+	}
+	return out
+}
+
+func (m *model) completeModel(partial string) []command {
+	if m.opts.Config == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []command
+	for _, n := range m.opts.Config.ProviderNames() {
+		p := m.opts.Config.Providers[n]
+		if p.Model == "" || seen[p.Model] {
+			continue
+		}
+		seen[p.Model] = true
+		if partial != "" && !strings.Contains(strings.ToLower(p.Model), strings.ToLower(partial)) {
+			continue
+		}
+		out = append(out, command{name: "/model " + p.Model, help: "configured for " + n})
+	}
+	return out
+}
+
+func (m *model) completeMemory(partial string) []command {
+	if m.opts.Memory == nil {
+		return nil
+	}
+	var out []command
+	for _, e := range m.opts.Memory.Entries() {
+		if partial != "" && !strings.Contains(strings.ToLower(e.Name), strings.ToLower(partial)) {
+			continue
+		}
+		out = append(out, command{name: "/forget " + e.Name, help: e.Description})
+	}
+	return out
+}
+
+func (m *model) completeUndo(partial string) []command {
+	out := []command{{name: "/undo preview", help: "list what would be reverted"}}
+	if m.opts.Agent == nil {
+		return out
+	}
+	for i, c := range m.opts.Agent.Changes() {
+		if c.Undone {
+			continue
+		}
+		out = append(out, command{name: fmt.Sprintf("/undo %d", i+1), help: m.relPath(c.Path)})
+	}
+	if partial == "" {
+		return out
+	}
+	var hit []command
+	for _, c := range out {
+		if strings.Contains(c.name+" "+c.help, partial) {
+			hit = append(hit, c)
+		}
+	}
+	return hit
+}
+
+// completeFile offers paths for the commands that take one.
+func (m *model) completeFile(partial string) []command {
+	name := "/open "
+	if strings.HasPrefix(m.input.Value(), "/diff") {
+		name = "/diff "
+	}
+	var out []command
+	for _, p := range prompt.CompletePath(m.opts.Cwd, partial) {
+		help := "file"
+		if strings.HasSuffix(p, "/") {
+			help = "directory"
+		}
+		out = append(out, command{name: name + p, help: help})
+	}
+	return out
 }

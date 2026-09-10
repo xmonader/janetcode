@@ -2539,3 +2539,49 @@ func (b *heldOpen) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	}
 	return b.inner.Stream(ctx, req, emit)
 }
+
+// TestCommandAvailabilityAndArgumentCompletion: an idle-only command
+// resolved mid-turn is blocked with one message; arguments that can be
+// enumerated are offered; and fuzzy matching finds a command from its
+// letters.
+func TestCommandAvailabilityAndArgumentCompletion(t *testing.T) {
+	if c, ok := lookup("/compact"); !ok || c.avail != availIdle {
+		t.Fatal("/compact should be idle-only")
+	}
+	if c, ok := lookup("/help"); !ok || c.avail != availAlways {
+		t.Fatal("/help should always be available")
+	}
+	block := make(chan struct{})
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+	h.m.opts.Agent.Provider = &heldOpen{until: block, inner: h.m.opts.Agent.Provider}
+	h.keys("go")
+	h.enter()
+	h.keys("/compact")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "/compact waits for the turn to finish") {
+		t.Fatalf("no blocked message:\n%s", v)
+	}
+	close(block)
+	h.pump(func() bool { return !h.m.running })
+
+	// Fuzzy matching: the letters in order, and a "/" in the query splits.
+	if !fuzzyCommand("/resume", "/rsm") || !fuzzyCommand("/permissions", "/prms") {
+		t.Fatal("fuzzy match failed")
+	}
+	if fuzzyCommand("/resume", "/xyz") {
+		t.Fatal("fuzzy match too loose")
+	}
+	h.m.input.SetValue("/rsm")
+	if c := h.m.completions(); len(c) == 0 || c[0].name != "/resume" {
+		t.Fatalf("fuzzy completion = %+v", c)
+	}
+	// Argument completion, and enter still runs a typed argument.
+	h.m.input.SetValue("/undo ")
+	c := h.m.completions()
+	if len(c) == 0 || c[0].name != "/undo preview" {
+		t.Fatalf("/undo completions = %+v", c)
+	}
+	if !h.m.compArgs {
+		t.Fatal("an argument menu should be marked as one")
+	}
+}

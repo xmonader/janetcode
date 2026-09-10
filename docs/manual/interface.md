@@ -13,6 +13,8 @@ grows with your text.
 ```
 enter            send        ctrl+j / alt+enter   newline
 up / down        recall earlier prompts          tab   complete a /command
+                 or its argument (/resume, /model, /forget, /undo, /open, /diff);
+                 a name matches on its letters in order, so /rsm finds /resume
 esc              cancel the running turn (or clear the input)
 ctrl+o           expand the last turn's output   ctrl+l   redraw
                  (again folds it; click a tool
