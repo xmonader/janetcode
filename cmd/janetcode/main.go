@@ -137,7 +137,7 @@ Flags:
 `, version)
 		isEval := func(name string) bool { return name == "eval" || strings.HasPrefix(name, "eval-") }
 		printFlags(fs, func(f *flag.Flag) bool { return !isEval(f.Name) })
-		fmt.Fprintf(fs.Output(), "\nEval and benchmark flags (see the Evals section of the README):\n")
+		fmt.Fprintf(fs.Output(), "\nEval and benchmark flags (see docs/manual/evals.md):\n")
 		printFlags(fs, func(f *flag.Flag) bool { return isEval(f.Name) })
 		fmt.Fprintf(fs.Output(), `
 Environment: ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL
