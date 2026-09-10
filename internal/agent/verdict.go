@@ -134,6 +134,13 @@ var checkRe = regexp.MustCompile(`(?i)(test|spec|pytest|jest|vitest|mocha|rspec|
 // isCheck reports whether a shell command is checking something.
 func isCheck(cmd string) bool { return cmd != "" && checkRe.MatchString(cmd) }
 
+// inlineAssertRe matches a command that carries its own assertions — a
+// `python -c "... assert ..."` or a `node -e` written for the occasion.
+// Passing, it is evidence of the same kind as a test file written in the
+// same turn: the code meets checks the model wrote, not checks that were
+// already there.
+var inlineAssertRe = regexp.MustCompile(`(?i)\bassert\w*\b`)
+
 // ranEdited reports whether a command executes a file edited in this
 // turn — running the script you just wrote. It is evidence the code at
 // least executes, which is not nothing and is not a test either.
@@ -184,7 +191,7 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 	failedBefore := map[string]bool{}
 	var lastText string
 	testsEdited := map[string]bool{}
-	ranTests, foundNothing, ranTheCode := false, false, false
+	ranTests, foundNothing, ranTheCode, selfAsserted := false, false, false, false
 	// Commands seen in this turn, replayed once the edits are known so a
 	// command naming an edited file counts however the two were ordered.
 	var turnCmds []struct {
@@ -241,6 +248,8 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 					ranTests = true
 				} else if nothing {
 					foundNothing = true
+				} else if inlineAssertRe.MatchString(cmd) {
+					selfAsserted = true
 				}
 				if failedBefore[cmd] {
 					o.Flipped = true
@@ -289,6 +298,11 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 	case ranTests:
 		o.Verdict = VerdictVerified
 		o.Why = fmt.Sprintf("%d file(s) edited and tests ran and passed afterwards", o.Edited)
+	case selfAsserted:
+		// Assertions the model wrote and ran in the same turn passed.
+		// Weaker than the project's own tests, stronger than "it ran".
+		o.Verdict = VerdictSelfChecked
+		o.Why = fmt.Sprintf("%d file(s) edited and assertions written in the same turn passed; nothing already in the project checked it", o.Edited)
 	case foundNothing:
 		o.Verdict = VerdictVacuous
 		o.Why = "a check passed having found no tests to run, so it shows nothing"

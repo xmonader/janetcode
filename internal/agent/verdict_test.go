@@ -374,3 +374,30 @@ func TestSelfCheckedIsACaveatNotAnAlarm(t *testing.T) {
 		t.Fatalf("line = %q", o.Line())
 	}
 }
+
+// TestInlineAssertionsAreSelfChecked: a model that writes ini.py and then
+// runs `python3 -c "... assert ..."` scripts against the spec, all
+// passing, has checked its work — with checks it wrote. That is the
+// self-checked verdict, not "nothing asserted the result", which is what
+// it was called before and what sent it back to work for no reason.
+func TestInlineAssertionsAreSelfChecked(t *testing.T) {
+	o := FoldOutcome([]session.Event{
+		result(1, "write_file", `{"path":"ini.py"}`, "ok", false),
+		result(1, "bash", `{"command":"python3 -c 'from ini import parse; assert parse(\"[a]\\nx=1\") == {\"a\": {\"x\": 1}}; print(\"All tests passed!\")'"}`, "All tests passed!\n[exit code 0]", false),
+		say(1, "Done."),
+	}, 1)
+	if o.Verdict != VerdictSelfChecked {
+		t.Fatalf("verdict = %q (%s)", o.Verdict, o.Why)
+	}
+	if !o.OK() || o.Overclaimed() {
+		t.Fatalf("passing self-written assertions is not a failure or an overclaim: %+v", o)
+	}
+	// Running the file with no assertion in it is still only "executed".
+	o = FoldOutcome([]session.Event{
+		result(1, "write_file", `{"path":"ini.py"}`, "ok", false),
+		result(1, "bash", `{"command":"python3 ini.py"}`, "\n[exit code 0]", false),
+	}, 1)
+	if o.Verdict != VerdictNotDemonstrated {
+		t.Fatalf("verdict = %q", o.Verdict)
+	}
+}

@@ -87,7 +87,8 @@ func TestList(t *testing.T) {
 	dir := t.TempDir()
 	a, _ := New(dir, "/a", "p", "m")
 	put(t, a, llm.TextMessage(llm.RoleUser, "fix the build\nplease"), llm.TextMessage(llm.RoleAssistant, "ok"))
-	New(dir, "/b", "p", "m")
+	b, _ := New(dir, "/b", "p", "m")
+	put(t, b, llm.TextMessage(llm.RoleUser, "hello"))
 	infos, err := List(dir, "/a")
 	if err != nil || len(infos) != 1 || infos[0].Messages != 2 || infos[0].Preview != "fix the build" {
 		t.Fatalf("infos=%+v err=%v", infos, err)
@@ -106,8 +107,9 @@ func TestLatestAndInvalidID(t *testing.T) {
 		t.Fatalf("empty dir: %q %v", id, err)
 	}
 	a, _ := New(dir, "/a", "p", "m")
+	put(t, a, llm.TextMessage(llm.RoleUser, "a"))
 	b, _ := New(dir, "/b", "p", "m")
-	_ = a
+	put(t, b, llm.TextMessage(llm.RoleUser, "b"))
 	id, err := Latest(dir, "/b")
 	if err != nil || id != b.Meta.ID {
 		t.Fatalf("latest = %q err=%v", id, err)
@@ -187,5 +189,40 @@ func TestForkTitleAndSearch(t *testing.T) {
 	}
 	if hits, _ := Search(dir, "", "nothing-here", 10); len(hits) != 0 {
 		t.Fatal("phantom hit")
+	}
+}
+
+// TestEmptySessionLeavesNoFile: a session that never records an event —
+// a start with no key, a TUI opened and closed — leaves nothing on disk
+// and nothing in the list; the first event creates the file with its
+// header, and a title set before any event does too.
+func TestEmptySessionLeavesNoFile(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir, "/w", "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(s.Path()); !os.IsNotExist(err) {
+		t.Fatalf("file exists before any event: %v", err)
+	}
+	if infos, _ := List(dir, "/w"); len(infos) != 0 {
+		t.Fatalf("listed an empty session: %+v", infos)
+	}
+	put(t, s, llm.TextMessage(llm.RoleUser, "hi"))
+	if _, err := os.Stat(s.Path()); err != nil {
+		t.Fatalf("file missing after the first event: %v", err)
+	}
+	if _, msgs, err := Open(dir, s.Meta.ID); err != nil || len(msgs) != 1 {
+		t.Fatalf("reopen: %v %d", err, len(msgs))
+	}
+	if infos, _ := List(dir, "/w"); len(infos) != 1 {
+		t.Fatalf("list = %+v", infos)
+	}
+	t2, _ := New(dir, "/w", "p", "m")
+	if err := t2.SetTitle("named first"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(t2.Path()); err != nil {
+		t.Fatalf("a title must create the file: %v", err)
 	}
 }

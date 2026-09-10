@@ -49,8 +49,10 @@ type eventLine struct {
 // metadata line is ever rewritten. Append is called from the parallel tool
 // goroutines of a turn, so the log is guarded by a mutex.
 type Session struct {
-	Meta Meta
-	path string
+	// unwritten is set until the first event or rewrite creates the file.
+	unwritten bool
+	Meta      Meta
+	path      string
 
 	mu      sync.Mutex
 	ev      []Event
@@ -83,14 +85,14 @@ func New(dir, cwd, provider, model string) (*Session, error) {
 		return nil, err
 	}
 	id := time.Now().UTC().Format("20060102-150405") + "-" + randSuffix()
-	s := &Session{
-		Meta: Meta{ID: id, Cwd: cwd, Provider: provider, Model: model, Created: time.Now().UTC()},
-		path: filepath.Join(dir, id+".jsonl"),
-	}
-	if err := s.rewrite(); err != nil {
-		return nil, err
-	}
-	return s, nil
+	// The file is written with the first event, not here: a start that
+	// never gets to a prompt — no key, a bad key, a TUI opened and closed
+	// — would otherwise leave an empty session in the list every time.
+	return &Session{
+		Meta:      Meta{ID: id, Cwd: cwd, Provider: provider, Model: model, Created: time.Now().UTC()},
+		path:      filepath.Join(dir, id+".jsonl"),
+		unwritten: true,
+	}, nil
 }
 
 func randSuffix() string {
@@ -267,6 +269,11 @@ func (s *Session) Events() []Event {
 func (s *Session) Append(e Event) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.unwritten {
+		if err := s.rewriteLocked(); err != nil {
+			return 0, err
+		}
+	}
 	if e.Seq == 0 {
 		s.nextSeq++
 		e.Seq = s.nextSeq
@@ -478,6 +485,12 @@ func (s *Session) SavePins(pins []string) error {
 func (s *Session) rewrite() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.rewriteLocked()
+}
+
+// rewriteLocked is rewrite for a caller already holding s.mu.
+func (s *Session) rewriteLocked() error {
+	s.unwritten = false
 	tmp := s.path + ".tmp"
 	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {

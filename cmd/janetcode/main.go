@@ -56,6 +56,30 @@ func main() {
 	}
 }
 
+// printFlags is flag.PrintDefaults for the flags keep selects, so the
+// help can show the everyday flags apart from the eval ones.
+func printFlags(fs *flag.FlagSet, keep func(*flag.Flag) bool) {
+	fs.VisitAll(func(f *flag.Flag) {
+		if !keep(f) {
+			return
+		}
+		name, usage := flag.UnquoteUsage(f)
+		line := "  -" + f.Name
+		if name != "" {
+			line += " " + name
+		}
+		line += "\n    \t" + strings.ReplaceAll(usage, "\n", "\n    \t")
+		if f.DefValue != "" && f.DefValue != "false" && f.DefValue != "0" {
+			if name == "string" {
+				line += fmt.Sprintf(" (default %q)", f.DefValue)
+			} else {
+				line += fmt.Sprintf(" (default %s)", f.DefValue)
+			}
+		}
+		fmt.Fprintln(fs.Output(), line)
+	})
+}
+
 func run(args []string) error {
 	fs := flag.NewFlagSet("janetcode", flag.ContinueOnError)
 	fs.Usage = func() {
@@ -67,12 +91,16 @@ Usage: janetcode [flags] [prompt]   interactive session in the current directory
 
 Flags:
 `, version)
-		fs.PrintDefaults()
+		isEval := func(name string) bool { return name == "eval" || strings.HasPrefix(name, "eval-") }
+		printFlags(fs, func(f *flag.Flag) bool { return !isEval(f.Name) })
+		fmt.Fprintf(fs.Output(), "\nEval and benchmark flags (see the Evals section of the README):\n")
+		printFlags(fs, func(f *flag.Flag) bool { return isEval(f.Name) })
 		fmt.Fprintf(fs.Output(), `
 Environment: ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL
              (a key may be a comma-separated list; they are rotated on rate limits),
              JANETCODE_PROVIDER, JANETCODE_MODEL, JANETCODE_EFFORT, JANETCODE_THEME
-             JANETCODE_OFF=<names> disables behaviours for a session (see -eval-off)\n             JANETCODE_DEBUG=<file> appends a timestamped event log
+             JANETCODE_OFF=<names> disables behaviours for a session (see -eval-off)
+             JANETCODE_DEBUG=<file> appends a timestamped event log
 Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode/config.json)
 `)
 	}
