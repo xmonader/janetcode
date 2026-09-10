@@ -143,3 +143,38 @@ func shortInt(n int) string {
 	}
 	return fmt.Sprint(n)
 }
+
+// cacheWasteFloor is how much a single turn must have paid twice before
+// it is worth interrupting the reader about. A few thousand tokens are
+// breakpoint granularity; twenty thousand is money.
+const cacheWasteFloor = 20_000
+
+// TurnCacheWaste is what the turn that just ended paid for a second time
+// although the turn before had it cached: the tokens, the largest single
+// cause, and how long the session had been idle. It reports zero when
+// there is nothing worth saying.
+func (a *Agent) TurnCacheWaste() (tokens int, cause string, idle time.Duration) {
+	a.usageMu.Lock()
+	defer a.usageMu.Unlock()
+	byCause := map[string]int{}
+	for _, m := range a.cache.misses {
+		if m.Turn != a.turnN {
+			continue
+		}
+		tokens += m.Tokens
+		byCause[m.Cause] += m.Tokens
+		if m.Idle > idle {
+			idle = m.Idle
+		}
+	}
+	if tokens < cacheWasteFloor {
+		return 0, "", 0
+	}
+	best := 0
+	for c, n := range byCause {
+		if n > best {
+			best, cause = n, c
+		}
+	}
+	return tokens, cause, idle
+}

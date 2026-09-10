@@ -80,3 +80,27 @@ func TestCacheReport(t *testing.T) {
 		}
 	}
 }
+
+// TestTurnCacheWasteReportsTheBigOnes: a turn that paid twice for a large
+// prefix is reported with its cause; a small difference is not.
+func TestTurnCacheWasteReportsTheBigOnes(t *testing.T) {
+	a := &Agent{Model: "m"}
+	a.turnN = 1
+	now := time.Now()
+	a.cache.record(llm.Usage{InputTokens: 1000, CacheReadTokens: 50_000}, "m", 1, now, false)
+	// Ten minutes later the prefix has expired: the whole of it is billed.
+	a.cache.record(llm.Usage{InputTokens: 51_000}, "m", 1, now.Add(10*time.Minute), false)
+	n, cause, idle := a.TurnCacheWaste()
+	if n < 20_000 {
+		t.Fatalf("waste = %d", n)
+	}
+	if !strings.Contains(cause, "idle") || idle < 9*time.Minute {
+		t.Fatalf("cause = %q idle = %s", cause, idle)
+	}
+	// A later turn with a healthy cache reports nothing.
+	a.turnN = 2
+	a.cache.record(llm.Usage{InputTokens: 100, CacheReadTokens: 51_000}, "m", 2, now.Add(10*time.Minute), false)
+	if n, _, _ := a.TurnCacheWaste(); n != 0 {
+		t.Fatalf("a healthy turn reported %d", n)
+	}
+}

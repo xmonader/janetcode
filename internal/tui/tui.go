@@ -2353,6 +2353,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 			}
 		}
 	}
+	m.reportCacheWaste()
 	m.steering = nil
 	m.term.turnEnded(msg.err == nil, m.status)
 	if msg.err == nil && len(m.queued) == 0 {
@@ -4021,4 +4022,23 @@ func (m *model) toolRenderer(name string) (tool.Renderer, bool) {
 	}
 	r, ok := t.(tool.Renderer)
 	return r, ok
+}
+
+// reportCacheWaste says when a turn paid a second time for a prefix the
+// turn before had cached. It is invisible otherwise: the turn works, the
+// answer is right, and the bill is several times larger.
+func (m *model) reportCacheWaste() {
+	n, cause, idle := m.opts.Agent.TurnCacheWaste()
+	if n == 0 {
+		return
+	}
+	head := "cache miss"
+	if idle > time.Minute {
+		head += " after " + shortDuration(idle.Round(time.Minute)) + " idle"
+	}
+	line := fmt.Sprintf("%s: %s tokens re-billed", head, shortTokens(n))
+	if usd, ok := (llm.Usage{InputTokens: n}).Cost(m.opts.Agent.Price); ok {
+		line += " (~" + llm.FormatUSD(usd) + ")"
+	}
+	m.transcript.info(noteNotice + line + " · " + cause)
 }
