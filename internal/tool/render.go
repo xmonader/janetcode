@@ -169,10 +169,23 @@ func StripEditWindow(out string) string {
 	if strings.HasPrefix(tail, "(the change spans lines ") {
 		return out[:i]
 	}
+	// The window may be followed by a note the harness appended — the
+	// language server's verdict, or why there was none. That note is kept;
+	// anything else means this is not a window and nothing is dropped.
+	var keep []string
+	numbered := false
 	for _, l := range strings.Split(tail, "\n") {
-		if !numberedLine.MatchString(l) {
+		switch {
+		case numberedLine.MatchString(l):
+			numbered = true
+		case strings.HasPrefix(l, "["), strings.TrimSpace(l) == "":
+			keep = append(keep, l)
+		default:
 			return out
 		}
 	}
-	return out[:i]
+	if !numbered {
+		return out
+	}
+	return strings.TrimRight(strings.TrimRight(out[:i], "\n")+"\n"+strings.Join(keep, "\n"), "\n")
 }
