@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/xmonader/janetcode/internal/agent"
@@ -226,6 +228,7 @@ func TestEscCancelsRunningTurn(t *testing.T) {
 	if _, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC}); cmd != nil || h.m.input.Value() != "" {
 		t.Fatalf("ctrl+c should clear the input first: cmd=%v value=%q", cmd, h.m.input.Value())
 	}
+	// The clear armed the quit, so the next press within the window quits.
 	_, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if cmd == nil {
 		t.Fatal("ctrl+c when idle should quit")
@@ -1166,7 +1169,7 @@ func TestPermissionPromptRuleKeySavesRule(t *testing.T) {
 	h.keys("write it")
 	h.enter()
 	h.pump(func() bool { return h.m.pending != nil })
-	if v := plain(h.m.View()); !strings.Contains(v, "save rule write_file(docs/*)") {
+	if v := plain(h.m.View()); !strings.Contains(v, "rule write_file(docs/*)") {
 		t.Fatalf("prompt view:\n%s", v)
 	}
 	h.keys("r")
@@ -1603,5 +1606,71 @@ func TestReadlineKeysEditTheInput(t *testing.T) {
 	h.update(tea.KeyMsg{Type: tea.KeyCtrlK})
 	if got := h.m.input.Value(); got != "" {
 		t.Fatalf("after ctrl+a ctrl+k: %q", got)
+	}
+}
+
+// TestFitPathKeepsTheTail: a path that does not fit loses leading
+// components, not the middle of a directory name.
+func TestFitPathKeepsTheTail(t *testing.T) {
+	p := "/tmp/claude-1000/dd12e125-65a6-415a-b19b-31de5e8c912b/scratchpad/tuiproj"
+	if got := fitPath(p, 40); got != "…/scratchpad/tuiproj" {
+		t.Fatalf("got %q", got)
+	}
+	if got := fitPath(p, 12); got != "…/tuiproj" {
+		t.Fatalf("got %q", got)
+	}
+	if got := fitPath("/a/b", 40); got != "/a/b" {
+		t.Fatalf("fits unchanged: %q", got)
+	}
+}
+
+// TestStrayApprovalKeyIsNotAPrompt: a lone "y" typed just after a
+// permission prompt closed was meant for the prompt; it must not become
+// a turn of the model guessing what "y" means.
+func TestStrayApprovalKeyIsNotAPrompt(t *testing.T) {
+	h := newHarness(t)
+	h.m.pendingClosedAt = time.Now()
+	h.keys("y")
+	h.enter()
+	if h.m.running || h.m.input.Value() != "" || !strings.Contains(h.m.status, "stray") {
+		t.Fatalf("running=%v input=%q status=%q", h.m.running, h.m.input.Value(), h.m.status)
+	}
+	// Long after the prompt, "y" is just a prompt like any other.
+	h.m.pendingClosedAt = time.Now().Add(-time.Minute)
+	h.keys("y")
+	h.enter()
+	if !h.m.running {
+		t.Fatal("a y typed long after the prompt should be sent")
+	}
+}
+
+// TestCtrlCWhenIdleArmsFirst: one ctrl+c when idle says "again to quit";
+// the second within the window quits; after the window it arms again.
+func TestCtrlCWhenIdleArmsFirst(t *testing.T) {
+	h := newHarness(t)
+	if _, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC}); cmd != nil || !strings.Contains(h.m.status, "again to quit") {
+		t.Fatalf("first press should arm: cmd=%v status=%q", cmd, h.m.status)
+	}
+	if _, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC}); cmd == nil {
+		t.Fatal("second press should quit")
+	}
+	h2 := newHarness(t)
+	h2.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	h2.m.quitArmedAt = time.Now().Add(-time.Minute)
+	if _, cmd := h2.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC}); cmd != nil {
+		t.Fatal("a press after the window should arm again, not quit")
+	}
+}
+
+// TestPermissionKeysFitOneLine: the keys line never exceeds the width,
+// whatever the rule's length.
+func TestPermissionKeysFitOneLine(t *testing.T) {
+	h := newHarness(t)
+	for _, w := range []int{60, 80, 110, 200} {
+		h.m.width = w
+		line := plain(h.m.permissionKeys("edit_file", "edit_file(/tmp/claude-1000/-home-driver-wspace-janetcode/dd12e125-65a6-415a-b19b-31de5e8c912b/scratchpad/tuiproj/*)"))
+		if lipgloss.Width(line) > w-6 || !strings.Contains(line, "n") {
+			t.Fatalf("width %d: %d cols: %q", w, lipgloss.Width(line), line)
+		}
 	}
 }

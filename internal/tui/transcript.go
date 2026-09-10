@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/charmbracelet/x/ansi"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -66,6 +67,7 @@ type renderOpts struct {
 	pending *permissionMsg
 	spinner string // current spinner frame for running tools
 	verbose bool   // expand tool output
+	cwd     string // paths in tool lines are shown relative to it
 }
 
 // transcript is the ordered list of things shown in the viewport.
@@ -431,7 +433,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		icon = styleAccent.Render("▶")
 	}
 	name := styleTool.Bold(true).Render(e.call.Name)
-	summary := summarizeInput(e.call.Name, e.inputJSON(), width-len(e.call.Name)-14)
+	summary := summarizeInput(e.call.Name, e.inputJSON(), width-len(e.call.Name)-14, o.cwd)
 	sb.WriteString(icon + " " + name + " " + styleDim.Render(summary))
 	switch {
 	case e.dur != "":
@@ -484,10 +486,7 @@ func thinkingView(text string, done bool) string {
 	}
 	lines := strings.Split(txt, "\n")
 	if done {
-		first := strings.TrimSpace(lines[0])
-		if len(first) > 100 {
-			first = first[:99] + "…"
-		}
+		first := cutWords(strings.TrimSpace(lines[0]), 100)
 		if len(lines) > 1 {
 			return fmt.Sprintf("· thought: %s (%d lines)", first, len(lines))
 		}
@@ -539,8 +538,11 @@ func (e *entry) inputJSON() string {
 	return string(e.call.Input)
 }
 
-// summarizeInput shows the most useful argument on one line.
-func summarizeInput(name, raw string, max int) string {
+// summarizeInput shows the most useful argument on one line. Paths are
+// shown relative to cwd: the model often passes them absolute, and an
+// absolute path truncated to fit loses the one part that matters, the
+// file name.
+func summarizeInput(name, raw string, max int, cwd string) string {
 	var m map[string]any
 	if json.Unmarshal([]byte(raw), &m) != nil {
 		return truncateLine(raw, max)
@@ -550,10 +552,11 @@ func summarizeInput(name, raw string, max int) string {
 			extra := ""
 			if k == "pattern" {
 				if p, ok := m["path"].(string); ok && p != "" {
-					extra = " in " + p
+					extra = " in " + relTo(cwd, p)
 				}
 			}
 			if k == "path" {
+				v = relTo(cwd, v)
 				if off, ok := m["offset"].(float64); ok && off > 1 {
 					extra = fmt.Sprintf(" from line %d", int(off))
 				}
@@ -562,6 +565,18 @@ func summarizeInput(name, raw string, max int) string {
 		}
 	}
 	return truncateLine(raw, max)
+}
+
+// relTo shows p relative to cwd when it lies under it, with the home
+// directory as ~ otherwise. A relative path is returned as it is.
+func relTo(cwd, p string) string {
+	if cwd == "" || !filepath.IsAbs(p) {
+		return p
+	}
+	if r, err := filepath.Rel(cwd, p); err == nil && !strings.HasPrefix(r, "..") {
+		return r
+	}
+	return shortPath(p)
 }
 
 func prettyInput(raw string) string {
@@ -574,6 +589,20 @@ func prettyInput(raw string) string {
 		return raw
 	}
 	return string(b)
+}
+
+// cutWords shortens s to at most max characters at a word boundary, so a
+// folded thought never ends mid-word.
+func cutWords(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	cut := max - 1
+	if i := strings.LastIndex(string(r[:cut]), " "); i > max/2 {
+		cut = i
+	}
+	return strings.TrimRight(string(r[:cut]), " ,;:") + "…"
 }
 
 func truncateLine(s string, max int) string {

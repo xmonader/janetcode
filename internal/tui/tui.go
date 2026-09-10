@@ -363,14 +363,18 @@ func (m *model) contextCommand() {
 		sb.WriteString("largest tool results:\n")
 		for _, it := range r.Largest {
 			subj := it.Subject
+			if strings.HasPrefix(subj, "/") {
+				subj = m.relPath(subj)
+			}
 			if subj != "" {
 				subj = " " + trunc(subj, 50)
 			}
 			fmt.Fprintf(&sb, "  %6s  %s%s (message %d)\n", shortTokens(it.Tokens), it.Tool, subj, it.Index)
 		}
 	}
-	if ev := m.sessionEvents(); len(ev) > 0 {
-		meter := session.Measure(ev, nil)
+	if false {
+		// The surface meter is a diagnostic; /inspect has it.
+		meter := session.Measure(m.sessionEvents(), nil)
 		fmt.Fprintf(&sb, "surface meter · log rev %d · %s across %d nodes\n", meter.LogRevision, shortTokens(meter.Surface), len(meter.Nodes))
 		sort.Slice(meter.Nodes, func(i, j int) bool { return meter.Nodes[i].Tokens > meter.Nodes[j].Tokens })
 		for i, n := range meter.Nodes {
@@ -1006,8 +1010,12 @@ var commands = []command{
 // --- model ---
 
 type model struct {
-	opts     Options
-	approver *tuiApprover
+	opts Options
+	// quitArmedAt is when ctrl+c was last pressed while idle.
+	quitArmedAt time.Time
+	// pendingClosedAt is when the last permission prompt closed.
+	pendingClosedAt time.Time
+	approver        *tuiApprover
 	// send delivers messages from background goroutines into the loop.
 	send func(tea.Msg)
 	// titleGen invalidates generated titles once the user set one.
@@ -1117,9 +1125,9 @@ func (m *model) welcome() string {
 	if m.opts.Agent.Provider == nil {
 		fmt.Fprintf(&sb, "janetcode %s · no provider configured yet: pick one below, or set ANTHROPIC_API_KEY / OPENAI_API_KEY\n", m.opts.Version)
 	} else {
-		fmt.Fprintf(&sb, "janetcode %s · %s · %s\n", m.opts.Version, m.opts.Provider, m.opts.Agent.Model)
+		fmt.Fprintf(&sb, "janetcode %s · ", m.opts.Version)
 	}
-	fmt.Fprintf(&sb, "working in %s", tailPath(shortPath(m.opts.Cwd), 70))
+	fmt.Fprintf(&sb, "working in %s", fitPath(shortPath(m.opts.Cwd), 60))
 	if m.branch != "" {
 		fmt.Fprintf(&sb, " on %s", m.branch)
 	}
@@ -1459,7 +1467,16 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		if !m.running && m.input.Value() != "" {
 			m.input.Reset()
 			m.status = "input cleared · ctrl+c again to quit"
+			m.quitArmedAt = time.Now()
 			m.layout()
+			m.refresh(false)
+			return nil, true
+		}
+		// One press when idle arms the quit; a second within a couple of
+		// seconds does it. An accidental ctrl+c must not close a session.
+		if !m.running && time.Since(m.quitArmedAt) > quitArmWindow {
+			m.quitArmedAt = time.Now()
+			m.status = "ctrl+c again to quit"
 			m.refresh(false)
 			return nil, true
 		}
@@ -1554,6 +1571,16 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		text := strings.TrimSpace(m.input.Value())
 		if text == "" {
+			return nil, true
+		}
+		// A "y" typed a moment after a permission prompt closed was meant
+		// for the prompt, not for the model; sending it costs a turn of
+		// the model guessing what "y" means.
+		if len(text) == 1 && strings.ContainsAny(strings.ToLower(text), "ynar") && time.Since(m.pendingClosedAt) < strayKeyWindow {
+			m.input.Reset()
+			m.layout()
+			m.status = "ignored a stray " + text + " meant for the approval prompt"
+			m.refresh(false)
 			return nil, true
 		}
 		if m.running && !strings.HasPrefix(text, "/") {
@@ -1841,6 +1868,7 @@ func (m *model) answer(d agent.Decision, reason string) {
 	m.pending.reply <- verdict{d: d, reason: reason}
 	m.transcript.permissionAnswered(m.pending.call, d)
 	m.pending = nil
+	m.pendingClosedAt = time.Now()
 	m.denying = false
 	m.input.Placeholder = defaultPlaceholder
 	m.phase = "thinking"
@@ -1989,6 +2017,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		m.cancel = nil
 	}
 	m.pending = nil
+	m.pendingClosedAt = time.Now()
 	m.phase = ""
 	elapsed := shortDuration(time.Since(m.startedAt))
 	m.transcript.finishTurn()
@@ -2052,7 +2081,8 @@ func friendlyError(err error, provider string) string {
 		return "authentication failed: " + s + "\n  check the API key for provider " + provider + " (/connect)"
 	case strings.Contains(l, "http 429") || strings.Contains(l, "rate limit") || strings.Contains(l, "quota"):
 		return "rate limited or out of quota: " + s + "\n  wait and resend, add keys with /connect, or switch model with /model"
-	case strings.Contains(l, "http 404") || strings.Contains(l, "model not found") || strings.Contains(l, "not_found"):
+	case strings.Contains(l, "http 404") || strings.Contains(l, "model not found") || strings.Contains(l, "not_found"),
+		strings.Contains(l, "http 400") && strings.Contains(l, "model"):
 		return "model not available: " + s + "\n  pick another with /model"
 	case strings.Contains(l, "deadline exceeded") || strings.Contains(l, "timeout"):
 		return "the request timed out: " + s
@@ -2062,6 +2092,14 @@ func friendlyError(err error, provider string) string {
 
 func (m *model) command(text string) tea.Cmd {
 	fields := strings.Fields(text)
+	if m.running {
+		switch fields[0] {
+		case "/clear", "/new", "/resume", "/compact", "/fork", "/connect":
+			m.transcript.errorf("wait for the current turn to finish before %s (esc cancels it)", fields[0])
+			m.refresh(false)
+			return nil
+		}
+	}
 	switch fields[0] {
 	case "/help", "/?":
 		m.transcript.info(m.helpText())
@@ -2492,19 +2530,113 @@ func (m *model) helpText() string {
 	var sb strings.Builder
 	sb.WriteString("keys\n")
 	sb.WriteString("  enter send · ctrl+j / alt+enter newline · up/down recall prompts, or move in an open menu · tab/enter accept a menu row\n")
-	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, twice to force quit · ctrl+d quit\n")
+	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, or when idle twice to quit · ctrl+d quit\n")
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand tool output · ctrl+l redraw\n")
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends\n")
 	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
 	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · r save a rule so matching calls never ask again · n deny (then type why, or enter to skip) · esc deny\n")
-	sb.WriteString("commands\n")
-	for _, c := range m.allCommands() {
-		fmt.Fprintf(&sb, "  %-10s %-7s %s\n", c.name, c.args, c.help)
+	all := m.allCommands()
+	byName := map[string]command{}
+	for _, c := range all {
+		byName[c.name] = c
+	}
+	width := m.width
+	if width < 40 {
+		width = 80
+	}
+	const col = 22
+	descStyle := lipgloss.NewStyle().Width(width - col - 2)
+	seen := map[string]bool{}
+	writeGroup := func(title string, names []string) {
+		sb.WriteString(title + "\n")
+		for _, n := range names {
+			c, ok := byName[n]
+			if !ok {
+				continue
+			}
+			seen[n] = true
+			desc := strings.ReplaceAll(descStyle.Render(c.help), "\n", "\n"+strings.Repeat(" ", col))
+			if len(c.name) > 10 || len(c.args) > 8 {
+				// Too wide for the columns: the description starts on
+				// its own line rather than wrapping from wherever the
+				// arguments ended.
+				fmt.Fprintf(&sb, "  %s %s\n%s%s\n", c.name, c.args, strings.Repeat(" ", col), desc)
+				continue
+			}
+			fmt.Fprintf(&sb, "  %-10s %-8s %s\n", c.name, c.args, desc)
+		}
+	}
+	for _, g := range helpGroups {
+		writeGroup(g.title, g.names)
+	}
+	var rest []string
+	for _, c := range all {
+		if !seen[c.name] {
+			rest = append(rest, c.name)
+		}
+	}
+	if len(rest) > 0 {
+		writeGroup("custom commands and skills", rest)
 	}
 	sb.WriteString("custom commands: drop prompt templates in .janetcode/commands/<name>.md (or the config dir); $ARGUMENTS is replaced")
 	return sb.String()
 }
+
+// permissionKeys is the keys line of the permission box, in the longest
+// wording that fits on one line. The box has a fixed height in the
+// layout, so a wrapped keys line would run over the input.
+func (m *model) permissionKeys(tool, rule string) string {
+	type seg struct{ key, text string }
+	room := m.width - 6
+	render := func(segs []seg, sep string) (string, int) {
+		var sb, plain strings.Builder
+		for i, s := range segs {
+			if i > 0 {
+				sb.WriteString(styleDim.Render(sep))
+				plain.WriteString(sep)
+			}
+			sb.WriteString(styleKey.Render(s.key) + styleDim.Render(s.text))
+			plain.WriteString(s.key + s.text)
+		}
+		return sb.String(), lipgloss.Width(plain.String())
+	}
+	long := []seg{{"y", " allow once"}, {"a", " always for " + tool + " this session"}, {"r", " save rule " + rule}, {"n", " deny (and say why)"}, {"", "(ctrl+o expands)"}}
+	if s, w := render(long, "   "); w <= room {
+		return s
+	}
+	// Shorter labels, and the rule cut to whatever is left.
+	fixed := lipgloss.Width("y once · a always for " + tool + " · r rule  · n deny · ctrl+o expands")
+	if left := room - fixed; left >= 12 && len(rule) > left {
+		rule = truncateLine(rule, left)
+	}
+	medium := []seg{{"y", " once"}, {"a", " always for " + tool}, {"r", " rule " + rule}, {"n", " deny"}, {"", "ctrl+o expands"}}
+	if s, w := render(medium, " · "); w <= room {
+		return s
+	}
+	s, _ := render([]seg{{"y", " once"}, {"a", " always"}, {"r", " rule"}, {"n", " deny"}}, " · ")
+	return s
+}
+
+// helpGroups orders /help by how often a command is reached for; the
+// table itself stays in the order the code grew.
+var helpGroups = []struct {
+	title string
+	names []string
+}{
+	{"everyday", []string{"/help", "/connect", "/model", "/yolo", "/undo", "/redo", "/compact", "/clear", "/resume", "/quit"}},
+	{"reviewing the work", []string{"/open", "/diff", "/changes", "/blame", "/find", "/verbose", "/export", "/usage", "/stats", "/context"}},
+	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/jobs"}},
+	{"the project", []string{"/memory", "/remember", "/forget", "/skills", "/verify", "/permissions", "/hooks", "/mcp", "/lsp"}},
+	{"diagnostics", []string{"/inspect", "/trajectory", "/reload"}},
+}
+
+// quitArmWindow is how long a first ctrl+c when idle stays armed.
+const quitArmWindow = 2 * time.Second
+
+// strayKeyWindow is how long after a permission prompt closes a lone
+// approval key is treated as meant for it.
+const strayKeyWindow = 1500 * time.Millisecond
 
 // --- layout & view ---
 
@@ -2572,6 +2704,7 @@ func (m *model) refresh(resized bool) {
 	}
 	atBottom := m.viewport.AtBottom()
 	content := m.transcript.render(renderOpts{
+		cwd:     m.opts.Cwd,
 		width:   m.width,
 		resized: resized,
 		pending: m.pending,
@@ -2624,13 +2757,33 @@ func (m *model) headerView() string {
 		prefix = "YOLO · "
 	}
 	avail := m.width - lipgloss.Width(left) - lipgloss.Width(prefix) - lipgloss.Width(suffix) - 3
-	right := styleHeader.Render(prefix + tailPath(shortPath(m.opts.Cwd), avail) + suffix + " ")
+	right := styleHeader.Render(prefix + fitPath(shortPath(m.opts.Cwd), avail) + suffix + " ")
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
 		gap = 1
 	}
 	line := left + styleHeader.Render(strings.Repeat(" ", gap)) + right
 	return styleHeader.Width(m.width).MaxHeight(1).Render(line)
+}
+
+// fitPath shows a path in max columns by dropping leading components:
+// …/scratchpad/tuiproj rather than the middle of a long directory name,
+// which is what a character cut leaves.
+func fitPath(p string, max int) string {
+	if lipgloss.Width(p) <= max {
+		return p
+	}
+	parts := strings.Split(strings.TrimSuffix(p, "/"), "/")
+	for keep := 2; keep >= 1; keep-- {
+		if len(parts) <= keep {
+			continue
+		}
+		c := "…/" + strings.Join(parts[len(parts)-keep:], "/")
+		if lipgloss.Width(c) <= max {
+			return c
+		}
+	}
+	return tailPath(p, max)
 }
 
 // tailPath keeps the end of a path so it fits in max columns.
@@ -2668,6 +2821,10 @@ func (m *model) statusView() string {
 	}
 	if !m.viewport.AtBottom() {
 		right = styleWarn.Render("↓ pgdn for latest") + "  " + right
+	}
+	// The gauge keeps its place; the status text gives way to it.
+	if avail := m.width - lipgloss.Width(right) - 3; avail > 8 && lipgloss.Width(left) > avail {
+		left = lipgloss.NewStyle().MaxWidth(avail-1).Render(left) + "…"
 	}
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 2
 	if gap < 1 {
@@ -2760,12 +2917,12 @@ func (m *model) footerView() string {
 func (m *model) permissionView() string {
 	c := m.pending.call
 	var sb strings.Builder
-	sb.WriteString(styleWarn.Bold(true).Render("allow ") + styleTool.Bold(true).Render(c.Name) + " " + styleDim.Render(summarizeInput(c.Name, string(c.Input), m.width-len(c.Name)-16)))
+	sb.WriteString(styleWarn.Bold(true).Render("allow ") + styleTool.Bold(true).Render(c.Name) + " " + styleDim.Render(summarizeInput(c.Name, string(c.Input), m.width-len(c.Name)-16, m.opts.Cwd)))
 	if c.Warning != "" {
 		sb.WriteString("\n" + styleErr.Bold(true).Render("⚠ "+c.Warning))
 	}
 	rule := perm.Suggest(c.Name, perm.Subject(c.Name, c.Input)).String()
-	sb.WriteString("\n" + styleKey.Render("y") + styleDim.Render(" allow once   ") + styleKey.Render("a") + styleDim.Render(" always for "+c.Name+" this session   ") + styleKey.Render("r") + styleDim.Render(" save rule "+rule+"   ") + styleKey.Render("n") + styleDim.Render(" deny (and say why)   ") + styleFaint.Render("(ctrl+o expands)"))
+	sb.WriteString("\n" + m.permissionKeys(c.Name, rule))
 	return stylePermBox.Width(m.width - 2).Render(sb.String())
 }
 

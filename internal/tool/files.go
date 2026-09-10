@@ -118,7 +118,7 @@ func (WriteFile) Description() string {
 func (WriteFile) Mutating() bool { return true }
 func (WriteFile) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
-"path":{"type":"string","description":"File path"},
+"path":{"type":"string","description":"File path, relative to the working directory or absolute"},
 "content":{"type":"string","description":"Full file content"}},
 "required":["path","content"],"additionalProperties":false}`)
 }
@@ -148,10 +148,10 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 	}
 	t.Seen.Record(p, []byte(in.Content))
 	if !existed {
-		return fmt.Sprintf("Created %s (%s)", in.Path, plural(countLines(in.Content), "line")), nil
+		return fmt.Sprintf("Created %s (%s)", displayPath(t.Root, in.Path), plural(countLines(in.Content), "line")), nil
 	}
 	added, removed := diff.Stats(string(old), in.Content)
-	return fmt.Sprintf("Overwrote %s (+%d -%d lines)", in.Path, added, removed), nil
+	return fmt.Sprintf("Overwrote %s (+%d -%d lines)", displayPath(t.Root, in.Path), added, removed), nil
 }
 
 func plural(n int, unit string) string {
@@ -462,7 +462,7 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &editPlan{path: p, display: in.Path, before: before, after: after, replacements: n, removed: removed}, nil
+		return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: after, replacements: n, removed: removed}, nil
 	}
 	content, total := before, 0
 	for i, e := range edits {
@@ -472,7 +472,7 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 		}
 		content, total = updated, total+n
 	}
-	return &editPlan{path: p, display: in.Path, before: before, after: content, replacements: total}, nil
+	return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: content, replacements: total}, nil
 }
 
 // repairEdits fixes the two ways models malform the edits argument, both
@@ -605,7 +605,11 @@ func applyLineEdits(before string, edits []oneEdit) (string, int, []string, erro
 	}
 	var removed []string
 	for _, sp := range spans {
-		removed = append(removed, fmt.Sprintf("lines %s: %s", lineRange(sp.from, sp.to), quoteLines(lines[sp.from-1:sp.to])))
+		label := "lines"
+		if sp.from == sp.to {
+			label = "line"
+		}
+		removed = append(removed, fmt.Sprintf("%s %s: %s", label, lineRange(sp.from, sp.to), quoteLines(lines[sp.from-1:sp.to])))
 	}
 	return joined, len(spans), removed, nil
 }

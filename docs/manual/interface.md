@@ -14,7 +14,7 @@ up / down        recall earlier prompts          tab   complete a /command
 esc              cancel the running turn (or clear the input)
 ctrl+o           expand tool output and diffs    ctrl+l   redraw
 pgup / pgdn      scroll (mouse wheel works)
-ctrl+c           cancel; twice to force quit; quits when idle
+ctrl+c           cancel the turn; when idle, press twice to quit
 ```
 
 At a permission prompt: `y` allow once, `a` allow that tool for the session,
@@ -42,7 +42,8 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /export [file.md] (write the conversation as a Markdown transcript)
 ```
 
-`ctrl+c` cancels a running turn, then clears typed text, then quits.
+`ctrl+c` cancels a running turn, or clears typed text; when idle it asks
+for a second press before quitting, so a stray one never closes a session.
 
 `/connect` walks through provider → base URL → API keys → model with
 arrow-key lists that filter as you type; `/model` alone opens just the model

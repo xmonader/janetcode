@@ -101,13 +101,13 @@ func TestLoadHistory(t *testing.T) {
 }
 
 func TestSummarizeInput(t *testing.T) {
-	if got := summarizeInput("grep", `{"pattern":"foo","path":"src"}`, 40); got != "foo in src" {
+	if got := summarizeInput("grep", `{"pattern":"foo","path":"src"}`, 40, ""); got != "foo in src" {
 		t.Fatalf("got %q", got)
 	}
-	if got := summarizeInput("bash", `{"command":"a\nb"}`, 40); got != "a⏎ b" {
+	if got := summarizeInput("bash", `{"command":"a\nb"}`, 40, ""); got != "a⏎ b" {
 		t.Fatalf("got %q", got)
 	}
-	if got := summarizeInput("x", `{"k":"`+strings.Repeat("v", 50)+`"}`, 20); len(got) > 22 || !strings.HasSuffix(got, "…") {
+	if got := summarizeInput("x", `{"k":"`+strings.Repeat("v", 50)+`"}`, 20, ""); len(got) > 22 || !strings.HasSuffix(got, "…") {
 		t.Fatalf("got %q", got)
 	}
 }
@@ -133,5 +133,31 @@ func TestTruncateLineIsWidthAware(t *testing.T) {
 	}
 	if got := truncateLine("ééééééééééééééé", 10); got != "ééééééééé…" {
 		t.Fatalf("rune split: %q", got)
+	}
+}
+
+// TestPathsAndThoughtsFit: tool lines show paths relative to the working
+// directory so the file name survives truncation; a folded thought ends
+// at a word, not mid-word.
+func TestPathsAndThoughtsFit(t *testing.T) {
+	if got := summarizeInput("read_file", `{"path":"/work/proj/internal/x/x.go","offset":120}`, 60, "/work/proj"); got != "internal/x/x.go from line 120" {
+		t.Fatalf("got %q", got)
+	}
+	if got := summarizeInput("grep", `{"pattern":"foo","path":"/work/proj/src"}`, 60, "/work/proj"); got != "foo in src" {
+		t.Fatalf("got %q", got)
+	}
+	if got := relTo("/work/proj", "/elsewhere/a.go"); got != "/elsewhere/a.go" {
+		t.Fatalf("outside the tree stays absolute: %q", got)
+	}
+	if got := relTo("/work/proj", "rel/b.go"); got != "rel/b.go" {
+		t.Fatalf("relative stays: %q", got)
+	}
+	long := strings.Repeat("word ", 30)
+	got := cutWords(long, 40)
+	if len(got) > 41 || !strings.HasSuffix(got, "…") || strings.HasSuffix(strings.TrimSuffix(got, "…"), "wor") {
+		t.Fatalf("cut mid-word: %q", got)
+	}
+	if got := cutWords("short", 40); got != "short" {
+		t.Fatalf("short text changed: %q", got)
 	}
 }

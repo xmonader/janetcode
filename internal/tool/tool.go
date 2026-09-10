@@ -193,6 +193,19 @@ func TruncateTo(s string, max int) string {
 
 // resolvePath makes p absolute relative to root and rejects escapes outside
 // root. Symlinks inside root that point outside are also rejected.
+// displayPath is how a tool names a file in its result: relative to the
+// working directory when it lies under it, so the model and the user read
+// "main.go" rather than an absolute path that fills the line.
+func displayPath(root, p string) string {
+	if root == "" || !filepath.IsAbs(p) {
+		return p
+	}
+	if r, err := filepath.Rel(root, p); err == nil && !strings.HasPrefix(r, "..") {
+		return r
+	}
+	return p
+}
+
 func resolvePath(root, p string) (string, error) {
 	if strings.TrimSpace(p) == "" {
 		return "", fmt.Errorf("path is empty")

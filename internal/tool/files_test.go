@@ -232,7 +232,7 @@ func TestEditFileByLine(t *testing.T) {
 	}
 	// The result quotes what the range actually held: a line number is a
 	// claim nothing in the input checks.
-	if !strings.Contains(out, "replaced lines 3: func A() {}") {
+	if !strings.Contains(out, "replaced line 3: func A() {}") {
 		t.Fatalf("result must say what it replaced: %q", out)
 	}
 
@@ -347,7 +347,7 @@ func FuzzEditFileLines(f *testing.F) {
 		}
 		// The result must say which lines it replaced, or a mistargeted
 		// range is invisible.
-		if !strings.Contains(out, "replaced lines") {
+		if !strings.Contains(out, "replaced line") {
 			t.Fatalf("no account of what was replaced: %q", out)
 		}
 	})
@@ -464,5 +464,21 @@ func TestEditFileRepairsMalformedEdits(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(path); string(got) != orig {
 		t.Fatal("a refused edit must not write")
+	}
+}
+
+// TestToolResultsNameFilesRelatively: a tool given an absolute path under
+// the root reports the file by its relative name, which is what the user
+// and the model read; a path outside the root is left as it is.
+func TestToolResultsNameFilesRelatively(t *testing.T) {
+	root := t.TempDir()
+	if got := displayPath(root, filepath.Join(root, "pkg", "a.go")); got != filepath.Join("pkg", "a.go") {
+		t.Fatalf("got %q", got)
+	}
+	if got := displayPath(root, "pkg/a.go"); got != "pkg/a.go" {
+		t.Fatalf("relative stays: %q", got)
+	}
+	if got := displayPath(root, "/elsewhere/a.go"); got != "/elsewhere/a.go" {
+		t.Fatalf("outside stays: %q", got)
 	}
 }
