@@ -189,6 +189,20 @@ func (u Usage) Cost(p *Price) (usd float64, ok bool) {
 	return usd, true
 }
 
+// CostSource says where a cost figure comes from: "reported" by the
+// provider with the response, "list price" from a rate table, or
+// "unpriced" when neither is available. A list-price figure is an
+// API-equivalent estimate, not money spent.
+func (u Usage) CostSource(p *Price) string {
+	switch {
+	case u.CostUSD > 0:
+		return "reported"
+	case p != nil:
+		return "list price"
+	}
+	return "unpriced"
+}
+
 // FormatUSD renders a cost compactly: $0.0042, $0.12, $3.40.
 func FormatUSD(usd float64) string {
 	switch {

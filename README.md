@@ -158,7 +158,7 @@ ctrl+c           cancel the turn; when idle, press twice to quit
 
 At a permission prompt: `y` allow once, `a` allow that tool for the session,
 `n` deny and type why (the reason goes to the model, enter skips it), `esc`
-deny silently. Destructive shell commands (recursive deletes, force pushes,
+deny silently, `c` cancel the whole turn. Destructive shell commands (recursive deletes, force pushes,
 sudo, piping downloads into a shell) are flagged in the prompt.
 
 Typing while the model is working queues the message; it is sent as soon as
@@ -168,12 +168,12 @@ the turn ends. Cancelling a turn hands queued text back to the input.
 @path            attach a file, an image (png/jpg/gif/webp), or a directory listing; tab completes
 ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, pngpaste on macOS)
 !command         run a shell command here; its output is shown and shared with the model
-/help      /quit      /clear (new session)     /yolo (toggle auto-approve)
+/help      /quit      /clear (new session)     /yolo (toggle auto-approve)   /edits (edits go through, commands ask)
 /plan <request> (plan mode: explore, write a plan; /plan approve executes it)
 /readonly  (toggle read-only: the model can inspect but change nothing)
 /connect   /model     /compact (summarise the context to free the window)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost)
-/resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)
+/resume    /verbose   /resume <n or id> (reopen an earlier session from this directory)   /settle (list it last)
 /undo [preview]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
 /fork [title]  /title <text>  /history <words> (search every saved session)
 /open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)
@@ -189,7 +189,7 @@ for a second press before quitting, so a stray one never closes a session.
 The full manual lives in [`docs/manual/`](docs/manual/README.md):
 
 - [The interface](docs/manual/interface.md) — keys, commands, permission rules, and every feature below
-- [Configuration](docs/manual/configuration.md) — the config file, providers, prices, routes, project instructions
+- [Configuration](docs/manual/configuration.md) — the config file, providers, prices (config, provider listing, or LiteLLM's rate table), routes, project instructions
 - [Sessions](docs/manual/sessions.md) — resume, fork, search, compaction, snapshots
 - [Evals](docs/manual/evals.md) — the task format, runs, comparisons, ablations
 - [Command-line reference](docs/manual/cli.md) — every flag, environment variable and exit code

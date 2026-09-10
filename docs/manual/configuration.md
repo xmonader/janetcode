@@ -53,3 +53,16 @@ Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 
 If the working directory contains `JANETCODE.md`, `AGENTS.md` or `CLAUDE.md`
 (first found wins), its contents are added to the system prompt.
+
+## Prices
+
+`/cost`, the turn summary and the eval reports price tokens from three
+sources, in this order: `"prices"` entries in the config file; the price a
+provider's model listing carried when the model was picked with `/model`
+(OpenRouter lists them); and LiteLLM's public rate table, fetched into
+`model-rates.json` beside the config file on the first run with network
+and refreshed after a day. The table is the one `ccusage` prices against.
+A figure from any of these is an API-equivalent estimate at list price and
+is labelled so; only a cost the provider itself reported with the response
+(OpenRouter does) is shown as reported. `janetcode --doctor` says which
+table is in use and how old it is.

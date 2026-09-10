@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -31,6 +33,11 @@ type Checkpoint struct {
 	When  time.Time      `json:"when"`
 	Files []Snapshot     `json:"files"`
 	Snap  *snapshot.Snap `json:"snap,omitempty"`
+	// Turn is the turn the checkpoint belongs to and Messages how many
+	// messages the conversation held when it began, so an undo can take
+	// the turn's messages out of the context along with its file changes.
+	Turn     int `json:"turn,omitempty"`
+	Messages int `json:"messages,omitempty"`
 }
 
 // maxCheckpoints bounds how many turns can be undone; older ones are
@@ -42,11 +49,13 @@ var ErrNothingToUndo = errors.New("nothing to undo")
 
 // checkpointer records pre-change snapshots for the running turn.
 type checkpointer struct {
-	mu       sync.Mutex
-	open     bool // the last checkpoint in all belongs to the running turn
-	dirty    bool // changed since the last SaveUndo
-	gitTried bool // a git snapshot was attempted this turn
-	all      []Checkpoint
+	// turn and messages describe the running turn for the next checkpoint.
+	turn, messages int
+	mu             sync.Mutex
+	open           bool // the last checkpoint in all belongs to the running turn
+	dirty          bool // changed since the last SaveUndo
+	gitTried       bool // a git snapshot was attempted this turn
+	all            []Checkpoint
 	// redo holds the states undone in this session, newest last; any new
 	// change clears it.
 	redo []Checkpoint
@@ -57,11 +66,12 @@ type checkpointer struct {
 
 // beginTurn closes the previous turn's checkpoint; the next snapshot opens
 // a new one so turns without file changes leave nothing behind.
-func (c *checkpointer) beginTurn() {
+func (c *checkpointer) beginTurn(turn, messages int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.open = false
 	c.gitTried = false
+	c.turn, c.messages = turn, messages
 }
 
 // snapshot records the state before a mutating tool runs: a git snapshot
@@ -113,7 +123,7 @@ func (c *checkpointer) snapshot(repo *snapshot.Repo, t tool.Tool, input []byte) 
 // openCheckpoint starts a checkpoint for the running turn. A new change
 // makes the redo states unreachable, so they are dropped.
 func (c *checkpointer) openCheckpoint(repo *snapshot.Repo) {
-	c.all = append(c.all, Checkpoint{When: time.Now()})
+	c.all = append(c.all, Checkpoint{When: time.Now(), Turn: c.turn, Messages: c.messages})
 	c.open = true
 	c.dropRedo(repo)
 }
@@ -358,9 +368,45 @@ func (a *Agent) Undo() ([]string, error) {
 	if serr := a.SaveUndo(); serr != nil {
 		a.debugf("save undo: %v", serr)
 	}
+	if err == nil {
+		a.rollbackConversation(cp)
+	}
 	a.cp.mu.Lock()
 	return done, err
 }
+
+// rollbackConversation takes an undone turn's messages out of the
+// context. Reverting the files while the transcript still describes the
+// edits leaves the model asserting file contents that are no longer
+// there; the workspace is restored first, and only then the conversation,
+// with one note in place of the turn so the model knows what happened.
+// The session log keeps the turn shadowed, not deleted.
+func (a *Agent) rollbackConversation(cp Checkpoint) {
+	a.undoRemoved = 0
+	// A checkpoint from before this field existed has Turn 0 and is left
+	// alone; a first turn legitimately starts at message 0.
+	if cp.Turn <= 0 || cp.Messages < 0 || cp.Messages >= len(a.Messages) {
+		return
+	}
+	removed := len(a.Messages) - cp.Messages
+	note := llm.HarnessMessage(llm.RoleUser, fmt.Sprintf("The user undid the previous turn: its file changes were reverted and its %d message(s) removed from this conversation. The files are as they were before it; read them again before relying on their contents.", removed))
+	a.Messages = append(a.Messages[:cp.Messages:cp.Messages], note)
+	a.undoRemoved = removed
+	if a.Log == nil {
+		return
+	}
+	var seqs []int
+	for _, e := range a.Log.Events() {
+		if e.Surface && e.Turn >= cp.Turn && cp.Turn > 0 {
+			seqs = append(seqs, e.Seq)
+		}
+	}
+	a.logEvent(session.Event{Type: session.TypeUserMessage, Turn: a.turnN, Surface: true, SurfaceOp: session.SurfaceOpReplace, Replaces: seqs, Message: &note})
+}
+
+// LastUndoRemoved is how many messages the last Undo took out of the
+// conversation, for the UI to say so.
+func (a *Agent) LastUndoRemoved() int { return a.undoRemoved }
 
 // restore puts the tree back to a checkpoint: through git when it holds a
 // snapshot, else (or as a fallback) from the file copies. Called with the

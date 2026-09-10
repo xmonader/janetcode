@@ -999,6 +999,8 @@ var commands = []command{
 	{"/remember", "<fact>", "add a fact to the project memory"},
 	{"/forget", "<n>", "remove memory entry n"},
 	{"/yolo", "", "toggle auto-approve for tools"},
+	{"/edits", "", "toggle auto-accept edits: file changes go through, commands still ask"},
+	{"/settle", "", "mark this session done with (or active again); settled sessions list last in /resume"},
 	{"/connect", "", "connect to a provider (preset or custom API) and pick a model"},
 	{"/model", "[name]", "pick a model from a list, or set one by name"},
 	{"/usage", "", "tokens and cost for this session"},
@@ -1050,6 +1052,7 @@ type model struct {
 	status         string
 	lastTurn       string                   // usage summary of the last turn
 	lastVerdict    string                   // the last turn's verdict line
+	ticks          int                      // tick count, for slow periodic checks
 	lastUsage      llm.Usage                // the last turn's usage
 	verifyTipShown bool                     // the one-time hint about verification gates
 	queued         []string                 // prompts typed while a turn was running
@@ -1137,6 +1140,8 @@ func (m *model) welcome() string {
 	sb.WriteString("\n")
 	if m.opts.Agent.AutoApprove {
 		sb.WriteString("auto-approve is ON: tools run without asking\n")
+	} else if m.opts.Agent.AutoEdits {
+		sb.WriteString("auto-accept edits is ON: file changes go through, commands ask · /edits turns it off\n")
 	} else {
 		sb.WriteString("edits and commands ask first and show a diff · y allow · a always · n deny\n")
 	}
@@ -1229,6 +1234,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		// Keeps elapsed timers and throttled live markdown moving even when
 		// no event arrives.
+		m.ticks++
+		if m.ticks%10 == 0 && !m.running {
+			// Someone may have checked out another branch in this tree
+			// (or in the session's worktree) from outside; follow it.
+			if b, ok := prompt.GitBranch(m.opts.Cwd); ok && b != "" && b != m.branch {
+				m.transcript.info("branch changed: " + m.branch + " → " + b)
+				m.branch = b
+				m.refresh(false)
+			}
+		}
 		if m.running {
 			m.refresh(false)
 		} else if notes := m.opts.Jobs.Finished(); len(notes) > 0 {
@@ -1402,6 +1417,9 @@ func (m *model) applyEvent(ev agent.Event) {
 		s += " · out " + shortTokens(u.OutputTokens)
 		if usd, ok := u.Cost(m.opts.Agent.Price); ok {
 			s += " · this turn " + llm.FormatUSD(usd)
+			if u.CostSource(m.opts.Agent.Price) != "reported" {
+				s += " at list price"
+			}
 		}
 		if usd, ok := m.opts.Agent.UsageSnapshot().Cost(m.opts.Agent.Price); ok {
 			s += " · session " + llm.FormatUSD(usd)
@@ -1456,8 +1474,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.refresh(false)
 		case "esc":
 			m.answer(agent.Deny, "")
-		case "ctrl+c":
-			m.answer(agent.Deny, "")
+		case "c", "C", "ctrl+c":
+			// Not just this call: the whole turn stops here.
+			m.answer(agent.Deny, "the user cancelled the turn")
 			m.cancelTurn()
 		case "ctrl+o":
 			m.verbose = !m.verbose
@@ -2158,6 +2177,26 @@ func (m *model) command(text string) tea.Cmd {
 		} else {
 			m.transcript.info("auto-approve OFF: edits and commands ask first")
 		}
+	case "/edits":
+		m.opts.Agent.AutoEdits = !m.opts.Agent.AutoEdits
+		if m.opts.Agent.AutoEdits {
+			m.transcript.info("auto-accept edits ON: file changes go through, commands still ask")
+		} else {
+			m.transcript.info("auto-accept edits OFF: edits ask first")
+		}
+	case "/settle":
+		if m.opts.Session == nil {
+			m.transcript.errorf("no session to settle")
+			break
+		}
+		settled := !m.opts.Session.Meta.Settled
+		if err := m.opts.Session.SetSettled(settled); err != nil {
+			m.transcript.errorf("settle: %v", err)
+		} else if settled {
+			m.transcript.info("session settled: it lists after the active ones in /resume until something happens in it")
+		} else {
+			m.transcript.info("session active again")
+		}
 	case "/readonly":
 		m.opts.Agent.ReadOnly = !m.opts.Agent.ReadOnly
 		if m.opts.Agent.ReadOnly {
@@ -2317,9 +2356,9 @@ func (m *model) command(text string) tea.Cmd {
 		case ok && u.CostUSD > 0:
 			line += "\ncost " + llm.FormatUSD(usd) + " (reported by the provider)"
 		case ok:
-			line += "\ncost " + llm.FormatUSD(usd) + " (estimated from prices in the config file)"
+			line += "\ncost " + llm.FormatUSD(usd) + " at list price (an API-equivalent estimate from the config's \"prices\" or LiteLLM's rate table, not money spent)"
 		default:
-			line += "\ncost unknown: the provider does not report it; add the model under \"prices\" in the config file to estimate"
+			line += "\ncost unpriced: the provider does not report it and no rate is known for this model; add it under \"prices\" in the config file, or wait for the rate table to be fetched"
 		}
 		m.transcript.info(line)
 	default:
@@ -2486,14 +2525,18 @@ func (m *model) listSessions() {
 			sb.WriteString(fmt.Sprintf("  … %d more (janetcode --sessions lists all)\n", len(infos)-n+1))
 			break
 		}
-		age := shortAge(time.Since(in.Meta.Created))
-		fmt.Fprintf(&sb, "  %2d  %s  %-6s %3d msgs  %s\n", n, in.Meta.ID, age, in.Messages, in.Label())
+		age := shortAge(time.Since(in.Updated))
+		mark := " "
+		if in.Meta.Settled {
+			mark = "✓"
+		}
+		fmt.Fprintf(&sb, "  %2d %s%s  %-6s %3d msgs  %s\n", n, mark, in.Meta.ID, age, in.Messages, in.Label())
 	}
 	if n == 0 {
 		m.transcript.info("no earlier sessions in " + shortPath(m.opts.Cwd))
 		return
 	}
-	m.transcript.info("sessions here (newest first) · /resume <n> or /resume <id> reopens one\n" + strings.TrimRight(sb.String(), "\n"))
+	m.transcript.info("sessions here (most recent activity first, ✓ settled last) · /resume <n> or /resume <id> reopens one\n" + strings.TrimRight(sb.String(), "\n"))
 }
 
 // resume swaps the conversation for a saved one.
@@ -2568,7 +2611,7 @@ func (m *model) helpText() string {
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends\n")
 	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
-	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · r save a rule so matching calls never ask again · n deny (then type why, or enter to skip) · esc deny\n")
+	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · r save a rule so matching calls never ask again · n deny (then type why, or enter to skip) · esc deny · c cancel the whole turn\n")
 	all := m.allCommands()
 	byName := map[string]command{}
 	for _, c := range all {
@@ -2621,7 +2664,9 @@ func (m *model) helpText() string {
 // layout, so a wrapped keys line would run over the input.
 func (m *model) permissionKeys(tool, rule string) string {
 	type seg struct{ key, text string }
-	room := m.width - 6
+	// Box width minus its border and padding, with two columns to spare
+	// so a line measured at the limit never wraps inside the box.
+	room := m.width - 8
 	render := func(segs []seg, sep string) (string, int) {
 		var sb, plain strings.Builder
 		for i, s := range segs {
@@ -2634,20 +2679,20 @@ func (m *model) permissionKeys(tool, rule string) string {
 		}
 		return sb.String(), lipgloss.Width(plain.String())
 	}
-	long := []seg{{"y", " allow once"}, {"a", " always for " + tool + " this session"}, {"r", " save rule " + rule}, {"n", " deny (and say why)"}, {"", "(ctrl+o expands)"}}
+	long := []seg{{"y", " allow once"}, {"a", " always for " + tool + " this session"}, {"r", " save rule " + rule}, {"n", " deny (and say why)"}, {"c", " cancel the turn"}, {"", "(ctrl+o expands)"}}
 	if s, w := render(long, "   "); w <= room {
 		return s
 	}
 	// Shorter labels, and the rule cut to whatever is left.
-	fixed := lipgloss.Width("y once · a always for " + tool + " · r rule  · n deny · ctrl+o expands")
+	fixed := lipgloss.Width("y once · a always for " + tool + " · r rule  · n deny · c cancel")
 	if left := room - fixed; left >= 12 && len(rule) > left {
 		rule = truncateLine(rule, left)
 	}
-	medium := []seg{{"y", " once"}, {"a", " always for " + tool}, {"r", " rule " + rule}, {"n", " deny"}, {"", "ctrl+o expands"}}
+	medium := []seg{{"y", " once"}, {"a", " always for " + tool}, {"r", " rule " + rule}, {"n", " deny"}, {"c", " cancel"}}
 	if s, w := render(medium, " · "); w <= room {
 		return s
 	}
-	s, _ := render([]seg{{"y", " once"}, {"a", " always"}, {"r", " rule"}, {"n", " deny"}}, " · ")
+	s, _ := render([]seg{{"y", " once"}, {"a", " always"}, {"r", " rule"}, {"n", " deny"}, {"c", " cancel"}}, " · ")
 	return s
 }
 
@@ -2718,7 +2763,7 @@ var helpGroups = []struct {
 	title string
 	names []string
 }{
-	{"everyday", []string{"/help", "/connect", "/model", "/yolo", "/undo", "/redo", "/compact", "/clear", "/resume", "/quit"}},
+	{"everyday", []string{"/help", "/connect", "/model", "/yolo", "/edits", "/undo", "/redo", "/compact", "/clear", "/resume", "/settle", "/quit"}},
 	{"reviewing the work", []string{"/open", "/diff", "/changes", "/blame", "/find", "/verbose", "/export", "/usage", "/stats", "/context"}},
 	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/jobs"}},
 	{"the project", []string{"/memory", "/remember", "/forget", "/skills", "/verify", "/permissions", "/hooks", "/mcp", "/lsp"}},
@@ -2852,6 +2897,8 @@ func (m *model) headerView() string {
 		prefix = "READ-ONLY · "
 	case m.opts.Agent.AutoApprove:
 		prefix = "YOLO · "
+	case m.opts.Agent.AutoEdits:
+		prefix = "EDITS · "
 	}
 	avail := m.width - lipgloss.Width(left) - lipgloss.Width(prefix) - lipgloss.Width(suffix) - 3
 	right := styleHeader.Render(prefix + fitPath(shortPath(m.opts.Cwd), avail) + suffix + " ")
@@ -3211,7 +3258,13 @@ func (m *model) undoCommand(cmd string, preview bool) {
 		m.status = fmt.Sprintf("redid %d file change(s) · /undo reverts them again", len(done))
 		return
 	}
-	m.opts.Agent.AddContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
+	if n := m.opts.Agent.LastUndoRemoved(); n > 0 {
+		// The turn's messages left the context with its files; the
+		// agent put one note in their place, so nothing more to add.
+		m.transcript.info(fmt.Sprintf("↶ the undone turn's %d message(s) were removed from the model's context as well", n))
+	} else {
+		m.opts.Agent.AddContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
+	}
 	m.status = fmt.Sprintf("undid %d file change(s) · %d more turn(s) can be undone · /redo reapplies", len(done), len(m.opts.Agent.Checkpoints()))
 }
 

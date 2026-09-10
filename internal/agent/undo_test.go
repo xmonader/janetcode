@@ -268,3 +268,64 @@ func TestUndoFallsBackToFileCopiesWhenHeadMoved(t *testing.T) {
 		t.Fatal("shell file should be left alone when HEAD moved")
 	}
 }
+
+// TestUndoRollsBackTheConversation: undoing a turn takes its messages
+// out of the context as well as its file changes, leaving one note in
+// their place; a turn that changed nothing leaves the conversation alone.
+func TestUndoRollsBackTheConversation(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"x","content":"new"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	if err := a.Run(context.Background(), "write x", nil); err != nil {
+		t.Fatal(err)
+	}
+	before := len(a.Messages)
+	if before < 4 {
+		t.Fatalf("expected a full turn in the context, have %d messages", before)
+	}
+	if _, err := a.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "x")); !os.IsNotExist(err) {
+		t.Fatal("x should be gone")
+	}
+	// The turn began with the prompt at index 0, so the note is all that
+	// remains.
+	if len(a.Messages) != 1 || !a.Messages[0].Blocks[0].Synthetic || !strings.Contains(a.Messages[0].Text(), "undid the previous turn") {
+		t.Fatalf("messages after undo = %d: %+v", len(a.Messages), a.Messages)
+	}
+	if a.LastUndoRemoved() != before {
+		t.Fatalf("removed = %d, want %d", a.LastUndoRemoved(), before)
+	}
+}
+
+// TestAutoEditsLetsEditsThroughAndCommandsAsk: with AutoEdits the file
+// tools run without the approver and the shell still goes through it.
+func TestAutoEditsLetsEditsThroughAndCommandsAsk(t *testing.T) {
+	var asked []string
+	deny := ApproverFunc(func(_ context.Context, c ToolCall) (Decision, error) {
+		asked = append(asked, c.Name)
+		return Deny, nil
+	})
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"x","content":"new"}`),
+		toolCall("t2", "bash", `{"command":"echo hi"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, deny)
+	a.AutoEdits = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root}, tool.Bash{Root: root})
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "x")); err != nil {
+		t.Fatal("write_file should have gone through without asking")
+	}
+	if len(asked) != 1 || asked[0] != "bash" {
+		t.Fatalf("approver asked for %v, want just bash", asked)
+	}
+}

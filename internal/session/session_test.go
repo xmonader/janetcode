@@ -226,3 +226,32 @@ func TestEmptySessionLeavesNoFile(t *testing.T) {
 		t.Fatalf("a title must create the file: %v", err)
 	}
 }
+
+// TestSettledSessionsListLast: /resume lists active sessions by last
+// activity, settled ones after them; activity in a settled session makes
+// it active again.
+func TestSettledSessionsListLast(t *testing.T) {
+	dir := t.TempDir()
+	a, _ := New(dir, "/w", "p", "m")
+	put(t, a, llm.TextMessage(llm.RoleUser, "old but active"))
+	b, _ := New(dir, "/w", "p", "m")
+	put(t, b, llm.TextMessage(llm.RoleUser, "newer, settled"))
+	if err := b.SetSettled(true); err != nil {
+		t.Fatal(err)
+	}
+	infos, _ := List(dir, "/w")
+	if len(infos) != 2 || infos[0].Meta.ID != a.Meta.ID || !infos[1].Meta.Settled {
+		t.Fatalf("order = %+v", infos)
+	}
+	put(t, b, llm.TextMessage(llm.RoleUser, "back again"))
+	if b.Meta.Settled {
+		t.Fatal("activity should un-settle")
+	}
+	if _, msgs, err := Open(dir, b.Meta.ID); err != nil || len(msgs) != 2 {
+		t.Fatalf("reopen: %v %d", err, len(msgs))
+	}
+	infos, _ = List(dir, "/w")
+	if infos[0].Meta.ID != b.Meta.ID || infos[0].Meta.Settled {
+		t.Fatalf("revived session should lead: %+v", infos)
+	}
+}

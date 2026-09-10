@@ -20,6 +20,7 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/rates"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/treesitter"
@@ -134,6 +135,14 @@ func doctor(w io.Writer, ov config.Overrides) error {
 			n = len(infos)
 		}
 		row(true, "sessions dir", fmt.Sprintf("%s (%d for this directory)", sessDir, n))
+	}
+	if p, perr := config.Path(); perr == nil {
+		dir := filepath.Dir(p)
+		if t := rates.Load(dir); t != nil {
+			row(true, "prices", fmt.Sprintf("%d models from LiteLLM's rate table, fetched %s ago (config \"prices\" entries win)", len(t.Models), shortAgeDoctor(time.Since(t.FetchedAt))))
+		} else {
+			row(true, "prices", "no rate table cached yet; it is fetched in the background on the first run with network (config \"prices\" entries always work)")
+		}
 	}
 	cwd, _ := os.Getwd()
 	if branch, ok := prompt.GitBranch(cwd); ok {
@@ -330,4 +339,15 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 			warn("lsp "+n, srv.Command[0]+" not on PATH; "+strings.Join(srv.Extensions, " ")+" edits get no diagnostics")
 		}
 	}
+}
+
+// shortAgeDoctor renders a duration as "3h" or "2d".
+func shortAgeDoctor(d time.Duration) string {
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }

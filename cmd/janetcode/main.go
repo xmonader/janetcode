@@ -37,6 +37,7 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/rates"
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
@@ -157,6 +158,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		effort      = fs.String("effort", "", "anthropic effort: low, medium, high, xhigh, max")
 		yolo        = fs.Bool("yolo", false, "auto-approve every tool call")
 		readonly    = fs.Bool("readonly", false, "read-only: no edits or commands, the model can only inspect")
+		autoEdits   = fs.Bool("auto-edits", false, "auto-accept file edits; commands still ask (/edits toggles it)")
 		evalPath    = fs.String("eval", "", "run the eval tasks in this file or directory against the configured provider and exit")
 		evalJobs    = fs.Int("eval-jobs", 2, "eval tasks to run at once")
 		evalOnly    = fs.String("eval-only", "", "comma-separated task names or tags to run")
@@ -241,6 +243,22 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		cwd, _ := os.Getwd()
 		registerOfflineSubjects(r, cfg, cfgPath, cwd, err)
 		return inspectOnce(r, *inspectWhat, os.Stdout)
+	}
+	if err == nil {
+		// Prices for models the file does not list come from LiteLLM's
+		// public table, cached a day under the config directory. The
+		// cache is read now; a refresh runs in the background.
+		if cfgPath, perr := config.Path(); perr == nil {
+			dir := filepath.Dir(cfgPath)
+			cfg.RatesTable = rates.Load(dir)
+			if !rates.Fresh(dir) {
+				go func() {
+					rctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					_, _ = rates.Refresh(rctx, dir)
+				}()
+			}
+		}
 	}
 	if err == nil && *promptText != "" {
 		for _, n := range cfg.Notes {
@@ -334,7 +352,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		mem.Embed = func(ctx context.Context, texts []string) ([][]float32, error) { return em.Embed(ctx, model, texts) }
 	}
 	pool := newProviderPool(cfg, prov)
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, models: pool.For}
+	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, models: pool.For}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return err
@@ -1095,6 +1113,8 @@ type agentDeps struct {
 	models   func(string) (llm.Provider, string, error)
 	version  string
 	readOnly bool
+	// autoEdits starts the session with file edits auto-accepted.
+	autoEdits bool
 }
 
 // builtAgent is one session's agent and the pieces the caller still owns:
@@ -1148,6 +1168,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		MaxTokens:     d.cfg.MaxTokens,
 		MaxIterations: d.cfg.MaxIterations,
 		AutoApprove:   d.cfg.AutoApprove,
+		AutoEdits:     d.autoEdits,
 		ReadOnly:      d.readOnly,
 		CompactAt:     d.cfg.CompactAt,
 		Messages:      history,

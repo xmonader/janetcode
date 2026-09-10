@@ -32,6 +32,9 @@ type Meta struct {
 	Title string `json:"title,omitempty"`
 	// ForkOf is the session this one was branched from.
 	ForkOf string `json:"fork_of,omitempty"`
+	// Settled marks a session the user is done with; it lists after the
+	// active ones. Any new event clears it.
+	Settled bool `json:"settled,omitempty"`
 }
 
 type line struct {
@@ -192,7 +195,8 @@ func Latest(dir, cwd string) (string, error) {
 type Info struct {
 	Meta     Meta
 	Messages int
-	Preview  string // first user text, trimmed
+	Preview  string    // first user text, trimmed
+	Updated  time.Time // last activity, from the file
 }
 
 // Label is the title when set, else the preview, else the id.
@@ -225,7 +229,10 @@ func List(dir, cwd string) ([]Info, error) {
 		if err != nil || (cwd != "" && s.Meta.Cwd != cwd) {
 			continue
 		}
-		info := Info{Meta: s.Meta, Messages: len(msgs)}
+		info := Info{Meta: s.Meta, Messages: len(msgs), Updated: s.Meta.Created}
+		if st, err := os.Stat(filepath.Join(dir, e.Name())); err == nil {
+			info.Updated = st.ModTime()
+		}
 		for _, m := range msgs {
 			if m.Role == llm.RoleUser {
 				if t := strings.TrimSpace(m.Text()); t != "" {
@@ -236,8 +243,27 @@ func List(dir, cwd string) ([]Info, error) {
 		}
 		out = append(out, info)
 	}
-	sort.Slice(out, func(i, j int) bool { return newer(out[i].Meta, out[j].Meta) })
+	// Active sessions first, most recently touched first; settled ones
+	// after them. A session someone comes back to un-settles itself and
+	// rises again.
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Meta.Settled != out[j].Meta.Settled {
+			return !out[i].Meta.Settled
+		}
+		if !out[i].Updated.Equal(out[j].Updated) {
+			return out[i].Updated.After(out[j].Updated)
+		}
+		return newer(out[i].Meta, out[j].Meta)
+	})
 	return out, nil
+}
+
+// SetSettled marks the session done with, or active again.
+func (s *Session) SetSettled(v bool) error {
+	s.mu.Lock()
+	s.Meta.Settled = v
+	s.mu.Unlock()
+	return s.rewrite()
 }
 
 func firstLine(s string, max int) string {
@@ -270,6 +296,13 @@ func (s *Session) Append(e Event) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.unwritten {
+		if err := s.rewriteLocked(); err != nil {
+			return 0, err
+		}
+	}
+	if s.Meta.Settled {
+		// Activity un-settles: the session is live again.
+		s.Meta.Settled = false
 		if err := s.rewriteLocked(); err != nil {
 			return 0, err
 		}

@@ -133,6 +133,10 @@ type Agent struct {
 	MaxIterations int
 	// AutoApprove skips the Approver for every tool.
 	AutoApprove bool
+	// AutoEdits skips the Approver for file edits only: write_file and
+	// edit_file go through, commands still ask. The natural mode for a
+	// refactor, where every edit would be approved anyway.
+	AutoEdits bool
 	// Rules are persistent permission rules consulted before the Approver:
 	// a deny refuses the call outright, an allow skips the prompt.
 	Rules perm.Rules
@@ -197,6 +201,8 @@ type Agent struct {
 	// Resume reconstructs counts by folding it. Nil means in-memory stats only.
 	Log          session.Log
 	turnN, stepN int
+	// undoRemoved is how many messages the last Undo removed.
+	undoRemoved int
 	// Archive, when set, keeps full tool outputs longer than InlineOutput
 	// on disk so the model can page through them with expand_output.
 	Archive *Archive
@@ -290,12 +296,16 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			emit(Event{Kind: EvNotice, Text: note})
 		}
 	}
+	// The checkpoint remembers the conversation as it stood before this
+	// turn's prompt, so an undo can take the whole turn out, prompt
+	// included; a prompt left behind reads as a request to do it again.
+	before := len(a.Messages)
 	merged := a.appendUserBlocks(blocks...)
 	a.turnN++
 	a.stepN = 0
 	a.logEvent(session.Event{Type: session.TypeTurnStart, Turn: a.turnN})
 	a.logUserMessage(merged)
-	a.cp.beginTurn()
+	a.cp.beginTurn(a.turnN, before)
 	a.mutated, a.mutations = false, 0
 	defer a.endTurn()
 	a.loops.reset()
@@ -790,7 +800,8 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	case hookAllowed:
 		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by a hook", "; ")
 	}
-	if t.Mutating() && (mustAsk || !a.AutoApprove && !a.allowed[u.Name] && verdict != perm.Allowed && !hookAllowed) {
+	autoEdit := a.AutoEdits && editTool(u.Name)
+	if t.Mutating() && (mustAsk || !a.AutoApprove && !autoEdit && !a.allowed[u.Name] && verdict != perm.Allowed && !hookAllowed) {
 		if a.Approver == nil {
 			return nil, "Permission denied: no approver configured for mutating tools.", nil
 		}
@@ -1059,3 +1070,7 @@ func forward(e llm.Event, emit func(Event)) {
 		emit(Event{Kind: EvToolInput, Text: e.Text})
 	}
 }
+
+// editTool reports the tools AutoEdits covers: the ones that change files
+// through the harness, never the shell.
+func editTool(name string) bool { return name == "write_file" || name == "edit_file" }

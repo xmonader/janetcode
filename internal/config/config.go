@@ -27,6 +27,10 @@ type ProviderConfig struct {
 
 // Config is the resolved configuration.
 type Config struct {
+	// RatesTable prices models the file does not list, from LiteLLM's
+	// public table (internal/rates); set by main, never read from the file.
+	RatesTable interface{ PriceFor(string) *llm.Price } `json:"-"`
+
 	// Notes are things load decided on the user's behalf and should say
 	// so: a provider switched because the configured one had no key.
 	Notes []string `json:"-"`
@@ -150,6 +154,9 @@ func (c *Config) PriceFor(model string) *llm.Price {
 	if best == "" {
 		if m := c.MetaFor(model); m.Price != nil {
 			return m.Price
+		}
+		if c.RatesTable != nil {
+			return c.RatesTable.PriceFor(model)
 		}
 		return nil
 	}
