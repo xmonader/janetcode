@@ -1,0 +1,662 @@
+[
+  {
+    "harness": "pi",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 9491,
+    "input_tokens": {
+      "value": 18542,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 112,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 17024,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Create a file named hello.txt containing exactly the text: hello world"
+  },
+  {
+    "harness": "pi",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 27909,
+    "input_tokens": {
+      "value": 9557,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 608,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 102144,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 24103,
+    "input_tokens": {
+      "value": 7812,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 567,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 85120,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+  },
+  {
+    "harness": "pi",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 14834,
+    "input_tokens": {
+      "value": 2639,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 235,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 51072,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+  },
+  {
+    "harness": "pi",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 32843,
+    "input_tokens": {
+      "value": 8604,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 836,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 104192,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+  },
+  {
+    "harness": "pi",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 15717,
+    "input_tokens": {
+      "value": 2468,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 261,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 51072,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session What does Compute(3) return? Reply with just the number."
+  },
+  {
+    "harness": "pi",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 16303,
+    "input_tokens": {
+      "value": 2503,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 268,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 51072,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+  },
+  {
+    "harness": "pi",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 10300,
+    "input_tokens": {
+      "value": 1523,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 135,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 34048,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+  },
+  {
+    "harness": "pi",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 23495,
+    "input_tokens": {
+      "value": 5703,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 399,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 102144,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+  },
+  {
+    "harness": "pi",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 18344,
+    "input_tokens": {
+      "value": 3480,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 288,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 68096,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+  },
+  {
+    "harness": "pi",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 24861,
+    "input_tokens": {
+      "value": 5441,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 541,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 85120,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 24628,
+    "input_tokens": {
+      "value": 5123,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 561,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 85120,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+  },
+  {
+    "harness": "pi",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 23989,
+    "input_tokens": {
+      "value": 3738,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 775,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 51072,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 13091,
+    "input_tokens": {
+      "value": 2324,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 169,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 51072,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+  },
+  {
+    "harness": "pi",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 11896,
+    "input_tokens": {
+      "value": 1536,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 114,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 34048,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+  },
+  {
+    "harness": "pi",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 19171,
+    "input_tokens": {
+      "value": 4234,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 483,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 68096,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+  },
+  {
+    "harness": "pi",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 19233,
+    "input_tokens": {
+      "value": 3459,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 277,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 68096,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+  },
+  {
+    "harness": "pi",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 8855,
+    "input_tokens": {
+      "value": 1541,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 113,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 34048,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Which files mention 'flux capacitor'? List only the file names."
+  },
+  {
+    "harness": "pi",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 27705,
+    "input_tokens": {
+      "value": 5930,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 663,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 85120,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+  },
+  {
+    "harness": "pi",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 10863,
+    "input_tokens": {
+      "value": 1575,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 154,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 34048,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": true
+    },
+    "command": "pi -p --mode json --provider dashscope --model qwen3.7-plus --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+  }
+]
