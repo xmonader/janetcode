@@ -2585,3 +2585,39 @@ func TestCommandAvailabilityAndArgumentCompletion(t *testing.T) {
 		t.Fatal("an argument menu should be marked as one")
 	}
 }
+
+// TestShortWindowScalesTheInterface: caps follow the terminal height, and
+// a very short window drops what is optional rather than crowding out
+// the transcript.
+func TestShortWindowScalesTheInterface(t *testing.T) {
+	if outputCap(90) != 30 || outputCap(6) != 4 || outputCap(300) != 40 {
+		t.Fatalf("caps = %d %d %d", outputCap(90), outputCap(6), outputCap(300))
+	}
+	h := newHarness(t)
+	h.update(tea.WindowSizeMsg{Width: 90, Height: 40})
+	if h.m.compactMode() || h.m.tight() {
+		t.Fatal("a 40-row window is neither compact nor tight")
+	}
+	if !strings.Contains(plain(h.m.View()), "janetcode test") {
+		t.Fatal("the welcome banner should be shown in a tall window")
+	}
+	h.update(tea.WindowSizeMsg{Width: 90, Height: 18})
+	if !h.m.compactMode() || h.m.tight() {
+		t.Fatal("an 18-row window is compact, not tight")
+	}
+	if h.m.menuRows() != 4 {
+		t.Fatalf("compact menu rows = %d", h.m.menuRows())
+	}
+	h.update(tea.WindowSizeMsg{Width: 90, Height: 14})
+	if !h.m.tight() {
+		t.Fatal("a 14-row window is tight")
+	}
+	if strings.Contains(plain(h.m.View()), "janetcode test ·") {
+		t.Fatalf("the welcome banner survived a tight window:\n%s", plain(h.m.View()))
+	}
+	// Nothing is persisted: growing the window puts it back.
+	h.update(tea.WindowSizeMsg{Width: 90, Height: 40})
+	if h.m.tight() || h.m.compactMode() || !strings.Contains(plain(h.m.View()), "janetcode test") {
+		t.Fatal("the compact choice outlived the window that caused it")
+	}
+}

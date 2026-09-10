@@ -3009,13 +3009,30 @@ const strayKeyWindow = 1500 * time.Millisecond
 
 // --- layout & view ---
 
+// compactMode and tight scale the interface to a short window. Neither is
+// remembered: they follow the window, and growing it puts everything back.
+func (m *model) compactMode() bool { return m.height > 0 && m.height < 20 }
+func (m *model) tight() bool       { return m.height > 0 && m.height < 16 }
+
+// menuRows is how many completion rows the menu reserves.
+func (m *model) menuRows() int {
+	if m.compactMode() {
+		return 4
+	}
+	return menuRows
+}
+
 func (m *model) inputHeight() int {
 	n := m.input.LineCount()
 	if n < minInputLines {
 		n = minInputLines
 	}
-	if n > maxInputLines {
-		n = maxInputLines
+	maxLines := maxInputLines
+	if m.compactMode() {
+		maxLines = 3
+	}
+	if n > maxLines {
+		n = maxLines
 	}
 	return n
 }
@@ -3029,7 +3046,7 @@ func (m *model) footerHeight() int {
 		// The menu always claims the same height, however many rows it has
 		// to show: narrowing it as you type used to resize the viewport on
 		// every keystroke, and the transcript flickered above it.
-		h += menuRows + 1
+		h += m.menuRows() + 1
 	}
 	if m.denying {
 		h++
@@ -3078,6 +3095,9 @@ func (m *model) refresh(resized bool) {
 		pending: m.pending,
 		spinner: m.spinner.View(),
 		verbose: m.verbose,
+		cap:     outputCap(m.viewport.Height),
+		tight:   m.tight(),
+		compact: m.compactMode(),
 	})
 	if content != m.lastContent || resized {
 		// SetContent re-parses every line; skip it when nothing changed
@@ -3230,6 +3250,8 @@ func (m *model) statusView() string {
 	switch {
 	case m.pending != nil:
 		left = styleWarn.Render("● approval needed")
+	case m.running && m.tight():
+		left = m.spinner.View() + " " + styleDim.Render(m.phase)
 	case m.running:
 		el := shortDuration(time.Since(m.startedAt))
 		left = m.spinner.View() + " " + styleDim.Render(m.phase+" · "+el+" · esc to cancel")
@@ -3248,7 +3270,9 @@ func (m *model) statusView() string {
 	if !m.pinned {
 		parts = append(parts, styleWarn.Render("↓ pgdn for latest"))
 	}
-	if pct, ok := m.opts.Agent.CacheRate(); ok {
+	// In a short window the cache rate is the first thing to go: the
+	// scroll hint and the gauge both say something you must act on.
+	if pct, ok := m.opts.Agent.CacheRate(); ok && !m.tight() {
 		parts = append(parts, styleFaint.Render(fmt.Sprintf("cache %d%%", pct)))
 	}
 	parts = append(parts, m.contextGauge())
@@ -3344,11 +3368,12 @@ func (m *model) footerView() string {
 	// The command menu and the @path menu are the same menu: same rows,
 	// same highlight, same footer line, same height whatever is in them.
 	if c, idx := m.menu(); len(c) > 0 {
+		rows := m.menuRows()
 		start := 0
-		if idx >= menuRows {
-			start = idx - menuRows + 1
+		if idx >= rows {
+			start = idx - rows + 1
 		}
-		end := min(len(c), start+menuRows)
+		end := min(len(c), start+rows)
 		for i := start; i < end; i++ {
 			cmd := c[i]
 			mark, name, help := "  ", styleKey.Render(cmd.name), styleFaint.Render(cmd.help)
@@ -3357,7 +3382,7 @@ func (m *model) footerView() string {
 			}
 			parts = append(parts, fitLine(mark+name+" "+styleDim.Render(cmd.args)+"  "+help, m.width-1))
 		}
-		for i := end - start; i < menuRows; i++ {
+		for i := end - start; i < rows; i++ {
 			parts = append(parts, "")
 		}
 		parts = append(parts, styleFaint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))

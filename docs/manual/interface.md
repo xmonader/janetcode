@@ -51,6 +51,13 @@ running — the model reads it before its next step. `↑` with an empty prompt
 takes the last queued message back to edit, and cancelling a turn hands all
 queued text back to the input, joined by blank lines.
 
+In a short terminal the interface gives way rather than crowding out the
+transcript: how much of a tool result is shown is a third of the visible
+area (never fewer than four lines, never more than forty); below twenty
+rows the input box and the completion menu shrink; below sixteen the
+welcome banner and the cache rate go. None of it is remembered — growing
+the window puts everything back.
+
 `↑` and `↓` walk the prompts you have sent in this directory. The history
 outlives the process: it is a JSONL file keyed by the working directory,
 beside the sessions, capped at a thousand lines. A line typed with a `!`

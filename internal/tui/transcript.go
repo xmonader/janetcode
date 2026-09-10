@@ -111,6 +111,35 @@ type renderOpts struct {
 	spinner string // current spinner frame for running tools
 	verbose bool   // expand tool output
 	cwd     string // paths in tool lines are shown relative to it
+	// cap is how many lines of a tool result are shown before folding. It
+	// comes from the terminal's height: a fixed eight lines is most of a
+	// short window and a waste of a tall one.
+	cap int
+	// tight drops what is optional in a very short window (the welcome
+	// banner); compact narrows what is left.
+	tight, compact bool
+}
+
+// outputCap is the fold height for a viewport: a third of it, never fewer
+// than four lines and never more than forty.
+func outputCap(viewport int) int {
+	c := viewport / 3
+	if c < 4 {
+		c = 4
+	}
+	if c > 40 {
+		c = 40
+	}
+	return c
+}
+
+// lines is the fold height for this frame, or the given default when the
+// terminal height is not known (tests, headless rendering).
+func (o renderOpts) lines(def int) int {
+	if o.cap > 0 {
+		return o.cap
+	}
+	return def
 }
 
 // expand reports whether this entry is shown in full: either the session
@@ -332,6 +361,11 @@ func (t *transcript) render(o renderOpts) string {
 	var sb strings.Builder
 	line := 0
 	for i, e := range t.entries {
+		if e.kind == entryBanner && o.tight {
+			// Nothing optional survives in a window this short.
+			e.lineFrom, e.lineTo = -1, -1
+			continue
+		}
 		if i > 0 {
 			sb.WriteByte('\n')
 			line++
@@ -553,14 +587,14 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		return sb.String()
 	}
 	if e.done && !e.isError && e.call.Preview != "" && !e.denied {
-		max := 12
+		max := o.lines(12)
 		if o.expand(e) {
 			max = 200
 		}
 		sb.WriteString("\n" + renderPreview(e.call.Preview, width, max))
 	}
 	if e.done && e.output != "" {
-		max := 8
+		max := o.lines(8)
 		if o.expand(e) {
 			max = 60
 		}
