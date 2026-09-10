@@ -161,3 +161,31 @@ func TestPathsAndThoughtsFit(t *testing.T) {
 		t.Fatalf("short text changed: %q", got)
 	}
 }
+
+// TestVerdictAndDiagnosticsAreShown: the verdict event becomes a line of
+// its own with its mark; language-server diagnostics appended to a tool
+// result are split out and never clipped away.
+func TestVerdictAndDiagnosticsAreShown(t *testing.T) {
+	tr := newTranscript()
+	tr.apply(agent.Event{Kind: agent.EvVerdict, Text: "⚠ not demonstrated: 1 file(s) edited and nothing asserted the result", IsError: true})
+	if e := tr.last(entryVerdict); e == nil || !strings.HasPrefix(e.text, "⚠ not demonstrated") {
+		t.Fatalf("verdict entry = %+v", e)
+	}
+	if got := plain(tr.renderEntry(tr.last(entryVerdict), 80, renderOpts{})); !strings.Contains(got, "not demonstrated") {
+		t.Fatalf("rendered %q", got)
+	}
+	body, diag := splitDiagnostics("Edited a.go (1 replacement)\n[diagnostics]\na.go:3:5: undefined: x\na.go:9:1: missing return")
+	if body != "Edited a.go (1 replacement)" || !strings.HasPrefix(diag, "✗ a.go:3:5") || !strings.Contains(diag, "missing return") {
+		t.Fatalf("split = %q / %q", body, diag)
+	}
+	if b, d := splitDiagnostics("plain output"); b != "plain output" || d != "" {
+		t.Fatalf("no diagnostics: %q / %q", b, d)
+	}
+	tr.apply(agent.Event{Kind: agent.EvNotice, Text: "skills attached: go-testing"})
+	if e := tr.last(entryInfo); e == nil || !strings.HasPrefix(e.text, "📎 ") {
+		t.Fatalf("attach note = %+v", e)
+	}
+	if verdictBrief("✓ verified: tests that had been failing now pass") != "✓ verified" || verdictBrief("") != "" {
+		t.Fatal("verdictBrief")
+	}
+}

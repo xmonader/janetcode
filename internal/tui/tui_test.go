@@ -132,7 +132,7 @@ func TestSubmitAndStreamResponse(t *testing.T) {
 	}
 	h.pump(func() bool { return !h.m.running })
 	v := plain(h.m.View())
-	for _, want := range []string{"❯ hi there", "hello back", "7 in · 2 out"} {
+	for _, want := range []string{"❯ hi there", "hello back", "in 7 · out 2"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("missing %q in view:\n%s", want, v)
 		}

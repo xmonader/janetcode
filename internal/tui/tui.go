@@ -1039,27 +1039,30 @@ type model struct {
 	histIdx      int    // == len(history) when not browsing
 	draft        string // input saved while browsing history
 
-	running    bool
-	cancelling bool
-	compacting bool
-	cancel     context.CancelFunc
-	startedAt  time.Time
-	phase      string // what the agent is doing right now
-	pending    *permissionMsg
-	denying    bool // the input box is collecting a reason for a denial
-	status     string
-	lastTurn   string                   // usage summary of the last turn
-	queued     []string                 // prompts typed while a turn was running
-	custom     map[string]prompt.Custom // user-defined slash commands
-	clipboard  func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
-	compIdx    int                      // highlighted row of the completion menu
-	compFor    string                   // input value the highlight belongs to
-	lastFind   string                   // last /find query, for repeats
-	lastFindAt int                      // line of the last hit, so repeats advance past it
-	connect    *connect                 // open provider/model dialog
-	connectGen int
-	quitting   bool
-	branch     string
+	running        bool
+	cancelling     bool
+	compacting     bool
+	cancel         context.CancelFunc
+	startedAt      time.Time
+	phase          string // what the agent is doing right now
+	pending        *permissionMsg
+	denying        bool // the input box is collecting a reason for a denial
+	status         string
+	lastTurn       string                   // usage summary of the last turn
+	lastVerdict    string                   // the last turn's verdict line
+	lastUsage      llm.Usage                // the last turn's usage
+	verifyTipShown bool                     // the one-time hint about verification gates
+	queued         []string                 // prompts typed while a turn was running
+	custom         map[string]prompt.Custom // user-defined slash commands
+	clipboard      func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
+	compIdx        int                      // highlighted row of the completion menu
+	compFor        string                   // input value the highlight belongs to
+	lastFind       string                   // last /find query, for repeats
+	lastFindAt     int                      // line of the last hit, so repeats advance past it
+	connect        *connect                 // open provider/model dialog
+	connectGen     int
+	quitting       bool
+	branch         string
 }
 
 const (
@@ -1137,7 +1140,8 @@ func (m *model) welcome() string {
 	} else {
 		sb.WriteString("edits and commands ask first and show a diff · y allow · a always · n deny\n")
 	}
-	sb.WriteString("enter sends · ctrl+j newline · esc cancels · /help for more")
+	sb.WriteString("enter sends · ctrl+j newline · esc cancels · /help for more\n")
+	sb.WriteString("@file attaches a file · !cmd runs a command and shares its output · /undo reverts a bad change")
 	return sb.String()
 }
 
@@ -1333,7 +1337,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := m.opts.Session.SetTitle(msg.title); err != nil {
 				m.transcript.errorf("could not save the title: %v", err)
 			} else {
-				m.status = "titled: " + msg.title
+				// The title shows in the header; the status keeps the
+				// turn's verdict and cost, which the title used to erase.
 			}
 			m.refresh(false)
 		}
@@ -1384,14 +1389,22 @@ func (m *model) applyEvent(ev agent.Event) {
 		m.phase = "thinking"
 	case agent.EvCompacted:
 		m.phase = "thinking"
+	case agent.EvVerdict:
+		m.lastVerdict = ev.Text
 	case agent.EvTurnDone:
 		u := ev.Usage
-		s := fmt.Sprintf("%s in · %s out", shortTokens(u.InputTokens+u.CacheReadTokens+u.CacheWriteTokens), shortTokens(u.OutputTokens))
-		if u.CacheReadTokens > 0 {
-			s += fmt.Sprintf(" · %s cached", shortTokens(u.CacheReadTokens))
+		m.lastUsage = u
+		in := u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
+		s := fmt.Sprintf("in %s", shortTokens(in))
+		if u.CacheReadTokens > 0 && in > 0 {
+			s += fmt.Sprintf(" (%d%% from cache)", u.CacheReadTokens*100/in)
+		}
+		s += " · out " + shortTokens(u.OutputTokens)
+		if usd, ok := u.Cost(m.opts.Agent.Price); ok {
+			s += " · this turn " + llm.FormatUSD(usd)
 		}
 		if usd, ok := m.opts.Agent.UsageSnapshot().Cost(m.opts.Agent.Price); ok {
-			s += " · " + llm.FormatUSD(usd) + " total"
+			s += " · session " + llm.FormatUSD(usd)
 		}
 		if ev.StopReason != "" && ev.StopReason != "end_turn" {
 			s += " · stopped: " + string(ev.StopReason)
@@ -1974,7 +1987,16 @@ func (m *model) startTurn(phase string) {
 	m.cancelling = false
 	m.startedAt = time.Now()
 	m.status = ""
+	m.lastVerdict = ""
 	m.phase = phase
+}
+
+// plural is "1 file" or "3 files".
+func plural(n int, word string) string {
+	if n == 1 {
+		return "1 " + word
+	}
+	return fmt.Sprintf("%d %ss", n, word)
 }
 
 // compact summarises the history in the background like a turn.
@@ -2040,8 +2062,18 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		m.status = "compacted in " + elapsed
 	default:
 		m.status = "done in " + elapsed
+		if b := verdictBrief(m.lastVerdict); b != "" {
+			m.status = b + " · " + m.status
+		}
 		if m.lastTurn != "" {
 			m.status += " · " + m.lastTurn
+		}
+		if n := m.filesChangedLastTurn(); n > 0 {
+			m.status += fmt.Sprintf(" · %s changed · /undo reverts", plural(n, "file"))
+			if m.opts.Verify != nil && len(m.opts.Verify.Config.Commands) == 0 && !m.verifyTipShown {
+				m.verifyTipShown = true
+				m.transcript.info("tip: /verify set \"go test ./...\" runs the project's checks after every change and sends failures back to the model; it is saved in .janetcode/verify.json")
+			}
 		}
 	}
 	if msg.err == nil && len(m.queued) == 0 {
@@ -2509,6 +2541,7 @@ func (m *model) resume(arg string) {
 	m.transcript.info(fmt.Sprintf("resumed session %s · %d messages", sess.Meta.ID, len(history)))
 	m.transcript.loadHistory(history)
 	m.lastTurn = ""
+	m.lastVerdict = ""
 	m.viewport.GotoBottom()
 }
 
@@ -2616,6 +2649,67 @@ func (m *model) permissionKeys(tool, rule string) string {
 	}
 	s, _ := render([]seg{{"y", " once"}, {"a", " always"}, {"r", " rule"}, {"n", " deny"}}, " · ")
 	return s
+}
+
+// verdictBrief reduces a verdict line ("✓ verified: 2 files edited …")
+// to its mark and name for the status bar.
+func verdictBrief(line string) string {
+	if line == "" {
+		return ""
+	}
+	if i := strings.Index(line, ":"); i > 0 {
+		line = line[:i]
+	}
+	return strings.TrimSpace(line)
+}
+
+// filesChangedLastTurn counts distinct files the last turn changed, from
+// the provenance record.
+func (m *model) filesChangedLastTurn() int {
+	if m.opts.Agent == nil || !m.opts.Agent.LastTurnMutated() {
+		return 0
+	}
+	changes := m.opts.Agent.Changes()
+	last := 0
+	for _, c := range changes {
+		if c.Turn > last {
+			last = c.Turn
+		}
+	}
+	files := map[string]bool{}
+	for _, c := range changes {
+		if c.Turn == last && !c.Undone {
+			files[c.Path] = true
+		}
+	}
+	return len(files)
+}
+
+// liveWork names background jobs and subagents still running, for the
+// status bar; both are otherwise invisible until they finish.
+func (m *model) liveWork() string {
+	var parts []string
+	if m.opts.Jobs != nil {
+		n := 0
+		for _, j := range m.opts.Jobs.List() {
+			if !j.Done {
+				n++
+			}
+		}
+		if n > 0 {
+			parts = append(parts, "⚙ "+plural(n, "job")+" (/jobs)")
+		}
+	}
+	if ag := m.opts.Agent; ag != nil && ag.Tools != nil {
+		if t, ok := ag.Tools.Get("task"); ok {
+			if task, ok := t.(*agent.Task); ok {
+				if n := len(task.ChildIDs()); n > 0 {
+					parts = append(parts, plural(n, "subagent")+" (/agents)")
+				}
+			}
+		}
+	}
+	return strings.Join(parts, " · ")
 }
 
 // helpGroups orders /help by how often a command is reached for; the
@@ -2743,6 +2837,9 @@ func (m *model) View() string {
 
 func (m *model) headerView() string {
 	left := styleHeaderHi.Render(" ◆ janetcode ") + styleHeader.Render(m.headerModel())
+	if m.opts.Session != nil && m.opts.Session.Meta.Title != "" {
+		left += styleHeader.Render(" · " + truncateLine(m.opts.Session.Meta.Title, max(12, m.width/3)))
+	}
 	suffix := ""
 	if m.branch != "" {
 		suffix = " ⎇ " + m.branch
@@ -2814,6 +2911,9 @@ func (m *model) statusView() string {
 		left = styleDim.Render(m.status)
 	default:
 		left = styleFaint.Render("ready")
+	}
+	if live := m.liveWork(); live != "" {
+		left += styleWarn.Render(" · " + live)
 	}
 	right := m.contextGauge()
 	if pct, ok := m.opts.Agent.CacheRate(); ok {

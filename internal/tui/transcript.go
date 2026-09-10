@@ -26,6 +26,7 @@ const (
 	entryThinking
 	entryTool
 	entryBanner
+	entryVerdict // what the turn demonstrated, with its mark
 )
 
 type entry struct {
@@ -157,10 +158,19 @@ func (t *transcript) apply(ev agent.Event) {
 		t.closeOpen()
 	case agent.EvCompacted:
 		t.closeOpen()
-		t.info("⇣ " + ev.Text)
+		t.info("⇣ " + ev.Text + " · expand_output brings archived output back; /context shows what remains")
+	case agent.EvVerdict:
+		// The one line that says whether the turn showed its work. It was
+		// dropped here for a long time while headless mode printed it.
+		t.closeOpen()
+		t.add(&entry{kind: entryVerdict, text: ev.Text, isError: ev.IsError})
 	case agent.EvNotice:
 		t.closeOpen()
-		t.info("⚑ " + ev.Text)
+		if isAttachNote(ev.Text) {
+			t.info("📎 " + ev.Text)
+		} else {
+			t.info("⚑ " + ev.Text)
+		}
 	}
 }
 
@@ -327,6 +337,15 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 		return renderCode(e.text, width)
 	case entryError:
 		return styleErr.Render(wrap.Render("✗ " + e.text))
+	case entryVerdict:
+		style := styleWarn
+		switch {
+		case strings.HasPrefix(e.text, "✓"):
+			style = styleOK
+		case strings.HasPrefix(e.text, "✗"):
+			style = styleErr
+		}
+		return style.Render(wrap.Render(e.text))
 	case entryUser:
 		body := lipgloss.NewStyle().Width(width - 4).Render(e.text)
 		return styleUser.Render("❯ ") + styleUserBody.Render(strings.ReplaceAll(body, "\n", "\n  "))
@@ -466,14 +485,46 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		if e.isError {
 			max = 8
 		}
-		out := clip(strings.TrimRight(e.output, "\n"), max)
+		if e.call.Name == "todo" {
+			max = 20 // the plan is the point; show it whole
+		}
+		body, diag := splitDiagnostics(strings.TrimRight(e.output, "\n"))
+		out := clip(body, max)
 		style := styleFaint
 		if e.isError {
 			style = styleErr
 		}
-		sb.WriteString("\n" + style.Render(indent(lipgloss.NewStyle().Width(width-4).Render(out), "  ")))
+		if out != "" {
+			sb.WriteString("\n" + style.Render(indent(lipgloss.NewStyle().Width(width-4).Render(out), "  ")))
+		}
+		if diag != "" {
+			// Language-server problems after an edit are never clipped
+			// and never faint: they are the thing to read next.
+			sb.WriteString("\n" + styleErr.Render(indent(lipgloss.NewStyle().Width(width-4).Render(clip(diag, 12)), "  ")))
+		}
 	}
 	return sb.String()
+}
+
+// isAttachNote reports a notice about what the harness attached to the
+// request: skills, recalled memory, the repository map.
+func isAttachNote(text string) bool {
+	for _, p := range []string{"skills attached", "memory recalled", "repository map attached"} {
+		if strings.HasPrefix(text, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// splitDiagnostics separates a tool result from the language-server
+// diagnostics appended to it, so problems can be shown on their own.
+func splitDiagnostics(out string) (body, diag string) {
+	i := strings.Index(out, "[diagnostics]\n")
+	if i < 0 {
+		return out, ""
+	}
+	return strings.TrimRight(out[:i], "\n"), "✗ " + strings.TrimSpace(strings.TrimPrefix(out[i:], "[diagnostics]\n"))
 }
 
 // thinkingView shows the tail of the reasoning while it streams and folds
