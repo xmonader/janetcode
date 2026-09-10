@@ -649,7 +649,8 @@ func splitDiagnostics(out string) (body, diag string) {
 
 // thinkingView shows the tail of the reasoning while it streams and folds
 // it to a single line once the model moves on, so it never swamps the
-// transcript.
+// transcript. The streaming view is capped at three lines so the fold
+// costs the transcript two lines rather than seven.
 func thinkingView(text string, done bool) string {
 	txt := strings.TrimSpace(text)
 	if txt == "" {
@@ -663,9 +664,12 @@ func thinkingView(text string, done bool) string {
 		}
 		return "· thought: " + first
 	}
-	const tail = 8
-	if len(lines) > tail {
-		lines = append([]string{fmt.Sprintf("· thinking… (%d earlier lines)", len(lines)-tail)}, lines[len(lines)-tail:]...)
+	// At most three lines while streaming. Eight was enough to make the
+	// transcript jump by seven lines the moment the model moved on and the
+	// thought folded to one.
+	const shown = 3
+	if len(lines) > shown {
+		lines = append([]string{fmt.Sprintf("· thinking… (%d earlier lines)", len(lines)-shown+1)}, lines[len(lines)-shown+1:]...)
 		return strings.Join(lines, "\n")
 	}
 	return "· " + strings.Join(lines, "\n")

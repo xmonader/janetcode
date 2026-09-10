@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -118,7 +119,7 @@ func TestThinkingView(t *testing.T) {
 	}
 	long := strings.Repeat("line\n", 20) + "last"
 	got := thinkingView(long, false)
-	if !strings.HasPrefix(got, "· thinking… (13 earlier lines)") || !strings.HasSuffix(got, "last") || strings.Count(got, "\n") != 8 {
+	if !strings.HasPrefix(got, "· thinking… (19 earlier lines)") || !strings.HasSuffix(got, "last") || strings.Count(got, "\n") != 2 {
 		t.Fatalf("streaming tail: %q", got)
 	}
 	if got := thinkingView("plan first\nthen do", true); got != "· thought: plan first (2 lines)" {
@@ -314,5 +315,37 @@ func TestMarkdownStyleUsesPalette(t *testing.T) {
 		if c.Emph.Italic == nil || *c.Emph.Italic {
 			t.Errorf("dark=%v emph is still italic", dark)
 		}
+	}
+}
+
+// TestThinkingViewCapsAtThreeLines covers item 3: a streaming thought used
+// to show its last eight lines and then fold to one, so the transcript
+// jumped seven lines every time the model moved on.
+func TestThinkingViewCapsAtThreeLines(t *testing.T) {
+	var lines []string
+	for i := 1; i <= 12; i++ {
+		lines = append(lines, fmt.Sprintf("step %d", i))
+	}
+	text := strings.Join(lines, "\n")
+	live := thinkingView(text, false)
+	if n := len(strings.Split(live, "\n")); n != 3 {
+		t.Fatalf("streaming thought is %d lines, want 3:\n%s", n, live)
+	}
+	if !strings.Contains(live, "step 12") || !strings.Contains(live, "step 11") {
+		t.Errorf("streaming thought lost the tail:\n%s", live)
+	}
+	if !strings.Contains(live, "10 earlier lines") {
+		t.Errorf("streaming thought does not say what it hid:\n%s", live)
+	}
+	folded := thinkingView(text, true)
+	if n := len(strings.Split(folded, "\n")); n != 1 {
+		t.Fatalf("folded thought is %d lines, want 1:\n%s", n, folded)
+	}
+	if !strings.Contains(folded, "step 1") || !strings.Contains(folded, "12 lines") {
+		t.Errorf("folded thought = %q", folded)
+	}
+	// Short thoughts are shown whole.
+	if got := thinkingView("only one", false); got != "· only one" {
+		t.Errorf("short thought = %q", got)
 	}
 }
