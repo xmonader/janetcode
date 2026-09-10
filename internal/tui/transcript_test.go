@@ -349,3 +349,70 @@ func TestThinkingViewCapsAtThreeLines(t *testing.T) {
 		t.Errorf("short thought = %q", got)
 	}
 }
+
+// TestToolResultCollapsing covers item 4: results collapsed at four lines,
+// so "… (2 more lines, ctrl+o to expand)" appeared to save two lines;
+// read_file printed the file back at the reader; and edit_file printed the
+// diff, the summary and then a numbered window of the same change.
+func TestToolResultCollapsing(t *testing.T) {
+	read := agent.ToolCall{ID: "r1", Name: "read_file", Input: json.RawMessage(`{"path":"main.go"}`)}
+	body := ""
+	for i := 1; i <= 6; i++ {
+		body += fmt.Sprintf("%d\tline %d\n", i, i)
+	}
+
+	// Six lines of any other tool's output are shown whole now.
+	other := agent.ToolCall{ID: "b1", Name: "bash", Input: json.RawMessage(`{"command":"ls"}`)}
+	tr := newTranscript()
+	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &other})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &other, Output: body})
+	out := plain(tr.render(renderOpts{width: 80}))
+	if strings.Contains(out, "more lines") {
+		t.Errorf("six lines were collapsed:\n%s", out)
+	}
+	// Twelve are not: that hides four.
+	long := body
+	for i := 7; i <= 12; i++ {
+		long += fmt.Sprintf("%d\tline %d\n", i, i)
+	}
+	tr = newTranscript()
+	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &other})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &other, Output: long})
+	out = plain(tr.render(renderOpts{width: 80}))
+	if !strings.Contains(out, "… (4 more lines, ctrl+o to expand)") {
+		t.Errorf("twelve lines were not collapsed to eight:\n%s", out)
+	}
+
+	// read_file folds to one line, and expands again with ctrl+o.
+	tr = newTranscript()
+	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &read})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &read, Output: body + "... (36 more lines)\n"})
+	out = plain(tr.render(renderOpts{width: 80}))
+	if !strings.Contains(out, "read main.go: 6 of 42 lines") {
+		t.Errorf("read_file not folded:\n%s", out)
+	}
+	if strings.Contains(out, "line 3") {
+		t.Errorf("read_file still prints the file:\n%s", out)
+	}
+	if out = plain(tr.render(renderOpts{width: 80, verbose: true})); !strings.Contains(out, "line 3") {
+		t.Errorf("ctrl+o does not bring the lines back:\n%s", out)
+	}
+
+	// edit_file keeps the diff, the summary and the diagnostics, and drops
+	// the numbered window of the file.
+	edit := agent.ToolCall{ID: "e1", Name: "edit_file", Input: json.RawMessage(`{"path":"a.go"}`),
+		Preview: "--- a.go\n+++ a.go\n@@ -1,2 +1,2 @@\n-old\n+new\n"}
+	tr = newTranscript()
+	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &edit})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &edit,
+		Output: "Edited a.go (1 replacement, +1 -1 lines)\n\n     1\tpackage main\n     2\tnew\n[diagnostics]\na.go:2:1: undefined: new"})
+	out = plain(tr.render(renderOpts{width: 80}))
+	for _, want := range []string{"+new", "-old", "Edited a.go (1 replacement, +1 -1 lines)", "a.go:2:1: undefined: new"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "package main") {
+		t.Errorf("the numbered window is still shown:\n%s", out)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -498,14 +499,25 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		sb.WriteString("\n" + renderPreview(e.call.Preview, width, max))
 	}
 	if e.done && e.output != "" {
-		max := 4
+		max := 8
 		if o.verbose {
 			max = 60
 		}
-		if e.isError {
-			max = 8
-		}
 		body, diag := splitDiagnostics(strings.TrimRight(e.output, "\n"))
+		if !o.verbose && !e.isError {
+			switch e.call.Name {
+			case "read_file":
+				// The lines are for the model; the reader wants to know
+				// which file was read and how big it is.
+				if s := readSummary(body, summarizeInput(e.call.Name, e.inputJSON(), 200, o.cwd)); s != "" {
+					body = s
+				}
+			case "edit_file":
+				// The diff above already showed the change in place; the
+				// numbered window after it says the same thing twice.
+				body = stripEditWindow(body)
+			}
+		}
 		if e.call.Name == "todo" && !o.verbose {
 			// The plan is shown whole the first time and as what changed
 			// after that: the model rewrites the whole list on every
@@ -514,7 +526,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 			body = planDelta(t.previousPlan(e), body)
 			max = 20
 		}
-		out := clip(body, max)
+		out := clipTool(body, max)
 		style := styleFaint
 		if e.isError {
 			style = styleErr
@@ -677,18 +689,19 @@ func thinkingView(text string, done bool) string {
 
 // renderPreview colours a unified diff (or shows plain preview text).
 func renderPreview(preview string, width, maxLines int) string {
-	lines := strings.Split(strings.TrimRight(preview, "\n"), "\n")
-	var out []string
-	shown := 0
-	for _, l := range lines {
+	var lines []string
+	for _, l := range strings.Split(strings.TrimRight(preview, "\n"), "\n") {
 		if strings.HasPrefix(l, "--- ") || strings.HasPrefix(l, "+++ ") {
-			continue
+			continue // the file name is already on the tool line
 		}
-		if shown >= maxLines {
-			out = append(out, styleFaint.Render(fmt.Sprintf("  … (%d more lines, ctrl+o to expand)", len(lines)-shown-2)))
-			break
-		}
-		shown++
+		lines = append(lines, l)
+	}
+	hidden := 0
+	if len(lines) >= maxLines+clipSlack {
+		hidden, lines = len(lines)-maxLines, lines[:maxLines]
+	}
+	out := make([]string, 0, len(lines)+1)
+	for _, l := range lines {
 		if len(l) > width-4 {
 			l = l[:width-5] + "…"
 		}
@@ -703,7 +716,64 @@ func renderPreview(preview string, width, maxLines int) string {
 			out = append(out, "  "+styleDim.Render(l))
 		}
 	}
+	if hidden > 0 {
+		out = append(out, styleFaint.Render(fmt.Sprintf("  … (%d more lines, ctrl+o to expand)", hidden)))
+	}
 	return strings.Join(out, "\n")
+}
+
+// numberedLine matches one line of a read_file result or of the numbered
+// window edit_file appends: "  12	text", or "12:a4f	text" with anchors.
+var numberedLine = regexp.MustCompile(`^\s*\d+(:[0-9a-z]+)?\t`)
+
+var moreLines = regexp.MustCompile(`^\.\.\. \((\d+) more lines\)$`)
+
+// readSummary folds a read_file result to one line. The numbered text is
+// for the model; what the reader needs is which file was read and how big
+// it is. It returns "" for anything that is not a plain windowed read.
+func readSummary(body, label string) string {
+	shown, more := 0, 0
+	for _, l := range strings.Split(body, "\n") {
+		switch {
+		case numberedLine.MatchString(l):
+			shown++
+		case moreLines.MatchString(l):
+			more, _ = strconv.Atoi(moreLines.FindStringSubmatch(l)[1])
+		case strings.TrimSpace(l) == "":
+		default:
+			return ""
+		}
+	}
+	if shown == 0 {
+		return ""
+	}
+	if label == "" {
+		label = "file"
+	}
+	if more > 0 {
+		return fmt.Sprintf("read %s: %d of %d lines", label, shown, shown+more)
+	}
+	return fmt.Sprintf("read %s: %s", label, plural(shown, "line"))
+}
+
+// stripEditWindow drops the numbered window edit_file appends to its
+// result. The model still gets it; the transcript has already shown the
+// change as a diff just above.
+func stripEditWindow(out string) string {
+	i := strings.LastIndex(out, "\n\n")
+	if i < 0 {
+		return out
+	}
+	tail := out[i+2:]
+	if strings.HasPrefix(tail, "(the change spans lines ") {
+		return out[:i]
+	}
+	for _, l := range strings.Split(tail, "\n") {
+		if !numberedLine.MatchString(l) {
+			return out
+		}
+	}
+	return out[:i]
 }
 
 func (e *entry) inputJSON() string {
@@ -792,6 +862,20 @@ func truncateLine(s string, max int) string {
 	}
 	// Width-aware: colour codes take no columns and a rune is never split.
 	return ansi.Truncate(s, max, "…")
+}
+
+// clipSlack is how many lines a collapse must save to be worth it: the
+// "… (N more lines, ctrl+o to expand)" line costs one line and a decision,
+// so hiding two or three is a worse deal than showing them.
+const clipSlack = 4
+
+// clipTool clips a tool result to max lines, but only when that hides at
+// least clipSlack of them.
+func clipTool(s string, max int) string {
+	if len(strings.Split(s, "\n")) < max+clipSlack {
+		return s
+	}
+	return clip(s, max)
 }
 
 func clip(s string, lines int) string {
