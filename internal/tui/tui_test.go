@@ -1701,3 +1701,63 @@ func TestGoalStartsWorkingAtOnce(t *testing.T) {
 		t.Fatalf("status = %q", v)
 	}
 }
+
+// TestViewportPinning covers item 2 of the polish round: streaming output
+// follows the bottom until the user scrolls away, a resize mid-stream does
+// not yank them back, the "pgdn for latest" hint tracks that state, and a
+// new prompt re-pins.
+func TestViewportPinning(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "first"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "second"), StopReason: llm.StopEndTurn},
+	)
+	h.update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	for i := 0; i < 60; i++ {
+		h.m.transcript.info(fmt.Sprintf("filler line %d", i))
+	}
+	h.m.refresh(false)
+	if !h.m.pinned || !h.m.viewport.AtBottom() {
+		t.Fatal("a fresh transcript must follow the bottom")
+	}
+	if strings.Contains(plain(h.m.statusView()), "pgdn for latest") {
+		t.Fatal("hint shown while pinned")
+	}
+	// Scrolling up unpins and raises the hint.
+	h.update(tea.KeyMsg{Type: tea.KeyPgUp})
+	if h.m.pinned {
+		t.Fatal("pgup must unpin")
+	}
+	if !strings.Contains(plain(h.m.statusView()), "pgdn for latest") {
+		t.Fatal("hint missing after scrolling up")
+	}
+	// New output while scrolled up must not move the view...
+	off := h.m.viewport.YOffset
+	h.m.transcript.info("streamed while scrolled up")
+	h.m.refresh(false)
+	if h.m.viewport.YOffset != off {
+		t.Fatalf("output yanked the view: offset %d → %d", off, h.m.viewport.YOffset)
+	}
+	// ...and neither must a resize.
+	h.update(tea.WindowSizeMsg{Width: 80, Height: 14})
+	if h.m.pinned {
+		t.Fatalf("resize re-pinned a scrolled-up view (offset %d)", h.m.viewport.YOffset)
+	}
+	// Scrolling back to the bottom re-pins.
+	for i := 0; i < 30; i++ {
+		h.update(tea.KeyMsg{Type: tea.KeyPgDown})
+	}
+	if !h.m.pinned {
+		t.Fatal("reaching the bottom must re-pin")
+	}
+	// A prompt sent while scrolled up re-pins too.
+	h.update(tea.KeyMsg{Type: tea.KeyPgUp})
+	if h.m.pinned {
+		t.Fatal("pgup must unpin")
+	}
+	h.keys("hi")
+	h.enter()
+	if !h.m.pinned {
+		t.Fatal("a new prompt must re-pin")
+	}
+	h.pump(func() bool { return !h.m.running })
+}

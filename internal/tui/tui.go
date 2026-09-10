@@ -1050,7 +1050,13 @@ type model struct {
 	width, height int
 	ready         bool
 	verbose       bool
-	lastContent   string // last transcript pushed into the viewport
+	// pinned is true while the transcript follows new output. The user
+	// scrolling away from the bottom clears it; reaching the bottom again,
+	// sending a prompt or starting a new session sets it. Resizing the
+	// window never changes it, so a resize mid-stream does not yank a
+	// reader who had scrolled up back to the tail.
+	pinned      bool
+	lastContent string // last transcript pushed into the viewport
 
 	// history of submitted prompts for up/down recall.
 	history []string
@@ -1119,6 +1125,7 @@ func newModel(opts Options) *model {
 	}
 	m := &model{
 		opts:       opts,
+		pinned:     true,
 		approver:   &tuiApprover{},
 		transcript: newTranscriptStyled(style),
 		queue:      &eventQueue{},
@@ -1246,9 +1253,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.MouseMsg:
-		var cmd tea.Cmd
-		m.viewport, cmd = m.viewport.Update(msg)
-		return m, cmd
+		return m, m.scroll(msg)
 
 	case tickMsg:
 		// Keeps elapsed timers and throttled live markdown moving even when
@@ -1297,7 +1302,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pending = &msg
 		m.phase = "waiting for your approval"
 		m.refresh(false)
-		m.viewport.GotoBottom()
 		return m, nil
 
 	case verifyDoneMsg:
@@ -1397,8 +1401,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.layout()
 		m.refresh(false)
 	}
-	m.viewport, cmd = m.viewport.Update(msg)
-	cmds = append(cmds, cmd)
+	cmds = append(cmds, m.scroll(msg))
 	return m, tea.Batch(cmds...)
 }
 
@@ -1505,9 +1508,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.verbose = !m.verbose
 			m.refresh(false)
 		case "pgup", "pgdown":
-			var cmd tea.Cmd
-			m.viewport, cmd = m.viewport.Update(msg)
-			return cmd, true
+			return m.scroll(msg), true
 		}
 		return nil, true
 	}
@@ -1609,9 +1610,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		// (kill line, back/forward a character); they page the transcript
 		// only when there is nothing to edit.
 		if k := msg.String(); k == "pgup" || k == "pgdown" || m.input.Value() == "" {
-			var cmd tea.Cmd
-			m.viewport, cmd = m.viewport.Update(msg)
-			return cmd, true
+			return m.scroll(msg), true
 		}
 		return nil, false
 	case "enter":
@@ -1957,8 +1956,8 @@ func (m *model) submit(text string) tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	ag, send, queue := m.opts.Agent, m.send, m.queue
+	m.repin()
 	m.refresh(false)
-	m.viewport.GotoBottom()
 	go func() {
 		// Every message reached the session file as it happened; there is
 		// nothing left to write when the turn ends.
@@ -1989,8 +1988,8 @@ func (m *model) shell(cmdline string) tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	send, cwd := m.send, m.opts.Cwd
+	m.repin()
 	m.refresh(false)
-	m.viewport.GotoBottom()
 	go func() {
 		start := time.Now()
 		out, err := tool.Bash{Root: cwd}.Run(ctx, input)
@@ -2193,6 +2192,7 @@ func (m *model) command(text string) tea.Cmd {
 		m.transcript = newTranscriptStyled(m.transcript.styleName)
 		m.transcript.banner(m.welcome())
 		m.transcript.info("new session " + sess.Meta.ID)
+		m.pinned = true
 	case "/yolo":
 		m.opts.Agent.AutoApprove = !m.opts.Agent.AutoApprove
 		if m.opts.Agent.AutoApprove {
@@ -2461,6 +2461,7 @@ func (m *model) find(q string) {
 	}
 	m.lastFindAt = next
 	m.viewport.SetYOffset(next)
+	m.pinned = m.viewport.AtBottom()
 	m.status = fmt.Sprintf("match %d/%d for %q on line %d · /find again for the next", idx+1, len(hits), q, next+1)
 }
 
@@ -2608,7 +2609,7 @@ func (m *model) resume(arg string) {
 	m.transcript.loadHistory(history)
 	m.lastTurn = ""
 	m.lastVerdict = ""
-	m.viewport.GotoBottom()
+	m.repin()
 }
 
 func shortAge(d time.Duration) string {
@@ -2863,13 +2864,12 @@ func (m *model) layout() {
 	m.input.SetWidth(m.width - 4)
 }
 
-// refresh re-renders the transcript into the viewport. When the viewport was
-// at the bottom it stays pinned there so streaming output scrolls.
+// refresh re-renders the transcript into the viewport, keeping it at the
+// bottom while it is pinned (see model.pinned).
 func (m *model) refresh(resized bool) {
 	if !m.ready {
 		return
 	}
-	atBottom := m.viewport.AtBottom()
 	content := m.transcript.render(renderOpts{
 		cwd:     m.opts.Cwd,
 		width:   m.width,
@@ -2884,9 +2884,24 @@ func (m *model) refresh(resized bool) {
 		m.viewport.SetContent(content)
 		m.lastContent = content
 	}
-	if atBottom || resized {
+	if m.pinned {
 		m.viewport.GotoBottom()
 	}
+}
+
+// scroll passes a key or mouse event to the viewport and re-reads whether
+// the transcript still follows new output.
+func (m *model) scroll(msg tea.Msg) tea.Cmd {
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	m.pinned = m.viewport.AtBottom()
+	return cmd
+}
+
+// repin makes the transcript follow new output again.
+func (m *model) repin() {
+	m.pinned = true
+	m.viewport.GotoBottom()
 }
 
 func (m *model) View() string {
@@ -2994,7 +3009,7 @@ func (m *model) statusView() string {
 	if pct, ok := m.opts.Agent.CacheRate(); ok {
 		right = styleFaint.Render(fmt.Sprintf("cache %d%%", pct)) + "  " + right
 	}
-	if !m.viewport.AtBottom() {
+	if !m.pinned {
 		right = styleWarn.Render("↓ pgdn for latest") + "  " + right
 	}
 	// The gauge keeps its place; the status text gives way to it.
