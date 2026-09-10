@@ -1,0 +1,3453 @@
+{
+  "hermes-agent": [
+    {
+      "harness": "hermes-agent",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 36836,
+      "input_tokens": {
+        "value": 3513,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 146,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7232,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a file named hello.txt containing exactly the text: hello world --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": ", cost_details={'upstream_inference_cost': 3.68816e-05, 'upstream_inference_prompt_cost': 2.51216e-05, 'upstream_inference_completions_cost': 1.176e-05})\n12:49:07 - agent.conversation_loop - INFO [20260910_124833_439f79] - API call #3: model=xiaomi/mimo-v2.5 provider=unknown in=3661 out=35 total=3696 latency=13.2s cache=3584/3661 (98%)\n12:49:07 - root - DEBUG [20260910_124833_439f79] - Token usage: prompt=3,661, completion=35, total=3,696\n12:49:07 - root - DEBUG [20260910_124833_439f79] - Captured reasoning (47 chars): The file was created and verified successfully.\n12:49:07 - tools.browser_tool - DEBUG [20260910_124833_439f79] - cleanup_browser called for task_id: 6da820bc-b375-4f4f-aab2-68dd58a7965b\n12:49:07 - tools.browser_tool - DEBUG [20260910_124833_439f79] - Active sessions: []\n12:49:07 - tools.browser_tool - DEBUG [20260910_124833_439f79] - No active session found for task_id: 6da820bc-b375-4f4f-aab2-68dd58a7965b\n12:49:07 - agent.conversation_loop - INFO [20260910_124833_439f79] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=111 session=20260910_124833_439f79\n12:49:08 - tools.terminal_tool - INFO [20260910_124833_439f79] - Shutting down 1 remaining sandbox(es)...\n12:49:08 - tools.terminal_tool - INFO [20260910_124833_439f79] - Manually cleaned up environment for task: default\n12:49:08 - tools.terminal_tool - INFO [20260910_124833_439f79] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 31823,
+      "input_tokens": {
+        "value": 3085,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 396,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 19136,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "cost=0.000179868, is_byok=False, cost_details={'upstream_inference_cost': 0.000179868, 'upstream_inference_prompt_cost': 0.000132418, 'upstream_inference_completions_cost': 4.745e-05})\n12:49:02 - agent.conversation_loop - INFO [20260910_124832_5b4d38] - API call #5: model=xiaomi/mimo-v2.5 provider=unknown in=4705 out=73 total=4778 latency=2.4s cache=4608/4705 (98%)\n12:49:02 - root - DEBUG [20260910_124832_5b4d38] - Token usage: prompt=4,705, completion=73, total=4,778\n12:49:02 - root - DEBUG [20260910_124832_5b4d38] - Captured reasoning (17 chars): Done. Tests pass.\n12:49:02 - tools.browser_tool - DEBUG [20260910_124832_5b4d38] - cleanup_browser called for task_id: 069b6e43-9156-4522-878d-0f36c9d9fb83\n12:49:02 - tools.browser_tool - DEBUG [20260910_124832_5b4d38] - Active sessions: []\n12:49:02 - tools.browser_tool - DEBUG [20260910_124832_5b4d38] - No active session found for task_id: 069b6e43-9156-4522-878d-0f36c9d9fb83\n12:49:02 - agent.conversation_loop - INFO [20260910_124832_5b4d38] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=165 session=20260910_124832_5b4d38\n12:49:03 - tools.terminal_tool - INFO [20260910_124832_5b4d38] - Shutting down 1 remaining sandbox(es)...\n12:49:03 - tools.terminal_tool - INFO [20260910_124832_5b4d38] - Manually cleaned up environment for task: default\n12:49:03 - tools.terminal_tool - INFO [20260910_124832_5b4d38] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 32632,
+      "input_tokens": {
+        "value": 5371,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 595,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17792,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query go test fails. Find the bug and fix it in the implementation, not the test. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "cost=4.72702e-05, is_byok=False, cost_details={'upstream_inference_cost': 4.72702e-05, 'upstream_inference_prompt_cost': 2.87062e-05, 'upstream_inference_completions_cost': 1.8564e-05})\n12:49:02 - agent.conversation_loop - INFO [20260910_124832_d42839] - API call #5: model=xiaomi/mimo-v2.5 provider=unknown in=5001 out=78 total=5079 latency=11.0s cache=4864/5001 (97%)\n12:49:02 - root - DEBUG [20260910_124832_d42839] - Token usage: prompt=5,001, completion=78, total=5,079\n12:49:02 - root - DEBUG [20260910_124832_d42839] - Captured reasoning (15 chars): Tests pass now.\n12:49:02 - tools.browser_tool - DEBUG [20260910_124832_d42839] - cleanup_browser called for task_id: c99be8c6-8ddb-4da0-a078-11d945e703f3\n12:49:02 - tools.browser_tool - DEBUG [20260910_124832_d42839] - Active sessions: []\n12:49:02 - tools.browser_tool - DEBUG [20260910_124832_d42839] - No active session found for task_id: c99be8c6-8ddb-4da0-a078-11d945e703f3\n12:49:02 - agent.conversation_loop - INFO [20260910_124832_d42839] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=197 session=20260910_124832_d42839\n12:49:03 - tools.terminal_tool - INFO [20260910_124832_d42839] - Shutting down 1 remaining sandbox(es)...\n12:49:03 - tools.terminal_tool - INFO [20260910_124832_d42839] - Manually cleaned up environment for task: default\n12:49:03 - tools.terminal_tool - INFO [20260910_124832_d42839] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 17434,
+      "input_tokens": {
+        "value": 3973,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 426,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7232,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "am_inference_completions_cost': 3.6414e-05})\n12:48:47 - agent.conversation_loop - INFO [20260910_124832_49d332] - API call #3: model=xiaomi/mimo-v2.5 provider=unknown in=3907 out=153 total=4060 latency=5.3s cache=3712/3907 (95%)\n12:48:47 - root - DEBUG [20260910_124832_49d332] - Token usage: prompt=3,907, completion=153, total=4,060\n12:48:47 - root - DEBUG [20260910_124832_49d332] - Captured reasoning (138 chars): Output looks correct. Let me verify the key cases:\n- 3 → Fizz ✓\n- 5 → Buzz ✓\n- 15 → FizzBuzz ✓\n- 1, 2, 4, 7, 8, etc. → the number itself ✓\n12:48:47 - tools.browser_tool - DEBUG [20260910_124832_49d332] - cleanup_browser called for task_id: f9ec18c1-624d-4970-8afe-ea976c8838e1\n12:48:47 - tools.browser_tool - DEBUG [20260910_124832_49d332] - Active sessions: []\n12:48:47 - tools.browser_tool - DEBUG [20260910_124832_49d332] - No active session found for task_id: f9ec18c1-624d-4970-8afe-ea976c8838e1\n12:48:47 - agent.conversation_loop - INFO [20260910_124832_49d332] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=264 session=20260910_124832_49d332\n12:48:48 - tools.terminal_tool - INFO [20260910_124832_49d332] - Shutting down 1 remaining sandbox(es)...\n12:48:48 - tools.terminal_tool - INFO [20260910_124832_49d332] - Manually cleaned up environment for task: default\n12:48:48 - tools.terminal_tool - INFO [20260910_124832_49d332] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 34431,
+      "input_tokens": {
+        "value": 10380,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1018,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 24416,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ils={'upstream_inference_cost': 0.000219388, 'upstream_inference_prompt_cost': 0.000153738, 'upstream_inference_completions_cost': 6.565e-05})\n12:49:05 - agent.conversation_loop - INFO [20260910_124832_72fd91] - API call #7: model=xiaomi/mimo-v2.5 provider=unknown in=5637 out=101 total=5738 latency=4.0s cache=5568/5637 (99%)\n12:49:05 - root - DEBUG [20260910_124832_72fd91] - Token usage: prompt=5,637, completion=101, total=5,738\n12:49:05 - root - DEBUG [20260910_124832_72fd91] - Captured reasoning (57 chars): No remaining references to Fetch. The build passes. Done.\n12:49:05 - tools.browser_tool - DEBUG [20260910_124832_72fd91] - cleanup_browser called for task_id: 739cedea-ebb1-4938-8a03-746a01c65664\n12:49:05 - tools.browser_tool - DEBUG [20260910_124832_72fd91] - Active sessions: []\n12:49:05 - tools.browser_tool - DEBUG [20260910_124832_72fd91] - No active session found for task_id: 739cedea-ebb1-4938-8a03-746a01c65664\n12:49:05 - agent.conversation_loop - INFO [20260910_124832_72fd91] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=259 session=20260910_124832_72fd91\n12:49:05 - tools.terminal_tool - INFO [20260910_124832_72fd91] - Shutting down 1 remaining sandbox(es)...\n12:49:05 - tools.terminal_tool - INFO [20260910_124832_72fd91] - Manually cleaned up environment for task: default\n12:49:05 - tools.terminal_tool - INFO [20260910_124832_72fd91] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 31094,
+      "input_tokens": {
+        "value": 7060,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 208,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9952,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query What does Compute(3) return? Reply with just the number. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "cost': 0.000170638, 'upstream_inference_prompt_cost': 0.000126438, 'upstream_inference_completions_cost': 4.42e-05})\n12:49:38 - agent.conversation_loop - INFO [20260910_124909_692e97] - API call #4: model=xiaomi/mimo-v2.5 provider=unknown in=4403 out=68 total=4471 latency=2.9s cache=4288/4403 (97%)\n12:49:38 - root - DEBUG [20260910_124909_692e97] - Token usage: prompt=4,403, completion=68, total=4,471\n12:49:38 - root - DEBUG [20260910_124909_692e97] - Captured reasoning (87 chars): Compute(3):\nr = 1\ni=0: r = 1*2+1 = 3\ni=1: r = 3*2+1 = 7\ni=2: r = 7*2+1 = 15\n\nReturn 15.\n12:49:38 - tools.browser_tool - DEBUG [20260910_124909_692e97] - cleanup_browser called for task_id: 0f559356-b15c-464c-a745-36dc447f9024\n12:49:38 - tools.browser_tool - DEBUG [20260910_124909_692e97] - Active sessions: []\n12:49:38 - tools.browser_tool - DEBUG [20260910_124909_692e97] - No active session found for task_id: 0f559356-b15c-464c-a745-36dc447f9024\n12:49:38 - agent.conversation_loop - INFO [20260910_124909_692e97] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=2 session=20260910_124909_692e97\n12:49:39 - tools.terminal_tool - INFO [20260910_124909_692e97] - Shutting down 1 remaining sandbox(es)...\n12:49:39 - tools.terminal_tool - INFO [20260910_124909_692e97] - Manually cleaned up environment for task: default\n12:49:39 - tools.terminal_tool - INFO [20260910_124909_692e97] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 36318,
+      "input_tokens": {
+        "value": 7207,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 214,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7360,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query In config.json change the port to 8080. Keep every other key exactly as it is. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "cost': 0.0005263776, 'upstream_inference_prompt_cost': 0.0005101376, 'upstream_inference_completions_cost': 1.624e-05})\n12:49:43 - agent.conversation_loop - INFO [20260910_124909_282ce7] - API call #4: model=xiaomi/mimo-v2.5 provider=unknown in=3832 out=58 total=3890 latency=17.8s cache=192/3832 (5%)\n12:49:43 - root - DEBUG [20260910_124909_282ce7] - Token usage: prompt=3,832, completion=58, total=3,890\n12:49:43 - root - DEBUG [20260910_124909_282ce7] - Captured reasoning (84 chars): Done. The port has been changed from 3000 to 8080, and all other keys are preserved.\n12:49:43 - tools.browser_tool - DEBUG [20260910_124909_282ce7] - cleanup_browser called for task_id: 70b9638b-7efb-4531-b835-f354084559f0\n12:49:43 - tools.browser_tool - DEBUG [20260910_124909_282ce7] - Active sessions: []\n12:49:43 - tools.browser_tool - DEBUG [20260910_124909_282ce7] - No active session found for task_id: 70b9638b-7efb-4531-b835-f354084559f0\n12:49:43 - agent.conversation_loop - INFO [20260910_124909_282ce7] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=76 session=20260910_124909_282ce7\n12:49:44 - tools.terminal_tool - INFO [20260910_124909_282ce7] - Shutting down 1 remaining sandbox(es)...\n12:49:44 - tools.terminal_tool - INFO [20260910_124909_282ce7] - Manually cleaned up environment for task: default\n12:49:44 - tools.terminal_tool - INFO [20260910_124909_282ce7] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 9033,
+      "input_tokens": {
+        "value": 2080,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 178,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5024,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write count.sh that prints the number of lines in input.txt and nothing else. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "mpt_cost': 0.000101452, 'upstream_inference_completions_cost': 4.225e-05})\n12:49:16 - agent.conversation_loop - INFO [20260910_124909_3db53e] - API call #2: model=xiaomi/mimo-v2.5 provider=unknown in=3622 out=65 total=3687 latency=2.5s cache=3552/3622 (98%)\n12:49:16 - root - DEBUG [20260910_124909_3db53e] - Token usage: prompt=3,622, completion=65, total=3,687\n12:49:16 - root - DEBUG [20260910_124909_3db53e] - Captured reasoning (126 chars): The script is created and made executable. It uses `wc -l \u003c input.txt` which outputs only the line count without the filename.\n12:49:16 - tools.browser_tool - DEBUG [20260910_124909_3db53e] - cleanup_browser called for task_id: 89041c40-bccc-4102-9a9f-70fe8ce5597e\n12:49:16 - tools.browser_tool - DEBUG [20260910_124909_3db53e] - Active sessions: []\n12:49:16 - tools.browser_tool - DEBUG [20260910_124909_3db53e] - No active session found for task_id: 89041c40-bccc-4102-9a9f-70fe8ce5597e\n12:49:16 - agent.conversation_loop - INFO [20260910_124909_3db53e] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=141 session=20260910_124909_3db53e\n12:49:17 - tools.terminal_tool - INFO [20260910_124909_3db53e] - Shutting down 1 remaining sandbox(es)...\n12:49:17 - tools.terminal_tool - INFO [20260910_124909_3db53e] - Manually cleaned up environment for task: default\n12:49:17 - tools.terminal_tool - INFO [20260910_124909_3db53e] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 27741,
+      "input_tokens": {
+        "value": 5615,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 265,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11584,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a greet target to the Makefile that prints hi. Keep the existing targets. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "0.000165932, is_byok=False, cost_details={'upstream_inference_cost': 0.000165932, 'upstream_inference_prompt_cost': 0.000130832, 'upstream_inference_completions_cost': 3.51e-05})\n12:49:35 - agent.conversation_loop - INFO [20260910_124909_4d7af1] - API call #4: model=xiaomi/mimo-v2.5 provider=unknown in=4488 out=54 total=4542 latency=2.0s cache=4352/4488 (97%)\n12:49:35 - root - DEBUG [20260910_124909_4d7af1] - Token usage: prompt=4,488, completion=54, total=4,542\n12:49:35 - root - DEBUG [20260910_124909_4d7af1] - Captured reasoning (23 chars): All three targets work.\n12:49:35 - tools.browser_tool - DEBUG [20260910_124909_4d7af1] - cleanup_browser called for task_id: 896b727f-0ca7-4048-941b-2e74db54deb8\n12:49:35 - tools.browser_tool - DEBUG [20260910_124909_4d7af1] - Active sessions: []\n12:49:35 - tools.browser_tool - DEBUG [20260910_124909_4d7af1] - No active session found for task_id: 896b727f-0ca7-4048-941b-2e74db54deb8\n12:49:35 - agent.conversation_loop - INFO [20260910_124909_4d7af1] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=163 session=20260910_124909_4d7af1\n12:49:35 - tools.terminal_tool - INFO [20260910_124909_4d7af1] - Shutting down 1 remaining sandbox(es)...\n12:49:35 - tools.terminal_tool - INFO [20260910_124909_4d7af1] - Manually cleaned up environment for task: default\n12:49:35 - tools.terminal_tool - INFO [20260910_124909_4d7af1] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 18582,
+      "input_tokens": {
+        "value": 3983,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 189,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10496,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Append the line 'four' to the end of list.txt. Do not change the existing lines. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "etails={'upstream_inference_cost': 4.7651e-05, 'upstream_inference_prompt_cost': 3.4085e-05, 'upstream_inference_completions_cost': 1.3566e-05})\n12:49:26 - agent.conversation_loop - INFO [20260910_124909_5caab0] - API call #4: model=xiaomi/mimo-v2.5 provider=unknown in=3731 out=57 total=3788 latency=3.8s cache=3520/3731 (94%)\n12:49:26 - root - DEBUG [20260910_124909_5caab0] - Token usage: prompt=3,731, completion=57, total=3,788\n12:49:26 - root - DEBUG [20260910_124909_5caab0] - Captured reasoning (57 chars): Done. The file now has four lines: one, two, three, four.\n12:49:26 - tools.browser_tool - DEBUG [20260910_124909_5caab0] - cleanup_browser called for task_id: be273253-ab0c-4c96-8343-9dc3f4a34d81\n12:49:26 - tools.browser_tool - DEBUG [20260910_124909_5caab0] - Active sessions: []\n12:49:26 - tools.browser_tool - DEBUG [20260910_124909_5caab0] - No active session found for task_id: be273253-ab0c-4c96-8343-9dc3f4a34d81\n12:49:26 - agent.conversation_loop - INFO [20260910_124909_5caab0] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=127 session=20260910_124909_5caab0\n12:49:26 - tools.terminal_tool - INFO [20260910_124909_5caab0] - Shutting down 1 remaining sandbox(es)...\n12:49:26 - tools.terminal_tool - INFO [20260910_124909_5caab0] - Manually cleaned up environment for task: default\n12:49:26 - tools.terminal_tool - INFO [20260910_124909_5caab0] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 33191,
+      "input_tokens": {
+        "value": 8686,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 940,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 24992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ails={'upstream_inference_cost': 0.000216762, 'upstream_inference_prompt_cost': 0.000156962, 'upstream_inference_completions_cost': 5.98e-05})\n12:50:17 - agent.conversation_loop - INFO [20260910_124946_6ea9dd] - API call #7: model=xiaomi/mimo-v2.5 provider=unknown in=5457 out=92 total=5549 latency=5.9s cache=5312/5457 (97%)\n12:50:17 - root - DEBUG [20260910_124946_6ea9dd] - Token usage: prompt=5,457, completion=92, total=5,549\n12:50:17 - root - DEBUG [20260910_124946_6ea9dd] - Captured reasoning (59 chars): Both `go vet` and tests pass. Let me summarize the changes.\n12:50:17 - tools.browser_tool - DEBUG [20260910_124946_6ea9dd] - cleanup_browser called for task_id: 18aa825b-fc73-4a1e-92a8-b141c0583965\n12:50:17 - tools.browser_tool - DEBUG [20260910_124946_6ea9dd] - Active sessions: []\n12:50:17 - tools.browser_tool - DEBUG [20260910_124946_6ea9dd] - No active session found for task_id: 18aa825b-fc73-4a1e-92a8-b141c0583965\n12:50:17 - agent.conversation_loop - INFO [20260910_124946_6ea9dd] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=279 session=20260910_124946_6ea9dd\n12:50:17 - tools.terminal_tool - INFO [20260910_124946_6ea9dd] - Shutting down 1 remaining sandbox(es)...\n12:50:17 - tools.terminal_tool - INFO [20260910_124946_6ea9dd] - Manually cleaned up environment for task: default\n12:50:17 - tools.terminal_tool - INFO [20260910_124946_6ea9dd] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 21493,
+      "input_tokens": {
+        "value": 6111,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 338,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15936,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query python3 test_stats.py fails. Fix the bug in stats.py. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "upstream_inference_cost': 0.000166244, 'upstream_inference_prompt_cost': 0.000131794, 'upstream_inference_completions_cost': 3.445e-05})\n12:50:05 - agent.conversation_loop - INFO [20260910_124946_3859c6] - API call #5: model=xiaomi/mimo-v2.5 provider=unknown in=4649 out=53 total=4702 latency=2.0s cache=4544/4649 (98%)\n12:50:05 - root - DEBUG [20260910_124946_3859c6] - Token usage: prompt=4,649, completion=53, total=4,702\n12:50:05 - root - DEBUG [20260910_124946_3859c6] - Captured reasoning (64 chars): Done. The fix was simple: `len(xs) - 1` → `len(xs)`. Tests pass.\n12:50:05 - tools.browser_tool - DEBUG [20260910_124946_3859c6] - cleanup_browser called for task_id: 73c0c54a-32d3-4b21-9209-642b9e84cb4f\n12:50:05 - tools.browser_tool - DEBUG [20260910_124946_3859c6] - Active sessions: []\n12:50:05 - tools.browser_tool - DEBUG [20260910_124946_3859c6] - No active session found for task_id: 73c0c54a-32d3-4b21-9209-642b9e84cb4f\n12:50:05 - agent.conversation_loop - INFO [20260910_124946_3859c6] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=70 session=20260910_124946_3859c6\n12:50:05 - tools.terminal_tool - INFO [20260910_124946_3859c6] - Shutting down 1 remaining sandbox(es)...\n12:50:05 - tools.terminal_tool - INFO [20260910_124946_3859c6] - Manually cleaned up environment for task: default\n12:50:05 - tools.terminal_tool - INFO [20260910_124946_3859c6] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 31471,
+      "input_tokens": {
+        "value": 9385,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 838,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13952,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "e, cost_details={'upstream_inference_cost': 0.000224276, 'upstream_inference_prompt_cost': 0.000146276, 'upstream_inference_completions_cost': 7.8e-05})\n12:50:15 - agent.conversation_loop - INFO [20260910_124946_12fce5] - API call #5: model=xiaomi/mimo-v2.5 provider=unknown in=5170 out=120 total=5290 latency=5.9s cache=5056/5170 (98%)\n12:50:15 - root - DEBUG [20260910_124946_12fce5] - Token usage: prompt=5,170, completion=120, total=5,290\n12:50:15 - root - DEBUG [20260910_124946_12fce5] - Captured reasoning (47 chars): All tests pass. Let me summarize what was done.\n12:50:15 - tools.browser_tool - DEBUG [20260910_124946_12fce5] - cleanup_browser called for task_id: 1c699c7a-a2b1-4edd-85e1-e6f5486ef5cd\n12:50:15 - tools.browser_tool - DEBUG [20260910_124946_12fce5] - Active sessions: []\n12:50:15 - tools.browser_tool - DEBUG [20260910_124946_12fce5] - No active session found for task_id: 1c699c7a-a2b1-4edd-85e1-e6f5486ef5cd\n12:50:15 - agent.conversation_loop - INFO [20260910_124946_12fce5] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=329 session=20260910_124946_12fce5\n12:50:15 - tools.terminal_tool - INFO [20260910_124946_12fce5] - Shutting down 1 remaining sandbox(es)...\n12:50:15 - tools.terminal_tool - INFO [20260910_124946_12fce5] - Manually cleaned up environment for task: default\n12:50:15 - tools.terminal_tool - INFO [20260910_124946_12fce5] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 23480,
+      "input_tokens": {
+        "value": 3875,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 173,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10624,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add node_modules/ and dist/ to .gitignore, keeping what is there. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "eo_tokens=0), cost=2.62004e-05, is_byok=False, cost_details={'upstream_inference_cost': 2.62004e-05, 'upstream_inference_prompt_cost': 2.07264e-05, 'upstream_inference_completions_cost': 5.474e-06})\n12:50:07 - agent.conversation_loop - INFO [20260910_124946_959c28] - API call #4: model=xiaomi/mimo-v2.5 provider=unknown in=3744 out=23 total=3767 latency=6.3s cache=3648/3744 (97%)\n12:50:07 - root - DEBUG [20260910_124946_959c28] - Token usage: prompt=3,744, completion=23, total=3,767\n12:50:07 - root - DEBUG [20260910_124946_959c28] - Captured reasoning (5 chars): Done.\n12:50:07 - tools.browser_tool - DEBUG [20260910_124946_959c28] - cleanup_browser called for task_id: c94f4c58-a433-4811-9f0a-7a838ecc7124\n12:50:07 - tools.browser_tool - DEBUG [20260910_124946_959c28] - Active sessions: []\n12:50:07 - tools.browser_tool - DEBUG [20260910_124946_959c28] - No active session found for task_id: c94f4c58-a433-4811-9f0a-7a838ecc7124\n12:50:07 - agent.conversation_loop - INFO [20260910_124946_959c28] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=61 session=20260910_124946_959c28\n12:50:07 - tools.terminal_tool - INFO [20260910_124946_959c28] - Shutting down 1 remaining sandbox(es)...\n12:50:07 - tools.terminal_tool - INFO [20260910_124946_959c28] - Manually cleaned up environment for task: default\n12:50:07 - tools.terminal_tool - INFO [20260910_124946_959c28] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 8356,
+      "input_tokens": {
+        "value": 2772,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 112,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5632,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "_byok=False, cost_details={'upstream_inference_cost': 0.00013975, 'upstream_inference_prompt_cost': 0.0001235, 'upstream_inference_completions_cost': 1.625e-05})\n12:49:52 - agent.conversation_loop - INFO [20260910_124946_36812d] - API call #2: model=xiaomi/mimo-v2.5 provider=unknown in=4278 out=25 total=4303 latency=1.4s cache=4160/4278 (97%)\n12:49:52 - root - DEBUG [20260910_124946_36812d] - Token usage: prompt=4,278, completion=25, total=4,303\n12:49:52 - root - DEBUG [20260910_124946_36812d] - Captured reasoning (41 chars): Yes, the file `a.go` calls `fmt.Println`.\n12:49:52 - tools.browser_tool - DEBUG [20260910_124946_36812d] - cleanup_browser called for task_id: 69ab8eff-6d08-4997-98a6-24c3b86f11f1\n12:49:52 - tools.browser_tool - DEBUG [20260910_124946_36812d] - Active sessions: []\n12:49:52 - tools.browser_tool - DEBUG [20260910_124946_36812d] - No active session found for task_id: 69ab8eff-6d08-4997-98a6-24c3b86f11f1\n12:49:52 - agent.conversation_loop - INFO [20260910_124946_36812d] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=24 session=20260910_124946_36812d\n12:49:52 - tools.terminal_tool - INFO [20260910_124946_36812d] - Shutting down 1 remaining sandbox(es)...\n12:49:52 - tools.terminal_tool - INFO [20260910_124946_36812d] - Manually cleaned up environment for task: default\n12:49:52 - tools.terminal_tool - INFO [20260910_124946_36812d] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 52474,
+      "input_tokens": {
+        "value": 9325,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 595,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 20960,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "upstream_inference_cost': 0.000204932, 'upstream_inference_prompt_cost': 0.000160732, 'upstream_inference_completions_cost': 4.42e-05})\n12:51:10 - agent.conversation_loop - INFO [20260910_125019_f0e61d] - API call #6: model=xiaomi/mimo-v2.5 provider=unknown in=5614 out=68 total=5682 latency=1.8s cache=5472/5614 (97%)\n12:51:10 - root - DEBUG [20260910_125019_f0e61d] - Token usage: prompt=5,614, completion=68, total=5,682\n12:51:10 - root - DEBUG [20260910_125019_f0e61d] - Captured reasoning (66 chars): README.md is created and verified. Let me summarize what was done.\n12:51:10 - tools.browser_tool - DEBUG [20260910_125019_f0e61d] - cleanup_browser called for task_id: abff2e8b-91d1-4973-a719-6c012e327033\n12:51:10 - tools.browser_tool - DEBUG [20260910_125019_f0e61d] - Active sessions: []\n12:51:10 - tools.browser_tool - DEBUG [20260910_125019_f0e61d] - No active session found for task_id: abff2e8b-91d1-4973-a719-6c012e327033\n12:51:10 - agent.conversation_loop - INFO [20260910_125019_f0e61d] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=211 session=20260910_125019_f0e61d\n12:51:10 - tools.terminal_tool - INFO [20260910_125019_f0e61d] - Shutting down 1 remaining sandbox(es)...\n12:51:10 - tools.terminal_tool - INFO [20260910_125019_f0e61d] - Manually cleaned up environment for task: default\n12:51:10 - tools.terminal_tool - INFO [20260910_125019_f0e61d] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 37668,
+      "input_tokens": {
+        "value": 5820,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 294,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8928,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "eo_tokens=0), cost=0.000132496, is_byok=False, cost_details={'upstream_inference_cost': 0.000132496, 'upstream_inference_prompt_cost': 0.000110396, 'upstream_inference_completions_cost': 2.21e-05})\n12:50:55 - agent.conversation_loop - INFO [20260910_125019_a61656] - API call #4: model=xiaomi/mimo-v2.5 provider=unknown in=3870 out=34 total=3904 latency=1.3s cache=3776/3870 (98%)\n12:50:55 - root - DEBUG [20260910_125019_a61656] - Token usage: prompt=3,870, completion=34, total=3,904\n12:50:55 - root - DEBUG [20260910_125019_a61656] - Captured reasoning (5 chars): Done.\n12:50:55 - tools.browser_tool - DEBUG [20260910_125019_a61656] - cleanup_browser called for task_id: ce4d9d3e-033d-47c9-9a3a-1a3ca527eaa8\n12:50:55 - tools.browser_tool - DEBUG [20260910_125019_a61656] - Active sessions: []\n12:50:55 - tools.browser_tool - DEBUG [20260910_125019_a61656] - No active session found for task_id: ce4d9d3e-033d-47c9-9a3a-1a3ca527eaa8\n12:50:55 - agent.conversation_loop - INFO [20260910_125019_a61656] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=112 session=20260910_125019_a61656\n12:50:55 - tools.terminal_tool - INFO [20260910_125019_a61656] - Shutting down 1 remaining sandbox(es)...\n12:50:55 - tools.terminal_tool - INFO [20260910_125019_a61656] - Manually cleaned up environment for task: default\n12:50:55 - tools.terminal_tool - INFO [20260910_125019_a61656] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 22290,
+      "input_tokens": {
+        "value": 2102,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 133,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Which files mention 'flux capacitor'? List only the file names. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "_inference_cost': 0.00012701, 'upstream_inference_prompt_cost': 0.00010361, 'upstream_inference_completions_cost': 2.34e-05})\n12:50:39 - agent.conversation_loop - INFO [20260910_125019_701179] - API call #2: model=xiaomi/mimo-v2.5 provider=unknown in=3613 out=36 total=3649 latency=2.1s cache=3520/3613 (97%)\n12:50:39 - root - DEBUG [20260910_125019_701179] - Token usage: prompt=3,613, completion=36, total=3,649\n12:50:39 - root - DEBUG [20260910_125019_701179] - Captured reasoning (77 chars): Found two files containing 'flux capacitor'. Let me list just the file names.\n12:50:39 - tools.browser_tool - DEBUG [20260910_125019_701179] - cleanup_browser called for task_id: 394e020b-0c28-4b84-8726-5ce585329d77\n12:50:39 - tools.browser_tool - DEBUG [20260910_125019_701179] - Active sessions: []\n12:50:39 - tools.browser_tool - DEBUG [20260910_125019_701179] - No active session found for task_id: 394e020b-0c28-4b84-8726-5ce585329d77\n12:50:39 - agent.conversation_loop - INFO [20260910_125019_701179] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=63 session=20260910_125019_701179\n12:50:40 - tools.terminal_tool - INFO [20260910_125019_701179] - Shutting down 1 remaining sandbox(es)...\n12:50:40 - tools.terminal_tool - INFO [20260910_125019_701179] - Manually cleaned up environment for task: default\n12:50:40 - tools.terminal_tool - INFO [20260910_125019_701179] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 34569,
+      "input_tokens": {
+        "value": 6115,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 637,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17280,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "lse, cost_details={'upstream_inference_cost': 0.00019968, 'upstream_inference_prompt_cost': 0.00015353, 'upstream_inference_completions_cost': 4.615e-05})\n12:50:51 - agent.conversation_loop - INFO [20260910_125019_d76485] - API call #5: model=xiaomi/mimo-v2.5 provider=unknown in=5149 out=71 total=5220 latency=2.3s cache=4960/5149 (96%)\n12:50:51 - root - DEBUG [20260910_125019_d76485] - Token usage: prompt=5,149, completion=71, total=5,220\n12:50:51 - root - DEBUG [20260910_125019_d76485] - Captured reasoning (47 chars): All three tests pass. Let me report the result.\n12:50:51 - tools.browser_tool - DEBUG [20260910_125019_d76485] - cleanup_browser called for task_id: d7bb716e-6909-4195-8a6e-af5ab83cc88c\n12:50:51 - tools.browser_tool - DEBUG [20260910_125019_d76485] - Active sessions: []\n12:50:51 - tools.browser_tool - DEBUG [20260910_125019_d76485] - No active session found for task_id: d7bb716e-6909-4195-8a6e-af5ab83cc88c\n12:50:51 - agent.conversation_loop - INFO [20260910_125019_d76485] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=189 session=20260910_125019_d76485\n12:50:52 - tools.terminal_tool - INFO [20260910_125019_d76485] - Shutting down 1 remaining sandbox(es)...\n12:50:52 - tools.terminal_tool - INFO [20260910_125019_d76485] - Manually cleaned up environment for task: default\n12:50:52 - tools.terminal_tool - INFO [20260910_125019_d76485] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 31271,
+      "input_tokens": {
+        "value": 3026,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 434,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 19104,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --model xiaomi/mimo-v2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "=0.000162786, is_byok=False, cost_details={'upstream_inference_cost': 0.000162786, 'upstream_inference_prompt_cost': 0.000130286, 'upstream_inference_completions_cost': 3.25e-05})\n12:50:48 - agent.conversation_loop - INFO [20260910_125019_77aeaa] - API call #5: model=xiaomi/mimo-v2.5 provider=unknown in=4663 out=50 total=4713 latency=1.9s cache=4576/4663 (98%)\n12:50:48 - root - DEBUG [20260910_125019_77aeaa] - Token usage: prompt=4,663, completion=50, total=4,713\n12:50:48 - root - DEBUG [20260910_125019_77aeaa] - Captured reasoning (22 chars): Both cases work. Done.\n12:50:48 - tools.browser_tool - DEBUG [20260910_125019_77aeaa] - cleanup_browser called for task_id: 3533e3bb-71f1-44b1-8778-a23e840531e3\n12:50:48 - tools.browser_tool - DEBUG [20260910_125019_77aeaa] - Active sessions: []\n12:50:48 - tools.browser_tool - DEBUG [20260910_125019_77aeaa] - No active session found for task_id: 3533e3bb-71f1-44b1-8778-a23e840531e3\n12:50:48 - agent.conversation_loop - INFO [20260910_125019_77aeaa] - Turn ended: reason=text_response(finish_reason=stop) model=xiaomi/mimo-v2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=126 session=20260910_125019_77aeaa\n12:50:49 - tools.terminal_tool - INFO [20260910_125019_77aeaa] - Shutting down 1 remaining sandbox(es)...\n12:50:49 - tools.terminal_tool - INFO [20260910_125019_77aeaa] - Manually cleaned up environment for task: default\n12:50:49 - tools.terminal_tool - INFO [20260910_125019_77aeaa] - Cleaned 1 environments"
+    }
+  ],
+  "janetcode": [
+    {
+      "harness": "janetcode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 20129,
+      "input_tokens": {
+        "value": 4652,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 54,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4512,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000757172,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 01-create-file --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 38509,
+      "input_tokens": {
+        "value": 8851,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 259,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10528,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001617098,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 32041,
+      "input_tokens": {
+        "value": 4329,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 329,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15232,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001172652,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 30864,
+      "input_tokens": {
+        "value": 5006,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 341,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9280,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00111371,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 38021,
+      "input_tokens": {
+        "value": 8193,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 455,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11520,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 8,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00166036,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 21479,
+      "input_tokens": {
+        "value": 4923,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 153,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9216,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0007578648,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 23886,
+      "input_tokens": {
+        "value": 8457,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 170,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5536,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001353846,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 26704,
+      "input_tokens": {
+        "value": 3925,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 242,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10048,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000928798,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 49375,
+      "input_tokens": {
+        "value": 8820,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 321,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14912,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0015323559999999997,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 22771,
+      "input_tokens": {
+        "value": 8471,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 166,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5504,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001384964,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 34217,
+      "input_tokens": {
+        "value": 7982,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 396,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11616,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0015970759999999998,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 27963,
+      "input_tokens": {
+        "value": 8980,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 285,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10176,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001617226,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 42818,
+      "input_tokens": {
+        "value": 8694,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 467,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5760,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0015835299999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 21841,
+      "input_tokens": {
+        "value": 3893,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 166,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9984,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000873574,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 18431,
+      "input_tokens": {
+        "value": 3772,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 78,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5504,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0006841639999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 41484,
+      "input_tokens": {
+        "value": 13667,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 367,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5536,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0020541903999999997,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 16-readme --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 37595,
+      "input_tokens": {
+        "value": 12496,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 302,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11232,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0020109663999999996,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 21968,
+      "input_tokens": {
+        "value": 7331,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 97,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1856,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001064336,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 161380,
+      "input_tokens": {
+        "value": 8217,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 3648,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 20576,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.003974386,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 19-write-test --provider openai --model xiaomi/mimo-v2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 32844,
+      "input_tokens": {
+        "value": 7603,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 233,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6368,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001305408,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 20-env-default --provider openai --model xiaomi/mimo-v2.5"
+    }
+  ],
+  "openclaw": [
+    {
+      "harness": "openclaw",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 47390,
+      "input_tokens": {
+        "value": 41697,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 124,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41536,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-2566001957 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789037882441996489 --message Create a file named hello.txt containing exactly the text: hello world",
+      "stderr_excerpt": "ate): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5186 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5185 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 8a2ff50a-0e45-406b-8226-b62d733539ee ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 49844,
+      "input_tokens": {
+        "value": 42020,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 245,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 124992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-2269567705 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789037882083553413 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+      "stderr_excerpt": "): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=4939 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5401 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run fe4ecbff-1f56-4e59-bd31-c7a442ea2b5c ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 82889,
+      "input_tokens": {
+        "value": 42761,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 652,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 167424,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-3189879961 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789037882112475691 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+      "stderr_excerpt": "): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5204 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5273 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 84c26b1a-329d-436d-a56b-c80d57c38f30 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 48123,
+      "input_tokens": {
+        "value": 41967,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 273,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83392,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-1164742626 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789037882191132410 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+      "stderr_excerpt": "tch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5162 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5185 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b8bf7289-7fcb-473c-b3a1-b025aec1f451 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 75227,
+      "input_tokens": {
+        "value": 42881,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 950,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 168320,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 10,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-3414147756 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789037882232021433 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+      "stderr_excerpt": "): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5578 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5243 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 62ae7e8d-af9c-411e-a4b5-87dcc930feb2 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 41530,
+      "input_tokens": {
+        "value": 42926,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 274,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 84288,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-1404171230 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789037965440758100 --message What does Compute(3) return? Reply with just the number.",
+      "stderr_excerpt": "r\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mmemory_index_chunks_vec not updated — semantic vector embeddings unavailable — no vector dimensions resolved. Vector recall degraded. Further duplicate warnings suppressed.\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5169 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5257 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 5de18ada-dae5-48fc-ab32-d17cc79ae295 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 28065,
+      "input_tokens": {
+        "value": 41775,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 171,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83136,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-31440031 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789037965220130690 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+      "stderr_excerpt": "): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5392 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5217 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run f7b6ddd2-6ed2-474c-99a1-a11297ee73ac ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 46220,
+      "input_tokens": {
+        "value": 41692,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 106,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41536,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-3166334854 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789037965260240948 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+      "stderr_excerpt": "ate): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5250 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5319 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 7cd875e2-be75-4887-a865-27b8e735d016 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 65026,
+      "input_tokens": {
+        "value": 42029,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 313,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 124928,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-1659034694 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789037965067126991 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+      "stderr_excerpt": "): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5220 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5420 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ce527893-139f-48ce-ad0f-1e9b7ad7709d ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 107398,
+      "input_tokens": {
+        "value": 41867,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 207,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 124864,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-1838627108 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789037965208871314 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+      "stderr_excerpt": "): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5183 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5189 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 6e202130-ecc6-4460-a79b-c1c44fbcc7ff ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 90480,
+      "input_tokens": {
+        "value": 42578,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 636,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 167552,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-2039295742 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789038072626176163 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+      "stderr_excerpt": "tch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5169 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5159 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run fed0812a-a3e9-4f09-b4b5-c24a165d9c22 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 76789,
+      "input_tokens": {
+        "value": 42335,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 419,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 125568,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-2521112366 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789038072655004231 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+      "stderr_excerpt": "tions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5130 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=2930 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5004 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 4ba534f4-504c-4e5b-9b63-f6eed68ecf3b ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": false,
+      "reason": "check failed: exit status 1: # ./stack\nmain module (example.com/m) does not contain package example.com/m/stack\nFAIL\t./stack [setup failed]\nFAIL",
+      "wall_time_ms": 68065,
+      "input_tokens": {
+        "value": 42554,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 691,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 125760,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-3851024125 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789038072716361614 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+      "stderr_excerpt": "tch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=4058 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5110 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 1423a5a0-9b27-479c-92fe-8f58d7b4fcaa ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 31127,
+      "input_tokens": {
+        "value": 41734,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 146,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83136,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-1394960119 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789038072664975658 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+      "stderr_excerpt": "pletions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5278 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=3432 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=2297 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d36caaef-c937-46c2-87e5-4725d0c8e551 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 23399,
+      "input_tokens": {
+        "value": 41740,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 112,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41536,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-2088408399 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789038072806735307 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+      "stderr_excerpt": "hup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5178 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=1490 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 15b74971-34e0-484b-9de3-ddcfff7cffd9 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 111066,
+      "input_tokens": {
+        "value": 42709,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 757,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 167360,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-16-readme-613619911 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789038163405304115 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+      "stderr_excerpt": "tch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5168 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5190 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 5179172e-c471-47ac-9653-42af92354302 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 39693,
+      "input_tokens": {
+        "value": 41912,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 177,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 124800,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-2422953820 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789038163257705425 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+      "stderr_excerpt": "): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5158 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5138 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 11456be5-2340-4239-99b3-62010e7cbf6f ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 48138,
+      "input_tokens": {
+        "value": 41703,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 106,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41536,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-751128052 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789038163392343750 --message Which files mention 'flux capacitor'? List only the file names.",
+      "stderr_excerpt": "-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5216 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5350 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run dc563a4f-2844-4028-81f4-e8542a72dcac ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 139993,
+      "input_tokens": {
+        "value": 43673,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 775,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 208832,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-4260992959 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789038163537786807 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+      "stderr_excerpt": "): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5195 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5141 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 8ad65c4e-6114-4e9c-a10f-982b51d24fd0 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 45106,
+      "input_tokens": {
+        "value": 42072,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 307,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 124992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-3374777279 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789038163509287284 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+      "stderr_excerpt": "c command may contain credentials\",\"type\":\"string\",\"chars\":111,\"sha256\":\"5ea526c6bbaabd8a\"},\"timeout\":\"15\"}\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5170 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=2157 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 722edc6f-581c-4767-b157-3e7b9b53ab8e ended with stopReason=stop\u001b[39m"
+    }
+  ],
+  "pi": [
+    {
+      "harness": "pi",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 46368,
+      "input_tokens": {
+        "value": 19931,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 112,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14336,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0028618408000000003,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "pi",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 68068,
+      "input_tokens": {
+        "value": 3346,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 255,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 65856,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0007242367999999999,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 77331,
+      "input_tokens": {
+        "value": 3644,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 394,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 84160,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0008561279999999999,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "pi",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 55378,
+      "input_tokens": {
+        "value": 17761,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 292,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 34176,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0026639928,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "pi",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 23173,
+      "input_tokens": {
+        "value": 37233,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1024,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 71872,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.005700581600000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "pi",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 48214,
+      "input_tokens": {
+        "value": 5407,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 260,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 46400,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0009597000000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "pi",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 69408,
+      "input_tokens": {
+        "value": 20352,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 253,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 48704,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0030564912000000002,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "pi",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 9486,
+      "input_tokens": {
+        "value": 18437,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 253,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 33152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0027448456000000003,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "pi",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 71118,
+      "input_tokens": {
+        "value": 3199,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 220,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83072,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0007420616,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "pi",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 43325,
+      "input_tokens": {
+        "value": 5278,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 253,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 63616,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0009878848,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "pi",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 69031,
+      "input_tokens": {
+        "value": 3700,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 561,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83776,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0009096528000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 85983,
+      "input_tokens": {
+        "value": 3798,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 631,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83968,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0009435104000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "pi",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 54638,
+      "input_tokens": {
+        "value": 4587,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 663,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 65696,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0010117688000000002,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 44414,
+      "input_tokens": {
+        "value": 3020,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 188,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 48576,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0006114528,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "pi",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 24516,
+      "input_tokens": {
+        "value": 17282,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 125,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17088,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0025023264,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "pi",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 62933,
+      "input_tokens": {
+        "value": 18235,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 357,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 52736,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0028005208,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "pi",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 79223,
+      "input_tokens": {
+        "value": 3804,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 542,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 100608,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0009660224000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "pi",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 31900,
+      "input_tokens": {
+        "value": 1145,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 114,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 33152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00028504560000000003,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "pi",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 65715,
+      "input_tokens": {
+        "value": 4143,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 538,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 85248,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0009693544,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "pi",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 41718,
+      "input_tokens": {
+        "value": 4036,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 245,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 47648,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0007670544,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ],
+  "qwencode": [
+    {
+      "harness": "qwencode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 54942,
+      "input_tokens": {
+        "value": 37980,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 150,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 45120,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "qwencode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 68425,
+      "input_tokens": {
+        "value": 38611,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 397,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127872,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 120637,
+      "input_tokens": {
+        "value": 39357,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 544,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 171136,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "qwencode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 77264,
+      "input_tokens": {
+        "value": 37820,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 318,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 86592,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "qwencode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 70305,
+      "input_tokens": {
+        "value": 39037,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 677,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 129152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "qwencode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 48675,
+      "input_tokens": {
+        "value": 38097,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 316,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 86080,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "qwencode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 36760,
+      "input_tokens": {
+        "value": 74676,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 267,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 49728,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "qwencode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 63113,
+      "input_tokens": {
+        "value": 37955,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 344,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127808,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "qwencode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 65534,
+      "input_tokens": {
+        "value": 38630,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 346,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 126912,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "qwencode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 77691,
+      "input_tokens": {
+        "value": 37696,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 323,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127552,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "qwencode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 81080,
+      "input_tokens": {
+        "value": 40059,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 544,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 128064,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 83099,
+      "input_tokens": {
+        "value": 38596,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 408,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 128320,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "qwencode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 36674,
+      "input_tokens": {
+        "value": 38247,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 621,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 128320,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 58808,
+      "input_tokens": {
+        "value": 37733,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 270,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 86592,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "qwencode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 42880,
+      "input_tokens": {
+        "value": 37944,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 120,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 44992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "qwencode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 59513,
+      "input_tokens": {
+        "value": 38409,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 336,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 87168,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "qwencode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 68655,
+      "input_tokens": {
+        "value": 38229,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 379,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127296,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "qwencode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 36809,
+      "input_tokens": {
+        "value": 41684,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 133,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41408,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "qwencode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 125075,
+      "input_tokens": {
+        "value": 39660,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 951,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 254016,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "qwencode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 29693,
+      "input_tokens": {
+        "value": 38201,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 400,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 45504,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model xiaomi/mimo-v2.5 --max-session-turns 40 --max-wall-time 180s Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ]
+}

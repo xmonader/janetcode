@@ -1,0 +1,683 @@
+[
+  {
+    "harness": "qwencode",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 22596,
+    "input_tokens": {
+      "value": 37416,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 114,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 48320,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Create a file named hello.txt containing exactly the text: hello world"
+  },
+  {
+    "harness": "qwencode",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 21368,
+    "input_tokens": {
+      "value": 43933,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 327,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 127968,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+  },
+  {
+    "harness": "qwencode",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 24631,
+    "input_tokens": {
+      "value": 44795,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 496,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 172480,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s go test fails. Find the bug and fix it in the implementation, not the test."
+  },
+  {
+    "harness": "qwencode",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 22173,
+    "input_tokens": {
+      "value": 43694,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 552,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 84864,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+  },
+  {
+    "harness": "qwencode",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 43168,
+    "input_tokens": {
+      "value": 45039,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 568,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 172960,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 8,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+  },
+  {
+    "harness": "qwencode",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": false,
+    "reason": "check failed: exit status 1",
+    "wall_time_ms": 16330,
+    "input_tokens": {
+      "value": 43240,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 73,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 42272,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s What does Compute(3) return? Reply with just the number."
+  },
+  {
+    "harness": "qwencode",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 23790,
+    "input_tokens": {
+      "value": 43419,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 272,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 85056,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s In config.json change the port to 8080. Keep every other key exactly as it is."
+  },
+  {
+    "harness": "qwencode",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 16752,
+    "input_tokens": {
+      "value": 43346,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 124,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 42336,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Write count.sh that prints the number of lines in input.txt and nothing else."
+  },
+  {
+    "harness": "qwencode",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 34989,
+    "input_tokens": {
+      "value": 79775,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 236,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 48320,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Add a greet target to the Makefile that prints hi. Keep the existing targets."
+  },
+  {
+    "harness": "qwencode",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 55333,
+    "input_tokens": {
+      "value": 43403,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 185,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 84576,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Append the line 'four' to the end of list.txt. Do not change the existing lines."
+  },
+  {
+    "harness": "qwencode",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 40943,
+    "input_tokens": {
+      "value": 44285,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 493,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 129280,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+  },
+  {
+    "harness": "qwencode",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 25850,
+    "input_tokens": {
+      "value": 44507,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 526,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 171168,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s python3 test_stats.py fails. Fix the bug in stats.py."
+  },
+  {
+    "harness": "qwencode",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 26419,
+    "input_tokens": {
+      "value": 44113,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 733,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 127936,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+  },
+  {
+    "harness": "qwencode",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 16687,
+    "input_tokens": {
+      "value": 43432,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 192,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 84768,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Add node_modules/ and dist/ to .gitignore, keeping what is there."
+  },
+  {
+    "harness": "qwencode",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 24324,
+    "input_tokens": {
+      "value": 43202,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 46,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 42240,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+  },
+  {
+    "harness": "qwencode",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 20160,
+    "input_tokens": {
+      "value": 43346,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 275,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 85024,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+  },
+  {
+    "harness": "qwencode",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 84478,
+    "input_tokens": {
+      "value": 44246,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 650,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 213888,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+  },
+  {
+    "harness": "qwencode",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 14872,
+    "input_tokens": {
+      "value": 37574,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 51,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 48064,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Which files mention 'flux capacitor'? List only the file names."
+  },
+  {
+    "harness": "qwencode",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 45547,
+    "input_tokens": {
+      "value": 43996,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 500,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 127424,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+  },
+  {
+    "harness": "qwencode",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 20105,
+    "input_tokens": {
+      "value": 43408,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 242,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 42336,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+  }
+]

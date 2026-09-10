@@ -1,0 +1,682 @@
+[
+  {
+    "harness": "hermes-agent",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 6331,
+    "input_tokens": {
+      "value": 4911,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1118,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 1513,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Create a file named hello.txt containing exactly the text: hello world --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "etails=PromptTokensDetails(audio_tokens=0, cached_tokens=750, cache_write_tokens=0, video_tokens=0), cost=0.0001281, is_byok=False, cost_details={'upstream_inference_cost': 0.0001281, 'upstream_inference_prompt_cost': 0.000123, 'upstream_inference_completions_cost': 5.1e-06})\n10:09:11 - agent.conversation_loop - INFO [20260910_100907_6016dc] - API call #2: model=inception/mercury-2.5 provider=unknown in=3750 out=34 total=3784 latency=0.5s cache=750/3750 (20%)\n10:09:11 - root - DEBUG [20260910_100907_6016dc] - Token usage: prompt=3,750, completion=34, total=3,784\n10:09:11 - tools.browser_tool - DEBUG [20260910_100907_6016dc] - cleanup_browser called for task_id: 905df128-6367-4299-a113-c955da451186\n10:09:11 - tools.browser_tool - DEBUG [20260910_100907_6016dc] - Active sessions: []\n10:09:11 - tools.browser_tool - DEBUG [20260910_100907_6016dc] - No active session found for task_id: 905df128-6367-4299-a113-c955da451186\n10:09:11 - agent.conversation_loop - INFO [20260910_100907_6016dc] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=53 session=20260910_100907_6016dc\n10:09:12 - tools.terminal_tool - INFO [20260910_100907_6016dc] - Shutting down 1 remaining sandbox(es)...\n10:09:12 - tools.terminal_tool - INFO [20260910_100907_6016dc] - Manually cleaned up environment for task: default\n10:09:12 - tools.terminal_tool - INFO [20260910_100907_6016dc] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 8583,
+    "input_tokens": {
+      "value": 18320,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 540,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 4488,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "PromptTokensDetails(audio_tokens=0, cached_tokens=757, cache_write_tokens=0, video_tokens=0), cost=0.000149848, is_byok=False, cost_details={'upstream_inference_cost': 0.000149848, 'upstream_inference_prompt_cost': 0.000144748, 'upstream_inference_completions_cost': 5.1e-06})\n10:09:13 - agent.conversation_loop - INFO [20260910_100908_655859] - API call #6: model=inception/mercury-2.5 provider=unknown in=4300 out=34 total=4334 latency=0.9s cache=757/4300 (18%)\n10:09:13 - root - DEBUG [20260910_100908_655859] - Token usage: prompt=4,300, completion=34, total=4,334\n10:09:13 - tools.browser_tool - DEBUG [20260910_100908_655859] - cleanup_browser called for task_id: 89172515-8a81-4924-83a3-c7e0793300d7\n10:09:13 - tools.browser_tool - DEBUG [20260910_100908_655859] - Active sessions: []\n10:09:13 - tools.browser_tool - DEBUG [20260910_100908_655859] - No active session found for task_id: 89172515-8a81-4924-83a3-c7e0793300d7\n10:09:13 - agent.conversation_loop - INFO [20260910_100908_655859] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=50 session=20260910_100908_655859\n10:09:14 - tools.terminal_tool - INFO [20260910_100908_655859] - Shutting down 1 remaining sandbox(es)...\n10:09:14 - tools.terminal_tool - INFO [20260910_100908_655859] - Manually cleaned up environment for task: default\n10:09:14 - tools.terminal_tool - INFO [20260910_100908_655859] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 8582,
+    "input_tokens": {
+      "value": 16953,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 410,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5523,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query go test fails. Find the bug and fix it in the implementation, not the test. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "omptTokensDetails(audio_tokens=0, cached_tokens=762, cache_write_tokens=0, video_tokens=0), cost=0.000151898, is_byok=False, cost_details={'upstream_inference_cost': 0.000151898, 'upstream_inference_prompt_cost': 0.000141848, 'upstream_inference_completions_cost': 1.005e-05})\n10:09:13 - agent.conversation_loop - INFO [20260910_100907_a0419c] - API call #6: model=inception/mercury-2.5 provider=unknown in=4232 out=67 total=4299 latency=0.9s cache=762/4232 (18%)\n10:09:13 - root - DEBUG [20260910_100907_a0419c] - Token usage: prompt=4,232, completion=67, total=4,299\n10:09:13 - tools.browser_tool - DEBUG [20260910_100907_a0419c] - cleanup_browser called for task_id: 0c004871-da31-4a21-9869-4c96a93b911c\n10:09:13 - tools.browser_tool - DEBUG [20260910_100907_a0419c] - Active sessions: []\n10:09:13 - tools.browser_tool - DEBUG [20260910_100907_a0419c] - No active session found for task_id: 0c004871-da31-4a21-9869-4c96a93b911c\n10:09:13 - agent.conversation_loop - INFO [20260910_100907_a0419c] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=92 session=20260910_100907_a0419c\n10:09:14 - tools.terminal_tool - INFO [20260910_100907_a0419c] - Shutting down 1 remaining sandbox(es)...\n10:09:14 - tools.terminal_tool - INFO [20260910_100907_a0419c] - Manually cleaned up environment for task: default\n10:09:14 - tools.terminal_tool - INFO [20260910_100907_a0419c] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 7326,
+    "input_tokens": {
+      "value": 9922,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1026,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 3293,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "ptTokensDetails(audio_tokens=0, cached_tokens=754, cache_write_tokens=0, video_tokens=0), cost=0.000143796, is_byok=False, cost_details={'upstream_inference_cost': 0.000143796, 'upstream_inference_prompt_cost': 0.000123696, 'upstream_inference_completions_cost': 2.01e-05})\n10:09:12 - agent.conversation_loop - INFO [20260910_100907_6ad09e] - API call #4: model=inception/mercury-2.5 provider=unknown in=3771 out=134 total=3905 latency=0.6s cache=754/3771 (20%)\n10:09:12 - root - DEBUG [20260910_100907_6ad09e] - Token usage: prompt=3,771, completion=134, total=3,905\n10:09:12 - tools.browser_tool - DEBUG [20260910_100907_6ad09e] - cleanup_browser called for task_id: 4bd238a1-b4e1-4945-8912-6675c8254183\n10:09:12 - tools.browser_tool - DEBUG [20260910_100907_6ad09e] - Active sessions: []\n10:09:12 - tools.browser_tool - DEBUG [20260910_100907_6ad09e] - No active session found for task_id: 4bd238a1-b4e1-4945-8912-6675c8254183\n10:09:12 - agent.conversation_loop - INFO [20260910_100907_6ad09e] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=152 session=20260910_100907_6ad09e\n10:09:13 - tools.terminal_tool - INFO [20260910_100907_6ad09e] - Shutting down 1 remaining sandbox(es)...\n10:09:13 - tools.terminal_tool - INFO [20260910_100907_6ad09e] - Manually cleaned up environment for task: default\n10:09:13 - tools.terminal_tool - INFO [20260910_100907_6ad09e] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 7616,
+    "input_tokens": {
+      "value": 16123,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 494,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 2274,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00016901, is_byok=False, cost_details={'upstream_inference_cost': 0.00016901, 'upstream_inference_prompt_cost': 0.00016196, 'upstream_inference_completions_cost': 7.05e-06})\n10:09:12 - agent.conversation_loop - INFO [20260910_100907_49e927] - API call #5: model=inception/mercury-2.5 provider=unknown in=4049 out=47 total=4096 latency=0.4s\n10:09:12 - root - DEBUG [20260910_100907_49e927] - Token usage: prompt=4,049, completion=47, total=4,096\n10:09:12 - tools.browser_tool - DEBUG [20260910_100907_49e927] - cleanup_browser called for task_id: dbb2c21e-79ec-49ff-97eb-35bae518e8ce\n10:09:12 - tools.browser_tool - DEBUG [20260910_100907_49e927] - Active sessions: []\n10:09:12 - tools.browser_tool - DEBUG [20260910_100907_49e927] - No active session found for task_id: dbb2c21e-79ec-49ff-97eb-35bae518e8ce\n10:09:12 - agent.conversation_loop - INFO [20260910_100907_49e927] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=76 session=20260910_100907_49e927\n10:09:13 - tools.terminal_tool - INFO [20260910_100907_49e927] - Shutting down 1 remaining sandbox(es)...\n10:09:13 - tools.terminal_tool - INFO [20260910_100907_49e927] - Manually cleaned up environment for task: default\n10:09:13 - tools.terminal_tool - INFO [20260910_100907_49e927] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 7534,
+    "input_tokens": {
+      "value": 10304,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 560,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 4027,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query What does Compute(3) return? Reply with just the number. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "ptTokensDetails(audio_tokens=0, cached_tokens=1767, cache_write_tokens=0, video_tokens=0), cost=0.000108858, is_byok=False, cost_details={'upstream_inference_cost': 0.000108858, 'upstream_inference_prompt_cost': 8.5308e-05, 'upstream_inference_completions_cost': 2.355e-05})\n10:09:22 - agent.conversation_loop - INFO [20260910_100916_89c124] - API call #4: model=inception/mercury-2.5 provider=unknown in=3723 out=157 total=3880 latency=0.7s cache=1767/3723 (47%)\n10:09:22 - root - DEBUG [20260910_100916_89c124] - Token usage: prompt=3,723, completion=157, total=3,880\n10:09:22 - tools.browser_tool - DEBUG [20260910_100916_89c124] - cleanup_browser called for task_id: fff6cec9-73e9-4832-a0bb-e5e2b951c7a1\n10:09:22 - tools.browser_tool - DEBUG [20260910_100916_89c124] - Active sessions: []\n10:09:22 - tools.browser_tool - DEBUG [20260910_100916_89c124] - No active session found for task_id: fff6cec9-73e9-4832-a0bb-e5e2b951c7a1\n10:09:22 - agent.conversation_loop - INFO [20260910_100916_89c124] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=2 session=20260910_100916_89c124\n10:09:22 - tools.terminal_tool - INFO [20260910_100916_89c124] - Shutting down 1 remaining sandbox(es)...\n10:09:22 - tools.terminal_tool - INFO [20260910_100916_89c124] - Manually cleaned up environment for task: default\n10:09:22 - tools.terminal_tool - INFO [20260910_100916_89c124] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 5325,
+    "input_tokens": {
+      "value": 8346,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 250,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 3002,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query In config.json change the port to 8080. Keep every other key exactly as it is. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "=PromptTokensDetails(audio_tokens=0, cached_tokens=754, cache_write_tokens=0, video_tokens=0), cost=0.000101336, is_byok=False, cost_details={'upstream_inference_cost': 0.000101336, 'upstream_inference_prompt_cost': 9.4136e-05, 'upstream_inference_completions_cost': 7.2e-06})\n10:09:19 - agent.conversation_loop - INFO [20260910_100916_516037] - API call #4: model=inception/mercury-2.5 provider=unknown in=3032 out=48 total=3080 latency=0.5s cache=754/3032 (25%)\n10:09:19 - root - DEBUG [20260910_100916_516037] - Token usage: prompt=3,032, completion=48, total=3,080\n10:09:19 - tools.browser_tool - DEBUG [20260910_100916_516037] - cleanup_browser called for task_id: ce70e9e0-3f2d-417a-9d75-d039fc1b0851\n10:09:19 - tools.browser_tool - DEBUG [20260910_100916_516037] - Active sessions: []\n10:09:19 - tools.browser_tool - DEBUG [20260910_100916_516037] - No active session found for task_id: ce70e9e0-3f2d-417a-9d75-d039fc1b0851\n10:09:19 - agent.conversation_loop - INFO [20260910_100916_516037] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=69 session=20260910_100916_516037\n10:09:20 - tools.terminal_tool - INFO [20260910_100916_516037] - Shutting down 1 remaining sandbox(es)...\n10:09:20 - tools.terminal_tool - INFO [20260910_100916_516037] - Manually cleaned up environment for task: default\n10:09:20 - tools.terminal_tool - INFO [20260910_100916_516037] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 6378,
+    "input_tokens": {
+      "value": 12063,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 306,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 2260,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Write count.sh that prints the number of lines in input.txt and nothing else. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "=PromptTokensDetails(audio_tokens=0, cached_tokens=743, cache_write_tokens=0, video_tokens=0), cost=0.000101152, is_byok=False, cost_details={'upstream_inference_cost': 0.000101152, 'upstream_inference_prompt_cost': 9.4252e-05, 'upstream_inference_completions_cost': 6.9e-06})\n10:09:21 - agent.conversation_loop - INFO [20260910_100916_a7878f] - API call #5: model=inception/mercury-2.5 provider=unknown in=3025 out=46 total=3071 latency=0.5s cache=743/3025 (25%)\n10:09:21 - root - DEBUG [20260910_100916_a7878f] - Token usage: prompt=3,025, completion=46, total=3,071\n10:09:21 - tools.browser_tool - DEBUG [20260910_100916_a7878f] - cleanup_browser called for task_id: 5a488628-ac05-4268-a262-62bc919193a6\n10:09:21 - tools.browser_tool - DEBUG [20260910_100916_a7878f] - Active sessions: []\n10:09:21 - tools.browser_tool - DEBUG [20260910_100916_a7878f] - No active session found for task_id: 5a488628-ac05-4268-a262-62bc919193a6\n10:09:21 - agent.conversation_loop - INFO [20260910_100916_a7878f] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=83 session=20260910_100916_a7878f\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_a7878f] - Shutting down 1 remaining sandbox(es)...\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_a7878f] - Manually cleaned up environment for task: default\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_a7878f] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 6556,
+    "input_tokens": {
+      "value": 11536,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 271,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5830,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Add a greet target to the Makefile that prints hi. Keep the existing targets. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "omptTokensDetails(audio_tokens=0, cached_tokens=757, cache_write_tokens=0, video_tokens=0), cost=0.000127978, is_byok=False, cost_details={'upstream_inference_cost': 0.000127978, 'upstream_inference_prompt_cost': 0.000121228, 'upstream_inference_completions_cost': 6.75e-06})\n10:09:20 - agent.conversation_loop - INFO [20260910_100916_bf178c] - API call #5: model=inception/mercury-2.5 provider=unknown in=3712 out=45 total=3757 latency=0.8s cache=757/3712 (20%)\n10:09:20 - root - DEBUG [20260910_100916_bf178c] - Token usage: prompt=3,712, completion=45, total=3,757\n10:09:20 - tools.browser_tool - DEBUG [20260910_100916_bf178c] - cleanup_browser called for task_id: 44d20019-d608-4e15-b0e3-11438e0540d4\n10:09:20 - tools.browser_tool - DEBUG [20260910_100916_bf178c] - Active sessions: []\n10:09:20 - tools.browser_tool - DEBUG [20260910_100916_bf178c] - No active session found for task_id: 44d20019-d608-4e15-b0e3-11438e0540d4\n10:09:20 - agent.conversation_loop - INFO [20260910_100916_bf178c] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=117 session=20260910_100916_bf178c\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_bf178c] - Shutting down 1 remaining sandbox(es)...\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_bf178c] - Manually cleaned up environment for task: default\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_bf178c] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 6425,
+    "input_tokens": {
+      "value": 12527,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 326,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5569,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Append the line 'four' to the end of list.txt. Do not change the existing lines. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "=PromptTokensDetails(audio_tokens=0, cached_tokens=1811, cache_write_tokens=0, video_tokens=0), cost=7.1164e-05, is_byok=False, cost_details={'upstream_inference_cost': 7.1164e-05, 'upstream_inference_prompt_cost': 6.5764e-05, 'upstream_inference_completions_cost': 5.4e-06})\n10:09:20 - agent.conversation_loop - INFO [20260910_100916_7e753b] - API call #6: model=inception/mercury-2.5 provider=unknown in=3274 out=36 total=3310 latency=0.5s cache=1811/3274 (55%)\n10:09:20 - root - DEBUG [20260910_100916_7e753b] - Token usage: prompt=3,274, completion=36, total=3,310\n10:09:20 - tools.browser_tool - DEBUG [20260910_100916_7e753b] - cleanup_browser called for task_id: 871ab8f7-d780-4b28-b75e-b4876d623b7d\n10:09:20 - tools.browser_tool - DEBUG [20260910_100916_7e753b] - Active sessions: []\n10:09:20 - tools.browser_tool - DEBUG [20260910_100916_7e753b] - No active session found for task_id: 871ab8f7-d780-4b28-b75e-b4876d623b7d\n10:09:20 - agent.conversation_loop - INFO [20260910_100916_7e753b] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=83 session=20260910_100916_7e753b\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_7e753b] - Shutting down 1 remaining sandbox(es)...\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_7e753b] - Manually cleaned up environment for task: default\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_7e753b] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 7996,
+    "input_tokens": {
+      "value": 18158,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 431,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 4454,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "omptTokensDetails(audio_tokens=0, cached_tokens=732, cache_write_tokens=0, video_tokens=0), cost=0.000141738, is_byok=False, cost_details={'upstream_inference_cost': 0.000141738, 'upstream_inference_prompt_cost': 0.000135288, 'upstream_inference_completions_cost': 6.45e-06})\n10:09:30 - agent.conversation_loop - INFO [20260910_100924_78a638] - API call #6: model=inception/mercury-2.5 provider=unknown in=4041 out=43 total=4084 latency=0.7s cache=732/4041 (18%)\n10:09:30 - root - DEBUG [20260910_100924_78a638] - Token usage: prompt=4,041, completion=43, total=4,084\n10:09:30 - tools.browser_tool - DEBUG [20260910_100924_78a638] - cleanup_browser called for task_id: 6f407171-c89a-402c-b58c-1d80f391a893\n10:09:30 - tools.browser_tool - DEBUG [20260910_100924_78a638] - Active sessions: []\n10:09:30 - tools.browser_tool - DEBUG [20260910_100924_78a638] - No active session found for task_id: 6f407171-c89a-402c-b58c-1d80f391a893\n10:09:30 - agent.conversation_loop - INFO [20260910_100924_78a638] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=112 session=20260910_100924_78a638\n10:09:30 - tools.terminal_tool - INFO [20260910_100924_78a638] - Shutting down 1 remaining sandbox(es)...\n10:09:30 - tools.terminal_tool - INFO [20260910_100924_78a638] - Manually cleaned up environment for task: default\n10:09:30 - tools.terminal_tool - INFO [20260910_100924_78a638] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 9760,
+    "input_tokens": {
+      "value": 20100,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 619,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 6315,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query python3 test_stats.py fails. Fix the bug in stats.py. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "TokensDetails(audio_tokens=0, cached_tokens=1799, cache_write_tokens=0, video_tokens=0), cost=0.000115566, is_byok=False, cost_details={'upstream_inference_cost': 0.000115566, 'upstream_inference_prompt_cost': 9.9516e-05, 'upstream_inference_completions_cost': 1.605e-05})\n10:09:31 - agent.conversation_loop - INFO [20260910_100924_948d57] - API call #7: model=inception/mercury-2.5 provider=unknown in=4107 out=107 total=4214 latency=0.6s cache=1799/4107 (44%)\n10:09:31 - root - DEBUG [20260910_100924_948d57] - Token usage: prompt=4,107, completion=107, total=4,214\n10:09:31 - tools.browser_tool - DEBUG [20260910_100924_948d57] - cleanup_browser called for task_id: 8aab6d52-1145-4a01-873f-bac78d3c1dbe\n10:09:31 - tools.browser_tool - DEBUG [20260910_100924_948d57] - Active sessions: []\n10:09:31 - tools.browser_tool - DEBUG [20260910_100924_948d57] - No active session found for task_id: 8aab6d52-1145-4a01-873f-bac78d3c1dbe\n10:09:31 - agent.conversation_loop - INFO [20260910_100924_948d57] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=232 session=20260910_100924_948d57\n10:09:31 - tools.terminal_tool - INFO [20260910_100924_948d57] - Shutting down 1 remaining sandbox(es)...\n10:09:31 - tools.terminal_tool - INFO [20260910_100924_948d57] - Manually cleaned up environment for task: default\n10:09:31 - tools.terminal_tool - INFO [20260910_100924_948d57] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 9716,
+    "input_tokens": {
+      "value": 25658,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 987,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 6015,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 8,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "mptTokensDetails(audio_tokens=0, cached_tokens=734, cache_write_tokens=0, video_tokens=0), cost=0.000164226, is_byok=False, cost_details={'upstream_inference_cost': 0.000164226, 'upstream_inference_prompt_cost': 0.000152376, 'upstream_inference_completions_cost': 1.185e-05})\n10:09:31 - agent.conversation_loop - INFO [20260910_100924_9c30c7] - API call #8: model=inception/mercury-2.5 provider=unknown in=4470 out=79 total=4549 latency=0.6s cache=734/4470 (16%)\n10:09:31 - root - DEBUG [20260910_100924_9c30c7] - Token usage: prompt=4,470, completion=79, total=4,549\n10:09:31 - tools.browser_tool - DEBUG [20260910_100924_9c30c7] - cleanup_browser called for task_id: da8f4c54-b8ac-4063-8033-d4b01bf75707\n10:09:31 - tools.browser_tool - DEBUG [20260910_100924_9c30c7] - Active sessions: []\n10:09:31 - tools.browser_tool - DEBUG [20260910_100924_9c30c7] - No active session found for task_id: da8f4c54-b8ac-4063-8033-d4b01bf75707\n10:09:31 - agent.conversation_loop - INFO [20260910_100924_9c30c7] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=8/40 budget=8/40 tool_turns=7 last_msg_role=assistant response_len=188 session=20260910_100924_9c30c7\n10:09:31 - tools.terminal_tool - INFO [20260910_100924_9c30c7] - Shutting down 1 remaining sandbox(es)...\n10:09:31 - tools.terminal_tool - INFO [20260910_100924_9c30c7] - Manually cleaned up environment for task: default\n10:09:31 - tools.terminal_tool - INFO [20260910_100924_9c30c7] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 6432,
+    "input_tokens": {
+      "value": 8115,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 641,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 4015,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Add node_modules/ and dist/ to .gitignore, keeping what is there. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "PromptTokensDetails(audio_tokens=0, cached_tokens=750, cache_write_tokens=0, video_tokens=0), cost=0.00011837, is_byok=False, cost_details={'upstream_inference_cost': 0.00011837, 'upstream_inference_prompt_cost': 0.00010472, 'upstream_inference_completions_cost': 1.365e-05})\n10:09:28 - agent.conversation_loop - INFO [20260910_100924_f7e038] - API call #4: model=inception/mercury-2.5 provider=unknown in=3293 out=91 total=3384 latency=0.6s cache=750/3293 (23%)\n10:09:28 - root - DEBUG [20260910_100924_f7e038] - Token usage: prompt=3,293, completion=91, total=3,384\n10:09:28 - tools.browser_tool - DEBUG [20260910_100924_f7e038] - cleanup_browser called for task_id: 9e153f22-b24b-4a90-94d5-2d47581a6d3f\n10:09:28 - tools.browser_tool - DEBUG [20260910_100924_f7e038] - Active sessions: []\n10:09:28 - tools.browser_tool - DEBUG [20260910_100924_f7e038] - No active session found for task_id: 9e153f22-b24b-4a90-94d5-2d47581a6d3f\n10:09:28 - agent.conversation_loop - INFO [20260910_100924_f7e038] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=163 session=20260910_100924_f7e038\n10:09:28 - tools.terminal_tool - INFO [20260910_100924_f7e038] - Shutting down 1 remaining sandbox(es)...\n10:09:28 - tools.terminal_tool - INFO [20260910_100924_f7e038] - Manually cleaned up environment for task: default\n10:09:28 - tools.terminal_tool - INFO [20260910_100924_f7e038] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 6477,
+    "input_tokens": {
+      "value": 9148,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 586,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 2262,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "ils=PromptTokensDetails(audio_tokens=0, cached_tokens=760, cache_write_tokens=0, video_tokens=0), cost=0.00014315, is_byok=False, cost_details={'upstream_inference_cost': 0.00014315, 'upstream_inference_prompt_cost': 0.0001382, 'upstream_inference_completions_cost': 4.95e-06})\n10:09:28 - agent.conversation_loop - INFO [20260910_100924_6c14c3] - API call #3: model=inception/mercury-2.5 provider=unknown in=4139 out=33 total=4172 latency=0.8s cache=760/4139 (18%)\n10:09:28 - root - DEBUG [20260910_100924_6c14c3] - Token usage: prompt=4,139, completion=33, total=4,172\n10:09:28 - tools.browser_tool - DEBUG [20260910_100924_6c14c3] - cleanup_browser called for task_id: c0fdffab-b279-4988-9830-aeaf887a27ab\n10:09:28 - tools.browser_tool - DEBUG [20260910_100924_6c14c3] - Active sessions: []\n10:09:28 - tools.browser_tool - DEBUG [20260910_100924_6c14c3] - No active session found for task_id: c0fdffab-b279-4988-9830-aeaf887a27ab\n10:09:28 - agent.conversation_loop - INFO [20260910_100924_6c14c3] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=8 session=20260910_100924_6c14c3\n10:09:28 - tools.terminal_tool - INFO [20260910_100924_6c14c3] - Shutting down 1 remaining sandbox(es)...\n10:09:28 - tools.terminal_tool - INFO [20260910_100924_6c14c3] - Manually cleaned up environment for task: default\n10:09:28 - tools.terminal_tool - INFO [20260910_100924_6c14c3] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 7007,
+    "input_tokens": {
+      "value": 13761,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 920,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 6859,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "romptTokensDetails(audio_tokens=0, cached_tokens=733, cache_write_tokens=0, video_tokens=0), cost=0.000161162, is_byok=False, cost_details={'upstream_inference_cost': 0.000161162, 'upstream_inference_prompt_cost': 0.000156212, 'upstream_inference_completions_cost': 4.95e-06})\n10:09:38 - agent.conversation_loop - INFO [20260910_100933_077e5d] - API call #5: model=inception/mercury-2.5 provider=unknown in=4565 out=33 total=4598 latency=0.8s cache=733/4565 (16%)\n10:09:38 - root - DEBUG [20260910_100933_077e5d] - Token usage: prompt=4,565, completion=33, total=4,598\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_077e5d] - cleanup_browser called for task_id: d1e1df07-5510-427b-8513-a849896f597d\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_077e5d] - Active sessions: []\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_077e5d] - No active session found for task_id: d1e1df07-5510-427b-8513-a849896f597d\n10:09:38 - agent.conversation_loop - INFO [20260910_100933_077e5d] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=83 session=20260910_100933_077e5d\n10:09:39 - tools.terminal_tool - INFO [20260910_100933_077e5d] - Shutting down 1 remaining sandbox(es)...\n10:09:39 - tools.terminal_tool - INFO [20260910_100933_077e5d] - Manually cleaned up environment for task: default\n10:09:39 - tools.terminal_tool - INFO [20260910_100933_077e5d] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 6726,
+    "input_tokens": {
+      "value": 9465,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 662,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 2993,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "details=PromptTokensDetails(audio_tokens=0, cached_tokens=740, cache_write_tokens=0, video_tokens=0), cost=0.000113, is_byok=False, cost_details={'upstream_inference_cost': 0.000113, 'upstream_inference_prompt_cost': 0.0001076, 'upstream_inference_completions_cost': 5.4e-06})\n10:09:38 - agent.conversation_loop - INFO [20260910_100933_f0286a] - API call #4: model=inception/mercury-2.5 provider=unknown in=3356 out=36 total=3392 latency=0.8s cache=740/3356 (22%)\n10:09:38 - root - DEBUG [20260910_100933_f0286a] - Token usage: prompt=3,356, completion=36, total=3,392\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_f0286a] - cleanup_browser called for task_id: 2863834c-6e9c-43fa-a9be-3ce6e6cd31e9\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_f0286a] - Active sessions: []\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_f0286a] - No active session found for task_id: 2863834c-6e9c-43fa-a9be-3ce6e6cd31e9\n10:09:38 - agent.conversation_loop - INFO [20260910_100933_f0286a] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=95 session=20260910_100933_f0286a\n10:09:38 - tools.terminal_tool - INFO [20260910_100933_f0286a] - Shutting down 1 remaining sandbox(es)...\n10:09:38 - tools.terminal_tool - INFO [20260910_100933_f0286a] - Manually cleaned up environment for task: default\n10:09:38 - tools.terminal_tool - INFO [20260910_100933_f0286a] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 4955,
+    "input_tokens": {
+      "value": 4334,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 610,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 1492,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Which files mention 'flux capacitor'? List only the file names. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "PromptTokensDetails(audio_tokens=0, cached_tokens=741, cache_write_tokens=0, video_tokens=0), cost=0.000107684, is_byok=False, cost_details={'upstream_inference_cost': 0.000107684, 'upstream_inference_prompt_cost': 0.000101084, 'upstream_inference_completions_cost': 6.6e-06})\n10:09:36 - agent.conversation_loop - INFO [20260910_100933_3a1b81] - API call #2: model=inception/mercury-2.5 provider=unknown in=3194 out=44 total=3238 latency=0.5s cache=741/3194 (23%)\n10:09:36 - root - DEBUG [20260910_100933_3a1b81] - Token usage: prompt=3,194, completion=44, total=3,238\n10:09:36 - tools.browser_tool - DEBUG [20260910_100933_3a1b81] - cleanup_browser called for task_id: 4c18763c-adba-453e-9bfb-78252a93566c\n10:09:36 - tools.browser_tool - DEBUG [20260910_100933_3a1b81] - Active sessions: []\n10:09:36 - tools.browser_tool - DEBUG [20260910_100933_3a1b81] - No active session found for task_id: 4c18763c-adba-453e-9bfb-78252a93566c\n10:09:36 - agent.conversation_loop - INFO [20260910_100933_3a1b81] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=23 session=20260910_100933_3a1b81\n10:09:37 - tools.terminal_tool - INFO [20260910_100933_3a1b81] - Shutting down 1 remaining sandbox(es)...\n10:09:37 - tools.terminal_tool - INFO [20260910_100933_3a1b81] - Manually cleaned up environment for task: default\n10:09:37 - tools.terminal_tool - INFO [20260910_100933_3a1b81] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 15411,
+    "input_tokens": {
+      "value": 39949,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 2276,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 15769,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 11,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "TokensDetails(audio_tokens=0, cached_tokens=767, cache_write_tokens=0, video_tokens=0), cost=0.000259158, is_byok=False, cost_details={'upstream_inference_cost': 0.000259158, 'upstream_inference_prompt_cost': 0.000251508, 'upstream_inference_completions_cost': 7.65e-06})\n10:09:46 - agent.conversation_loop - INFO [20260910_100933_a796ec] - API call #11: model=inception/mercury-2.5 provider=unknown in=6978 out=51 total=7029 latency=0.5s cache=767/6978 (11%)\n10:09:46 - root - DEBUG [20260910_100933_a796ec] - Token usage: prompt=6,978, completion=51, total=7,029\n10:09:46 - tools.browser_tool - DEBUG [20260910_100933_a796ec] - cleanup_browser called for task_id: 3656fba8-07f5-4b6c-b173-5641efe2ec2b\n10:09:46 - tools.browser_tool - DEBUG [20260910_100933_a796ec] - Active sessions: []\n10:09:46 - tools.browser_tool - DEBUG [20260910_100933_a796ec] - No active session found for task_id: 3656fba8-07f5-4b6c-b173-5641efe2ec2b\n10:09:46 - agent.conversation_loop - INFO [20260910_100933_a796ec] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=11/40 budget=11/40 tool_turns=10 last_msg_role=assistant response_len=132 session=20260910_100933_a796ec\n10:09:47 - tools.terminal_tool - INFO [20260910_100933_a796ec] - Shutting down 1 remaining sandbox(es)...\n10:09:47 - tools.terminal_tool - INFO [20260910_100933_a796ec] - Manually cleaned up environment for task: default\n10:09:47 - tools.terminal_tool - INFO [20260910_100933_a796ec] - Cleaned 1 environments"
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 6956,
+    "input_tokens": {
+      "value": 12096,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 651,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 3043,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "s=PromptTokensDetails(audio_tokens=0, cached_tokens=765, cache_write_tokens=0, video_tokens=0), cost=0.00014241, is_byok=False, cost_details={'upstream_inference_cost': 0.00014241, 'upstream_inference_prompt_cost': 0.00013446, 'upstream_inference_completions_cost': 7.95e-06})\n10:09:38 - agent.conversation_loop - INFO [20260910_100933_3b8cb3] - API call #4: model=inception/mercury-2.5 provider=unknown in=4050 out=53 total=4103 latency=0.6s cache=765/4050 (19%)\n10:09:38 - root - DEBUG [20260910_100933_3b8cb3] - Token usage: prompt=4,050, completion=53, total=4,103\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_3b8cb3] - cleanup_browser called for task_id: 369921d9-7f45-4264-9add-c51139228701\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_3b8cb3] - Active sessions: []\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_3b8cb3] - No active session found for task_id: 369921d9-7f45-4264-9add-c51139228701\n10:09:38 - agent.conversation_loop - INFO [20260910_100933_3b8cb3] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=80 session=20260910_100933_3b8cb3\n10:09:38 - tools.terminal_tool - INFO [20260910_100933_3b8cb3] - Shutting down 1 remaining sandbox(es)...\n10:09:38 - tools.terminal_tool - INFO [20260910_100933_3b8cb3] - Manually cleaned up environment for task: default\n10:09:38 - tools.terminal_tool - INFO [20260910_100933_3b8cb3] - Cleaned 1 environments"
+  }
+]

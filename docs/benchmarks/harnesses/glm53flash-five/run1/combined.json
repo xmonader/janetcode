@@ -1,0 +1,3431 @@
+{
+  "hermes-agent": [
+    {
+      "harness": "hermes-agent",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 8427,
+      "input_tokens": {
+        "value": 10435,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 116,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a file named hello.txt containing exactly the text: hello world --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00054865, is_byok=False, cost_details={'upstream_inference_cost': 0.00054865, 'upstream_inference_prompt_cost': 0.00053415, 'upstream_inference_completions_cost': 1.45e-05})\n11:03:15 - agent.conversation_loop - INFO [20260910_110310_41ac75] - API call #3: model=z-ai/glm-5.3-flash provider=unknown in=3561 out=29 total=3590 latency=2.3s\n11:03:15 - root - DEBUG [20260910_110310_41ac75] - Token usage: prompt=3,561, completion=29, total=3,590\n11:03:15 - tools.browser_tool - DEBUG [20260910_110310_41ac75] - cleanup_browser called for task_id: 5cac8b0d-ab73-49e5-a4c9-2b71e79d4326\n11:03:15 - tools.browser_tool - DEBUG [20260910_110310_41ac75] - Active sessions: []\n11:03:15 - tools.browser_tool - DEBUG [20260910_110310_41ac75] - No active session found for task_id: 5cac8b0d-ab73-49e5-a4c9-2b71e79d4326\n11:03:15 - agent.conversation_loop - INFO [20260910_110310_41ac75] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=105 session=20260910_110310_41ac75\n11:03:16 - tools.terminal_tool - INFO [20260910_110310_41ac75] - Shutting down 1 remaining sandbox(es)...\n11:03:16 - tools.terminal_tool - INFO [20260910_110310_41ac75] - Manually cleaned up environment for task: default\n11:03:16 - tools.terminal_tool - INFO [20260910_110310_41ac75] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 11540,
+      "input_tokens": {
+        "value": 12680,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 111,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "kens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00066705, is_byok=False, cost_details={'upstream_inference_cost': 0.00066705, 'upstream_inference_prompt_cost': 0.00064905, 'upstream_inference_completions_cost': 1.8e-05})\n11:03:18 - agent.conversation_loop - INFO [20260910_110309_2ed5af] - API call #3: model=z-ai/glm-5.3-flash provider=unknown in=4327 out=36 total=4363 latency=1.1s\n11:03:18 - root - DEBUG [20260910_110309_2ed5af] - Token usage: prompt=4,327, completion=36, total=4,363\n11:03:18 - tools.browser_tool - DEBUG [20260910_110309_2ed5af] - cleanup_browser called for task_id: d08cd242-3562-42eb-8ea2-5236431d360b\n11:03:18 - tools.browser_tool - DEBUG [20260910_110309_2ed5af] - Active sessions: []\n11:03:18 - tools.browser_tool - DEBUG [20260910_110309_2ed5af] - No active session found for task_id: d08cd242-3562-42eb-8ea2-5236431d360b\n11:03:18 - agent.conversation_loop - INFO [20260910_110309_2ed5af] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=117 session=20260910_110309_2ed5af\n11:03:19 - tools.terminal_tool - INFO [20260910_110309_2ed5af] - Shutting down 1 remaining sandbox(es)...\n11:03:19 - tools.terminal_tool - INFO [20260910_110309_2ed5af] - Manually cleaned up environment for task: default\n11:03:19 - tools.terminal_tool - INFO [20260910_110309_2ed5af] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 11243,
+      "input_tokens": {
+        "value": 16986,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 102,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query go test fails. Find the bug and fix it in the implementation, not the test. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "_tokens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.0006729, is_byok=False, cost_details={'upstream_inference_cost': 0.0006729, 'upstream_inference_prompt_cost': 0.0006549, 'upstream_inference_completions_cost': 1.8e-05})\n11:03:18 - agent.conversation_loop - INFO [20260910_110309_124876] - API call #4: model=z-ai/glm-5.3-flash provider=unknown in=4366 out=36 total=4402 latency=0.8s\n11:03:18 - root - DEBUG [20260910_110309_124876] - Token usage: prompt=4,366, completion=36, total=4,402\n11:03:18 - tools.browser_tool - DEBUG [20260910_110309_124876] - cleanup_browser called for task_id: 6dd6e8bb-8913-4a12-aefb-598c211bb98a\n11:03:18 - tools.browser_tool - DEBUG [20260910_110309_124876] - Active sessions: []\n11:03:18 - tools.browser_tool - DEBUG [20260910_110309_124876] - No active session found for task_id: 6dd6e8bb-8913-4a12-aefb-598c211bb98a\n11:03:18 - agent.conversation_loop - INFO [20260910_110309_124876] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=109 session=20260910_110309_124876\n11:03:19 - tools.terminal_tool - INFO [20260910_110309_124876] - Shutting down 1 remaining sandbox(es)...\n11:03:19 - tools.terminal_tool - INFO [20260910_110309_124876] - Manually cleaned up environment for task: default\n11:03:19 - tools.terminal_tool - INFO [20260910_110309_124876] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 13791,
+      "input_tokens": {
+        "value": 10541,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 270,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "okens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00056165, is_byok=False, cost_details={'upstream_inference_cost': 0.00056165, 'upstream_inference_prompt_cost': 0.00054765, 'upstream_inference_completions_cost': 1.4e-05})\n11:03:21 - agent.conversation_loop - INFO [20260910_110309_e909d8] - API call #3: model=z-ai/glm-5.3-flash provider=unknown in=3651 out=28 total=3679 latency=0.8s\n11:03:21 - root - DEBUG [20260910_110309_e909d8] - Token usage: prompt=3,651, completion=28, total=3,679\n11:03:21 - tools.browser_tool - DEBUG [20260910_110309_e909d8] - cleanup_browser called for task_id: cb8aec6d-88fd-424d-ba62-bf578cc6c3e6\n11:03:21 - tools.browser_tool - DEBUG [20260910_110309_e909d8] - Active sessions: []\n11:03:21 - tools.browser_tool - DEBUG [20260910_110309_e909d8] - No active session found for task_id: cb8aec6d-88fd-424d-ba62-bf578cc6c3e6\n11:03:21 - agent.conversation_loop - INFO [20260910_110309_e909d8] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=3/40 budget=3/40 tool_turns=1 last_msg_role=assistant response_len=92 session=20260910_110309_e909d8\n11:03:21 - tools.terminal_tool - INFO [20260910_110309_e909d8] - Shutting down 1 remaining sandbox(es)...\n11:03:21 - tools.terminal_tool - INFO [20260910_110309_e909d8] - Manually cleaned up environment for task: default\n11:03:21 - tools.terminal_tool - INFO [20260910_110309_e909d8] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 17944,
+      "input_tokens": {
+        "value": 12689,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 124,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "kens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.0003393, is_byok=False, cost_details={'upstream_inference_cost': 0.0003393, 'upstream_inference_prompt_cost': 0.00032655, 'upstream_inference_completions_cost': 1.275e-05})\n11:03:25 - agent.conversation_loop - INFO [20260910_110310_549dfc] - API call #3: model=z-ai/glm-5.3-flash provider=unknown in=4354 out=51 total=4405 latency=3.9s\n11:03:25 - root - DEBUG [20260910_110310_549dfc] - Token usage: prompt=4,354, completion=51, total=4,405\n11:03:25 - tools.browser_tool - DEBUG [20260910_110310_549dfc] - cleanup_browser called for task_id: 4ca826ed-fc5a-422b-b602-bed855d3450a\n11:03:25 - tools.browser_tool - DEBUG [20260910_110310_549dfc] - Active sessions: []\n11:03:25 - tools.browser_tool - DEBUG [20260910_110310_549dfc] - No active session found for task_id: 4ca826ed-fc5a-422b-b602-bed855d3450a\n11:03:25 - agent.conversation_loop - INFO [20260910_110310_549dfc] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=146 session=20260910_110310_549dfc\n11:03:25 - tools.terminal_tool - INFO [20260910_110310_549dfc] - Shutting down 1 remaining sandbox(es)...\n11:03:25 - tools.terminal_tool - INFO [20260910_110310_549dfc] - Manually cleaned up environment for task: default\n11:03:25 - tools.terminal_tool - INFO [20260910_110310_549dfc] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 6495,
+      "input_tokens": {
+        "value": 4441,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 90,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8128,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query What does Compute(3) return? Reply with just the number. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "00015868, is_byok=False, cost_details={'upstream_inference_cost': 0.00015868, 'upstream_inference_prompt_cost': 0.00015168, 'upstream_inference_completions_cost': 7e-06})\n11:03:31 - agent.conversation_loop - INFO [20260910_110328_81f18a] - API call #3: model=z-ai/glm-5.3-flash provider=unknown in=4288 out=14 total=4302 latency=0.7s cache=4096/4288 (96%)\n11:03:31 - root - DEBUG [20260910_110328_81f18a] - Token usage: prompt=4,288, completion=14, total=4,302\n11:03:31 - root - DEBUG [20260910_110328_81f18a] - Captured reasoning (23 chars): 3 iterations: 3→7→15→31\n11:03:31 - tools.browser_tool - DEBUG [20260910_110328_81f18a] - cleanup_browser called for task_id: 44eb665f-2e87-43be-b7ea-d04cf9766126\n11:03:31 - tools.browser_tool - DEBUG [20260910_110328_81f18a] - Active sessions: []\n11:03:31 - tools.browser_tool - DEBUG [20260910_110328_81f18a] - No active session found for task_id: 44eb665f-2e87-43be-b7ea-d04cf9766126\n11:03:31 - agent.conversation_loop - INFO [20260910_110328_81f18a] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=2 session=20260910_110328_81f18a\n11:03:32 - tools.terminal_tool - INFO [20260910_110328_81f18a] - Shutting down 1 remaining sandbox(es)...\n11:03:32 - tools.terminal_tool - INFO [20260910_110328_81f18a] - Manually cleaned up environment for task: default\n11:03:32 - tools.terminal_tool - INFO [20260910_110328_81f18a] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 27326,
+      "input_tokens": {
+        "value": 10604,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 372,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query In config.json change the port to 8080. Keep every other key exactly as it is. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "okens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00056715, is_byok=False, cost_details={'upstream_inference_cost': 0.00056715, 'upstream_inference_prompt_cost': 0.00055215, 'upstream_inference_completions_cost': 1.5e-05})\n11:03:52 - agent.conversation_loop - INFO [20260910_110328_5d138e] - API call #3: model=z-ai/glm-5.3-flash provider=unknown in=3681 out=30 total=3711 latency=0.8s\n11:03:52 - root - DEBUG [20260910_110328_5d138e] - Token usage: prompt=3,681, completion=30, total=3,711\n11:03:52 - tools.browser_tool - DEBUG [20260910_110328_5d138e] - cleanup_browser called for task_id: bcf4b601-0099-450f-bc09-a87863787141\n11:03:52 - tools.browser_tool - DEBUG [20260910_110328_5d138e] - Active sessions: []\n11:03:52 - tools.browser_tool - DEBUG [20260910_110328_5d138e] - No active session found for task_id: bcf4b601-0099-450f-bc09-a87863787141\n11:03:52 - agent.conversation_loop - INFO [20260910_110328_5d138e] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=92 session=20260910_110328_5d138e\n11:03:53 - tools.terminal_tool - INFO [20260910_110328_5d138e] - Shutting down 1 remaining sandbox(es)...\n11:03:53 - tools.terminal_tool - INFO [20260910_110328_5d138e] - Manually cleaned up environment for task: default\n11:03:53 - tools.terminal_tool - INFO [20260910_110328_5d138e] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 5314,
+      "input_tokens": {
+        "value": 6888,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 91,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write count.sh that prints the number of lines in input.txt and nothing else. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "_tokens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.0005425, is_byok=False, cost_details={'upstream_inference_cost': 0.0005425, 'upstream_inference_prompt_cost': 0.000522, 'upstream_inference_completions_cost': 2.05e-05})\n11:03:31 - agent.conversation_loop - INFO [20260910_110328_448315] - API call #2: model=z-ai/glm-5.3-flash provider=unknown in=3480 out=41 total=3521 latency=0.8s\n11:03:31 - root - DEBUG [20260910_110328_448315] - Token usage: prompt=3,480, completion=41, total=3,521\n11:03:31 - tools.browser_tool - DEBUG [20260910_110328_448315] - cleanup_browser called for task_id: 6ab9aab6-f2d1-466c-924f-8bc843405789\n11:03:31 - tools.browser_tool - DEBUG [20260910_110328_448315] - Active sessions: []\n11:03:31 - tools.browser_tool - DEBUG [20260910_110328_448315] - No active session found for task_id: 6ab9aab6-f2d1-466c-924f-8bc843405789\n11:03:31 - agent.conversation_loop - INFO [20260910_110328_448315] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=137 session=20260910_110328_448315\n11:03:31 - tools.terminal_tool - INFO [20260910_110328_448315] - Shutting down 1 remaining sandbox(es)...\n11:03:31 - tools.terminal_tool - INFO [20260910_110328_448315] - Manually cleaned up environment for task: default\n11:03:31 - tools.terminal_tool - INFO [20260910_110328_448315] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 10761,
+      "input_tokens": {
+        "value": 12557,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 120,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a greet target to the Makefile that prints hi. Keep the existing targets. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "_tokens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.0006696, is_byok=False, cost_details={'upstream_inference_cost': 0.0006696, 'upstream_inference_prompt_cost': 0.0006426, 'upstream_inference_completions_cost': 2.7e-05})\n11:03:36 - agent.conversation_loop - INFO [20260910_110328_948786] - API call #3: model=z-ai/glm-5.3-flash provider=unknown in=4284 out=54 total=4338 latency=1.8s\n11:03:36 - root - DEBUG [20260910_110328_948786] - Token usage: prompt=4,284, completion=54, total=4,338\n11:03:36 - tools.browser_tool - DEBUG [20260910_110328_948786] - cleanup_browser called for task_id: 105c50ee-d3b0-462e-a784-a28aa555e1f5\n11:03:36 - tools.browser_tool - DEBUG [20260910_110328_948786] - Active sessions: []\n11:03:36 - tools.browser_tool - DEBUG [20260910_110328_948786] - No active session found for task_id: 105c50ee-d3b0-462e-a784-a28aa555e1f5\n11:03:36 - agent.conversation_loop - INFO [20260910_110328_948786] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=168 session=20260910_110328_948786\n11:03:36 - tools.terminal_tool - INFO [20260910_110328_948786] - Shutting down 1 remaining sandbox(es)...\n11:03:36 - tools.terminal_tool - INFO [20260910_110328_948786] - Manually cleaned up environment for task: default\n11:03:36 - tools.terminal_tool - INFO [20260910_110328_948786] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6576,
+      "input_tokens": {
+        "value": 6881,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 66,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Append the line 'four' to the end of list.txt. Do not change the existing lines. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "e, cost_details={'upstream_inference_cost': 0.0005419, 'upstream_inference_prompt_cost': 0.0005199, 'upstream_inference_completions_cost': 2.2e-05})\n11:03:31 - agent.conversation_loop - INFO [20260910_110328_a50539] - API call #2: model=z-ai/glm-5.3-flash provider=unknown in=3466 out=44 total=3510 latency=1.0s\n11:03:31 - root - DEBUG [20260910_110328_a50539] - Token usage: prompt=3,466, completion=44, total=3,510\n11:03:31 - root - DEBUG [20260910_110328_a50539] - Captured reasoning (72 chars): Note output shows no trailing newline after four? \"four\" then end. Fine.\n11:03:31 - tools.browser_tool - DEBUG [20260910_110328_a50539] - cleanup_browser called for task_id: d7e043fe-3d13-4d3f-94e2-721f873c59f8\n11:03:31 - tools.browser_tool - DEBUG [20260910_110328_a50539] - Active sessions: []\n11:03:31 - tools.browser_tool - DEBUG [20260910_110328_a50539] - No active session found for task_id: d7e043fe-3d13-4d3f-94e2-721f873c59f8\n11:03:31 - agent.conversation_loop - INFO [20260910_110328_a50539] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=92 session=20260910_110328_a50539\n11:03:32 - tools.terminal_tool - INFO [20260910_110328_a50539] - Shutting down 1 remaining sandbox(es)...\n11:03:32 - tools.terminal_tool - INFO [20260910_110328_a50539] - Manually cleaned up environment for task: default\n11:03:32 - tools.terminal_tool - INFO [20260910_110328_a50539] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 10088,
+      "input_tokens": {
+        "value": 13294,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 177,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4032,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00070685, is_byok=False, cost_details={'upstream_inference_cost': 0.00070685, 'upstream_inference_prompt_cost': 0.00067635, 'upstream_inference_completions_cost': 3.05e-05})\n11:04:03 - agent.conversation_loop - INFO [20260910_110355_ed8f98] - API call #4: model=z-ai/glm-5.3-flash provider=unknown in=4509 out=61 total=4570 latency=1.9s\n11:04:03 - root - DEBUG [20260910_110355_ed8f98] - Token usage: prompt=4,509, completion=61, total=4,570\n11:04:03 - tools.browser_tool - DEBUG [20260910_110355_ed8f98] - cleanup_browser called for task_id: e904a4d3-385c-4e61-8ddb-1fed33589abb\n11:04:03 - tools.browser_tool - DEBUG [20260910_110355_ed8f98] - Active sessions: []\n11:04:03 - tools.browser_tool - DEBUG [20260910_110355_ed8f98] - No active session found for task_id: e904a4d3-385c-4e61-8ddb-1fed33589abb\n11:04:03 - agent.conversation_loop - INFO [20260910_110355_ed8f98] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=224 session=20260910_110355_ed8f98\n11:04:03 - tools.terminal_tool - INFO [20260910_110355_ed8f98] - Shutting down 1 remaining sandbox(es)...\n11:04:03 - tools.terminal_tool - INFO [20260910_110355_ed8f98] - Manually cleaned up environment for task: default\n11:04:03 - tools.terminal_tool - INFO [20260910_110355_ed8f98] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": false,
+      "reason": "check failed: exit status 1: F\n======================================================================\nFAIL: test_mean (__main__.T.test_mean)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/harness-hermes-agent-12-python-bugfix-3910734251/test_stats.py\", line 6, in test_mean\n    self.assertEqual(mean([2, 4]), 3)\nAssertionError: 6.0 != 3\n\n----------------------------------------------------------------------\nRan 1 test in 0.000s\n\nFAILED (failures=1)",
+      "wall_time_ms": 5664,
+      "input_tokens": {
+        "value": 8362,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 30,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query python3 test_stats.py fails. Fix the bug in stats.py. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "okens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00064625, is_byok=False, cost_details={'upstream_inference_cost': 0.00064625, 'upstream_inference_prompt_cost': 0.00063975, 'upstream_inference_completions_cost': 6.5e-06})\n11:03:58 - agent.conversation_loop - INFO [20260910_110354_5389c0] - API call #2: model=z-ai/glm-5.3-flash provider=unknown in=4265 out=13 total=4278 latency=0.6s\n11:03:58 - root - DEBUG [20260910_110354_5389c0] - Token usage: prompt=4,265, completion=13, total=4,278\n11:03:58 - tools.browser_tool - DEBUG [20260910_110354_5389c0] - cleanup_browser called for task_id: a0b5ed7f-c534-4913-88df-5b71707dc362\n11:03:58 - tools.browser_tool - DEBUG [20260910_110354_5389c0] - Active sessions: []\n11:03:58 - tools.browser_tool - DEBUG [20260910_110354_5389c0] - No active session found for task_id: a0b5ed7f-c534-4913-88df-5b71707dc362\n11:03:58 - agent.conversation_loop - INFO [20260910_110354_5389c0] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=31 session=20260910_110354_5389c0\n11:03:58 - tools.terminal_tool - INFO [20260910_110354_5389c0] - Shutting down 1 remaining sandbox(es)...\n11:03:58 - tools.terminal_tool - INFO [20260910_110354_5389c0] - Manually cleaned up environment for task: default\n11:03:58 - tools.terminal_tool - INFO [20260910_110354_5389c0] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": false,
+      "reason": "check failed: exit status 1: # ./stack\nno Go files in /tmp/harness-hermes-agent-13-multi-file-package-1373366413/stack\nFAIL\t./stack [setup failed]\nFAIL",
+      "wall_time_ms": 11923,
+      "input_tokens": {
+        "value": 12524,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 392,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ns=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.0008086, is_byok=False, cost_details={'upstream_inference_cost': 0.0008086, 'upstream_inference_prompt_cost': 0.0006321, 'upstream_inference_completions_cost': 0.0001765})\n11:04:04 - agent.conversation_loop - INFO [20260910_110355_343817] - API call #3: model=z-ai/glm-5.3-flash provider=unknown in=4214 out=353 total=4567 latency=5.2s\n11:04:04 - root - DEBUG [20260910_110355_343817] - Token usage: prompt=4,214, completion=353, total=4,567\n11:04:04 - tools.browser_tool - DEBUG [20260910_110355_343817] - cleanup_browser called for task_id: c0b091a0-d048-45fc-8a20-54c8df962e83\n11:04:04 - tools.browser_tool - DEBUG [20260910_110355_343817] - Active sessions: []\n11:04:04 - tools.browser_tool - DEBUG [20260910_110355_343817] - No active session found for task_id: c0b091a0-d048-45fc-8a20-54c8df962e83\n11:04:04 - agent.conversation_loop - INFO [20260910_110355_343817] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=1133 session=20260910_110355_343817\n11:04:05 - tools.terminal_tool - INFO [20260910_110355_343817] - Shutting down 1 remaining sandbox(es)...\n11:04:05 - tools.terminal_tool - INFO [20260910_110355_343817] - Manually cleaned up environment for task: default\n11:04:05 - tools.terminal_tool - INFO [20260910_110355_343817] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 5522,
+      "input_tokens": {
+        "value": 6903,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 82,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add node_modules/ and dist/ to .gitignore, keeping what is there. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "okens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00053795, is_byok=False, cost_details={'upstream_inference_cost': 0.00053795, 'upstream_inference_prompt_cost': 0.00052395, 'upstream_inference_completions_cost': 1.4e-05})\n11:03:58 - agent.conversation_loop - INFO [20260910_110355_7d6578] - API call #2: model=z-ai/glm-5.3-flash provider=unknown in=3493 out=28 total=3521 latency=0.9s\n11:03:58 - root - DEBUG [20260910_110355_7d6578] - Token usage: prompt=3,493, completion=28, total=3,521\n11:03:58 - tools.browser_tool - DEBUG [20260910_110355_7d6578] - cleanup_browser called for task_id: 829628a2-2462-4a47-bf02-4f67ce973915\n11:03:58 - tools.browser_tool - DEBUG [20260910_110355_7d6578] - Active sessions: []\n11:03:58 - tools.browser_tool - DEBUG [20260910_110355_7d6578] - No active session found for task_id: 829628a2-2462-4a47-bf02-4f67ce973915\n11:03:58 - agent.conversation_loop - INFO [20260910_110355_7d6578] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=99 session=20260910_110355_7d6578\n11:03:58 - tools.terminal_tool - INFO [20260910_110355_7d6578] - Shutting down 1 remaining sandbox(es)...\n11:03:58 - tools.terminal_tool - INFO [20260910_110355_7d6578] - Manually cleaned up environment for task: default\n11:03:58 - tools.terminal_tool - INFO [20260910_110355_7d6578] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 5429,
+      "input_tokens": {
+        "value": 8271,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 37,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "okens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00063035, is_byok=False, cost_details={'upstream_inference_cost': 0.00063035, 'upstream_inference_prompt_cost': 0.00062385, 'upstream_inference_completions_cost': 6.5e-06})\n11:03:58 - agent.conversation_loop - INFO [20260910_110355_ceefa1] - API call #2: model=z-ai/glm-5.3-flash provider=unknown in=4159 out=13 total=4172 latency=0.7s\n11:03:58 - root - DEBUG [20260910_110355_ceefa1] - Token usage: prompt=4,159, completion=13, total=4,172\n11:03:58 - tools.browser_tool - DEBUG [20260910_110355_ceefa1] - cleanup_browser called for task_id: 899b1a22-1e2a-48fd-86a3-6b4782081a81\n11:03:58 - tools.browser_tool - DEBUG [20260910_110355_ceefa1] - Active sessions: []\n11:03:58 - tools.browser_tool - DEBUG [20260910_110355_ceefa1] - No active session found for task_id: 899b1a22-1e2a-48fd-86a3-6b4782081a81\n11:03:58 - agent.conversation_loop - INFO [20260910_110355_ceefa1] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=33 session=20260910_110355_ceefa1\n11:03:58 - tools.terminal_tool - INFO [20260910_110355_ceefa1] - Shutting down 1 remaining sandbox(es)...\n11:03:58 - tools.terminal_tool - INFO [20260910_110355_ceefa1] - Manually cleaned up environment for task: default\n11:03:58 - tools.terminal_tool - INFO [20260910_110355_ceefa1] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 43265,
+      "input_tokens": {
+        "value": 25748,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 488,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "kens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00034995, is_byok=False, cost_details={'upstream_inference_cost': 0.00034995, 'upstream_inference_prompt_cost': 0.00033795, 'upstream_inference_completions_cost': 1.2e-05})\n11:04:48 - agent.conversation_loop - INFO [20260910_110407_abd08f] - API call #6: model=z-ai/glm-5.3-flash provider=unknown in=4506 out=48 total=4554 latency=1.7s\n11:04:48 - root - DEBUG [20260910_110407_abd08f] - Token usage: prompt=4,506, completion=48, total=4,554\n11:04:48 - tools.browser_tool - DEBUG [20260910_110407_abd08f] - cleanup_browser called for task_id: 664f80c2-f8ce-4665-9a8e-5fc1b0d17dac\n11:04:48 - tools.browser_tool - DEBUG [20260910_110407_abd08f] - Active sessions: []\n11:04:48 - tools.browser_tool - DEBUG [20260910_110407_abd08f] - No active session found for task_id: 664f80c2-f8ce-4665-9a8e-5fc1b0d17dac\n11:04:48 - agent.conversation_loop - INFO [20260910_110407_abd08f] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=6/40 budget=6/40 tool_turns=3 last_msg_role=assistant response_len=176 session=20260910_110407_abd08f\n11:04:48 - tools.terminal_tool - INFO [20260910_110407_abd08f] - Shutting down 1 remaining sandbox(es)...\n11:04:48 - tools.terminal_tool - INFO [20260910_110407_abd08f] - Manually cleaned up environment for task: default\n11:04:48 - tools.terminal_tool - INFO [20260910_110407_abd08f] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 7192,
+      "input_tokens": {
+        "value": 10524,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 108,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "e_tokens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.0005535, is_byok=False, cost_details={'upstream_inference_cost': 0.0005535, 'upstream_inference_prompt_cost': 0.0005385, 'upstream_inference_completions_cost': 1.5e-05})\n11:04:11 - agent.conversation_loop - INFO [20260910_110407_5aa050] - API call #3: model=z-ai/glm-5.3-flash provider=unknown in=3590 out=30 total=3620 latency=1.4s\n11:04:11 - root - DEBUG [20260910_110407_5aa050] - Token usage: prompt=3,590, completion=30, total=3,620\n11:04:11 - tools.browser_tool - DEBUG [20260910_110407_5aa050] - cleanup_browser called for task_id: bb2415d4-687e-47d9-bc20-3917d4b2ed9a\n11:04:11 - tools.browser_tool - DEBUG [20260910_110407_5aa050] - Active sessions: []\n11:04:11 - tools.browser_tool - DEBUG [20260910_110407_5aa050] - No active session found for task_id: bb2415d4-687e-47d9-bc20-3917d4b2ed9a\n11:04:11 - agent.conversation_loop - INFO [20260910_110407_5aa050] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=99 session=20260910_110407_5aa050\n11:04:12 - tools.terminal_tool - INFO [20260910_110407_5aa050] - Shutting down 1 remaining sandbox(es)...\n11:04:12 - tools.terminal_tool - INFO [20260910_110407_5aa050] - Manually cleaned up environment for task: default\n11:04:12 - tools.terminal_tool - INFO [20260910_110407_5aa050] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 12808,
+      "input_tokens": {
+        "value": 6865,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 39,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Which files mention 'flux capacitor'? List only the file names. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "_tokens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00026335, is_byok=False, cost_details={'upstream_inference_cost': 0.00026335, 'upstream_inference_prompt_cost': 0.00025935, 'upstream_inference_completions_cost': 4e-06})\n11:04:17 - agent.conversation_loop - INFO [20260910_110406_cae513] - API call #2: model=z-ai/glm-5.3-flash provider=unknown in=3458 out=16 total=3474 latency=6.8s\n11:04:17 - root - DEBUG [20260910_110406_cae513] - Token usage: prompt=3,458, completion=16, total=3,474\n11:04:17 - tools.browser_tool - DEBUG [20260910_110406_cae513] - cleanup_browser called for task_id: 1e5ce858-308a-4076-bca9-65e7f465ee5c\n11:04:17 - tools.browser_tool - DEBUG [20260910_110406_cae513] - Active sessions: []\n11:04:17 - tools.browser_tool - DEBUG [20260910_110406_cae513] - No active session found for task_id: 1e5ce858-308a-4076-bca9-65e7f465ee5c\n11:04:17 - agent.conversation_loop - INFO [20260910_110406_cae513] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=58 session=20260910_110406_cae513\n11:04:17 - tools.terminal_tool - INFO [20260910_110406_cae513] - Shutting down 1 remaining sandbox(es)...\n11:04:17 - tools.terminal_tool - INFO [20260910_110406_cae513] - Manually cleaned up environment for task: default\n11:04:17 - tools.terminal_tool - INFO [20260910_110406_cae513] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 26195,
+      "input_tokens": {
+        "value": 17129,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 263,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "_tokens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.0003508, is_byok=False, cost_details={'upstream_inference_cost': 0.0003508, 'upstream_inference_prompt_cost': 0.0003378, 'upstream_inference_completions_cost': 1.3e-05})\n11:04:30 - agent.conversation_loop - INFO [20260910_110406_72d42e] - API call #4: model=z-ai/glm-5.3-flash provider=unknown in=4504 out=52 total=4556 latency=2.8s\n11:04:30 - root - DEBUG [20260910_110406_72d42e] - Token usage: prompt=4,504, completion=52, total=4,556\n11:04:30 - tools.browser_tool - DEBUG [20260910_110406_72d42e] - cleanup_browser called for task_id: ce95419e-51f6-42a4-ae3f-fdc15624c6ca\n11:04:30 - tools.browser_tool - DEBUG [20260910_110406_72d42e] - Active sessions: []\n11:04:30 - tools.browser_tool - DEBUG [20260910_110406_72d42e] - No active session found for task_id: ce95419e-51f6-42a4-ae3f-fdc15624c6ca\n11:04:30 - agent.conversation_loop - INFO [20260910_110406_72d42e] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=138 session=20260910_110406_72d42e\n11:04:31 - tools.terminal_tool - INFO [20260910_110406_72d42e] - Shutting down 1 remaining sandbox(es)...\n11:04:31 - tools.terminal_tool - INFO [20260910_110406_72d42e] - Manually cleaned up environment for task: default\n11:04:31 - tools.terminal_tool - INFO [20260910_110406_72d42e] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": false,
+      "reason": "check failed: exit status 1: no Go files in /tmp/harness-hermes-agent-20-env-default-256683992",
+      "wall_time_ms": 5011,
+      "input_tokens": {
+        "value": 4103,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 95,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 1,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --model z-ai/glm-5.3-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": " completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=0, reasoning_tokens=17, rejected_prediction_tokens=None, image_tokens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00066295, is_byok=False, cost_details={'upstream_inference_cost': 0.00066295, 'upstream_inference_prompt_cost': 0.00061545, 'upstream_inference_completions_cost': 4.75e-05})\n11:04:09 - agent.conversation_loop - INFO [20260910_110407_489a2e] - API call #1: model=z-ai/glm-5.3-flash provider=unknown in=4103 out=95 total=4198 latency=1.8s\n11:04:09 - root - DEBUG [20260910_110407_489a2e] - Token usage: prompt=4,103, completion=95, total=4,198\n11:04:09 - root - DEBUG [20260910_110407_489a2e] - Captured reasoning (63 chars): Simple task. Check go.mod exists in cwd, write main.go, run it.\n11:04:09 - tools.browser_tool - DEBUG [20260910_110407_489a2e] - cleanup_browser called for task_id: 16a027ad-a956-4dd2-ab8c-7b995e708daf\n11:04:09 - tools.browser_tool - DEBUG [20260910_110407_489a2e] - Active sessions: []\n11:04:09 - tools.browser_tool - DEBUG [20260910_110407_489a2e] - No active session found for task_id: 16a027ad-a956-4dd2-ab8c-7b995e708daf\n11:04:09 - agent.conversation_loop - INFO [20260910_110407_489a2e] - Turn ended: reason=text_response(finish_reason=stop) model=z-ai/glm-5.3-flash api_calls=1/40 budget=1/40 tool_turns=0 last_msg_role=assistant response_len=282 session=20260910_110407_489a2e"
+    }
+  ],
+  "janetcode": [
+    {
+      "harness": "janetcode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9281,
+      "input_tokens": {
+        "value": 8050,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 570,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0014925,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 01-create-file --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 12975,
+      "input_tokens": {
+        "value": 10257,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 147,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6656,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000994195,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 5434,
+      "input_tokens": {
+        "value": 17121,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 216,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00267615,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 7462,
+      "input_tokens": {
+        "value": 4188,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 157,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8256,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00063887,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 6358,
+      "input_tokens": {
+        "value": 4316,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 88,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8128,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0006249599999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 2532,
+      "input_tokens": {
+        "value": 12128,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 80,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0018592,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 9180,
+      "input_tokens": {
+        "value": 12250,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 79,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0009384999999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 13814,
+      "input_tokens": {
+        "value": 12291,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 146,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3904,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001016885,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 4144,
+      "input_tokens": {
+        "value": 16314,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 138,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0025161,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 5677,
+      "input_tokens": {
+        "value": 16211,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 246,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00255465,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 5705,
+      "input_tokens": {
+        "value": 8979,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 252,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8128,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0017166899999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 4391,
+      "input_tokens": {
+        "value": 12796,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 145,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3968,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00211094,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 11492,
+      "input_tokens": {
+        "value": 5009,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 821,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 16384,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00165337,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 5012,
+      "input_tokens": {
+        "value": 4328,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 214,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7872,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00099236,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 2606,
+      "input_tokens": {
+        "value": 8134,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 91,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0012656,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 17105,
+      "input_tokens": {
+        "value": 5673,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1158,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 34368,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 8,
+        "set": true
+      },
+      "turns": {
+        "value": 9,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0024609899999999997,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 16-readme --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 6197,
+      "input_tokens": {
+        "value": 12180,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 203,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0019285,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 4329,
+      "input_tokens": {
+        "value": 4303,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 296,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7872,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00102961,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 7647,
+      "input_tokens": {
+        "value": 20971,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 407,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0033491499999999995,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 19-write-test --provider openai --model z-ai/glm-5.3-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5618,
+      "input_tokens": {
+        "value": 4675,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 417,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15808,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00138399,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 20-env-default --provider openai --model z-ai/glm-5.3-flash"
+    }
+  ],
+  "openclaw": [
+    {
+      "harness": "openclaw",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 19241,
+      "input_tokens": {
+        "value": 67601,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 182,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-210716895 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031286515124744 --message Create a file named hello.txt containing exactly the text: hello world",
+      "stderr_excerpt": "Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=2314 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=2070 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 92c7b9e1-1670-47fe-a2e2-d4b748b7b9da ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 25846,
+      "input_tokens": {
+        "value": 67952,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 160,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 67904,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-104997691 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031286692267837 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+      "stderr_excerpt": "l=z-ai/glm-5.3-flash status=200 elapsedMs=4503 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=2898 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=1193 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 448f2cb8-af8b-45d9-94d1-318f383d7726 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 26259,
+      "input_tokens": {
+        "value": 45954,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 345,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 124224,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-1029053858 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031286476958145 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+      "stderr_excerpt": "odel=z-ai/glm-5.3-flash status=200 elapsedMs=486 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=717 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=444 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run cd2c76b5-afdb-473d-8a16-4a407bdadcb5 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 20269,
+      "input_tokens": {
+        "value": 45891,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 306,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 56128,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-1486578996 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031287006919766 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+      "stderr_excerpt": "model=z-ai/glm-5.3-flash status=200 elapsedMs=2240 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=476 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=1851 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 10ec0bae-ab9f-4697-a085-57a5077bd281 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 34669,
+      "input_tokens": {
+        "value": 35094,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 883,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 170752,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 10,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-2904993633 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031286586540045 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+      "stderr_excerpt": " response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=1005 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=552 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run a23d5a9e-fcd2-4b41-a665-2c3daf459e61 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 25567,
+      "input_tokens": {
+        "value": 43335,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 137,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 58368,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-1015321997 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031321680101584 --message What does Compute(3) return? Reply with just the number.",
+      "stderr_excerpt": "] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=419 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=325 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 512dd442-e959-4ba5-b6ae-ee31ad4239c9 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 60243,
+      "input_tokens": {
+        "value": 11873,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 177,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 123648,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-129362753 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031321686514380 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+      "stderr_excerpt": "93 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=531 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=646 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=640 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 158c83bf-b9da-4f0d-9afb-2f25c20f3549 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 27670,
+      "input_tokens": {
+        "value": 43226,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 652,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 58432,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-3871809488 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031321732403882 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+      "stderr_excerpt": ", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=3783 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=2638 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 5ff32a4f-f616-4e3b-938c-b15a89b518ef ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 30267,
+      "input_tokens": {
+        "value": 79174,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 104,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 22400,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-3702347398 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031321794489018 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+      "stderr_excerpt": "del=z-ai/glm-5.3-flash status=200 elapsedMs=2667 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=10047 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=1055 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ee4fa8a5-bd6f-44fe-bf93-e31991621a6d ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 17309,
+      "input_tokens": {
+        "value": 33964,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 53,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 67648,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-460662192 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031321734404698 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+      "stderr_excerpt": "model=z-ai/glm-5.3-flash status=200 elapsedMs=2775 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=1234 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=637 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d9a0dea9-686f-4f0f-ba92-b70d78b239b8 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 20785,
+      "input_tokens": {
+        "value": 46113,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 524,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 124544,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-1235035525 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031380581994059 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+      "stderr_excerpt": "odel=z-ai/glm-5.3-flash status=200 elapsedMs=649 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=694 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=606 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 01c23ae2-f83d-4b61-bf66-5e59d2c4a444 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 17732,
+      "input_tokens": {
+        "value": 11983,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 302,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 123840,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-2064997480 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031380905865766 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+      "stderr_excerpt": "odel=z-ai/glm-5.3-flash status=200 elapsedMs=522 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=570 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=549 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 4e35c17b-3c3b-496f-8caa-4479a5b023fe ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 29949,
+      "input_tokens": {
+        "value": 45129,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1334,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 92160,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-3895662897 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031380895023584 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+      "stderr_excerpt": "l=z-ai/glm-5.3-flash status=200 elapsedMs=1572 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=1396 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=1384 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 9c7e92f4-b880-4e5a-92ed-726b33e76ac8 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 15402,
+      "input_tokens": {
+        "value": 11653,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 185,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 89856,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-1034436199 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031380758390696 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+      "stderr_excerpt": "] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=650 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=687 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 8cb8a694-fe25-4eb8-a883-2d0ee1d6ae02 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 13873,
+      "input_tokens": {
+        "value": 45303,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 94,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 22400,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-384883082 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031381004750703 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+      "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=1812 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=839 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c18a0201-039a-45ef-9450-6b7b73253d5d ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 58924,
+      "input_tokens": {
+        "value": 26896,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 225,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 109440,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-16-readme-991987791 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031410552308099 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+      "stderr_excerpt": "response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=1720 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=720 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 4e074445-1f30-4b6f-a968-01a86e074eea ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 19873,
+      "input_tokens": {
+        "value": 71760,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 181,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 29952,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-3460612397 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031410330997416 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+      "stderr_excerpt": "odel=z-ai/glm-5.3-flash status=200 elapsedMs=3072 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=2377 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=1736 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run bcb537f9-c7dc-4060-b5c1-41e97534a5df ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14092,
+      "input_tokens": {
+        "value": 11607,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 107,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 56064,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-3101831012 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031410340158331 --message Which files mention 'flux capacitor'? List only the file names.",
+      "stderr_excerpt": " Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=1402 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=962 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run e41d4094-faeb-4b97-839f-295463ace343 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 25441,
+      "input_tokens": {
+        "value": 12708,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 538,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 193152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-3133222017 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031410596727399 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+      "stderr_excerpt": "] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=786 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=432 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b262f874-066d-4df3-b712-7d3d11e50c83 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 15288,
+      "input_tokens": {
+        "value": 45488,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 342,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 56256,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-2198736652 agent --local --json --model bench/z-ai/glm-5.3-flash --session-id bench-0-1789031410607677924 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+      "stderr_excerpt": "model=z-ai/glm-5.3-flash status=200 elapsedMs=2466 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=1070 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=z-ai/glm-5.3-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=z-ai/glm-5.3-flash status=200 elapsedMs=576 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 35dfb2ec-aeab-4821-8ac4-07f114c6e164 ended with stopReason=stop\u001b[39m"
+    }
+  ],
+  "pi": [
+    {
+      "harness": "pi",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 3959,
+      "input_tokens": {
+        "value": 7969,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 53,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 25728,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000996845,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "pi",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 5903,
+      "input_tokens": {
+        "value": 8370,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 159,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 59520,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0015602999999999997,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9084,
+      "input_tokens": {
+        "value": 8770,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 295,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 76992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0018863799999999996,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "pi",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 13317,
+      "input_tokens": {
+        "value": 40714,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 376,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 27648,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0035622699999999993,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "pi",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9386,
+      "input_tokens": {
+        "value": 25610,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 323,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 60416,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00290774,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "pi",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 19440,
+      "input_tokens": {
+        "value": 23292,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 115,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 27648,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0021903699999999996,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "pi",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6434,
+      "input_tokens": {
+        "value": 23031,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 88,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 27648,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002164045,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "pi",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": false,
+      "reason": "check failed: exit status 1: count.sh: line 2: input.txt: No such file or directory",
+      "wall_time_ms": 16216,
+      "input_tokens": {
+        "value": 32713,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 110,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17920,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002749775,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Write count.sh that prints the number of lines in input.txt and nothing else.",
+      "stderr_excerpt": "count.sh: line 2: input.txt: No such file or directory"
+    },
+    {
+      "harness": "pi",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6980,
+      "input_tokens": {
+        "value": 26125,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 131,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41472,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002614205,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "pi",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 9485,
+      "input_tokens": {
+        "value": 26103,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 115,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41472,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002608555,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "pi",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 11926,
+      "input_tokens": {
+        "value": 8964,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 258,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 77376,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0018974400000000002,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 8992,
+      "input_tokens": {
+        "value": 25274,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 165,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 59712,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0028324799999999996,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "pi",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": false,
+      "reason": "check failed: exit status 1: # ./stack\nmain module (example.com/m) does not contain package example.com/m/stack\nFAIL\t./stack [setup failed]\nFAIL",
+      "wall_time_ms": 7051,
+      "input_tokens": {
+        "value": 23751,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 483,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 27648,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002316795,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+      "stderr_excerpt": "# ./stack\nmain module (example.com/m) does not contain package example.com/m/stack\nFAIL\t./stack [setup failed]\nFAIL"
+    },
+    {
+      "harness": "pi",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 8078,
+      "input_tokens": {
+        "value": 32664,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 81,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17920,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0027388499999999997,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "pi",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 7152,
+      "input_tokens": {
+        "value": 8124,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 119,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 25728,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00102497,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "pi",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 8876,
+      "input_tokens": {
+        "value": 25395,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 336,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 42944,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0026327849999999995,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "pi",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 4119,
+      "input_tokens": {
+        "value": 8193,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 102,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 42496,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0012774149999999998,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "pi",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 3534,
+      "input_tokens": {
+        "value": 8026,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 60,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 25728,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0010028699999999999,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "pi",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 12445,
+      "input_tokens": {
+        "value": 30726,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 427,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 55296,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0032406399999999995,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "pi",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5340,
+      "input_tokens": {
+        "value": 8166,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 163,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 42560,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0012916,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ],
+  "qwencode": [
+    {
+      "harness": "qwencode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 19077,
+      "input_tokens": {
+        "value": 38920,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 80,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41344,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "qwencode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 24618,
+      "input_tokens": {
+        "value": 72235,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 200,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 89984,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 26742,
+      "input_tokens": {
+        "value": 35588,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 202,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 126464,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "qwencode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 26863,
+      "input_tokens": {
+        "value": 31227,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 236,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 89984,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "qwencode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 30880,
+      "input_tokens": {
+        "value": 53040,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 333,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 109440,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "qwencode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 24836,
+      "input_tokens": {
+        "value": 80203,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 111,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "qwencode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 31903,
+      "input_tokens": {
+        "value": 67507,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 161,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 53504,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "qwencode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 62202,
+      "input_tokens": {
+        "value": 20656,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 853,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 142848,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "qwencode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 33921,
+      "input_tokens": {
+        "value": 59529,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 168,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 102144,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "qwencode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 43570,
+      "input_tokens": {
+        "value": 20052,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 489,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 100992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "qwencode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 29335,
+      "input_tokens": {
+        "value": 20503,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 528,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 142464,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 29703,
+      "input_tokens": {
+        "value": 20279,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 452,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 142208,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "qwencode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 41760,
+      "input_tokens": {
+        "value": 20613,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 832,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 183552,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 17278,
+      "input_tokens": {
+        "value": 19924,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 269,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 101120,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "qwencode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 16435,
+      "input_tokens": {
+        "value": 19840,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 232,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 60480,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "qwencode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 56550,
+      "input_tokens": {
+        "value": 21224,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1478,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 142912,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "qwencode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 31315,
+      "input_tokens": {
+        "value": 20171,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 422,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 141952,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "qwencode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 9513,
+      "input_tokens": {
+        "value": 26746,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 23,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 53504,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "qwencode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 33991,
+      "input_tokens": {
+        "value": 20393,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 534,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 141952,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "qwencode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 32714,
+      "input_tokens": {
+        "value": 20206,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 513,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 142144,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model z-ai/glm-5.3-flash --max-session-turns 40 --max-wall-time 180s Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ]
+}

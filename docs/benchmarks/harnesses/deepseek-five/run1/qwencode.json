@@ -1,0 +1,682 @@
+[
+  {
+    "harness": "qwencode",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 12044,
+    "input_tokens": {
+      "value": 38326,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 215,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 45056,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Create a file named hello.txt containing exactly the text: hello world"
+  },
+  {
+    "harness": "qwencode",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 20750,
+    "input_tokens": {
+      "value": 39369,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 504,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 127744,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+  },
+  {
+    "harness": "qwencode",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 21242,
+    "input_tokens": {
+      "value": 40083,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 616,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 128768,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s go test fails. Find the bug and fix it in the implementation, not the test."
+  },
+  {
+    "harness": "qwencode",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 53596,
+    "input_tokens": {
+      "value": 38705,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 485,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 86272,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+  },
+  {
+    "harness": "qwencode",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 71737,
+    "input_tokens": {
+      "value": 40029,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 928,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 129024,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 8,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+  },
+  {
+    "harness": "qwencode",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 31959,
+    "input_tokens": {
+      "value": 38065,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 186,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 45056,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s What does Compute(3) return? Reply with just the number."
+  },
+  {
+    "harness": "qwencode",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 16330,
+    "input_tokens": {
+      "value": 37472,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 292,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 87296,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s In config.json change the port to 8080. Keep every other key exactly as it is."
+  },
+  {
+    "harness": "qwencode",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 18859,
+    "input_tokens": {
+      "value": 39013,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 326,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 127232,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Write count.sh that prints the number of lines in input.txt and nothing else."
+  },
+  {
+    "harness": "qwencode",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 74324,
+    "input_tokens": {
+      "value": 38747,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 363,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 127232,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Add a greet target to the Makefile that prints hi. Keep the existing targets."
+  },
+  {
+    "harness": "qwencode",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 33720,
+    "input_tokens": {
+      "value": 37915,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1090,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 87296,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Append the line 'four' to the end of list.txt. Do not change the existing lines."
+  },
+  {
+    "harness": "qwencode",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 48076,
+    "input_tokens": {
+      "value": 39815,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 785,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 128512,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+  },
+  {
+    "harness": "qwencode",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 23858,
+    "input_tokens": {
+      "value": 39283,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 668,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 127744,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s python3 test_stats.py fails. Fix the bug in stats.py."
+  },
+  {
+    "harness": "qwencode",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 26772,
+    "input_tokens": {
+      "value": 38373,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 812,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 129792,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+  },
+  {
+    "harness": "qwencode",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 39914,
+    "input_tokens": {
+      "value": 38721,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 333,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 86016,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Add node_modules/ and dist/ to .gitignore, keeping what is there."
+  },
+  {
+    "harness": "qwencode",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 12104,
+    "input_tokens": {
+      "value": 36812,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 149,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 46336,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+  },
+  {
+    "harness": "qwencode",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 22380,
+    "input_tokens": {
+      "value": 37493,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 623,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 87552,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+  },
+  {
+    "harness": "qwencode",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 17385,
+    "input_tokens": {
+      "value": 37205,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 350,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 87296,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+  },
+  {
+    "harness": "qwencode",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 14007,
+    "input_tokens": {
+      "value": 38201,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 122,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 45056,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Which files mention 'flux capacitor'? List only the file names."
+  },
+  {
+    "harness": "qwencode",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 26488,
+    "input_tokens": {
+      "value": 39298,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 683,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 168960,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+  },
+  {
+    "harness": "qwencode",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 27192,
+    "input_tokens": {
+      "value": 39069,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 417,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 127232,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+  }
+]

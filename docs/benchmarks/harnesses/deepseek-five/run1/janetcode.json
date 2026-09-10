@@ -1,0 +1,702 @@
+[
+  {
+    "harness": "janetcode",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 5660,
+    "input_tokens": {
+      "value": 4440,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 91,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 4096,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00508910028,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 01-create-file --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 12219,
+    "input_tokens": {
+      "value": 5120,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 274,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 13056,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00669223368,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 11760,
+    "input_tokens": {
+      "value": 5264,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 334,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 13056,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00703223928,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 10423,
+    "input_tokens": {
+      "value": 4989,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 367,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 8448,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.006686357039999999,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 14795,
+    "input_tokens": {
+      "value": 5821,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 398,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 13056,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00781823988,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 7787,
+    "input_tokens": {
+      "value": 4755,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 172,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 8192,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00581794356,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 8339,
+    "input_tokens": {
+      "value": 4885,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 166,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 8192,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00593547636,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 11423,
+    "input_tokens": {
+      "value": 5104,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 217,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 12544,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00647808612,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 11319,
+    "input_tokens": {
+      "value": 5290,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 268,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 12544,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00683383272,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 17880,
+    "input_tokens": {
+      "value": 5898,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 484,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 20736,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00843843528,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 17060,
+    "input_tokens": {
+      "value": 5358,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 383,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 13056,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.007285144679999999,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 16813,
+    "input_tokens": {
+      "value": 5287,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 305,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 12800,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0069561228,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 18921,
+    "input_tokens": {
+      "value": 6201,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 619,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 16896,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.009047087280000001,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 9721,
+    "input_tokens": {
+      "value": 4761,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 169,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 8192,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0058147953600000005,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 5525,
+    "input_tokens": {
+      "value": 4553,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 90,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 4096,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00520453428,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 11015,
+    "input_tokens": {
+      "value": 5609,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 314,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 12544,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.007313408519999999,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 16-readme --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 8424,
+    "input_tokens": {
+      "value": 4916,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 221,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 8192,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00614115876,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 5144,
+    "input_tokens": {
+      "value": 4449,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 69,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 4096,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00502928448,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 19870,
+    "input_tokens": {
+      "value": 5997,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 518,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 17152,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00852399636,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 19-write-test --provider openai --model deepseek/deepseek-v4-pro-0813"
+  },
+  {
+    "harness": "janetcode",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 12294,
+    "input_tokens": {
+      "value": 4908,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 343,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 12544,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00666907692,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 20-env-default --provider openai --model deepseek/deepseek-v4-pro-0813"
+  }
+]

@@ -1,0 +1,704 @@
+[
+  {
+    "harness": "openclaw",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 13644,
+    "input_tokens": {
+      "value": 36142,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 114,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 36032,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-2337421230 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033110650196049 --message Create a file named hello.txt containing exactly the text: hello world",
+    "stderr_excerpt": " failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2969 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1752 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ca29766c-49b3-4ac1-91b7-2e23cba7c566 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 19486,
+    "input_tokens": {
+      "value": 72785,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 300,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 72448,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-4021547370 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033110693767316 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+    "stderr_excerpt": "or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2769 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1657 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1483 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run efa6083b-fba5-40ff-9310-7a9f0e25e2d8 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": false,
+    "reason": "check failed: exit status 1: --- FAIL: TestSumTo (0.00s)\n    sum_test.go:7: SumTo(4) = 6, want 10\nFAIL\nFAIL\texample.com/m\t0.002s\nFAIL",
+    "wall_time_ms": 18700,
+    "input_tokens": {
+      "value": 71071,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 450,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 37760,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-259410357 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033110591806117 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+    "exit_code": 1,
+    "stderr_excerpt": "er=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3253 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1545 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agent/embedded]\u001b[39m \u001b[33membedded run agent end: runId=afd3bac6-031a-4135-bf22-8c90cdfbecbf isError=true model=inclusionai/ling-3.0-flash provider=bench error=LLM request failed. rawError=Provider returned an incomplete or malformed tool call\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 16874,
+    "input_tokens": {
+      "value": 34809,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 335,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 74112,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-1386506043 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033110868309051 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+    "stderr_excerpt": "00 elapsedMs=2905 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1695 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1762 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 882f11a4-07ea-490e-b037-5521ef26508a ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 30416,
+    "input_tokens": {
+      "value": 75330,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1074,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 220160,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 10,
+      "set": true
+    },
+    "turns": {
+      "value": 8,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-5152402 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033110944555404 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+    "stderr_excerpt": "elapsedMs=1528 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2028 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1703 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 7b3d8923-399d-4137-9a22-8ce0b01d4504 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 22166,
+    "input_tokens": {
+      "value": 71748,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 406,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 74176,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-1395477945 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033141315179490 --message What does Compute(3) return? Reply with just the number.",
+    "stderr_excerpt": "m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3056 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1515 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2222 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ce4e940e-6845-465c-babb-bbd5089de883 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 19369,
+    "input_tokens": {
+      "value": 69053,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 203,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 39488,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-4170217766 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033141453067448 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+    "stderr_excerpt": "00 elapsedMs=3089 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3429 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1768 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d9f0c393-d2a7-4941-96c6-386aab9453c3 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 21006,
+    "input_tokens": {
+      "value": 70887,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 395,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 74112,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-3598443978 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033141463550928 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+    "stderr_excerpt": "elapsedMs=1570 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3277 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1679 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run e8e81cb6-c19d-4791-bc55-b510987c55ed ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 18810,
+    "input_tokens": {
+      "value": 69015,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 268,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 39488,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-3831459321 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033141435103401 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+    "stderr_excerpt": "00 elapsedMs=3361 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1706 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3184 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 4312c14f-916b-48c8-8fb1-fccee4eda215 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 18018,
+    "input_tokens": {
+      "value": 36292,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 239,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 72128,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-482909006 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033141496844376 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+    "stderr_excerpt": "00 elapsedMs=2966 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2179 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1807 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 54313099-82c3-4671-97a7-bc545739772c ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 28573,
+    "input_tokens": {
+      "value": 104350,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 677,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 77888,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-1963552357 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033165011266581 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+    "stderr_excerpt": "elapsedMs=1659 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3927 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2075 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 51c60891-1c20-4888-bea4-32dce3800607 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 24992,
+    "input_tokens": {
+      "value": 103934,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 485,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 41408,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-2198053083 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033165100109418 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+    "stderr_excerpt": "elapsedMs=3311 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1774 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2758 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c040e09d-2272-4977-b835-2041d6807849 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 23988,
+    "input_tokens": {
+      "value": 104176,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 601,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5184,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-3328511065 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033165637661385 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+    "stderr_excerpt": "\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2627 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2892 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 94e935f2-1e61-449e-9318-f5ccbcf3bc20 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 21237,
+    "input_tokens": {
+      "value": 104841,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 199,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 3456,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-431175036 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033165068559820 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+    "stderr_excerpt": "00 elapsedMs=2904 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3481 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2767 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 86b4d754-9a63-4e1b-9e28-ba40ed06d7a7 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 18758,
+    "input_tokens": {
+      "value": 68776,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 100,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 3456,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-560957054 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033164878697476 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+    "stderr_excerpt": " failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3009 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3430 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ba02d7ee-ac89-43c6-a12c-591ac32d32b6 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 25464,
+    "input_tokens": {
+      "value": 69965,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 333,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 75840,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-16-readme-1866264623 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033194375418012 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+    "stderr_excerpt": "elapsedMs=1736 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1747 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2988 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run a55f6bae-d2f3-4d6b-b5c0-f857b57a249c ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 25598,
+    "input_tokens": {
+      "value": 69300,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 313,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 39488,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-3486002288 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033194451981788 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+    "stderr_excerpt": " }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1717 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3246 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agent/embedded]\u001b[39m \u001b[33msettled post-tool turn lacked a final answer: runId=f1a543d3-7827-480f-99cb-5763797dafb8 sessionId=bench-0-1789033194451981788 provider=bench/inclusionai/ling-3.0-flash — running isolated finalization\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=734 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run f1a543d3-7827-480f-99cb-5763797dafb8 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 18784,
+    "input_tokens": {
+      "value": 34433,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 120,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 37760,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-618901122 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033194424698297 --message Which files mention 'flux capacitor'? List only the file names.",
+    "stderr_excerpt": " failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2924 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1598 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b68b085a-f0b7-4d15-bb9a-b5ac08f19313 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 32026,
+    "input_tokens": {
+      "value": 143166,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 578,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 42432,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-4202992256 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033194567088217 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+    "stderr_excerpt": "elapsedMs=3132 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2852 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2067 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run f079320a-845d-4fda-abb7-aaec5ea2e0b3 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 24346,
+    "input_tokens": {
+      "value": 70985,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 359,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 73920,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-4053762186 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789033194370904440 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+    "stderr_excerpt": "\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2887 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1641 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 46edfe8c-f692-4bbd-9f89-ceaca10e57db ended with stopReason=stop\u001b[39m"
+  }
+]

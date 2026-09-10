@@ -1,0 +1,697 @@
+[
+  {
+    "harness": "openclaw",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 24487,
+    "input_tokens": {
+      "value": 60807,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 43,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 1728,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-2412285242 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033388130292929 --message Create a file named hello.txt containing exactly the text: hello world",
+    "stderr_excerpt": "penai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=5623 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=491 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 881c73e8-6242-472b-a71d-9bc33d2f7aaf ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 25820,
+    "input_tokens": {
+      "value": 31731,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 222,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 125216,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-2534336903 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033387967771751 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+    "stderr_excerpt": "ma-4-31b-it status=200 elapsedMs=568 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=488 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=631 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 4a64d468-1350-4e17-9fbb-4ba5b88b51ee ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 31510,
+    "input_tokens": {
+      "value": 63323,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 245,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 125472,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-1698125384 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033387974844931 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+    "stderr_excerpt": "a-4-31b-it status=200 elapsedMs=503 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=477 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1101 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 41f61e05-b699-4ceb-86d2-784ae4dfde9c ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 23847,
+    "input_tokens": {
+      "value": 62819,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 243,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-3300395115 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033387850026135 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+    "stderr_excerpt": "penai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=3718 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=452 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 37f7b64b-a934-44bc-ab06-1adbd1f69084 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 55624,
+    "input_tokens": {
+      "value": 63823,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 443,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 94176,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-2092175435 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033388213184379 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+    "stderr_excerpt": "4-31b-it status=200 elapsedMs=1382 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1520 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=2482 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d364f1c9-25ce-4204-a5e3-e78e80d504fc ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 31361,
+    "input_tokens": {
+      "value": 61109,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 95,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 64416,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-3482677883 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033442791070817 --message What does Compute(3) return? Reply with just the number.",
+    "stderr_excerpt": "ma-4-31b-it status=200 elapsedMs=462 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=570 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=429 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d9e065fb-b961-4cf9-8756-3acdf8fe71d0 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 28541,
+    "input_tokens": {
+      "value": 61060,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 94,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 32896,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-3083126327 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033442913503209 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+    "stderr_excerpt": "invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=452 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=4423 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run a4c38daf-a8bf-4d7c-b5b0-d73753998ac4 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 24606,
+    "input_tokens": {
+      "value": 62554,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 52,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-2874321242 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033443028303332 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+    "stderr_excerpt": "penai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=3404 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=450 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 13892863-76a4-44d2-ab33-bd89e86b73c3 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 28420,
+    "input_tokens": {
+      "value": 60914,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 71,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 32896,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-2303099904 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033442659193252 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+    "stderr_excerpt": "emma-4-31b-it status=200 elapsedMs=5755 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=514 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=463 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 298edf57-9cd9-4e9f-a176-1ee91b868de7 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 30534,
+    "input_tokens": {
+      "value": 93800,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 67,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-1293499663 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033442598765351 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+    "stderr_excerpt": "invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=3049 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=766 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ed72a0e5-1725-4872-afcb-76bc27d0b7ab ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 29926,
+    "input_tokens": {
+      "value": 63469,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 248,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 125248,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-4041534386 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033474447529160 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+    "stderr_excerpt": "a-4-31b-it status=200 elapsedMs=912 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=536 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=3834 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 6b2d232b-bd12-45cf-98a4-5acd7038088c ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 26084,
+    "input_tokens": {
+      "value": 61506,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 212,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 95680,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-1465889291 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033474692658143 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+    "stderr_excerpt": "orrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=550 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=469 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=418 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 661d6060-1ddf-4fec-a311-52be6293c80f ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 25943,
+    "input_tokens": {
+      "value": 30151,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 450,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 127040,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-2029480191 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033474778734824 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+    "stderr_excerpt": "ma-4-31b-it status=200 elapsedMs=504 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=422 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=919 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 2b2d956b-853e-4aef-a43b-f187064deeb8 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 22847,
+    "input_tokens": {
+      "value": 31358,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 68,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 62240,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-2916744055 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033474639559520 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+    "stderr_excerpt": "gemma-4-31b-it status=200 elapsedMs=852 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=544 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=487 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 9df10511-6e12-4588-a498-c7fc2311d06e ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 31486,
+    "input_tokens": {
+      "value": 62562,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 32,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-654003331 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033474874797374 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+    "stderr_excerpt": "se provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=498 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=5703 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 82ff092c-664a-4e13-9149-27e731fecae5 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 42566,
+    "input_tokens": {
+      "value": 92482,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 215,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 64832,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-16-readme-1116785761 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033507890269513 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+    "stderr_excerpt": "ect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=5465 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1299 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=2540 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 892fdb77-f526-4c4a-aa97-51e335a243ff ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 49777,
+    "input_tokens": {
+      "value": 92388,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 133,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 64224,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-3903515218 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033508067445536 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+    "stderr_excerpt": "rrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=5819 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=434 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=483 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ae214501-207f-4ba0-96eb-62246ee4f898 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 26160,
+    "input_tokens": {
+      "value": 60786,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 30,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 1728,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-11109272 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033507819489576 --message Which files mention 'flux capacitor'? List only the file names.",
+    "stderr_excerpt": "penai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=6293 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=434 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 7e48f356-3104-4b4a-ae8b-f66f27e502e2 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 35282,
+    "input_tokens": {
+      "value": 63291,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 419,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 94336,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-1333544309 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033507752988377 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+    "stderr_excerpt": "-4-31b-it status=200 elapsedMs=545 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1610 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1356 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b6079784-e94b-4e72-8c14-e4e7ba4f2602 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 24899,
+    "input_tokens": {
+      "value": 62615,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 124,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "set": false
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-3172159200 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789033507900392797 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+    "stderr_excerpt": "penai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=823 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=4237 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b9e53724-eaf3-47b8-b753-176269ecf1e1 ended with stopReason=stop\u001b[39m"
+  }
+]

@@ -1,0 +1,702 @@
+[
+  {
+    "harness": "openclaw",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 30294,
+    "input_tokens": {
+      "value": 41630,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 68,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 41536,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-2359546249 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036350197672658 --message Create a file named hello.txt containing exactly the text: hello world",
+    "stderr_excerpt": "ate): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5226 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5239 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run cff0b908-0f3d-482d-8607-3be9c02fa462 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 75988,
+    "input_tokens": {
+      "value": 42002,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 255,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 124992,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-1456964515 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036349835276330 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+    "stderr_excerpt": "): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5153 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5176 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 04086961-b4d4-4d18-b63c-565085ee0061 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 82526,
+    "input_tokens": {
+      "value": 43166,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 544,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 166848,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-1970140757 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036349881852294 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+    "stderr_excerpt": "tch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5218 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5374 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run dadb3f67-2aca-47c8-9885-643bc4bb661b ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 57398,
+    "input_tokens": {
+      "value": 41970,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 279,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 83392,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-3057917989 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036349906551431 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+    "stderr_excerpt": "pletions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5402 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=3339 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5235 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run e17f414c-8ef3-4377-b320-f4a4a6ae51ab ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 73382,
+    "input_tokens": {
+      "value": 43344,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 952,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 210112,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 10,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-397990593 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036350026220674 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+    "stderr_excerpt": "tch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5238 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=3758 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run dbd05215-4acf-44ca-bd62-0a25544e0f03 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 67624,
+    "input_tokens": {
+      "value": 43134,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 457,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 126336,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-699980550 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036432799780065 --message What does Compute(3) return? Reply with just the number.",
+    "stderr_excerpt": " recall degraded. Further duplicate warnings suppressed.\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5167 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5249 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5175 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 3dcb9fd1-6ac1-4f2c-ae8b-51139288f76b ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 57785,
+    "input_tokens": {
+      "value": 41825,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 177,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 83136,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-782345305 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036432575253558 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+    "stderr_excerpt": "tch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5166 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5190 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run f2e01ce4-ecc9-4512-9a50-4d4b68230dbd ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 20726,
+    "input_tokens": {
+      "value": 41666,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 97,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 41536,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-558060026 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036432698805952 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+    "stderr_excerpt": "hup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=2175 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5144 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 243c429c-82e0-4404-b931-263f3fe32c52 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 26247,
+    "input_tokens": {
+      "value": 41964,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 285,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 124928,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-3093174486 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036432605680949 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+    "stderr_excerpt": "tions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5184 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=4598 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=2479 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 9d2cf886-89c8-471b-890c-74d66bebfce1 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 44458,
+    "input_tokens": {
+      "value": 41802,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 171,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 83136,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-1457242997 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036432927271871 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+    "stderr_excerpt": "): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=2103 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5208 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c83c76df-689d-40f6-bda8-78cf9bf7a875 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 128918,
+    "input_tokens": {
+      "value": 42415,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 479,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 167296,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-1959439460 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036500443725713 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+    "stderr_excerpt": "tch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=4524 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5197 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 36576218-fb59-46af-8532-972f0440086e ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 86254,
+    "input_tokens": {
+      "value": 42249,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 443,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 125312,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-297000997 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036500356432940 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+    "stderr_excerpt": "tch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5161 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5143 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 9b10ac17-30a4-4a3c-a3a3-8701de86961d ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 65541,
+    "input_tokens": {
+      "value": 42109,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 490,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 83456,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-889986023 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036500465029896 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+    "stderr_excerpt": "tch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5210 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5224 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 2b6cea38-d4ca-4db5-b462-833d1d234ede ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 60405,
+    "input_tokens": {
+      "value": 41725,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 150,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 83136,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-1218076955 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036500392289427 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+    "stderr_excerpt": "tch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5173 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5180 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 18abb941-0a48-4f63-b5ee-618ceeda1bbb ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 46147,
+    "input_tokens": {
+      "value": 41747,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 105,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 41536,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-3858995896 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036500526207717 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+    "stderr_excerpt": "ate): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5450 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5117 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b817daf6-b489-49a7-bcc0-185204c606f3 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 54090,
+    "input_tokens": {
+      "value": 43057,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 465,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 126848,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-16-readme-2734912616 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036629534915394 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+    "stderr_excerpt": "): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5296 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5168 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 1678177d-0572-4171-9d99-07c84fae00ba ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 34429,
+    "input_tokens": {
+      "value": 41941,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 281,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 83136,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-1163362413 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036629450225328 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+    "stderr_excerpt": "tch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5151 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=4809 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 85c881f9-dc83-4387-914d-b1a3c87618a9 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 21935,
+    "input_tokens": {
+      "value": 41728,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 106,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 41536,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-3158156068 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036629478207680 --message Which files mention 'flux capacitor'? List only the file names.",
+    "stderr_excerpt": "hup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5233 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=3127 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 511400b9-2ff6-4254-8582-f5f1da87a65c ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 78223,
+    "input_tokens": {
+      "value": 42612,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 610,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 209152,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-3592659934 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036629448330284 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+    "stderr_excerpt": "i-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=3030 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5338 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 911e9d7c-7348-4231-9df9-f279c108966e ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 47395,
+    "input_tokens": {
+      "value": 41882,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 294,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 124928,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-992362099 agent --local --json --model bench/xiaomi/mimo-v2.5 --session-id bench-0-1789036629755399144 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+    "stderr_excerpt": "): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5166 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=xiaomi/mimo-v2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=xiaomi/mimo-v2.5 status=200 elapsedMs=5214 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 09bb8b22-f4be-4936-8332-01e1f531287f ended with stopReason=stop\u001b[39m"
+  }
+]

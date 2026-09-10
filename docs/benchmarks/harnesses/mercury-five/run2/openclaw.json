@@ -1,0 +1,702 @@
+[
+  {
+    "harness": "openclaw",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 11124,
+    "input_tokens": {
+      "value": 15019,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 381,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 53598,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-2616371959 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027637113955233 --message Create a file named hello.txt containing exactly the text: hello world",
+    "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=422 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=294 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 35c9a919-1ec0-4dfd-8fda-f6111a9c9279 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 13534,
+    "input_tokens": {
+      "value": 23577,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 605,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 113981,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-2149005834 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027637346379748 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+    "stderr_excerpt": "e provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=317 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=414 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 30a96396-baca-4c5d-8bd6-363b5cb74087 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 15586,
+    "input_tokens": {
+      "value": 67492,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 785,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 107367,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-3427630500 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027637510844253 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+    "stderr_excerpt": "mercury-2.5 status=200 elapsedMs=355 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=306 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=283 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run af776fbf-5cae-48ff-aeae-f1586637be9a ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 13760,
+    "input_tokens": {
+      "value": 40873,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1144,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 26821,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-1887281086 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027637029072246 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+    "stderr_excerpt": "der=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=330 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=448 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 38cfa2fb-104d-49c5-a416-828ae7e06d75 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 15975,
+    "input_tokens": {
+      "value": 40682,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1342,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 168847,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 12,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-1211796166 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027637098881784 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+    "stderr_excerpt": "orrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=463 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=338 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=290 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 02fdce04-4086-434b-80b1-1d089c59e56d ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": false,
+    "reason": "check failed: exit status 1",
+    "wall_time_ms": 12715,
+    "input_tokens": {
+      "value": 7034,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1559,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 27214,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 1,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-494403947 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027653349685617 --message What does Compute(3) return? Reply with just the number.",
+    "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=397 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run bea6be48-c687-4a82-8e23-2a51400df762 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 12827,
+    "input_tokens": {
+      "value": 22245,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 706,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 80478,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-3158493150 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027653427478990 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+    "stderr_excerpt": "Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=440 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=335 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=329 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 6ab5f9af-a941-4eb7-bf19-60d9016c4aee ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 13925,
+    "input_tokens": {
+      "value": 41951,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1009,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 26575,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-2219655769 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027653448542701 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+    "stderr_excerpt": "openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=322 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=351 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 28e46fc3-6ad4-461a-8403-400d4a6840d3 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 12963,
+    "input_tokens": {
+      "value": 21598,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 585,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 82632,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-3217286732 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027653424999538 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+    "stderr_excerpt": "y-2.5 status=200 elapsedMs=377 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=389 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=279 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 794f7da5-7f0d-4f98-b745-cecf5bd969c2 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 13105,
+    "input_tokens": {
+      "value": 16970,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1234,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 87490,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-2620900020 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027653348952483 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+    "stderr_excerpt": "Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=333 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=346 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=501 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d9c93ab3-9e12-4a98-bac4-9649e8458cb0 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 15155,
+    "input_tokens": {
+      "value": 34785,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1340,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 171666,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-548793056 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027667454851431 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+    "stderr_excerpt": "mercury-2.5 status=200 elapsedMs=376 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=309 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=345 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ae88f8e4-5a32-490f-8f0d-f8c1c527a988 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 14369,
+    "input_tokens": {
+      "value": 56212,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 772,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 81847,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-2206498081 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027667219384345 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+    "stderr_excerpt": "mercury-2.5 status=200 elapsedMs=294 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=339 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=520 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 4d78e032-f1f7-41f5-8a95-131fe76f8e62 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 12637,
+    "input_tokens": {
+      "value": 41538,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 608,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 27920,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-3908734982 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027667530039503 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+    "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=360 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=352 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 314e93a0-1fad-4971-8c27-cb7e20725bb9 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 11438,
+    "input_tokens": {
+      "value": 15832,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 497,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 86195,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-1097907519 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027667282966103 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+    "stderr_excerpt": "Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=423 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=317 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=396 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 39e22fb1-fda6-41b9-8473-a862dc7a40fb ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 12308,
+    "input_tokens": {
+      "value": 15002,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1123,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 53272,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-3769272724 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027667408202091 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+    "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=369 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=341 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run f56db5a0-b70a-4449-996c-46a87463935a ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 17690,
+    "input_tokens": {
+      "value": 59830,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1865,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 113860,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-16-readme-4052021633 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027682686706396 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+    "stderr_excerpt": "law-16-readme-4052021633/main.go\"}\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=305 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=381 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=324 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run e83ea134-dcf7-47fd-ae87-9bf8e36b76ab ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 12845,
+    "input_tokens": {
+      "value": 22060,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 873,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 80106,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-3595683114 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027682635527057 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+    "stderr_excerpt": "Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=880 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=311 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=304 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 13be7d2a-6e8c-411f-bf9b-5b775754b05e ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 11067,
+    "input_tokens": {
+      "value": 14170,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 599,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 54534,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-4265731707 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027682874270124 --message Which files mention 'flux capacitor'? List only the file names.",
+    "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=365 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=308 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run f7076972-3ac4-41be-85ad-b460db84debd ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 17686,
+    "input_tokens": {
+      "value": 82235,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 962,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 162060,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 7,
+      "set": true
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-619816670 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027682759249212 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+    "stderr_excerpt": "ram\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=275 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=325 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=320 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run fae64395-c7ff-4906-ab05-13be4281c56a ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 12908,
+    "input_tokens": {
+      "value": 21510,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1049,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 82124,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-933830267 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027682652473947 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+    "stderr_excerpt": "Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=339 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=271 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=343 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run f544ab8a-c1ba-4143-b9df-7b091d29dc0f ended with stopReason=stop\u001b[39m"
+  }
+]

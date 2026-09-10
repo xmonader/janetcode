@@ -1,0 +1,682 @@
+[
+  {
+    "harness": "pi",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 6569,
+    "input_tokens": {
+      "value": 1402,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 73,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 35328,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0029368508399999996,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Create a file named hello.txt containing exactly the text: hello world"
+  },
+  {
+    "harness": "pi",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 16463,
+    "input_tokens": {
+      "value": 2614,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 374,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 90880,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.007099540800000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 18512,
+    "input_tokens": {
+      "value": 3149,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 516,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 90880,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0081080142,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+  },
+  {
+    "harness": "pi",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 11659,
+    "input_tokens": {
+      "value": 2827,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 364,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52992,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.005966258760000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+  },
+  {
+    "harness": "pi",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 22177,
+    "input_tokens": {
+      "value": 3391,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 666,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 90880,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.008834199000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+  },
+  {
+    "harness": "pi",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 11349,
+    "input_tokens": {
+      "value": 2795,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 221,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52736,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00547353048,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session What does Compute(3) return? Reply with just the number."
+  },
+  {
+    "harness": "pi",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 14868,
+    "input_tokens": {
+      "value": 4178,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 281,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 88832,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00837638076,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+  },
+  {
+    "harness": "pi",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 12173,
+    "input_tokens": {
+      "value": 2378,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 229,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52992,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00507007116,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+  },
+  {
+    "harness": "pi",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 13159,
+    "input_tokens": {
+      "value": 2695,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 238,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 71168,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0060668612400000006,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+  },
+  {
+    "harness": "pi",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 11915,
+    "input_tokens": {
+      "value": 1886,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 202,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 71936,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00513142608,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+  },
+  {
+    "harness": "pi",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 19576,
+    "input_tokens": {
+      "value": 3619,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 414,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 90112,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.008253251159999999,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 20376,
+    "input_tokens": {
+      "value": 2586,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 536,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 91136,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.007589120880000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+  },
+  {
+    "harness": "pi",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 24561,
+    "input_tokens": {
+      "value": 2613,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 685,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 91136,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00808653648,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 19717,
+    "input_tokens": {
+      "value": 3334,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 296,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 89600,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0075647748,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+  },
+  {
+    "harness": "pi",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 6833,
+    "input_tokens": {
+      "value": 1455,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 97,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 35328,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0030680258400000004,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+  },
+  {
+    "harness": "pi",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 22757,
+    "input_tokens": {
+      "value": 3687,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 604,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 71424,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00826906212,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+  },
+  {
+    "harness": "pi",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 10464,
+    "input_tokens": {
+      "value": 2760,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 187,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52736,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.005329762680000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+  },
+  {
+    "harness": "pi",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 6410,
+    "input_tokens": {
+      "value": 1422,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 86,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 35328,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00299876544,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Which files mention 'flux capacitor'? List only the file names."
+  },
+  {
+    "harness": "pi",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 23679,
+    "input_tokens": {
+      "value": 5029,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 738,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 109056,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.011415583080000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+  },
+  {
+    "harness": "pi",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 11031,
+    "input_tokens": {
+      "value": 1736,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 312,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 53760,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0046845216,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+  }
+]

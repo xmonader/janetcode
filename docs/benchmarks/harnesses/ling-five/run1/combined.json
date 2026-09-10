@@ -1,0 +1,3456 @@
+{
+  "hermes-agent": [
+    {
+      "harness": "hermes-agent",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9315,
+      "input_tokens": {
+        "value": 5694,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 450,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5184,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a file named hello.txt containing exactly the text: hello world --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ello.txt containing exactly \"hello world\" (11 bytes, no trailing newline since `printf` doesn't add one). Wait — `wc -c` shows 11 bytes. \"hello world\" is 11 characters. But the `cat` output shows a newline after it — that's just the shell adding a newline after `cat` output. The file itself has no trailing newline (printf doesn't add one). The content is exactly \"hello world\".\n\nLet me verify more carefully. `printf 'hello world'` outputs exactly 11 bytes with no trailing newline. `wc -c` confirms 11 bytes. The file contains exactly \"hello world\". Done.\n11:28:09 - tools.browser_tool - DEBUG [20260910_112802_eb4689] - cleanup_browser called for task_id: 5c355d08-89ee-4940-8bd9-ca835b032810\n11:28:09 - tools.browser_tool - DEBUG [20260910_112802_eb4689] - Active sessions: []\n11:28:09 - tools.browser_tool - DEBUG [20260910_112802_eb4689] - No active session found for task_id: 5c355d08-89ee-4940-8bd9-ca835b032810\n11:28:09 - agent.conversation_loop - INFO [20260910_112802_eb4689] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=168 session=20260910_112802_eb4689\n11:28:09 - tools.terminal_tool - INFO [20260910_112802_eb4689] - Shutting down 1 remaining sandbox(es)...\n11:28:09 - tools.terminal_tool - INFO [20260910_112802_eb4689] - Manually cleaned up environment for task: default\n11:28:09 - tools.terminal_tool - INFO [20260910_112802_eb4689] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9297,
+      "input_tokens": {
+        "value": 3918,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 451,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10496,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "02_0dff34] - API call #4: model=inclusionai/ling-3.0-flash provider=unknown in=3825 out=125 total=3950 latency=1.4s cache=3712/3825 (97%)\n11:28:09 - root - DEBUG [20260910_112802_0dff34] - Token usage: prompt=3,825, completion=125, total=3,950\n11:28:09 - root - DEBUG [20260910_112802_0dff34] - Captured reasoning (235 chars): The user asked me to add a Mul function to math.go and run the tests. I've done both:\n1. Added `func Mul(a, b int) int { return a * b }` to math.go\n2. Ran `go test ./...` which passed\n\nThe work is complete. Let me give a brief summary.\n11:28:09 - tools.browser_tool - DEBUG [20260910_112802_0dff34] - cleanup_browser called for task_id: 642cc7c9-e05d-4bdc-b823-8cb080f376cd\n11:28:09 - tools.browser_tool - DEBUG [20260910_112802_0dff34] - Active sessions: []\n11:28:09 - tools.browser_tool - DEBUG [20260910_112802_0dff34] - No active session found for task_id: 642cc7c9-e05d-4bdc-b823-8cb080f376cd\n11:28:09 - agent.conversation_loop - INFO [20260910_112802_0dff34] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=148 session=20260910_112802_0dff34\n11:28:09 - tools.terminal_tool - INFO [20260910_112802_0dff34] - Shutting down 1 remaining sandbox(es)...\n11:28:09 - tools.terminal_tool - INFO [20260910_112802_0dff34] - Manually cleaned up environment for task: default\n11:28:09 - tools.terminal_tool - INFO [20260910_112802_0dff34] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 13344,
+      "input_tokens": {
+        "value": 11065,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 725,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11456,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query go test fails. Find the bug and fix it in the implementation, not the test. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "19e-06})\n11:28:12 - agent.conversation_loop - INFO [20260910_112802_e6d17f] - API call #6: model=inclusionai/ling-3.0-flash provider=unknown in=4173 out=130 total=4303 latency=1.6s cache=4096/4173 (98%)\n11:28:12 - root - DEBUG [20260910_112802_e6d17f] - Token usage: prompt=4,173, completion=130, total=4,303\n11:28:12 - root - DEBUG [20260910_112802_e6d17f] - Captured reasoning (168 chars): Fixed. The bug was `i \u003c n` in the loop — it stopped before adding `n` itself, so `SumTo(4)` returned 1+2+3=6 instead of 1+2+3+4=10. Changed to `i \u003c= n`. Tests pass now.\n11:28:12 - tools.browser_tool - DEBUG [20260910_112802_e6d17f] - cleanup_browser called for task_id: 134a1070-f4dd-487c-b5ce-1932fc2982e6\n11:28:12 - tools.browser_tool - DEBUG [20260910_112802_e6d17f] - Active sessions: []\n11:28:12 - tools.browser_tool - DEBUG [20260910_112802_e6d17f] - No active session found for task_id: 134a1070-f4dd-487c-b5ce-1932fc2982e6\n11:28:12 - agent.conversation_loop - INFO [20260910_112802_e6d17f] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=163 session=20260910_112802_e6d17f\n11:28:13 - tools.terminal_tool - INFO [20260910_112802_e6d17f] - Shutting down 1 remaining sandbox(es)...\n11:28:13 - tools.terminal_tool - INFO [20260910_112802_e6d17f] - Manually cleaned up environment for task: default\n11:28:13 - tools.terminal_tool - INFO [20260910_112802_e6d17f] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9261,
+      "input_tokens": {
+        "value": 5446,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 624,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6400,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "'upstream_inference_prompt_cost': 5.62128e-05, 'upstream_inference_completions_cost': 8.379e-06})\n11:28:09 - agent.conversation_loop - INFO [20260910_112802_0bf2f5] - API call #4: model=inclusionai/ling-3.0-flash provider=unknown in=3240 out=133 total=3373 latency=1.5s cache=704/3240 (22%)\n11:28:09 - root - DEBUG [20260910_112802_0bf2f5] - Token usage: prompt=3,240, completion=133, total=3,373\n11:28:09 - root - DEBUG [20260910_112802_0bf2f5] - Captured reasoning (83 chars): Done. The file is written and verified. Output matches expected FizzBuzz for 1..15.\n11:28:09 - tools.browser_tool - DEBUG [20260910_112802_0bf2f5] - cleanup_browser called for task_id: db463b0a-7a82-49fb-b19e-5001776e9456\n11:28:09 - tools.browser_tool - DEBUG [20260910_112802_0bf2f5] - Active sessions: []\n11:28:09 - tools.browser_tool - DEBUG [20260910_112802_0bf2f5] - No active session found for task_id: db463b0a-7a82-49fb-b19e-5001776e9456\n11:28:09 - agent.conversation_loop - INFO [20260910_112802_0bf2f5] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=229 session=20260910_112802_0bf2f5\n11:28:09 - tools.terminal_tool - INFO [20260910_112802_0bf2f5] - Shutting down 1 remaining sandbox(es)...\n11:28:09 - tools.terminal_tool - INFO [20260910_112802_0bf2f5] - Manually cleaned up environment for task: default\n11:28:09 - tools.terminal_tool - INFO [20260910_112802_0bf2f5] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 14390,
+      "input_tokens": {
+        "value": 12577,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 809,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10560,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "9.1224e-05, 'upstream_inference_completions_cost': 7.434e-06})\n11:28:14 - agent.conversation_loop - INFO [20260910_112802_500ac2] - API call #6: model=inclusionai/ling-3.0-flash provider=unknown in=4344 out=118 total=4462 latency=1.2s\n11:28:14 - root - DEBUG [20260910_112802_500ac2] - Token usage: prompt=4,344, completion=118, total=4,462\n11:28:14 - root - DEBUG [20260910_112802_500ac2] - Captured reasoning (136 chars): Done. Renamed `Fetch` → `Load` in all three files (definition in `a.go`, callers in `b.go` and `c.go`). `go build ./...` passes cleanly.\n11:28:14 - tools.browser_tool - DEBUG [20260910_112802_500ac2] - cleanup_browser called for task_id: 58d151e0-535a-46ed-a5cd-444a132e4b41\n11:28:14 - tools.browser_tool - DEBUG [20260910_112802_500ac2] - Active sessions: []\n11:28:14 - tools.browser_tool - DEBUG [20260910_112802_500ac2] - No active session found for task_id: 58d151e0-535a-46ed-a5cd-444a132e4b41\n11:28:14 - agent.conversation_loop - INFO [20260910_112802_500ac2] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=202 session=20260910_112802_500ac2\n11:28:14 - tools.terminal_tool - INFO [20260910_112802_500ac2] - Shutting down 1 remaining sandbox(es)...\n11:28:14 - tools.terminal_tool - INFO [20260910_112802_500ac2] - Manually cleaned up environment for task: default\n11:28:14 - tools.terminal_tool - INFO [20260910_112802_500ac2] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11507,
+      "input_tokens": {
+        "value": 6684,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 567,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14848,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query What does Compute(3) return? Reply with just the number. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "cost': 4.032e-06})\n11:28:25 - agent.conversation_loop - INFO [20260910_112816_7605fa] - API call #6: model=inclusionai/ling-3.0-flash provider=unknown in=4015 out=64 total=4079 latency=1.1s cache=3840/4015 (96%)\n11:28:25 - root - DEBUG [20260910_112816_7605fa] - Token usage: prompt=4,015, completion=64, total=4,079\n11:28:25 - root - DEBUG [20260910_112816_7605fa] - Captured reasoning (164 chars): The user asked what Compute(3) returns. The function starts with r=1 and loops n times, each time doing r = r*2 + 1. For n=3: r=1 -\u003e 3 -\u003e 7 -\u003e 15. The answer is 15.\n11:28:25 - tools.browser_tool - DEBUG [20260910_112816_7605fa] - cleanup_browser called for task_id: 05a83459-4a61-4b1d-b092-f44beba8eb26\n11:28:25 - tools.browser_tool - DEBUG [20260910_112816_7605fa] - Active sessions: []\n11:28:25 - tools.browser_tool - DEBUG [20260910_112816_7605fa] - No active session found for task_id: 05a83459-4a61-4b1d-b092-f44beba8eb26\n11:28:25 - agent.conversation_loop - INFO [20260910_112816_7605fa] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=2 session=20260910_112816_7605fa\n11:28:26 - tools.terminal_tool - INFO [20260910_112816_7605fa] - Shutting down 1 remaining sandbox(es)...\n11:28:26 - tools.terminal_tool - INFO [20260910_112816_7605fa] - Manually cleaned up environment for task: default\n11:28:26 - tools.terminal_tool - INFO [20260910_112816_7605fa] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 9218,
+      "input_tokens": {
+        "value": 4615,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 427,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9600,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query In config.json change the port to 8080. Keep every other key exactly as it is. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": " 1.91058e-05, 'upstream_inference_prompt_cost': 1.57668e-05, 'upstream_inference_completions_cost': 3.339e-06})\n11:28:23 - agent.conversation_loop - INFO [20260910_112816_f180a3] - API call #5: model=inclusionai/ling-3.0-flash provider=unknown in=3106 out=53 total=3159 latency=1.0s cache=2944/3106 (95%)\n11:28:23 - root - DEBUG [20260910_112816_f180a3] - Token usage: prompt=3,106, completion=53, total=3,159\n11:28:23 - root - DEBUG [20260910_112816_f180a3] - Captured reasoning (71 chars): Done. Changed port from 3000 to 8080. All other keys preserved exactly.\n11:28:23 - tools.browser_tool - DEBUG [20260910_112816_f180a3] - cleanup_browser called for task_id: 697319e2-5dfd-4cce-9fb2-e03410980811\n11:28:23 - tools.browser_tool - DEBUG [20260910_112816_f180a3] - Active sessions: []\n11:28:23 - tools.browser_tool - DEBUG [20260910_112816_f180a3] - No active session found for task_id: 697319e2-5dfd-4cce-9fb2-e03410980811\n11:28:23 - agent.conversation_loop - INFO [20260910_112816_f180a3] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=84 session=20260910_112816_f180a3\n11:28:23 - tools.terminal_tool - INFO [20260910_112816_f180a3] - Shutting down 1 remaining sandbox(es)...\n11:28:23 - tools.terminal_tool - INFO [20260910_112816_f180a3] - Manually cleaned up environment for task: default\n11:28:23 - tools.terminal_tool - INFO [20260910_112816_f180a3] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11025,
+      "input_tokens": {
+        "value": 4753,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 502,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12160,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write count.sh that prints the number of lines in input.txt and nothing else. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ompt_cost': 1.69512e-05, 'upstream_inference_completions_cost': 6.3e-06})\n11:28:25 - agent.conversation_loop - INFO [20260910_112816_ac85f8] - API call #6: model=inclusionai/ling-3.0-flash provider=unknown in=3060 out=100 total=3160 latency=1.3s cache=2816/3060 (92%)\n11:28:25 - root - DEBUG [20260910_112816_ac85f8] - Token usage: prompt=3,060, completion=100, total=3,160\n11:28:25 - root - DEBUG [20260910_112816_ac85f8] - Captured reasoning (103 chars): Done. `count.sh` created and verified — it prints `3` (the line count of `input.txt`) and nothing else.\n11:28:25 - tools.browser_tool - DEBUG [20260910_112816_ac85f8] - cleanup_browser called for task_id: d89f9a5a-0c84-4e9f-b594-1c4e2b360494\n11:28:25 - tools.browser_tool - DEBUG [20260910_112816_ac85f8] - Active sessions: []\n11:28:25 - tools.browser_tool - DEBUG [20260910_112816_ac85f8] - No active session found for task_id: d89f9a5a-0c84-4e9f-b594-1c4e2b360494\n11:28:25 - agent.conversation_loop - INFO [20260910_112816_ac85f8] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=222 session=20260910_112816_ac85f8\n11:28:25 - tools.terminal_tool - INFO [20260910_112816_ac85f8] - Shutting down 1 remaining sandbox(es)...\n11:28:25 - tools.terminal_tool - INFO [20260910_112816_ac85f8] - Manually cleaned up environment for task: default\n11:28:25 - tools.terminal_tool - INFO [20260910_112816_ac85f8] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11432,
+      "input_tokens": {
+        "value": 6128,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 367,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14784,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a greet target to the Makefile that prints hi. Keep the existing targets. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ream_inference_completions_cost': 4.347e-06})\n11:28:25 - agent.conversation_loop - INFO [20260910_112816_0e441e] - API call #6: model=inclusionai/ling-3.0-flash provider=unknown in=3756 out=69 total=3825 latency=1.5s cache=704/3756 (19%)\n11:28:25 - root - DEBUG [20260910_112816_0e441e] - Token usage: prompt=3,756, completion=69, total=3,825\n11:28:25 - root - DEBUG [20260910_112816_0e441e] - Captured reasoning (136 chars): All three targets work: `greet` prints \"hi\", `build` prints \"building\", and `test` prints \"testing\". The existing targets are preserved.\n11:28:25 - tools.browser_tool - DEBUG [20260910_112816_0e441e] - cleanup_browser called for task_id: 4619ae93-2086-4bf6-b9cd-e3c785e195dc\n11:28:25 - tools.browser_tool - DEBUG [20260910_112816_0e441e] - Active sessions: []\n11:28:25 - tools.browser_tool - DEBUG [20260910_112816_0e441e] - No active session found for task_id: 4619ae93-2086-4bf6-b9cd-e3c785e195dc\n11:28:25 - agent.conversation_loop - INFO [20260910_112816_0e441e] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=125 session=20260910_112816_0e441e\n11:28:26 - tools.terminal_tool - INFO [20260910_112816_0e441e] - Shutting down 1 remaining sandbox(es)...\n11:28:26 - tools.terminal_tool - INFO [20260910_112816_0e441e] - Manually cleaned up environment for task: default\n11:28:26 - tools.terminal_tool - INFO [20260910_112816_0e441e] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 9177,
+      "input_tokens": {
+        "value": 4370,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 362,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9664,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Append the line 'four' to the end of list.txt. Do not change the existing lines. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "nference_prompt_cost': 1.4343e-05, 'upstream_inference_completions_cost': 4.095e-06})\n11:28:23 - agent.conversation_loop - INFO [20260910_112816_da736d] - API call #5: model=inclusionai/ling-3.0-flash provider=unknown in=2987 out=65 total=3052 latency=1.1s cache=2880/2987 (96%)\n11:28:23 - root - DEBUG [20260910_112816_da736d] - Token usage: prompt=2,987, completion=65, total=3,052\n11:28:23 - root - DEBUG [20260910_112816_da736d] - Captured reasoning (96 chars): Done. Appended 'four' to list.txt. The original lines (one, two, three) are preserved unchanged.\n11:28:23 - tools.browser_tool - DEBUG [20260910_112816_da736d] - cleanup_browser called for task_id: c102a992-f1a8-49a1-96da-5a6471493b26\n11:28:23 - tools.browser_tool - DEBUG [20260910_112816_da736d] - Active sessions: []\n11:28:23 - tools.browser_tool - DEBUG [20260910_112816_da736d] - No active session found for task_id: c102a992-f1a8-49a1-96da-5a6471493b26\n11:28:23 - agent.conversation_loop - INFO [20260910_112816_da736d] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=129 session=20260910_112816_da736d\n11:28:23 - tools.terminal_tool - INFO [20260910_112816_da736d] - Shutting down 1 remaining sandbox(es)...\n11:28:23 - tools.terminal_tool - INFO [20260910_112816_da736d] - Manually cleaned up environment for task: default\n11:28:23 - tools.terminal_tool - INFO [20260910_112816_da736d] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 13095,
+      "input_tokens": {
+        "value": 6937,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 722,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15552,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "stream_inference_cost': 2.73336e-05, 'upstream_inference_prompt_cost': 2.10966e-05, 'upstream_inference_completions_cost': 6.237e-06})\n11:28:39 - agent.conversation_loop - INFO [20260910_112829_ce4e5a] - API call #6: model=inclusionai/ling-3.0-flash provider=unknown in=4179 out=99 total=4278 latency=1.2s cache=3968/4179 (95%)\n11:28:39 - root - DEBUG [20260910_112829_ce4e5a] - Token usage: prompt=4,179, completion=99, total=4,278\n11:28:39 - root - DEBUG [20260910_112829_ce4e5a] - Captured reasoning (47 chars): Done. Both `go vet` and `go test` pass cleanly.\n11:28:39 - tools.browser_tool - DEBUG [20260910_112829_ce4e5a] - cleanup_browser called for task_id: a2d47eec-2928-4710-af7d-cc79d58e3a50\n11:28:39 - tools.browser_tool - DEBUG [20260910_112829_ce4e5a] - Active sessions: []\n11:28:39 - tools.browser_tool - DEBUG [20260910_112829_ce4e5a] - No active session found for task_id: a2d47eec-2928-4710-af7d-cc79d58e3a50\n11:28:39 - agent.conversation_loop - INFO [20260910_112829_ce4e5a] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=281 session=20260910_112829_ce4e5a\n11:28:39 - tools.terminal_tool - INFO [20260910_112829_ce4e5a] - Shutting down 1 remaining sandbox(es)...\n11:28:39 - tools.terminal_tool - INFO [20260910_112829_ce4e5a] - Manually cleaned up environment for task: default\n11:28:39 - tools.terminal_tool - INFO [20260910_112829_ce4e5a] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 13189,
+      "input_tokens": {
+        "value": 7017,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 570,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11648,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query python3 test_stats.py fails. Fix the bug in stats.py. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ompletions_cost': 5.229e-06})\n11:28:38 - agent.conversation_loop - INFO [20260910_112829_2480b5] - API call #5: model=inclusionai/ling-3.0-flash provider=unknown in=4021 out=83 total=4104 latency=1.4s cache=3904/4021 (97%)\n11:28:38 - root - DEBUG [20260910_112829_2480b5] - Token usage: prompt=4,021, completion=83, total=4,104\n11:28:38 - root - DEBUG [20260910_112829_2480b5] - Captured reasoning (149 chars): Fixed. The bug was `len(xs) - 1` in the denominator — that's the formula for sample variance, not the mean. Changed it to `len(xs)`. Test passes now.\n11:28:38 - tools.browser_tool - DEBUG [20260910_112829_2480b5] - cleanup_browser called for task_id: 7b4c5328-c6a5-483e-aaa0-9e6998680ca8\n11:28:38 - tools.browser_tool - DEBUG [20260910_112829_2480b5] - Active sessions: []\n11:28:38 - tools.browser_tool - DEBUG [20260910_112829_2480b5] - No active session found for task_id: 7b4c5328-c6a5-483e-aaa0-9e6998680ca8\n11:28:38 - agent.conversation_loop - INFO [20260910_112829_2480b5] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=127 session=20260910_112829_2480b5\n11:28:39 - tools.terminal_tool - INFO [20260910_112829_2480b5] - Shutting down 1 remaining sandbox(es)...\n11:28:39 - tools.terminal_tool - INFO [20260910_112829_2480b5] - Manually cleaned up environment for task: default\n11:28:39 - tools.terminal_tool - INFO [20260910_112829_2480b5] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 17468,
+      "input_tokens": {
+        "value": 8863,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1216,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 19456,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "st_details={'upstream_inference_cost': 0.000103845, 'upstream_inference_prompt_cost': 9.5781e-05, 'upstream_inference_completions_cost': 8.064e-06})\n11:28:43 - agent.conversation_loop - INFO [20260910_112829_c4b378] - API call #7: model=inclusionai/ling-3.0-flash provider=unknown in=4561 out=128 total=4689 latency=1.7s\n11:28:43 - root - DEBUG [20260910_112829_c4b378] - Token usage: prompt=4,561, completion=128, total=4,689\n11:28:43 - root - DEBUG [20260910_112829_c4b378] - Captured reasoning (53 chars): Done. Let me summarize what was created and verified.\n11:28:43 - tools.browser_tool - DEBUG [20260910_112829_c4b378] - cleanup_browser called for task_id: d0609b44-bb04-4ecf-a9b8-0f6c04fe7dd2\n11:28:43 - tools.browser_tool - DEBUG [20260910_112829_c4b378] - Active sessions: []\n11:28:43 - tools.browser_tool - DEBUG [20260910_112829_c4b378] - No active session found for task_id: d0609b44-bb04-4ecf-a9b8-0f6c04fe7dd2\n11:28:43 - agent.conversation_loop - INFO [20260910_112829_c4b378] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=331 session=20260910_112829_c4b378\n11:28:43 - tools.terminal_tool - INFO [20260910_112829_c4b378] - Shutting down 1 remaining sandbox(es)...\n11:28:43 - tools.terminal_tool - INFO [20260910_112829_c4b378] - Manually cleaned up environment for task: default\n11:28:43 - tools.terminal_tool - INFO [20260910_112829_c4b378] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 9713,
+      "input_tokens": {
+        "value": 4652,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 209,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3328,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add node_modules/ and dist/ to .gitignore, keeping what is there. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "st': 1.33728e-05, 'upstream_inference_completions_cost': 3.843e-06})\n11:28:35 - agent.conversation_loop - INFO [20260910_112829_3284e7] - API call #3: model=inclusionai/ling-3.0-flash provider=unknown in=2736 out=61 total=2797 latency=1.1s cache=2624/2736 (96%)\n11:28:35 - root - DEBUG [20260910_112829_3284e7] - Token usage: prompt=2,736, completion=61, total=2,797\n11:28:35 - root - DEBUG [20260910_112829_3284e7] - Captured reasoning (113 chars): Done. The .gitignore now contains `*.log`, `node_modules/`, and `dist/`. The original `*.log` entry is preserved.\n11:28:35 - tools.browser_tool - DEBUG [20260910_112829_3284e7] - cleanup_browser called for task_id: ca1a6f37-bfa3-479d-83f7-f59ce826e795\n11:28:35 - tools.browser_tool - DEBUG [20260910_112829_3284e7] - Active sessions: []\n11:28:35 - tools.browser_tool - DEBUG [20260910_112829_3284e7] - No active session found for task_id: ca1a6f37-bfa3-479d-83f7-f59ce826e795\n11:28:35 - agent.conversation_loop - INFO [20260910_112829_3284e7] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=93 session=20260910_112829_3284e7\n11:28:36 - tools.terminal_tool - INFO [20260910_112829_3284e7] - Shutting down 1 remaining sandbox(es)...\n11:28:36 - tools.terminal_tool - INFO [20260910_112829_3284e7] - Manually cleaned up environment for task: default\n11:28:36 - tools.terminal_tool - INFO [20260910_112829_3284e7] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 7998,
+      "input_tokens": {
+        "value": 5228,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 109,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1408,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "2318e-05, 'upstream_inference_prompt_cost': 5.92158e-05, 'upstream_inference_completions_cost': 2.016e-06})\n11:28:33 - agent.conversation_loop - INFO [20260910_112829_893b41] - API call #2: model=inclusionai/ling-3.0-flash provider=unknown in=3383 out=32 total=3415 latency=1.1s cache=704/3383 (21%)\n11:28:33 - root - DEBUG [20260910_112829_893b41] - Token usage: prompt=3,383, completion=32, total=3,415\n11:28:33 - root - DEBUG [20260910_112829_893b41] - Captured reasoning (76 chars): The grep found fmt.Println in a.go. The answer is yes, and the file is a.go.\n11:28:33 - tools.browser_tool - DEBUG [20260910_112829_893b41] - cleanup_browser called for task_id: e5eb43be-845e-46bc-889b-e928ae6e9245\n11:28:33 - tools.browser_tool - DEBUG [20260910_112829_893b41] - Active sessions: []\n11:28:33 - tools.browser_tool - DEBUG [20260910_112829_893b41] - No active session found for task_id: e5eb43be-845e-46bc-889b-e928ae6e9245\n11:28:33 - agent.conversation_loop - INFO [20260910_112829_893b41] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=24 session=20260910_112829_893b41\n11:28:34 - tools.terminal_tool - INFO [20260910_112829_893b41] - Shutting down 1 remaining sandbox(es)...\n11:28:34 - tools.terminal_tool - INFO [20260910_112829_893b41] - Manually cleaned up environment for task: default\n11:28:34 - tools.terminal_tool - INFO [20260910_112829_893b41] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 13861,
+      "input_tokens": {
+        "value": 6762,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 670,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15488,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ompt_cost': 2.10588e-05, 'upstream_inference_completions_cost': 4.221e-06})\n11:28:57 - agent.conversation_loop - INFO [20260910_112845_25254b] - API call #6: model=inclusionai/ling-3.0-flash provider=unknown in=4126 out=67 total=4193 latency=1.2s cache=3904/4126 (95%)\n11:28:57 - root - DEBUG [20260910_112845_25254b] - Token usage: prompt=4,126, completion=67, total=4,193\n11:28:57 - root - DEBUG [20260910_112845_25254b] - Captured reasoning (105 chars): Done. Created README.md with title heading, description paragraph, and Usage section showing the command.\n11:28:57 - tools.browser_tool - DEBUG [20260910_112845_25254b] - cleanup_browser called for task_id: 0c665fc0-88f7-4210-9172-f488075ea360\n11:28:57 - tools.browser_tool - DEBUG [20260910_112845_25254b] - Active sessions: []\n11:28:57 - tools.browser_tool - DEBUG [20260910_112845_25254b] - No active session found for task_id: 0c665fc0-88f7-4210-9172-f488075ea360\n11:28:57 - agent.conversation_loop - INFO [20260910_112845_25254b] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=163 session=20260910_112845_25254b\n11:28:57 - tools.terminal_tool - INFO [20260910_112845_25254b] - Shutting down 1 remaining sandbox(es)...\n11:28:57 - tools.terminal_tool - INFO [20260910_112845_25254b] - Manually cleaned up environment for task: default\n11:28:57 - tools.terminal_tool - INFO [20260910_112845_25254b] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 15735,
+      "input_tokens": {
+        "value": 4137,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 262,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3968,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "8e-05, 'upstream_inference_prompt_cost': 4.73088e-05, 'upstream_inference_completions_cost': 3.087e-06})\n11:28:58 - agent.conversation_loop - INFO [20260910_112845_5d7d29] - API call #3: model=inclusionai/ling-3.0-flash provider=unknown in=2816 out=49 total=2865 latency=5.1s cache=704/2816 (25%)\n11:28:58 - root - DEBUG [20260910_112845_5d7d29] - Token usage: prompt=2,816, completion=49, total=2,865\n11:28:58 - root - DEBUG [20260910_112845_5d7d29] - Captured reasoning (78 chars): Done. sorted.csv has the header preserved and rows sorted by score descending.\n11:28:58 - tools.browser_tool - DEBUG [20260910_112845_5d7d29] - cleanup_browser called for task_id: 9d2ef303-af28-4c45-ba1b-f08fbd1afc2e\n11:28:58 - tools.browser_tool - DEBUG [20260910_112845_5d7d29] - Active sessions: []\n11:28:58 - tools.browser_tool - DEBUG [20260910_112845_5d7d29] - No active session found for task_id: 9d2ef303-af28-4c45-ba1b-f08fbd1afc2e\n11:28:58 - agent.conversation_loop - INFO [20260910_112845_5d7d29] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=120 session=20260910_112845_5d7d29\n11:28:59 - tools.terminal_tool - INFO [20260910_112845_5d7d29] - Shutting down 1 remaining sandbox(es)...\n11:28:59 - tools.terminal_tool - INFO [20260910_112845_5d7d29] - Manually cleaned up environment for task: default\n11:28:59 - tools.terminal_tool - INFO [20260910_112845_5d7d29] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": false,
+      "reason": "timed out after 3m0s: prompt 1 of 1: signal: killed",
+      "wall_time_ms": 180009,
+      "input_tokens": {
+        "value": 4528,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 103,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 704,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Which files mention 'flux capacitor'? List only the file names. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "exit_code": -1,
+      "stderr_excerpt": "ompletion_tokens=55, prompt_tokens=2643, total_tokens=2698, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=0, reasoning_tokens=28, rejected_prediction_tokens=None, image_tokens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=704, cache_write_tokens=0, video_tokens=0), cost=4.71408e-05, is_byok=False, cost_details={'upstream_inference_cost': 4.71408e-05, 'upstream_inference_prompt_cost': 4.36758e-05, 'upstream_inference_completions_cost': 3.465e-06})\n11:28:50 - agent.conversation_loop - INFO [20260910_112845_e05f60] - API call #2: model=inclusionai/ling-3.0-flash provider=unknown in=2643 out=55 total=2698 latency=1.1s cache=704/2643 (27%)\n11:28:50 - root - DEBUG [20260910_112845_e05f60] - Token usage: prompt=2,643, completion=55, total=2,698\n11:28:50 - root - DEBUG [20260910_112845_e05f60] - Tool call: terminal with args: {\"command\": \"grep -rl \\\"flux capacitor\\\" /home/driver/ 2\u003e/dev/null\"}...\n11:28:50 - root - DEBUG [20260910_112845_e05f60] - Captured reasoning (112 chars): The search_files tool doesn't exist. I need to use terminal with grep to find files mentioning 'flux capacitor'.\n11:28:50 - tools.terminal_tool - INFO - Creating new local environment for task default...\n11:28:51 - tools.environments.base - INFO - Session snapshot created (session=1972ef5d3a6c, cwd=/tmp/harness-hermes-agent-18-find-mentions-1238896129)\n11:28:51 - tools.terminal_tool - INFO - local environment ready for task default"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 15856,
+      "input_tokens": {
+        "value": 6782,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1027,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 16384,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "k=False, cost_details={'upstream_inference_cost': 2.78418e-05, 'upstream_inference_prompt_cost': 2.25498e-05, 'upstream_inference_completions_cost': 5.292e-06})\n11:28:59 - agent.conversation_loop - INFO [20260910_112845_7faf01] - API call #6: model=inclusionai/ling-3.0-flash provider=unknown in=4453 out=84 total=4537 latency=1.1s cache=4224/4453 (95%)\n11:28:59 - root - DEBUG [20260910_112845_7faf01] - Token usage: prompt=4,453, completion=84, total=4,537\n11:28:59 - root - DEBUG [20260910_112845_7faf01] - Captured reasoning (21 chars): All three tests pass.\n11:28:59 - tools.browser_tool - DEBUG [20260910_112845_7faf01] - cleanup_browser called for task_id: ab9e139f-0943-4996-88d1-a7d26d253449\n11:28:59 - tools.browser_tool - DEBUG [20260910_112845_7faf01] - Active sessions: []\n11:28:59 - tools.browser_tool - DEBUG [20260910_112845_7faf01] - No active session found for task_id: ab9e139f-0943-4996-88d1-a7d26d253449\n11:28:59 - agent.conversation_loop - INFO [20260910_112845_7faf01] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=229 session=20260910_112845_7faf01\n11:28:59 - tools.terminal_tool - INFO [20260910_112845_7faf01] - Shutting down 1 remaining sandbox(es)...\n11:28:59 - tools.terminal_tool - INFO [20260910_112845_7faf01] - Manually cleaned up environment for task: default\n11:28:59 - tools.terminal_tool - INFO [20260910_112845_7faf01] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 9615,
+      "input_tokens": {
+        "value": 8730,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 261,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1408,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --model inclusionai/ling-3.0-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "erence_prompt_cost': 6.14838e-05, 'upstream_inference_completions_cost': 4.347e-06})\n11:28:53 - agent.conversation_loop - INFO [20260910_112845_fa1a7f] - API call #3: model=inclusionai/ling-3.0-flash provider=unknown in=3491 out=69 total=3560 latency=1.1s cache=704/3491 (20%)\n11:28:53 - root - DEBUG [20260910_112845_fa1a7f] - Token usage: prompt=3,491, completion=69, total=3,560\n11:28:53 - root - DEBUG [20260910_112845_fa1a7f] - Captured reasoning (98 chars): Done. The program works correctly: prints 3000 when PORT is unset, and the value of PORT when set.\n11:28:53 - tools.browser_tool - DEBUG [20260910_112845_fa1a7f] - cleanup_browser called for task_id: 7d07347f-944c-42d1-98c8-77c24bf5ad7a\n11:28:53 - tools.browser_tool - DEBUG [20260910_112845_fa1a7f] - Active sessions: []\n11:28:53 - tools.browser_tool - DEBUG [20260910_112845_fa1a7f] - No active session found for task_id: 7d07347f-944c-42d1-98c8-77c24bf5ad7a\n11:28:53 - agent.conversation_loop - INFO [20260910_112845_fa1a7f] - Turn ended: reason=text_response(finish_reason=stop) model=inclusionai/ling-3.0-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=121 session=20260910_112845_fa1a7f\n11:28:53 - tools.terminal_tool - INFO [20260910_112845_fa1a7f] - Shutting down 1 remaining sandbox(es)...\n11:28:53 - tools.terminal_tool - INFO [20260910_112845_fa1a7f] - Manually cleaned up environment for task: default\n11:28:53 - tools.terminal_tool - INFO [20260910_112845_fa1a7f] - Cleaned 1 environments"
+    }
+  ],
+  "janetcode": [
+    {
+      "harness": "janetcode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 4117,
+      "input_tokens": {
+        "value": 12398,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 198,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 960,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000276864,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 01-create-file --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 8939,
+      "input_tokens": {
+        "value": 13229,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 497,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5824,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0005926109999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9934,
+      "input_tokens": {
+        "value": 19538,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 555,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4864,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0009359069999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 4378,
+      "input_tokens": {
+        "value": 4813,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 317,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8960,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000158676,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 6759,
+      "input_tokens": {
+        "value": 8793,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 660,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10688,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0002711226,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 3321,
+      "input_tokens": {
+        "value": 8017,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 181,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5312,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00020207040000000002,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 3695,
+      "input_tokens": {
+        "value": 7119,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 209,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6336,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0001892772,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6405,
+      "input_tokens": {
+        "value": 11804,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 403,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10880,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000318969,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6616,
+      "input_tokens": {
+        "value": 7666,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 366,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 19840,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000267372,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 3672,
+      "input_tokens": {
+        "value": 12401,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 207,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 960,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000277494,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 6486,
+      "input_tokens": {
+        "value": 8288,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 583,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11008,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0002570106,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 5733,
+      "input_tokens": {
+        "value": 7431,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 516,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11392,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0002364054,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 6473,
+      "input_tokens": {
+        "value": 11525,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 656,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7360,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000314265,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 3720,
+      "input_tokens": {
+        "value": 7140,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 255,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6272,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0001923474,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 1992,
+      "input_tokens": {
+        "value": 6976,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 79,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1920,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000159537,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5213,
+      "input_tokens": {
+        "value": 7487,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 429,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11008,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00023048760000000002,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 16-readme --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 4719,
+      "input_tokens": {
+        "value": 10577,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 231,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7360,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000267582,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 4187,
+      "input_tokens": {
+        "value": 7020,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 97,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6272,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00017987340000000002,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 7227,
+      "input_tokens": {
+        "value": 8469,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 722,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15424,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00028811580000000003,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 19-write-test --provider openai --model inclusionai/ling-3.0-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5445,
+      "input_tokens": {
+        "value": 10721,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 320,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7488,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0002767506,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 20-env-default --provider openai --model inclusionai/ling-3.0-flash"
+    }
+  ],
+  "openclaw": [
+    {
+      "harness": "openclaw",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 16581,
+      "input_tokens": {
+        "value": 72174,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 128,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-2099850911 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032783884416206 --message Create a file named hello.txt containing exactly the text: hello world",
+      "stderr_excerpt": " failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3420 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2813 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 782c47eb-abfe-47a4-a280-8dab843758bf ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 21272,
+      "input_tokens": {
+        "value": 72619,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 347,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 72640,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-1239141428 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032784109826306 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+      "stderr_excerpt": "or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2661 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1613 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1974 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run fc31174c-a638-4c2d-bcb8-a7526e6509ec ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": false,
+      "reason": "check failed: exit status 1: --- FAIL: TestSumTo (0.00s)\n    sum_test.go:7: SumTo(4) = 6, want 10\nFAIL\nFAIL\texample.com/m\t0.002s\nFAIL",
+      "wall_time_ms": 19815,
+      "input_tokens": {
+        "value": 72520,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 385,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 36096,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-2952576416 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032783974084519 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+      "exit_code": 1,
+      "stderr_excerpt": "er=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3204 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2234 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agent/embedded]\u001b[39m \u001b[33membedded run agent end: runId=7969835c-9ccb-4b3d-bca7-a7fe8fc5c21e isError=true model=inclusionai/ling-3.0-flash provider=bench error=LLM request failed. rawError=Provider returned an incomplete or malformed tool call\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 19169,
+      "input_tokens": {
+        "value": 72827,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 421,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 36096,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-1730728176 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032784162652870 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+      "stderr_excerpt": "00 elapsedMs=2770 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2855 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2017 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 9ae90b3a-aaf1-4107-af84-558a0d38ffbe ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 32698,
+      "input_tokens": {
+        "value": 109586,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1121,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 149824,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 12,
+        "set": true
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-439195619 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032783875296131 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+      "stderr_excerpt": "elapsedMs=3549 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1586 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1614 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 6ae965e2-8d65-4d0b-a23d-72ba54eb6b31 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 13647,
+      "input_tokens": {
+        "value": 34315,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 39,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1728,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 1,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-591576396 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032818295507905 --message What does Compute(3) return? Reply with just the number.",
+      "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2727 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d6b12127-d31b-4a6d-b0c9-c5b27d12631d ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 20912,
+      "input_tokens": {
+        "value": 103343,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 239,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5184,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-3394591510 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032818107718831 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+      "stderr_excerpt": "00 elapsedMs=2991 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2998 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2855 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 1e7bd18d-4a0f-46c2-a43b-ceef49670314 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 22834,
+      "input_tokens": {
+        "value": 69332,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 386,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 75648,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-2668121331 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032817818410355 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+      "stderr_excerpt": "or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3240 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1747 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1760 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 17eccf86-992d-4a66-b9de-313a3dd5103e ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 25648,
+      "input_tokens": {
+        "value": 105397,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 366,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 76096,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-2440578453 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032818491996518 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+      "stderr_excerpt": "elapsedMs=3024 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1675 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1518 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run e9ab11bc-4608-4760-a9cd-78ed66bc3925 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 19392,
+      "input_tokens": {
+        "value": 68932,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 243,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 39488,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-621179166 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032818453440709 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+      "stderr_excerpt": "00 elapsedMs=2845 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1517 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2726 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 02b6dce5-a6de-4b86-8b25-f76a994c30d7 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 26194,
+      "input_tokens": {
+        "value": 71403,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 653,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 110848,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-4083730156 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032843029082945 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+      "stderr_excerpt": "elapsedMs=2937 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1911 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3608 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 06c9f8aa-1134-4f4a-a176-c28c44f86cf1 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 23498,
+      "input_tokens": {
+        "value": 104754,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 619,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41792,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-2709801935 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032843095522339 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+      "stderr_excerpt": "api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1626 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agent/embedded]\u001b[39m \u001b[33msettled post-tool turn lacked a final answer: runId=a2419030-114a-4f6a-82b4-b35b032dff98 sessionId=bench-0-1789032843095522339 provider=bench/inclusionai/ling-3.0-flash — running isolated finalization\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=757 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run a2419030-114a-4f6a-82b4-b35b032dff98 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 19200,
+      "input_tokens": {
+        "value": 71559,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 528,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 37760,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-3823738760 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032843061011241 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+      "stderr_excerpt": "00 elapsedMs=2676 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1940 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2725 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 73fd768b-8362-4134-83db-075d5c78a5b9 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 18588,
+      "input_tokens": {
+        "value": 68963,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 252,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 39488,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-4151799073 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032842976802956 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+      "stderr_excerpt": "00 elapsedMs=2952 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3143 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1849 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 521e56d5-22c2-41cd-9754-9a0d8a7ed760 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 14430,
+      "input_tokens": {
+        "value": 34507,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 121,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 37760,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-1389659241 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032842831174680 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+      "stderr_excerpt": " failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2922 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1627 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c09cd2a8-7533-497f-9796-ed88ea8bd83c ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 21973,
+      "input_tokens": {
+        "value": 140650,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 453,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5184,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-16-readme-3065516050 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032868742698435 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+      "stderr_excerpt": "elapsedMs=2707 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2598 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2877 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run dbe826ed-f852-4411-a9a7-b7841ad4b82e ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 16774,
+      "input_tokens": {
+        "value": 68888,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 241,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 39552,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-189186989 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032869028547131 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+      "stderr_excerpt": "00 elapsedMs=2856 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2703 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1514 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b16a1fb6-8f47-4954-9816-d169b1241cee ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14368,
+      "input_tokens": {
+        "value": 68737,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 119,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3456,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-597159490 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032868797859364 --message Which files mention 'flux capacitor'? List only the file names.",
+      "stderr_excerpt": " failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2661 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=2637 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 145bcc7f-c46b-4f42-9095-a3f78e66834d ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 22983,
+      "input_tokens": {
+        "value": 70236,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 606,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 113088,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-1679724948 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032868919858638 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+      "stderr_excerpt": "elapsedMs=1794 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1559 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1555 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 7eb87b4b-0957-4469-8904-7b5e94f47956 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 21701,
+      "input_tokens": {
+        "value": 105291,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 366,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 39616,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-4112323442 agent --local --json --model bench/inclusionai/ling-3.0-flash --session-id bench-0-1789032868737435627 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+      "stderr_excerpt": "elapsedMs=3047 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=3461 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inclusionai/ling-3.0-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inclusionai/ling-3.0-flash status=200 elapsedMs=1624 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run e65d4b8a-9a4f-4b82-ad97-4026be9a30de ended with stopReason=stop\u001b[39m"
+    }
+  ],
+  "pi": [
+    {
+      "harness": "pi",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 4533,
+      "input_tokens": {
+        "value": 20238,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 111,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 16384,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0005008038,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "pi",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 8749,
+      "input_tokens": {
+        "value": 38575,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 321,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 35520,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000979482,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9902,
+      "input_tokens": {
+        "value": 23826,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 590,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 69952,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0008313144,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "pi",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 6884,
+      "input_tokens": {
+        "value": 21903,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 466,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 33664,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0006307098,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "pi",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 12805,
+      "input_tokens": {
+        "value": 26894,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1088,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 90176,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0010120572,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "pi",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 2679,
+      "input_tokens": {
+        "value": 971,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 68,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17280,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 1,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000097251,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "pi",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 8377,
+      "input_tokens": {
+        "value": 3251,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 268,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 70528,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00038137259999999993,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "pi",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6023,
+      "input_tokens": {
+        "value": 3331,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 363,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 51840,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00031054799999999995,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "pi",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 9238,
+      "input_tokens": {
+        "value": 3620,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 381,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 88896,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0004733861999999999,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "pi",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 7849,
+      "input_tokens": {
+        "value": 3370,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 272,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 70272,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0003830484,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "pi",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 12388,
+      "input_tokens": {
+        "value": 6374,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 843,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 106816,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0006355902,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 7620,
+      "input_tokens": {
+        "value": 3944,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 520,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 70528,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0004118016,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "pi",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 11789,
+      "input_tokens": {
+        "value": 6621,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 916,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 105792,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0006410754,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 7258,
+      "input_tokens": {
+        "value": 3801,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 391,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 70080,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00039878999999999994,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "pi",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 3727,
+      "input_tokens": {
+        "value": 2048,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 74,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 34560,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000192822,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "pi",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 8254,
+      "input_tokens": {
+        "value": 4065,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 393,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 70336,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00040553519999999996,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "pi",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 8597,
+      "input_tokens": {
+        "value": 2557,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 389,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 71360,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000377916,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "pi",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 3984,
+      "input_tokens": {
+        "value": 1130,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 99,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 35520,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000179151,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "pi",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 10131,
+      "input_tokens": {
+        "value": 3335,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 682,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 90176,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0004917401999999999,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "pi",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 10169,
+      "input_tokens": {
+        "value": 4172,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 503,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 88448,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0004907826,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ],
+  "qwencode": [
+    {
+      "harness": "qwencode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 12348,
+      "input_tokens": {
+        "value": 86627,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 182,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "qwencode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 15031,
+      "input_tokens": {
+        "value": 87848,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 476,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 85824,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 17739,
+      "input_tokens": {
+        "value": 88373,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 589,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 86016,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "qwencode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 14462,
+      "input_tokens": {
+        "value": 87304,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 593,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 42688,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "qwencode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 19541,
+      "input_tokens": {
+        "value": 45130,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 916,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 173568,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 9,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "qwencode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11526,
+      "input_tokens": {
+        "value": 37847,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 275,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 48640,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "qwencode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 13823,
+      "input_tokens": {
+        "value": 75387,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 313,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 54336,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "qwencode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 16426,
+      "input_tokens": {
+        "value": 75728,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 532,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 97600,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "qwencode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 15437,
+      "input_tokens": {
+        "value": 81603,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 372,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 91072,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "qwencode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 13266,
+      "input_tokens": {
+        "value": 37944,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 317,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 91392,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "qwencode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 15833,
+      "input_tokens": {
+        "value": 44108,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 710,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 129984,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 13276,
+      "input_tokens": {
+        "value": 38762,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 482,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 134592,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "qwencode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 17400,
+      "input_tokens": {
+        "value": 38887,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 901,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 135488,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 11570,
+      "input_tokens": {
+        "value": 75393,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 349,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 54336,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "qwencode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 10324,
+      "input_tokens": {
+        "value": 74855,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 146,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11584,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "qwencode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 12669,
+      "input_tokens": {
+        "value": 39004,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 520,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 92672,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "qwencode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 13922,
+      "input_tokens": {
+        "value": 43765,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 429,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 128896,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "qwencode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 9029,
+      "input_tokens": {
+        "value": 38298,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 146,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 48320,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "qwencode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 21190,
+      "input_tokens": {
+        "value": 82522,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 930,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 134976,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "qwencode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14612,
+      "input_tokens": {
+        "value": 38309,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 442,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 134784,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inclusionai/ling-3.0-flash --max-session-turns 40 --max-wall-time 180s Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ]
+}

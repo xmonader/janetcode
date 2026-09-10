@@ -1,0 +1,3359 @@
+{
+  "hermes-agent": [
+    {
+      "harness": "hermes-agent",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 13231,
+      "input_tokens": {
+        "value": 11101,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 229,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a file named hello.txt containing exactly the text: hello world --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "19, rejected_prediction_tokens=None, text_tokens=44), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=3810))\n10:05:33 - agent.conversation_loop - INFO [20260910_100522_d66810] - API call #3: model=qwen3.6-plus provider=unknown in=3810 out=44 total=3854 latency=2.5s\n10:05:33 - root - DEBUG [20260910_100522_d66810] - Token usage: prompt=3,810, completion=44, total=3,854\n10:05:33 - root - DEBUG [20260910_100522_d66810] - Captured reasoning (79 chars): The file is created with exactly \"hello world\" (11 bytes, no trailing newline).\n10:05:33 - tools.browser_tool - DEBUG [20260910_100522_d66810] - cleanup_browser called for task_id: c8eb5125-7de1-4f56-973f-defa431d40f3\n10:05:33 - tools.browser_tool - DEBUG [20260910_100522_d66810] - Active sessions: []\n10:05:33 - tools.browser_tool - DEBUG [20260910_100522_d66810] - No active session found for task_id: c8eb5125-7de1-4f56-973f-defa431d40f3\n10:05:33 - agent.conversation_loop - INFO [20260910_100522_d66810] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=79 session=20260910_100522_d66810\n10:05:33 - tools.terminal_tool - INFO [20260910_100522_d66810] - Shutting down 1 remaining sandbox(es)...\n10:05:33 - tools.terminal_tool - INFO [20260910_100522_d66810] - Manually cleaned up environment for task: default\n10:05:33 - tools.terminal_tool - INFO [20260910_100522_d66810] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 19808,
+      "input_tokens": {
+        "value": 23029,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 348,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "=22, prompt_tokens=4837, total_tokens=4859, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=0, rejected_prediction_tokens=None, text_tokens=22), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=4837))\n10:05:39 - agent.conversation_loop - INFO [20260910_100522_68d0b6] - API call #5: model=qwen3.6-plus provider=unknown in=4837 out=22 total=4859 latency=2.1s\n10:05:39 - root - DEBUG [20260910_100522_68d0b6] - Token usage: prompt=4,837, completion=22, total=4,859\n10:05:39 - tools.browser_tool - DEBUG [20260910_100522_68d0b6] - cleanup_browser called for task_id: 8cd6df57-5dbd-4468-8ed7-1788eb4db92a\n10:05:39 - tools.browser_tool - DEBUG [20260910_100522_68d0b6] - Active sessions: []\n10:05:39 - tools.browser_tool - DEBUG [20260910_100522_68d0b6] - No active session found for task_id: 8cd6df57-5dbd-4468-8ed7-1788eb4db92a\n10:05:39 - agent.conversation_loop - INFO [20260910_100522_68d0b6] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=51 session=20260910_100522_68d0b6\n10:05:40 - tools.terminal_tool - INFO [20260910_100522_68d0b6] - Shutting down 1 remaining sandbox(es)...\n10:05:40 - tools.terminal_tool - INFO [20260910_100522_68d0b6] - Manually cleaned up environment for task: default\n10:05:40 - tools.terminal_tool - INFO [20260910_100522_68d0b6] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 27348,
+      "input_tokens": {
+        "value": 28841,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 732,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query go test fails. Find the bug and fix it in the implementation, not the test. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "57, prompt_tokens=5225, total_tokens=5282, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=0, rejected_prediction_tokens=None, text_tokens=57), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=5225))\n10:05:47 - agent.conversation_loop - INFO [20260910_100522_6699db] - API call #6: model=qwen3.6-plus provider=unknown in=5225 out=57 total=5282 latency=2.6s\n10:05:47 - root - DEBUG [20260910_100522_6699db] - Token usage: prompt=5,225, completion=57, total=5,282\n10:05:47 - tools.browser_tool - DEBUG [20260910_100522_6699db] - cleanup_browser called for task_id: e8f5b5fc-e556-427e-86af-c1d5c78dc416\n10:05:47 - tools.browser_tool - DEBUG [20260910_100522_6699db] - Active sessions: []\n10:05:47 - tools.browser_tool - DEBUG [20260910_100522_6699db] - No active session found for task_id: e8f5b5fc-e556-427e-86af-c1d5c78dc416\n10:05:47 - agent.conversation_loop - INFO [20260910_100522_6699db] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=147 session=20260910_100522_6699db\n10:05:47 - tools.terminal_tool - INFO [20260910_100522_6699db] - Shutting down 1 remaining sandbox(es)...\n10:05:47 - tools.terminal_tool - INFO [20260910_100522_6699db] - Manually cleaned up environment for task: default\n10:05:47 - tools.terminal_tool - INFO [20260910_100522_6699db] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 19806,
+      "input_tokens": {
+        "value": 15695,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 526,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "okens=None, reasoning_tokens=15, rejected_prediction_tokens=None, text_tokens=62), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=4182))\n10:05:40 - agent.conversation_loop - INFO [20260910_100522_66d3ea] - API call #4: model=qwen3.6-plus provider=unknown in=4182 out=62 total=4244 latency=2.8s\n10:05:40 - root - DEBUG [20260910_100522_66d3ea] - Token usage: prompt=4,182, completion=62, total=4,244\n10:05:40 - root - DEBUG [20260910_100522_66d3ea] - Captured reasoning (49 chars): Output matches expected FizzBuzz for 1..20. Done.\n10:05:40 - tools.browser_tool - DEBUG [20260910_100522_66d3ea] - cleanup_browser called for task_id: 6773208f-592e-4b07-93ef-f1cf8272ad0d\n10:05:40 - tools.browser_tool - DEBUG [20260910_100522_66d3ea] - Active sessions: []\n10:05:40 - tools.browser_tool - DEBUG [20260910_100522_66d3ea] - No active session found for task_id: 6773208f-592e-4b07-93ef-f1cf8272ad0d\n10:05:40 - agent.conversation_loop - INFO [20260910_100522_66d3ea] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=155 session=20260910_100522_66d3ea\n10:05:40 - tools.terminal_tool - INFO [20260910_100522_66d3ea] - Shutting down 1 remaining sandbox(es)...\n10:05:40 - tools.terminal_tool - INFO [20260910_100522_66d3ea] - Manually cleaned up environment for task: default\n10:05:40 - tools.terminal_tool - INFO [20260910_100522_66d3ea] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 33480,
+      "input_tokens": {
+        "value": 34885,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1015,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "53, prompt_tokens=5572, total_tokens=5625, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=0, rejected_prediction_tokens=None, text_tokens=53), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=5572))\n10:05:53 - agent.conversation_loop - INFO [20260910_100522_af73b0] - API call #7: model=qwen3.6-plus provider=unknown in=5572 out=53 total=5625 latency=2.4s\n10:05:53 - root - DEBUG [20260910_100522_af73b0] - Token usage: prompt=5,572, completion=53, total=5,625\n10:05:53 - tools.browser_tool - DEBUG [20260910_100522_af73b0] - cleanup_browser called for task_id: 5d540e2f-4977-47e3-aaea-4105d6220c2b\n10:05:53 - tools.browser_tool - DEBUG [20260910_100522_af73b0] - Active sessions: []\n10:05:53 - tools.browser_tool - DEBUG [20260910_100522_af73b0] - No active session found for task_id: 5d540e2f-4977-47e3-aaea-4105d6220c2b\n10:05:53 - agent.conversation_loop - INFO [20260910_100522_af73b0] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=142 session=20260910_100522_af73b0\n10:05:53 - tools.terminal_tool - INFO [20260910_100522_af73b0] - Shutting down 1 remaining sandbox(es)...\n10:05:53 - tools.terminal_tool - INFO [20260910_100522_af73b0] - Manually cleaned up environment for task: default\n10:05:53 - tools.terminal_tool - INFO [20260910_100522_af73b0] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 30159,
+      "input_tokens": {
+        "value": 22673,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 377,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query What does Compute(3) return? Reply with just the number. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ens=82), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=4770))\n10:06:23 - agent.conversation_loop - INFO [20260910_100555_ebcd41] - API call #5: model=qwen3.6-plus provider=unknown in=4770 out=82 total=4852 latency=3.2s\n10:06:23 - root - DEBUG [20260910_100555_ebcd41] - Token usage: prompt=4,770, completion=82, total=4,852\n10:06:23 - root - DEBUG [20260910_100555_ebcd41] - Captured reasoning (124 chars): Let me trace through Compute(3):\n\n- r = 1\n- i=0: r = 1*2 + 1 = 3\n- i=1: r = 3*2 + 1 = 7\n- i=2: r = 7*2 + 1 = 15\n- return 15\n\n10:06:23 - tools.browser_tool - DEBUG [20260910_100555_ebcd41] - cleanup_browser called for task_id: 5aadcaac-882b-4a5f-9537-5657aca00e60\n10:06:23 - tools.browser_tool - DEBUG [20260910_100555_ebcd41] - Active sessions: []\n10:06:23 - tools.browser_tool - DEBUG [20260910_100555_ebcd41] - No active session found for task_id: 5aadcaac-882b-4a5f-9537-5657aca00e60\n10:06:23 - agent.conversation_loop - INFO [20260910_100555_ebcd41] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=2 session=20260910_100555_ebcd41\n10:06:24 - tools.terminal_tool - INFO [20260910_100555_ebcd41] - Shutting down 1 remaining sandbox(es)...\n10:06:24 - tools.terminal_tool - INFO [20260910_100555_ebcd41] - Manually cleaned up environment for task: default\n10:06:24 - tools.terminal_tool - INFO [20260910_100555_ebcd41] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 40169,
+      "input_tokens": {
+        "value": 32404,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 868,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query In config.json change the port to 8080. Keep every other key exactly as it is. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "=31, prompt_tokens=4544, total_tokens=4575, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=0, rejected_prediction_tokens=None, text_tokens=31), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=4544))\n10:06:33 - agent.conversation_loop - INFO [20260910_100555_05518e] - API call #8: model=qwen3.6-plus provider=unknown in=4544 out=31 total=4575 latency=2.6s\n10:06:33 - root - DEBUG [20260910_100555_05518e] - Token usage: prompt=4,544, completion=31, total=4,575\n10:06:33 - tools.browser_tool - DEBUG [20260910_100555_05518e] - cleanup_browser called for task_id: 09dde2f8-fcfd-4cf0-9ed5-9cee539e9d17\n10:06:33 - tools.browser_tool - DEBUG [20260910_100555_05518e] - Active sessions: []\n10:06:33 - tools.browser_tool - DEBUG [20260910_100555_05518e] - No active session found for task_id: 09dde2f8-fcfd-4cf0-9ed5-9cee539e9d17\n10:06:33 - agent.conversation_loop - INFO [20260910_100555_05518e] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=8/40 budget=8/40 tool_turns=7 last_msg_role=assistant response_len=88 session=20260910_100555_05518e\n10:06:34 - tools.terminal_tool - INFO [20260910_100555_05518e] - Shutting down 1 remaining sandbox(es)...\n10:06:34 - tools.terminal_tool - INFO [20260910_100555_05518e] - Manually cleaned up environment for task: default\n10:06:34 - tools.terminal_tool - INFO [20260910_100555_05518e] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 16927,
+      "input_tokens": {
+        "value": 15042,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 339,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write count.sh that prints the number of lines in input.txt and nothing else. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=3910))\n10:06:10 - agent.conversation_loop - INFO [20260910_100555_235ca6] - API call #4: model=qwen3.6-plus provider=unknown in=3910 out=62 total=3972 latency=2.8s\n10:06:10 - root - DEBUG [20260910_100555_235ca6] - Token usage: prompt=3,910, completion=62, total=3,972\n10:06:10 - root - DEBUG [20260910_100555_235ca6] - Captured reasoning (128 chars): The script works correctly - `wc -l \u003c input.txt` outputs just the number (3) without the filename prefix. The task is complete.\n\n10:06:10 - tools.browser_tool - DEBUG [20260910_100555_235ca6] - cleanup_browser called for task_id: f94799b9-7696-4fd3-bd4b-d9492018333d\n10:06:10 - tools.browser_tool - DEBUG [20260910_100555_235ca6] - Active sessions: []\n10:06:10 - tools.browser_tool - DEBUG [20260910_100555_235ca6] - No active session found for task_id: f94799b9-7696-4fd3-bd4b-d9492018333d\n10:06:10 - agent.conversation_loop - INFO [20260910_100555_235ca6] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=109 session=20260910_100555_235ca6\n10:06:10 - tools.terminal_tool - INFO [20260910_100555_235ca6] - Shutting down 1 remaining sandbox(es)...\n10:06:10 - tools.terminal_tool - INFO [20260910_100555_235ca6] - Manually cleaned up environment for task: default\n10:06:10 - tools.terminal_tool - INFO [20260910_100555_235ca6] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 36871,
+      "input_tokens": {
+        "value": 32272,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 752,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a greet target to the Makefile that prints hi. Keep the existing targets. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "prediction_tokens=None, text_tokens=59), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=4971))\n10:06:30 - agent.conversation_loop - INFO [20260910_100555_5eba53] - API call #7: model=qwen3.6-plus provider=unknown in=4971 out=59 total=5030 latency=2.9s\n10:06:30 - root - DEBUG [20260910_100555_5eba53] - Token usage: prompt=4,971, completion=59, total=5,030\n10:06:30 - root - DEBUG [20260910_100555_5eba53] - Captured reasoning (91 chars): Done. Added a `greet` target that prints \"hi\". All three targets (build, test, greet) work.\n10:06:30 - tools.browser_tool - DEBUG [20260910_100555_5eba53] - cleanup_browser called for task_id: e01c6cb9-dd23-4b09-9509-c3b0da0425bc\n10:06:30 - tools.browser_tool - DEBUG [20260910_100555_5eba53] - Active sessions: []\n10:06:30 - tools.browser_tool - DEBUG [20260910_100555_5eba53] - No active session found for task_id: e01c6cb9-dd23-4b09-9509-c3b0da0425bc\n10:06:30 - agent.conversation_loop - INFO [20260910_100555_5eba53] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=104 session=20260910_100555_5eba53\n10:06:30 - tools.terminal_tool - INFO [20260910_100555_5eba53] - Shutting down 1 remaining sandbox(es)...\n10:06:30 - tools.terminal_tool - INFO [20260910_100555_5eba53] - Manually cleaned up environment for task: default\n10:06:30 - tools.terminal_tool - INFO [20260910_100555_5eba53] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 17981,
+      "input_tokens": {
+        "value": 18785,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 330,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Append the line 'four' to the end of list.txt. Do not change the existing lines. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "cted_prediction_tokens=None, text_tokens=32), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=3934))\n10:06:11 - agent.conversation_loop - INFO [20260910_100555_85e3d8] - API call #5: model=qwen3.6-plus provider=unknown in=3934 out=32 total=3966 latency=2.2s\n10:06:11 - root - DEBUG [20260910_100555_85e3d8] - Token usage: prompt=3,934, completion=32, total=3,966\n10:06:11 - root - DEBUG [20260910_100555_85e3d8] - Captured reasoning (88 chars): The line 'four' has been appended to list.txt. The file now contains:\none\ntwo\nthree\nfour\n10:06:11 - tools.browser_tool - DEBUG [20260910_100555_85e3d8] - cleanup_browser called for task_id: b1994ddd-1913-4604-a54e-f89cc9a68ebb\n10:06:11 - tools.browser_tool - DEBUG [20260910_100555_85e3d8] - Active sessions: []\n10:06:11 - tools.browser_tool - DEBUG [20260910_100555_85e3d8] - No active session found for task_id: b1994ddd-1913-4604-a54e-f89cc9a68ebb\n10:06:11 - agent.conversation_loop - INFO [20260910_100555_85e3d8] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=5 session=20260910_100555_85e3d8\n10:06:11 - tools.terminal_tool - INFO [20260910_100555_85e3d8] - Shutting down 1 remaining sandbox(es)...\n10:06:11 - tools.terminal_tool - INFO [20260910_100555_85e3d8] - Manually cleaned up environment for task: default\n10:06:11 - tools.terminal_tool - INFO [20260910_100555_85e3d8] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 29418,
+      "input_tokens": {
+        "value": 33484,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 701,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "54, prompt_tokens=5279, total_tokens=5333, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=0, rejected_prediction_tokens=None, text_tokens=54), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=5279))\n10:07:03 - agent.conversation_loop - INFO [20260910_100636_978abd] - API call #7: model=qwen3.6-plus provider=unknown in=5279 out=54 total=5333 latency=2.7s\n10:07:03 - root - DEBUG [20260910_100636_978abd] - Token usage: prompt=5,279, completion=54, total=5,333\n10:07:03 - tools.browser_tool - DEBUG [20260910_100636_978abd] - cleanup_browser called for task_id: 30b07f44-4e69-4c03-94fc-3ea9ad84fe85\n10:07:03 - tools.browser_tool - DEBUG [20260910_100636_978abd] - Active sessions: []\n10:07:03 - tools.browser_tool - DEBUG [20260910_100636_978abd] - No active session found for task_id: 30b07f44-4e69-4c03-94fc-3ea9ad84fe85\n10:07:03 - agent.conversation_loop - INFO [20260910_100636_978abd] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=202 session=20260910_100636_978abd\n10:07:03 - tools.terminal_tool - INFO [20260910_100636_978abd] - Shutting down 1 remaining sandbox(es)...\n10:07:03 - tools.terminal_tool - INFO [20260910_100636_978abd] - Manually cleaned up environment for task: default\n10:07:03 - tools.terminal_tool - INFO [20260910_100636_978abd] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 24881,
+      "input_tokens": {
+        "value": 23380,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 690,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query python3 test_stats.py fails. Fix the bug in stats.py. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ot - DEBUG [20260910_100636_b25345] - Token usage: prompt=5,022, completion=169, total=5,191\n10:06:59 - root - DEBUG [20260910_100636_b25345] - Captured reasoning (401 chars): We have a bug in stats.py where `mean` divides by `len(xs) - 1` instead of `len(xs)`. This is a classic off-by-one error (confusing population mean with Bessel-corrected sample mean denominator). The test expects:\n- `mean([2, 4])` == 3 (which is (2+4)/2 = 3, but the bug computes (2+4)/1 = 6)\n- `mean([5])` == 5 (which is 5/1 = 5, but the bug computes 5/0 which is a ZeroDivisionError)\n\nLet me fix it.\n10:06:59 - tools.browser_tool - DEBUG [20260910_100636_b25345] - cleanup_browser called for task_id: a28fad9b-32a3-4f8c-981b-295abf4aee8f\n10:06:59 - tools.browser_tool - DEBUG [20260910_100636_b25345] - Active sessions: []\n10:06:59 - tools.browser_tool - DEBUG [20260910_100636_b25345] - No active session found for task_id: a28fad9b-32a3-4f8c-981b-295abf4aee8f\n10:06:59 - agent.conversation_loop - INFO [20260910_100636_b25345] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=59 session=20260910_100636_b25345\n10:06:59 - tools.terminal_tool - INFO [20260910_100636_b25345] - Shutting down 1 remaining sandbox(es)...\n10:06:59 - tools.terminal_tool - INFO [20260910_100636_b25345] - Manually cleaned up environment for task: default\n10:06:59 - tools.terminal_tool - INFO [20260910_100636_b25345] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 33742,
+      "input_tokens": {
+        "value": 32953,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 998,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ne, cached_tokens=None, text_tokens=5199))\n10:07:07 - agent.conversation_loop - INFO [20260910_100636_731f89] - API call #7: model=qwen3.6-plus provider=unknown in=5199 out=104 total=5303 latency=3.2s\n10:07:07 - root - DEBUG [20260910_100636_731f89] - Token usage: prompt=5,199, completion=104, total=5,303\n10:07:07 - root - DEBUG [20260910_100636_731f89] - Captured reasoning (186 chars): All tests pass. The package is created with the Stack type, Push, Pop methods, and a test that verifies push 1,2 and pop order (2,1), plus an underflow check. Let me give a brief report.\n10:07:07 - tools.browser_tool - DEBUG [20260910_100636_731f89] - cleanup_browser called for task_id: fe2067d8-14b6-4ec6-8255-e294a578ab5f\n10:07:07 - tools.browser_tool - DEBUG [20260910_100636_731f89] - Active sessions: []\n10:07:07 - tools.browser_tool - DEBUG [20260910_100636_731f89] - No active session found for task_id: fe2067d8-14b6-4ec6-8255-e294a578ab5f\n10:07:07 - agent.conversation_loop - INFO [20260910_100636_731f89] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=162 session=20260910_100636_731f89\n10:07:07 - tools.terminal_tool - INFO [20260910_100636_731f89] - Shutting down 1 remaining sandbox(es)...\n10:07:07 - tools.terminal_tool - INFO [20260910_100636_731f89] - Manually cleaned up environment for task: default\n10:07:07 - tools.terminal_tool - INFO [20260910_100636_731f89] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 13718,
+      "input_tokens": {
+        "value": 10990,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 212,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add node_modules/ and dist/ to .gitignore, keeping what is there. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "g_tokens=15, rejected_prediction_tokens=None, text_tokens=42), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=3732))\n10:06:47 - agent.conversation_loop - INFO [20260910_100636_993e40] - API call #3: model=qwen3.6-plus provider=unknown in=3732 out=42 total=3774 latency=2.3s\n10:06:47 - root - DEBUG [20260910_100636_993e40] - Token usage: prompt=3,732, completion=42, total=3,774\n10:06:47 - root - DEBUG [20260910_100636_993e40] - Captured reasoning (70 chars): The file already has both entries. I should confirm this to the user.\n\n10:06:47 - tools.browser_tool - DEBUG [20260910_100636_993e40] - cleanup_browser called for task_id: 06319c31-8c34-4901-b5c1-0de2b5bcf8b0\n10:06:47 - tools.browser_tool - DEBUG [20260910_100636_993e40] - Active sessions: []\n10:06:47 - tools.browser_tool - DEBUG [20260910_100636_993e40] - No active session found for task_id: 06319c31-8c34-4901-b5c1-0de2b5bcf8b0\n10:06:47 - agent.conversation_loop - INFO [20260910_100636_993e40] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=80 session=20260910_100636_993e40\n10:06:47 - tools.terminal_tool - INFO [20260910_100636_993e40] - Shutting down 1 remaining sandbox(es)...\n10:06:47 - tools.terminal_tool - INFO [20260910_100636_993e40] - Manually cleaned up environment for task: default\n10:06:47 - tools.terminal_tool - INFO [20260910_100636_993e40] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 13796,
+      "input_tokens": {
+        "value": 13308,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 215,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": " reasoning_tokens=14, rejected_prediction_tokens=None, text_tokens=25), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=4557))\n10:06:47 - agent.conversation_loop - INFO [20260910_100636_ceac00] - API call #3: model=qwen3.6-plus provider=unknown in=4557 out=25 total=4582 latency=2.4s\n10:06:47 - root - DEBUG [20260910_100636_ceac00] - Token usage: prompt=4,557, completion=25, total=4,582\n10:06:47 - root - DEBUG [20260910_100636_ceac00] - Captured reasoning (61 chars): The user asked for a yes/no answer followed by the file name.\n10:06:47 - tools.browser_tool - DEBUG [20260910_100636_ceac00] - cleanup_browser called for task_id: 975ced7c-eb89-4a0a-bca9-10e5d7b4f0c6\n10:06:47 - tools.browser_tool - DEBUG [20260910_100636_ceac00] - Active sessions: []\n10:06:47 - tools.browser_tool - DEBUG [20260910_100636_ceac00] - No active session found for task_id: 975ced7c-eb89-4a0a-bca9-10e5d7b4f0c6\n10:06:47 - agent.conversation_loop - INFO [20260910_100636_ceac00] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=13 session=20260910_100636_ceac00\n10:06:47 - tools.terminal_tool - INFO [20260910_100636_ceac00] - Shutting down 1 remaining sandbox(es)...\n10:06:47 - tools.terminal_tool - INFO [20260910_100636_ceac00] - Manually cleaned up environment for task: default\n10:06:47 - tools.terminal_tool - INFO [20260910_100636_ceac00] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 25453,
+      "input_tokens": {
+        "value": 28369,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 629,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ent.conversation_loop - INFO [20260910_100709_8e15ea] - API call #6: model=qwen3.6-plus provider=unknown in=5098 out=86 total=5184 latency=3.1s\n10:07:33 - root - DEBUG [20260910_100709_8e15ea] - Token usage: prompt=5,098, completion=86, total=5,184\n10:07:33 - root - DEBUG [20260910_100709_8e15ea] - Captured reasoning (244 chars): The user asked for a README.md with:\n1. A title heading - Done (# wc2)\n2. One paragraph on what it does - Done\n3. A Usage section showing the command - Done\n\nThe file has been created and verified. The content matches the requirements exactly.\n\n10:07:33 - tools.browser_tool - DEBUG [20260910_100709_8e15ea] - cleanup_browser called for task_id: b4816341-cffb-4f67-87bd-f35692a202c2\n10:07:33 - tools.browser_tool - DEBUG [20260910_100709_8e15ea] - Active sessions: []\n10:07:33 - tools.browser_tool - DEBUG [20260910_100709_8e15ea] - No active session found for task_id: b4816341-cffb-4f67-87bd-f35692a202c2\n10:07:33 - agent.conversation_loop - INFO [20260910_100709_8e15ea] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=109 session=20260910_100709_8e15ea\n10:07:33 - tools.terminal_tool - INFO [20260910_100709_8e15ea] - Shutting down 1 remaining sandbox(es)...\n10:07:33 - tools.terminal_tool - INFO [20260910_100709_8e15ea] - Manually cleaned up environment for task: default\n10:07:33 - tools.terminal_tool - INFO [20260910_100709_8e15ea] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 18697,
+      "input_tokens": {
+        "value": 18838,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 317,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=3935))\n10:07:26 - agent.conversation_loop - INFO [20260910_100709_17e075] - API call #5: model=qwen3.6-plus provider=unknown in=3935 out=75 total=4010 latency=3.1s\n10:07:26 - root - DEBUG [20260910_100709_17e075] - Token usage: prompt=3,935, completion=75, total=4,010\n10:07:26 - root - DEBUG [20260910_100709_17e075] - Captured reasoning (137 chars): The sorted.csv has been created with rows sorted by score descending: bob (9), ann (7), cid (3). The header is preserved. Task complete.\n\n10:07:26 - tools.browser_tool - DEBUG [20260910_100709_17e075] - cleanup_browser called for task_id: 00b1ea93-41e5-4ce6-b018-f67b33ff4a96\n10:07:26 - tools.browser_tool - DEBUG [20260910_100709_17e075] - Active sessions: []\n10:07:26 - tools.browser_tool - DEBUG [20260910_100709_17e075] - No active session found for task_id: 00b1ea93-41e5-4ce6-b018-f67b33ff4a96\n10:07:26 - agent.conversation_loop - INFO [20260910_100709_17e075] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=137 session=20260910_100709_17e075\n10:07:26 - tools.terminal_tool - INFO [20260910_100709_17e075] - Shutting down 1 remaining sandbox(es)...\n10:07:26 - tools.terminal_tool - INFO [20260910_100709_17e075] - Manually cleaned up environment for task: default\n10:07:26 - tools.terminal_tool - INFO [20260910_100709_17e075] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": false,
+      "reason": "timed out after 3m0s: prompt 1 of 1: signal: killed",
+      "wall_time_ms": 180047,
+      "input_tokens": {
+        "value": 25028,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 998,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Which files mention 'flux capacitor'? List only the file names. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "exit_code": -1,
+      "stderr_excerpt": "0:09:36 - root - DEBUG [20260910_100709_57b22b] - Last message role: tool\n10:09:36 - root - DEBUG [20260910_100709_57b22b] - Total message size: ~4,150 tokens\n10:09:36 - agent.chat_completion_helpers - DEBUG - Cloud reasoning stream — read timeout raised to 180s to match stale-stream detector\n10:09:40 - root - DEBUG [20260910_100709_57b22b] - API Response received - Model: qwen3.6-plus, Usage: CompletionUsage(completion_tokens=109, prompt_tokens=5253, total_tokens=5362, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=43, rejected_prediction_tokens=None, text_tokens=109), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=5253))\n10:09:40 - agent.conversation_loop - INFO [20260910_100709_57b22b] - API call #6: model=qwen3.6-plus provider=unknown in=5253 out=109 total=5362 latency=3.9s\n10:09:40 - root - DEBUG [20260910_100709_57b22b] - Token usage: prompt=5,253, completion=109, total=5,362\n10:09:40 - root - DEBUG [20260910_100709_57b22b] - Tool call: terminal with args: {\"command\": \"grep -rl --include='*' -I \\\"flux capacitor\\\" /home/driver/ 2\u003e/dev/null\", \"timeout\": 120}...\n10:09:40 - root - DEBUG [20260910_100709_57b22b] - Captured reasoning (216 chars): The grep is timing out likely because there are very large files or binary files. Let me try running it in background with notify, and also exclude common large directories like node_modules, .git, and binary files."
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 34516,
+      "input_tokens": {
+        "value": 34377,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1037,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "one, text_tokens=5574))\n10:07:41 - agent.conversation_loop - INFO [20260910_100709_b84f8a] - API call #7: model=qwen3.6-plus provider=unknown in=5574 out=98 total=5672 latency=3.6s\n10:07:41 - root - DEBUG [20260910_100709_b84f8a] - Token usage: prompt=5,574, completion=98, total=5,672\n10:07:41 - root - DEBUG [20260910_100709_b84f8a] - Captured reasoning (206 chars): All three test cases pass. The test file covers empty string, single rune, and multi-byte string (\"héllo\"). The `Reverse` function correctly handles multi-byte UTF-8 by converting to runes before swapping.\n\n10:07:41 - tools.browser_tool - DEBUG [20260910_100709_b84f8a] - cleanup_browser called for task_id: cf16d6ce-a751-4458-998d-1a27cb282d58\n10:07:41 - tools.browser_tool - DEBUG [20260910_100709_b84f8a] - Active sessions: []\n10:07:41 - tools.browser_tool - DEBUG [20260910_100709_b84f8a] - No active session found for task_id: cf16d6ce-a751-4458-998d-1a27cb282d58\n10:07:41 - agent.conversation_loop - INFO [20260910_100709_b84f8a] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=139 session=20260910_100709_b84f8a\n10:07:42 - tools.terminal_tool - INFO [20260910_100709_b84f8a] - Shutting down 1 remaining sandbox(es)...\n10:07:42 - tools.terminal_tool - INFO [20260910_100709_b84f8a] - Manually cleaned up environment for task: default\n10:07:42 - tools.terminal_tool - INFO [20260910_100709_b84f8a] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 27448,
+      "input_tokens": {
+        "value": 27591,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 699,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --model qwen3.6-plus --base_url https://coding-intl.dashscope.aliyuncs.com/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "s=111), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=None, text_tokens=4940))\n10:07:34 - agent.conversation_loop - INFO [20260910_100709_3cac27] - API call #6: model=qwen3.6-plus provider=unknown in=4940 out=111 total=5051 latency=3.7s\n10:07:34 - root - DEBUG [20260910_100709_3cac27] - Token usage: prompt=4,940, completion=111, total=5,051\n10:07:34 - root - DEBUG [20260910_100709_3cac27] - Captured reasoning (121 chars): The program works correctly:\n- When PORT is unset, it prints 3000\n- When PORT=8080, it prints 8080\n\nThe task is complete.\n10:07:34 - tools.browser_tool - DEBUG [20260910_100709_3cac27] - cleanup_browser called for task_id: 0ffd38ea-418c-40b5-aae2-df21752ebe39\n10:07:34 - tools.browser_tool - DEBUG [20260910_100709_3cac27] - Active sessions: []\n10:07:34 - tools.browser_tool - DEBUG [20260910_100709_3cac27] - No active session found for task_id: 0ffd38ea-418c-40b5-aae2-df21752ebe39\n10:07:34 - agent.conversation_loop - INFO [20260910_100709_3cac27] - Turn ended: reason=text_response(finish_reason=stop) model=qwen3.6-plus api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=147 session=20260910_100709_3cac27\n10:07:35 - tools.terminal_tool - INFO [20260910_100709_3cac27] - Shutting down 1 remaining sandbox(es)...\n10:07:35 - tools.terminal_tool - INFO [20260910_100709_3cac27] - Manually cleaned up environment for task: default\n10:07:35 - tools.terminal_tool - INFO [20260910_100709_3cac27] - Cleaned 1 environments"
+    }
+  ],
+  "janetcode": [
+    {
+      "harness": "janetcode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 8569,
+      "input_tokens": {
+        "value": 4471,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 208,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8484,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 01-create-file --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 13775,
+      "input_tokens": {
+        "value": 5010,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 362,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13172,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 13734,
+      "input_tokens": {
+        "value": 5022,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 387,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13388,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9587,
+      "input_tokens": {
+        "value": 4762,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 236,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8525,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 14971,
+      "input_tokens": {
+        "value": 4960,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 444,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13515,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 9488,
+      "input_tokens": {
+        "value": 4518,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 250,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8609,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 17427,
+      "input_tokens": {
+        "value": 4665,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 188,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8495,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 9746,
+      "input_tokens": {
+        "value": 4600,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 300,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8487,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 25092,
+      "input_tokens": {
+        "value": 4850,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 318,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 32861,
+      "input_tokens": {
+        "value": 4578,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 184,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12806,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 43252,
+      "input_tokens": {
+        "value": 5408,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 509,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17982,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 21361,
+      "input_tokens": {
+        "value": 4943,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 416,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13288,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 15193,
+      "input_tokens": {
+        "value": 4832,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 559,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8910,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 8869,
+      "input_tokens": {
+        "value": 4501,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 216,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8486,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 4911,
+      "input_tokens": {
+        "value": 4455,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 82,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4235,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14403,
+      "input_tokens": {
+        "value": 4889,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 454,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13080,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 16-readme --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 13026,
+      "input_tokens": {
+        "value": 4859,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 352,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12854,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model qwen3.6-plus",
+      "exit_code": 1,
+      "stderr_excerpt": "running 5 eval tasks × 1 with openai/qwen3.6-plus (5 at a time)\nFAIL 17-csv-sort (13s, 3 tool calls, ?)\n    check failed: exit status 1\nPASS 16-readme (14.4s, 4 tool calls, ?)\nPASS 19-write-test (19.9s, 5 tool calls, ?)\nPASS 20-env-default (21.8s, 3 tool calls, ?)\nPASS 18-find-mentions (24.4s, 1 tool calls, ?)\nwrote /tmp/janetcode-batch-305210127/batch4.json\njanetcode: 1 of 5 eval tasks failed"
+    },
+    {
+      "harness": "janetcode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 24391,
+      "input_tokens": {
+        "value": 4369,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 98,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4234,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 19910,
+      "input_tokens": {
+        "value": 5276,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 607,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17409,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 19-write-test --provider openai --model qwen3.6-plus"
+    },
+    {
+      "harness": "janetcode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 21844,
+      "input_tokens": {
+        "value": 4792,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 321,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12990,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "janetcode --eval --eval-only 20-env-default --provider openai --model qwen3.6-plus"
+    }
+  ],
+  "openclaw": [
+    {
+      "harness": "openclaw",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 18169,
+      "input_tokens": {
+        "value": 69966,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 116,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-3163723575 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027924516123112 --message Create a file named hello.txt containing exactly the text: hello world",
+      "stderr_excerpt": "[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=4762 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2528 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ec6f2175-7127-4572-8e1f-43b8e1315262 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 27868,
+      "input_tokens": {
+        "value": 140834,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 378,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-2037862247 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027924249561554 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+      "stderr_excerpt": "type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=3276 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2608 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b7330ebf-03ba-4e9d-b239-7347c80f763c ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 27793,
+      "input_tokens": {
+        "value": 140780,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 467,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-3723596127 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027924417353722 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+      "stderr_excerpt": "[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=1783 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2427 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run f919373a-dd6b-4a57-825d-fd3ea9828ecb ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 24157,
+      "input_tokens": {
+        "value": 105460,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 321,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-79124254 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027924216392949 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+      "stderr_excerpt": "type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2654 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2238 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 922815a5-ce2d-44ff-9f8b-8aaef5771258 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 45496,
+      "input_tokens": {
+        "value": 179384,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1301,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 13,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-2474074436 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027924188701584 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+      "stderr_excerpt": "type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2617 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2827 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run e0abb92a-86e4-43a8-944f-ad3ab095a22b ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 27184,
+      "input_tokens": {
+        "value": 141287,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 475,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-18518336 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027969686983460 --message What does Compute(3) return? Reply with just the number.",
+      "stderr_excerpt": "rovider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2600 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2854 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2385 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 7d38d937-3605-4791-99d4-0d4fbfc85068 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 20684,
+      "input_tokens": {
+        "value": 105191,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 262,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-1682774395 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027969663432000 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+      "stderr_excerpt": "6-plus status=200 elapsedMs=3145 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2353 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2554 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 7736cbef-289e-4ade-b454-b26eda884e31 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 15622,
+      "input_tokens": {
+        "value": 69978,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 159,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-3872140617 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027969493950237 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+      "stderr_excerpt": "[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2873 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=1806 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 8f92bf3b-1bc4-4d06-ad8c-5c2c02b623e7 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 24988,
+      "input_tokens": {
+        "value": 140403,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 380,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-4065860139 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027969389584565 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+      "stderr_excerpt": "lus status=200 elapsedMs=2442 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2460 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2429 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 06b89a4e-67ed-4dd4-a1cb-f9f302301a9a ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 20424,
+      "input_tokens": {
+        "value": 105105,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 240,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-1948687766 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027969532475012 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+      "stderr_excerpt": "6-plus status=200 elapsedMs=3085 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2755 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2423 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 54ab1a3b-74ab-4ee1-9a86-e65268e913f9 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 35080,
+      "input_tokens": {
+        "value": 176565,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 640,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-1970712027 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027996753049679 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+      "stderr_excerpt": "lus status=200 elapsedMs=3142 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2340 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2589 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b0f5a5d3-439d-4968-9fcf-57b235683c33 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 31480,
+      "input_tokens": {
+        "value": 140817,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 611,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-775541899 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027997055575008 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+      "stderr_excerpt": "type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2779 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2421 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c87aade3-5b30-4bde-95d9-1277f3618168 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 34189,
+      "input_tokens": {
+        "value": 141597,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 734,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-185971839 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027997067565342 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+      "stderr_excerpt": "lus status=200 elapsedMs=2785 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2518 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2637 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 15d414b3-f292-42c5-855c-2f2821c32f75 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 24124,
+      "input_tokens": {
+        "value": 105068,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 268,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-1330995049 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027996748359873 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+      "stderr_excerpt": "6-plus status=200 elapsedMs=5186 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2871 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=3526 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c957a829-45da-417b-a662-e923b615b9a9 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 17793,
+      "input_tokens": {
+        "value": 70023,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 122,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-2995487602 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789027996754789322 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+      "stderr_excerpt": "[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=4628 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2772 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 216334e8-8c06-4395-bf64-4c72d73379af ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 28670,
+      "input_tokens": {
+        "value": 141351,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 572,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-16-readme-3666421141 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789028032118658865 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+      "stderr_excerpt": "*********************d1c5. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2669 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d5987ca1-461a-4361-b3bd-aa55d47bffe7 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 24011,
+      "input_tokens": {
+        "value": 140331,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 304,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-3370848159 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789028031993394825 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+      "stderr_excerpt": "lus status=200 elapsedMs=2668 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2669 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2474 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d4c594a0-8f2c-43c0-a251-400a5eae812c ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 20362,
+      "input_tokens": {
+        "value": 105238,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 224,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-1279690572 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789028032159017503 --message Which files mention 'flux capacitor'? List only the file names.",
+      "stderr_excerpt": "6-plus status=200 elapsedMs=2911 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2596 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2630 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 05332620-0fb1-4b2a-93de-f05906195c69 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 41647,
+      "input_tokens": {
+        "value": 179627,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 884,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-4217851851 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789028031947815342 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+      "stderr_excerpt": "type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=3269 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2252 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 8843b4a1-9452-48b9-86c0-9ec61dcca728 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 25246,
+      "input_tokens": {
+        "value": 105237,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 300,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-3255157555 agent --local --json --model bench/qwen3.6-plus --session-id bench-0-1789028032166221332 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+      "stderr_excerpt": "type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=5258 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.6-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.6-plus status=200 elapsedMs=2308 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 45ea9569-2c15-44bc-b306-0e49777f2242 ended with stopReason=stop\u001b[39m"
+    }
+  ],
+  "pi": [
+    {
+      "harness": "pi",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 6985,
+      "input_tokens": {
+        "value": 35518,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 90,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "pi",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 26324,
+      "input_tokens": {
+        "value": 72019,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 377,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 23221,
+      "input_tokens": {
+        "value": 109040,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 632,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "pi",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 11610,
+      "input_tokens": {
+        "value": 35761,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 346,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "pi",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 46033,
+      "input_tokens": {
+        "value": 93496,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 829,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "pi",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 12627,
+      "input_tokens": {
+        "value": 54711,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 296,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "pi",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11530,
+      "input_tokens": {
+        "value": 53605,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 249,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "pi",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11113,
+      "input_tokens": {
+        "value": 53428,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 212,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "pi",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 27661,
+      "input_tokens": {
+        "value": 108644,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 475,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "pi",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 21336,
+      "input_tokens": {
+        "value": 71494,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 285,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "pi",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 24792,
+      "input_tokens": {
+        "value": 109318,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 688,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 14722,
+      "input_tokens": {
+        "value": 71836,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 331,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "pi",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 22234,
+      "input_tokens": {
+        "value": 90982,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 629,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 17756,
+      "input_tokens": {
+        "value": 89928,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 406,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "pi",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 7863,
+      "input_tokens": {
+        "value": 35592,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 125,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "pi",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14442,
+      "input_tokens": {
+        "value": 72169,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 366,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "pi",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 10367,
+      "input_tokens": {
+        "value": 53536,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 229,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "pi",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 7984,
+      "input_tokens": {
+        "value": 35634,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 160,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "pi",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 22174,
+      "input_tokens": {
+        "value": 92641,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 648,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "pi",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 11359,
+      "input_tokens": {
+        "value": 53669,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 277,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": true
+      },
+      "command": "pi -p --mode json --provider dashscope --model qwen3.6-plus --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ],
+  "qwencode": [
+    {
+      "harness": "qwencode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 15217,
+      "input_tokens": {
+        "value": 42924,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 151,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41829,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "qwencode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 24662,
+      "input_tokens": {
+        "value": 43590,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 495,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 126364,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 26001,
+      "input_tokens": {
+        "value": 44227,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 683,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127509,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "qwencode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 18251,
+      "input_tokens": {
+        "value": 43226,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 376,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83714,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "qwencode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 28243,
+      "input_tokens": {
+        "value": 44052,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 790,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127052,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 8,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "qwencode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 14251,
+      "input_tokens": {
+        "value": 42828,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 195,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41723,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "qwencode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 16726,
+      "input_tokens": {
+        "value": 43179,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 322,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83720,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "qwencode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 19719,
+      "input_tokens": {
+        "value": 43143,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 295,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83744,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "qwencode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 18721,
+      "input_tokens": {
+        "value": 43011,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 273,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83582,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "qwencode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 17988,
+      "input_tokens": {
+        "value": 42935,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 233,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83496,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "qwencode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 37577,
+      "input_tokens": {
+        "value": 44102,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 939,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 211757,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 23569,
+      "input_tokens": {
+        "value": 43756,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 556,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 126709,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "qwencode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 26959,
+      "input_tokens": {
+        "value": 43556,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 633,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 126312,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 15745,
+      "input_tokens": {
+        "value": 43038,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 264,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83678,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "qwencode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 13512,
+      "input_tokens": {
+        "value": 42813,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 136,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41704,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "qwencode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 20224,
+      "input_tokens": {
+        "value": 43147,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 359,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83692,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "qwencode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 15981,
+      "input_tokens": {
+        "value": 42964,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 278,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83479,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "qwencode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 12223,
+      "input_tokens": {
+        "value": 42892,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 119,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41777,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "qwencode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 24725,
+      "input_tokens": {
+        "value": 43510,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 561,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 125875,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "qwencode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14472,
+      "input_tokens": {
+        "value": 42949,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 235,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41795,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.6-plus --max-session-turns 40 --max-wall-time 180s Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ]
+}

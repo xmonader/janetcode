@@ -1,0 +1,702 @@
+[
+  {
+    "harness": "janetcode",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 1763,
+    "input_tokens": {
+      "value": 3169,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 70,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5024,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00034302599999999996,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 01-create-file --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 4788,
+    "input_tokens": {
+      "value": 7127,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 233,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 10304,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000776106,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 6336,
+    "input_tokens": {
+      "value": 8291,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 432,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 14304,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0009526859999999999,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 5507,
+    "input_tokens": {
+      "value": 6613,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 394,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 6208,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0007219619999999999,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 6896,
+    "input_tokens": {
+      "value": 3716,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 540,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 14624,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 7,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000563256,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 2653,
+    "input_tokens": {
+      "value": 7321,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 129,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5088,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0007279020000000001,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 2839,
+    "input_tokens": {
+      "value": 3338,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 148,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9248,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00041029200000000004,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 4962,
+    "input_tokens": {
+      "value": 6615,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 350,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 14464,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000788526,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 3658,
+    "input_tokens": {
+      "value": 7357,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 194,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5184,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0007437060000000001,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 2807,
+    "input_tokens": {
+      "value": 7313,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 156,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5120,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00073233,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 6699,
+    "input_tokens": {
+      "value": 7340,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 493,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 15616,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000889884,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 4514,
+    "input_tokens": {
+      "value": 3586,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 291,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 13760,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00049896,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 14545,
+    "input_tokens": {
+      "value": 12369,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1301,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 16320,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 10,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00149427,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 3275,
+    "input_tokens": {
+      "value": 3267,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 211,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9216,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000414954,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 1669,
+    "input_tokens": {
+      "value": 3190,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 83,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5152,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000348408,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 5625,
+    "input_tokens": {
+      "value": 10596,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 350,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 11168,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001117152,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 16-readme --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 2928,
+    "input_tokens": {
+      "value": 3268,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 186,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9216,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000410544,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 1473,
+    "input_tokens": {
+      "value": 3174,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 62,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5024,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00034203600000000004,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 10916,
+    "input_tokens": {
+      "value": 3855,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 830,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 23360,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00070659,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 19-write-test --provider openai --model poolside/laguna-s-2.1"
+  },
+  {
+    "harness": "janetcode",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 9988,
+    "input_tokens": {
+      "value": 7592,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 751,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 28128,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 8,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001071612,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 20-env-default --provider openai --model poolside/laguna-s-2.1"
+  }
+]

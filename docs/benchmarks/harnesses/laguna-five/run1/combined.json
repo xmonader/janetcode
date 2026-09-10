@@ -1,0 +1,3459 @@
+{
+  "hermes-agent": [
+    {
+      "harness": "hermes-agent",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 5132,
+      "input_tokens": {
+        "value": 3362,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 80,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1440,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a file named hello.txt containing exactly the text: hello world --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "romptTokensDetails(audio_tokens=0, cached_tokens=736, cache_write_tokens=0, video_tokens=0), cost=0.000162504, is_byok=False, cost_details={'upstream_inference_cost': 0.000162504, 'upstream_inference_prompt_cost': 0.000159264, 'upstream_inference_completions_cost': 3.24e-06})\n11:02:53 - agent.conversation_loop - INFO [20260910_110250_22d99e] - API call #2: model=poolside/laguna-s-2.1 provider=unknown in=2432 out=18 total=2450 latency=0.9s cache=736/2432 (30%)\n11:02:53 - root - DEBUG [20260910_110250_22d99e] - Token usage: prompt=2,432, completion=18, total=2,450\n11:02:53 - tools.browser_tool - DEBUG [20260910_110250_22d99e] - cleanup_browser called for task_id: ca11b88e-c9df-4293-95b1-09eee79ed9bb\n11:02:53 - tools.browser_tool - DEBUG [20260910_110250_22d99e] - Active sessions: []\n11:02:53 - tools.browser_tool - DEBUG [20260910_110250_22d99e] - No active session found for task_id: ca11b88e-c9df-4293-95b1-09eee79ed9bb\n11:02:53 - agent.conversation_loop - INFO [20260910_110250_22d99e] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=68 session=20260910_110250_22d99e\n11:02:53 - tools.terminal_tool - INFO [20260910_110250_22d99e] - Shutting down 1 remaining sandbox(es)...\n11:02:53 - tools.terminal_tool - INFO [20260910_110250_22d99e] - Manually cleaned up environment for task: default\n11:02:53 - tools.terminal_tool - INFO [20260910_110250_22d99e] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 15724,
+      "input_tokens": {
+        "value": 5452,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 755,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15616,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "omptTokensDetails(audio_tokens=0, cached_tokens=3808, cache_write_tokens=0, video_tokens=0), cost=7.0452e-05, is_byok=False, cost_details={'upstream_inference_cost': 7.0452e-05, 'upstream_inference_prompt_cost': 5.4612e-05, 'upstream_inference_completions_cost': 1.584e-05})\n11:03:03 - agent.conversation_loop - INFO [20260910_110249_cd12f6] - API call #6: model=poolside/laguna-s-2.1 provider=unknown in=4034 out=88 total=4122 latency=1.1s cache=3808/4034 (94%)\n11:03:03 - root - DEBUG [20260910_110249_cd12f6] - Token usage: prompt=4,034, completion=88, total=4,122\n11:03:03 - tools.browser_tool - DEBUG [20260910_110249_cd12f6] - cleanup_browser called for task_id: 81548819-56a9-4c6f-846a-bed7d7934c63\n11:03:03 - tools.browser_tool - DEBUG [20260910_110249_cd12f6] - Active sessions: []\n11:03:03 - tools.browser_tool - DEBUG [20260910_110249_cd12f6] - No active session found for task_id: 81548819-56a9-4c6f-846a-bed7d7934c63\n11:03:03 - agent.conversation_loop - INFO [20260910_110249_cd12f6] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=235 session=20260910_110249_cd12f6\n11:03:03 - tools.terminal_tool - INFO [20260910_110249_cd12f6] - Shutting down 1 remaining sandbox(es)...\n11:03:03 - tools.terminal_tool - INFO [20260910_110249_cd12f6] - Manually cleaned up environment for task: default\n11:03:03 - tools.terminal_tool - INFO [20260910_110249_cd12f6] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 13060,
+      "input_tokens": {
+        "value": 5999,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 489,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7424,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query go test fails. Find the bug and fix it in the implementation, not the test. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "romptTokensDetails(audio_tokens=0, cached_tokens=3456, cache_write_tokens=0, video_tokens=0), cost=5.8734e-05, is_byok=False, cost_details={'upstream_inference_cost': 5.8734e-05, 'upstream_inference_prompt_cost': 4.9554e-05, 'upstream_inference_completions_cost': 9.18e-06})\n11:03:00 - agent.conversation_loop - INFO [20260910_110249_5eba2b] - API call #4: model=poolside/laguna-s-2.1 provider=unknown in=3661 out=51 total=3712 latency=1.2s cache=3456/3661 (94%)\n11:03:00 - root - DEBUG [20260910_110249_5eba2b] - Token usage: prompt=3,661, completion=51, total=3,712\n11:03:00 - tools.browser_tool - DEBUG [20260910_110249_5eba2b] - cleanup_browser called for task_id: 7910f1d5-ca09-477d-b326-995c0052fb7a\n11:03:00 - tools.browser_tool - DEBUG [20260910_110249_5eba2b] - Active sessions: []\n11:03:00 - tools.browser_tool - DEBUG [20260910_110249_5eba2b] - No active session found for task_id: 7910f1d5-ca09-477d-b326-995c0052fb7a\n11:03:00 - agent.conversation_loop - INFO [20260910_110249_5eba2b] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=129 session=20260910_110249_5eba2b\n11:03:01 - tools.terminal_tool - INFO [20260910_110249_5eba2b] - Shutting down 1 remaining sandbox(es)...\n11:03:01 - tools.terminal_tool - INFO [20260910_110249_5eba2b] - Manually cleaned up environment for task: default\n11:03:01 - tools.terminal_tool - INFO [20260910_110249_5eba2b] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 10102,
+      "input_tokens": {
+        "value": 4377,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 419,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3456,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "omptTokensDetails(audio_tokens=0, cached_tokens=2752, cache_write_tokens=0, video_tokens=0), cost=4.4568e-05, is_byok=False, cost_details={'upstream_inference_cost': 4.4568e-05, 'upstream_inference_prompt_cost': 3.0888e-05, 'upstream_inference_completions_cost': 1.368e-05})\n11:02:57 - agent.conversation_loop - INFO [20260910_110249_178576] - API call #3: model=poolside/laguna-s-2.1 provider=unknown in=2820 out=76 total=2896 latency=1.4s cache=2752/2820 (98%)\n11:02:57 - root - DEBUG [20260910_110249_178576] - Token usage: prompt=2,820, completion=76, total=2,896\n11:02:57 - tools.browser_tool - DEBUG [20260910_110249_178576] - cleanup_browser called for task_id: e8193ca8-600c-4975-865d-d01223c05425\n11:02:57 - tools.browser_tool - DEBUG [20260910_110249_178576] - Active sessions: []\n11:02:57 - tools.browser_tool - DEBUG [20260910_110249_178576] - No active session found for task_id: e8193ca8-600c-4975-865d-d01223c05425\n11:02:57 - agent.conversation_loop - INFO [20260910_110249_178576] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=179 session=20260910_110249_178576\n11:02:58 - tools.terminal_tool - INFO [20260910_110249_178576] - Shutting down 1 remaining sandbox(es)...\n11:02:58 - tools.terminal_tool - INFO [20260910_110249_178576] - Manually cleaned up environment for task: default\n11:02:58 - tools.terminal_tool - INFO [20260910_110249_178576] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 23187,
+      "input_tokens": {
+        "value": 9120,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 643,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 16416,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "romptTokensDetails(audio_tokens=0, cached_tokens=4064, cache_write_tokens=0, video_tokens=0), cost=4.6386e-05, is_byok=False, cost_details={'upstream_inference_cost': 4.6386e-05, 'upstream_inference_prompt_cost': 3.9366e-05, 'upstream_inference_completions_cost': 7.02e-06})\n11:03:10 - agent.conversation_loop - INFO [20260910_110249_add373] - API call #7: model=poolside/laguna-s-2.1 provider=unknown in=4095 out=39 total=4134 latency=0.9s cache=4064/4095 (99%)\n11:03:10 - root - DEBUG [20260910_110249_add373] - Token usage: prompt=4,095, completion=39, total=4,134\n11:03:10 - tools.browser_tool - DEBUG [20260910_110249_add373] - cleanup_browser called for task_id: fd1febae-2c8f-4f4d-bf0d-eeaf4d520da4\n11:03:10 - tools.browser_tool - DEBUG [20260910_110249_add373] - Active sessions: []\n11:03:10 - tools.browser_tool - DEBUG [20260910_110249_add373] - No active session found for task_id: fd1febae-2c8f-4f4d-bf0d-eeaf4d520da4\n11:03:10 - agent.conversation_loop - INFO [20260910_110249_add373] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=136 session=20260910_110249_add373\n11:03:11 - tools.terminal_tool - INFO [20260910_110249_add373] - Shutting down 1 remaining sandbox(es)...\n11:03:11 - tools.terminal_tool - INFO [20260910_110249_add373] - Manually cleaned up environment for task: default\n11:03:11 - tools.terminal_tool - INFO [20260910_110249_add373] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 3444,
+      "input_tokens": {
+        "value": 2300,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 33,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 704,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 1,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query What does Compute(3) return? Reply with just the number. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "- Model: poolside/laguna-s-2.1, Usage: CompletionUsage(completion_tokens=33, prompt_tokens=3004, total_tokens=3037, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=0, reasoning_tokens=0, rejected_prediction_tokens=None, image_tokens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=704, cache_write_tokens=0, video_tokens=0), cost=0.000219276, is_byok=False, cost_details={'upstream_inference_cost': 0.000219276, 'upstream_inference_prompt_cost': 0.000213336, 'upstream_inference_completions_cost': 5.94e-06})\n11:03:14 - agent.conversation_loop - INFO [20260910_110313_26f432] - API call #1: model=poolside/laguna-s-2.1 provider=unknown in=3004 out=33 total=3037 latency=0.8s cache=704/3004 (23%)\n11:03:14 - root - DEBUG [20260910_110313_26f432] - Token usage: prompt=3,004, completion=33, total=3,037\n11:03:14 - tools.browser_tool - DEBUG [20260910_110313_26f432] - cleanup_browser called for task_id: 55d97125-a7ac-49a4-b6e5-4f71257a5898\n11:03:14 - tools.browser_tool - DEBUG [20260910_110313_26f432] - Active sessions: []\n11:03:14 - tools.browser_tool - DEBUG [20260910_110313_26f432] - No active session found for task_id: 55d97125-a7ac-49a4-b6e5-4f71257a5898\n11:03:14 - agent.conversation_loop - INFO [20260910_110313_26f432] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=1/40 budget=1/40 tool_turns=0 last_msg_role=assistant response_len=148 session=20260910_110313_26f432"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 20303,
+      "input_tokens": {
+        "value": 2383,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 457,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15168,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query In config.json change the port to 8080. Keep every other key exactly as it is. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "s=PromptTokensDetails(audio_tokens=0, cached_tokens=3200, cache_write_tokens=0, video_tokens=0), cost=4.437e-05, is_byok=False, cost_details={'upstream_inference_cost': 4.437e-05, 'upstream_inference_prompt_cost': 3.753e-05, 'upstream_inference_completions_cost': 6.84e-06})\n11:03:31 - agent.conversation_loop - INFO [20260910_110313_45260d] - API call #6: model=poolside/laguna-s-2.1 provider=unknown in=3297 out=38 total=3335 latency=0.7s cache=3200/3297 (97%)\n11:03:31 - root - DEBUG [20260910_110313_45260d] - Token usage: prompt=3,297, completion=38, total=3,335\n11:03:31 - tools.browser_tool - DEBUG [20260910_110313_45260d] - cleanup_browser called for task_id: 104a2b86-7714-4f28-a9a9-1a2e472ea0d3\n11:03:31 - tools.browser_tool - DEBUG [20260910_110313_45260d] - Active sessions: []\n11:03:31 - tools.browser_tool - DEBUG [20260910_110313_45260d] - No active session found for task_id: 104a2b86-7714-4f28-a9a9-1a2e472ea0d3\n11:03:31 - agent.conversation_loop - INFO [20260910_110313_45260d] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=103 session=20260910_110313_45260d\n11:03:31 - tools.terminal_tool - INFO [20260910_110313_45260d] - Shutting down 1 remaining sandbox(es)...\n11:03:31 - tools.terminal_tool - INFO [20260910_110313_45260d] - Manually cleaned up environment for task: default\n11:03:31 - tools.terminal_tool - INFO [20260910_110313_45260d] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 8727,
+      "input_tokens": {
+        "value": 3537,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 309,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6592,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write count.sh that prints the number of lines in input.txt and nothing else. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "romptTokensDetails(audio_tokens=0, cached_tokens=2656, cache_write_tokens=0, video_tokens=0), cost=3.4344e-05, is_byok=False, cost_details={'upstream_inference_cost': 3.4344e-05, 'upstream_inference_prompt_cost': 2.7504e-05, 'upstream_inference_completions_cost': 6.84e-06})\n11:03:19 - agent.conversation_loop - INFO [20260910_110313_b71695] - API call #4: model=poolside/laguna-s-2.1 provider=unknown in=2696 out=38 total=2734 latency=0.8s cache=2656/2696 (99%)\n11:03:19 - root - DEBUG [20260910_110313_b71695] - Token usage: prompt=2,696, completion=38, total=2,734\n11:03:19 - tools.browser_tool - DEBUG [20260910_110313_b71695] - cleanup_browser called for task_id: 64ced2de-3169-49b2-8b8c-8f8e70e9ca23\n11:03:19 - tools.browser_tool - DEBUG [20260910_110313_b71695] - Active sessions: []\n11:03:19 - tools.browser_tool - DEBUG [20260910_110313_b71695] - No active session found for task_id: 64ced2de-3169-49b2-8b8c-8f8e70e9ca23\n11:03:19 - agent.conversation_loop - INFO [20260910_110313_b71695] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=138 session=20260910_110313_b71695\n11:03:20 - tools.terminal_tool - INFO [20260910_110313_b71695] - Shutting down 1 remaining sandbox(es)...\n11:03:20 - tools.terminal_tool - INFO [20260910_110313_b71695] - Manually cleaned up environment for task: default\n11:03:20 - tools.terminal_tool - INFO [20260910_110313_b71695] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11775,
+      "input_tokens": {
+        "value": 8767,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 584,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 18304,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a greet target to the Makefile that prints hi. Keep the existing targets. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "romptTokensDetails(audio_tokens=0, cached_tokens=3744, cache_write_tokens=0, video_tokens=0), cost=5.0436e-05, is_byok=False, cost_details={'upstream_inference_cost': 5.0436e-05, 'upstream_inference_prompt_cost': 4.0896e-05, 'upstream_inference_completions_cost': 9.54e-06})\n11:03:22 - agent.conversation_loop - INFO [20260910_110313_568f8f] - API call #8: model=poolside/laguna-s-2.1 provider=unknown in=3824 out=53 total=3877 latency=0.8s cache=3744/3824 (98%)\n11:03:22 - root - DEBUG [20260910_110313_568f8f] - Token usage: prompt=3,824, completion=53, total=3,877\n11:03:22 - tools.browser_tool - DEBUG [20260910_110313_568f8f] - cleanup_browser called for task_id: a7dd2097-2bea-4a8f-ae8e-0ada3bdc2f90\n11:03:22 - tools.browser_tool - DEBUG [20260910_110313_568f8f] - Active sessions: []\n11:03:22 - tools.browser_tool - DEBUG [20260910_110313_568f8f] - No active session found for task_id: a7dd2097-2bea-4a8f-ae8e-0ada3bdc2f90\n11:03:22 - agent.conversation_loop - INFO [20260910_110313_568f8f] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=8/40 budget=8/40 tool_turns=7 last_msg_role=assistant response_len=192 session=20260910_110313_568f8f\n11:03:23 - tools.terminal_tool - INFO [20260910_110313_568f8f] - Shutting down 1 remaining sandbox(es)...\n11:03:23 - tools.terminal_tool - INFO [20260910_110313_568f8f] - Manually cleaned up environment for task: default\n11:03:23 - tools.terminal_tool - INFO [20260910_110313_568f8f] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 4821,
+      "input_tokens": {
+        "value": 3403,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 82,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1408,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Append the line 'four' to the end of list.txt. Do not change the existing lines. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "romptTokensDetails(audio_tokens=0, cached_tokens=704, cache_write_tokens=0, video_tokens=0), cost=0.000165006, is_byok=False, cost_details={'upstream_inference_cost': 0.000165006, 'upstream_inference_prompt_cost': 0.000161946, 'upstream_inference_completions_cost': 3.06e-06})\n11:03:15 - agent.conversation_loop - INFO [20260910_110313_b6b996] - API call #2: model=poolside/laguna-s-2.1 provider=unknown in=2433 out=17 total=2450 latency=0.5s cache=704/2433 (29%)\n11:03:15 - root - DEBUG [20260910_110313_b6b996] - Token usage: prompt=2,433, completion=17, total=2,450\n11:03:15 - tools.browser_tool - DEBUG [20260910_110313_b6b996] - cleanup_browser called for task_id: b2abebb3-3789-4baf-a4e2-cf1ce400104a\n11:03:15 - tools.browser_tool - DEBUG [20260910_110313_b6b996] - Active sessions: []\n11:03:15 - tools.browser_tool - DEBUG [20260910_110313_b6b996] - No active session found for task_id: b2abebb3-3789-4baf-a4e2-cf1ce400104a\n11:03:15 - agent.conversation_loop - INFO [20260910_110313_b6b996] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=65 session=20260910_110313_b6b996\n11:03:16 - tools.terminal_tool - INFO [20260910_110313_b6b996] - Shutting down 1 remaining sandbox(es)...\n11:03:16 - tools.terminal_tool - INFO [20260910_110313_b6b996] - Manually cleaned up environment for task: default\n11:03:16 - tools.terminal_tool - INFO [20260910_110313_b6b996] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 11144,
+      "input_tokens": {
+        "value": 6045,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 541,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11328,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "tTokensDetails(audio_tokens=0, cached_tokens=704, cache_write_tokens=0, video_tokens=0), cost=0.000308826, is_byok=False, cost_details={'upstream_inference_cost': 0.000308826, 'upstream_inference_prompt_cost': 0.000289566, 'upstream_inference_completions_cost': 1.926e-05})\n11:03:42 - agent.conversation_loop - INFO [20260910_110333_8a2e99] - API call #5: model=poolside/laguna-s-2.1 provider=unknown in=3851 out=107 total=3958 latency=1.6s cache=704/3851 (18%)\n11:03:42 - root - DEBUG [20260910_110333_8a2e99] - Token usage: prompt=3,851, completion=107, total=3,958\n11:03:42 - tools.browser_tool - DEBUG [20260910_110333_8a2e99] - cleanup_browser called for task_id: 890fcc9d-2a6f-42ee-9f09-0228997752f0\n11:03:42 - tools.browser_tool - DEBUG [20260910_110333_8a2e99] - Active sessions: []\n11:03:42 - tools.browser_tool - DEBUG [20260910_110333_8a2e99] - No active session found for task_id: 890fcc9d-2a6f-42ee-9f09-0228997752f0\n11:03:42 - agent.conversation_loop - INFO [20260910_110333_8a2e99] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=398 session=20260910_110333_8a2e99\n11:03:42 - tools.terminal_tool - INFO [20260910_110333_8a2e99] - Shutting down 1 remaining sandbox(es)...\n11:03:42 - tools.terminal_tool - INFO [20260910_110333_8a2e99] - Manually cleaned up environment for task: default\n11:03:42 - tools.terminal_tool - INFO [20260910_110333_8a2e99] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 11319,
+      "input_tokens": {
+        "value": 6835,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 619,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10816,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query python3 test_stats.py fails. Fix the bug in stats.py. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ls=PromptTokensDetails(audio_tokens=0, cached_tokens=3520, cache_write_tokens=0, video_tokens=0), cost=7.92e-05, is_byok=False, cost_details={'upstream_inference_cost': 7.92e-05, 'upstream_inference_prompt_cost': 6.732e-05, 'upstream_inference_completions_cost': 1.188e-05})\n11:03:42 - agent.conversation_loop - INFO [20260910_110333_e6ff6a] - API call #5: model=poolside/laguna-s-2.1 provider=unknown in=3916 out=66 total=3982 latency=1.0s cache=3520/3916 (90%)\n11:03:42 - root - DEBUG [20260910_110333_e6ff6a] - Token usage: prompt=3,916, completion=66, total=3,982\n11:03:42 - tools.browser_tool - DEBUG [20260910_110333_e6ff6a] - cleanup_browser called for task_id: ec34e62d-f853-46d8-9f05-47ee2ca3263a\n11:03:42 - tools.browser_tool - DEBUG [20260910_110333_e6ff6a] - Active sessions: []\n11:03:42 - tools.browser_tool - DEBUG [20260910_110333_e6ff6a] - No active session found for task_id: ec34e62d-f853-46d8-9f05-47ee2ca3263a\n11:03:42 - agent.conversation_loop - INFO [20260910_110333_e6ff6a] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=201 session=20260910_110333_e6ff6a\n11:03:42 - tools.terminal_tool - INFO [20260910_110333_e6ff6a] - Shutting down 1 remaining sandbox(es)...\n11:03:42 - tools.terminal_tool - INFO [20260910_110333_e6ff6a] - Manually cleaned up environment for task: default\n11:03:42 - tools.terminal_tool - INFO [20260910_110333_e6ff6a] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 14178,
+      "input_tokens": {
+        "value": 3093,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 941,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 18624,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "omptTokensDetails(audio_tokens=0, cached_tokens=4064, cache_write_tokens=0, video_tokens=0), cost=5.7006e-05, is_byok=False, cost_details={'upstream_inference_cost': 5.7006e-05, 'upstream_inference_prompt_cost': 4.0626e-05, 'upstream_inference_completions_cost': 1.638e-05})\n11:03:45 - agent.conversation_loop - INFO [20260910_110333_04462d] - API call #6: model=poolside/laguna-s-2.1 provider=unknown in=4109 out=91 total=4200 latency=1.1s cache=4064/4109 (99%)\n11:03:45 - root - DEBUG [20260910_110333_04462d] - Token usage: prompt=4,109, completion=91, total=4,200\n11:03:45 - tools.browser_tool - DEBUG [20260910_110333_04462d] - cleanup_browser called for task_id: c8f53ab0-fd49-4153-b06f-e4c58d071157\n11:03:45 - tools.browser_tool - DEBUG [20260910_110333_04462d] - Active sessions: []\n11:03:45 - tools.browser_tool - DEBUG [20260910_110333_04462d] - No active session found for task_id: c8f53ab0-fd49-4153-b06f-e4c58d071157\n11:03:45 - agent.conversation_loop - INFO [20260910_110333_04462d] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=275 session=20260910_110333_04462d\n11:03:45 - tools.terminal_tool - INFO [20260910_110333_04462d] - Shutting down 1 remaining sandbox(es)...\n11:03:45 - tools.terminal_tool - INFO [20260910_110333_04462d] - Manually cleaned up environment for task: default\n11:03:45 - tools.terminal_tool - INFO [20260910_110333_04462d] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 7375,
+      "input_tokens": {
+        "value": 1888,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 278,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8224,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add node_modules/ and dist/ to .gitignore, keeping what is there. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "PromptTokensDetails(audio_tokens=0, cached_tokens=2624, cache_write_tokens=0, video_tokens=0), cost=3.3876e-05, is_byok=False, cost_details={'upstream_inference_cost': 3.3876e-05, 'upstream_inference_prompt_cost': 2.9556e-05, 'upstream_inference_completions_cost': 4.32e-06})\n11:03:38 - agent.conversation_loop - INFO [20260910_110333_8adae4] - API call #4: model=poolside/laguna-s-2.1 provider=unknown in=2690 out=24 total=2714 latency=0.6s cache=2624/2690 (98%)\n11:03:38 - root - DEBUG [20260910_110333_8adae4] - Token usage: prompt=2,690, completion=24, total=2,714\n11:03:38 - tools.browser_tool - DEBUG [20260910_110333_8adae4] - cleanup_browser called for task_id: 4bd947b6-0215-4430-9859-49949a6795f1\n11:03:38 - tools.browser_tool - DEBUG [20260910_110333_8adae4] - Active sessions: []\n11:03:38 - tools.browser_tool - DEBUG [20260910_110333_8adae4] - No active session found for task_id: 4bd947b6-0215-4430-9859-49949a6795f1\n11:03:38 - agent.conversation_loop - INFO [20260910_110333_8adae4] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=93 session=20260910_110333_8adae4\n11:03:39 - tools.terminal_tool - INFO [20260910_110333_8adae4] - Shutting down 1 remaining sandbox(es)...\n11:03:39 - tools.terminal_tool - INFO [20260910_110333_8adae4] - Manually cleaned up environment for task: default\n11:03:39 - tools.terminal_tool - INFO [20260910_110333_8adae4] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 4850,
+      "input_tokens": {
+        "value": 2391,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 67,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3744,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ils=PromptTokensDetails(audio_tokens=0, cached_tokens=3040, cache_write_tokens=0, video_tokens=0), cost=3.663e-05, is_byok=False, cost_details={'upstream_inference_cost': 3.663e-05, 'upstream_inference_prompt_cost': 3.483e-05, 'upstream_inference_completions_cost': 1.8e-06})\n11:03:36 - agent.conversation_loop - INFO [20260910_110333_8e2ca4] - API call #2: model=poolside/laguna-s-2.1 provider=unknown in=3123 out=10 total=3133 latency=0.5s cache=3040/3123 (97%)\n11:03:36 - root - DEBUG [20260910_110333_8e2ca4] - Token usage: prompt=3,123, completion=10, total=3,133\n11:03:36 - tools.browser_tool - DEBUG [20260910_110333_8e2ca4] - cleanup_browser called for task_id: b0703db4-fa82-46c5-a9d9-765048ee3e00\n11:03:36 - tools.browser_tool - DEBUG [20260910_110333_8e2ca4] - Active sessions: []\n11:03:36 - tools.browser_tool - DEBUG [20260910_110333_8e2ca4] - No active session found for task_id: b0703db4-fa82-46c5-a9d9-765048ee3e00\n11:03:36 - agent.conversation_loop - INFO [20260910_110333_8e2ca4] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=24 session=20260910_110333_8e2ca4\n11:03:36 - tools.terminal_tool - INFO [20260910_110333_8e2ca4] - Shutting down 1 remaining sandbox(es)...\n11:03:36 - tools.terminal_tool - INFO [20260910_110333_8e2ca4] - Manually cleaned up environment for task: default\n11:03:36 - tools.terminal_tool - INFO [20260910_110333_8e2ca4] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 9371,
+      "input_tokens": {
+        "value": 5558,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 406,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15072,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "s=PromptTokensDetails(audio_tokens=0, cached_tokens=3680, cache_write_tokens=0, video_tokens=0), cost=4.932e-05, is_byok=False, cost_details={'upstream_inference_cost': 4.932e-05, 'upstream_inference_prompt_cost': 4.158e-05, 'upstream_inference_completions_cost': 7.74e-06})\n11:03:54 - agent.conversation_loop - INFO [20260910_110347_ea23a8] - API call #6: model=poolside/laguna-s-2.1 provider=unknown in=3774 out=43 total=3817 latency=0.8s cache=3680/3774 (98%)\n11:03:54 - root - DEBUG [20260910_110347_ea23a8] - Token usage: prompt=3,774, completion=43, total=3,817\n11:03:54 - tools.browser_tool - DEBUG [20260910_110347_ea23a8] - cleanup_browser called for task_id: 9dd2d840-5ac9-4381-8ad7-088c5c5de828\n11:03:54 - tools.browser_tool - DEBUG [20260910_110347_ea23a8] - Active sessions: []\n11:03:54 - tools.browser_tool - DEBUG [20260910_110347_ea23a8] - No active session found for task_id: 9dd2d840-5ac9-4381-8ad7-088c5c5de828\n11:03:54 - agent.conversation_loop - INFO [20260910_110347_ea23a8] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=214 session=20260910_110347_ea23a8\n11:03:55 - tools.terminal_tool - INFO [20260910_110347_ea23a8] - Shutting down 1 remaining sandbox(es)...\n11:03:55 - tools.terminal_tool - INFO [20260910_110347_ea23a8] - Manually cleaned up environment for task: default\n11:03:55 - tools.terminal_tool - INFO [20260910_110347_ea23a8] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 10050,
+      "input_tokens": {
+        "value": 1963,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 370,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11040,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "romptTokensDetails(audio_tokens=0, cached_tokens=2784, cache_write_tokens=0, video_tokens=0), cost=3.6846e-05, is_byok=False, cost_details={'upstream_inference_cost': 3.6846e-05, 'upstream_inference_prompt_cost': 3.0186e-05, 'upstream_inference_completions_cost': 6.66e-06})\n11:03:55 - agent.conversation_loop - INFO [20260910_110347_ec34f0] - API call #5: model=poolside/laguna-s-2.1 provider=unknown in=2841 out=37 total=2878 latency=0.7s cache=2784/2841 (98%)\n11:03:55 - root - DEBUG [20260910_110347_ec34f0] - Token usage: prompt=2,841, completion=37, total=2,878\n11:03:55 - tools.browser_tool - DEBUG [20260910_110347_ec34f0] - cleanup_browser called for task_id: 6d14def1-c559-48a9-aa06-f2a7ccca6274\n11:03:55 - tools.browser_tool - DEBUG [20260910_110347_ec34f0] - Active sessions: []\n11:03:55 - tools.browser_tool - DEBUG [20260910_110347_ec34f0] - No active session found for task_id: 6d14def1-c559-48a9-aa06-f2a7ccca6274\n11:03:55 - agent.conversation_loop - INFO [20260910_110347_ec34f0] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=109 session=20260910_110347_ec34f0\n11:03:55 - tools.terminal_tool - INFO [20260910_110347_ec34f0] - Shutting down 1 remaining sandbox(es)...\n11:03:55 - tools.terminal_tool - INFO [20260910_110347_ec34f0] - Manually cleaned up environment for task: default\n11:03:55 - tools.terminal_tool - INFO [20260910_110347_ec34f0] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": false,
+      "reason": "timed out after 3m0s: prompt 1 of 1: signal: killed",
+      "wall_time_ms": 180008,
+      "input_tokens": {
+        "value": 1667,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 74,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 704,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 1,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Which files mention 'flux capacitor'? List only the file names. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "exit_code": -1,
+      "stderr_excerpt": "kens=74, prompt_tokens=2371, total_tokens=2445, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=0, reasoning_tokens=21, rejected_prediction_tokens=None, image_tokens=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=704, cache_write_tokens=0, video_tokens=0), cost=0.000169686, is_byok=False, cost_details={'upstream_inference_cost': 0.000169686, 'upstream_inference_prompt_cost': 0.000156366, 'upstream_inference_completions_cost': 1.332e-05})\n11:03:49 - agent.conversation_loop - INFO [20260910_110347_40710f] - API call #1: model=poolside/laguna-s-2.1 provider=unknown in=2371 out=74 total=2445 latency=1.3s cache=704/2371 (30%)\n11:03:49 - root - DEBUG [20260910_110347_40710f] - Token usage: prompt=2,371, completion=74, total=2,445\n11:03:49 - root - DEBUG [20260910_110347_40710f] - Tool call: terminal with args: {\"command\": \"grep -rl 'flux capacitor' /home/driver 2\u003e/dev/null\", \"workdir\": \"/home/driver\"}...\n11:03:49 - root - DEBUG [20260910_110347_40710f] - Captured reasoning (105 chars): The user is asking which files mention 'flux capacitor'. Let me search for that phrase in the filesystem.\n11:03:49 - tools.terminal_tool - INFO - Creating new local environment for task default...\n11:03:49 - tools.environments.base - INFO - Session snapshot created (session=da781d724097, cwd=/tmp/harness-hermes-agent-18-find-mentions-2076670773)\n11:03:49 - tools.terminal_tool - INFO - local environment ready for task default"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 21203,
+      "input_tokens": {
+        "value": 9816,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1156,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 18304,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ptTokensDetails(audio_tokens=0, cached_tokens=3776, cache_write_tokens=0, video_tokens=0), cost=9.2934e-05, is_byok=False, cost_details={'upstream_inference_cost': 9.2934e-05, 'upstream_inference_prompt_cost': 7.3674e-05, 'upstream_inference_completions_cost': 1.926e-05})\n11:04:06 - agent.conversation_loop - INFO [20260910_110347_4542ba] - API call #8: model=poolside/laguna-s-2.1 provider=unknown in=4217 out=107 total=4324 latency=1.3s cache=3776/4217 (90%)\n11:04:06 - root - DEBUG [20260910_110347_4542ba] - Token usage: prompt=4,217, completion=107, total=4,324\n11:04:06 - tools.browser_tool - DEBUG [20260910_110347_4542ba] - cleanup_browser called for task_id: 6154227c-b002-43b1-9831-0e014984c05a\n11:04:06 - tools.browser_tool - DEBUG [20260910_110347_4542ba] - Active sessions: []\n11:04:06 - tools.browser_tool - DEBUG [20260910_110347_4542ba] - No active session found for task_id: 6154227c-b002-43b1-9831-0e014984c05a\n11:04:06 - agent.conversation_loop - INFO [20260910_110347_4542ba] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=8/40 budget=8/40 tool_turns=7 last_msg_role=assistant response_len=380 session=20260910_110347_4542ba\n11:04:06 - tools.terminal_tool - INFO [20260910_110347_4542ba] - Shutting down 1 remaining sandbox(es)...\n11:04:06 - tools.terminal_tool - INFO [20260910_110347_4542ba] - Manually cleaned up environment for task: default\n11:04:06 - tools.terminal_tool - INFO [20260910_110347_4542ba] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 7924,
+      "input_tokens": {
+        "value": 2625,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 270,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7008,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --model poolside/laguna-s-2.1 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "omptTokensDetails(audio_tokens=0, cached_tokens=3296, cache_write_tokens=0, video_tokens=0), cost=4.8114e-05, is_byok=False, cost_details={'upstream_inference_cost': 4.8114e-05, 'upstream_inference_prompt_cost': 3.4074e-05, 'upstream_inference_completions_cost': 1.404e-05})\n11:03:53 - agent.conversation_loop - INFO [20260910_110347_99ff1a] - API call #3: model=poolside/laguna-s-2.1 provider=unknown in=3345 out=78 total=3423 latency=1.8s cache=3296/3345 (99%)\n11:03:53 - root - DEBUG [20260910_110347_99ff1a] - Token usage: prompt=3,345, completion=78, total=3,423\n11:03:53 - tools.browser_tool - DEBUG [20260910_110347_99ff1a] - cleanup_browser called for task_id: a755aaa9-c6a3-4b26-8f05-d848e66792d9\n11:03:53 - tools.browser_tool - DEBUG [20260910_110347_99ff1a] - Active sessions: []\n11:03:53 - tools.browser_tool - DEBUG [20260910_110347_99ff1a] - No active session found for task_id: a755aaa9-c6a3-4b26-8f05-d848e66792d9\n11:03:53 - agent.conversation_loop - INFO [20260910_110347_99ff1a] - Turn ended: reason=text_response(finish_reason=stop) model=poolside/laguna-s-2.1 api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=186 session=20260910_110347_99ff1a\n11:03:53 - tools.terminal_tool - INFO [20260910_110347_99ff1a] - Shutting down 1 remaining sandbox(es)...\n11:03:53 - tools.terminal_tool - INFO [20260910_110347_99ff1a] - Manually cleaned up environment for task: default\n11:03:53 - tools.terminal_tool - INFO [20260910_110347_99ff1a] - Cleaned 1 environments"
+    }
+  ],
+  "janetcode": [
+    {
+      "harness": "janetcode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 1763,
+      "input_tokens": {
+        "value": 3169,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 70,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5024,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00034302599999999996,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 01-create-file --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 4788,
+      "input_tokens": {
+        "value": 7127,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 233,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10304,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000776106,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 6336,
+      "input_tokens": {
+        "value": 8291,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 432,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14304,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0009526859999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 5507,
+      "input_tokens": {
+        "value": 6613,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 394,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6208,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0007219619999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 6896,
+      "input_tokens": {
+        "value": 3716,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 540,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14624,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000563256,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 2653,
+      "input_tokens": {
+        "value": 7321,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 129,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5088,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0007279020000000001,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 2839,
+      "input_tokens": {
+        "value": 3338,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 148,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9248,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00041029200000000004,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 4962,
+      "input_tokens": {
+        "value": 6615,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 350,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14464,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000788526,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 3658,
+      "input_tokens": {
+        "value": 7357,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 194,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5184,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0007437060000000001,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 2807,
+      "input_tokens": {
+        "value": 7313,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 156,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5120,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00073233,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 6699,
+      "input_tokens": {
+        "value": 7340,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 493,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15616,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000889884,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 4514,
+      "input_tokens": {
+        "value": 3586,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 291,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13760,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00049896,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 14545,
+      "input_tokens": {
+        "value": 12369,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1301,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 16320,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 10,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00149427,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 3275,
+      "input_tokens": {
+        "value": 3267,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 211,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9216,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000414954,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 1669,
+      "input_tokens": {
+        "value": 3190,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 83,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000348408,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5625,
+      "input_tokens": {
+        "value": 10596,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 350,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11168,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001117152,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 16-readme --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 2928,
+      "input_tokens": {
+        "value": 3268,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 186,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9216,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000410544,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 1473,
+      "input_tokens": {
+        "value": 3174,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 62,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5024,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00034203600000000004,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 10916,
+      "input_tokens": {
+        "value": 3855,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 830,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 23360,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00070659,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 19-write-test --provider openai --model poolside/laguna-s-2.1"
+    },
+    {
+      "harness": "janetcode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 9988,
+      "input_tokens": {
+        "value": 7592,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 751,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 28128,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001071612,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 20-env-default --provider openai --model poolside/laguna-s-2.1"
+    }
+  ],
+  "openclaw": [
+    {
+      "harness": "openclaw",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 16707,
+      "input_tokens": {
+        "value": 34682,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 114,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 34528,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-806775113 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031288270571153 --message Create a file named hello.txt containing exactly the text: hello world",
+      "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=1673 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=660 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ec842a29-8caf-4c9e-bdc2-5cc0d3fb1860 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 24167,
+      "input_tokens": {
+        "value": 35209,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 588,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 175424,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-2572055720 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031288485558379 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+      "stderr_excerpt": "contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=716 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=578 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=695 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d449c13d-325a-4de1-8294-22b3a9062661 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 24167,
+      "input_tokens": {
+        "value": 33950,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 625,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 142528,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-2448856914 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031288600170941 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+      "stderr_excerpt": "aguna-s-2.1 status=200 elapsedMs=813 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=671 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=596 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 93b4968f-e860-409f-9342-470f31c07642 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 24231,
+      "input_tokens": {
+        "value": 33668,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 800,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 71328,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-1798332981 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031288612200345 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+      "stderr_excerpt": "/laguna-s-2.1 status=200 elapsedMs=1763 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=600 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=566 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 5ce4bfb4-cb66-44a2-823b-c89129777ce2 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 27429,
+      "input_tokens": {
+        "value": 33694,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 991,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 214240,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 11,
+        "set": true
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-1743327158 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031288405368388 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+      "stderr_excerpt": "orrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=602 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=578 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=715 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 6921bf87-a4bd-4210-8058-91e8aee4d8fd ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 26057,
+      "input_tokens": {
+        "value": 35372,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1086,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 175616,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-3721437358 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031314414521793 --message What does Compute(3) return? Reply with just the number.",
+      "stderr_excerpt": "aguna-s-2.1 status=200 elapsedMs=623 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=565 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=554 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 83d22a1b-83d9-4a65-9820-f629bd758b0a ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 14369,
+      "input_tokens": {
+        "value": 33098,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 228,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 70944,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-174262521 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031314189075430 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+      "stderr_excerpt": "ncorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=1179 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=567 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=529 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run a6fa3167-9888-48e3-879d-99d685db8f10 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 17618,
+      "input_tokens": {
+        "value": 33358,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 530,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 70816,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-3743882357 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031314177951762 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+      "stderr_excerpt": "/laguna-s-2.1 status=200 elapsedMs=1352 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=526 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=534 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 4ec51ed1-b4c4-4d55-8a3b-8f09b0677746 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 13970,
+      "input_tokens": {
+        "value": 33023,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 190,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 70880,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-1985839972 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031314144671375 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+      "stderr_excerpt": "ncorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=1162 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=657 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=943 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c4cfa1ff-c4dc-428d-badd-d718bcb23bdd ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 15810,
+      "input_tokens": {
+        "value": 33107,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 309,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 105664,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-544809132 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031313985107615 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+      "stderr_excerpt": "aguna-s-2.1 status=200 elapsedMs=619 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=630 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=516 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 7e2071d6-a1ec-4349-8c8c-b6c0878497f8 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 22027,
+      "input_tokens": {
+        "value": 33893,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 949,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 142336,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 8,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-826254519 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031340522262337 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+      "stderr_excerpt": "aguna-s-2.1 status=200 elapsedMs=520 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=672 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=521 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 73ab7a0a-2b3a-4955-a49c-3464ffe98af6 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 19634,
+      "input_tokens": {
+        "value": 33450,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 616,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 106016,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-3027944157 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031340664969329 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+      "stderr_excerpt": "aguna-s-2.1 status=200 elapsedMs=536 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=542 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=755 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 55a256b6-dc21-4a7a-b001-7f809894102b ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 19576,
+      "input_tokens": {
+        "value": 33597,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 728,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 71424,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-3385663942 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031340482301410 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+      "stderr_excerpt": "/laguna-s-2.1 status=200 elapsedMs=1184 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=587 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=582 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 1134fbc0-45b6-4d2d-a9a2-1b92a683c7e0 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 14739,
+      "input_tokens": {
+        "value": 33097,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 195,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 70848,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-3578510756 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031340712197952 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+      "stderr_excerpt": "/laguna-s-2.1 status=200 elapsedMs=1631 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=807 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=722 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 0b687059-a2a8-4830-b302-33074574867a ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 13226,
+      "input_tokens": {
+        "value": 33073,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 155,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 36192,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-1271450836 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031340562063669 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+      "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=1541 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=498 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run e9c509b4-3e5f-4211-af1e-a21b97a882f4 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 24415,
+      "input_tokens": {
+        "value": 33760,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 961,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 211520,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-16-readme-2962862565 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031362497839382 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+      "stderr_excerpt": "aguna-s-2.1 status=200 elapsedMs=694 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=435 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=663 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b794f87f-b143-4210-8e8e-c75852995824 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 18925,
+      "input_tokens": {
+        "value": 33436,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 575,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 140384,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-299920984 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031362723452405 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+      "stderr_excerpt": "aguna-s-2.1 status=200 elapsedMs=517 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=500 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=532 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 8005d4e5-a0fd-4d38-a941-d82e769eb497 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 11990,
+      "input_tokens": {
+        "value": 33089,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 160,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 36192,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-1435605568 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031362660980535 --message Which files mention 'flux capacitor'? List only the file names.",
+      "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=1185 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=752 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run dee0d081-dbce-40b1-b12a-30890fe072e2 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 19427,
+      "input_tokens": {
+        "value": 33606,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 565,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 140960,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-1986070375 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031362614435129 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+      "stderr_excerpt": "aguna-s-2.1 status=200 elapsedMs=514 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=585 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=525 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run bccca8e6-326e-410e-841b-5129982143f4 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 16717,
+      "input_tokens": {
+        "value": 33386,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 464,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 70912,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-2353208362 agent --local --json --model bench/poolside/laguna-s-2.1 --session-id bench-0-1789031362570236300 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+      "stderr_excerpt": "/laguna-s-2.1 status=200 elapsedMs=1625 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=575 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=poolside/laguna-s-2.1 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=poolside/laguna-s-2.1 status=200 elapsedMs=563 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 9e6617f3-0dfb-4d48-a45b-2b4134735fe0 ended with stopReason=stop\u001b[39m"
+    }
+  ],
+  "pi": [
+    {
+      "harness": "pi",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 4009,
+      "input_tokens": {
+        "value": 874,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 141,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 33568,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000406152,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "pi",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 11207,
+      "input_tokens": {
+        "value": 1349,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 610,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 104896,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001175274,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 13450,
+      "input_tokens": {
+        "value": 1446,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 788,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 105088,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001217772,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "pi",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 8475,
+      "input_tokens": {
+        "value": 1005,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 486,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 51232,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000639018,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "pi",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 16055,
+      "input_tokens": {
+        "value": 1842,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1130,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 107232,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001334268,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "pi",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 2214,
+      "input_tokens": {
+        "value": 827,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 31,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 16320,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 1,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00022689,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "pi",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 7958,
+      "input_tokens": {
+        "value": 1093,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 416,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 86016,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0009473939999999998,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "pi",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 5966,
+      "input_tokens": {
+        "value": 890,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 291,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 51008,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000591552,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "pi",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 7703,
+      "input_tokens": {
+        "value": 1089,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 390,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 86176,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000943794,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "pi",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 4028,
+      "input_tokens": {
+        "value": 903,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 109,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 50720,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00055737,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "pi",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 12382,
+      "input_tokens": {
+        "value": 1364,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 849,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 87616,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0010641239999999998,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 9255,
+      "input_tokens": {
+        "value": 1030,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 359,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 68640,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00077508,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "pi",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 18769,
+      "input_tokens": {
+        "value": 1204,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 662,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 86688,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001007712,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 9137,
+      "input_tokens": {
+        "value": 1046,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 297,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 85728,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0009191520000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "pi",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 5053,
+      "input_tokens": {
+        "value": 973,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 155,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 68096,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000728334,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "pi",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 11685,
+      "input_tokens": {
+        "value": 1308,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 702,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 104576,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0011852640000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "pi",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 7881,
+      "input_tokens": {
+        "value": 927,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 399,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 68576,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000772434,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "pi",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 2915,
+      "input_tokens": {
+        "value": 877,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 40,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 33472,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000387378,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "pi",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 11282,
+      "input_tokens": {
+        "value": 1283,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 712,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 86816,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0010249740000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "pi",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 4659,
+      "input_tokens": {
+        "value": 861,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 192,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 33568,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00041416200000000004,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ],
+  "qwencode": [
+    {
+      "harness": "qwencode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 7607,
+      "input_tokens": {
+        "value": 41709,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 229,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41696,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "qwencode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 11160,
+      "input_tokens": {
+        "value": 36928,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 673,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 130368,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 12075,
+      "input_tokens": {
+        "value": 42969,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 657,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 126368,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "qwencode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 10702,
+      "input_tokens": {
+        "value": 41790,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 462,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 83232,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "qwencode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 15902,
+      "input_tokens": {
+        "value": 42699,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 971,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127392,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 9,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "qwencode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 6703,
+      "input_tokens": {
+        "value": 41615,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 72,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 41504,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "qwencode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 9762,
+      "input_tokens": {
+        "value": 36750,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 376,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 88192,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "qwencode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 13833,
+      "input_tokens": {
+        "value": 36492,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 578,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 172160,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "qwencode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11079,
+      "input_tokens": {
+        "value": 36308,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 344,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 129920,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "qwencode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 15726,
+      "input_tokens": {
+        "value": 36239,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1005,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 88992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "qwencode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 16564,
+      "input_tokens": {
+        "value": 36577,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1108,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 131424,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 12417,
+      "input_tokens": {
+        "value": 36774,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 706,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 131296,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "qwencode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 16242,
+      "input_tokens": {
+        "value": 37170,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1055,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 132992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 9137,
+      "input_tokens": {
+        "value": 36301,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 325,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 88576,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "qwencode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 7600,
+      "input_tokens": {
+        "value": 36175,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 244,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 88160,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "qwencode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 10749,
+      "input_tokens": {
+        "value": 36470,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 479,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 130240,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "qwencode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 12842,
+      "input_tokens": {
+        "value": 36411,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 508,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 171648,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "qwencode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 6231,
+      "input_tokens": {
+        "value": 36280,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 87,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 47008,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "qwencode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 26453,
+      "input_tokens": {
+        "value": 37314,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1918,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 260224,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "qwencode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 11291,
+      "input_tokens": {
+        "value": 36432,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 574,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 130240,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model poolside/laguna-s-2.1 --max-session-turns 40 --max-wall-time 180s Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ]
+}

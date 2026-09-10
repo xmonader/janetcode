@@ -1,0 +1,3459 @@
+{
+  "hermes-agent": [
+    {
+      "harness": "hermes-agent",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 6331,
+      "input_tokens": {
+        "value": 4911,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1118,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1513,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a file named hello.txt containing exactly the text: hello world --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "etails=PromptTokensDetails(audio_tokens=0, cached_tokens=750, cache_write_tokens=0, video_tokens=0), cost=0.0001281, is_byok=False, cost_details={'upstream_inference_cost': 0.0001281, 'upstream_inference_prompt_cost': 0.000123, 'upstream_inference_completions_cost': 5.1e-06})\n10:09:11 - agent.conversation_loop - INFO [20260910_100907_6016dc] - API call #2: model=inception/mercury-2.5 provider=unknown in=3750 out=34 total=3784 latency=0.5s cache=750/3750 (20%)\n10:09:11 - root - DEBUG [20260910_100907_6016dc] - Token usage: prompt=3,750, completion=34, total=3,784\n10:09:11 - tools.browser_tool - DEBUG [20260910_100907_6016dc] - cleanup_browser called for task_id: 905df128-6367-4299-a113-c955da451186\n10:09:11 - tools.browser_tool - DEBUG [20260910_100907_6016dc] - Active sessions: []\n10:09:11 - tools.browser_tool - DEBUG [20260910_100907_6016dc] - No active session found for task_id: 905df128-6367-4299-a113-c955da451186\n10:09:11 - agent.conversation_loop - INFO [20260910_100907_6016dc] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=53 session=20260910_100907_6016dc\n10:09:12 - tools.terminal_tool - INFO [20260910_100907_6016dc] - Shutting down 1 remaining sandbox(es)...\n10:09:12 - tools.terminal_tool - INFO [20260910_100907_6016dc] - Manually cleaned up environment for task: default\n10:09:12 - tools.terminal_tool - INFO [20260910_100907_6016dc] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 8583,
+      "input_tokens": {
+        "value": 18320,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 540,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4488,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "PromptTokensDetails(audio_tokens=0, cached_tokens=757, cache_write_tokens=0, video_tokens=0), cost=0.000149848, is_byok=False, cost_details={'upstream_inference_cost': 0.000149848, 'upstream_inference_prompt_cost': 0.000144748, 'upstream_inference_completions_cost': 5.1e-06})\n10:09:13 - agent.conversation_loop - INFO [20260910_100908_655859] - API call #6: model=inception/mercury-2.5 provider=unknown in=4300 out=34 total=4334 latency=0.9s cache=757/4300 (18%)\n10:09:13 - root - DEBUG [20260910_100908_655859] - Token usage: prompt=4,300, completion=34, total=4,334\n10:09:13 - tools.browser_tool - DEBUG [20260910_100908_655859] - cleanup_browser called for task_id: 89172515-8a81-4924-83a3-c7e0793300d7\n10:09:13 - tools.browser_tool - DEBUG [20260910_100908_655859] - Active sessions: []\n10:09:13 - tools.browser_tool - DEBUG [20260910_100908_655859] - No active session found for task_id: 89172515-8a81-4924-83a3-c7e0793300d7\n10:09:13 - agent.conversation_loop - INFO [20260910_100908_655859] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=50 session=20260910_100908_655859\n10:09:14 - tools.terminal_tool - INFO [20260910_100908_655859] - Shutting down 1 remaining sandbox(es)...\n10:09:14 - tools.terminal_tool - INFO [20260910_100908_655859] - Manually cleaned up environment for task: default\n10:09:14 - tools.terminal_tool - INFO [20260910_100908_655859] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 8582,
+      "input_tokens": {
+        "value": 16953,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 410,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5523,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query go test fails. Find the bug and fix it in the implementation, not the test. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "omptTokensDetails(audio_tokens=0, cached_tokens=762, cache_write_tokens=0, video_tokens=0), cost=0.000151898, is_byok=False, cost_details={'upstream_inference_cost': 0.000151898, 'upstream_inference_prompt_cost': 0.000141848, 'upstream_inference_completions_cost': 1.005e-05})\n10:09:13 - agent.conversation_loop - INFO [20260910_100907_a0419c] - API call #6: model=inception/mercury-2.5 provider=unknown in=4232 out=67 total=4299 latency=0.9s cache=762/4232 (18%)\n10:09:13 - root - DEBUG [20260910_100907_a0419c] - Token usage: prompt=4,232, completion=67, total=4,299\n10:09:13 - tools.browser_tool - DEBUG [20260910_100907_a0419c] - cleanup_browser called for task_id: 0c004871-da31-4a21-9869-4c96a93b911c\n10:09:13 - tools.browser_tool - DEBUG [20260910_100907_a0419c] - Active sessions: []\n10:09:13 - tools.browser_tool - DEBUG [20260910_100907_a0419c] - No active session found for task_id: 0c004871-da31-4a21-9869-4c96a93b911c\n10:09:13 - agent.conversation_loop - INFO [20260910_100907_a0419c] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=92 session=20260910_100907_a0419c\n10:09:14 - tools.terminal_tool - INFO [20260910_100907_a0419c] - Shutting down 1 remaining sandbox(es)...\n10:09:14 - tools.terminal_tool - INFO [20260910_100907_a0419c] - Manually cleaned up environment for task: default\n10:09:14 - tools.terminal_tool - INFO [20260910_100907_a0419c] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 7326,
+      "input_tokens": {
+        "value": 9922,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1026,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3293,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ptTokensDetails(audio_tokens=0, cached_tokens=754, cache_write_tokens=0, video_tokens=0), cost=0.000143796, is_byok=False, cost_details={'upstream_inference_cost': 0.000143796, 'upstream_inference_prompt_cost': 0.000123696, 'upstream_inference_completions_cost': 2.01e-05})\n10:09:12 - agent.conversation_loop - INFO [20260910_100907_6ad09e] - API call #4: model=inception/mercury-2.5 provider=unknown in=3771 out=134 total=3905 latency=0.6s cache=754/3771 (20%)\n10:09:12 - root - DEBUG [20260910_100907_6ad09e] - Token usage: prompt=3,771, completion=134, total=3,905\n10:09:12 - tools.browser_tool - DEBUG [20260910_100907_6ad09e] - cleanup_browser called for task_id: 4bd238a1-b4e1-4945-8912-6675c8254183\n10:09:12 - tools.browser_tool - DEBUG [20260910_100907_6ad09e] - Active sessions: []\n10:09:12 - tools.browser_tool - DEBUG [20260910_100907_6ad09e] - No active session found for task_id: 4bd238a1-b4e1-4945-8912-6675c8254183\n10:09:12 - agent.conversation_loop - INFO [20260910_100907_6ad09e] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=152 session=20260910_100907_6ad09e\n10:09:13 - tools.terminal_tool - INFO [20260910_100907_6ad09e] - Shutting down 1 remaining sandbox(es)...\n10:09:13 - tools.terminal_tool - INFO [20260910_100907_6ad09e] - Manually cleaned up environment for task: default\n10:09:13 - tools.terminal_tool - INFO [20260910_100907_6ad09e] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 7616,
+      "input_tokens": {
+        "value": 16123,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 494,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 2274,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00016901, is_byok=False, cost_details={'upstream_inference_cost': 0.00016901, 'upstream_inference_prompt_cost': 0.00016196, 'upstream_inference_completions_cost': 7.05e-06})\n10:09:12 - agent.conversation_loop - INFO [20260910_100907_49e927] - API call #5: model=inception/mercury-2.5 provider=unknown in=4049 out=47 total=4096 latency=0.4s\n10:09:12 - root - DEBUG [20260910_100907_49e927] - Token usage: prompt=4,049, completion=47, total=4,096\n10:09:12 - tools.browser_tool - DEBUG [20260910_100907_49e927] - cleanup_browser called for task_id: dbb2c21e-79ec-49ff-97eb-35bae518e8ce\n10:09:12 - tools.browser_tool - DEBUG [20260910_100907_49e927] - Active sessions: []\n10:09:12 - tools.browser_tool - DEBUG [20260910_100907_49e927] - No active session found for task_id: dbb2c21e-79ec-49ff-97eb-35bae518e8ce\n10:09:12 - agent.conversation_loop - INFO [20260910_100907_49e927] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=76 session=20260910_100907_49e927\n10:09:13 - tools.terminal_tool - INFO [20260910_100907_49e927] - Shutting down 1 remaining sandbox(es)...\n10:09:13 - tools.terminal_tool - INFO [20260910_100907_49e927] - Manually cleaned up environment for task: default\n10:09:13 - tools.terminal_tool - INFO [20260910_100907_49e927] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 7534,
+      "input_tokens": {
+        "value": 10304,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 560,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4027,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query What does Compute(3) return? Reply with just the number. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ptTokensDetails(audio_tokens=0, cached_tokens=1767, cache_write_tokens=0, video_tokens=0), cost=0.000108858, is_byok=False, cost_details={'upstream_inference_cost': 0.000108858, 'upstream_inference_prompt_cost': 8.5308e-05, 'upstream_inference_completions_cost': 2.355e-05})\n10:09:22 - agent.conversation_loop - INFO [20260910_100916_89c124] - API call #4: model=inception/mercury-2.5 provider=unknown in=3723 out=157 total=3880 latency=0.7s cache=1767/3723 (47%)\n10:09:22 - root - DEBUG [20260910_100916_89c124] - Token usage: prompt=3,723, completion=157, total=3,880\n10:09:22 - tools.browser_tool - DEBUG [20260910_100916_89c124] - cleanup_browser called for task_id: fff6cec9-73e9-4832-a0bb-e5e2b951c7a1\n10:09:22 - tools.browser_tool - DEBUG [20260910_100916_89c124] - Active sessions: []\n10:09:22 - tools.browser_tool - DEBUG [20260910_100916_89c124] - No active session found for task_id: fff6cec9-73e9-4832-a0bb-e5e2b951c7a1\n10:09:22 - agent.conversation_loop - INFO [20260910_100916_89c124] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=2 session=20260910_100916_89c124\n10:09:22 - tools.terminal_tool - INFO [20260910_100916_89c124] - Shutting down 1 remaining sandbox(es)...\n10:09:22 - tools.terminal_tool - INFO [20260910_100916_89c124] - Manually cleaned up environment for task: default\n10:09:22 - tools.terminal_tool - INFO [20260910_100916_89c124] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 5325,
+      "input_tokens": {
+        "value": 8346,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 250,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3002,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query In config.json change the port to 8080. Keep every other key exactly as it is. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "=PromptTokensDetails(audio_tokens=0, cached_tokens=754, cache_write_tokens=0, video_tokens=0), cost=0.000101336, is_byok=False, cost_details={'upstream_inference_cost': 0.000101336, 'upstream_inference_prompt_cost': 9.4136e-05, 'upstream_inference_completions_cost': 7.2e-06})\n10:09:19 - agent.conversation_loop - INFO [20260910_100916_516037] - API call #4: model=inception/mercury-2.5 provider=unknown in=3032 out=48 total=3080 latency=0.5s cache=754/3032 (25%)\n10:09:19 - root - DEBUG [20260910_100916_516037] - Token usage: prompt=3,032, completion=48, total=3,080\n10:09:19 - tools.browser_tool - DEBUG [20260910_100916_516037] - cleanup_browser called for task_id: ce70e9e0-3f2d-417a-9d75-d039fc1b0851\n10:09:19 - tools.browser_tool - DEBUG [20260910_100916_516037] - Active sessions: []\n10:09:19 - tools.browser_tool - DEBUG [20260910_100916_516037] - No active session found for task_id: ce70e9e0-3f2d-417a-9d75-d039fc1b0851\n10:09:19 - agent.conversation_loop - INFO [20260910_100916_516037] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=69 session=20260910_100916_516037\n10:09:20 - tools.terminal_tool - INFO [20260910_100916_516037] - Shutting down 1 remaining sandbox(es)...\n10:09:20 - tools.terminal_tool - INFO [20260910_100916_516037] - Manually cleaned up environment for task: default\n10:09:20 - tools.terminal_tool - INFO [20260910_100916_516037] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6378,
+      "input_tokens": {
+        "value": 12063,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 306,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 2260,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write count.sh that prints the number of lines in input.txt and nothing else. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "=PromptTokensDetails(audio_tokens=0, cached_tokens=743, cache_write_tokens=0, video_tokens=0), cost=0.000101152, is_byok=False, cost_details={'upstream_inference_cost': 0.000101152, 'upstream_inference_prompt_cost': 9.4252e-05, 'upstream_inference_completions_cost': 6.9e-06})\n10:09:21 - agent.conversation_loop - INFO [20260910_100916_a7878f] - API call #5: model=inception/mercury-2.5 provider=unknown in=3025 out=46 total=3071 latency=0.5s cache=743/3025 (25%)\n10:09:21 - root - DEBUG [20260910_100916_a7878f] - Token usage: prompt=3,025, completion=46, total=3,071\n10:09:21 - tools.browser_tool - DEBUG [20260910_100916_a7878f] - cleanup_browser called for task_id: 5a488628-ac05-4268-a262-62bc919193a6\n10:09:21 - tools.browser_tool - DEBUG [20260910_100916_a7878f] - Active sessions: []\n10:09:21 - tools.browser_tool - DEBUG [20260910_100916_a7878f] - No active session found for task_id: 5a488628-ac05-4268-a262-62bc919193a6\n10:09:21 - agent.conversation_loop - INFO [20260910_100916_a7878f] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=83 session=20260910_100916_a7878f\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_a7878f] - Shutting down 1 remaining sandbox(es)...\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_a7878f] - Manually cleaned up environment for task: default\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_a7878f] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6556,
+      "input_tokens": {
+        "value": 11536,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 271,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5830,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a greet target to the Makefile that prints hi. Keep the existing targets. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "omptTokensDetails(audio_tokens=0, cached_tokens=757, cache_write_tokens=0, video_tokens=0), cost=0.000127978, is_byok=False, cost_details={'upstream_inference_cost': 0.000127978, 'upstream_inference_prompt_cost': 0.000121228, 'upstream_inference_completions_cost': 6.75e-06})\n10:09:20 - agent.conversation_loop - INFO [20260910_100916_bf178c] - API call #5: model=inception/mercury-2.5 provider=unknown in=3712 out=45 total=3757 latency=0.8s cache=757/3712 (20%)\n10:09:20 - root - DEBUG [20260910_100916_bf178c] - Token usage: prompt=3,712, completion=45, total=3,757\n10:09:20 - tools.browser_tool - DEBUG [20260910_100916_bf178c] - cleanup_browser called for task_id: 44d20019-d608-4e15-b0e3-11438e0540d4\n10:09:20 - tools.browser_tool - DEBUG [20260910_100916_bf178c] - Active sessions: []\n10:09:20 - tools.browser_tool - DEBUG [20260910_100916_bf178c] - No active session found for task_id: 44d20019-d608-4e15-b0e3-11438e0540d4\n10:09:20 - agent.conversation_loop - INFO [20260910_100916_bf178c] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=117 session=20260910_100916_bf178c\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_bf178c] - Shutting down 1 remaining sandbox(es)...\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_bf178c] - Manually cleaned up environment for task: default\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_bf178c] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6425,
+      "input_tokens": {
+        "value": 12527,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 326,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5569,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Append the line 'four' to the end of list.txt. Do not change the existing lines. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "=PromptTokensDetails(audio_tokens=0, cached_tokens=1811, cache_write_tokens=0, video_tokens=0), cost=7.1164e-05, is_byok=False, cost_details={'upstream_inference_cost': 7.1164e-05, 'upstream_inference_prompt_cost': 6.5764e-05, 'upstream_inference_completions_cost': 5.4e-06})\n10:09:20 - agent.conversation_loop - INFO [20260910_100916_7e753b] - API call #6: model=inception/mercury-2.5 provider=unknown in=3274 out=36 total=3310 latency=0.5s cache=1811/3274 (55%)\n10:09:20 - root - DEBUG [20260910_100916_7e753b] - Token usage: prompt=3,274, completion=36, total=3,310\n10:09:20 - tools.browser_tool - DEBUG [20260910_100916_7e753b] - cleanup_browser called for task_id: 871ab8f7-d780-4b28-b75e-b4876d623b7d\n10:09:20 - tools.browser_tool - DEBUG [20260910_100916_7e753b] - Active sessions: []\n10:09:20 - tools.browser_tool - DEBUG [20260910_100916_7e753b] - No active session found for task_id: 871ab8f7-d780-4b28-b75e-b4876d623b7d\n10:09:20 - agent.conversation_loop - INFO [20260910_100916_7e753b] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=83 session=20260910_100916_7e753b\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_7e753b] - Shutting down 1 remaining sandbox(es)...\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_7e753b] - Manually cleaned up environment for task: default\n10:09:21 - tools.terminal_tool - INFO [20260910_100916_7e753b] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 7996,
+      "input_tokens": {
+        "value": 18158,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 431,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4454,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "omptTokensDetails(audio_tokens=0, cached_tokens=732, cache_write_tokens=0, video_tokens=0), cost=0.000141738, is_byok=False, cost_details={'upstream_inference_cost': 0.000141738, 'upstream_inference_prompt_cost': 0.000135288, 'upstream_inference_completions_cost': 6.45e-06})\n10:09:30 - agent.conversation_loop - INFO [20260910_100924_78a638] - API call #6: model=inception/mercury-2.5 provider=unknown in=4041 out=43 total=4084 latency=0.7s cache=732/4041 (18%)\n10:09:30 - root - DEBUG [20260910_100924_78a638] - Token usage: prompt=4,041, completion=43, total=4,084\n10:09:30 - tools.browser_tool - DEBUG [20260910_100924_78a638] - cleanup_browser called for task_id: 6f407171-c89a-402c-b58c-1d80f391a893\n10:09:30 - tools.browser_tool - DEBUG [20260910_100924_78a638] - Active sessions: []\n10:09:30 - tools.browser_tool - DEBUG [20260910_100924_78a638] - No active session found for task_id: 6f407171-c89a-402c-b58c-1d80f391a893\n10:09:30 - agent.conversation_loop - INFO [20260910_100924_78a638] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=112 session=20260910_100924_78a638\n10:09:30 - tools.terminal_tool - INFO [20260910_100924_78a638] - Shutting down 1 remaining sandbox(es)...\n10:09:30 - tools.terminal_tool - INFO [20260910_100924_78a638] - Manually cleaned up environment for task: default\n10:09:30 - tools.terminal_tool - INFO [20260910_100924_78a638] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 9760,
+      "input_tokens": {
+        "value": 20100,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 619,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6315,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query python3 test_stats.py fails. Fix the bug in stats.py. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "TokensDetails(audio_tokens=0, cached_tokens=1799, cache_write_tokens=0, video_tokens=0), cost=0.000115566, is_byok=False, cost_details={'upstream_inference_cost': 0.000115566, 'upstream_inference_prompt_cost': 9.9516e-05, 'upstream_inference_completions_cost': 1.605e-05})\n10:09:31 - agent.conversation_loop - INFO [20260910_100924_948d57] - API call #7: model=inception/mercury-2.5 provider=unknown in=4107 out=107 total=4214 latency=0.6s cache=1799/4107 (44%)\n10:09:31 - root - DEBUG [20260910_100924_948d57] - Token usage: prompt=4,107, completion=107, total=4,214\n10:09:31 - tools.browser_tool - DEBUG [20260910_100924_948d57] - cleanup_browser called for task_id: 8aab6d52-1145-4a01-873f-bac78d3c1dbe\n10:09:31 - tools.browser_tool - DEBUG [20260910_100924_948d57] - Active sessions: []\n10:09:31 - tools.browser_tool - DEBUG [20260910_100924_948d57] - No active session found for task_id: 8aab6d52-1145-4a01-873f-bac78d3c1dbe\n10:09:31 - agent.conversation_loop - INFO [20260910_100924_948d57] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=232 session=20260910_100924_948d57\n10:09:31 - tools.terminal_tool - INFO [20260910_100924_948d57] - Shutting down 1 remaining sandbox(es)...\n10:09:31 - tools.terminal_tool - INFO [20260910_100924_948d57] - Manually cleaned up environment for task: default\n10:09:31 - tools.terminal_tool - INFO [20260910_100924_948d57] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 9716,
+      "input_tokens": {
+        "value": 25658,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 987,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6015,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "mptTokensDetails(audio_tokens=0, cached_tokens=734, cache_write_tokens=0, video_tokens=0), cost=0.000164226, is_byok=False, cost_details={'upstream_inference_cost': 0.000164226, 'upstream_inference_prompt_cost': 0.000152376, 'upstream_inference_completions_cost': 1.185e-05})\n10:09:31 - agent.conversation_loop - INFO [20260910_100924_9c30c7] - API call #8: model=inception/mercury-2.5 provider=unknown in=4470 out=79 total=4549 latency=0.6s cache=734/4470 (16%)\n10:09:31 - root - DEBUG [20260910_100924_9c30c7] - Token usage: prompt=4,470, completion=79, total=4,549\n10:09:31 - tools.browser_tool - DEBUG [20260910_100924_9c30c7] - cleanup_browser called for task_id: da8f4c54-b8ac-4063-8033-d4b01bf75707\n10:09:31 - tools.browser_tool - DEBUG [20260910_100924_9c30c7] - Active sessions: []\n10:09:31 - tools.browser_tool - DEBUG [20260910_100924_9c30c7] - No active session found for task_id: da8f4c54-b8ac-4063-8033-d4b01bf75707\n10:09:31 - agent.conversation_loop - INFO [20260910_100924_9c30c7] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=8/40 budget=8/40 tool_turns=7 last_msg_role=assistant response_len=188 session=20260910_100924_9c30c7\n10:09:31 - tools.terminal_tool - INFO [20260910_100924_9c30c7] - Shutting down 1 remaining sandbox(es)...\n10:09:31 - tools.terminal_tool - INFO [20260910_100924_9c30c7] - Manually cleaned up environment for task: default\n10:09:31 - tools.terminal_tool - INFO [20260910_100924_9c30c7] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 6432,
+      "input_tokens": {
+        "value": 8115,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 641,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4015,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add node_modules/ and dist/ to .gitignore, keeping what is there. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "PromptTokensDetails(audio_tokens=0, cached_tokens=750, cache_write_tokens=0, video_tokens=0), cost=0.00011837, is_byok=False, cost_details={'upstream_inference_cost': 0.00011837, 'upstream_inference_prompt_cost': 0.00010472, 'upstream_inference_completions_cost': 1.365e-05})\n10:09:28 - agent.conversation_loop - INFO [20260910_100924_f7e038] - API call #4: model=inception/mercury-2.5 provider=unknown in=3293 out=91 total=3384 latency=0.6s cache=750/3293 (23%)\n10:09:28 - root - DEBUG [20260910_100924_f7e038] - Token usage: prompt=3,293, completion=91, total=3,384\n10:09:28 - tools.browser_tool - DEBUG [20260910_100924_f7e038] - cleanup_browser called for task_id: 9e153f22-b24b-4a90-94d5-2d47581a6d3f\n10:09:28 - tools.browser_tool - DEBUG [20260910_100924_f7e038] - Active sessions: []\n10:09:28 - tools.browser_tool - DEBUG [20260910_100924_f7e038] - No active session found for task_id: 9e153f22-b24b-4a90-94d5-2d47581a6d3f\n10:09:28 - agent.conversation_loop - INFO [20260910_100924_f7e038] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=163 session=20260910_100924_f7e038\n10:09:28 - tools.terminal_tool - INFO [20260910_100924_f7e038] - Shutting down 1 remaining sandbox(es)...\n10:09:28 - tools.terminal_tool - INFO [20260910_100924_f7e038] - Manually cleaned up environment for task: default\n10:09:28 - tools.terminal_tool - INFO [20260910_100924_f7e038] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 6477,
+      "input_tokens": {
+        "value": 9148,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 586,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 2262,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ils=PromptTokensDetails(audio_tokens=0, cached_tokens=760, cache_write_tokens=0, video_tokens=0), cost=0.00014315, is_byok=False, cost_details={'upstream_inference_cost': 0.00014315, 'upstream_inference_prompt_cost': 0.0001382, 'upstream_inference_completions_cost': 4.95e-06})\n10:09:28 - agent.conversation_loop - INFO [20260910_100924_6c14c3] - API call #3: model=inception/mercury-2.5 provider=unknown in=4139 out=33 total=4172 latency=0.8s cache=760/4139 (18%)\n10:09:28 - root - DEBUG [20260910_100924_6c14c3] - Token usage: prompt=4,139, completion=33, total=4,172\n10:09:28 - tools.browser_tool - DEBUG [20260910_100924_6c14c3] - cleanup_browser called for task_id: c0fdffab-b279-4988-9830-aeaf887a27ab\n10:09:28 - tools.browser_tool - DEBUG [20260910_100924_6c14c3] - Active sessions: []\n10:09:28 - tools.browser_tool - DEBUG [20260910_100924_6c14c3] - No active session found for task_id: c0fdffab-b279-4988-9830-aeaf887a27ab\n10:09:28 - agent.conversation_loop - INFO [20260910_100924_6c14c3] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=8 session=20260910_100924_6c14c3\n10:09:28 - tools.terminal_tool - INFO [20260910_100924_6c14c3] - Shutting down 1 remaining sandbox(es)...\n10:09:28 - tools.terminal_tool - INFO [20260910_100924_6c14c3] - Manually cleaned up environment for task: default\n10:09:28 - tools.terminal_tool - INFO [20260910_100924_6c14c3] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 7007,
+      "input_tokens": {
+        "value": 13761,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 920,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6859,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "romptTokensDetails(audio_tokens=0, cached_tokens=733, cache_write_tokens=0, video_tokens=0), cost=0.000161162, is_byok=False, cost_details={'upstream_inference_cost': 0.000161162, 'upstream_inference_prompt_cost': 0.000156212, 'upstream_inference_completions_cost': 4.95e-06})\n10:09:38 - agent.conversation_loop - INFO [20260910_100933_077e5d] - API call #5: model=inception/mercury-2.5 provider=unknown in=4565 out=33 total=4598 latency=0.8s cache=733/4565 (16%)\n10:09:38 - root - DEBUG [20260910_100933_077e5d] - Token usage: prompt=4,565, completion=33, total=4,598\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_077e5d] - cleanup_browser called for task_id: d1e1df07-5510-427b-8513-a849896f597d\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_077e5d] - Active sessions: []\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_077e5d] - No active session found for task_id: d1e1df07-5510-427b-8513-a849896f597d\n10:09:38 - agent.conversation_loop - INFO [20260910_100933_077e5d] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=83 session=20260910_100933_077e5d\n10:09:39 - tools.terminal_tool - INFO [20260910_100933_077e5d] - Shutting down 1 remaining sandbox(es)...\n10:09:39 - tools.terminal_tool - INFO [20260910_100933_077e5d] - Manually cleaned up environment for task: default\n10:09:39 - tools.terminal_tool - INFO [20260910_100933_077e5d] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 6726,
+      "input_tokens": {
+        "value": 9465,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 662,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 2993,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "details=PromptTokensDetails(audio_tokens=0, cached_tokens=740, cache_write_tokens=0, video_tokens=0), cost=0.000113, is_byok=False, cost_details={'upstream_inference_cost': 0.000113, 'upstream_inference_prompt_cost': 0.0001076, 'upstream_inference_completions_cost': 5.4e-06})\n10:09:38 - agent.conversation_loop - INFO [20260910_100933_f0286a] - API call #4: model=inception/mercury-2.5 provider=unknown in=3356 out=36 total=3392 latency=0.8s cache=740/3356 (22%)\n10:09:38 - root - DEBUG [20260910_100933_f0286a] - Token usage: prompt=3,356, completion=36, total=3,392\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_f0286a] - cleanup_browser called for task_id: 2863834c-6e9c-43fa-a9be-3ce6e6cd31e9\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_f0286a] - Active sessions: []\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_f0286a] - No active session found for task_id: 2863834c-6e9c-43fa-a9be-3ce6e6cd31e9\n10:09:38 - agent.conversation_loop - INFO [20260910_100933_f0286a] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=95 session=20260910_100933_f0286a\n10:09:38 - tools.terminal_tool - INFO [20260910_100933_f0286a] - Shutting down 1 remaining sandbox(es)...\n10:09:38 - tools.terminal_tool - INFO [20260910_100933_f0286a] - Manually cleaned up environment for task: default\n10:09:38 - tools.terminal_tool - INFO [20260910_100933_f0286a] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 4955,
+      "input_tokens": {
+        "value": 4334,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 610,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1492,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Which files mention 'flux capacitor'? List only the file names. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "PromptTokensDetails(audio_tokens=0, cached_tokens=741, cache_write_tokens=0, video_tokens=0), cost=0.000107684, is_byok=False, cost_details={'upstream_inference_cost': 0.000107684, 'upstream_inference_prompt_cost': 0.000101084, 'upstream_inference_completions_cost': 6.6e-06})\n10:09:36 - agent.conversation_loop - INFO [20260910_100933_3a1b81] - API call #2: model=inception/mercury-2.5 provider=unknown in=3194 out=44 total=3238 latency=0.5s cache=741/3194 (23%)\n10:09:36 - root - DEBUG [20260910_100933_3a1b81] - Token usage: prompt=3,194, completion=44, total=3,238\n10:09:36 - tools.browser_tool - DEBUG [20260910_100933_3a1b81] - cleanup_browser called for task_id: 4c18763c-adba-453e-9bfb-78252a93566c\n10:09:36 - tools.browser_tool - DEBUG [20260910_100933_3a1b81] - Active sessions: []\n10:09:36 - tools.browser_tool - DEBUG [20260910_100933_3a1b81] - No active session found for task_id: 4c18763c-adba-453e-9bfb-78252a93566c\n10:09:36 - agent.conversation_loop - INFO [20260910_100933_3a1b81] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=23 session=20260910_100933_3a1b81\n10:09:37 - tools.terminal_tool - INFO [20260910_100933_3a1b81] - Shutting down 1 remaining sandbox(es)...\n10:09:37 - tools.terminal_tool - INFO [20260910_100933_3a1b81] - Manually cleaned up environment for task: default\n10:09:37 - tools.terminal_tool - INFO [20260910_100933_3a1b81] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 15411,
+      "input_tokens": {
+        "value": 39949,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 2276,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 15769,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 11,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "TokensDetails(audio_tokens=0, cached_tokens=767, cache_write_tokens=0, video_tokens=0), cost=0.000259158, is_byok=False, cost_details={'upstream_inference_cost': 0.000259158, 'upstream_inference_prompt_cost': 0.000251508, 'upstream_inference_completions_cost': 7.65e-06})\n10:09:46 - agent.conversation_loop - INFO [20260910_100933_a796ec] - API call #11: model=inception/mercury-2.5 provider=unknown in=6978 out=51 total=7029 latency=0.5s cache=767/6978 (11%)\n10:09:46 - root - DEBUG [20260910_100933_a796ec] - Token usage: prompt=6,978, completion=51, total=7,029\n10:09:46 - tools.browser_tool - DEBUG [20260910_100933_a796ec] - cleanup_browser called for task_id: 3656fba8-07f5-4b6c-b173-5641efe2ec2b\n10:09:46 - tools.browser_tool - DEBUG [20260910_100933_a796ec] - Active sessions: []\n10:09:46 - tools.browser_tool - DEBUG [20260910_100933_a796ec] - No active session found for task_id: 3656fba8-07f5-4b6c-b173-5641efe2ec2b\n10:09:46 - agent.conversation_loop - INFO [20260910_100933_a796ec] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=11/40 budget=11/40 tool_turns=10 last_msg_role=assistant response_len=132 session=20260910_100933_a796ec\n10:09:47 - tools.terminal_tool - INFO [20260910_100933_a796ec] - Shutting down 1 remaining sandbox(es)...\n10:09:47 - tools.terminal_tool - INFO [20260910_100933_a796ec] - Manually cleaned up environment for task: default\n10:09:47 - tools.terminal_tool - INFO [20260910_100933_a796ec] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 6956,
+      "input_tokens": {
+        "value": 12096,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 651,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3043,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "s=PromptTokensDetails(audio_tokens=0, cached_tokens=765, cache_write_tokens=0, video_tokens=0), cost=0.00014241, is_byok=False, cost_details={'upstream_inference_cost': 0.00014241, 'upstream_inference_prompt_cost': 0.00013446, 'upstream_inference_completions_cost': 7.95e-06})\n10:09:38 - agent.conversation_loop - INFO [20260910_100933_3b8cb3] - API call #4: model=inception/mercury-2.5 provider=unknown in=4050 out=53 total=4103 latency=0.6s cache=765/4050 (19%)\n10:09:38 - root - DEBUG [20260910_100933_3b8cb3] - Token usage: prompt=4,050, completion=53, total=4,103\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_3b8cb3] - cleanup_browser called for task_id: 369921d9-7f45-4264-9add-c51139228701\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_3b8cb3] - Active sessions: []\n10:09:38 - tools.browser_tool - DEBUG [20260910_100933_3b8cb3] - No active session found for task_id: 369921d9-7f45-4264-9add-c51139228701\n10:09:38 - agent.conversation_loop - INFO [20260910_100933_3b8cb3] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=80 session=20260910_100933_3b8cb3\n10:09:38 - tools.terminal_tool - INFO [20260910_100933_3b8cb3] - Shutting down 1 remaining sandbox(es)...\n10:09:38 - tools.terminal_tool - INFO [20260910_100933_3b8cb3] - Manually cleaned up environment for task: default\n10:09:38 - tools.terminal_tool - INFO [20260910_100933_3b8cb3] - Cleaned 1 environments"
+    }
+  ],
+  "janetcode": [
+    {
+      "harness": "janetcode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 3793,
+      "input_tokens": {
+        "value": 3292,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 462,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5687,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00022372800000000002,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 01-create-file --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 3023,
+      "input_tokens": {
+        "value": 9888,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 297,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8584,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000474406,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 3644,
+      "input_tokens": {
+        "value": 7741,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 518,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11635,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00043388,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 2356,
+      "input_tokens": {
+        "value": 4986,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 354,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8648,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000287132,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 3903,
+      "input_tokens": {
+        "value": 7608,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 668,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11549,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000450716,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 3174,
+      "input_tokens": {
+        "value": 5741,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 814,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8675,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00038644000000000005,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 1957,
+      "input_tokens": {
+        "value": 4705,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 230,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8474,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000256596,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 3084,
+      "input_tokens": {
+        "value": 7967,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 300,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14323,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00042097200000000003,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6958,
+      "input_tokens": {
+        "value": 6484,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 320,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11348,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000352752,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 3392,
+      "input_tokens": {
+        "value": 8401,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 354,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14355,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0004465599999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model inception/mercury-2.5",
+      "exit_code": 1,
+      "stderr_excerpt": "running 5 eval tasks × 1 with openai/inception/mercury-2.5 (5 at a time)\nPASS 07-json-config-edit (2s, 2 tool calls, $0.0003)\nPASS 08-shell-script (3.1s, 4 tool calls, $0.0004)\nPASS 06-read-and-answer (3.2s, 4 tool calls, $0.0004)\nFAIL 10-append-preserve (3.4s, 4 tool calls, $0.0004)\n    check failed: exit status 1\nPASS 09-makefile-target (7s, 3 tool calls, $0.0004)\nwrote /tmp/janetcode-batch-3160929466/batch2.json\njanetcode: 1 of 5 eval tasks failed"
+    },
+    {
+      "harness": "janetcode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 3000,
+      "input_tokens": {
+        "value": 7177,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 341,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11372,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000383718,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 2862,
+      "input_tokens": {
+        "value": 7186,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 440,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11576,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000399744,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 2429,
+      "input_tokens": {
+        "value": 4021,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1232,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5717,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00036850800000000003,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 1820,
+      "input_tokens": {
+        "value": 4559,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 221,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8519,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000249586,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 1845,
+      "input_tokens": {
+        "value": 3333,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 462,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5620,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0002251,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5123,
+      "input_tokens": {
+        "value": 15227,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 988,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 20184,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0008380159999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 16-readme --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 3256,
+      "input_tokens": {
+        "value": 7855,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 770,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11700,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0004765,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model inception/mercury-2.5",
+      "exit_code": 1,
+      "stderr_excerpt": "running 5 eval tasks × 1 with openai/inception/mercury-2.5 (5 at a time)\nPASS 18-find-mentions (1s, 1 tool calls, $0.0002)\nPASS 20-env-default (1.8s, 1 tool calls, $0.0002)\nFAIL 17-csv-sort (3.3s, 3 tool calls, $0.0005)\n    check failed: exit status 1\nPASS 19-write-test (3.8s, 5 tool calls, $0.0005)\nPASS 16-readme (5.1s, 7 tool calls, $0.0008)\nwrote /tmp/janetcode-batch-4171465700/batch4.json\njanetcode: 1 of 5 eval tasks failed"
+    },
+    {
+      "harness": "janetcode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 971,
+      "input_tokens": {
+        "value": 2944,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 103,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5706,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000156034,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 3791,
+      "input_tokens": {
+        "value": 9141,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 548,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14420,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0005055200000000001,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 19-write-test --provider openai --model inception/mercury-2.5"
+    },
+    {
+      "harness": "janetcode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 1754,
+      "input_tokens": {
+        "value": 3281,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 470,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5665,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0002244,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 20-env-default --provider openai --model inception/mercury-2.5"
+    }
+  ],
+  "openclaw": [
+    {
+      "harness": "openclaw",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 13999,
+      "input_tokens": {
+        "value": 41649,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 93,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 27666,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-3227036841 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027840845246928 --message Create a file named hello.txt containing exactly the text: hello world",
+      "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=402 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=904 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 479d311f-c27d-44c5-b31d-43ecfcacfd92 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 15825,
+      "input_tokens": {
+        "value": 29888,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 574,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 108223,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-3662638859 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027840900222578 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+      "stderr_excerpt": "mercury-2.5 status=200 elapsedMs=332 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=343 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=334 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c0ecae8f-737e-4a2f-8863-bcd5e364a222 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 18500,
+      "input_tokens": {
+        "value": 37585,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 774,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 135227,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-1237506755 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027841031558093 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+      "stderr_excerpt": "mercury-2.5 status=200 elapsedMs=325 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=348 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=387 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 84804050-8c6e-457a-8c79-ee70f11d707d ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 15227,
+      "input_tokens": {
+        "value": 21686,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1051,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 81242,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-4122442373 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027840791146481 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+      "stderr_excerpt": "Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=395 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=318 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=321 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 65477fd6-a374-4177-986e-253d73a2142a ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 18494,
+      "input_tokens": {
+        "value": 47179,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1221,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 163315,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 12,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-401552082 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027841026919857 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+      "stderr_excerpt": "ram\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=327 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=286 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=308 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 896bb1e1-5f61-4951-a185-4f905c668081 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 20307,
+      "input_tokens": {
+        "value": 31211,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 2451,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 107189,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-3038815520 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027859060482634 --message What does Compute(3) return? Reply with just the number.",
+      "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=358 dispatcher=reused contentType=text/event-stream\u001b[39m\n[tools] read failed: File not found: /tmp/openclaw-bench/harness-openclaw-06-read-and-answer-3038815520/tmp/openclaw-bench/harness-openclaw-06-read-and-answer-3038815520/util.go. raw_params={\"path\":\"tmp/openclaw-bench/harness-openclaw-06-read-and-answer-3038815520/util.go\"}\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=744 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=617 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run eb97ec23-ec7f-4672-b059-dcdea2ce1d52 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 15740,
+      "input_tokens": {
+        "value": 51035,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 467,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 86710,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-3223210073 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027858511650186 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+      "stderr_excerpt": "mercury-2.5 status=200 elapsedMs=275 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=728 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=320 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 0f0d25e0-ee81-44e2-a6c0-b9e2c3235c7a ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 15892,
+      "input_tokens": {
+        "value": 22035,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 997,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 80096,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-1211258130 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027858784711382 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+      "stderr_excerpt": "on/mercury-2.5 status=200 elapsedMs=383 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=318 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=318 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 2941a8c0-bb33-4462-9f33-a8ef60fb9a8c ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 14021,
+      "input_tokens": {
+        "value": 47988,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 581,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 53495,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-648369976 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027858810546503 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+      "stderr_excerpt": "Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=395 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=290 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=267 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b6a17714-e0f5-4a60-ac20-bc0c2bccd948 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 15873,
+      "input_tokens": {
+        "value": 49242,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 938,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 53727,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-1251808341 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027858620821200 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+      "stderr_excerpt": "e provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=311 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=389 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c79248ab-ff9b-44c6-af1d-803de0111ee9 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 15362,
+      "input_tokens": {
+        "value": 64474,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1015,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 109590,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-3798577231 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027878514944701 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+      "stderr_excerpt": "mercury-2.5 status=200 elapsedMs=367 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=334 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=310 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 08826366-44d1-469e-b427-d0b3de1f24ff ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 17393,
+      "input_tokens": {
+        "value": 66651,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 869,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 141901,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-231810863 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027878527527880 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+      "stderr_excerpt": "mercury-2.5 status=200 elapsedMs=367 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=592 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=325 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 19d0517d-a04b-471a-af18-c35656cce7eb ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 12802,
+      "input_tokens": {
+        "value": 14471,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1395,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 53930,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-1008113968 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027878489958162 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+      "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=326 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=451 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 928ec5f5-63d9-4a73-b5c2-955f2fbe3e70 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 12694,
+      "input_tokens": {
+        "value": 21171,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 277,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 81228,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-4264470605 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027878770974549 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+      "stderr_excerpt": "Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=327 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=295 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=351 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 94726f8b-5965-4530-9fb9-5e139915479d ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 12245,
+      "input_tokens": {
+        "value": 14184,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 723,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 54425,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-2269391019 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027878461485814 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+      "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=363 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=301 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run a28ea975-5b75-4b40-af88-445f168e47ec ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 13973,
+      "input_tokens": {
+        "value": 14325,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 957,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 54759,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-16-readme-2776906001 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027896801597387 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+      "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=331 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=279 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 8ac60acf-b3f0-4093-b208-bb8d72e8ccc0 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14760,
+      "input_tokens": {
+        "value": 25013,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 320,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 112839,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-1481602927 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027896814942506 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+      "stderr_excerpt": "contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=333 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=335 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=288 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 5bca4183-fa95-48db-a276-23425628d706 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 13800,
+      "input_tokens": {
+        "value": 14119,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 435,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 54372,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-203846779 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027896948321548 --message Which files mention 'flux capacitor'? List only the file names.",
+      "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=392 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=311 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c32b1ddf-a01d-43be-85d1-d736c09d376d ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 18213,
+      "input_tokens": {
+        "value": 32481,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1314,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 143527,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-198557839 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027896697402310 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+      "stderr_excerpt": "mercury-2.5 status=200 elapsedMs=312 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=315 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=281 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run a6681949-c9fb-46a0-890d-01f94f3f5d18 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14252,
+      "input_tokens": {
+        "value": 14314,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 818,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 54934,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-417606120 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-0-1789027896770262143 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+      "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=335 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=357 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 373160e2-8224-44c0-9cc3-a5c66f028374 ended with stopReason=stop\u001b[39m"
+    }
+  ],
+  "pi": [
+    {
+      "harness": "pi",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 2623,
+      "input_tokens": {
+        "value": 3821,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 107,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 31892,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000296458,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "pi",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 4795,
+      "input_tokens": {
+        "value": 8313,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 386,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 62227,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000639328,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 5873,
+      "input_tokens": {
+        "value": 11609,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 528,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 78261,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0008566040000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "pi",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 4517,
+      "input_tokens": {
+        "value": 4567,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 994,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 31004,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000455796,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "pi",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 6839,
+      "input_tokens": {
+        "value": 15916,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 990,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 93924,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001160836,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "pi",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 3863,
+      "input_tokens": {
+        "value": 6871,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 630,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 47160,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00055798,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "pi",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 4582,
+      "input_tokens": {
+        "value": 7682,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 524,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 63063,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000638132,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "pi",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 3611,
+      "input_tokens": {
+        "value": 5810,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 220,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 46908,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000453032,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "pi",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 5535,
+      "input_tokens": {
+        "value": 10425,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 332,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 77780,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0007779200000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "pi",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 4012,
+      "input_tokens": {
+        "value": 7827,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 229,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 62311,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000596674,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "pi",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 9118,
+      "input_tokens": {
+        "value": 15045,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 984,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 95220,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00113028,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 6064,
+      "input_tokens": {
+        "value": 8127,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 355,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 61646,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0006249140000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "pi",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 4233,
+      "input_tokens": {
+        "value": 6509,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 529,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 46705,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00052653,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 4044,
+      "input_tokens": {
+        "value": 7896,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 301,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 62050,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0006091900000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "pi",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 4323,
+      "input_tokens": {
+        "value": 6911,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 593,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 46659,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0005520260000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "pi",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 4982,
+      "input_tokens": {
+        "value": 8405,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 257,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 62343,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0006241220000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "pi",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5300,
+      "input_tokens": {
+        "value": 11450,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 367,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 95426,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0008947539999999999,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "pi",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 2649,
+      "input_tokens": {
+        "value": 3756,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 144,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 31201,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000296644,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "pi",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 7428,
+      "input_tokens": {
+        "value": 16154,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 652,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 109493,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0011819320000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "pi",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 2781,
+      "input_tokens": {
+        "value": 3899,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 199,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 31712,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000312658,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ],
+  "qwencode": [
+    {
+      "harness": "qwencode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 5819,
+      "input_tokens": {
+        "value": 42543,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 177,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 38940,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "qwencode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9653,
+      "input_tokens": {
+        "value": 86161,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 437,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 77885,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 8360,
+      "input_tokens": {
+        "value": 46887,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 852,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 121136,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "qwencode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9139,
+      "input_tokens": {
+        "value": 84673,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 574,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 40175,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "qwencode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 11088,
+      "input_tokens": {
+        "value": 130083,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 807,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 119212,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 8,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "qwencode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 5140,
+      "input_tokens": {
+        "value": 43595,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 275,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 40054,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "qwencode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6772,
+      "input_tokens": {
+        "value": 64054,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 347,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 58828,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "qwencode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6642,
+      "input_tokens": {
+        "value": 43185,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 276,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 39012,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "qwencode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 7324,
+      "input_tokens": {
+        "value": 65108,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 314,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 60099,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "qwencode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 8625,
+      "input_tokens": {
+        "value": 85628,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 660,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 39993,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "qwencode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 10829,
+      "input_tokens": {
+        "value": 88393,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 713,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 79279,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 11125,
+      "input_tokens": {
+        "value": 87261,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 755,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 78957,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "qwencode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 8862,
+      "input_tokens": {
+        "value": 48006,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 752,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 79117,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 8497,
+      "input_tokens": {
+        "value": 105256,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 372,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 19918,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "qwencode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 7719,
+      "input_tokens": {
+        "value": 43078,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 296,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 39246,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "qwencode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 7127,
+      "input_tokens": {
+        "value": 64759,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 463,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 59478,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "qwencode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 8410,
+      "input_tokens": {
+        "value": 85467,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 356,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 79094,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "qwencode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5944,
+      "input_tokens": {
+        "value": 43468,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 165,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 39804,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "qwencode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 15139,
+      "input_tokens": {
+        "value": 130075,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1034,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 116552,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "qwencode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 10226,
+      "input_tokens": {
+        "value": 86043,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 439,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 78402,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model inception/mercury-2.5 --max-session-turns 40 --max-wall-time 180s Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ]
+}

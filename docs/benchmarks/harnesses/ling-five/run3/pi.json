@@ -1,0 +1,682 @@
+[
+  {
+    "harness": "pi",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 5017,
+    "input_tokens": {
+      "value": 20238,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 129,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 16384,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0005019378000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Create a file named hello.txt containing exactly the text: hello world"
+  },
+  {
+    "harness": "pi",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 8840,
+    "input_tokens": {
+      "value": 22210,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 322,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 51904,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0007046928000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 11296,
+    "input_tokens": {
+      "value": 23159,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 587,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 70592,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0008198064000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+  },
+  {
+    "harness": "pi",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 8665,
+    "input_tokens": {
+      "value": 20762,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 552,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 34816,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0006170052,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+  },
+  {
+    "harness": "pi",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 13504,
+    "input_tokens": {
+      "value": 24175,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 966,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 92160,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0009556049999999999,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+  },
+  {
+    "harness": "pi",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 6436,
+    "input_tokens": {
+      "value": 3503,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 261,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52800,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000311766,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session What does Compute(3) return? Reply with just the number."
+  },
+  {
+    "harness": "pi",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 8724,
+    "input_tokens": {
+      "value": 19780,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 279,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 54016,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0006598242,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+  },
+  {
+    "harness": "pi",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 10185,
+    "input_tokens": {
+      "value": 2673,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 534,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 89920,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00046743899999999994,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+  },
+  {
+    "harness": "pi",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 9652,
+    "input_tokens": {
+      "value": 4547,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 431,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 106688,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0005707296,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+  },
+  {
+    "harness": "pi",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 15268,
+    "input_tokens": {
+      "value": 22046,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 374,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 51840,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0007042560000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+  },
+  {
+    "harness": "pi",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 10633,
+    "input_tokens": {
+      "value": 5465,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 738,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 88448,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0005327406,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 7539,
+    "input_tokens": {
+      "value": 3937,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 388,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 70272,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00040226339999999995,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+  },
+  {
+    "harness": "pi",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 9469,
+    "input_tokens": {
+      "value": 3981,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 788,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 70784,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00043053779999999994,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 8671,
+    "input_tokens": {
+      "value": 5636,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 405,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 68224,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00043041179999999996,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+  },
+  {
+    "harness": "pi",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 4098,
+    "input_tokens": {
+      "value": 2086,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 95,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 34560,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000194943,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+  },
+  {
+    "harness": "pi",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 9398,
+    "input_tokens": {
+      "value": 4448,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 487,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 70080,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00041842499999999994,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+  },
+  {
+    "harness": "pi",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 6973,
+    "input_tokens": {
+      "value": 3428,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 279,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 70272,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0003847074,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+  },
+  {
+    "harness": "pi",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 3693,
+    "input_tokens": {
+      "value": 1066,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 102,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 35520,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00017799599999999998,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Which files mention 'flux capacitor'? List only the file names."
+  },
+  {
+    "harness": "pi",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 15728,
+    "input_tokens": {
+      "value": 7652,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 873,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 108032,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0006694254,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+  },
+  {
+    "harness": "pi",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 8347,
+    "input_tokens": {
+      "value": 2672,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 417,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 71232,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0003815574,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inclusionai/ling-3.0-flash --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+  }
+]

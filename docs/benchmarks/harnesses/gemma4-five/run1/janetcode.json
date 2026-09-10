@@ -1,0 +1,702 @@
+[
+  {
+    "harness": "janetcode",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 9064,
+    "input_tokens": {
+      "value": 4030,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 38,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 3904,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00080632,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 01-create-file --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 27123,
+    "input_tokens": {
+      "value": 33023,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 626,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 17568,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 10,
+      "set": true
+    },
+    "turns": {
+      "value": 11,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.005271939999999999,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 16735,
+    "input_tokens": {
+      "value": 19722,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 246,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5888,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.01134193,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 19548,
+    "input_tokens": {
+      "value": 4352,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 432,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 8096,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00139168,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 18774,
+    "input_tokens": {
+      "value": 26538,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 563,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9888,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 9,
+      "set": true
+    },
+    "turns": {
+      "value": 8,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0131038,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 5686,
+    "input_tokens": {
+      "value": 11072,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 59,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 4956,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00198176,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 9169,
+    "input_tokens": {
+      "value": 11167,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 91,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 1007,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0015730499999999999,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 3869,
+    "input_tokens": {
+      "value": 7946,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 85,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 6,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0010265299999999999,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 25311,
+    "input_tokens": {
+      "value": 12367,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 186,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 12128,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00903466,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 10876,
+    "input_tokens": {
+      "value": 15064,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 99,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 992,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.009066290000000001,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 41064,
+    "input_tokens": {
+      "value": 41471,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 784,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 22208,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 12,
+      "set": true
+    },
+    "turns": {
+      "value": 13,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.01685547,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 7120,
+    "input_tokens": {
+      "value": 15384,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 156,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5792,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0021706399999999997,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 40750,
+    "input_tokens": {
+      "value": 27021,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 828,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9088,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 7,
+      "set": true
+    },
+    "turns": {
+      "value": 8,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0070886000000000005,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 4141,
+    "input_tokens": {
+      "value": 14180,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 101,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 1856,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.004318799999999999,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 1990,
+    "input_tokens": {
+      "value": 7118,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 28,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 928,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00081412,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 5663,
+    "input_tokens": {
+      "value": 7630,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 179,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 8736,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.004451,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 16-readme --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 20362,
+    "input_tokens": {
+      "value": 13592,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 174,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 6656,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00483423,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 1276,
+    "input_tokens": {
+      "value": 7048,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 24,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 896,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0033760500000000002,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 12227,
+    "input_tokens": {
+      "value": 10305,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 607,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 10624,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00806788,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 19-write-test --provider openai --model google/gemma-4-31b-it"
+  },
+  {
+    "harness": "janetcode",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 11696,
+    "input_tokens": {
+      "value": 11201,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 212,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 928,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00128498,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 20-env-default --provider openai --model google/gemma-4-31b-it"
+  }
+]

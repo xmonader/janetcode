@@ -1,0 +1,682 @@
+[
+  {
+    "harness": "pi",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 2623,
+    "input_tokens": {
+      "value": 3821,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 107,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 31892,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000296458,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Create a file named hello.txt containing exactly the text: hello world"
+  },
+  {
+    "harness": "pi",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 4795,
+    "input_tokens": {
+      "value": 8313,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 386,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 62227,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000639328,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 5873,
+    "input_tokens": {
+      "value": 11609,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 528,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 78261,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0008566040000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+  },
+  {
+    "harness": "pi",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 4517,
+    "input_tokens": {
+      "value": 4567,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 994,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 31004,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000455796,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+  },
+  {
+    "harness": "pi",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 6839,
+    "input_tokens": {
+      "value": 15916,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 990,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 93924,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001160836,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+  },
+  {
+    "harness": "pi",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 3863,
+    "input_tokens": {
+      "value": 6871,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 630,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 47160,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00055798,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session What does Compute(3) return? Reply with just the number."
+  },
+  {
+    "harness": "pi",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 4582,
+    "input_tokens": {
+      "value": 7682,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 524,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 63063,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000638132,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+  },
+  {
+    "harness": "pi",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 3611,
+    "input_tokens": {
+      "value": 5810,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 220,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 46908,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000453032,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+  },
+  {
+    "harness": "pi",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 5535,
+    "input_tokens": {
+      "value": 10425,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 332,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 77780,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0007779200000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+  },
+  {
+    "harness": "pi",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 4012,
+    "input_tokens": {
+      "value": 7827,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 229,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 62311,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000596674,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+  },
+  {
+    "harness": "pi",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 9118,
+    "input_tokens": {
+      "value": 15045,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 984,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 95220,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00113028,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 6064,
+    "input_tokens": {
+      "value": 8127,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 355,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 61646,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0006249140000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+  },
+  {
+    "harness": "pi",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 4233,
+    "input_tokens": {
+      "value": 6509,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 529,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 46705,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00052653,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 4044,
+    "input_tokens": {
+      "value": 7896,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 301,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 62050,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0006091900000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+  },
+  {
+    "harness": "pi",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 4323,
+    "input_tokens": {
+      "value": 6911,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 593,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 46659,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0005520260000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+  },
+  {
+    "harness": "pi",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 4982,
+    "input_tokens": {
+      "value": 8405,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 257,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 62343,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0006241220000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+  },
+  {
+    "harness": "pi",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 5300,
+    "input_tokens": {
+      "value": 11450,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 367,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 95426,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0008947539999999999,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+  },
+  {
+    "harness": "pi",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 2649,
+    "input_tokens": {
+      "value": 3756,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 144,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 31201,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000296644,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Which files mention 'flux capacitor'? List only the file names."
+  },
+  {
+    "harness": "pi",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 7428,
+    "input_tokens": {
+      "value": 16154,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 652,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 109493,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0011819320000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+  },
+  {
+    "harness": "pi",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 2781,
+    "input_tokens": {
+      "value": 3899,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 199,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 31712,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000312658,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+  }
+]

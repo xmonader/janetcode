@@ -1,0 +1,3455 @@
+{
+  "hermes-agent": [
+    {
+      "harness": "hermes-agent",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 7466,
+      "input_tokens": {
+        "value": 3815,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 221,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3584,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a file named hello.txt containing exactly the text: hello world --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "_cost': 0.000109004, 'upstream_inference_prompt_cost': 8.6444e-05, 'upstream_inference_completions_cost': 2.256e-05})\n13:11:51 - agent.conversation_loop - INFO [20260910_131147_892b2a] - API call #2: model=qwen/qwen3.8-flash provider=unknown in=3778 out=48 total=3826 latency=1.0s cache=3584/3778 (95%)\n13:11:51 - root - DEBUG [20260910_131147_892b2a] - Token usage: prompt=3,778, completion=48, total=3,826\n13:11:51 - root - DEBUG [20260910_131147_892b2a] - Captured reasoning (80 chars): I'm verifying that the input is exactly 11 characters with no trailing newline.\n\n13:11:51 - tools.browser_tool - DEBUG [20260910_131147_892b2a] - cleanup_browser called for task_id: 736cb12f-941b-4216-b8d0-1f1b8fbd1338\n13:11:51 - tools.browser_tool - DEBUG [20260910_131147_892b2a] - Active sessions: []\n13:11:51 - tools.browser_tool - DEBUG [20260910_131147_892b2a] - No active session found for task_id: 736cb12f-941b-4216-b8d0-1f1b8fbd1338\n13:11:51 - agent.conversation_loop - INFO [20260910_131147_892b2a] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=123 session=20260910_131147_892b2a\n13:11:52 - tools.terminal_tool - INFO [20260910_131147_892b2a] - Shutting down 1 remaining sandbox(es)...\n13:11:52 - tools.terminal_tool - INFO [20260910_131147_892b2a] - Manually cleaned up environment for task: default\n13:11:52 - tools.terminal_tool - INFO [20260910_131147_892b2a] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 5512,
+      "input_tokens": {
+        "value": 4692,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 173,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8832,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "t=0.00012363, is_byok=False, cost_details={'upstream_inference_cost': 0.00012363, 'upstream_inference_prompt_cost': 9.778e-05, 'upstream_inference_completions_cost': 2.585e-05})\n13:11:50 - agent.conversation_loop - INFO [20260910_131147_a90c71] - API call #3: model=qwen/qwen3.8-flash provider=unknown in=4654 out=55 total=4709 latency=0.6s cache=4480/4654 (96%)\n13:11:50 - root - DEBUG [20260910_131147_a90c71] - Token usage: prompt=4,654, completion=55, total=4,709\n13:11:50 - root - DEBUG [20260910_131147_a90c71] - Captured reasoning (20 chars): Done. Brief report.\n\n13:11:50 - tools.browser_tool - DEBUG [20260910_131147_a90c71] - cleanup_browser called for task_id: 8382c955-18c4-455e-a8fd-0e5f3f5c1e2d\n13:11:50 - tools.browser_tool - DEBUG [20260910_131147_a90c71] - Active sessions: []\n13:11:50 - tools.browser_tool - DEBUG [20260910_131147_a90c71] - No active session found for task_id: 8382c955-18c4-455e-a8fd-0e5f3f5c1e2d\n13:11:50 - agent.conversation_loop - INFO [20260910_131147_a90c71] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=120 session=20260910_131147_a90c71\n13:11:50 - tools.terminal_tool - INFO [20260910_131147_a90c71] - Shutting down 1 remaining sandbox(es)...\n13:11:50 - tools.terminal_tool - INFO [20260910_131147_a90c71] - Manually cleaned up environment for task: default\n13:11:50 - tools.terminal_tool - INFO [20260910_131147_a90c71] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 7631,
+      "input_tokens": {
+        "value": 9791,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 355,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query go test fails. Find the bug and fix it in the implementation, not the test. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "tream_inference_cost': 0.000135494, 'upstream_inference_prompt_cost': 0.000102124, 'upstream_inference_completions_cost': 3.337e-05})\n13:11:52 - agent.conversation_loop - INFO [20260910_131147_708e55] - API call #4: model=qwen/qwen3.8-flash provider=unknown in=5026 out=71 total=5097 latency=0.6s cache=4864/5026 (97%)\n13:11:52 - root - DEBUG [20260910_131147_708e55] - Token usage: prompt=5,026, completion=71, total=5,097\n13:11:52 - root - DEBUG [20260910_131147_708e55] - Captured reasoning (64 chars): I need to investigate this further. Let me confirm the details.\n\n13:11:52 - tools.browser_tool - DEBUG [20260910_131147_708e55] - cleanup_browser called for task_id: 7f5d5450-e30b-453a-b1ed-796dfd04cf43\n13:11:52 - tools.browser_tool - DEBUG [20260910_131147_708e55] - Active sessions: []\n13:11:52 - tools.browser_tool - DEBUG [20260910_131147_708e55] - No active session found for task_id: 7f5d5450-e30b-453a-b1ed-796dfd04cf43\n13:11:52 - agent.conversation_loop - INFO [20260910_131147_708e55] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=144 session=20260910_131147_708e55\n13:11:52 - tools.terminal_tool - INFO [20260910_131147_708e55] - Shutting down 1 remaining sandbox(es)...\n13:11:52 - tools.terminal_tool - INFO [20260910_131147_708e55] - Manually cleaned up environment for task: default\n13:11:52 - tools.terminal_tool - INFO [20260910_131147_708e55] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 13013,
+      "input_tokens": {
+        "value": 5235,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1083,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6976,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "_details={'upstream_inference_cost': 0.000201388, 'upstream_inference_prompt_cost': 0.000147338, 'upstream_inference_completions_cost': 5.405e-05})\n13:11:57 - agent.conversation_loop - INFO [20260910_131147_954f76] - API call #3: model=qwen/qwen3.8-flash provider=unknown in=4527 out=115 total=4642 latency=1.1s cache=3968/4527 (88%)\n13:11:57 - root - DEBUG [20260910_131147_954f76] - Token usage: prompt=4,527, completion=115, total=4,642\n13:11:57 - root - DEBUG [20260910_131147_954f76] - Captured reasoning (48 chars): Complete and verified. Please report concisely.\n\n13:11:57 - tools.browser_tool - DEBUG [20260910_131147_954f76] - cleanup_browser called for task_id: 48c66650-b58b-4fcf-85a4-a1466f68432f\n13:11:57 - tools.browser_tool - DEBUG [20260910_131147_954f76] - Active sessions: []\n13:11:57 - tools.browser_tool - DEBUG [20260910_131147_954f76] - No active session found for task_id: 48c66650-b58b-4fcf-85a4-a1466f68432f\n13:11:57 - agent.conversation_loop - INFO [20260910_131147_954f76] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=286 session=20260910_131147_954f76\n13:11:58 - tools.terminal_tool - INFO [20260910_131147_954f76] - Shutting down 1 remaining sandbox(es)...\n13:11:58 - tools.terminal_tool - INFO [20260910_131147_954f76] - Manually cleaned up environment for task: default\n13:11:58 - tools.terminal_tool - INFO [20260910_131147_954f76] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 26698,
+      "input_tokens": {
+        "value": 6977,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 889,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 21248,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "': 0.000167984, 'upstream_inference_prompt_cost': 0.000100774, 'upstream_inference_completions_cost': 6.721e-05})\n13:12:11 - agent.conversation_loop - INFO [20260910_131147_412035] - API call #6: model=qwen/qwen3.8-flash provider=unknown in=5017 out=143 total=5160 latency=2.9s cache=4864/5017 (97%)\n13:12:11 - root - DEBUG [20260910_131147_412035] - Token usage: prompt=5,017, completion=143, total=5,160\n13:12:11 - root - DEBUG [20260910_131147_412035] - Captured reasoning (82 chars): Done. 4 occurrences have been renamed in 3 files. The build and validation passed.\n13:12:11 - tools.browser_tool - DEBUG [20260910_131147_412035] - cleanup_browser called for task_id: 2aa4a04c-3cac-4d49-9d86-25964fe83a4d\n13:12:11 - tools.browser_tool - DEBUG [20260910_131147_412035] - Active sessions: []\n13:12:11 - tools.browser_tool - DEBUG [20260910_131147_412035] - No active session found for task_id: 2aa4a04c-3cac-4d49-9d86-25964fe83a4d\n13:12:11 - agent.conversation_loop - INFO [20260910_131147_412035] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=357 session=20260910_131147_412035\n13:12:12 - tools.terminal_tool - INFO [20260910_131147_412035] - Shutting down 1 remaining sandbox(es)...\n13:12:12 - tools.terminal_tool - INFO [20260910_131147_412035] - Manually cleaned up environment for task: default\n13:12:12 - tools.terminal_tool - INFO [20260910_131147_412035] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 15758,
+      "input_tokens": {
+        "value": 2792,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 632,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 25344,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query What does Compute(3) return? Reply with just the number. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ost_details={'upstream_inference_cost': 0.000139624, 'upstream_inference_prompt_cost': 0.000125524, 'upstream_inference_completions_cost': 1.41e-05})\n13:12:27 - agent.conversation_loop - INFO [20260910_131213_c5109b] - API call #6: model=qwen/qwen3.8-flash provider=unknown in=5182 out=30 total=5212 latency=1.3s cache=4864/5182 (94%)\n13:12:27 - root - DEBUG [20260910_131213_c5109b] - Token usage: prompt=5,182, completion=30, total=5,212\n13:12:27 - root - DEBUG [20260910_131213_c5109b] - Captured reasoning (44 chars): Compute(3): Start r=1 → 3 → 7 → 15. Yes, 15.\n13:12:27 - tools.browser_tool - DEBUG [20260910_131213_c5109b] - cleanup_browser called for task_id: ca76c41f-5f1a-4264-9d78-befdb7ed934b\n13:12:27 - tools.browser_tool - DEBUG [20260910_131213_c5109b] - Active sessions: []\n13:12:27 - tools.browser_tool - DEBUG [20260910_131213_c5109b] - No active session found for task_id: ca76c41f-5f1a-4264-9d78-befdb7ed934b\n13:12:27 - agent.conversation_loop - INFO [20260910_131213_c5109b] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=2 session=20260910_131213_c5109b\n13:12:27 - tools.terminal_tool - INFO [20260910_131213_c5109b] - Shutting down 1 remaining sandbox(es)...\n13:12:27 - tools.terminal_tool - INFO [20260910_131213_c5109b] - Manually cleaned up environment for task: default\n13:12:27 - tools.terminal_tool - INFO [20260910_131213_c5109b] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6680,
+      "input_tokens": {
+        "value": 1358,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 557,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14208,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query In config.json change the port to 8080. Keep every other key exactly as it is. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": ": 0.000142444, 'upstream_inference_prompt_cost': 0.000110014, 'upstream_inference_completions_cost': 3.243e-05})\n13:12:18 - agent.conversation_loop - INFO [20260910_131213_3450a9] - API call #4: model=qwen/qwen3.8-flash provider=unknown in=4221 out=69 total=4290 latency=0.5s cache=3904/4221 (92%)\n13:12:18 - root - DEBUG [20260910_131213_3450a9] - Token usage: prompt=4,221, completion=69, total=4,290\n13:12:18 - root - DEBUG [20260910_131213_3450a9] - Captured reasoning (85 chars): Done. Valid JSON, the only change is the port, and the formatting is kept identical.\n\n13:12:18 - tools.browser_tool - DEBUG [20260910_131213_3450a9] - cleanup_browser called for task_id: a6164395-81b7-4436-9133-c6cf085a059d\n13:12:18 - tools.browser_tool - DEBUG [20260910_131213_3450a9] - Active sessions: []\n13:12:18 - tools.browser_tool - DEBUG [20260910_131213_3450a9] - No active session found for task_id: a6164395-81b7-4436-9133-c6cf085a059d\n13:12:18 - agent.conversation_loop - INFO [20260910_131213_3450a9] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=160 session=20260910_131213_3450a9\n13:12:18 - tools.terminal_tool - INFO [20260910_131213_3450a9] - Shutting down 1 remaining sandbox(es)...\n13:12:18 - tools.terminal_tool - INFO [20260910_131213_3450a9] - Manually cleaned up environment for task: default\n13:12:18 - tools.terminal_tool - INFO [20260910_131213_3450a9] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 5663,
+      "input_tokens": {
+        "value": 763,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 278,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 6592,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write count.sh that prints the number of lines in input.txt and nothing else. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "31 out=162 total=3893 latency=1.0s cache=3584/3731 (96%)\n13:12:16 - root - DEBUG [20260910_131213_32ac45] - Token usage: prompt=3,731, completion=162, total=3,893\n13:12:16 - root - DEBUG [20260910_131213_32ac45] - Captured reasoning (320 chars): Works. Note: wc -l counts newlines. For files without a trailing newline at the end, a discrepancy arises with the common interpretation of \"number of lines\" — a trivial caveat, but fine for educational purposes. Should I mention it briefly? Keep it short.\n\n✅ Need to investigate this further. Let me check the details.\n\n13:12:16 - tools.browser_tool - DEBUG [20260910_131213_32ac45] - cleanup_browser called for task_id: c8f36d1d-2bbc-499c-b464-bb7ad1976302\n13:12:16 - tools.browser_tool - DEBUG [20260910_131213_32ac45] - Active sessions: []\n13:12:16 - tools.browser_tool - DEBUG [20260910_131213_32ac45] - No active session found for task_id: c8f36d1d-2bbc-499c-b464-bb7ad1976302\n13:12:16 - agent.conversation_loop - INFO [20260910_131213_32ac45] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=327 session=20260910_131213_32ac45\n13:12:17 - tools.terminal_tool - INFO [20260910_131213_32ac45] - Shutting down 1 remaining sandbox(es)...\n13:12:17 - tools.terminal_tool - INFO [20260910_131213_32ac45] - Manually cleaned up environment for task: default\n13:12:17 - tools.terminal_tool - INFO [20260910_131213_32ac45] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 13230,
+      "input_tokens": {
+        "value": 2279,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 429,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 16128,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a greet target to the Makefile that prints hi. Keep the existing targets. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ache=4608/4901 (94%)\n13:12:24 - root - DEBUG [20260910_131213_c2eff8] - Token usage: prompt=4,901, completion=153, total=5,054\n13:12:24 - root - DEBUG [20260910_131213_c2eff8] - Captured reasoning (358 chars): Done. Note: There's no blank line between test and greet, but it's fine. Should I add a blank line for style consistency? The existing file has a blank line between targets. A trivial point. I could add one. Let me quickly patch it with printf… it's a minor stylistic issue, but consistency is good. Actually, let me fix it: insert a blank line before greet.\n13:12:24 - tools.browser_tool - DEBUG [20260910_131213_c2eff8] - cleanup_browser called for task_id: 6567e69a-1e36-42af-875e-6ec96bc44685\n13:12:24 - tools.browser_tool - DEBUG [20260910_131213_c2eff8] - Active sessions: []\n13:12:24 - tools.browser_tool - DEBUG [20260910_131213_c2eff8] - No active session found for task_id: 6567e69a-1e36-42af-875e-6ec96bc44685\n13:12:24 - agent.conversation_loop - INFO [20260910_131213_c2eff8] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=224 session=20260910_131213_c2eff8\n13:12:25 - tools.terminal_tool - INFO [20260910_131213_c2eff8] - Shutting down 1 remaining sandbox(es)...\n13:12:25 - tools.terminal_tool - INFO [20260910_131213_c2eff8] - Manually cleaned up environment for task: default\n13:12:25 - tools.terminal_tool - INFO [20260910_131213_c2eff8] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 5573,
+      "input_tokens": {
+        "value": 868,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 248,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10240,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Append the line 'four' to the end of list.txt. Do not change the existing lines. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "t - DEBUG [20260910_131213_ab0055] - Token usage: prompt=3,779, completion=136, total=3,915\n13:12:17 - root - DEBUG [20260910_131213_ab0055] - Captured reasoning (393 chars): Simple: the original file ends with \"three$\" with a trailing newline. Adding printf 'four\\n' should make \"four\\n\" appended. The cat output shows four lines. Wait, in cat -A, \"three$\" ends with a newline (the $ at the end of three). But after appending, does cat show \"three\\nfour\" without a trailing newline? It's just that cat's output display ends with \"four\" — printf added \\n. No problem.\n\n13:12:17 - tools.browser_tool - DEBUG [20260910_131213_ab0055] - cleanup_browser called for task_id: 19eb6d51-04d8-4d0f-a1cf-575bc812a046\n13:12:17 - tools.browser_tool - DEBUG [20260910_131213_ab0055] - Active sessions: []\n13:12:17 - tools.browser_tool - DEBUG [20260910_131213_ab0055] - No active session found for task_id: 19eb6d51-04d8-4d0f-a1cf-575bc812a046\n13:12:17 - agent.conversation_loop - INFO [20260910_131213_ab0055] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=124 session=20260910_131213_ab0055\n13:12:17 - tools.terminal_tool - INFO [20260910_131213_ab0055] - Shutting down 1 remaining sandbox(es)...\n13:12:17 - tools.terminal_tool - INFO [20260910_131213_ab0055] - Manually cleaned up environment for task: default\n13:12:17 - tools.terminal_tool - INFO [20260910_131213_ab0055] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 13287,
+      "input_tokens": {
+        "value": 2712,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 454,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 20736,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "0378, 'upstream_inference_prompt_cost': 0.000131628, 'upstream_inference_completions_cost': 5.875e-05})\n13:12:40 - agent.conversation_loop - INFO [20260910_131229_027e69] - API call #5: model=qwen/qwen3.8-flash provider=unknown in=4994 out=125 total=5119 latency=2.3s cache=4608/4994 (92%)\n13:12:40 - root - DEBUG [20260910_131229_027e69] - Token usage: prompt=4,994, completion=125, total=5,119\n13:12:40 - root - DEBUG [20260910_131229_027e69] - Captured reasoning (92 chars): Done. Since the tests already expected (int, error), no changes to the tests were necessary.\n13:12:40 - tools.browser_tool - DEBUG [20260910_131229_027e69] - cleanup_browser called for task_id: 1ee58e02-66b6-46ad-9199-b856146b8d26\n13:12:40 - tools.browser_tool - DEBUG [20260910_131229_027e69] - Active sessions: []\n13:12:40 - tools.browser_tool - DEBUG [20260910_131229_027e69] - No active session found for task_id: 1ee58e02-66b6-46ad-9199-b856146b8d26\n13:12:40 - agent.conversation_loop - INFO [20260910_131229_027e69] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=366 session=20260910_131229_027e69\n13:12:41 - tools.terminal_tool - INFO [20260910_131229_027e69] - Shutting down 1 remaining sandbox(es)...\n13:12:41 - tools.terminal_tool - INFO [20260910_131229_027e69] - Manually cleaned up environment for task: default\n13:12:41 - tools.terminal_tool - INFO [20260910_131229_027e69] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 6812,
+      "input_tokens": {
+        "value": 1851,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 255,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 16384,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query python3 test_stats.py fails. Fix the bug in stats.py. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "=0.000125748, is_byok=False, cost_details={'upstream_inference_cost': 0.000125748, 'upstream_inference_prompt_cost': 9.4728e-05, 'upstream_inference_completions_cost': 3.102e-05})\n13:12:34 - agent.conversation_loop - INFO [20260910_131229_a06ea5] - API call #4: model=qwen/qwen3.8-flash provider=unknown in=4748 out=66 total=4814 latency=0.9s cache=4608/4748 (97%)\n13:12:34 - root - DEBUG [20260910_131229_a06ea5] - Token usage: prompt=4,748, completion=66, total=4,814\n13:12:34 - root - DEBUG [20260910_131229_a06ea5] - Captured reasoning (18 chars): Done. Simple fix.\n\n13:12:34 - tools.browser_tool - DEBUG [20260910_131229_a06ea5] - cleanup_browser called for task_id: 48a5fb31-c9d0-440d-b762-8d2359cbdb59\n13:12:34 - tools.browser_tool - DEBUG [20260910_131229_a06ea5] - Active sessions: []\n13:12:34 - tools.browser_tool - DEBUG [20260910_131229_a06ea5] - No active session found for task_id: 48a5fb31-c9d0-440d-b762-8d2359cbdb59\n13:12:34 - agent.conversation_loop - INFO [20260910_131229_a06ea5] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=162 session=20260910_131229_a06ea5\n13:12:34 - tools.terminal_tool - INFO [20260910_131229_a06ea5] - Shutting down 1 remaining sandbox(es)...\n13:12:34 - tools.terminal_tool - INFO [20260910_131229_a06ea5] - Manually cleaned up environment for task: default\n13:12:34 - tools.terminal_tool - INFO [20260910_131229_a06ea5] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 40679,
+      "input_tokens": {
+        "value": 6115,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1475,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 27968,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": " INFO [20260910_131229_bdf857] - API call #7: model=qwen/qwen3.8-flash provider=unknown in=5540 out=225 total=5765 latency=1.4s cache=5120/5540 (92%)\n13:13:07 - root - DEBUG [20260910_131229_bdf857] - Token usage: prompt=5,540, completion=225, total=5,765\n13:13:07 - root - DEBUG [20260910_131229_bdf857] - Captured reasoning (229 chars): Done. The write_file/patch tool was mentioned, but I used the terminal's heredoc — it's within the acceptable range, but the instructions said to use patch/write_file. Even so, it's completed and verified. I'll report concisely.\n\n13:13:07 - tools.browser_tool - DEBUG [20260910_131229_bdf857] - cleanup_browser called for task_id: cc51c21f-44e1-4503-b286-024612aba6e7\n13:13:07 - tools.browser_tool - DEBUG [20260910_131229_bdf857] - Active sessions: []\n13:13:07 - tools.browser_tool - DEBUG [20260910_131229_bdf857] - No active session found for task_id: cc51c21f-44e1-4503-b286-024612aba6e7\n13:13:07 - agent.conversation_loop - INFO [20260910_131229_bdf857] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=498 session=20260910_131229_bdf857\n13:13:08 - tools.terminal_tool - INFO [20260910_131229_bdf857] - Shutting down 1 remaining sandbox(es)...\n13:13:08 - tools.terminal_tool - INFO [20260910_131229_bdf857] - Manually cleaned up environment for task: default\n13:13:08 - tools.terminal_tool - INFO [20260910_131229_bdf857] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 14599,
+      "input_tokens": {
+        "value": 1514,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 574,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13824,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add node_modules/ and dist/ to .gitignore, keeping what is there. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "lear newline. After the append, the file shows `*.log\\nnode_modules/\\ndist/` — hmm, actually the final cat shows them properly on separate lines, so was there a newline after *.log? The output shows:\n\n```\n*.log\nnode_modules/\ndist/\n```\n\nLet me actually check: if `*.log` didn't have a trailing newline, the result would be `*.lognode_modules/`. Since the output shows them on separate lines, either the original file had a trailing newline or... the file was 6 bytes: \"*.log\\n\" is exactly 6 bytes. Yes, there was a trailing newline. Okay — this is the correct result.\n13:12:42 - tools.browser_tool - DEBUG [20260910_131229_08b5e7] - cleanup_browser called for task_id: 9273e713-ea2f-4605-a2c1-d530e93f55e6\n13:12:42 - tools.browser_tool - DEBUG [20260910_131229_08b5e7] - Active sessions: []\n13:12:42 - tools.browser_tool - DEBUG [20260910_131229_08b5e7] - No active session found for task_id: 9273e713-ea2f-4605-a2c1-d530e93f55e6\n13:12:42 - agent.conversation_loop - INFO [20260910_131229_08b5e7] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=144 session=20260910_131229_08b5e7\n13:12:42 - tools.terminal_tool - INFO [20260910_131229_08b5e7] - Shutting down 1 remaining sandbox(es)...\n13:12:42 - tools.terminal_tool - INFO [20260910_131229_08b5e7] - Manually cleaned up environment for task: default\n13:12:42 - tools.terminal_tool - INFO [20260910_131229_08b5e7] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 5193,
+      "input_tokens": {
+        "value": 1748,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 211,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7296,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "160358, 'upstream_inference_prompt_cost': 0.000129808, 'upstream_inference_completions_cost': 3.055e-05})\n13:12:32 - agent.conversation_loop - INFO [20260910_131229_9f211b] - API call #2: model=qwen/qwen3.8-flash provider=unknown in=4696 out=65 total=4761 latency=0.8s cache=4288/4696 (91%)\n13:12:32 - root - DEBUG [20260910_131229_9f211b] - Token usage: prompt=4,696, completion=65, total=4,761\n13:12:32 - root - DEBUG [20260910_131229_9f211b] - Captured reasoning (92 chars): The file b.go doesn't import fmt. a.go does. Should I check git history too? Not necessary.\n\n13:12:32 - tools.browser_tool - DEBUG [20260910_131229_9f211b] - cleanup_browser called for task_id: 018bb7ad-b779-4ddd-98c1-54127d9a1300\n13:12:32 - tools.browser_tool - DEBUG [20260910_131229_9f211b] - Active sessions: []\n13:12:32 - tools.browser_tool - DEBUG [20260910_131229_9f211b] - No active session found for task_id: 018bb7ad-b779-4ddd-98c1-54127d9a1300\n13:12:32 - agent.conversation_loop - INFO [20260910_131229_9f211b] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=118 session=20260910_131229_9f211b\n13:12:33 - tools.terminal_tool - INFO [20260910_131229_9f211b] - Shutting down 1 remaining sandbox(es)...\n13:12:33 - tools.terminal_tool - INFO [20260910_131229_9f211b] - Manually cleaned up environment for task: default\n13:12:33 - tools.terminal_tool - INFO [20260910_131229_9f211b] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 10618,
+      "input_tokens": {
+        "value": 2246,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 502,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 21504,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "m_inference_cost': 0.000145188, 'upstream_inference_prompt_cost': 0.000101948, 'upstream_inference_completions_cost': 4.324e-05})\n13:13:18 - agent.conversation_loop - INFO [20260910_131310_8b3f94] - API call #5: model=qwen/qwen3.8-flash provider=unknown in=5082 out=92 total=5174 latency=2.2s cache=4928/5082 (97%)\n13:13:18 - root - DEBUG [20260910_131310_8b3f94] - Token usage: prompt=5,082, completion=92, total=5,174\n13:13:18 - root - DEBUG [20260910_131310_8b3f94] - Captured reasoning (68 chars): Done, verified (the output of 5 matches \"hello world foo bar baz\").\n\n13:13:18 - tools.browser_tool - DEBUG [20260910_131310_8b3f94] - cleanup_browser called for task_id: 4ab7175a-080d-4245-aecb-b10250f84b84\n13:13:18 - tools.browser_tool - DEBUG [20260910_131310_8b3f94] - Active sessions: []\n13:13:18 - tools.browser_tool - DEBUG [20260910_131310_8b3f94] - No active session found for task_id: 4ab7175a-080d-4245-aecb-b10250f84b84\n13:13:18 - agent.conversation_loop - INFO [20260910_131310_8b3f94] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=318 session=20260910_131310_8b3f94\n13:13:19 - tools.terminal_tool - INFO [20260910_131310_8b3f94] - Shutting down 1 remaining sandbox(es)...\n13:13:19 - tools.terminal_tool - INFO [20260910_131310_8b3f94] - Manually cleaned up environment for task: default\n13:13:19 - tools.terminal_tool - INFO [20260910_131310_8b3f94] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 9316,
+      "input_tokens": {
+        "value": 1261,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 198,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9984,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "': 0.000123714, 'upstream_inference_prompt_cost': 9.7394e-05, 'upstream_inference_completions_cost': 2.632e-05})\n13:13:17 - agent.conversation_loop - INFO [20260910_131310_d98cd7] - API call #3: model=qwen/qwen3.8-flash provider=unknown in=3851 out=56 total=3907 latency=1.9s cache=3584/3851 (93%)\n13:13:17 - root - DEBUG [20260910_131310_d98cd7] - Token usage: prompt=3,851, completion=56, total=3,907\n13:13:17 - root - DEBUG [20260910_131310_d98cd7] - Captured reasoning (83 chars): Done. Quickly checking the file — cat's output already shows sorted.csv. No issues.\n13:13:17 - tools.browser_tool - DEBUG [20260910_131310_d98cd7] - cleanup_browser called for task_id: 966411f6-de54-4081-95ad-8f795a4cc5cf\n13:13:17 - tools.browser_tool - DEBUG [20260910_131310_d98cd7] - Active sessions: []\n13:13:17 - tools.browser_tool - DEBUG [20260910_131310_d98cd7] - No active session found for task_id: 966411f6-de54-4081-95ad-8f795a4cc5cf\n13:13:17 - agent.conversation_loop - INFO [20260910_131310_d98cd7] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=111 session=20260910_131310_d98cd7\n13:13:17 - tools.terminal_tool - INFO [20260910_131310_d98cd7] - Shutting down 1 remaining sandbox(es)...\n13:13:17 - tools.terminal_tool - INFO [20260910_131310_d98cd7] - Manually cleaned up environment for task: default\n13:13:17 - tools.terminal_tool - INFO [20260910_131310_d98cd7] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 10730,
+      "input_tokens": {
+        "value": 1859,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 347,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13248,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Which files mention 'flux capacitor'? List only the file names. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "m_inference_cost': 9.45e-05, 'upstream_inference_prompt_cost': 7.899e-05, 'upstream_inference_completions_cost': 1.551e-05})\n13:13:18 - agent.conversation_loop - INFO [20260910_131310_330b5e] - API call #4: model=qwen/qwen3.8-flash provider=unknown in=3957 out=33 total=3990 latency=1.3s cache=3840/3957 (97%)\n13:13:18 - root - DEBUG [20260910_131310_330b5e] - Token usage: prompt=3,957, completion=33, total=3,990\n13:13:18 - root - DEBUG [20260910_131310_330b5e] - Captured reasoning (74 chars): Done. Also, may need to check hidden/binary files. This should be enough.\n\n13:13:18 - tools.browser_tool - DEBUG [20260910_131310_330b5e] - cleanup_browser called for task_id: ee1f2343-14f4-49dc-8e7f-857e3adfe93a\n13:13:18 - tools.browser_tool - DEBUG [20260910_131310_330b5e] - Active sessions: []\n13:13:18 - tools.browser_tool - DEBUG [20260910_131310_330b5e] - No active session found for task_id: ee1f2343-14f4-49dc-8e7f-857e3adfe93a\n13:13:18 - agent.conversation_loop - INFO [20260910_131310_330b5e] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=27 session=20260910_131310_330b5e\n13:13:19 - tools.terminal_tool - INFO [20260910_131310_330b5e] - Shutting down 1 remaining sandbox(es)...\n13:13:19 - tools.terminal_tool - INFO [20260910_131310_330b5e] - Manually cleaned up environment for task: default\n13:13:19 - tools.terminal_tool - INFO [20260910_131310_330b5e] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 15254,
+      "input_tokens": {
+        "value": 2671,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 575,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 16384,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "93708, is_byok=False, cost_details={'upstream_inference_cost': 0.000193708, 'upstream_inference_prompt_cost': 0.000158928, 'upstream_inference_completions_cost': 3.478e-05})\n13:13:23 - agent.conversation_loop - INFO [20260910_131310_35e600] - API call #4: model=qwen/qwen3.8-flash provider=unknown in=5176 out=74 total=5250 latency=2.1s cache=4608/5176 (89%)\n13:13:23 - root - DEBUG [20260910_131310_35e600] - Token usage: prompt=5,176, completion=74, total=5,250\n13:13:23 - root - DEBUG [20260910_131310_35e600] - Captured reasoning (24 chars): Done. Report concisely.\n\n13:13:23 - tools.browser_tool - DEBUG [20260910_131310_35e600] - cleanup_browser called for task_id: be0822bf-6a4a-48cc-bb27-7ac115f2b8d9\n13:13:23 - tools.browser_tool - DEBUG [20260910_131310_35e600] - Active sessions: []\n13:13:23 - tools.browser_tool - DEBUG [20260910_131310_35e600] - No active session found for task_id: be0822bf-6a4a-48cc-bb27-7ac115f2b8d9\n13:13:23 - agent.conversation_loop - INFO [20260910_131310_35e600] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=218 session=20260910_131310_35e600\n13:13:23 - tools.terminal_tool - INFO [20260910_131310_35e600] - Shutting down 1 remaining sandbox(es)...\n13:13:23 - tools.terminal_tool - INFO [20260910_131310_35e600] - Manually cleaned up environment for task: default\n13:13:23 - tools.terminal_tool - INFO [20260910_131310_35e600] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 6630,
+      "input_tokens": {
+        "value": 1663,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 277,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11712,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --model qwen/qwen3.8-flash --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "st=0.000122186, is_byok=False, cost_details={'upstream_inference_cost': 0.000122186, 'upstream_inference_prompt_cost': 9.9156e-05, 'upstream_inference_completions_cost': 2.303e-05})\n13:13:14 - agent.conversation_loop - INFO [20260910_131310_1dc353] - API call #3: model=qwen/qwen3.8-flash provider=unknown in=4606 out=49 total=4655 latency=1.0s cache=4416/4606 (96%)\n13:13:14 - root - DEBUG [20260910_131310_1dc353] - Token usage: prompt=4,606, completion=49, total=4,655\n13:13:14 - root - DEBUG [20260910_131310_1dc353] - Captured reasoning (16 chars): Done, verified.\n\n13:13:14 - tools.browser_tool - DEBUG [20260910_131310_1dc353] - cleanup_browser called for task_id: 4729d0ed-9c7d-4731-9d41-b237e46f7e8a\n13:13:14 - tools.browser_tool - DEBUG [20260910_131310_1dc353] - Active sessions: []\n13:13:14 - tools.browser_tool - DEBUG [20260910_131310_1dc353] - No active session found for task_id: 4729d0ed-9c7d-4731-9d41-b237e46f7e8a\n13:13:14 - agent.conversation_loop - INFO [20260910_131310_1dc353] - Turn ended: reason=text_response(finish_reason=stop) model=qwen/qwen3.8-flash api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=101 session=20260910_131310_1dc353\n13:13:15 - tools.terminal_tool - INFO [20260910_131310_1dc353] - Shutting down 1 remaining sandbox(es)...\n13:13:15 - tools.terminal_tool - INFO [20260910_131310_1dc353] - Manually cleaned up environment for task: default\n13:13:15 - tools.terminal_tool - INFO [20260910_131310_1dc353] - Cleaned 1 environments"
+    }
+  ],
+  "janetcode": [
+    {
+      "harness": "janetcode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 20237,
+      "input_tokens": {
+        "value": 4547,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 212,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8562,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001136382,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 01-create-file --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 29902,
+      "input_tokens": {
+        "value": 9670,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 407,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13411,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002086966,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 48576,
+      "input_tokens": {
+        "value": 10169,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 366,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8562,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002062612,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 130429,
+      "input_tokens": {
+        "value": 8147,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 2047,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 28709,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002927834,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 76464,
+      "input_tokens": {
+        "value": 11075,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 833,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13737,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002537302,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 3177,
+      "input_tokens": {
+        "value": 4638,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 144,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8640,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00112072,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 30529,
+      "input_tokens": {
+        "value": 5514,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 566,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 22024,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001683754,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 47516,
+      "input_tokens": {
+        "value": 6197,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1744,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 32371,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0025239159999999997,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 16010,
+      "input_tokens": {
+        "value": 5207,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 351,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17497,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001451722,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 16672,
+      "input_tokens": {
+        "value": 4953,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 257,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12859,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0012951840000000002,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 11209,
+      "input_tokens": {
+        "value": 10109,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 577,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14021,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002264076,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 17733,
+      "input_tokens": {
+        "value": 9589,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 579,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8878,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002088078,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 29847,
+      "input_tokens": {
+        "value": 6709,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1316,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 23008,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002263348,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 13344,
+      "input_tokens": {
+        "value": 5180,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 519,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 22079,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001606894,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 3767,
+      "input_tokens": {
+        "value": 4550,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 101,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4288,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001017478,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 24935,
+      "input_tokens": {
+        "value": 5609,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 861,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 22454,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0018504340000000002,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 16-readme --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 3844,
+      "input_tokens": {
+        "value": 4694,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 212,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8640,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00116418,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 4874,
+      "input_tokens": {
+        "value": 4686,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 227,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8640,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0011698799999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 20330,
+      "input_tokens": {
+        "value": 5563,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 957,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17840,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00181298,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 19-write-test --provider openai --model qwen/qwen3.8-flash"
+    },
+    {
+      "harness": "janetcode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 31525,
+      "input_tokens": {
+        "value": 7058,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1610,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 31719,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002586154,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 20-env-default --provider openai --model qwen/qwen3.8-flash"
+    }
+  ],
+  "openclaw": [
+    {
+      "harness": "openclaw",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 12999,
+      "input_tokens": {
+        "value": 35675,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 186,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 35712,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-3917710667 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789038976809177860 --message Create a file named hello.txt containing exactly the text: hello world",
+      "stderr_excerpt": "h] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=2202 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1656 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 2464b960-f04f-4095-b51a-05ca7afaee75 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 15756,
+      "input_tokens": {
+        "value": 36169,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 440,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 107328,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-821091429 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789038976871997514 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+      "stderr_excerpt": "del=qwen/qwen3.8-flash status=200 elapsedMs=1294 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=784 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=974 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run bbcc2dfc-8a19-4bf3-ada7-2ffcfb126e43 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 28033,
+      "input_tokens": {
+        "value": 29720,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 598,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 148480,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-104240329 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789038976737935442 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+      "stderr_excerpt": "l=qwen/qwen3.8-flash status=200 elapsedMs=3232 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1773 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1296 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 4f8b454b-ae2c-4957-9358-5a35a9291972 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 14597,
+      "input_tokens": {
+        "value": 11558,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 534,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 96320,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-2667727549 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789038976925318262 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+      "stderr_excerpt": "model=qwen/qwen3.8-flash status=200 elapsedMs=2198 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1691 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=947 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c3c68556-b4c3-4d59-9bc4-37ffb426ad89 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 16017,
+      "input_tokens": {
+        "value": 11509,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 342,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 96064,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-3369482994 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789038976700826391 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+      "stderr_excerpt": "model=qwen/qwen3.8-flash status=200 elapsedMs=2427 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=963 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=3143 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 5a517a0c-c4c0-427c-9b12-e4fc863de6b9 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 12221,
+      "input_tokens": {
+        "value": 6634,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 248,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 101312,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-3061959384 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039004918086219 --message What does Compute(3) return? Reply with just the number.",
+      "stderr_excerpt": "{ \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1179 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=741 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=903 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 9082b79c-4f2d-4f78-9f92-43c87ab36dbd ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 19774,
+      "input_tokens": {
+        "value": 12836,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 336,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 128960,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-2860097037 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039005032216227 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+      "stderr_excerpt": ", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=2123 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1341 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 9ad564b0-cdd8-4a99-9b09-84cec8f40985 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 12917,
+      "input_tokens": {
+        "value": 6350,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 398,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 101056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-2728207246 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039004948648685 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+      "stderr_excerpt": " response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=730 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1137 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 815441b3-7d71-4e89-87fe-81638b938f9b ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 24614,
+      "input_tokens": {
+        "value": 6747,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 410,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 134400,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-2024192551 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039004911188413 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+      "stderr_excerpt": "l=qwen/qwen3.8-flash status=200 elapsedMs=2180 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=5101 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1560 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run bb1bb2ea-73af-4e49-94b6-6b3b2dd7eed3 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 20737,
+      "input_tokens": {
+        "value": 6506,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 366,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 99072,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-3655586793 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039004906584091 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+      "stderr_excerpt": "odel=qwen/qwen3.8-flash status=200 elapsedMs=2490 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=2116 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=2063 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c9cb1418-386f-4caa-a9a9-34980ae9e2c2 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 42086,
+      "input_tokens": {
+        "value": 7688,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 744,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 205568,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-615258434 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039029541571450 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+      "stderr_excerpt": "=qwen/qwen3.8-flash status=200 elapsedMs=10072 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1294 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1614 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 0432cb96-b81b-4520-9f47-a450a51deba5 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 22667,
+      "input_tokens": {
+        "value": 7071,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 468,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 170240,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-140486114 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039029500979785 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+      "stderr_excerpt": "l=qwen/qwen3.8-flash status=200 elapsedMs=2013 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1445 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1288 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run e5690d95-b053-44fb-b35b-12ce670f6fc0 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 29290,
+      "input_tokens": {
+        "value": 7631,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1012,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 135424,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-1042204894 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039029777055896 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+      "stderr_excerpt": "l=qwen/qwen3.8-flash status=200 elapsedMs=2156 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1360 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=2118 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d660324e-e0a3-41c9-b71b-dd4028a9430c ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 17053,
+      "input_tokens": {
+        "value": 12545,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 222,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 93632,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-3039172831 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039029679129703 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+      "stderr_excerpt": "odel=qwen/qwen3.8-flash status=200 elapsedMs=1222 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=2487 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=2747 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 217c229a-33fa-4521-a908-bae866c4884f ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 56296,
+      "input_tokens": {
+        "value": 12512,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 195,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 58560,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-2073058366 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039029489228555 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+      "stderr_excerpt": "rror: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=2588 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=10070 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run e1bc926e-6f9b-47df-a3ce-c6192229ac84 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 26668,
+      "input_tokens": {
+        "value": 7713,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 617,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 135424,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-16-readme-3722290046 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039086002482206 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+      "stderr_excerpt": "l=qwen/qwen3.8-flash status=200 elapsedMs=3555 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1227 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=2397 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run a9e8c306-46bd-4fd3-b730-f5178e1afe04 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 22543,
+      "input_tokens": {
+        "value": 6745,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 420,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 99072,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-2859920349 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039086103495557 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+      "stderr_excerpt": ", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1893 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=2385 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 06da5523-be3d-4c7c-bba8-ef7d14a2f06d ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 13590,
+      "input_tokens": {
+        "value": 6378,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 122,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 64000,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-2626258991 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039085861251744 --message Which files mention 'flux capacitor'? List only the file names.",
+      "stderr_excerpt": "Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=2332 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1579 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 8e902810-3f16-4504-968b-a17954e142fe ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 34797,
+      "input_tokens": {
+        "value": 21069,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1525,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 268096,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-3476963701 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039085801681612 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+      "stderr_excerpt": "l=qwen/qwen3.8-flash status=200 elapsedMs=1935 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1895 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=2049 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 099ebac0-2f0f-4d24-a66e-e6d17d0ede4b ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 15844,
+      "input_tokens": {
+        "value": 6348,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 390,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 101120,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-3959355570 agent --local --json --model bench/qwen/qwen3.8-flash --session-id bench-0-1789039085809510889 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+      "stderr_excerpt": "model=qwen/qwen3.8-flash status=200 elapsedMs=901 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=1165 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen/qwen3.8-flash method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen/qwen3.8-flash status=200 elapsedMs=4114 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 34db6d89-1df7-4a3d-b391-d4900e33dc27 ended with stopReason=stop\u001b[39m"
+    }
+  ],
+  "pi": [
+    {
+      "harness": "pi",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9718,
+      "input_tokens": {
+        "value": 480,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 299,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 53248,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001064498,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "pi",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 28177,
+      "input_tokens": {
+        "value": 20908,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 585,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 69696,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.004526286000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 17235,
+      "input_tokens": {
+        "value": 19767,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 499,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 71360,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00434134,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "pi",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 46671,
+      "input_tokens": {
+        "value": 6035,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 2039,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 165440,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 10,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.004510620000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "pi",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 37247,
+      "input_tokens": {
+        "value": 19586,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1495,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 131584,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.005745894,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "pi",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 3945,
+      "input_tokens": {
+        "value": 520,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 175,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 53440,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0010152899999999999,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "pi",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 7061,
+      "input_tokens": {
+        "value": 788,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 248,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 70976,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001370376,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "pi",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 9926,
+      "input_tokens": {
+        "value": 902,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 626,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 89024,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001853904,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "pi",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6097,
+      "input_tokens": {
+        "value": 595,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 293,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 71424,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.001369744,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "pi",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 18940,
+      "input_tokens": {
+        "value": 1673,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 864,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 108032,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002385542,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "pi",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 34236,
+      "input_tokens": {
+        "value": 3702,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1895,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 186432,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 10,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0044288619999999996,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 8400,
+      "input_tokens": {
+        "value": 713,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 346,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 71168,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0014082580000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "pi",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 10383,
+      "input_tokens": {
+        "value": 732,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1285,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 91456,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0021770459999999998,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 16699,
+      "input_tokens": {
+        "value": 1465,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 640,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 107776,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002244966,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "pi",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 9273,
+      "input_tokens": {
+        "value": 924,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 394,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 53248,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0011757480000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "pi",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 30945,
+      "input_tokens": {
+        "value": 2906,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1197,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 145152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.003320922,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "pi",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 7032,
+      "input_tokens": {
+        "value": 377,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 398,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 53632,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0011017219999999999,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "pi",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5313,
+      "input_tokens": {
+        "value": 244,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 198,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 35392,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.000695932,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "pi",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 29608,
+      "input_tokens": {
+        "value": 3337,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1404,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 164864,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 9,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0037982539999999996,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "pi",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 34600,
+      "input_tokens": {
+        "value": 2252,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1336,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 108288,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.002698328,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.8-flash --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ],
+  "qwencode": [
+    {
+      "harness": "qwencode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 16762,
+      "input_tokens": {
+        "value": 22227,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 568,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 105472,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "qwencode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 32658,
+      "input_tokens": {
+        "value": 22736,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 869,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 148480,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 21121,
+      "input_tokens": {
+        "value": 41687,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 557,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 130048,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "qwencode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 21321,
+      "input_tokens": {
+        "value": 22364,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 713,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 105216,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "qwencode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 33970,
+      "input_tokens": {
+        "value": 24018,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1358,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 235520,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 11,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "qwencode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 10104,
+      "input_tokens": {
+        "value": 21009,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 190,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 63744,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "qwencode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 29012,
+      "input_tokens": {
+        "value": 22460,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 700,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 191232,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "qwencode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 28072,
+      "input_tokens": {
+        "value": 22967,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1093,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 149248,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "qwencode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 24931,
+      "input_tokens": {
+        "value": 22577,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 811,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 190720,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "qwencode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 29761,
+      "input_tokens": {
+        "value": 22649,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 870,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 232192,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "qwencode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 28114,
+      "input_tokens": {
+        "value": 22826,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1063,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 192000,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 36462,
+      "input_tokens": {
+        "value": 65062,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1248,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 192000,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "qwencode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 29690,
+      "input_tokens": {
+        "value": 23054,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1244,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 149504,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 41782,
+      "input_tokens": {
+        "value": 22769,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 857,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 190720,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "qwencode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 13989,
+      "input_tokens": {
+        "value": 20985,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 190,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 63744,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "qwencode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 62165,
+      "input_tokens": {
+        "value": 24613,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 2442,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 237056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "qwencode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 21805,
+      "input_tokens": {
+        "value": 89998,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1184,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 166528,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "qwencode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14472,
+      "input_tokens": {
+        "value": 21380,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 370,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 105728,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "qwencode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 27360,
+      "input_tokens": {
+        "value": 21981,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 978,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 147968,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "qwencode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 29124,
+      "input_tokens": {
+        "value": 22518,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1130,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 190464,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model qwen/qwen3.8-flash --max-session-turns 40 --max-wall-time 180s Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ]
+}

@@ -1,0 +1,702 @@
+[
+  {
+    "harness": "janetcode",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 20129,
+    "input_tokens": {
+      "value": 4652,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 54,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 4512,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000757172,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 01-create-file --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 38509,
+    "input_tokens": {
+      "value": 8851,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 259,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 10528,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001617098,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 32041,
+    "input_tokens": {
+      "value": 4329,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 329,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 15232,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001172652,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 30864,
+    "input_tokens": {
+      "value": 5006,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 341,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9280,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00111371,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 38021,
+    "input_tokens": {
+      "value": 8193,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 455,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 11520,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 8,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00166036,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 21479,
+    "input_tokens": {
+      "value": 4923,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 153,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9216,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0007578648,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 23886,
+    "input_tokens": {
+      "value": 8457,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 170,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5536,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001353846,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 26704,
+    "input_tokens": {
+      "value": 3925,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 242,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 10048,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000928798,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 49375,
+    "input_tokens": {
+      "value": 8820,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 321,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 14912,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0015323559999999997,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 22771,
+    "input_tokens": {
+      "value": 8471,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 166,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5504,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001384964,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 34217,
+    "input_tokens": {
+      "value": 7982,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 396,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 11616,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0015970759999999998,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 27963,
+    "input_tokens": {
+      "value": 8980,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 285,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 10176,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001617226,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 42818,
+    "input_tokens": {
+      "value": 8694,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 467,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5760,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0015835299999999999,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 21841,
+    "input_tokens": {
+      "value": 3893,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 166,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9984,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000873574,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 18431,
+    "input_tokens": {
+      "value": 3772,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 78,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5504,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0006841639999999999,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 41484,
+    "input_tokens": {
+      "value": 13667,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 367,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 5536,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0020541903999999997,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 16-readme --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 37595,
+    "input_tokens": {
+      "value": 12496,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 302,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 11232,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0020109663999999996,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 21968,
+    "input_tokens": {
+      "value": 7331,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 97,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 1856,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001064336,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 161380,
+    "input_tokens": {
+      "value": 8217,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 3648,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 20576,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.003974386,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 19-write-test --provider openai --model xiaomi/mimo-v2.5"
+  },
+  {
+    "harness": "janetcode",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 32844,
+    "input_tokens": {
+      "value": 7603,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 233,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 6368,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001305408,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 20-env-default --provider openai --model xiaomi/mimo-v2.5"
+  }
+]

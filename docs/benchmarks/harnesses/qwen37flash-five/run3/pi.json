@@ -1,0 +1,682 @@
+[
+  {
+    "harness": "pi",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 5960,
+    "input_tokens": {
+      "value": 515,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 122,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 35072,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000241742,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Create a file named hello.txt containing exactly the text: hello world"
+  },
+  {
+    "harness": "pi",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 11112,
+    "input_tokens": {
+      "value": 1553,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 410,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 70528,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000523058,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 16275,
+    "input_tokens": {
+      "value": 2744,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 749,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 106624,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0008194340000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+  },
+  {
+    "harness": "pi",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 8596,
+    "input_tokens": {
+      "value": 1253,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 341,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52608,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000397568,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+  },
+  {
+    "harness": "pi",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 16670,
+    "input_tokens": {
+      "value": 4120,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 857,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 105600,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0008686100000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+  },
+  {
+    "harness": "pi",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 6484,
+    "input_tokens": {
+      "value": 937,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 238,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52608,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000374698,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session What does Compute(3) return? Reply with just the number."
+  },
+  {
+    "harness": "pi",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 10651,
+    "input_tokens": {
+      "value": 1916,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 376,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 88064,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000634744,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+  },
+  {
+    "harness": "pi",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 20308,
+    "input_tokens": {
+      "value": 2640,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 772,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 106240,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000817,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+  },
+  {
+    "harness": "pi",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 11581,
+    "input_tokens": {
+      "value": 1556,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 306,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 88064,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000614844,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+  },
+  {
+    "harness": "pi",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 7610,
+    "input_tokens": {
+      "value": 1010,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 280,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 70528,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0004898680000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+  },
+  {
+    "harness": "pi",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 19581,
+    "input_tokens": {
+      "value": 3257,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 804,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 106240,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00083967,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 17648,
+    "input_tokens": {
+      "value": 2608,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 700,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 88448,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000699928,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+  },
+  {
+    "harness": "pi",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 17497,
+    "input_tokens": {
+      "value": 2002,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 806,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 70784,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000589544,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 7760,
+    "input_tokens": {
+      "value": 960,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 257,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 52608,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000377858,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+  },
+  {
+    "harness": "pi",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 5572,
+    "input_tokens": {
+      "value": 548,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 132,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 35072,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000244032,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+  },
+  {
+    "harness": "pi",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 13166,
+    "input_tokens": {
+      "value": 2338,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 487,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 88448,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000664138,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+  },
+  {
+    "harness": "pi",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 11130,
+    "input_tokens": {
+      "value": 1079,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 314,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 70528,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000496358,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+  },
+  {
+    "harness": "pi",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 5603,
+    "input_tokens": {
+      "value": 534,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 134,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 35072,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000243872,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Which files mention 'flux capacitor'? List only the file names."
+  },
+  {
+    "harness": "pi",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 15570,
+    "input_tokens": {
+      "value": 3603,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 636,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 89344,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000726834,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+  },
+  {
+    "harness": "pi",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 9721,
+    "input_tokens": {
+      "value": 910,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 346,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 70912,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000497752,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model qwen/qwen3.7-flash --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+  }
+]

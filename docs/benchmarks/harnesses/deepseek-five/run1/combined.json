@@ -1,0 +1,3452 @@
+{
+  "hermes-agent": [
+    {
+      "harness": "hermes-agent",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 8560,
+      "input_tokens": {
+        "value": 3901,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 94,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3328,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a file named hello.txt containing exactly the text: hello world --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "kens=0, cached_tokens=3328, cache_write_tokens=0, video_tokens=0), cost=0.00053932164, is_byok=False, cost_details={'upstream_inference_cost': 0.00053932164, 'upstream_inference_prompt_cost': 0.00047320944, 'upstream_inference_completions_cost': 6.61122e-05})\n10:14:54 - agent.conversation_loop - INFO [20260910_101448_5134d6] - API call #2: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=3668 out=21 total=3689 latency=2.4s cache=3328/3668 (91%)\n10:14:54 - root - DEBUG [20260910_101448_5134d6] - Token usage: prompt=3,668, completion=21, total=3,689\n10:14:54 - tools.browser_tool - DEBUG [20260910_101448_5134d6] - cleanup_browser called for task_id: 321c1566-2b34-4c78-a436-52ee3dcfd3db\n10:14:54 - tools.browser_tool - DEBUG [20260910_101448_5134d6] - Active sessions: []\n10:14:54 - tools.browser_tool - DEBUG [20260910_101448_5134d6] - No active session found for task_id: 321c1566-2b34-4c78-a436-52ee3dcfd3db\n10:14:54 - agent.conversation_loop - INFO [20260910_101448_5134d6] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=85 session=20260910_101448_5134d6\n10:14:55 - tools.terminal_tool - INFO [20260910_101448_5134d6] - Shutting down 1 remaining sandbox(es)...\n10:14:55 - tools.terminal_tool - INFO [20260910_101448_5134d6] - Manually cleaned up environment for task: default\n10:14:55 - tools.terminal_tool - INFO [20260910_101448_5134d6] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 11358,
+      "input_tokens": {
+        "value": 5125,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 162,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8448,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "okens=0, cached_tokens=4352, cache_write_tokens=0, video_tokens=0), cost=0.00059822796, is_byok=False, cost_details={'upstream_inference_cost': 0.00059822796, 'upstream_inference_prompt_cost': 0.00051952296, 'upstream_inference_completions_cost': 7.8705e-05})\n10:14:57 - agent.conversation_loop - INFO [20260910_101448_2daa89] - API call #3: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=4702 out=25 total=4727 latency=2.5s cache=4352/4702 (93%)\n10:14:57 - root - DEBUG [20260910_101448_2daa89] - Token usage: prompt=4,702, completion=25, total=4,727\n10:14:57 - tools.browser_tool - DEBUG [20260910_101448_2daa89] - cleanup_browser called for task_id: f91559da-d4d8-424d-a444-1ceb5e2059f5\n10:14:57 - tools.browser_tool - DEBUG [20260910_101448_2daa89] - Active sessions: []\n10:14:57 - tools.browser_tool - DEBUG [20260910_101448_2daa89] - No active session found for task_id: f91559da-d4d8-424d-a444-1ceb5e2059f5\n10:14:57 - agent.conversation_loop - INFO [20260910_101448_2daa89] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=70 session=20260910_101448_2daa89\n10:14:58 - tools.terminal_tool - INFO [20260910_101448_2daa89] - Shutting down 1 remaining sandbox(es)...\n10:14:58 - tools.terminal_tool - INFO [20260910_101448_2daa89] - Manually cleaned up environment for task: default\n10:14:58 - tools.terminal_tool - INFO [20260910_101448_2daa89] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 21847,
+      "input_tokens": {
+        "value": 6143,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 376,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12544,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query go test fails. Find the bug and fix it in the implementation, not the test. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ns=0, cached_tokens=4096, cache_write_tokens=0, video_tokens=0), cost=0.00121471548, is_byok=False, cost_details={'upstream_inference_cost': 0.00121471548, 'upstream_inference_prompt_cost': 0.00106989828, 'upstream_inference_completions_cost': 0.0001448172})\n10:15:07 - agent.conversation_loop - INFO [20260910_101448_f2a112] - API call #4: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=4979 out=46 total=5025 latency=2.6s cache=4096/4979 (82%)\n10:15:07 - root - DEBUG [20260910_101448_f2a112] - Token usage: prompt=4,979, completion=46, total=5,025\n10:15:07 - tools.browser_tool - DEBUG [20260910_101448_f2a112] - cleanup_browser called for task_id: 98f165dc-2068-4a54-93a8-038d92e8d6d6\n10:15:07 - tools.browser_tool - DEBUG [20260910_101448_f2a112] - Active sessions: []\n10:15:07 - tools.browser_tool - DEBUG [20260910_101448_f2a112] - No active session found for task_id: 98f165dc-2068-4a54-93a8-038d92e8d6d6\n10:15:07 - agent.conversation_loop - INFO [20260910_101448_f2a112] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=133 session=20260910_101448_f2a112\n10:15:08 - tools.terminal_tool - INFO [20260910_101448_f2a112] - Shutting down 1 remaining sandbox(es)...\n10:15:08 - tools.terminal_tool - INFO [20260910_101448_f2a112] - Manually cleaned up environment for task: default\n10:15:08 - tools.terminal_tool - INFO [20260910_101448_f2a112] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 9488,
+      "input_tokens": {
+        "value": 4104,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 191,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3328,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ns=0, cached_tokens=3328, cache_write_tokens=0, video_tokens=0), cost=0.00074500404, is_byok=False, cost_details={'upstream_inference_cost': 0.00074500404, 'upstream_inference_prompt_cost': 0.00064111344, 'upstream_inference_completions_cost': 0.0001038906})\n10:14:56 - agent.conversation_loop - INFO [20260910_101448_c9868f] - API call #2: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=3828 out=33 total=3861 latency=2.8s cache=3328/3828 (87%)\n10:14:56 - root - DEBUG [20260910_101448_c9868f] - Token usage: prompt=3,828, completion=33, total=3,861\n10:14:56 - tools.browser_tool - DEBUG [20260910_101448_c9868f] - cleanup_browser called for task_id: 8b66a9fd-33d3-42a9-96f9-d8a94bd52ef6\n10:14:56 - tools.browser_tool - DEBUG [20260910_101448_c9868f] - Active sessions: []\n10:14:56 - tools.browser_tool - DEBUG [20260910_101448_c9868f] - No active session found for task_id: 8b66a9fd-33d3-42a9-96f9-d8a94bd52ef6\n10:14:56 - agent.conversation_loop - INFO [20260910_101448_c9868f] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=114 session=20260910_101448_c9868f\n10:14:56 - tools.terminal_tool - INFO [20260910_101448_c9868f] - Shutting down 1 remaining sandbox(es)...\n10:14:56 - tools.terminal_tool - INFO [20260910_101448_c9868f] - Manually cleaned up environment for task: default\n10:14:56 - tools.terminal_tool - INFO [20260910_101448_c9868f] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 26903,
+      "input_tokens": {
+        "value": 6702,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 542,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ns=0, cached_tokens=4608, cache_write_tokens=0, video_tokens=0), cost=0.00095348484, is_byok=False, cost_details={'upstream_inference_cost': 0.00095348484, 'upstream_inference_prompt_cost': 0.00079292664, 'upstream_inference_completions_cost': 0.0001605582})\n10:15:13 - agent.conversation_loop - INFO [20260910_101448_2a3970] - API call #5: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=5210 out=51 total=5261 latency=2.8s cache=4608/5210 (88%)\n10:15:13 - root - DEBUG [20260910_101448_2a3970] - Token usage: prompt=5,210, completion=51, total=5,261\n10:15:13 - tools.browser_tool - DEBUG [20260910_101448_2a3970] - cleanup_browser called for task_id: f944db53-ff57-4693-93dc-eb1442dc6154\n10:15:13 - tools.browser_tool - DEBUG [20260910_101448_2a3970] - Active sessions: []\n10:15:13 - tools.browser_tool - DEBUG [20260910_101448_2a3970] - No active session found for task_id: f944db53-ff57-4693-93dc-eb1442dc6154\n10:15:13 - agent.conversation_loop - INFO [20260910_101448_2a3970] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=148 session=20260910_101448_2a3970\n10:15:13 - tools.terminal_tool - INFO [20260910_101448_2a3970] - Shutting down 1 remaining sandbox(es)...\n10:15:13 - tools.terminal_tool - INFO [20260910_101448_2a3970] - Manually cleaned up environment for task: default\n10:15:13 - tools.terminal_tool - INFO [20260910_101448_2a3970] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 13423,
+      "input_tokens": {
+        "value": 5424,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 233,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12288,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query What does Compute(3) return? Reply with just the number. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "00081804228, 'upstream_inference_prompt_cost': 0.00069526248, 'upstream_inference_completions_cost': 0.0001227798})\n10:15:26 - agent.conversation_loop - INFO [20260910_101515_7f1cc2] - API call #4: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=4622 out=39 total=4661 latency=2.1s cache=4096/4622 (89%)\n10:15:26 - root - DEBUG [20260910_101515_7f1cc2] - Token usage: prompt=4,622, completion=39, total=4,661\n10:15:26 - root - DEBUG [20260910_101515_7f1cc2] - Captured reasoning (62 chars): Compute(3): r=1, i=0: r=3, i=1: r=7, i=2: r=15. So returns 15.\n10:15:26 - tools.browser_tool - DEBUG [20260910_101515_7f1cc2] - cleanup_browser called for task_id: 0442b991-1a41-47a7-92e3-d38229226e45\n10:15:26 - tools.browser_tool - DEBUG [20260910_101515_7f1cc2] - Active sessions: []\n10:15:26 - tools.browser_tool - DEBUG [20260910_101515_7f1cc2] - No active session found for task_id: 0442b991-1a41-47a7-92e3-d38229226e45\n10:15:26 - agent.conversation_loop - INFO [20260910_101515_7f1cc2] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=2 session=20260910_101515_7f1cc2\n10:15:27 - tools.terminal_tool - INFO [20260910_101515_7f1cc2] - Shutting down 1 remaining sandbox(es)...\n10:15:27 - tools.terminal_tool - INFO [20260910_101515_7f1cc2] - Manually cleaned up environment for task: default\n10:15:27 - tools.terminal_tool - INFO [20260910_101515_7f1cc2] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 17429,
+      "input_tokens": {
+        "value": 4801,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 364,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 14336,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query In config.json change the port to 8080. Keep every other key exactly as it is. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "_tokens=0, cached_tokens=3840, cache_write_tokens=0, video_tokens=0), cost=0.0005288976, is_byok=False, cost_details={'upstream_inference_cost': 0.0005288976, 'upstream_inference_prompt_cost': 0.0004470444, 'upstream_inference_completions_cost': 8.18532e-05})\n10:15:30 - agent.conversation_loop - INFO [20260910_101515_4f3e00] - API call #5: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=4138 out=26 total=4164 latency=2.3s cache=3840/4138 (93%)\n10:15:30 - root - DEBUG [20260910_101515_4f3e00] - Token usage: prompt=4,138, completion=26, total=4,164\n10:15:30 - tools.browser_tool - DEBUG [20260910_101515_4f3e00] - cleanup_browser called for task_id: fcfd409f-f0e6-43ae-b9e4-6c1ae4c39599\n10:15:30 - tools.browser_tool - DEBUG [20260910_101515_4f3e00] - Active sessions: []\n10:15:30 - tools.browser_tool - DEBUG [20260910_101515_4f3e00] - No active session found for task_id: fcfd409f-f0e6-43ae-b9e4-6c1ae4c39599\n10:15:30 - agent.conversation_loop - INFO [20260910_101515_4f3e00] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=69 session=20260910_101515_4f3e00\n10:15:31 - tools.terminal_tool - INFO [20260910_101515_4f3e00] - Shutting down 1 remaining sandbox(es)...\n10:15:31 - tools.terminal_tool - INFO [20260910_101515_4f3e00] - Manually cleaned up environment for task: default\n10:15:31 - tools.terminal_tool - INFO [20260910_101515_4f3e00] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11178,
+      "input_tokens": {
+        "value": 2767,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 174,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8448,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write count.sh that prints the number of lines in input.txt and nothing else. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "okens=0, cached_tokens=3584, cache_write_tokens=0, video_tokens=0), cost=0.00049895472, is_byok=False, cost_details={'upstream_inference_cost': 0.00049895472, 'upstream_inference_prompt_cost': 0.00043599072, 'upstream_inference_completions_cost': 6.2964e-05})\n10:15:24 - agent.conversation_loop - INFO [20260910_101515_057694] - API call #3: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=3880 out=20 total=3900 latency=1.8s cache=3584/3880 (92%)\n10:15:24 - root - DEBUG [20260910_101515_057694] - Token usage: prompt=3,880, completion=20, total=3,900\n10:15:24 - tools.browser_tool - DEBUG [20260910_101515_057694] - cleanup_browser called for task_id: a2876c67-73d7-4245-aa2a-df8be79161ec\n10:15:24 - tools.browser_tool - DEBUG [20260910_101515_057694] - Active sessions: []\n10:15:24 - tools.browser_tool - DEBUG [20260910_101515_057694] - No active session found for task_id: a2876c67-73d7-4245-aa2a-df8be79161ec\n10:15:24 - agent.conversation_loop - INFO [20260910_101515_057694] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=62 session=20260910_101515_057694\n10:15:24 - tools.terminal_tool - INFO [20260910_101515_057694] - Shutting down 1 remaining sandbox(es)...\n10:15:24 - tools.terminal_tool - INFO [20260910_101515_057694] - Manually cleaned up environment for task: default\n10:15:24 - tools.terminal_tool - INFO [20260910_101515_057694] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 19075,
+      "input_tokens": {
+        "value": 5162,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 194,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12544,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a greet target to the Makefile that prints hi. Keep the existing targets. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ns=0, cached_tokens=4352, cache_write_tokens=0, video_tokens=0), cost=0.00050797956, is_byok=False, cost_details={'upstream_inference_cost': 0.00050797956, 'upstream_inference_prompt_cost': 0.00040094076, 'upstream_inference_completions_cost': 0.0001070388})\n10:15:32 - agent.conversation_loop - INFO [20260910_101515_de9681] - API call #4: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=4589 out=34 total=4623 latency=2.3s cache=4352/4589 (95%)\n10:15:32 - root - DEBUG [20260910_101515_de9681] - Token usage: prompt=4,589, completion=34, total=4,623\n10:15:32 - tools.browser_tool - DEBUG [20260910_101515_de9681] - cleanup_browser called for task_id: 04cd2674-d88c-415b-939d-b7af5a38a10b\n10:15:32 - tools.browser_tool - DEBUG [20260910_101515_de9681] - Active sessions: []\n10:15:32 - tools.browser_tool - DEBUG [20260910_101515_de9681] - No active session found for task_id: 04cd2674-d88c-415b-939d-b7af5a38a10b\n10:15:32 - agent.conversation_loop - INFO [20260910_101515_de9681] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=111 session=20260910_101515_de9681\n10:15:32 - tools.terminal_tool - INFO [20260910_101515_de9681] - Shutting down 1 remaining sandbox(es)...\n10:15:32 - tools.terminal_tool - INFO [20260910_101515_de9681] - Manually cleaned up environment for task: default\n10:15:32 - tools.terminal_tool - INFO [20260910_101515_de9681] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 27862,
+      "input_tokens": {
+        "value": 6618,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 709,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Append the line 'four' to the end of list.txt. Do not change the existing lines. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ns=0, cached_tokens=4096, cache_write_tokens=0, video_tokens=0), cost=0.00070260828, is_byok=False, cost_details={'upstream_inference_cost': 0.00070260828, 'upstream_inference_prompt_cost': 0.00052316088, 'upstream_inference_completions_cost': 0.0001794474})\n10:15:40 - agent.conversation_loop - INFO [20260910_101515_5bcd09] - API call #5: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=4458 out=57 total=4515 latency=2.8s cache=4096/4458 (92%)\n10:15:40 - root - DEBUG [20260910_101515_5bcd09] - Token usage: prompt=4,458, completion=57, total=4,515\n10:15:40 - tools.browser_tool - DEBUG [20260910_101515_5bcd09] - cleanup_browser called for task_id: 6540cb5f-4ca6-4d84-b232-7b08b508000a\n10:15:40 - tools.browser_tool - DEBUG [20260910_101515_5bcd09] - Active sessions: []\n10:15:40 - tools.browser_tool - DEBUG [20260910_101515_5bcd09] - No active session found for task_id: 6540cb5f-4ca6-4d84-b232-7b08b508000a\n10:15:40 - agent.conversation_loop - INFO [20260910_101515_5bcd09] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=241 session=20260910_101515_5bcd09\n10:15:41 - tools.terminal_tool - INFO [20260910_101515_5bcd09] - Shutting down 1 remaining sandbox(es)...\n10:15:41 - tools.terminal_tool - INFO [20260910_101515_5bcd09] - Manually cleaned up environment for task: default\n10:15:41 - tools.terminal_tool - INFO [20260910_101515_5bcd09] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 19654,
+      "input_tokens": {
+        "value": 6525,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 390,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ens=0, cached_tokens=4096, cache_write_tokens=0, video_tokens=0), cost=0.00144348468, is_byok=False, cost_details={'upstream_inference_cost': 0.00144348468, 'upstream_inference_prompt_cost': 0.00120736968, 'upstream_inference_completions_cost': 0.000236115})\n10:16:00 - agent.conversation_loop - INFO [20260910_101543_018fac] - API call #5: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=5110 out=75 total=5185 latency=4.3s cache=4096/5110 (80%)\n10:16:00 - root - DEBUG [20260910_101543_018fac] - Token usage: prompt=5,110, completion=75, total=5,185\n10:16:00 - tools.browser_tool - DEBUG [20260910_101543_018fac] - cleanup_browser called for task_id: df92a751-b0cf-4415-aef9-ab70c634d163\n10:16:00 - tools.browser_tool - DEBUG [20260910_101543_018fac] - Active sessions: []\n10:16:00 - tools.browser_tool - DEBUG [20260910_101543_018fac] - No active session found for task_id: df92a751-b0cf-4415-aef9-ab70c634d163\n10:16:00 - agent.conversation_loop - INFO [20260910_101543_018fac] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=245 session=20260910_101543_018fac\n10:16:01 - tools.terminal_tool - INFO [20260910_101543_018fac] - Shutting down 1 remaining sandbox(es)...\n10:16:01 - tools.terminal_tool - INFO [20260910_101543_018fac] - Manually cleaned up environment for task: default\n10:16:01 - tools.terminal_tool - INFO [20260910_101543_018fac] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 17721,
+      "input_tokens": {
+        "value": 6664,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 474,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12800,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query python3 test_stats.py fails. Fix the bug in stats.py. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ns=0, cached_tokens=4096, cache_write_tokens=0, video_tokens=0), cost=0.00153688128, is_byok=False, cost_details={'upstream_inference_cost': 0.00153688128, 'upstream_inference_prompt_cost': 0.00135428568, 'upstream_inference_completions_cost': 0.0001825956})\n10:15:58 - agent.conversation_loop - INFO [20260910_101543_d92095] - API call #4: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=5250 out=58 total=5308 latency=2.4s cache=4096/5250 (78%)\n10:15:58 - root - DEBUG [20260910_101543_d92095] - Token usage: prompt=5,250, completion=58, total=5,308\n10:15:58 - tools.browser_tool - DEBUG [20260910_101543_d92095] - cleanup_browser called for task_id: a6e7cab1-6384-4739-a388-afc73577c8be\n10:15:58 - tools.browser_tool - DEBUG [20260910_101543_d92095] - Active sessions: []\n10:15:58 - tools.browser_tool - DEBUG [20260910_101543_d92095] - No active session found for task_id: a6e7cab1-6384-4739-a388-afc73577c8be\n10:15:58 - agent.conversation_loop - INFO [20260910_101543_d92095] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=163 session=20260910_101543_d92095\n10:15:59 - tools.terminal_tool - INFO [20260910_101543_d92095] - Shutting down 1 remaining sandbox(es)...\n10:15:59 - tools.terminal_tool - INFO [20260910_101543_d92095] - Manually cleaned up environment for task: default\n10:15:59 - tools.terminal_tool - INFO [20260910_101543_d92095] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 26404,
+      "input_tokens": {
+        "value": 6832,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 999,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17408,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "okens=0, cached_tokens=5120, cache_write_tokens=0, video_tokens=0), cost=0.0006723156, is_byok=False, cost_details={'upstream_inference_cost': 0.0006723156, 'upstream_inference_prompt_cost': 0.0004613862, 'upstream_inference_completions_cost': 0.0002109294})\n10:16:07 - agent.conversation_loop - INFO [20260910_101543_d9627d] - API call #5: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=5389 out=67 total=5456 latency=3.3s cache=5120/5389 (95%)\n10:16:07 - root - DEBUG [20260910_101543_d9627d] - Token usage: prompt=5,389, completion=67, total=5,456\n10:16:07 - tools.browser_tool - DEBUG [20260910_101543_d9627d] - cleanup_browser called for task_id: 4cdc9fab-3ce1-45c3-aaad-c2867c672510\n10:16:07 - tools.browser_tool - DEBUG [20260910_101543_d9627d] - Active sessions: []\n10:16:07 - tools.browser_tool - DEBUG [20260910_101543_d9627d] - No active session found for task_id: 4cdc9fab-3ce1-45c3-aaad-c2867c672510\n10:16:07 - agent.conversation_loop - INFO [20260910_101543_d9627d] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=187 session=20260910_101543_d9627d\n10:16:08 - tools.terminal_tool - INFO [20260910_101543_d9627d] - Shutting down 1 remaining sandbox(es)...\n10:16:08 - tools.terminal_tool - INFO [20260910_101543_d9627d] - Manually cleaned up environment for task: default\n10:16:08 - tools.terminal_tool - INFO [20260910_101543_d9627d] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 10480,
+      "input_tokens": {
+        "value": 5625,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 157,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5376,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add node_modules/ and dist/ to .gitignore, keeping what is there. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "kens=0, cached_tokens=2048, cache_write_tokens=0, video_tokens=0), cost=0.00194376864, is_byok=False, cost_details={'upstream_inference_cost': 0.00194376864, 'upstream_inference_prompt_cost': 0.00187765644, 'upstream_inference_completions_cost': 6.61122e-05})\n10:15:51 - agent.conversation_loop - INFO [20260910_101543_28dbc6] - API call #3: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=3769 out=21 total=3790 latency=1.9s cache=2048/3769 (54%)\n10:15:51 - root - DEBUG [20260910_101543_28dbc6] - Token usage: prompt=3,769, completion=21, total=3,790\n10:15:51 - tools.browser_tool - DEBUG [20260910_101543_28dbc6] - cleanup_browser called for task_id: fc1247e2-a234-4fa7-8a91-2b8d8e4fa021\n10:15:51 - tools.browser_tool - DEBUG [20260910_101543_28dbc6] - Active sessions: []\n10:15:51 - tools.browser_tool - DEBUG [20260910_101543_28dbc6] - No active session found for task_id: fc1247e2-a234-4fa7-8a91-2b8d8e4fa021\n10:15:51 - agent.conversation_loop - INFO [20260910_101543_28dbc6] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=60 session=20260910_101543_28dbc6\n10:15:52 - tools.terminal_tool - INFO [20260910_101543_28dbc6] - Shutting down 1 remaining sandbox(es)...\n10:15:52 - tools.terminal_tool - INFO [20260910_101543_28dbc6] - Manually cleaned up environment for task: default\n10:15:52 - tools.terminal_tool - INFO [20260910_101543_28dbc6] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 8882,
+      "input_tokens": {
+        "value": 4550,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 73,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4096,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "tokens=0, cached_tokens=4096, cache_write_tokens=0, video_tokens=0), cost=0.00045390048, is_byok=False, cost_details={'upstream_inference_cost': 0.00045390048, 'upstream_inference_prompt_cost': 0.00043186308, 'upstream_inference_completions_cost': 2.20374e-05})\n10:15:50 - agent.conversation_loop - INFO [20260910_101543_a1e94e] - API call #2: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=4371 out=7 total=4378 latency=2.4s cache=4096/4371 (94%)\n10:15:50 - root - DEBUG [20260910_101543_a1e94e] - Token usage: prompt=4,371, completion=7, total=4,378\n10:15:50 - tools.browser_tool - DEBUG [20260910_101543_a1e94e] - cleanup_browser called for task_id: b862ff58-9262-45a9-bf9b-fe1aa20bdc5f\n10:15:50 - tools.browser_tool - DEBUG [20260910_101543_a1e94e] - Active sessions: []\n10:15:50 - tools.browser_tool - DEBUG [20260910_101543_a1e94e] - No active session found for task_id: b862ff58-9262-45a9-bf9b-fe1aa20bdc5f\n10:15:50 - agent.conversation_loop - INFO [20260910_101543_a1e94e] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=12 session=20260910_101543_a1e94e\n10:15:50 - tools.terminal_tool - INFO [20260910_101543_a1e94e] - Shutting down 1 remaining sandbox(es)...\n10:15:50 - tools.terminal_tool - INFO [20260910_101543_a1e94e] - Manually cleaned up environment for task: default\n10:15:50 - tools.terminal_tool - INFO [20260910_101543_a1e94e] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 18886,
+      "input_tokens": {
+        "value": 6311,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 465,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ns=0, cached_tokens=4608, cache_write_tokens=0, video_tokens=0), cost=0.00083280384, is_byok=False, cost_details={'upstream_inference_cost': 0.00083280384, 'upstream_inference_prompt_cost': 0.00070057944, 'upstream_inference_completions_cost': 0.0001322244})\n10:16:26 - agent.conversation_loop - INFO [20260910_101609_4f1aa3] - API call #5: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=5122 out=42 total=5164 latency=2.8s cache=4608/5122 (90%)\n10:16:26 - root - DEBUG [20260910_101609_4f1aa3] - Token usage: prompt=5,122, completion=42, total=5,164\n10:16:26 - tools.browser_tool - DEBUG [20260910_101609_4f1aa3] - cleanup_browser called for task_id: 1e37cfc6-595e-416b-a410-0c73b17fae4b\n10:16:26 - tools.browser_tool - DEBUG [20260910_101609_4f1aa3] - Active sessions: []\n10:16:26 - tools.browser_tool - DEBUG [20260910_101609_4f1aa3] - No active session found for task_id: 1e37cfc6-595e-416b-a410-0c73b17fae4b\n10:16:26 - agent.conversation_loop - INFO [20260910_101609_4f1aa3] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=174 session=20260910_101609_4f1aa3\n10:16:27 - tools.terminal_tool - INFO [20260910_101609_4f1aa3] - Shutting down 1 remaining sandbox(es)...\n10:16:27 - tools.terminal_tool - INFO [20260910_101609_4f1aa3] - Manually cleaned up environment for task: default\n10:16:27 - tools.terminal_tool - INFO [20260910_101609_4f1aa3] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 11747,
+      "input_tokens": {
+        "value": 5710,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 181,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5376,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ns=0, cached_tokens=2048, cache_write_tokens=0, video_tokens=0), cost=0.00204346164, is_byok=False, cost_details={'upstream_inference_cost': 0.00204346164, 'upstream_inference_prompt_cost': 0.00192697824, 'upstream_inference_completions_cost': 0.0001164834})\n10:16:19 - agent.conversation_loop - INFO [20260910_101609_98a5fe] - API call #3: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=3816 out=37 total=3853 latency=3.0s cache=2048/3816 (54%)\n10:16:19 - root - DEBUG [20260910_101609_98a5fe] - Token usage: prompt=3,816, completion=37, total=3,853\n10:16:19 - tools.browser_tool - DEBUG [20260910_101609_98a5fe] - cleanup_browser called for task_id: 732dc335-0a05-41b5-9912-a61366eb2340\n10:16:19 - tools.browser_tool - DEBUG [20260910_101609_98a5fe] - Active sessions: []\n10:16:19 - tools.browser_tool - DEBUG [20260910_101609_98a5fe] - No active session found for task_id: 732dc335-0a05-41b5-9912-a61366eb2340\n10:16:19 - agent.conversation_loop - INFO [20260910_101609_98a5fe] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=118 session=20260910_101609_98a5fe\n10:16:19 - tools.terminal_tool - INFO [20260910_101609_98a5fe] - Shutting down 1 remaining sandbox(es)...\n10:16:19 - tools.terminal_tool - INFO [20260910_101609_98a5fe] - Manually cleaned up environment for task: default\n10:16:19 - tools.terminal_tool - INFO [20260910_101609_98a5fe] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 7350,
+      "input_tokens": {
+        "value": 3907,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 81,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3328,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Which files mention 'flux capacitor'? List only the file names. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "tokens=0, cached_tokens=3328, cache_write_tokens=0, video_tokens=0), cost=0.00050469144, is_byok=False, cost_details={'upstream_inference_cost': 0.00050469144, 'upstream_inference_prompt_cost': 0.00047635764, 'upstream_inference_completions_cost': 2.83338e-05})\n10:16:15 - agent.conversation_loop - INFO [20260910_101609_3426dc] - API call #2: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=3671 out=9 total=3680 latency=1.9s cache=3328/3671 (91%)\n10:16:15 - root - DEBUG [20260910_101609_3426dc] - Token usage: prompt=3,671, completion=9, total=3,680\n10:16:15 - tools.browser_tool - DEBUG [20260910_101609_3426dc] - cleanup_browser called for task_id: cfadf3c1-4107-4f24-92ce-0d2c824d4a08\n10:16:15 - tools.browser_tool - DEBUG [20260910_101609_3426dc] - Active sessions: []\n10:16:15 - tools.browser_tool - DEBUG [20260910_101609_3426dc] - No active session found for task_id: cfadf3c1-4107-4f24-92ce-0d2c824d4a08\n10:16:15 - agent.conversation_loop - INFO [20260910_101609_3426dc] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=23 session=20260910_101609_3426dc\n10:16:15 - tools.terminal_tool - INFO [20260910_101609_3426dc] - Shutting down 1 remaining sandbox(es)...\n10:16:15 - tools.terminal_tool - INFO [20260910_101609_3426dc] - Manually cleaned up environment for task: default\n10:16:15 - tools.terminal_tool - INFO [20260910_101609_3426dc] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 19718,
+      "input_tokens": {
+        "value": 6421,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 476,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ns=0, cached_tokens=4608, cache_write_tokens=0, video_tokens=0), cost=0.00089366904, is_byok=False, cost_details={'upstream_inference_cost': 0.00089366904, 'upstream_inference_prompt_cost': 0.00068273964, 'upstream_inference_completions_cost': 0.0002109294})\n10:16:27 - agent.conversation_loop - INFO [20260910_101609_5db0b6] - API call #5: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=5105 out=67 total=5172 latency=2.9s cache=4608/5105 (90%)\n10:16:27 - root - DEBUG [20260910_101609_5db0b6] - Token usage: prompt=5,105, completion=67, total=5,172\n10:16:27 - tools.browser_tool - DEBUG [20260910_101609_5db0b6] - cleanup_browser called for task_id: e55bd0a9-6aaf-47ac-8414-bfcb3ebb53f5\n10:16:27 - tools.browser_tool - DEBUG [20260910_101609_5db0b6] - Active sessions: []\n10:16:27 - tools.browser_tool - DEBUG [20260910_101609_5db0b6] - No active session found for task_id: e55bd0a9-6aaf-47ac-8414-bfcb3ebb53f5\n10:16:27 - agent.conversation_loop - INFO [20260910_101609_5db0b6] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=227 session=20260910_101609_5db0b6\n10:16:27 - tools.terminal_tool - INFO [20260910_101609_5db0b6] - Shutting down 1 remaining sandbox(es)...\n10:16:27 - tools.terminal_tool - INFO [20260910_101609_5db0b6] - Manually cleaned up environment for task: default\n10:16:27 - tools.terminal_tool - INFO [20260910_101609_5db0b6] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 20407,
+      "input_tokens": {
+        "value": 5801,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 472,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 16896,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --model deepseek/deepseek-v4-pro-0813 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "ns=0, cached_tokens=4608, cache_write_tokens=0, video_tokens=0), cost=0.00055051524, is_byok=False, cost_details={'upstream_inference_cost': 0.00055051524, 'upstream_inference_prompt_cost': 0.00038051244, 'upstream_inference_completions_cost': 0.0001700028})\n10:16:27 - agent.conversation_loop - INFO [20260910_101609_8d2233] - API call #5: model=deepseek/deepseek-v4-pro-0813 provider=unknown in=4817 out=54 total=4871 latency=3.4s cache=4608/4817 (96%)\n10:16:27 - root - DEBUG [20260910_101609_8d2233] - Token usage: prompt=4,817, completion=54, total=4,871\n10:16:27 - tools.browser_tool - DEBUG [20260910_101609_8d2233] - cleanup_browser called for task_id: 5f5046df-07ac-4ae3-b60f-b82a8f2e3f75\n10:16:27 - tools.browser_tool - DEBUG [20260910_101609_8d2233] - Active sessions: []\n10:16:27 - tools.browser_tool - DEBUG [20260910_101609_8d2233] - No active session found for task_id: 5f5046df-07ac-4ae3-b60f-b82a8f2e3f75\n10:16:27 - agent.conversation_loop - INFO [20260910_101609_8d2233] - Turn ended: reason=text_response(finish_reason=stop) model=deepseek/deepseek-v4-pro-0813 api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=151 session=20260910_101609_8d2233\n10:16:28 - tools.terminal_tool - INFO [20260910_101609_8d2233] - Shutting down 1 remaining sandbox(es)...\n10:16:28 - tools.terminal_tool - INFO [20260910_101609_8d2233] - Manually cleaned up environment for task: default\n10:16:28 - tools.terminal_tool - INFO [20260910_101609_8d2233] - Cleaned 1 environments"
+    }
+  ],
+  "janetcode": [
+    {
+      "harness": "janetcode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 5660,
+      "input_tokens": {
+        "value": 4440,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 91,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4096,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00508910028,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 01-create-file --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 12219,
+      "input_tokens": {
+        "value": 5120,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 274,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00669223368,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 11760,
+      "input_tokens": {
+        "value": 5264,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 334,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00703223928,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 10423,
+      "input_tokens": {
+        "value": 4989,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 367,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8448,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.006686357039999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 14795,
+      "input_tokens": {
+        "value": 5821,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 398,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00781823988,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 7787,
+      "input_tokens": {
+        "value": 4755,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 172,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8192,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00581794356,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 8339,
+      "input_tokens": {
+        "value": 4885,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 166,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8192,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00593547636,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11423,
+      "input_tokens": {
+        "value": 5104,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 217,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12544,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00647808612,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11319,
+      "input_tokens": {
+        "value": 5290,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 268,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12544,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00683383272,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 17880,
+      "input_tokens": {
+        "value": 5898,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 484,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 20736,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00843843528,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 17060,
+      "input_tokens": {
+        "value": 5358,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 383,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 13056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.007285144679999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 16813,
+      "input_tokens": {
+        "value": 5287,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 305,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12800,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0069561228,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 18921,
+      "input_tokens": {
+        "value": 6201,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 619,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 16896,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.009047087280000001,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 9721,
+      "input_tokens": {
+        "value": 4761,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 169,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8192,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0058147953600000005,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 5525,
+      "input_tokens": {
+        "value": 4553,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 90,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4096,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00520453428,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 11015,
+      "input_tokens": {
+        "value": 5609,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 314,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12544,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.007313408519999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 16-readme --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 8424,
+      "input_tokens": {
+        "value": 4916,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 221,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8192,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00614115876,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5144,
+      "input_tokens": {
+        "value": 4449,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 69,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4096,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00502928448,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 19870,
+      "input_tokens": {
+        "value": 5997,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 518,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 17152,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00852399636,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 19-write-test --provider openai --model deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "harness": "janetcode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 12294,
+      "input_tokens": {
+        "value": 4908,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 343,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12544,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00666907692,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 20-env-default --provider openai --model deepseek/deepseek-v4-pro-0813"
+    }
+  ],
+  "openclaw": [
+    {
+      "harness": "openclaw",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 18662,
+      "input_tokens": {
+        "value": 35122,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 123,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 34816,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-1919931234 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028416483180075 --message Create a file named hello.txt containing exactly the text: hello world",
+      "stderr_excerpt": "401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=4478 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2341 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 2814b9b6-47b0-4af9-ac29-cf77ee93b7ce ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 30649,
+      "input_tokens": {
+        "value": 36209,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 357,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 105216,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-2246101699 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028416392117414 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+      "stderr_excerpt": "61 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=4797 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3503 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ba7703ca-6a34-4007-b93d-86248fec8807 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 34991,
+      "input_tokens": {
+        "value": 36669,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 624,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 141056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-2754553407 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028416592413786 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+      "stderr_excerpt": "invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2915 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3044 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run b6b73fd6-7865-4176-a198-d474b54a9209 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 30611,
+      "input_tokens": {
+        "value": 35813,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 385,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 69888,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-4243201186 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028416473341374 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+      "stderr_excerpt": "invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=8223 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3182 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 2898f9d1-1fdc-4c4e-85a9-bffec8b81061 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 39958,
+      "input_tokens": {
+        "value": 36881,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 658,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 176384,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-2038523466 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028416509003109 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+      "stderr_excerpt": "invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=4374 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2797 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 3c101dda-694b-4592-8d77-d30e4648a4f8 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 33597,
+      "input_tokens": {
+        "value": 34090,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 295,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 71424,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-547318039 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028455488213756 --message What does Compute(3) return? Reply with just the number.",
+      "stderr_excerpt": "nvalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=10054 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2874 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 4d714f56-2417-4a05-b7ed-ab6d24db36b4 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 26104,
+      "input_tokens": {
+        "value": 34231,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 355,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 106240,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-1111578255 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028455193155594 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+      "stderr_excerpt": "36 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2756 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2452 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 56a061c6-2130-4990-ba27-5cc945bdde0c ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 21637,
+      "input_tokens": {
+        "value": 35468,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 254,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 69632,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-3476403326 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028455457909404 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+      "stderr_excerpt": "invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3174 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2492 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 473a0ae1-249f-4b71-97b2-83c7ff8cff6c ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 29806,
+      "input_tokens": {
+        "value": 35735,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 368,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 104704,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-1977423139 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028455398111651 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+      "stderr_excerpt": "16 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3914 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2590 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 7612c5a9-454c-4015-a112-f9030f3c357a ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 36046,
+      "input_tokens": {
+        "value": 36212,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 532,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 174336,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-3769157539 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028455492504684 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+      "stderr_excerpt": "invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2253 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2773 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run cab5915a-b792-4f45-8d10-ea212cb90a69 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 36056,
+      "input_tokens": {
+        "value": 36683,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 782,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 140800,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-533429867 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028491395222405 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+      "stderr_excerpt": "94 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2893 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3661 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 63a1f116-eb28-4cbe-aa18-e2a842d5dd0e ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 46611,
+      "input_tokens": {
+        "value": 34644,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 467,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 106752,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-2796786348 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028491499858260 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+      "stderr_excerpt": "invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3992 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=9705 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 34a57030-b16d-4f58-8ae4-3f304822b9f9 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 37215,
+      "input_tokens": {
+        "value": 36913,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 805,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 140544,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-1847223364 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028491484748168 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+      "stderr_excerpt": "09 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2799 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2913 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 26989145-a142-439f-9002-fbae1916dbf3 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 19110,
+      "input_tokens": {
+        "value": 35324,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 166,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 69632,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-957196626 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028491304598805 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+      "stderr_excerpt": "=3130 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3093 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2782 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 4a6677bd-dafa-48eb-bec4-8c5ec0dfa201 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 31773,
+      "input_tokens": {
+        "value": 35171,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 110,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 34816,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-1286627938 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028491423135589 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+      "stderr_excerpt": "ai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3649 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=10037 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run bae1567f-03c4-4565-bccb-7c7bb89f6a00 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 29004,
+      "input_tokens": {
+        "value": 35974,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 529,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 105216,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-16-readme-2733043027 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028538405864749 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+      "stderr_excerpt": "06 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=4056 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2265 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run edeb0d10-f664-4d89-bbcf-873e772a7a0c ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 21910,
+      "input_tokens": {
+        "value": 35658,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 232,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 69888,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-1817062554 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028538386863703 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+      "stderr_excerpt": "=3298 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3119 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3719 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run f879d23b-600f-487b-bad1-ef3e86f458c8 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 55649,
+      "input_tokens": {
+        "value": 35178,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 107,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 34816,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-4032699429 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028538376660691 --message Which files mention 'flux capacitor'? List only the file names.",
+      "stderr_excerpt": "01 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3405 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=10164 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 3ef947ed-95bf-4ff3-adba-201188e56e6e ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 31621,
+      "input_tokens": {
+        "value": 36619,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 707,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 140800,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-2510953773 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028538108564082 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+      "stderr_excerpt": "54 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=2608 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3154 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 11f79ca1-084a-459f-a370-4e18e891e94f ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 18587,
+      "input_tokens": {
+        "value": 35205,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 212,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 34816,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-1230194005 agent --local --json --model bench/deepseek/deepseek-v4-pro-0813 --session-id bench-0-1789028538410913762 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+      "stderr_excerpt": "401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3364 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=deepseek/deepseek-v4-pro-0813 status=200 elapsedMs=3705 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 38860c49-c126-417b-bd50-3be55582e5b8 ended with stopReason=stop\u001b[39m"
+    }
+  ],
+  "pi": [
+    {
+      "harness": "pi",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 6375,
+      "input_tokens": {
+        "value": 1417,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 89,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 35328,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0030029630400000003,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "pi",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 13458,
+      "input_tokens": {
+        "value": 2891,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 266,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 71680,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.006378603,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 16316,
+      "input_tokens": {
+        "value": 2679,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 455,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 91136,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.007431710879999999,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "pi",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 11420,
+      "input_tokens": {
+        "value": 2749,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 324,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 52992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.005758477560000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "pi",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 39044,
+      "input_tokens": {
+        "value": 3871,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 972,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 131072,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.011707176360000002,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "pi",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11761,
+      "input_tokens": {
+        "value": 2547,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 232,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 52992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00525686436,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "pi",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 13739,
+      "input_tokens": {
+        "value": 1756,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 206,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 72192,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.005016551760000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "pi",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 14185,
+      "input_tokens": {
+        "value": 1977,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 264,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 72192,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00543106476,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "pi",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 13878,
+      "input_tokens": {
+        "value": 2021,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 253,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 72192,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.005442608160000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "pi",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 20157,
+      "input_tokens": {
+        "value": 3113,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 427,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 89856,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00775422648,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "pi",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 18437,
+      "input_tokens": {
+        "value": 2732,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 462,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 91904,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0075362311199999995,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 21355,
+      "input_tokens": {
+        "value": 2640,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 444,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 90880,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0073471992,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "pi",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 18646,
+      "input_tokens": {
+        "value": 2279,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 628,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 54016,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00625813188,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 10826,
+      "input_tokens": {
+        "value": 1734,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 173,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 53504,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00423586812,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "pi",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 6803,
+      "input_tokens": {
+        "value": 1422,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 69,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 35328,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00294524604,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "pi",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 17255,
+      "input_tokens": {
+        "value": 2660,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 436,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 90880,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.007343001599999999,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "pi",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 10016,
+      "input_tokens": {
+        "value": 1747,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 186,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 53760,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0042993918,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "pi",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 7765,
+      "input_tokens": {
+        "value": 1435,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 97,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 35328,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00304703784,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "pi",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 22739,
+      "input_tokens": {
+        "value": 2872,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 575,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 110080,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.008674690200000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "pi",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 11130,
+      "input_tokens": {
+        "value": 2497,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 281,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 52992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.005358656159999999,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model deepseek/deepseek-v4-pro-0813 --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ],
+  "qwencode": [
+    {
+      "harness": "qwencode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 12044,
+      "input_tokens": {
+        "value": 38326,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 215,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 45056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "qwencode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 20750,
+      "input_tokens": {
+        "value": 39369,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 504,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127744,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 21242,
+      "input_tokens": {
+        "value": 40083,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 616,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 128768,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "qwencode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 53596,
+      "input_tokens": {
+        "value": 38705,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 485,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 86272,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "qwencode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 71737,
+      "input_tokens": {
+        "value": 40029,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 928,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 129024,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 8,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "qwencode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 31959,
+      "input_tokens": {
+        "value": 38065,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 186,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 45056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "qwencode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 16330,
+      "input_tokens": {
+        "value": 37472,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 292,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 87296,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "qwencode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 18859,
+      "input_tokens": {
+        "value": 39013,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 326,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127232,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "qwencode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 74324,
+      "input_tokens": {
+        "value": 38747,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 363,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127232,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "qwencode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 33720,
+      "input_tokens": {
+        "value": 37915,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1090,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 87296,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "qwencode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 48076,
+      "input_tokens": {
+        "value": 39815,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 785,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 128512,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 23858,
+      "input_tokens": {
+        "value": 39283,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 668,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127744,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "qwencode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 26772,
+      "input_tokens": {
+        "value": 38373,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 812,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 129792,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 39914,
+      "input_tokens": {
+        "value": 38721,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 333,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 86016,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "qwencode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 12104,
+      "input_tokens": {
+        "value": 36812,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 149,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 46336,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "qwencode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 22380,
+      "input_tokens": {
+        "value": 37493,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 623,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 87552,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "qwencode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 17385,
+      "input_tokens": {
+        "value": 37205,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 350,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 87296,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "qwencode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14007,
+      "input_tokens": {
+        "value": 38201,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 122,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 45056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "qwencode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 26488,
+      "input_tokens": {
+        "value": 39298,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 683,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 168960,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "qwencode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 27192,
+      "input_tokens": {
+        "value": 39069,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 417,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127232,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model deepseek/deepseek-v4-pro-0813 --max-session-turns 40 --max-wall-time 180s Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ]
+}

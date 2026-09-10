@@ -1,0 +1,3446 @@
+{
+  "hermes-agent": [
+    {
+      "harness": "hermes-agent",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 7228,
+      "input_tokens": {
+        "value": 5425,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 55,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 128,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a file named hello.txt containing exactly the text: hello world --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "s=0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00040136, is_byok=False, cost_details={'upstream_inference_cost': 0.00040136, 'upstream_inference_prompt_cost': 0.00039536, 'upstream_inference_completions_cost': 6e-06})\n11:18:11 - agent.conversation_loop - INFO [20260910_111808_76bd79] - API call #2: model=google/gemma-4-31b-it provider=unknown in=2824 out=15 total=2839 latency=1.1s\n11:18:11 - root - DEBUG [20260910_111808_76bd79] - Token usage: prompt=2,824, completion=15, total=2,839\n11:18:11 - tools.browser_tool - DEBUG [20260910_111808_76bd79] - cleanup_browser called for task_id: fad01135-8bdf-4327-8527-544a08fa11da\n11:18:11 - tools.browser_tool - DEBUG [20260910_111808_76bd79] - Active sessions: []\n11:18:11 - tools.browser_tool - DEBUG [20260910_111808_76bd79] - No active session found for task_id: fad01135-8bdf-4327-8527-544a08fa11da\n11:18:11 - agent.conversation_loop - INFO [20260910_111808_76bd79] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=2/40 budget=2/40 tool_turns=1 last_msg_role=assistant response_len=48 session=20260910_111808_76bd79\n11:18:12 - tools.terminal_tool - INFO [20260910_111808_76bd79] - Shutting down 1 remaining sandbox(es)...\n11:18:12 - tools.terminal_tool - INFO [20260910_111808_76bd79] - Manually cleaned up environment for task: default\n11:18:12 - tools.terminal_tool - INFO [20260910_111808_76bd79] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 24610,
+      "input_tokens": {
+        "value": 13178,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 449,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9088,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "etails=PromptTokensDetails(audio_tokens=0, cached_tokens=1024, cache_write_tokens=0, video_tokens=0), cost=0.002977, is_byok=False, cost_details={'upstream_inference_cost': 0.002977, 'upstream_inference_prompt_cost': 0.002955, 'upstream_inference_completions_cost': 2.2e-05})\n11:18:29 - agent.conversation_loop - INFO [20260910_111807_ca4de4] - API call #6: model=google/gemma-4-31b-it provider=unknown in=3940 out=22 total=3962 latency=0.4s cache=1024/3940 (26%)\n11:18:29 - root - DEBUG [20260910_111807_ca4de4] - Token usage: prompt=3,940, completion=22, total=3,962\n11:18:29 - tools.browser_tool - DEBUG [20260910_111807_ca4de4] - cleanup_browser called for task_id: 2abdceed-60b5-4276-a641-c43324e16796\n11:18:29 - tools.browser_tool - DEBUG [20260910_111807_ca4de4] - Active sessions: []\n11:18:29 - tools.browser_tool - DEBUG [20260910_111807_ca4de4] - No active session found for task_id: 2abdceed-60b5-4276-a641-c43324e16796\n11:18:29 - agent.conversation_loop - INFO [20260910_111807_ca4de4] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=53 session=20260910_111807_ca4de4\n11:18:29 - tools.terminal_tool - INFO [20260910_111807_ca4de4] - Shutting down 1 remaining sandbox(es)...\n11:18:29 - tools.terminal_tool - INFO [20260910_111807_ca4de4] - Manually cleaned up environment for task: default\n11:18:29 - tools.terminal_tool - INFO [20260910_111807_ca4de4] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 45661,
+      "input_tokens": {
+        "value": 24721,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1638,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 2112,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query go test fails. Find the bug and fix it in the implementation, not the test. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": ", prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00043518, is_byok=False, cost_details={'upstream_inference_cost': 0.00043518, 'upstream_inference_prompt_cost': 0.0004158, 'upstream_inference_completions_cost': 1.938e-05})\n11:18:50 - agent.conversation_loop - INFO [20260910_111807_e7a69b] - API call #7: model=google/gemma-4-31b-it provider=unknown in=4158 out=57 total=4215 latency=3.2s\n11:18:50 - root - DEBUG [20260910_111807_e7a69b] - Token usage: prompt=4,158, completion=57, total=4,215\n11:18:50 - tools.browser_tool - DEBUG [20260910_111807_e7a69b] - cleanup_browser called for task_id: fdef565a-671b-4f8f-984c-1249ed7e22f3\n11:18:50 - tools.browser_tool - DEBUG [20260910_111807_e7a69b] - Active sessions: []\n11:18:50 - tools.browser_tool - DEBUG [20260910_111807_e7a69b] - No active session found for task_id: fdef565a-671b-4f8f-984c-1249ed7e22f3\n11:18:50 - agent.conversation_loop - INFO [20260910_111807_e7a69b] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=187 session=20260910_111807_e7a69b\n11:18:50 - tools.terminal_tool - INFO [20260910_111807_e7a69b] - Shutting down 1 remaining sandbox(es)...\n11:18:50 - tools.terminal_tool - INFO [20260910_111807_e7a69b] - Manually cleaned up environment for task: default\n11:18:50 - tools.terminal_tool - INFO [20260910_111807_e7a69b] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 14733,
+      "input_tokens": {
+        "value": 6215,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 312,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 2720,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00032204, is_byok=False, cost_details={'upstream_inference_cost': 0.00032204, 'upstream_inference_prompt_cost': 0.0003149, 'upstream_inference_completions_cost': 7.14e-06})\n11:18:19 - agent.conversation_loop - INFO [20260910_111808_c90cc4] - API call #3: model=google/gemma-4-31b-it provider=unknown in=3149 out=21 total=3170 latency=4.4s\n11:18:19 - root - DEBUG [20260910_111808_c90cc4] - Token usage: prompt=3,149, completion=21, total=3,170\n11:18:19 - tools.browser_tool - DEBUG [20260910_111808_c90cc4] - cleanup_browser called for task_id: 33c4af18-fa9a-4645-a862-2b40086a1bb8\n11:18:19 - tools.browser_tool - DEBUG [20260910_111808_c90cc4] - Active sessions: []\n11:18:19 - tools.browser_tool - DEBUG [20260910_111808_c90cc4] - No active session found for task_id: 33c4af18-fa9a-4645-a862-2b40086a1bb8\n11:18:19 - agent.conversation_loop - INFO [20260910_111808_c90cc4] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=44 session=20260910_111808_c90cc4\n11:18:19 - tools.terminal_tool - INFO [20260910_111808_c90cc4] - Shutting down 1 remaining sandbox(es)...\n11:18:19 - tools.terminal_tool - INFO [20260910_111808_c90cc4] - Manually cleaned up environment for task: default\n11:18:19 - tools.terminal_tool - INFO [20260910_111808_c90cc4] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 28794,
+      "input_tokens": {
+        "value": 24154,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1550,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 2240,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00041392, is_byok=False, cost_details={'upstream_inference_cost': 0.00041392, 'upstream_inference_prompt_cost': 0.000401, 'upstream_inference_completions_cost': 1.292e-05})\n11:18:33 - agent.conversation_loop - INFO [20260910_111807_969169] - API call #7: model=google/gemma-4-31b-it provider=unknown in=4010 out=38 total=4048 latency=1.8s\n11:18:33 - root - DEBUG [20260910_111807_969169] - Token usage: prompt=4,010, completion=38, total=4,048\n11:18:33 - tools.browser_tool - DEBUG [20260910_111807_969169] - cleanup_browser called for task_id: 35260e3b-39cd-4516-a047-5ac146565bb3\n11:18:33 - tools.browser_tool - DEBUG [20260910_111807_969169] - Active sessions: []\n11:18:33 - tools.browser_tool - DEBUG [20260910_111807_969169] - No active session found for task_id: 35260e3b-39cd-4516-a047-5ac146565bb3\n11:18:33 - agent.conversation_loop - INFO [20260910_111807_969169] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=7/40 budget=7/40 tool_turns=6 last_msg_role=assistant response_len=96 session=20260910_111807_969169\n11:18:33 - tools.terminal_tool - INFO [20260910_111807_969169] - Shutting down 1 remaining sandbox(es)...\n11:18:33 - tools.terminal_tool - INFO [20260910_111807_969169] - Manually cleaned up environment for task: default\n11:18:33 - tools.terminal_tool - INFO [20260910_111807_969169] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11898,
+      "input_tokens": {
+        "value": 9610,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 559,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4608,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query What does Compute(3) return? Reply with just the number. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "-it provider=unknown in=3673 out=173 total=3846 latency=2.1s cache=3520/3673 (96%)\n11:19:01 - root - DEBUG [20260910_111852_fba44b] - Token usage: prompt=3,673, completion=173, total=3,846\n11:19:01 - root - DEBUG [20260910_111852_fba44b] - Captured reasoning (297 chars): The function `Compute(n int)` is defined as:\n```go\nfunc Compute(n int) int {\n\tr := 1\n\tfor i := 0; i \u003c n; i++ {\n\t\tr = r*2 + 1\n\t}\n\treturn r\n}\n```\nFor `Compute(3)`:\n- Start: `r = 1`\n- `i = 0`: `r = 1 * 2 + 1 = 3`\n- `i = 1`: `r = 3 * 2 + 1 = 7`\n- `i = 2`: `r = 7 * 2 + 1 = 15`\n- Loop ends.\nResult: 15.\n11:19:01 - tools.browser_tool - DEBUG [20260910_111852_fba44b] - cleanup_browser called for task_id: 6cf84bab-221f-4e7f-bc66-a9e3e1942b81\n11:19:01 - tools.browser_tool - DEBUG [20260910_111852_fba44b] - Active sessions: []\n11:19:01 - tools.browser_tool - DEBUG [20260910_111852_fba44b] - No active session found for task_id: 6cf84bab-221f-4e7f-bc66-a9e3e1942b81\n11:19:01 - agent.conversation_loop - INFO [20260910_111852_fba44b] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=2 session=20260910_111852_fba44b\n11:19:02 - tools.terminal_tool - INFO [20260910_111852_fba44b] - Shutting down 1 remaining sandbox(es)...\n11:19:02 - tools.terminal_tool - INFO [20260910_111852_fba44b] - Manually cleaned up environment for task: default\n11:19:02 - tools.terminal_tool - INFO [20260910_111852_fba44b] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11591,
+      "input_tokens": {
+        "value": 6547,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 384,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7808,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query In config.json change the port to 8080. Keep every other key exactly as it is. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "=PromptTokensDetails(audio_tokens=0, cached_tokens=2912, cache_write_tokens=0, video_tokens=0), cost=0.00031026, is_byok=False, cost_details={'upstream_inference_cost': 0.00031026, 'upstream_inference_prompt_cost': 0.0003021, 'upstream_inference_completions_cost': 8.16e-06})\n11:19:02 - agent.conversation_loop - INFO [20260910_111852_47c445] - API call #5: model=google/gemma-4-31b-it provider=unknown in=3021 out=24 total=3045 latency=1.0s cache=2912/3021 (96%)\n11:19:02 - root - DEBUG [20260910_111852_47c445] - Token usage: prompt=3,021, completion=24, total=3,045\n11:19:02 - tools.browser_tool - DEBUG [20260910_111852_47c445] - cleanup_browser called for task_id: 2fd090fb-ad49-46ec-93cd-bb1fccf36f4c\n11:19:02 - tools.browser_tool - DEBUG [20260910_111852_47c445] - Active sessions: []\n11:19:02 - tools.browser_tool - DEBUG [20260910_111852_47c445] - No active session found for task_id: 2fd090fb-ad49-46ec-93cd-bb1fccf36f4c\n11:19:02 - agent.conversation_loop - INFO [20260910_111852_47c445] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=57 session=20260910_111852_47c445\n11:19:02 - tools.terminal_tool - INFO [20260910_111852_47c445] - Shutting down 1 remaining sandbox(es)...\n11:19:02 - tools.terminal_tool - INFO [20260910_111852_47c445] - Manually cleaned up environment for task: default\n11:19:02 - tools.terminal_tool - INFO [20260910_111852_47c445] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 22027,
+      "input_tokens": {
+        "value": 9319,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1031,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 2144,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write count.sh that prints the number of lines in input.txt and nothing else. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "=PromptTokensDetails(audio_tokens=0, cached_tokens=1056, cache_write_tokens=0, video_tokens=0), cost=0.00030668, is_byok=False, cost_details={'upstream_inference_cost': 0.00030668, 'upstream_inference_prompt_cost': 0.0002975, 'upstream_inference_completions_cost': 9.18e-06})\n11:19:12 - agent.conversation_loop - INFO [20260910_111852_e4146d] - API call #4: model=google/gemma-4-31b-it provider=unknown in=2975 out=27 total=3002 latency=1.4s cache=1056/2975 (35%)\n11:19:12 - root - DEBUG [20260910_111852_e4146d] - Token usage: prompt=2,975, completion=27, total=3,002\n11:19:12 - tools.browser_tool - DEBUG [20260910_111852_e4146d] - cleanup_browser called for task_id: 58ab01ff-fb1a-4d39-922f-e83f3f20253c\n11:19:12 - tools.browser_tool - DEBUG [20260910_111852_e4146d] - Active sessions: []\n11:19:12 - tools.browser_tool - DEBUG [20260910_111852_e4146d] - No active session found for task_id: 58ab01ff-fb1a-4d39-922f-e83f3f20253c\n11:19:12 - agent.conversation_loop - INFO [20260910_111852_e4146d] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=63 session=20260910_111852_e4146d\n11:19:12 - tools.terminal_tool - INFO [20260910_111852_e4146d] - Shutting down 1 remaining sandbox(es)...\n11:19:12 - tools.terminal_tool - INFO [20260910_111852_e4146d] - Manually cleaned up environment for task: default\n11:19:12 - tools.terminal_tool - INFO [20260910_111852_e4146d] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 45715,
+      "input_tokens": {
+        "value": 20460,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 2073,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 50304,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 17,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a greet target to the Makefile that prints hi. Keep the existing targets. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "omptTokensDetails(audio_tokens=0, cached_tokens=4576, cache_write_tokens=0, video_tokens=0), cost=0.0006953, is_byok=False, cost_details={'upstream_inference_cost': 0.0006953, 'upstream_inference_prompt_cost': 0.0006797, 'upstream_inference_completions_cost': 1.56e-05})\n11:19:35 - agent.conversation_loop - INFO [20260910_111852_574aa0] - API call #17: model=google/gemma-4-31b-it provider=unknown in=4855 out=39 total=4894 latency=0.7s cache=4576/4855 (94%)\n11:19:35 - root - DEBUG [20260910_111852_574aa0] - Token usage: prompt=4,855, completion=39, total=4,894\n11:19:35 - tools.browser_tool - DEBUG [20260910_111852_574aa0] - cleanup_browser called for task_id: fb3a4aad-5834-4019-acaf-bd9184bf0122\n11:19:35 - tools.browser_tool - DEBUG [20260910_111852_574aa0] - Active sessions: []\n11:19:35 - tools.browser_tool - DEBUG [20260910_111852_574aa0] - No active session found for task_id: fb3a4aad-5834-4019-acaf-bd9184bf0122\n11:19:35 - agent.conversation_loop - INFO [20260910_111852_574aa0] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=17/40 budget=17/40 tool_turns=16 last_msg_role=assistant response_len=133 session=20260910_111852_574aa0\n11:19:36 - tools.terminal_tool - INFO [20260910_111852_574aa0] - Shutting down 1 remaining sandbox(es)...\n11:19:36 - tools.terminal_tool - INFO [20260910_111852_574aa0] - Manually cleaned up environment for task: default\n11:19:36 - tools.terminal_tool - INFO [20260910_111852_574aa0] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 16962,
+      "input_tokens": {
+        "value": 9337,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 187,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4832,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Append the line 'four' to the end of list.txt. Do not change the existing lines. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00030462, is_byok=False, cost_details={'upstream_inference_cost': 0.00030462, 'upstream_inference_prompt_cost': 0.0002934, 'upstream_inference_completions_cost': 1.122e-05})\n11:19:07 - agent.conversation_loop - INFO [20260910_111852_0cc90f] - API call #5: model=google/gemma-4-31b-it provider=unknown in=2934 out=33 total=2967 latency=2.3s\n11:19:07 - root - DEBUG [20260910_111852_0cc90f] - Token usage: prompt=2,934, completion=33, total=2,967\n11:19:07 - tools.browser_tool - DEBUG [20260910_111852_0cc90f] - cleanup_browser called for task_id: ca4265d2-ca4d-42f3-90a4-e1e02e4665b5\n11:19:07 - tools.browser_tool - DEBUG [20260910_111852_0cc90f] - Active sessions: []\n11:19:07 - tools.browser_tool - DEBUG [20260910_111852_0cc90f] - No active session found for task_id: ca4265d2-ca4d-42f3-90a4-e1e02e4665b5\n11:19:07 - agent.conversation_loop - INFO [20260910_111852_0cc90f] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=82 session=20260910_111852_0cc90f\n11:19:07 - tools.terminal_tool - INFO [20260910_111852_0cc90f] - Shutting down 1 remaining sandbox(es)...\n11:19:07 - tools.terminal_tool - INFO [20260910_111852_0cc90f] - Manually cleaned up environment for task: default\n11:19:07 - tools.terminal_tool - INFO [20260910_111852_0cc90f] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": false,
+      "reason": "timed out after 3m0s: prompt 1 of 1: signal: killed",
+      "wall_time_ms": 180010,
+      "input_tokens": {
+        "value": 2433,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 121,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 1,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "exit_code": -1,
+      "stderr_excerpt": "\n1.  Modify the `Parse` function to return both an `int` and an `error` instead of just an `int`, propagating the error from `strconv.Atoi`.\n2.  Update the tests to accommodate this change.\n3.  Run `go vet` and the tests to verify the changes.\n\nFirst, I need to find the `Parse` function. I'll start by listing the files in the project to get an overview\n11:19:43 - tools.terminal_tool - INFO - Creating new local environment for task default...\n11:19:43 - tools.environments.base - INFO - Session snapshot created (session=a73078128dad, cwd=/tmp/harness-hermes-agent-11-go-return-error-582017694)\n11:19:43 - tools.terminal_tool - INFO - local environment ready for task default\n11:19:43 - agent.tool_executor - INFO [20260910_111939_f6b04e] - tool terminal completed (0.05s, 80 chars)\n11:19:43 - root - DEBUG [20260910_111939_f6b04e] - Tool terminal completed in 0.05s\n11:19:43 - root - DEBUG [20260910_111939_f6b04e] - Tool result (80 chars): {\"output\": \".:\\ngo.mod\\nparse.go\\nparse_test.go\", \"exit_code\": 0, \"error\": null}\n11:19:43 - root - DEBUG [20260910_111939_f6b04e] - API Request - Model: google/gemma-4-31b-it, Messages: 3, Tools: 2\n11:19:43 - root - DEBUG [20260910_111939_f6b04e] - Last message role: tool\n11:19:43 - root - DEBUG [20260910_111939_f6b04e] - Total message size: ~2,792 tokens\n11:19:43 - agent.chat_completion_helpers - DEBUG - Cloud reasoning stream — read timeout raised to 180s to match stale-stream detector\n11:19:44 - __main__ - DEBUG - OpenRouter response cache MISS"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 51809,
+      "input_tokens": {
+        "value": 15934,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1237,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 20224,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 9,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query python3 test_stats.py fails. Fix the bug in stats.py. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "romptTokensDetails(audio_tokens=0, cached_tokens=1088, cache_write_tokens=0, video_tokens=0), cost=0.00063462, is_byok=False, cost_details={'upstream_inference_cost': 0.00063462, 'upstream_inference_prompt_cost': 0.00061502, 'upstream_inference_completions_cost': 1.96e-05})\n11:20:27 - agent.conversation_loop - INFO [20260910_111939_33bb29] - API call #9: model=google/gemma-4-31b-it provider=unknown in=4393 out=49 total=4442 latency=1.8s cache=1088/4393 (25%)\n11:20:27 - root - DEBUG [20260910_111939_33bb29] - Token usage: prompt=4,393, completion=49, total=4,442\n11:20:27 - tools.browser_tool - DEBUG [20260910_111939_33bb29] - cleanup_browser called for task_id: e768dd07-40c0-4c68-9f74-707a32cf6471\n11:20:27 - tools.browser_tool - DEBUG [20260910_111939_33bb29] - Active sessions: []\n11:20:27 - tools.browser_tool - DEBUG [20260910_111939_33bb29] - No active session found for task_id: e768dd07-40c0-4c68-9f74-707a32cf6471\n11:20:27 - agent.conversation_loop - INFO [20260910_111939_33bb29] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=9/40 budget=9/40 tool_turns=8 last_msg_role=assistant response_len=154 session=20260910_111939_33bb29\n11:20:28 - tools.terminal_tool - INFO [20260910_111939_33bb29] - Shutting down 1 remaining sandbox(es)...\n11:20:28 - tools.terminal_tool - INFO [20260910_111939_33bb29] - Manually cleaned up environment for task: default\n11:20:28 - tools.terminal_tool - INFO [20260910_111939_33bb29] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 36080,
+      "input_tokens": {
+        "value": 13768,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1737,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 2144,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": ", prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00049884, is_byok=False, cost_details={'upstream_inference_cost': 0.00049884, 'upstream_inference_prompt_cost': 0.0004679, 'upstream_inference_completions_cost': 3.094e-05})\n11:20:11 - agent.conversation_loop - INFO [20260910_111939_5ed2e3] - API call #4: model=google/gemma-4-31b-it provider=unknown in=4679 out=91 total=4770 latency=4.2s\n11:20:11 - root - DEBUG [20260910_111939_5ed2e3] - Token usage: prompt=4,679, completion=91, total=4,770\n11:20:11 - tools.browser_tool - DEBUG [20260910_111939_5ed2e3] - cleanup_browser called for task_id: ca89b28d-bc1b-463c-aeb1-2f8d1d835dec\n11:20:11 - tools.browser_tool - DEBUG [20260910_111939_5ed2e3] - Active sessions: []\n11:20:11 - tools.browser_tool - DEBUG [20260910_111939_5ed2e3] - No active session found for task_id: ca89b28d-bc1b-463c-aeb1-2f8d1d835dec\n11:20:11 - agent.conversation_loop - INFO [20260910_111939_5ed2e3] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=293 session=20260910_111939_5ed2e3\n11:20:12 - tools.terminal_tool - INFO [20260910_111939_5ed2e3] - Shutting down 1 remaining sandbox(es)...\n11:20:12 - tools.terminal_tool - INFO [20260910_111939_5ed2e3] - Manually cleaned up environment for task: default\n11:20:12 - tools.terminal_tool - INFO [20260910_111939_5ed2e3] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 36731,
+      "input_tokens": {
+        "value": 13569,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 998,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3776,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add node_modules/ and dist/ to .gitignore, keeping what is there. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": ", prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00032172, is_byok=False, cost_details={'upstream_inference_cost': 0.00032172, 'upstream_inference_prompt_cost': 0.0003037, 'upstream_inference_completions_cost': 1.802e-05})\n11:20:12 - agent.conversation_loop - INFO [20260910_111939_16c462] - API call #6: model=google/gemma-4-31b-it provider=unknown in=3037 out=53 total=3090 latency=1.3s\n11:20:12 - root - DEBUG [20260910_111939_16c462] - Token usage: prompt=3,037, completion=53, total=3,090\n11:20:12 - tools.browser_tool - DEBUG [20260910_111939_16c462] - cleanup_browser called for task_id: d2656b5d-c4e8-4711-b36b-7c349282d5f3\n11:20:12 - tools.browser_tool - DEBUG [20260910_111939_16c462] - Active sessions: []\n11:20:12 - tools.browser_tool - DEBUG [20260910_111939_16c462] - No active session found for task_id: d2656b5d-c4e8-4711-b36b-7c349282d5f3\n11:20:12 - agent.conversation_loop - INFO [20260910_111939_16c462] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=138 session=20260910_111939_16c462\n11:20:13 - tools.terminal_tool - INFO [20260910_111939_16c462] - Shutting down 1 remaining sandbox(es)...\n11:20:13 - tools.terminal_tool - INFO [20260910_111939_16c462] - Manually cleaned up environment for task: default\n11:20:13 - tools.terminal_tool - INFO [20260910_111939_16c462] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 9458,
+      "input_tokens": {
+        "value": 7388,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 135,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3200,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "tails=PromptTokensDetails(audio_tokens=0, cached_tokens=1056, cache_write_tokens=0, video_tokens=0), cost=0.0003624, is_byok=False, cost_details={'upstream_inference_cost': 0.0003624, 'upstream_inference_prompt_cost': 0.000359, 'upstream_inference_completions_cost': 3.4e-06})\n11:19:45 - agent.conversation_loop - INFO [20260910_111939_00c0e6] - API call #3: model=google/gemma-4-31b-it provider=unknown in=3590 out=10 total=3600 latency=1.0s cache=1056/3590 (29%)\n11:19:45 - root - DEBUG [20260910_111939_00c0e6] - Token usage: prompt=3,590, completion=10, total=3,600\n11:19:45 - tools.browser_tool - DEBUG [20260910_111939_00c0e6] - cleanup_browser called for task_id: 6aac70b2-5a91-48b7-bae7-57e707064cae\n11:19:45 - tools.browser_tool - DEBUG [20260910_111939_00c0e6] - Active sessions: []\n11:19:45 - tools.browser_tool - DEBUG [20260910_111939_00c0e6] - No active session found for task_id: 6aac70b2-5a91-48b7-bae7-57e707064cae\n11:19:45 - agent.conversation_loop - INFO [20260910_111939_00c0e6] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=9 session=20260910_111939_00c0e6\n11:19:46 - tools.terminal_tool - INFO [20260910_111939_00c0e6] - Shutting down 1 remaining sandbox(es)...\n11:19:46 - tools.terminal_tool - INFO [20260910_111939_00c0e6] - Manually cleaned up environment for task: default\n11:19:46 - tools.terminal_tool - INFO [20260910_111939_00c0e6] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 38367,
+      "input_tokens": {
+        "value": 18454,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 1392,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 12992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "0), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00045384, is_byok=False, cost_details={'upstream_inference_cost': 0.00045384, 'upstream_inference_prompt_cost': 0.0004467, 'upstream_inference_completions_cost': 7.14e-06})\n11:23:14 - agent.conversation_loop - INFO [20260910_112238_9ce522] - API call #8: model=google/gemma-4-31b-it provider=unknown in=4467 out=21 total=4488 latency=1.2s\n11:23:14 - root - DEBUG [20260910_112238_9ce522] - Token usage: prompt=4,467, completion=21, total=4,488\n11:23:14 - tools.browser_tool - DEBUG [20260910_112238_9ce522] - cleanup_browser called for task_id: bda71673-3249-4b6a-988e-ace3b561a605\n11:23:14 - tools.browser_tool - DEBUG [20260910_112238_9ce522] - Active sessions: []\n11:23:14 - tools.browser_tool - DEBUG [20260910_112238_9ce522] - No active session found for task_id: bda71673-3249-4b6a-988e-ace3b561a605\n11:23:14 - agent.conversation_loop - INFO [20260910_112238_9ce522] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=8/40 budget=8/40 tool_turns=7 last_msg_role=assistant response_len=70 session=20260910_112238_9ce522\n11:23:15 - tools.terminal_tool - INFO [20260910_112238_9ce522] - Shutting down 1 remaining sandbox(es)...\n11:23:15 - tools.terminal_tool - INFO [20260910_112238_9ce522] - Manually cleaned up environment for task: default\n11:23:15 - tools.terminal_tool - INFO [20260910_112238_9ce522] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14263,
+      "input_tokens": {
+        "value": 10645,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 270,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3744,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": ", prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00031392, is_byok=False, cost_details={'upstream_inference_cost': 0.00031392, 'upstream_inference_prompt_cost': 0.0003027, 'upstream_inference_completions_cost': 1.122e-05})\n11:22:50 - agent.conversation_loop - INFO [20260910_112238_997e55] - API call #5: model=google/gemma-4-31b-it provider=unknown in=3027 out=33 total=3060 latency=1.2s\n11:22:50 - root - DEBUG [20260910_112238_997e55] - Token usage: prompt=3,027, completion=33, total=3,060\n11:22:50 - tools.browser_tool - DEBUG [20260910_112238_997e55] - cleanup_browser called for task_id: a7cf3c87-0c5c-48fd-8b17-701aed6d2f46\n11:22:50 - tools.browser_tool - DEBUG [20260910_112238_997e55] - Active sessions: []\n11:22:50 - tools.browser_tool - DEBUG [20260910_112238_997e55] - No active session found for task_id: a7cf3c87-0c5c-48fd-8b17-701aed6d2f46\n11:22:50 - agent.conversation_loop - INFO [20260910_112238_997e55] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=5/40 budget=5/40 tool_turns=4 last_msg_role=assistant response_len=117 session=20260910_112238_997e55\n11:22:50 - tools.terminal_tool - INFO [20260910_112238_997e55] - Shutting down 1 remaining sandbox(es)...\n11:22:50 - tools.terminal_tool - INFO [20260910_112238_997e55] - Manually cleaned up environment for task: default\n11:22:50 - tools.terminal_tool - INFO [20260910_112238_997e55] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5941,
+      "input_tokens": {
+        "value": 6228,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 103,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 2112,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Which files mention 'flux capacitor'? List only the file names. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "=PromptTokensDetails(audio_tokens=0, cached_tokens=1024, cache_write_tokens=0, video_tokens=0), cost=0.00213925, is_byok=False, cost_details={'upstream_inference_cost': 0.00213925, 'upstream_inference_prompt_cost': 0.00212625, 'upstream_inference_completions_cost': 1.3e-05})\n11:22:42 - agent.conversation_loop - INFO [20260910_112238_0e3c59] - API call #3: model=google/gemma-4-31b-it provider=unknown in=2835 out=13 total=2848 latency=0.4s cache=1024/2835 (36%)\n11:22:42 - root - DEBUG [20260910_112238_0e3c59] - Token usage: prompt=2,835, completion=13, total=2,848\n11:22:42 - tools.browser_tool - DEBUG [20260910_112238_0e3c59] - cleanup_browser called for task_id: 60515abc-81b4-4ec7-8771-cd0a2cdf9fa8\n11:22:42 - tools.browser_tool - DEBUG [20260910_112238_0e3c59] - Active sessions: []\n11:22:42 - tools.browser_tool - DEBUG [20260910_112238_0e3c59] - No active session found for task_id: 60515abc-81b4-4ec7-8771-cd0a2cdf9fa8\n11:22:42 - agent.conversation_loop - INFO [20260910_112238_0e3c59] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=3/40 budget=3/40 tool_turns=2 last_msg_role=assistant response_len=23 session=20260910_112238_0e3c59\n11:22:42 - tools.terminal_tool - INFO [20260910_112238_0e3c59] - Shutting down 1 remaining sandbox(es)...\n11:22:42 - tools.terminal_tool - INFO [20260910_112238_0e3c59] - Manually cleaned up environment for task: default\n11:22:42 - tools.terminal_tool - INFO [20260910_112238_0e3c59] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 24126,
+      "input_tokens": {
+        "value": 16660,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 933,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5664,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "), prompt_tokens_details=PromptTokensDetails(audio_tokens=0, cached_tokens=0, cache_write_tokens=0, video_tokens=0), cost=0.00044466, is_byok=False, cost_details={'upstream_inference_cost': 0.00044466, 'upstream_inference_prompt_cost': 0.000411, 'upstream_inference_completions_cost': 3.366e-05})\n11:23:00 - agent.conversation_loop - INFO [20260910_112238_f8c91f] - API call #6: model=google/gemma-4-31b-it provider=unknown in=4110 out=99 total=4209 latency=3.6s\n11:23:00 - root - DEBUG [20260910_112238_f8c91f] - Token usage: prompt=4,110, completion=99, total=4,209\n11:23:00 - tools.browser_tool - DEBUG [20260910_112238_f8c91f] - cleanup_browser called for task_id: e80ee43c-cc61-4310-aff4-0448b6fb4309\n11:23:00 - tools.browser_tool - DEBUG [20260910_112238_f8c91f] - Active sessions: []\n11:23:00 - tools.browser_tool - DEBUG [20260910_112238_f8c91f] - No active session found for task_id: e80ee43c-cc61-4310-aff4-0448b6fb4309\n11:23:00 - agent.conversation_loop - INFO [20260910_112238_f8c91f] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=6/40 budget=6/40 tool_turns=5 last_msg_role=assistant response_len=281 session=20260910_112238_f8c91f\n11:23:00 - tools.terminal_tool - INFO [20260910_112238_f8c91f] - Shutting down 1 remaining sandbox(es)...\n11:23:00 - tools.terminal_tool - INFO [20260910_112238_f8c91f] - Manually cleaned up environment for task: default\n11:23:00 - tools.terminal_tool - INFO [20260910_112238_f8c91f] - Cleaned 1 environments"
+    },
+    {
+      "harness": "hermes-agent",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 28165,
+      "input_tokens": {
+        "value": 13603,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 838,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "hermes-agent --query Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --model google/gemma-4-31b-it --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+      "stderr_excerpt": "romptTokensDetails(audio_tokens=0, cached_tokens=1056, cache_write_tokens=0, video_tokens=0), cost=0.00039298, is_byok=False, cost_details={'upstream_inference_cost': 0.00039298, 'upstream_inference_prompt_cost': 0.0003821, 'upstream_inference_completions_cost': 1.088e-05})\n11:23:04 - agent.conversation_loop - INFO [20260910_112238_4e45e0] - API call #4: model=google/gemma-4-31b-it provider=unknown in=3821 out=32 total=3853 latency=1.8s cache=1056/3821 (28%)\n11:23:04 - root - DEBUG [20260910_112238_4e45e0] - Token usage: prompt=3,821, completion=32, total=3,853\n11:23:04 - tools.browser_tool - DEBUG [20260910_112238_4e45e0] - cleanup_browser called for task_id: b8a0c8a2-7e52-4121-a762-a612c3c8c25e\n11:23:04 - tools.browser_tool - DEBUG [20260910_112238_4e45e0] - Active sessions: []\n11:23:04 - tools.browser_tool - DEBUG [20260910_112238_4e45e0] - No active session found for task_id: b8a0c8a2-7e52-4121-a762-a612c3c8c25e\n11:23:04 - agent.conversation_loop - INFO [20260910_112238_4e45e0] - Turn ended: reason=text_response(finish_reason=stop) model=google/gemma-4-31b-it api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=106 session=20260910_112238_4e45e0\n11:23:04 - tools.terminal_tool - INFO [20260910_112238_4e45e0] - Shutting down 1 remaining sandbox(es)...\n11:23:04 - tools.terminal_tool - INFO [20260910_112238_4e45e0] - Manually cleaned up environment for task: default\n11:23:04 - tools.terminal_tool - INFO [20260910_112238_4e45e0] - Cleaned 1 environments"
+    }
+  ],
+  "janetcode": [
+    {
+      "harness": "janetcode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 3219,
+      "input_tokens": {
+        "value": 4030,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 36,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3904,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00080564,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 01-create-file --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 21117,
+      "input_tokens": {
+        "value": 32217,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 530,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 23264,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 11,
+        "set": true
+      },
+      "turns": {
+        "value": 12,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0057283,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 8530,
+      "input_tokens": {
+        "value": 16622,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 215,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8992,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0026344999999999997,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 11878,
+      "input_tokens": {
+        "value": 7371,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 440,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 5088,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0013955,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 11603,
+      "input_tokens": {
+        "value": 18218,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 526,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 18016,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 9,
+        "set": true
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0038022399999999997,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 2580,
+      "input_tokens": {
+        "value": 11085,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 38,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 928,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0038163800000000003,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 9044,
+      "input_tokens": {
+        "value": 7350,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 92,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4832,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00124948,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 6419,
+      "input_tokens": {
+        "value": 11992,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 102,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0012338800000000001,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 16106,
+      "input_tokens": {
+        "value": 20159,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 197,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4864,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0025692799999999997,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 7651,
+      "input_tokens": {
+        "value": 18582,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 278,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 10688,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.01125893,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 19382,
+      "input_tokens": {
+        "value": 26732,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 664,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 20000,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 9,
+        "set": true
+      },
+      "turns": {
+        "value": 10,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.010851079999999999,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 6625,
+      "input_tokens": {
+        "value": 13404,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 205,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 7776,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.007759940000000001,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 27139,
+      "input_tokens": {
+        "value": 33018,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 757,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 2720,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.009438730000000001,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 15052,
+      "input_tokens": {
+        "value": 11483,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 142,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 8736,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.004804940000000001,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 3515,
+      "input_tokens": {
+        "value": 4110,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 28,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 3936,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00081412,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 4935,
+      "input_tokens": {
+        "value": 11504,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 201,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 4864,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.007068640000000001,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 16-readme --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5487,
+      "input_tokens": {
+        "value": 10520,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 174,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 9728,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00483423,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 1910,
+      "input_tokens": {
+        "value": 6088,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 24,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1856,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00080256,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 22291,
+      "input_tokens": {
+        "value": 23091,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 763,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 11808,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 7,
+        "set": true
+      },
+      "turns": {
+        "value": 8,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.006730460000000001,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 19-write-test --provider openai --model google/gemma-4-31b-it"
+    },
+    {
+      "harness": "janetcode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 6112,
+      "input_tokens": {
+        "value": 10273,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 213,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1856,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00128532,
+        "set": true
+      },
+      "command": "janetcode --eval --eval-only 20-env-default --provider openai --model google/gemma-4-31b-it"
+    }
+  ],
+  "openclaw": [
+    {
+      "harness": "openclaw",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 38105,
+      "input_tokens": {
+        "value": 62402,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 45,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-01-create-file-2234910085 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032424176205423 --message Create a file named hello.txt containing exactly the text: hello world",
+      "stderr_excerpt": "se provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=536 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1705 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 27dba318-0cea-49b3-9bef-e9e0ffefd20c ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 81730,
+      "input_tokens": {
+        "value": 63144,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 212,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 125408,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-02-go-add-function-2874575922 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032424646685515 --message math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests.",
+      "stderr_excerpt": "\"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=469 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=539 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d12958fd-e716-4f9a-8d00-8012a2000d3f ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 29639,
+      "input_tokens": {
+        "value": 63368,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 195,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 125248,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-03-fix-failing-test-417841237 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032424240924467 --message go test fails. Find the bug and fix it in the implementation, not the test.",
+      "stderr_excerpt": "-4-31b-it status=200 elapsedMs=556 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1981 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1301 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 6e2821d0-8ccb-400a-9054-aee2db0db76b ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 14289,
+      "input_tokens": {
+        "value": 31595,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 254,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 31328,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-04-python-fizzbuzz-34242302 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032424276515756 --message Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise).",
+      "stderr_excerpt": "enai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=2976 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=2236 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 22126f54-fc0b-414d-969d-22de08e3b0ee ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 63389,
+      "input_tokens": {
+        "value": 95255,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 438,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 62624,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 6,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-05-rename-symbol-2958262488 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032424181751738 --message Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build.",
+      "stderr_excerpt": "invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=3315 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=497 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ff21ee04-554f-4840-abf2-a182fb2a1169 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 31469,
+      "input_tokens": {
+        "value": 31633,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 61,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 93760,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-06-read-and-answer-1735357333 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032506237230367 --message What does Compute(3) return? Reply with just the number.",
+      "stderr_excerpt": "a-4-31b-it status=200 elapsedMs=1021 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=518 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=937 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run a064c82c-b5d3-4937-b256-8b6e9984304c ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 26717,
+      "input_tokens": {
+        "value": 62733,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 90,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 31200,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-07-json-config-edit-947497529 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032506558586314 --message In config.json change the port to 8080. Keep every other key exactly as it is.",
+      "stderr_excerpt": "ma-4-31b-it status=200 elapsedMs=3899 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1208 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1201 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 726aeaf5-191f-45d3-9302-b41eebd6ef86 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 30314,
+      "input_tokens": {
+        "value": 31270,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 54,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 31136,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-08-shell-script-670903490 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032506263704376 --message Write count.sh that prints the number of lines in input.txt and nothing else.",
+      "stderr_excerpt": "nse provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=582 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=811 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run bc55b275-f2e6-4b57-a329-5787bf2888e7 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 100188,
+      "input_tokens": {
+        "value": 94050,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 175,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 31168,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-09-makefile-target-1820339006 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032506402572999 --message Add a greet target to the Makefile that prints hi. Keep the existing targets.",
+      "stderr_excerpt": " provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=506 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=585 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d825d1a0-b1b6-4b04-a84b-e21692dc80b8 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 26073,
+      "input_tokens": {
+        "value": 62541,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 40,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-10-append-preserve-2406579784 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032506543104073 --message Append the line 'four' to the end of list.txt. Do not change the existing lines.",
+      "stderr_excerpt": "penai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=3500 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=888 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 05ec99b9-c1ec-46e5-b426-a71ebf93beb2 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 75876,
+      "input_tokens": {
+        "value": 188937,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 260,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-11-go-return-error-3141904764 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032607149174972 --message Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests.",
+      "stderr_excerpt": "nvalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1210 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1133 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 061c7180-4c9c-40e9-a48b-39141b41e81d ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 79486,
+      "input_tokens": {
+        "value": 157657,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 228,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-12-python-bugfix-956095225 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032606909678794 --message python3 test_stats.py fails. Fix the bug in stats.py.",
+      "stderr_excerpt": "invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=664 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1070 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c7fe977d-479a-4553-908b-153bf51f0741 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 80387,
+      "input_tokens": {
+        "value": 157588,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 462,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-13-multi-file-package-1570475100 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032606843481832 --message Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests.",
+      "stderr_excerpt": "invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1209 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=871 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run bbc9cec7-3a7a-4fb4-87ec-41dc67d9e157 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 49256,
+      "input_tokens": {
+        "value": 31375,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 82,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 62240,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-14-gitignore-4077201055 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032607115767503 --message Add node_modules/ and dist/ to .gitignore, keeping what is there.",
+      "stderr_excerpt": " provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=947 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=954 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run ada8a3c3-53d5-4fe0-bfdb-65196799bc0f ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 32643,
+      "input_tokens": {
+        "value": 62562,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 32,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-15-yes-no-question-234618984 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032606943852220 --message Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes.",
+      "stderr_excerpt": "e provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1920 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1142 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 4c6ff12e-20a0-4dc6-ad31-7db666070e36 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 43820,
+      "input_tokens": {
+        "value": 62834,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 146,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 62464,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-16-readme-401553015 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032687284547028 --message Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command.",
+      "stderr_excerpt": "e provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=528 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=588 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 21128f15-fcc4-44ae-b27a-385a1d525627 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 43473,
+      "input_tokens": {
+        "value": 62966,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 178,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 125088,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-17-csv-sort-3044253061 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032687429236521 --message Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice.",
+      "stderr_excerpt": "ma-4-31b-it status=200 elapsedMs=576 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=524 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=502 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 597274c4-7ca3-4508-9854-e5eb4396c0a0 ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 47156,
+      "input_tokens": {
+        "value": 62550,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 32,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-18-find-mentions-2288317832 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032687399661832 --message Which files mention 'flux capacitor'? List only the file names.",
+      "stderr_excerpt": "se provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=828 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1241 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run dae177be-54be-40e4-b95c-e2935d72411d ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 46775,
+      "input_tokens": {
+        "value": 94553,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 420,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 62816,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-19-write-test-1152661829 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032687538008418 --message Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it.",
+      "stderr_excerpt": "\"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=875 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=444 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d291b229-e9de-4dd9-8b49-74616a67adad ended with stopReason=stop\u001b[39m"
+    },
+    {
+      "harness": "openclaw",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 41593,
+      "input_tokens": {
+        "value": 62619,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 122,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "set": false
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "openclaw --profile janetbench-harness-openclaw-20-env-default-2012325813 agent --local --json --model bench/google/gemma-4-31b-it --session-id bench-0-1789032687552691745 --message Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset.",
+      "stderr_excerpt": "se provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=1021 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=google/gemma-4-31b-it method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=google/gemma-4-31b-it status=200 elapsedMs=574 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d486dd48-8254-490e-8081-21bbd7880490 ended with stopReason=stop\u001b[39m"
+    }
+  ],
+  "pi": [
+    {
+      "harness": "pi",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 7611,
+      "input_tokens": {
+        "value": 36308,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 42,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 1408,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0033523999999999997,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "pi",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 21359,
+      "input_tokens": {
+        "value": 20602,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 434,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 94048,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.006704140000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 34757,
+      "input_tokens": {
+        "value": 44039,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 613,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 90624,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 7,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.008703130000000002,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "pi",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 8433,
+      "input_tokens": {
+        "value": 18710,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 591,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 38688,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0038192400000000007,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "pi",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 19042,
+      "input_tokens": {
+        "value": 4175,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 664,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 111200,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.006161510000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "pi",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 18672,
+      "input_tokens": {
+        "value": 2109,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 411,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 73952,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00402715,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "pi",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 26348,
+      "input_tokens": {
+        "value": 23695,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 237,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 71392,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00578273,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "pi",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 11163,
+      "input_tokens": {
+        "value": 1881,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 294,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 74144,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00397645,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "pi",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 8979,
+      "input_tokens": {
+        "value": 8694,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 293,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 105248,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00614448,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "pi",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 18605,
+      "input_tokens": {
+        "value": 6145,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 550,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 108896,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00618485,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "pi",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 15913,
+      "input_tokens": {
+        "value": 7057,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 675,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 108352,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.006282230000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 14092,
+      "input_tokens": {
+        "value": 8530,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 590,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 107328,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0063347,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "pi",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 18284,
+      "input_tokens": {
+        "value": 3131,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 852,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 113088,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00622587,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "pi",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 9649,
+      "input_tokens": {
+        "value": 2055,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 244,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 92864,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.004911110000000001,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "pi",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 6174,
+      "input_tokens": {
+        "value": 1671,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 149,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 36160,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00200905,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "pi",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14569,
+      "input_tokens": {
+        "value": 3771,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 548,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 91744,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00511291,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "pi",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 23103,
+      "input_tokens": {
+        "value": 3448,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 543,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 92032,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00509654,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "pi",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 5845,
+      "input_tokens": {
+        "value": 858,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 108,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 36896,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00195874,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "pi",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 23559,
+      "input_tokens": {
+        "value": 2793,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 661,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 93120,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.0051321100000000005,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "pi",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 11489,
+      "input_tokens": {
+        "value": 1941,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 314,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 55040,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": true
+      },
+      "tool_calls": {
+        "set": false
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "value": 0.00303345,
+        "set": true
+      },
+      "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ],
+  "qwencode": [
+    {
+      "harness": "qwencode",
+      "task": "01-create-file",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 22596,
+      "input_tokens": {
+        "value": 37416,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 114,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 48320,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Create a file named hello.txt containing exactly the text: hello world"
+    },
+    {
+      "harness": "qwencode",
+      "task": "02-go-add-function",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 21368,
+      "input_tokens": {
+        "value": 43933,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 327,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127968,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "03-fix-failing-test",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 24631,
+      "input_tokens": {
+        "value": 44795,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 496,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 172480,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s go test fails. Find the bug and fix it in the implementation, not the test."
+    },
+    {
+      "harness": "qwencode",
+      "task": "04-python-fizzbuzz",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 22173,
+      "input_tokens": {
+        "value": 43694,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 552,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 84864,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+    },
+    {
+      "harness": "qwencode",
+      "task": "05-rename-symbol",
+      "batch": 1,
+      "passed": true,
+      "wall_time_ms": 43168,
+      "input_tokens": {
+        "value": 45039,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 568,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 172960,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 8,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+    },
+    {
+      "harness": "qwencode",
+      "task": "06-read-and-answer",
+      "batch": 2,
+      "passed": false,
+      "reason": "check failed: exit status 1",
+      "wall_time_ms": 16330,
+      "input_tokens": {
+        "value": 43240,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 73,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 42272,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s What does Compute(3) return? Reply with just the number."
+    },
+    {
+      "harness": "qwencode",
+      "task": "07-json-config-edit",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 23790,
+      "input_tokens": {
+        "value": 43419,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 272,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 85056,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s In config.json change the port to 8080. Keep every other key exactly as it is."
+    },
+    {
+      "harness": "qwencode",
+      "task": "08-shell-script",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 16752,
+      "input_tokens": {
+        "value": 43346,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 124,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 42336,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Write count.sh that prints the number of lines in input.txt and nothing else."
+    },
+    {
+      "harness": "qwencode",
+      "task": "09-makefile-target",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 34989,
+      "input_tokens": {
+        "value": 79775,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 236,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 48320,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Add a greet target to the Makefile that prints hi. Keep the existing targets."
+    },
+    {
+      "harness": "qwencode",
+      "task": "10-append-preserve",
+      "batch": 2,
+      "passed": true,
+      "wall_time_ms": 55333,
+      "input_tokens": {
+        "value": 43403,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 185,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 84576,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Append the line 'four' to the end of list.txt. Do not change the existing lines."
+    },
+    {
+      "harness": "qwencode",
+      "task": "11-go-return-error",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 40943,
+      "input_tokens": {
+        "value": 44285,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 493,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 129280,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "12-python-bugfix",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 25850,
+      "input_tokens": {
+        "value": 44507,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 526,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 171168,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 5,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s python3 test_stats.py fails. Fix the bug in stats.py."
+    },
+    {
+      "harness": "qwencode",
+      "task": "13-multi-file-package",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 26419,
+      "input_tokens": {
+        "value": 44113,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 733,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127936,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 4,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+    },
+    {
+      "harness": "qwencode",
+      "task": "14-gitignore",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 16687,
+      "input_tokens": {
+        "value": 43432,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 192,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 84768,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 2,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Add node_modules/ and dist/ to .gitignore, keeping what is there."
+    },
+    {
+      "harness": "qwencode",
+      "task": "15-yes-no-question",
+      "batch": 3,
+      "passed": true,
+      "wall_time_ms": 24324,
+      "input_tokens": {
+        "value": 43202,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 46,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 42240,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+    },
+    {
+      "harness": "qwencode",
+      "task": "16-readme",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 20160,
+      "input_tokens": {
+        "value": 43346,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 275,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 85024,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 3,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+    },
+    {
+      "harness": "qwencode",
+      "task": "17-csv-sort",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 84478,
+      "input_tokens": {
+        "value": 44246,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 650,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 213888,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 5,
+        "set": true
+      },
+      "turns": {
+        "value": 6,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+    },
+    {
+      "harness": "qwencode",
+      "task": "18-find-mentions",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 14872,
+      "input_tokens": {
+        "value": 37574,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 51,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 48064,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Which files mention 'flux capacitor'? List only the file names."
+    },
+    {
+      "harness": "qwencode",
+      "task": "19-write-test",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 45547,
+      "input_tokens": {
+        "value": 43996,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 500,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 127424,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 3,
+        "set": true
+      },
+      "turns": {
+        "value": 4,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+    },
+    {
+      "harness": "qwencode",
+      "task": "20-env-default",
+      "batch": 4,
+      "passed": true,
+      "wall_time_ms": 20105,
+      "input_tokens": {
+        "value": 43408,
+        "set": true
+      },
+      "output_tokens": {
+        "value": 242,
+        "set": true
+      },
+      "cache_read_tokens": {
+        "value": 42336,
+        "set": true
+      },
+      "cache_write_tokens": {
+        "set": false
+      },
+      "tool_calls": {
+        "value": 1,
+        "set": true
+      },
+      "turns": {
+        "value": 2,
+        "set": true
+      },
+      "cost_usd": {
+        "set": false
+      },
+      "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://openrouter.ai/api/v1 --model google/gemma-4-31b-it --max-session-turns 40 --max-wall-time 180s Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+    }
+  ]
+}

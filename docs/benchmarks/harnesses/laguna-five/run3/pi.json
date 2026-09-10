@@ -1,0 +1,684 @@
+[
+  {
+    "harness": "pi",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 6067,
+    "input_tokens": {
+      "value": 1780,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 234,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 50016,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000652464,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Create a file named hello.txt containing exactly the text: hello world"
+  },
+  {
+    "harness": "pi",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 11611,
+    "input_tokens": {
+      "value": 20885,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 554,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 102816,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.002904714,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 13636,
+    "input_tokens": {
+      "value": 4397,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 790,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 101696,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001453194,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+  },
+  {
+    "harness": "pi",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 14911,
+    "input_tokens": {
+      "value": 4697,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 945,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 84128,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001349982,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+  },
+  {
+    "harness": "pi",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 12909,
+    "input_tokens": {
+      "value": 22187,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 883,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 84736,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.002918394,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+  },
+  {
+    "harness": "pi",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": false,
+    "reason": "check failed: exit status 1",
+    "wall_time_ms": 2697,
+    "input_tokens": {
+      "value": 827,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 2,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 16320,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 1,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00022167,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session What does Compute(3) return? Reply with just the number."
+  },
+  {
+    "harness": "pi",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 21737,
+    "input_tokens": {
+      "value": 2736,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 502,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 102240,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 10,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00125676,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+  },
+  {
+    "harness": "pi",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": false,
+    "reason": "check failed: exit status 1",
+    "wall_time_ms": 8961,
+    "input_tokens": {
+      "value": 3281,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 542,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 83872,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001147698,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+  },
+  {
+    "harness": "pi",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 13480,
+    "input_tokens": {
+      "value": 2392,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 324,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 102112,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 8,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001192608,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+  },
+  {
+    "harness": "pi",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 27526,
+    "input_tokens": {
+      "value": 1813,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 382,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 67616,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 9,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000840474,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+  },
+  {
+    "harness": "pi",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 20496,
+    "input_tokens": {
+      "value": 3338,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 901,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 104160,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 9,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00140004,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 9664,
+    "input_tokens": {
+      "value": 2354,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 462,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 67424,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0009018359999999999,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+  },
+  {
+    "harness": "pi",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 11348,
+    "input_tokens": {
+      "value": 2386,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 704,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 50432,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000795348,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 4392,
+    "input_tokens": {
+      "value": 908,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 204,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 50848,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000576072,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+  },
+  {
+    "harness": "pi",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 2968,
+    "input_tokens": {
+      "value": 877,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 75,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 33536,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000394254,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+  },
+  {
+    "harness": "pi",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 10259,
+    "input_tokens": {
+      "value": 3820,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 389,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 66208,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001009692,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+  },
+  {
+    "harness": "pi",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 5353,
+    "input_tokens": {
+      "value": 2025,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 334,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 49888,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000691362,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+  },
+  {
+    "harness": "pi",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 2959,
+    "input_tokens": {
+      "value": 849,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 78,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 33536,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00039227399999999996,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Which files mention 'flux capacitor'? List only the file names."
+  },
+  {
+    "harness": "pi",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 13396,
+    "input_tokens": {
+      "value": 5288,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 907,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 120096,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0017200439999999996,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+  },
+  {
+    "harness": "pi",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 9395,
+    "input_tokens": {
+      "value": 2021,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 297,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 49920,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0006846300000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model poolside/laguna-s-2.1 --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+  }
+]

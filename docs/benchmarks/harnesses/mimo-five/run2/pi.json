@@ -1,0 +1,682 @@
+[
+  {
+    "harness": "pi",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 9348,
+    "input_tokens": {
+      "value": 2860,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 73,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 31424,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0005088272,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Create a file named hello.txt containing exactly the text: hello world"
+  },
+  {
+    "harness": "pi",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 35132,
+    "input_tokens": {
+      "value": 3452,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 200,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 65728,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0007233184000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 82310,
+    "input_tokens": {
+      "value": 3707,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 425,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 100864,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0009203992,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+  },
+  {
+    "harness": "pi",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 36115,
+    "input_tokens": {
+      "value": 3214,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 323,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 48768,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0006769504,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+  },
+  {
+    "harness": "pi",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 40549,
+    "input_tokens": {
+      "value": 35479,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 964,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 89824,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0054884872,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+  },
+  {
+    "harness": "pi",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 39134,
+    "input_tokens": {
+      "value": 3027,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 209,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 48576,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0006183128,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session What does Compute(3) return? Reply with just the number."
+  },
+  {
+    "harness": "pi",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 19530,
+    "input_tokens": {
+      "value": 3036,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 154,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 48576,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0006041728,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+  },
+  {
+    "harness": "pi",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 16204,
+    "input_tokens": {
+      "value": 18438,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 212,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 33152,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0027335056000000004,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+  },
+  {
+    "harness": "pi",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 63038,
+    "input_tokens": {
+      "value": 3312,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 345,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 65856,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0007446767999999999,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+  },
+  {
+    "harness": "pi",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 38061,
+    "input_tokens": {
+      "value": 20289,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 198,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 48576,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0030319127999999997,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+  },
+  {
+    "harness": "pi",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 70815,
+    "input_tokens": {
+      "value": 3838,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 709,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 101632,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0010204096,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 38837,
+    "input_tokens": {
+      "value": 3211,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 248,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 65984,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0007037351999999999,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+  },
+  {
+    "harness": "pi",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 31447,
+    "input_tokens": {
+      "value": 3622,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 540,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 66624,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0008448272000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 31144,
+    "input_tokens": {
+      "value": 17292,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 181,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 34240,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0025674320000000006,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+  },
+  {
+    "harness": "pi",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 36568,
+    "input_tokens": {
+      "value": 2914,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 99,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 31424,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0005236672,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+  },
+  {
+    "harness": "pi",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 40017,
+    "input_tokens": {
+      "value": 3358,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 368,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 66048,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0007580944,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+  },
+  {
+    "harness": "pi",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 29266,
+    "input_tokens": {
+      "value": 3101,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 176,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 65792,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0006676376,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+  },
+  {
+    "harness": "pi",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 11615,
+    "input_tokens": {
+      "value": 17211,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 87,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 17088,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0024817464,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Which files mention 'flux capacitor'? List only the file names."
+  },
+  {
+    "harness": "pi",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 30630,
+    "input_tokens": {
+      "value": 4273,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 655,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 85632,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0010213896000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+  },
+  {
+    "harness": "pi",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 21283,
+    "input_tokens": {
+      "value": 2984,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 196,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 31424,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0005606272,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model xiaomi/mimo-v2.5 --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+  }
+]

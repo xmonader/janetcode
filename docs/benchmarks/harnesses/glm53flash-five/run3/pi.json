@@ -1,0 +1,682 @@
+[
+  {
+    "harness": "pi",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 4228,
+    "input_tokens": {
+      "value": 16929,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 105,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 16768,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0015474449999999997,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Create a file named hello.txt containing exactly the text: hello world"
+  },
+  {
+    "harness": "pi",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 25111,
+    "input_tokens": {
+      "value": 16174,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 157,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 51712,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00202798,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 26721,
+    "input_tokens": {
+      "value": 25566,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 271,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 77440,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0031467999999999995,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+  },
+  {
+    "harness": "pi",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 12520,
+    "input_tokens": {
+      "value": 23419,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 455,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 27648,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.002284895,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+  },
+  {
+    "harness": "pi",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 9283,
+    "input_tokens": {
+      "value": 9022,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 641,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 77184,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00199466,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+  },
+  {
+    "harness": "pi",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 7410,
+    "input_tokens": {
+      "value": 23287,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 112,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 27648,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.002189245,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session What does Compute(3) return? Reply with just the number."
+  },
+  {
+    "harness": "pi",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 5058,
+    "input_tokens": {
+      "value": 23059,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 96,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 27648,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.002168145,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+  },
+  {
+    "harness": "pi",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 13125,
+    "input_tokens": {
+      "value": 16461,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 149,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 34304,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0017863849999999997,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Write count.sh that prints the number of lines in input.txt and nothing else."
+  },
+  {
+    "harness": "pi",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 6659,
+    "input_tokens": {
+      "value": 26117,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 114,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 41472,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.002609355,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+  },
+  {
+    "harness": "pi",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 9231,
+    "input_tokens": {
+      "value": 26186,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 137,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 41472,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00262028,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+  },
+  {
+    "harness": "pi",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 8352,
+    "input_tokens": {
+      "value": 9315,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 313,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 78528,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0019547949999999996,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 7303,
+    "input_tokens": {
+      "value": 8577,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 208,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 76608,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001844395,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+  },
+  {
+    "harness": "pi",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 8522,
+    "input_tokens": {
+      "value": 27421,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 573,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 41472,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0028219049999999996,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 5191,
+    "input_tokens": {
+      "value": 8110,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 75,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 42496,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00126444,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+  },
+  {
+    "harness": "pi",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 5123,
+    "input_tokens": {
+      "value": 8066,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 110,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 25728,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00101837,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+  },
+  {
+    "harness": "pi",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 8976,
+    "input_tokens": {
+      "value": 8837,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 476,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 76992,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.001936655,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+  },
+  {
+    "harness": "pi",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 5693,
+    "input_tokens": {
+      "value": 8201,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 198,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 42560,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0013029749999999998,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+  },
+  {
+    "harness": "pi",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 3413,
+    "input_tokens": {
+      "value": 7998,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 62,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 25728,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00100127,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Which files mention 'flux capacitor'? List only the file names."
+  },
+  {
+    "harness": "pi",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 19407,
+    "input_tokens": {
+      "value": 32325,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 391,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 55296,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.003351565,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+  },
+  {
+    "harness": "pi",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 5000,
+    "input_tokens": {
+      "value": 8146,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 145,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 42560,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0012856,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model z-ai/glm-5.3-flash --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+  }
+]

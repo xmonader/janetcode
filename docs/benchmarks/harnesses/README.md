@@ -20,6 +20,30 @@ task rows marked `unavailable` and the captured failure.
 Token fields the harness did not emit are `"set": false` (`n/a` in the
 report), never estimated.
 
+## Three-run series
+
+Each of these directories holds `run1/`–`run3/` of raw per-harness JSON
+and a hand-written `REPORT.md` over the three; five harnesses
+(janetcode, pi, hermes-agent, qwencode, openclaw), evals 01–20, one
+endpoint per series.
+
+| directory | model | endpoint |
+|---|---|---|
+| `qwen-five/` | `qwen3.7-plus` | DashScope |
+| `qwen36-five/` | `qwen3.6-plus` | DashScope |
+| `mercury-five/` | `inception/mercury-2.5` | OpenRouter |
+| `deepseek-five/` | `deepseek/deepseek-v4-pro-0813` | OpenRouter |
+| `qwen38flash-five/` | `qwen/qwen3.8-flash` | OpenRouter |
+| `qwen37flash-five/` | `qwen/qwen3.7-flash` | OpenRouter |
+| `glm53flash-five/` | `z-ai/glm-5.3-flash` | OpenRouter |
+| `laguna-five/` | `poolside/laguna-s-2.1` | OpenRouter |
+| `ling-five/` | `inclusionai/ling-3.0-flash` | OpenRouter |
+| `gemma4-five/` | `google/gemma-4-31b-it` | OpenRouter |
+| `mimo-five/` | `xiaomi/mimo-v2.5` | OpenRouter |
+
+`eleven-models/REPORT.md` puts them side by side: tokens in, cached, out,
+and cost at list price.
+
 ## Re-run
 
 From the repo root, with the key in the process environment only:

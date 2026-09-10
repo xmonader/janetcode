@@ -1,0 +1,685 @@
+[
+  {
+    "harness": "pi",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 3918,
+    "input_tokens": {
+      "value": 18645,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 45,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 19072,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0026469500000000003,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Create a file named hello.txt containing exactly the text: hello world"
+  },
+  {
+    "harness": "pi",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 15034,
+    "input_tokens": {
+      "value": 21477,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 373,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 93088,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00671415,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 15669,
+    "input_tokens": {
+      "value": 22020,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 502,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 93088,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00680688,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session go test fails. Find the bug and fix it in the implementation, not the test."
+  },
+  {
+    "harness": "pi",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 16787,
+    "input_tokens": {
+      "value": 21216,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 571,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 36160,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00391158,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise)."
+  },
+  {
+    "harness": "pi",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 16308,
+    "input_tokens": {
+      "value": 40298,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 567,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 113600,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 8,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0094996,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build."
+  },
+  {
+    "harness": "pi",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 13091,
+    "input_tokens": {
+      "value": 20935,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 383,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 55008,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00476477,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session What does Compute(3) return? Reply with just the number."
+  },
+  {
+    "harness": "pi",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 12724,
+    "input_tokens": {
+      "value": 21052,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 298,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 74240,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.005708000000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session In config.json change the port to 8080. Keep every other key exactly as it is."
+  },
+  {
+    "harness": "pi",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": false,
+    "reason": "check failed: exit status 1: count.sh: line 2: input.txt: No such file or directory",
+    "wall_time_ms": 16355,
+    "input_tokens": {
+      "value": 1968,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 279,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 73888,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00396638,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Write count.sh that prints the number of lines in input.txt and nothing else.",
+    "stderr_excerpt": "count.sh: line 2: input.txt: No such file or directory"
+  },
+  {
+    "harness": "pi",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 15841,
+    "input_tokens": {
+      "value": 38398,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 261,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 56512,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00637016,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Add a greet target to the Makefile that prints hi. Keep the existing targets."
+  },
+  {
+    "harness": "pi",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 23547,
+    "input_tokens": {
+      "value": 21645,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 498,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 93056,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00677017,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Append the line 'four' to the end of list.txt. Do not change the existing lines."
+  },
+  {
+    "harness": "pi",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 18404,
+    "input_tokens": {
+      "value": 4680,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 799,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 131104,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0072480600000000015,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 17270,
+    "input_tokens": {
+      "value": 4058,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 565,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 111424,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00612852,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session python3 test_stats.py fails. Fix the bug in stats.py."
+  },
+  {
+    "harness": "pi",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 20177,
+    "input_tokens": {
+      "value": 4483,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 813,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 111424,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.006251090000000001,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests."
+  },
+  {
+    "harness": "pi",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 7327,
+    "input_tokens": {
+      "value": 4401,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 215,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 71392,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0040387900000000004,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Add node_modules/ and dist/ to .gitignore, keeping what is there."
+  },
+  {
+    "harness": "pi",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 7057,
+    "input_tokens": {
+      "value": 856,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 181,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 36992,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00198818,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes."
+  },
+  {
+    "harness": "pi",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 13501,
+    "input_tokens": {
+      "value": 5647,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 487,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 70624,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00420501,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command."
+  },
+  {
+    "harness": "pi",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": false,
+    "reason": "check failed: exit status 1",
+    "wall_time_ms": 16556,
+    "input_tokens": {
+      "value": 27794,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 725,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 107264,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00811116,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice."
+  },
+  {
+    "harness": "pi",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 9154,
+    "input_tokens": {
+      "value": 3297,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 110,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 34464,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00205733,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Which files mention 'flux capacitor'? List only the file names."
+  },
+  {
+    "harness": "pi",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 18097,
+    "input_tokens": {
+      "value": 5092,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 787,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 90720,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00526186,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it."
+  },
+  {
+    "harness": "pi",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 4673,
+    "input_tokens": {
+      "value": 932,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 203,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 36864,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.0019961,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model google/gemma-4-31b-it --no-session Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset."
+  }
+]
