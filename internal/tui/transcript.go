@@ -276,7 +276,7 @@ func (t *transcript) render(o renderOpts) string {
 		width = 20
 	}
 	if t.renderer == nil || t.rWidth != width {
-		r, err := glamour.NewTermRenderer(glamour.WithStandardStyle(t.styleName), glamour.WithWordWrap(width-2))
+		r, err := glamour.NewTermRenderer(glamour.WithStyles(markdownStyle(t.styleName == "dark")), glamour.WithWordWrap(width-2))
 		if err == nil {
 			t.renderer = r
 			t.rWidth = width

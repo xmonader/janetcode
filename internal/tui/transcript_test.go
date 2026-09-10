@@ -256,3 +256,63 @@ func TestGoalEndIsALineOfItsOwn(t *testing.T) {
 		t.Fatalf("goal end entry = %+v", e)
 	}
 }
+
+// TestMarkdownStyleHasNoBackgrounds pins item 1 of the polish round:
+// glamour's standard styles paint a background behind inline code
+// (48;5;236 dark, 48;5;254 light) and behind a code block, which reads as
+// a grey smear on any other terminal background.
+func TestMarkdownStyleHasNoBackgrounds(t *testing.T) {
+	const src = "# Heading\n\nSome `inline code` and *emph* here.\n\n```go\nfunc main() {}\n```\n"
+	for _, style := range []string{"dark", "light"} {
+		tr := newTranscriptStyled(style)
+		tr.apply(agent.Event{Kind: agent.EvText, Text: src})
+		tr.apply(agent.Event{Kind: agent.EvTurnDone})
+		out := tr.render(renderOpts{width: 80})
+		if strings.Contains(out, "\x1b[48;") || strings.Contains(out, ";48;") {
+			t.Errorf("%s style still sets a background:\n%q", style, out)
+		}
+		if strings.Contains(out, ";3m") || strings.Contains(out, "[3m") {
+			t.Errorf("%s style still emits italics:\n%q", style, out)
+		}
+		for _, want := range []string{"Heading", "inline code", "func main"} {
+			if !strings.Contains(plain(out), want) {
+				t.Errorf("%s style lost %q:\n%s", style, want, plain(out))
+			}
+		}
+	}
+}
+
+// TestMarkdownStyleUsesPalette checks the style is built from styles.go
+// rather than glamour's own colours.
+func TestMarkdownStyleUsesPalette(t *testing.T) {
+	for _, dark := range []bool{true, false} {
+		c := markdownStyle(dark)
+		accent, tool := colAccent.Light, colTool.Light
+		if dark {
+			accent, tool = colAccent.Dark, colTool.Dark
+		}
+		if c.Heading.Color == nil || *c.Heading.Color != accent {
+			t.Errorf("dark=%v heading colour = %v, want %s", dark, c.Heading.Color, accent)
+		}
+		if c.H1.Color == nil || *c.H1.Color != accent {
+			t.Errorf("dark=%v h1 colour = %v, want %s", dark, c.H1.Color, accent)
+		}
+		if c.Code.Color == nil || *c.Code.Color != tool {
+			t.Errorf("dark=%v code colour = %v, want %s", dark, c.Code.Color, tool)
+		}
+		for name, bg := range map[string]*string{
+			"h1": c.H1.BackgroundColor, "heading": c.Heading.BackgroundColor,
+			"code": c.Code.BackgroundColor, "code_block": c.CodeBlock.BackgroundColor,
+		} {
+			if bg != nil {
+				t.Errorf("dark=%v %s keeps a background %q", dark, name, *bg)
+			}
+		}
+		if c.CodeBlock.Chroma == nil || c.CodeBlock.Chroma.Background.BackgroundColor != nil {
+			t.Errorf("dark=%v chroma canvas still has a background", dark)
+		}
+		if c.Emph.Italic == nil || *c.Emph.Italic {
+			t.Errorf("dark=%v emph is still italic", dark)
+		}
+	}
+}
