@@ -1159,6 +1159,14 @@ Numbers live in `docs/benchmarks/`, with the runs that produced them.
   read to get there was janetcode 985k, pi 1.95M, grok 3.31M, qwencode
   16.4M. The gap is mostly fixed per-call overhead — janetcode's prompt
   and schemas come to about 1.8k tokens, against 18k, 23k and 70k.
+- **Across eleven models**, five harnesses (janetcode, pi, hermes-agent,
+  qwencode, openclaw), three runs each — 3,300 task runs on 2026-09-10:
+  janetcode passed 651/660, the most, at $1.17 at list price for all
+  eleven, the lowest cost per solved task (0.18¢ against hermes-agent
+  0.25¢, pi 0.47¢, qwencode 1.19¢, openclaw 1.28¢), first or second on
+  cost on every model. Its context read stays near 1M tokens per 60 tasks
+  on every model while qwencode and openclaw read 7–12M.
+  `docs/benchmarks/harnesses/eleven-models/`.
 - **Compaction** is safe on this set: forcing it on tasks that would not
   otherwise reach the threshold lost no task, 11/11 either way.
 - **Recall after compaction**: 0/16 exact facts with no archive, 9/20 with
