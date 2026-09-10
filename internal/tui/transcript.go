@@ -6,7 +6,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 type entryKind int
@@ -124,6 +124,8 @@ type renderOpts struct {
 	// preview computes what a call would do, for a call whose arguments
 	// have finished streaming but which has not run yet.
 	preview func(name string, input []byte) string
+	// renderer finds a tool that knows how to present itself.
+	renderer func(name string) (tool.Renderer, bool)
 }
 
 // outputCap is the fold height for a viewport: a third of it, never fewer
@@ -562,6 +564,13 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 	}
 	name := styleTool.Bold(true).Render(e.call.Name)
 	summary := summarizeInput(e.call.Name, e.inputJSON(), width-len(e.call.Name)-14, o.cwd)
+	if o.renderer != nil {
+		if r, ok := o.renderer(e.call.Name); ok {
+			if lines := r.RenderCall(json.RawMessage(e.inputJSON()), tool.RenderContext{Expanded: o.expand(e)}); len(lines) > 0 {
+				summary = truncateLine(strings.Join(lines, " · "), width-len(e.call.Name)-14)
+			}
+		}
+	}
 	pendingHere := o.pending != nil && o.pending.call.ID == e.call.ID
 	if !e.done && !e.running && !pendingHere && e.input.Len() > 0 {
 		// The model is still streaming the call's input. For a file write
@@ -618,40 +627,17 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 			max = 60
 		}
 		body, diag := splitDiagnostics(strings.TrimRight(e.output, "\n"))
-		if !o.expand(e) && !e.isError {
-			switch e.call.Name {
-			case "read_file":
-				// The lines are for the model; the reader wants to know
-				// which file was read and how big it is.
-				if s := readSummary(body, summarizeInput(e.call.Name, e.inputJSON(), 200, o.cwd)); s != "" {
-					body = s
-				}
-			case "edit_file":
-				// The diff above already showed the change in place; the
-				// numbered window after it says the same thing twice.
-				body = stripEditWindow(body)
-			}
-		}
-		if e.call.Name == "todo" && !o.expand(e) {
-			// The plan is shown whole the first time and as what changed
-			// after that: the model rewrites the whole list on every
-			// status change, and printing it whole each time reads as
-			// the same conversation repeated.
-			body = planDelta(t.previousPlan(e), body)
-			max = 20
-		}
-		out := clipTool(body, max)
-		switch {
+		out := ""
+		switch lines := t.toolLines(e, body, o, max); {
 		case e.isError:
 			// A failed build says what went wrong at the end. Keeping the
 			// head kept the compiler's preamble and dropped the error.
 			out = tailLines(body, max)
-		case !o.expand(e) && (e.call.Name == "bash" || e.call.Name == "shell"):
-			out = headTail(body, 2, 3)
-		case o.expand(e) && e.call.Name == "read_file":
-			// Expanded, a read is a sample of the file rather than the
-			// whole numbered window the model was given.
-			out = headTail(body, 5, 3)
+		case lines != nil:
+			// The tool said how its result reads (see tool.Renderer).
+			out = clipTool(strings.Join(lines, "\n"), max)
+		default:
+			out = clipTool(body, max)
 		}
 		style := styleFaint
 		if e.isError {
@@ -709,51 +695,6 @@ var (
 	partialPathRe    = regexp.MustCompile(`"path"\s*:\s*"((?:[^"\\]|\\.)*)"`)
 	partialCommandRe = regexp.MustCompile(`"command"\s*:\s*"((?:[^"\\]|\\.)*)`)
 )
-
-// previousPlan is the output of the last todo call before e, or "".
-func (t *transcript) previousPlan(e *entry) string {
-	for i := len(t.entries) - 1; i >= 0; i-- {
-		if t.entries[i] == e {
-			for j := i - 1; j >= 0; j-- {
-				p := t.entries[j]
-				if p.kind == entryTool && p.call.Name == "todo" && p.done && !p.isError {
-					return strings.TrimRight(p.output, "\n")
-				}
-			}
-			return ""
-		}
-	}
-	return ""
-}
-
-// planDelta shows a plan whole the first time and as its changes after
-// that: the lines that differ from the previous plan, then the tally.
-func planDelta(prev, cur string) string {
-	if prev == "" || prev == cur {
-		return cur
-	}
-	before := map[string]bool{}
-	for _, l := range strings.Split(prev, "\n") {
-		before[l] = true
-	}
-	var changed []string
-	tally := ""
-	for _, l := range strings.Split(cur, "\n") {
-		switch {
-		case strings.HasPrefix(l, "[") && !before[l]:
-			changed = append(changed, l)
-		case strings.Contains(l, " of ") && strings.HasSuffix(l, "done"):
-			tally = l
-		}
-	}
-	if len(changed) == 0 {
-		return tally
-	}
-	if tally != "" {
-		changed = append(changed, tally)
-	}
-	return strings.Join(changed, "\n")
-}
 
 // errorBlock renders an error as "✗ first line" with every following line
 // indented two columns under it, whether the break came from the message
@@ -925,60 +866,6 @@ func renderPreview(preview string, width, maxLines int) string {
 	return strings.Join(out, "\n")
 }
 
-// numberedLine matches one line of a read_file result or of the numbered
-// window edit_file appends: "  12	text", or "12:a4f	text" with anchors.
-var numberedLine = regexp.MustCompile(`^\s*\d+(:[0-9a-z]+)?\t`)
-
-var moreLines = regexp.MustCompile(`^\.\.\. \((\d+) more lines\)$`)
-
-// readSummary folds a read_file result to one line. The numbered text is
-// for the model; what the reader needs is which file was read and how big
-// it is. It returns "" for anything that is not a plain windowed read.
-func readSummary(body, label string) string {
-	shown, more := 0, 0
-	for _, l := range strings.Split(body, "\n") {
-		switch {
-		case numberedLine.MatchString(l):
-			shown++
-		case moreLines.MatchString(l):
-			more, _ = strconv.Atoi(moreLines.FindStringSubmatch(l)[1])
-		case strings.TrimSpace(l) == "":
-		default:
-			return ""
-		}
-	}
-	if shown == 0 {
-		return ""
-	}
-	if label == "" {
-		label = "file"
-	}
-	if more > 0 {
-		return fmt.Sprintf("read %s: %d of %d lines", label, shown, shown+more)
-	}
-	return fmt.Sprintf("read %s: %s", label, plural(shown, "line"))
-}
-
-// stripEditWindow drops the numbered window edit_file appends to its
-// result. The model still gets it; the transcript has already shown the
-// change as a diff just above.
-func stripEditWindow(out string) string {
-	i := strings.LastIndex(out, "\n\n")
-	if i < 0 {
-		return out
-	}
-	tail := out[i+2:]
-	if strings.HasPrefix(tail, "(the change spans lines ") {
-		return out[:i]
-	}
-	for _, l := range strings.Split(tail, "\n") {
-		if !numberedLine.MatchString(l) {
-			return out
-		}
-	}
-	return out[:i]
-}
-
 func (e *entry) inputJSON() string {
 	if e.input.Len() > 0 {
 		return e.input.String()
@@ -994,11 +881,6 @@ func summarizeInput(name, raw string, max int, cwd string) string {
 	var m map[string]any
 	if json.Unmarshal([]byte(raw), &m) != nil {
 		return truncateLine(raw, max)
-	}
-	if name == "todo" {
-		if todos, ok := m["todos"].([]any); ok {
-			return fmt.Sprintf("plan · %d steps", len(todos))
-		}
 	}
 	for _, k := range []string{"command", "pattern", "path", "url", "description"} {
 		if v, ok := m[k].(string); ok {
@@ -1091,19 +973,6 @@ func clipTool(s string, max int) string {
 		return s
 	}
 	return clip(s, max)
-}
-
-// headTail keeps the first head and the last tail lines of s, with a
-// count of what it dropped between them. The head alone is the wrong half
-// of a build log: the error is at the end.
-func headTail(s string, head, tail int) string {
-	lines := strings.Split(s, "\n")
-	if len(lines) < head+tail+clipSlack {
-		return s
-	}
-	out := append([]string{}, lines[:head]...)
-	out = append(out, fmt.Sprintf("… +%d lines", len(lines)-head-tail))
-	return strings.Join(append(out, lines[len(lines)-tail:]...), "\n")
 }
 
 // tailLines keeps the last max lines of s: what an error ends with is
@@ -1236,4 +1105,39 @@ func (t *transcript) entryAtLine(line int) *entry {
 		}
 	}
 	return nil
+}
+
+// toolLines asks the tool how its result should read. A tool that says
+// nothing — every MCP tool, and every tool that has nothing special to
+// say — falls back to the generic fold.
+func (t *transcript) toolLines(e *entry, body string, o renderOpts, max int) []string {
+	if o.renderer == nil || e.isError {
+		return nil
+	}
+	r, ok := o.renderer(e.call.Name)
+	if !ok {
+		return nil
+	}
+	return r.RenderResult(json.RawMessage(e.inputJSON()), body, tool.RenderContext{
+		Expanded: o.expand(e),
+		Max:      max,
+		Prev:     t.previousResult(e),
+	})
+}
+
+// previousResult is the last result of the same tool before e, or "".
+func (t *transcript) previousResult(e *entry) string {
+	for i := len(t.entries) - 1; i >= 0; i-- {
+		if t.entries[i] != e {
+			continue
+		}
+		for j := i - 1; j >= 0; j-- {
+			p := t.entries[j]
+			if p.kind == entryTool && p.call.Name == e.call.Name && p.done && !p.isError {
+				return strings.TrimRight(p.output, "\n")
+			}
+		}
+		return ""
+	}
+	return ""
 }

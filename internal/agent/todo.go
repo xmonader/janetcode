@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // A plan of steps the model keeps as it works. A long task drifts: the
@@ -172,4 +173,55 @@ func openTodos(todos []Todo) []Todo {
 		}
 	}
 	return out
+}
+
+// RenderCall implements tool.Renderer: the plan's own line says how many
+// steps it holds, not the JSON it was written as.
+func (*TodoTool) RenderCall(input json.RawMessage, _ tool.RenderContext) []string {
+	var in struct {
+		Todos []struct{} `json:"todos"`
+	}
+	if json.Unmarshal(input, &in) != nil || len(in.Todos) == 0 {
+		return nil
+	}
+	return []string{fmt.Sprintf("plan · %d steps", len(in.Todos))}
+}
+
+// RenderResult shows the plan whole the first time and as what changed
+// after that: the model rewrites the whole list on every status change,
+// and printing it whole each time reads as the same conversation
+// repeated.
+func (*TodoTool) RenderResult(_ json.RawMessage, out string, o tool.RenderContext) []string {
+	if o.Expanded {
+		return nil
+	}
+	return strings.Split(PlanDelta(o.Prev, out), "\n")
+}
+
+// PlanDelta is the lines of cur that differ from prev, with the tally.
+func PlanDelta(prev, cur string) string {
+	if prev == "" || prev == cur {
+		return cur
+	}
+	before := map[string]bool{}
+	for _, l := range strings.Split(prev, "\n") {
+		before[l] = true
+	}
+	var changed []string
+	tally := ""
+	for _, l := range strings.Split(cur, "\n") {
+		switch {
+		case strings.HasPrefix(l, "[") && !before[l]:
+			changed = append(changed, l)
+		case strings.Contains(l, " of ") && strings.HasSuffix(l, "done"):
+			tally = l
+		}
+	}
+	if len(changed) == 0 {
+		return tally
+	}
+	if tally != "" {
+		changed = append(changed, tally)
+	}
+	return strings.Join(changed, "\n")
 }

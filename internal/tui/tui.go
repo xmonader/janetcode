@@ -3108,16 +3108,17 @@ func (m *model) refresh(resized bool) {
 		return
 	}
 	content := m.transcript.render(renderOpts{
-		cwd:     m.opts.Cwd,
-		width:   m.width,
-		resized: resized,
-		pending: m.pending,
-		spinner: m.spinner.View(),
-		verbose: m.verbose,
-		cap:     outputCap(m.viewport.Height),
-		preview: m.previewCall,
-		tight:   m.tight(),
-		compact: m.compactMode(),
+		cwd:      m.opts.Cwd,
+		width:    m.width,
+		resized:  resized,
+		pending:  m.pending,
+		spinner:  m.spinner.View(),
+		verbose:  m.verbose,
+		cap:      outputCap(m.viewport.Height),
+		preview:  m.previewCall,
+		renderer: m.toolRenderer,
+		tight:    m.tight(),
+		compact:  m.compactMode(),
 	})
 	if content != m.lastContent || resized {
 		// SetContent re-parses every line; skip it when nothing changed
@@ -4005,4 +4006,19 @@ func (m *model) previewCall(name string, input []byte) string {
 		return ""
 	}
 	return out
+}
+
+// toolRenderer finds the tool behind a call when it knows how to present
+// itself in the transcript (see tool.Renderer). MCP and user-supplied
+// tools do not, and get the generic rendering.
+func (m *model) toolRenderer(name string) (tool.Renderer, bool) {
+	if m.opts.Agent == nil || m.opts.Agent.Tools == nil {
+		return nil, false
+	}
+	t, ok := m.opts.Agent.Tools.Get(name)
+	if !ok {
+		return nil, false
+	}
+	r, ok := t.(tool.Renderer)
+	return r, ok
 }

@@ -13,11 +13,28 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 var ansiRe = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
 
 func plain(s string) string { return ansiRe.ReplaceAllString(s, "") }
+
+// builtinRenderers is the set of tools that present themselves, for tests
+// that render tool results (see tool.Renderer).
+func builtinRenderers(name string) (tool.Renderer, bool) {
+	switch name {
+	case "bash":
+		return tool.Bash{}, true
+	case "read_file":
+		return tool.ReadFile{}, true
+	case "edit_file":
+		return tool.EditFile{}, true
+	case "todo":
+		return &agent.TodoTool{}, true
+	}
+	return nil, false
+}
 
 func TestTranscriptStreamingAndTools(t *testing.T) {
 	tr := newTranscript()
@@ -31,7 +48,7 @@ func TestTranscriptStreamingAndTools(t *testing.T) {
 	tr.apply(agent.Event{Kind: agent.EvTextBlockDone})
 	full := &agent.ToolCall{ID: "t1", Name: "read_file", Input: json.RawMessage(`{"path":"a.txt"}`)}
 	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: full})
-	out := plain(tr.render(renderOpts{width: 80}))
+	out := plain(tr.render(renderOpts{width: 80, renderer: builtinRenderers}))
 	if !strings.Contains(out, "▶ read_file a.txt") {
 		t.Fatalf("running tool not shown:\n%s", out)
 	}
@@ -40,7 +57,7 @@ func TestTranscriptStreamingAndTools(t *testing.T) {
 	tr.apply(agent.Event{Kind: agent.EvText, Text: " and beta."})
 	tr.apply(agent.Event{Kind: agent.EvTextBlockDone})
 	tr.apply(agent.Event{Kind: agent.EvTurnDone})
-	out = plain(tr.render(renderOpts{width: 80}))
+	out = plain(tr.render(renderOpts{width: 80, renderer: builtinRenderers}))
 	for _, want := range []string{"❯ read a.txt please", "· thought: let me look", "✓ read_file a.txt", "alpha", "beta", "and beta."} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
@@ -66,7 +83,7 @@ func TestTranscriptPermissionAndErrors(t *testing.T) {
 		t.Fatalf("diff preview missing:\n%s", out)
 	}
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &edit, Output: "Edited f"})
-	if out := plain(tr.render(renderOpts{width: 80})); !strings.Contains(out, "+new line") {
+	if out := plain(tr.render(renderOpts{width: 80, renderer: builtinRenderers})); !strings.Contains(out, "+new line") {
 		t.Fatalf("diff should stay visible after completion:\n%s", out)
 	}
 	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &call})
@@ -78,12 +95,12 @@ func TestTranscriptPermissionAndErrors(t *testing.T) {
 	}
 	tr.permissionAnswered(call, agent.Deny)
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &call, Output: "denied", IsError: true})
-	out = plain(tr.render(renderOpts{width: 80}))
+	out = plain(tr.render(renderOpts{width: 80, renderer: builtinRenderers}))
 	if !strings.Contains(out, "⊘ bash rm -rf build") {
 		t.Fatalf("denied marker missing:\n%s", out)
 	}
 	tr.errorf("boom %d", 7)
-	if out = plain(tr.render(renderOpts{width: 80})); !strings.Contains(out, "✗ boom 7") {
+	if out = plain(tr.render(renderOpts{width: 80, renderer: builtinRenderers})); !strings.Contains(out, "✗ boom 7") {
 		t.Fatalf("error missing:\n%s", out)
 	}
 }
@@ -220,16 +237,16 @@ func TestPlanUpdatesRenderAsDeltas(t *testing.T) {
 	first := "[ ] design\n[ ] parse\n[ ] eval\n\n0 of 3 done"
 	second := "[>] design\n[ ] parse\n[ ] eval\n\n0 of 3 done"
 	third := "[x] design\n[>] parse\n[ ] eval\n\n1 of 3 done"
-	if planDelta("", first) != first {
+	if agent.PlanDelta("", first) != first {
 		t.Fatal("first plan shows whole")
 	}
-	if got := planDelta(first, second); got != "[>] design\n0 of 3 done" {
+	if got := agent.PlanDelta(first, second); got != "[>] design\n0 of 3 done" {
 		t.Fatalf("second = %q", got)
 	}
-	if got := planDelta(second, third); got != "[x] design\n[>] parse\n1 of 3 done" {
+	if got := agent.PlanDelta(second, third); got != "[x] design\n[>] parse\n1 of 3 done" {
 		t.Fatalf("third = %q", got)
 	}
-	if got := planDelta(third, third); got != third {
+	if got := agent.PlanDelta(third, third); got != third {
 		t.Fatalf("unchanged plan shown whole: %q", got)
 	}
 	tr := newTranscript()
@@ -241,7 +258,7 @@ func TestPlanUpdatesRenderAsDeltas(t *testing.T) {
 	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &c2})
 	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &c2})
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &c2, Output: second})
-	out := plain(tr.renderTool(tr.findTool("2"), 80, renderOpts{}))
+	out := plain(tr.renderTool(tr.findTool("2"), 80, renderOpts{renderer: builtinRenderers}))
 	if strings.Contains(out, "[ ] parse") || !strings.Contains(out, "[>] design") {
 		t.Fatalf("second plan rendered whole:\n%s", out)
 	}
@@ -271,7 +288,7 @@ func TestMarkdownStyleHasNoBackgrounds(t *testing.T) {
 		tr := newTranscriptStyled(style)
 		tr.apply(agent.Event{Kind: agent.EvText, Text: src})
 		tr.apply(agent.Event{Kind: agent.EvTurnDone})
-		out := tr.render(renderOpts{width: 80})
+		out := tr.render(renderOpts{width: 80, renderer: builtinRenderers})
 		if strings.Contains(out, "\x1b[48;") || strings.Contains(out, ";48;") {
 			t.Errorf("%s style still sets a background:\n%q", style, out)
 		}
@@ -369,7 +386,7 @@ func TestToolResultCollapsing(t *testing.T) {
 	tr := newTranscript()
 	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &other})
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &other, Output: body})
-	out := plain(tr.render(renderOpts{width: 80}))
+	out := plain(tr.render(renderOpts{width: 80, renderer: builtinRenderers}))
 	if strings.Contains(out, "more lines") {
 		t.Errorf("six lines were collapsed:\n%s", out)
 	}
@@ -381,7 +398,7 @@ func TestToolResultCollapsing(t *testing.T) {
 	tr = newTranscript()
 	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &other})
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &other, Output: long})
-	out = plain(tr.render(renderOpts{width: 80}))
+	out = plain(tr.render(renderOpts{width: 80, renderer: builtinRenderers}))
 	// Command output keeps its tail: two lines of head, three of tail.
 	if !strings.Contains(out, "… +7 lines") || !strings.Contains(out, "line 12") || strings.Contains(out, "line 6") {
 		t.Errorf("twelve lines were not folded head 2 / tail 3:\n%s", out)
@@ -391,14 +408,14 @@ func TestToolResultCollapsing(t *testing.T) {
 	tr = newTranscript()
 	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &read})
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &read, Output: body + "... (36 more lines)\n"})
-	out = plain(tr.render(renderOpts{width: 80}))
+	out = plain(tr.render(renderOpts{width: 80, renderer: builtinRenderers}))
 	if !strings.Contains(out, "read main.go: 6 of 42 lines") {
 		t.Errorf("read_file not folded:\n%s", out)
 	}
 	if strings.Contains(out, "line 3") {
 		t.Errorf("read_file still prints the file:\n%s", out)
 	}
-	if out = plain(tr.render(renderOpts{width: 80, verbose: true})); !strings.Contains(out, "line 3") {
+	if out = plain(tr.render(renderOpts{width: 80, verbose: true, renderer: builtinRenderers})); !strings.Contains(out, "line 3") {
 		t.Errorf("ctrl+o does not bring the lines back:\n%s", out)
 	}
 
@@ -410,7 +427,7 @@ func TestToolResultCollapsing(t *testing.T) {
 	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &edit})
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &edit,
 		Output: "Edited a.go (1 replacement, +1 -1 lines)\n\n     1\tpackage main\n     2\tnew\n[diagnostics]\na.go:2:1: undefined: new"})
-	out = plain(tr.render(renderOpts{width: 80}))
+	out = plain(tr.render(renderOpts{width: 80, renderer: builtinRenderers}))
 	for _, want := range []string{"+new", "-old", "Edited a.go (1 replacement, +1 -1 lines)", "a.go:2:1: undefined: new"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q:\n%s", want, out)
@@ -430,7 +447,7 @@ func TestNoticeVocabulary(t *testing.T) {
 	tr.apply(agent.Event{Kind: agent.EvNotice, Text: "verification gate failed"})
 	tr.apply(agent.Event{Kind: agent.EvCompacted, Text: "compacted 40k tokens"})
 	tr.tip("/verify set \"go test ./...\" runs the project's checks")
-	out := tr.render(renderOpts{width: 80})
+	out := tr.render(renderOpts{width: 80, renderer: builtinRenderers})
 	flat := plain(out)
 	for _, want := range []string{
 		noteAttached + "skills attached: release",
@@ -453,7 +470,7 @@ func TestNoticeVocabulary(t *testing.T) {
 	tipOnly.tip("x")
 	infoOnly := newTranscript()
 	infoOnly.info("x")
-	if tipOnly.render(renderOpts{width: 80}) == infoOnly.render(renderOpts{width: 80}) {
+	if tipOnly.render(renderOpts{width: 80, renderer: builtinRenderers}) == infoOnly.render(renderOpts{width: 80, renderer: builtinRenderers}) {
 		t.Error("a tip is styled the same as an ordinary notice")
 	}
 }
@@ -510,7 +527,7 @@ func TestExpandLastTurnOnly(t *testing.T) {
 	}
 	add("first")
 	add("second")
-	o := renderOpts{width: 80}
+	o := renderOpts{width: 80, renderer: builtinRenderers}
 	count := func() int { return strings.Count(plain(tr.render(o)), "line") }
 	folded := count()
 	expanded, any := tr.toggleLastTurn()
@@ -540,7 +557,7 @@ func TestClickTogglesOneEntry(t *testing.T) {
 	call := agent.ToolCall{ID: "b", Name: "bash"}
 	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &call, Output: strings.Repeat("x\n", 40)})
-	tr.render(renderOpts{width: 80})
+	tr.render(renderOpts{width: 80, renderer: builtinRenderers})
 	last := tr.entries[len(tr.entries)-1]
 	if got := tr.entryAtLine(last.lineFrom); got != last {
 		t.Fatalf("entryAtLine(%d) found the wrong entry", last.lineFrom)
@@ -555,7 +572,7 @@ func TestFoldedThoughtReopens(t *testing.T) {
 	tr := newTranscript()
 	tr.apply(agent.Event{Kind: agent.EvThinking, Text: "one\ntwo\nthree\nfour"})
 	tr.apply(agent.Event{Kind: agent.EvTextBlockDone})
-	o := renderOpts{width: 80}
+	o := renderOpts{width: 80, renderer: builtinRenderers}
 	if v := plain(tr.render(o)); strings.Contains(v, "four") {
 		t.Fatalf("a finished thought should fold:\n%s", v)
 	}
@@ -577,7 +594,7 @@ func TestFailedCommandKeepsItsTail(t *testing.T) {
 	tr := newTranscript()
 	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
 	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &call, Output: body, IsError: true})
-	out := plain(tr.render(renderOpts{width: 100}))
+	out := plain(tr.render(renderOpts{width: 100, renderer: builtinRenderers}))
 	if !strings.Contains(out, "undefined: Sub") {
 		t.Fatalf("the error line was clipped away:\n%s", out)
 	}
@@ -616,5 +633,35 @@ func TestPreviewBeforeTheCallRuns(t *testing.T) {
 	tr.render(o)
 	if asked != before {
 		t.Fatalf("preview recomputed %d times", asked-before+1)
+	}
+}
+
+// TestToolOwnedRenderingWithFallback: a tool that says how its result
+// reads is obeyed; one that says nothing — every MCP tool — gets the
+// generic fold rather than a special case named after it.
+func TestToolOwnedRenderingWithFallback(t *testing.T) {
+	long := strings.Repeat("x\n", 30)
+	render := func(name string, r func(string) (tool.Renderer, bool)) string {
+		tr := newTranscript()
+		c := agent.ToolCall{ID: "1", Name: name}
+		tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &c})
+		tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &c, Output: long})
+		return plain(tr.renderTool(tr.findTool("1"), 80, renderOpts{width: 80, renderer: r}))
+	}
+	// bash renders itself: head two, tail three.
+	if got := render("bash", builtinRenderers); !strings.Contains(got, "… +25 lines") {
+		t.Fatalf("bash did not render itself:\n%s", got)
+	}
+	// An MCP tool has no renderer and folds generically, from the head.
+	got := render("mcp__srv__thing", builtinRenderers)
+	if !strings.Contains(got, "more lines, ctrl+o to expand") {
+		t.Fatalf("no fallback fold for an MCP tool:\n%s", got)
+	}
+	if strings.Contains(got, "… +25 lines") {
+		t.Fatalf("the MCP tool got bash's rendering:\n%s", got)
+	}
+	// With no renderer at all — a headless render — the fallback holds.
+	if got := render("bash", nil); !strings.Contains(got, "more lines, ctrl+o to expand") {
+		t.Fatalf("no fallback without a registry:\n%s", got)
 	}
 }
