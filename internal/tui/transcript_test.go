@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
+
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -470,5 +473,24 @@ func TestPendingCallIsNotStillStreaming(t *testing.T) {
 	got := plain(tr.renderTool(e, 80, renderOpts{pending: &permissionMsg{call: full}}))
 	if strings.Contains(got, "so far") || !strings.Contains(got, "main.go") {
 		t.Fatalf("while pending: %q", got)
+	}
+}
+
+// TestPreviewTruncationKeepsUTF8: a diff line wider than the terminal used
+// to be cut with a byte slice, which split a multi-byte rune in half and
+// printed a replacement character.
+func TestPreviewTruncationKeepsUTF8(t *testing.T) {
+	preview := "--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n+" + strings.Repeat("é", 60) + "\n"
+	out := plain(renderPreview(preview, 40, 10))
+	if strings.ContainsRune(out, '�') || !utf8.ValidString(out) {
+		t.Fatalf("truncation corrupted UTF-8: %q", out)
+	}
+	for _, l := range strings.Split(out, "\n") {
+		if lipgloss.Width(l) > 40 {
+			t.Fatalf("line %d columns wide, want <= 40: %q", lipgloss.Width(l), l)
+		}
+	}
+	if !strings.Contains(out, "é") || !strings.Contains(out, "…") {
+		t.Fatalf("expected an elided run of é: %q", out)
 	}
 }

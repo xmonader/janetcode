@@ -814,9 +814,9 @@ func renderPreview(preview string, width, maxLines int) string {
 	}
 	out := make([]string, 0, len(lines)+1)
 	for _, l := range lines {
-		if len(l) > width-4 {
-			l = l[:width-5] + "…"
-		}
+		// Column-aware: a byte slice here cut multi-byte runes in half and
+		// printed the halves as replacement characters.
+		l = fitLine(l, width-4)
 		switch {
 		case strings.HasPrefix(l, "+"):
 			out = append(out, "  "+styleDiffAdd.Render(l))
