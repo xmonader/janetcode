@@ -40,6 +40,7 @@ endpoint per series.
 | `ling-five/` | `inclusionai/ling-3.0-flash` | OpenRouter |
 | `gemma4-five/` | `google/gemma-4-31b-it` | OpenRouter |
 | `mimo-five/` | `xiaomi/mimo-v2.5` | OpenRouter |
+| `qwen-hard/` | `qwen3.7-plus`, tasks 21–26 (the hard set) | DashScope |
 
 `eleven-models/REPORT.md` puts them side by side: tokens in, cached, out,
 and cost at list price.

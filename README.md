@@ -1167,6 +1167,13 @@ Numbers live in `docs/benchmarks/`, with the runs that produced them.
   cost on every model. Its context read stays near 1M tokens per 60 tasks
   on every model while qwencode and openclaw read 7–12M.
   `docs/benchmarks/harnesses/eleven-models/`.
+- **The hard set across harnesses** (tasks 21–26, qwen3.7-plus, three
+  runs): 87/90 passed — janetcode, pi and openclaw 18/18 — so it does not
+  separate harnesses on this model either. janetcode's fresh input is
+  again lowest (qwencode 6x) and its output is twice qwencode's, spent
+  writing and running its own tests on the INI parser with hidden tests,
+  which it passed 3/3 where qwencode passed 1/3.
+  `docs/benchmarks/harnesses/qwen-hard/`.
 - **Compaction** is safe on this set: forcing it on tasks that would not
   otherwise reach the threshold lost no task, 11/11 either way.
 - **Recall after compaction**: 0/16 exact facts with no archive, 9/20 with

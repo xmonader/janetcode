@@ -1,0 +1,206 @@
+[
+  {
+    "harness": "qwencode",
+    "task": "21-go-data-race",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 34979,
+    "input_tokens": {
+      "value": 43940,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 833,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 128099,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 60 --max-wall-time 600s `go test -race ./...` fails in this repository. Fix package counter so the race detector is happy and all tests pass. Do not modify counter_test.go."
+  },
+  {
+    "harness": "qwencode",
+    "task": "22-go-interface-refactor",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 39801,
+    "input_tokens": {
+      "value": 44719,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1393,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 128599,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 60 --max-wall-time 600s In package store, FileStore keeps values as files in the current directory. Refactor: (1) add an interface named Store with exactly the methods Put(key string, value []byte) error, Get(key string) ([]byte, error) and Delete(key string) error; (2) make *FileStore implement it; (3) add an in-memory MemStore type (pointer receiver) implementing it, where Get of a missing key and Delete of a missing key return errors; (4) add func NewStore(kind string) (Store, error) returning a *FileStore for \"file\", a *MemStore for \"mem\", and an error for anything else. Keep the existing behaviour of FileStore. Make sure `go vet ./...` passes."
+  },
+  {
+    "harness": "qwencode",
+    "task": "23-python-ini-parser",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 91666,
+    "input_tokens": {
+      "value": 48107,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 4335,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 87721,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 60 --max-wall-time 600s Create ini.py with a function parse(text) that parses INI text and returns a dict mapping section names to dicts of key/value pairs. Rules: sections are `[name]` lines; keys are `key = value` (spaces around `=` optional); lines starting with `#` or `;` are comments, and a ` ;` or ` #` (space then the character) after a value or after a section header starts a trailing comment that is ignored; blank lines are ignored; values may be double- or single-quoted, in which case the quotes are stripped and everything inside is kept verbatim (including spaces and `#`/`;`); unquoted values `true`/`false` in any case become booleans and unquoted values that are valid integers (optional sign, digits) become ints, everything else stays a string; a repeated key keeps the last value; a repeated section merges into the earlier one; keys before any section header go into a section named `DEFAULT`; a line that is not a comment, section or key=value raises ValueError, as does a section header without the closing bracket. Empty input returns {}."
+  },
+  {
+    "harness": "qwencode",
+    "task": "24-rename-everywhere",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 56177,
+    "input_tokens": {
+      "value": 46761,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 2142,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 217611,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 17,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 60 --max-wall-time 600s Rename the function LoadConfig to ReadConfig everywhere in this repository: code, tests, documentation, the Makefile comment and the shell script's usage text. Nothing may still say LoadConfig (in any letter case) when you are done, and the module must still build and pass its tests."
+  },
+  {
+    "harness": "qwencode",
+    "task": "25-pagination-bugs",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 67112,
+    "input_tokens": {
+      "value": 46776,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 2661,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 175694,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 60 --max-wall-time 600s `go test ./...` fails in this repository. Fix pager.go so every test passes. Do not modify pager_test.go."
+  },
+  {
+    "harness": "qwencode",
+    "task": "26-log-summary-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 74898,
+    "input_tokens": {
+      "value": 49027,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 2508,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 277341,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "qwen --yolo --output-format json --auth-type openai --openai-base-url https://coding-intl.dashscope.aliyuncs.com/v1 --model qwen3.7-plus --max-session-turns 60 --max-wall-time 600s Write an executable shell script summarize.sh that reads a web server log in the common log format from the file given as its first argument and prints the three client IPs with the most requests, one per line, as `\u003ccount\u003e \u003cip\u003e` with a single space, most requests first; when two IPs have the same count, order them by IP address as plain strings ascending. Only count lines with status 200. Print nothing else. Verify it on access.log before finishing."
+  }
+]

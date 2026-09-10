@@ -1,0 +1,212 @@
+[
+  {
+    "harness": "openclaw",
+    "task": "21-go-data-race",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 40636,
+    "input_tokens": {
+      "value": 26180,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 734,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 155136,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-21-go-data-race-1865037634 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789046159251123914 --message `go test -race ./...` fails in this repository. Fix package counter so the race detector is happy and all tests pass. Do not modify counter_test.go.",
+    "stderr_excerpt": "type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3446 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=2736 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 536fbfe2-be3d-422a-9f42-d6063ecf44c2 ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "22-go-interface-refactor",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 50965,
+    "input_tokens": {
+      "value": 41172,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 1518,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 140288,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-22-go-interface-refactor-919200843 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789046159381794427 --message In package store, FileStore keeps values as files in the current directory. Refactor: (1) add an interface named Store with exactly the methods Put(key string, value []byte) error, Get(key string) ([]byte, error) and Delete(key string) error; (2) make *FileStore implement it; (3) add an in-memory MemStore type (pointer receiver) implementing it, where Get of a missing key and Delete of a missing key return errors; (4) add func NewStore(kind string) (Store, error) returning a *FileStore for \"file\", a *MemStore for \"mem\", and an error for anything else. Keep the existing behaviour of FileStore. Make sure `go vet ./...` passes.",
+    "stderr_excerpt": "lus status=200 elapsedMs=3140 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3543 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3434 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 8b818671-6955-41cb-b91a-bf4f17c122ba ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "23-python-ini-parser",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 144346,
+    "input_tokens": {
+      "value": 36935,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 7472,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 34048,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-23-python-ini-parser-107133399 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789046159283500204 --message Create ini.py with a function parse(text) that parses INI text and returns a dict mapping section names to dicts of key/value pairs. Rules: sections are `[name]` lines; keys are `key = value` (spaces around `=` optional); lines starting with `#` or `;` are comments, and a ` ;` or ` #` (space then the character) after a value or after a section header starts a trailing comment that is ignored; blank lines are ignored; values may be double- or single-quoted, in which case the quotes are stripped and everything inside is kept verbatim (including spaces and `#`/`;`); unquoted values `true`/`false` in any case become booleans and unquoted values that are valid integers (optional sign, digits) become ints, everything else stays a string; a repeated key keeps the last value; a repeated section merges into the earlier one; keys before any section header go into a section named `DEFAULT`; a line that is not a comment, section or key=value raises ValueError, as does a section header without the closing bracket. Empty input returns {}.",
+    "stderr_excerpt": "der-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=5049 dispatcher=new contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3917 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run a2abcbd2-592b-4d82-9fa3-3dd3b798c1fc ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "24-rename-everywhere",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 70932,
+    "input_tokens": {
+      "value": 44301,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 2140,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 174336,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 15,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-24-rename-everywhere-1311239606 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789046159227817549 --message Rename the function LoadConfig to ReadConfig everywhere in this repository: code, tests, documentation, the Makefile comment and the shell script's usage text. Nothing may still say LoadConfig (in any letter case) when you are done, and the module must still build and pass its tests.",
+    "stderr_excerpt": "*********************d1c5. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3217 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 4a7090d7-8708-4b29-83a0-d514ce42e378 ended with stopReason=stop\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33mclose: pending manager work failed: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "25-pagination-bugs",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 135097,
+    "input_tokens": {
+      "value": 28505,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 5493,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 223232,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 7,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-25-pagination-bugs-187174074 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789046159120718919 --message `go test ./...` fails in this repository. Fix pager.go so every test passes. Do not modify pager_test.go.",
+    "stderr_excerpt": "-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=3173 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=2778 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run d3f4afb9-5b42-419f-86c9-09b53c6b4c7e ended with stopReason=stop\u001b[39m"
+  },
+  {
+    "harness": "openclaw",
+    "task": "26-log-summary-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 113084,
+    "input_tokens": {
+      "value": 18606,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 5043,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 172160,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-26-log-summary-script-376668400 agent --local --json --model bench/qwen3.7-plus --session-id bench-0-1789046302813252282 --message Write an executable shell script summarize.sh that reads a web server log in the common log format from the file given as its first argument and prints the three client IPs with the most requests, one per line, as `\u003ccount\u003e \u003cip\u003e` with a single space, most requests first; when two IPs have the same count, order them by IP address as plain strings ascending. Only count lines with status 200. Print nothing else. Verify it on access.log before finishing.",
+    "stderr_excerpt": "[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=6611 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=qwen3.7-plus method=POST url=https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=qwen3.7-plus status=200 elapsedMs=4451 dispatcher=reused contentType=text/event-stream;charset=UTF-8\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-sp-*** You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c367448b-bca6-42a8-a88b-05fc9e7beabb ended with stopReason=stop\u001b[39m"
+  }
+]
