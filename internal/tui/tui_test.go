@@ -495,7 +495,7 @@ func TestUndoCommand(t *testing.T) {
 	}
 	h.keys("/undo preview")
 	h.enter()
-	if v := plain(h.m.View()); !strings.Contains(v, "/undo would revert 1 file(s)") || !strings.Contains(v, "remove   n.txt") {
+	if v := plain(h.m.View()); !strings.Contains(v, "/undo would revert 1 file") || !strings.Contains(v, "remove   n.txt") {
 		t.Fatalf("view:\n%s", v)
 	}
 	if _, err := os.Stat(target); err != nil {
@@ -519,7 +519,7 @@ func TestUndoCommand(t *testing.T) {
 	if data, err := os.ReadFile(target); err != nil || string(data) != "x\n" {
 		t.Fatalf("redo did not recreate the file: %q %v", data, err)
 	}
-	if v := plain(h.m.View()); !strings.Contains(v, "↷ restored") || !strings.Contains(v, "redid 1 file change(s)") {
+	if v := plain(h.m.View()); !strings.Contains(v, "↷ restored") || !strings.Contains(v, "redid 1 file change") {
 		t.Fatalf("view:\n%s", v)
 	}
 	h.keys("/undo")
@@ -962,7 +962,7 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 		t.Fatalf("step %d view:\n%s", h.m.connect.step, plain(h.m.View()))
 	}
 	h.keys("sk-one, sk-two")
-	if v := plain(h.m.View()); strings.Contains(v, "sk-one") || !strings.Contains(v, "••") || !strings.Contains(v, "2 key(s) entered") {
+	if v := plain(h.m.View()); strings.Contains(v, "sk-one") || !strings.Contains(v, "••") || !strings.Contains(v, "2 keys entered") {
 		t.Fatalf("key visible:\n%s", v)
 	}
 	h.updateCmd(tea.KeyMsg{Type: tea.KeyEnter}) // runs the model fetch
@@ -1343,7 +1343,7 @@ func TestStatsCommand(t *testing.T) {
 	)
 	h.keys("/stats")
 	h.enter()
-	if v := plain(h.m.View()); !strings.Contains(v, "0 turn(s) · 0 model call(s)") || !strings.Contains(v, "no tool calls yet") {
+	if v := plain(h.m.View()); !strings.Contains(v, "0 turns · 0 model calls") || !strings.Contains(v, "no tool calls yet") {
 		t.Fatalf("view:\n%s", v)
 	}
 	h.keys("read missing")
@@ -1352,7 +1352,7 @@ func TestStatsCommand(t *testing.T) {
 	h.keys("/stats")
 	h.enter()
 	v := plain(h.m.View())
-	for _, want := range []string{"1 turn(s) · 2 model call(s)", "1 tool call(s), 1 failed:", "read_file", "1 failed", "tokens · in 1.2k · out 30"} {
+	for _, want := range []string{"1 turn · 2 model calls", "1 tool call, 1 failed:", "read_file", "1 failed", "tokens · in 1.2k · out 30"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("missing %q in view:\n%s", want, v)
 		}
@@ -2216,4 +2216,63 @@ func TestPermissionBoxExpandHint(t *testing.T) {
 	}
 	h.keys("y")
 	h.pump(func() bool { return !h.m.running })
+}
+
+// TestUserVisibleStringStyle covers item 14: the strings the interface
+// shows follow one style — sentence case, no shouting outside the header's
+// mode prefixes, "·" between clauses rather than a run of spaces, and
+// plural() rather than "(s)".
+func TestUserVisibleStringStyle(t *testing.T) {
+	// Acronyms and the header's mode prefixes are the only capitals.
+	allowed := map[string]bool{
+		"MCP": true, "API": true, "URL": true, "HEAD": true, "JSON": true,
+		"YOLO": true, "EDITS": true, "PLAN": true, "READ-ONLY": true, "OK": true,
+	}
+	caps := regexp.MustCompile(`\b[A-Z][A-Z-]+\b`)
+	check := func(what, s string) {
+		t.Helper()
+		if strings.Contains(s, "(s)") {
+			t.Errorf("%s uses (s) instead of plural(): %q", what, s)
+		}
+		if strings.Contains(s, "  ") {
+			t.Errorf("%s has a double space: %q", what, s)
+		}
+		if strings.HasSuffix(strings.TrimSpace(s), ".") {
+			t.Errorf("%s ends with a full stop: %q", what, s)
+		}
+		for _, w := range caps.FindAllString(s, -1) {
+			if !allowed[w] {
+				t.Errorf("%s shouts %q: %q", what, w, s)
+			}
+		}
+	}
+	for _, c := range commands {
+		check("the help for "+c.name, c.help)
+		check("the arguments of "+c.name, c.args)
+		if c.help != strings.ToLower(c.help[:1])+c.help[1:] && !allowed[strings.SplitN(c.help, " ", 2)[0]] {
+			t.Errorf("the help for %s is not sentence case: %q", c.name, c.help)
+		}
+	}
+	h := newHarness(t)
+	check("the default placeholder", defaultPlaceholder)
+	for _, set := range []func(){
+		func() { h.m.running = true },
+		func() { h.m.running, h.m.denying = false, true },
+		func() { h.m.denying = false; h.m.opts.Agent.SetPlanMode(true) },
+		func() { h.m.opts.Agent.SetPlanMode(false); h.m.opts.Agent.ReadOnly = true },
+	} {
+		set()
+		check("a placeholder", h.m.placeholder())
+	}
+	h.m.opts.Agent.ReadOnly = false
+	check("the welcome banner", h.m.welcome(""))
+	check("the resumed banner", h.m.welcome(resumedLine("abc123", 2)))
+	// Sizes, durations and token counts go through the shared helpers.
+	if shortBytes(2048) != "2.0KB" || shortDuration(1500*time.Millisecond) != "1.5s" || shortTokens(12000) != "12k" {
+		t.Errorf("the shared formatters changed shape: %q %q %q",
+			shortBytes(2048), shortDuration(1500*time.Millisecond), shortTokens(12000))
+	}
+	if plural(1, "file") != "1 file" || plural(2, "file") != "2 files" {
+		t.Errorf("plural() = %q / %q", plural(1, "file"), plural(2, "file"))
+	}
 }

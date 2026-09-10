@@ -33,7 +33,7 @@ func (m *model) openCommand(arg string) {
 		return
 	}
 	if bytes.IndexByte(data, 0) >= 0 {
-		m.transcript.errorf("%s is binary (%d bytes)", path, len(data))
+		m.transcript.errorf("%s is binary (%s)", path, shortBytes(int64(len(data))))
 		return
 	}
 	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")

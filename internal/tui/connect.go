@@ -541,9 +541,9 @@ func (m *model) connectView(height int) string {
 		have := len(c.prov.Keys())
 		switch {
 		case n > 0:
-			add(styleDim.Render(fmt.Sprintf("%d key(s) entered · several keys are rotated when one is rate limited", n)))
+			add(styleDim.Render(fmt.Sprintf("%s entered · several keys are rotated when one is rate limited", plural(n, "key"))))
 		case have > 0:
-			add(styleDim.Render(fmt.Sprintf("%d key(s) already configured · enter keeps them, or paste new ones", have)))
+			add(styleDim.Render(fmt.Sprintf("%s already configured · enter keeps them, or paste new ones", plural(have, "key"))))
 		default:
 			add(styleDim.Render("Keys are hidden while typing and stored in " + shortPath(m.opts.ConfigPath)))
 		}

@@ -162,7 +162,7 @@ func (m *model) memoryCommand(cmd, arg string) {
 			}
 		}
 		if arg == "" {
-			m.transcript.errorf("usage: /remember [-g] <what to keep>   (-g: about you, for every project)")
+			m.transcript.errorf("usage: /remember [-g] <what to keep> · -g keeps it about you, for every project")
 			return
 		}
 		e, status, err := store.Put(memory.Entry{Body: arg, Scope: scope, Source: "user"})
@@ -316,7 +316,7 @@ func (m *model) planCommand(arg string) tea.Cmd {
 	}
 	if !ag.PlanMode {
 		ag.SetPlanMode(true)
-		m.transcript.info("plan mode ON: the model reads and searches but changes nothing; /plan approve executes the plan, /plan off leaves")
+		m.transcript.info("plan mode on · the model reads and searches but changes nothing; /plan approve executes the plan, /plan off leaves")
 	}
 	if arg == "" {
 		m.refresh(false)
@@ -441,7 +441,7 @@ func (m *model) trajectoryCommand(args []string) {
 				var sb strings.Builder
 				fmt.Fprintf(&sb, "seq %d  %s  turn %d step %d  %s\n", e.Seq, e.Type, e.Turn, e.Step, session.Classify(ev, e))
 				if e.DurationMs > 0 {
-					fmt.Fprintf(&sb, "duration %dms\n", e.DurationMs)
+					fmt.Fprintf(&sb, "duration %s\n", shortDuration(time.Duration(e.DurationMs)*time.Millisecond))
 				}
 				if e.Usage != nil {
 					fmt.Fprintf(&sb, "usage in=%d cache=%d out=%d\n", e.Usage.InputTokens, e.Usage.CacheReadTokens, e.Usage.OutputTokens)
@@ -472,7 +472,7 @@ func (m *model) trajectoryCommand(args []string) {
 	fmt.Fprintf(&sb, "seq  turn/step  type                 name        dur    surface\n")
 	for _, e := range ev {
 		k := session.ClassifyWith(hidden, e)
-		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %5dms %s\n", e.Seq, e.Turn, e.Step, e.Type, trunc(e.Name, 11), e.DurationMs, k)
+		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %7s %s\n", e.Seq, e.Turn, e.Step, e.Type, trunc(e.Name, 11), shortDuration(time.Duration(e.DurationMs)*time.Millisecond), k)
 	}
 	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 }
@@ -1999,7 +1999,7 @@ func (m *model) submit(text string) tea.Cmd {
 // as context for the next turn.
 func (m *model) shell(cmdline string) tea.Cmd {
 	if cmdline == "" {
-		m.transcript.errorf("usage: !<command>  (runs in %s and shares the output with the model)", shortPath(m.opts.Cwd))
+		m.transcript.errorf("usage: !<command> · runs in %s and shares the output with the model", shortPath(m.opts.Cwd))
 		m.refresh(false)
 		return nil
 	}
@@ -2057,6 +2057,15 @@ func (m *model) startTurn(phase string) {
 	m.status = ""
 	m.lastVerdict = ""
 	m.phase = phase
+}
+
+// onOff names a toggle's new state, so every "/x is on" line reads the
+// same way.
+func onOff(v bool) string {
+	if v {
+		return "on"
+	}
+	return "off"
 }
 
 // plural is "1 file" or "3 files".
@@ -2227,16 +2236,16 @@ func (m *model) command(text string) tea.Cmd {
 	case "/yolo":
 		m.opts.Agent.AutoApprove = !m.opts.Agent.AutoApprove
 		if m.opts.Agent.AutoApprove {
-			m.transcript.info("auto-approve ON: tools run without asking")
+			m.transcript.info("auto-approve on · tools run without asking")
 		} else {
-			m.transcript.info("auto-approve OFF: edits and commands ask first")
+			m.transcript.info("auto-approve off · edits and commands ask first")
 		}
 	case "/edits":
 		m.opts.Agent.AutoEdits = !m.opts.Agent.AutoEdits
 		if m.opts.Agent.AutoEdits {
-			m.transcript.info("auto-accept edits ON: file changes go through, commands still ask")
+			m.transcript.info("auto-accept edits on · file changes go through, commands still ask")
 		} else {
-			m.transcript.info("auto-accept edits OFF: edits ask first")
+			m.transcript.info("auto-accept edits off · edits ask first")
 		}
 	case "/settle":
 		if m.opts.Session == nil {
@@ -2254,9 +2263,9 @@ func (m *model) command(text string) tea.Cmd {
 	case "/readonly":
 		m.opts.Agent.ReadOnly = !m.opts.Agent.ReadOnly
 		if m.opts.Agent.ReadOnly {
-			m.transcript.info("read-only ON: the model can inspect but not change anything")
+			m.transcript.info("read-only on · the model can inspect but not change anything")
 		} else {
-			m.transcript.info("read-only OFF")
+			m.transcript.info("read-only off")
 		}
 	case "/plan":
 		return m.planCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
@@ -2270,7 +2279,7 @@ func (m *model) command(text string) tea.Cmd {
 		m.agentsCommand()
 	case "/verbose":
 		m.verbose = !m.verbose
-		m.transcript.info(fmt.Sprintf("verbose tool output: %v", m.verbose))
+		m.transcript.info("verbose tool output " + onOff(m.verbose))
 	case "/connect":
 		return m.openConnect(stepPick)
 	case "/model":
@@ -3374,7 +3383,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 			return
 		}
 		var sb strings.Builder
-		fmt.Fprintf(&sb, "/undo would revert %d file(s):\n", len(lines))
+		fmt.Fprintf(&sb, "/undo would revert %s:\n", plural(len(lines), "file"))
 		for _, l := range lines {
 			verb, path, _ := strings.Cut(l, " ")
 			fmt.Fprintf(&sb, "  %-8s %s\n", verb, rel(path))
@@ -3413,7 +3422,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 	}
 	if cmd == "/redo" {
 		m.opts.Agent.AddContext("I reapplied the file changes I had undone:\n" + strings.Join(done, "\n"))
-		m.status = fmt.Sprintf("redid %d file change(s) · /undo reverts them again", len(done))
+		m.status = fmt.Sprintf("redid %s · /undo reverts them again", plural(len(done), "file change"))
 		return
 	}
 	if n := m.opts.Agent.LastUndoRemoved(); n > 0 {
@@ -3423,7 +3432,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 	} else {
 		m.opts.Agent.AddContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
 	}
-	m.status = fmt.Sprintf("undid %d file change(s) · %d more turn(s) can be undone · /redo reapplies", len(done), len(m.opts.Agent.Checkpoints()))
+	m.status = fmt.Sprintf("undid %s · %s can still be undone · /redo reapplies", plural(len(done), "file change"), plural(len(m.opts.Agent.Checkpoints()), "more turn"))
 }
 
 // statsCommand prints cumulative counters for this process: what the
@@ -3433,7 +3442,7 @@ func (m *model) statsCommand() {
 	st := ag.Stats()
 	u := ag.UsageSnapshot()
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "session %s · up %s · %d turn(s) · %d model call(s)", m.opts.Session.Label(), shortDuration(time.Since(m.startedAt)), st.Turns, st.ModelCalls)
+	fmt.Fprintf(&sb, "session %s · up %s · %s · %s", m.opts.Session.Label(), shortDuration(time.Since(m.startedAt)), plural(st.Turns, "turn"), plural(st.ModelCalls, "model call"))
 	if st.ModelErrors > 0 {
 		fmt.Fprintf(&sb, " (%d failed)", st.ModelErrors)
 	}
@@ -3447,7 +3456,7 @@ func (m *model) statsCommand() {
 	if usd, ok := u.Cost(ag.Price); ok {
 		sb.WriteString(" · cost " + llm.FormatUSD(usd))
 	}
-	fmt.Fprintf(&sb, "\ncontext ~%s of %s · %d compaction(s) · %d undoable turn(s)", shortTokens(ag.EstimateTokens()), tokensOrUnknown(ag.CompactThreshold()), st.Compactions, len(ag.Checkpoints()))
+	fmt.Fprintf(&sb, "\ncontext ~%s of %s · %s · %s undoable", shortTokens(ag.EstimateTokens()), tokensOrUnknown(ag.CompactThreshold()), plural(st.Compactions, "compaction"), plural(len(ag.Checkpoints()), "turn"))
 	if m.opts.Jobs != nil {
 		if jobs := m.opts.Jobs.List(); len(jobs) > 0 {
 			running := 0
@@ -3456,16 +3465,16 @@ func (m *model) statsCommand() {
 					running++
 				}
 			}
-			fmt.Fprintf(&sb, " · %d background job(s), %d running", len(jobs), running)
+			fmt.Fprintf(&sb, " · %s, %d running", plural(len(jobs), "background job"), running)
 		}
 	}
 	calls, errs := st.ToolCalls()
 	if calls == 0 {
 		sb.WriteString("\nno tool calls yet")
 	} else {
-		fmt.Fprintf(&sb, "\n%d tool call(s), %d failed:", calls, errs)
+		fmt.Fprintf(&sb, "\n%s, %d failed:", plural(calls, "tool call"), errs)
 		for _, t := range st.Tools {
-			fmt.Fprintf(&sb, "\n  %-14s %4d call(s)", t.Name, t.Calls)
+			fmt.Fprintf(&sb, "\n  %-14s %10s", t.Name, plural(t.Calls, "call"))
 			if t.Errors > 0 {
 				fmt.Fprintf(&sb, "  %d failed", t.Errors)
 			}
