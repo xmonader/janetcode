@@ -229,6 +229,28 @@ model can read a skill with the `skill` tool. You can run one yourself as
 lists what is installed. Skills are re-read from disk every turn, so
 editing one takes effect immediately.
 
+### Changing janetcode's own settings always asks
+
+Everything that decides what janetcode may do without asking is a file:
+the config file, `.mcp.json`, everything under `.janetcode/` (hooks,
+permission rules, verification, rules, skills, commands) and the memory
+store. A model that can write files can therefore widen its own
+permissions and then use them — and `--yolo`, auto-edit mode and a saved
+allow rule are exactly the settings under which that would happen
+unobserved.
+
+So those paths are carved out. A `write_file`, an `edit_file` or a `bash`
+command that touches one asks for permission whatever the mode, and the
+prompt says which surface is being changed. Through the shell the obvious
+forms are recognised: a `>` or `>>` redirect, and `cp`, `mv`, `rm`, `tee`,
+`sed -i`, `patch`, `install`, `truncate` and the rest with one of those
+paths as an argument. Reading them is not affected.
+
+This is defence in depth, not a boundary: a determined model has a
+hundred ways to write a file, and this catches the obvious ones. What it
+buys is that the single move which turns a limited session into an
+unlimited one is the one move always shown to a human.
+
 ### Encodings, byte-order marks and line endings
 
 The model works in UTF-8 text with LF line endings; files on disk are

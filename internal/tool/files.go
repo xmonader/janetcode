@@ -181,6 +181,12 @@ func plural(n int, unit string) string {
 	return fmt.Sprintf("%d %ss", n, unit)
 }
 
+// Guard implements Guard: a write to one of janetcode's own control
+// surfaces asks, whatever the permission mode.
+func (t WriteFile) Guard(input json.RawMessage) (bool, string) {
+	return guardSelfModify(t.Root, input)
+}
+
 // Preview implements Previewer: a diff against the existing file, or the
 // head of a new file.
 // Touches reports the file the write will replace or create.
@@ -803,6 +809,12 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 		}
 	}
 	return out, nil
+}
+
+// Guard implements Guard: an edit to one of janetcode's own control
+// surfaces asks, whatever the permission mode.
+func (t EditFile) Guard(input json.RawMessage) (bool, string) {
+	return guardSelfModify(t.Root, input)
 }
 
 // Preview implements Previewer with a unified diff of the edit.

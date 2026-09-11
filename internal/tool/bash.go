@@ -159,6 +159,9 @@ func (t Bash) Guard(input json.RawMessage) (bool, string) {
 	if risk, why := Classify(in.Command, t.Root); risk == RiskEscapes {
 		return true, why
 	}
+	if what := selfModifyingCommand(in.Command, t.Root); what != "" {
+		return true, what + ", which decides what janetcode may do without asking"
+	}
 	return false, ""
 }
 
@@ -173,6 +176,9 @@ func (t Bash) Warn(input json.RawMessage) string {
 	var notes []string
 	if risk, why := Classify(in.Command, t.Root); risk != RiskOrdinary {
 		notes = append(notes, why)
+	}
+	if what := selfModifyingCommand(in.Command, t.Root); what != "" {
+		notes = append(notes, what)
 	}
 	for _, d := range dangerPatterns {
 		if d.re.MatchString(in.Command) {
