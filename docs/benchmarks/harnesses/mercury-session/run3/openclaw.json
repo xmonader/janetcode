@@ -1,0 +1,531 @@
+[
+  {
+    "harness": "openclaw",
+    "task": "41-session-go-service",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 118815,
+    "input_tokens": {
+      "value": 635771,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 9168,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 776889,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 45,
+      "set": true
+    },
+    "turns": {
+      "value": 34,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-41-session-go-service-3092664590 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-94d75fb7-2ed6-4cfd-8586-5b92313dc665 --message Run go vet ./... and go test ./... and fix anything that fails. When everything passes, reply with exactly the name of the timeout environment variable you added and nothing else.",
+    "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=429 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=402 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 6c3028b6-d970-44de-adea-cf4371af1eab ended with stopReason=stop\u001b[39m",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 114122,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 27620,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1127,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 21593
+      },
+      {
+        "input_tokens": {
+          "value": 135719,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 216442,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 3381,
+          "set": true
+        },
+        "turns": {
+          "value": 9,
+          "set": true
+        },
+        "wall_time_ms": 24995
+      },
+      {
+        "input_tokens": {
+          "value": 124300,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 86359,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 555,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 17661
+      },
+      {
+        "input_tokens": {
+          "value": 84794,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 90539,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 942,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 15890
+      },
+      {
+        "input_tokens": {
+          "value": 121872,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 163455,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 2443,
+          "set": true
+        },
+        "turns": {
+          "value": 6,
+          "set": true
+        },
+        "wall_time_ms": 20963
+      },
+      {
+        "input_tokens": {
+          "value": 16427,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 131087,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 576,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 8968
+      },
+      {
+        "input_tokens": {
+          "value": 38537,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 61387,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 144,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 8743
+      }
+    ]
+  },
+  {
+    "harness": "openclaw",
+    "task": "42-session-records",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 92585,
+    "input_tokens": {
+      "value": 356879,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 5240,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 460634,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 22,
+      "set": true
+    },
+    "turns": {
+      "value": 23,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-42-session-records-1871257204 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-e24f1de2-27ce-450c-b2d9-5ce7c7a535ad --message Update inventory.txt so it reflects the renames you made in the previous step (the archived ids appear with their new prefix; keep it sorted, one id per line). Then reply with just the number of files you changed in the previous step.",
+    "stderr_excerpt": "on/mercury-2.5 status=200 elapsedMs=484 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=365 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session update): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=329 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run 8af45c93-572e-4a53-b517-030a913e28d8 ended with stopReason=stop\u001b[39m",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 91876,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 79185,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1004,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 18288
+      },
+      {
+        "input_tokens": {
+          "value": 40496,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 65350,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 286,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 10990
+      },
+      {
+        "input_tokens": {
+          "value": 44435,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 61059,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 732,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 12328
+      },
+      {
+        "input_tokens": {
+          "value": 40892,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 65488,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1551,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 18411
+      },
+      {
+        "input_tokens": {
+          "value": 89082,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 128513,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 989,
+          "set": true
+        },
+        "turns": {
+          "value": 6,
+          "set": true
+        },
+        "wall_time_ms": 19260
+      },
+      {
+        "input_tokens": {
+          "value": 50098,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 61039,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 678,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 13306
+      }
+    ]
+  },
+  {
+    "harness": "openclaw",
+    "task": "43-session-python-ledger",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 86400,
+    "input_tokens": {
+      "value": 456422,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 6800,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 404030,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "value": 37,
+      "set": true
+    },
+    "turns": {
+      "value": 21,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "openclaw --profile janetbench-harness-openclaw-43-session-python-ledger-909231633 agent --local --json --model bench/inception/mercury-2.5 --session-id bench-c9b295ae-9cfa-4da2-b0f2-40c96b5363d3 --message Run the tests and fix anything that fails. When they pass, reply with only the name of the CLI option you added and nothing else.",
+    "stderr_excerpt": "\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[31m[memory]\u001b[39m \u001b[33msync failed (session-startup-catchup): Error: openai embeddings failed: 401 { \"error\": { \"message\": \"Incorrect API key provided: sk-or-v1*************************************************************b17b. You can find your API key at https://platform.openai.com/account/api-keys.\", \"type\": \"invalid_request_error\", \"code\": \"invalid_api_key\", \"param\": null }, \"status\": 401 }\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=399 dispatcher=new contentType=text/event-stream\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] start provider=bench api=openai-completions model=inception/mercury-2.5 method=POST url=https://openrouter.ai/api/v1/chat/completions timeoutMs=undefined proxy=none policy=custom\u001b[39m\n\u001b[33m[provider-transport-fetch]\u001b[39m \u001b[36m[model-fetch] response provider=bench api=openai-completions model=inception/mercury-2.5 status=200 elapsedMs=384 dispatcher=reused contentType=text/event-stream\u001b[39m\n\u001b[33m[agents/agent-command]\u001b[39m \u001b[36m[agent] run c1223649-983b-432c-8211-abecf28aff00 ended with stopReason=stop\u001b[39m",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 79590,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 26037,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1264,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 15068
+      },
+      {
+        "input_tokens": {
+          "value": 98361,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 53609,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1539,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 14402
+      },
+      {
+        "input_tokens": {
+          "value": 47087,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 32285,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 698,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 12014
+      },
+      {
+        "input_tokens": {
+          "value": 72908,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 138308,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 2012,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 16283
+      },
+      {
+        "input_tokens": {
+          "value": 130690,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 91071,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1169,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 19959
+      },
+      {
+        "input_tokens": {
+          "value": 27786,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 62720,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 118,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 8670
+      }
+    ]
+  }
+]
