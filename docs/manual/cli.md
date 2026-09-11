@@ -11,7 +11,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 |---|---|
 | `-p "<prompt>"` | run one prompt headless; assistant text on stdout, tool activity on stderr |
 | `--output-format text\|json\|stream-json` | with `-p`: how the run reports itself (see below) |
-| `--max-cost <usd>` | with `-p`: stop once the run has spent this much, and exit 55 |
+| `--max-cost <usd>` | with `-p`: stop once the run has spent this much, and exit 55. Checked after every model call, so a long turn stops within one call of the ceiling; a model nothing can price is not held to it |
 | `--model`, `--provider` | override the configured model or backend for this run |
 | `--effort` | reasoning effort where the provider supports it |
 | `--yolo` | run mutating tools without asking |

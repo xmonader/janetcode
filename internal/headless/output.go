@@ -63,8 +63,10 @@ const (
 	ExitCancelled = 130 // interrupted, as a shell reports a SIGINT
 )
 
-// ErrBudget is returned when a run reaches its --max-cost ceiling.
-var ErrBudget = errors.New("the run reached its cost budget")
+// ErrBudget is returned when a run reaches its --max-cost ceiling. The
+// agent loop raises the same error from inside a turn, so there is one
+// error for the one condition.
+var ErrBudget = agent.ErrBudget
 
 // ErrBadInput marks a usage error, so main can exit 42 for it.
 var ErrBadInput = errors.New("bad input")

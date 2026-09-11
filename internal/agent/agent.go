@@ -213,6 +213,11 @@ type Agent struct {
 	// Price, when set, lets the UI estimate spend for providers that do not
 	// report cost.
 	Price *llm.Price
+	// MaxCostUSD, when set, ends a run once Usage has cost this much. It
+	// is checked after every model call and after every batch of tool
+	// results, not only between turns; see budget.go. Zero means no
+	// ceiling, and a model with no price cannot be held to one.
+	MaxCostUSD float64
 	// UndoPath, when set, persists undo checkpoints next to the session so
 	// /undo survives a resume.
 	UndoPath string
@@ -406,6 +411,11 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		u := resp.Usage
 		a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &msg, Usage: &u})
 		emit(Event{Kind: EvTextBlockDone})
+		// The ceiling is asked about here, while the call just paid for
+		// is in the totals and before its tools are run.
+		if spent, over := a.overBudget(); over {
+			return a.stopForBudget(spent, resp.Message.ToolUses(), emit)
+		}
 		// A model that keeps writing the same message has stopped reading
 		// its own results; the ladder is the same as for a repeated call.
 		// The note rides with this step's tool results, because nothing
@@ -513,6 +523,12 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			a.logEvent(session.Event{Type: session.TypeNotice, Output: "turn stopped: " + a.loops.reason})
 			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
 			return ErrStuck
+		}
+		// Tools can cost money too (a subagent runs its own turns), and
+		// the next model call is about to be made with a history this
+		// step just grew. Ask again before paying for it.
+		if spent, over := a.overBudget(); over {
+			return a.stopForBudget(spent, nil, emit)
 		}
 	}
 	return ErrMaxIterations
