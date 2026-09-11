@@ -684,6 +684,115 @@ and the tool's description says so.
 `JANETCODE_OFF=script` turns it off for a session, along with the other
 `-eval-off` names.
 
+### Asking janetcode about janetcode
+
+`/help` alone is still the keys-and-commands sheet. `/help <topic>` is a
+search: it ranks janetcode's whole feature catalogue — every slash
+command, key, command-line flag, tool, configuration key, and everything
+the harness does on its own — against the words you typed, and then
+quotes whatever the manual has to add. The manual is compiled into the
+binary, so this works with no network and no model call.
+
+```
+/help the context is full
+/help remember things across sessions
+/help my build takes forever
+```
+
+The catalogue is generated from the tables the program runs on: the
+command table, the flag set, the tool registry and the `Config` struct.
+It cannot describe a janetcode that does not exist, and tests fail when a
+command or a flag is added without a line saying when it helps.
+`--inspect features` prints the whole thing; `--inspect "features <query>"`
+searches it from a script.
+
+The model has the same catalogue through an `introspect` tool, so it can
+tell you the command for something instead of inventing one. That tool is
+*deferred*: its definition is not in any request until the model asks for
+it, so a session that never wonders about the harness pays nothing for it.
+
+The model also carries a short section of the system prompt — measured at
+312 estimated tokens, with a test that fails above 350 — listing what the
+harness does on its own: checkpoints, the verification gate, memory,
+compaction and `expand_output`, background jobs, permission rules,
+sessions, `/goal`. It is there because both failures it prevents were
+paid for on every session without it. The model used to redo the
+harness's work (copying a file before editing it, re-reading a file to
+recover output that was one `expand_output` away) and, asked what
+janetcode could do about something, it used to invent a command that does
+not exist. That section sits above the cache breakpoint, so on a provider
+with prompt caching it is read from the cache after the first request.
+
+### Why did it do that? `/why`
+
+The harness intervenes. It summarises a conversation that got long, stops
+a turn going in circles, sends the model back to fix a failing test, falls
+back to another model when a quota runs out, kills a stream that stopped
+producing, refuses a tool call, contradicts an answer that claimed more
+than the turn showed. Each of those is surprising the first time it
+happens, and each leaves a record in the session ledger.
+
+`/why` reads that ledger and explains the most recent one in a paragraph:
+what kind of intervention it was, what the harness said at the time, and
+why it does that. `/why 2` is the one before, and so on back. There is no
+model call behind it — asking the model why the harness did something is
+asking the wrong party, and paying for the answer — so it costs nothing
+and can be asked as often as it is useful. `/trajectory` still has the raw
+records.
+
+### The first session in a new directory
+
+The first run in a directory janetcode has never seen is the one moment a
+user is willing to be told about setup, and "you can configure a
+verification command" is not worth their attention. So janetcode looks at
+what the directory holds — `go.mod`, `package.json`, `pyproject.toml`,
+`requirements.txt`, `Cargo.toml`, a `Makefile` with a `test` or `check`
+target — and prints one line:
+
+```
+tip · Go project · /verify set "go test ./..." runs it after every change and hands
+      failures back to the model · gopls is not on PATH (go install
+      golang.org/x/tools/gopls@latest) for diagnostics after edits
+```
+
+It runs nothing and writes nothing: proposing a command is not the same as
+running it, and a directory nobody has asked janetcode to manage does not
+get a `.janetcode` written into it. A `package.json` with no test script,
+or a Makefile with no check target, gets no command proposed rather than
+one that will fail the first time it is run. A directory that already has
+a `.janetcode`, or a resumed session, gets nothing.
+
+### One-time hints
+
+janetcode has features nobody finds. A user who has approved the same
+command nine times does not know that pressing `r` would have stopped it
+asking; a user watching a test suite hold a turn open for two minutes does
+not know about `ctrl+g`. A manual does not help, because nobody reads one
+at the moment they need it.
+
+So a small rule engine watches what the session is already watching and
+puts one faint line in the transcript at the moment the problem is in front
+of you: the verification gate on the third changing turn (or the second time
+you run the tests yourself with `!`), the `r` key on the third refusal of
+the same shape of call, `ctrl+g` after a command holds a turn for twenty
+seconds, `/context` and `/compact` at 60% of the window, `@path` after a
+large paste or a stack trace, `/usage` at $0.50, the trust command for a
+project file that is present but not enabled, the `prices` key for a model
+nothing can price, and `/context` on a session resumed after a compaction.
+
+Each fires at most once per project, ever. One at most per moment. Never
+while a permission prompt or a picker is open. Never for a feature you
+already use. `/hints off`, or `"hints": false` in the config file, silences
+the lot. The rules are evaluated on events — a turn ending, a tool result, a
+denial, a paste — never on a render and never on a keystroke, which is
+tested.
+
+`/stats` ends with a "not yet tried" line naming up to five catalogue
+features you have never reached for. It comes from a count kept in the
+config directory — feature name to number, written once when a session
+ends — which never leaves the machine and which nothing reads but the
+hint rules and that line.
+
 ### Inspecting the session
 
 A session should not have to be guessed at. `/inspect <subject>` in the
@@ -709,6 +818,7 @@ the model can call on itself all report the same thing:
 | `repomap [query]` | the map and how files rank for a request |
 | `undo` | file changes recorded this session |
 | `all` | every subject at once |
+| `features` | the feature catalogue; `features <query>` searches it and the manual |
 
 Thirty-one subjects in all; `inspect list` names them. They report the live
 state, and each is reachable the same way from the terminal, the command

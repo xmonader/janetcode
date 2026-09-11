@@ -18,6 +18,7 @@ janetcode --init     # writes ~/.config/janetcode/config.json
   "max_iterations": 50,
   "compact_at": 80000,
   "memory": true,
+  "hints": true,
   "theme": "auto",
   "providers": {
     "anthropic":  { "type": "anthropic", "api_key": "sk-ant-..." },
@@ -48,6 +49,44 @@ environment are never copied into the config file.
 `effort` (Anthropic only) is `low`, `medium`, `high`, `xhigh` or `max`.
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
+
+### What janetcode records about you
+
+Two small files in the config directory, and nothing else:
+
+- `hints/<project>.json` — the ids of the hints already given for one
+  project, so each is given once.
+- `usage.json` — a map from feature name to how often you have used it,
+  written once when a session ends. It is what lets the hints skip the
+  features you already know and `/stats` name up to five you have never
+  tried.
+
+Neither leaves the machine. There is no endpoint, no identifier and no
+timestamp; nothing in janetcode reads them except the hint rules and
+`/stats`, and deleting them costs nothing but a few repeated hints. The
+record of *what you did* — the conversations, the tool calls, the costs —
+is the session log, which is also local and which `/history` and
+`/resume` read.
+
+### Hints
+
+`"hints": false` turns off the one-time notes about features a session
+could have used. They are on by default, and there are nine of them: the
+verification gate after the third changing turn or the second time you run
+the tests yourself with `!`, the `r` key after the third refusal of the
+same shape of call, `ctrl+g` after a command holds a turn for twenty
+seconds, `/context` and `/compact` when the window crosses 60%, `@path`
+after a large paste or a pasted stack trace, `/usage` when a session
+crosses $0.50, the trust command for a project file that is present but
+not enabled, the `prices` key for a model nothing can price, and
+`/context` on a session resumed after a compaction.
+
+Each fires at most once per project, ever, and never while you are
+answering a permission prompt or reading a picker. The record of what has
+been said is a small JSON file under the config directory, keyed by
+project — never in the project itself. `/hints off` silences them for one
+session, `/hints on` brings them back, and `/hints` alone says how many
+have been given.
 
 ### Model fallback
 

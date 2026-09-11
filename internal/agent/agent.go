@@ -307,7 +307,7 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 // RunBlocks is Run for a user turn made of several blocks (text plus
 // images).
 func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Event)) error {
-	emit = serialize(a.traced(emit))
+	emit = serialize(a.ledgered(a.traced(emit)))
 	if a.Provider == nil {
 		return errors.New("agent: no provider")
 	}
@@ -440,8 +440,8 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			note, stop := a.loops.recordText(resp.Message.Text())
 			a.loopMu.Unlock()
 			if stop {
+				// The notice is logged by the ledger wrapper around emit.
 				emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
-				a.logEvent(session.Event{Type: session.TypeNotice, Output: "turn stopped: " + a.loops.reason})
 				a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
 				return ErrStuck
 			}
@@ -534,7 +534,6 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		if a.stuck {
 			a.stuck = false
 			emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
-			a.logEvent(session.Event{Type: session.TypeNotice, Output: "turn stopped: " + a.loops.reason})
 			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
 			return ErrStuck
 		}
@@ -765,6 +764,23 @@ func (a *Agent) debugf(format string, args ...any) {
 		return
 	}
 	fmt.Fprintf(a.Debug, "%s "+format+"\n", append([]any{time.Now().Format("15:04:05.000")}, args...)...)
+}
+
+// ledgered wraps emit so that every harness notice lands in the session
+// ledger as well as on the screen. Without it a notice is a line that
+// scrolls away, and /why — and anyone reading the session afterwards —
+// has nothing to work from. It writes one small record per notice, of
+// which a busy turn produces a handful.
+func (a *Agent) ledgered(emit func(Event)) func(Event) {
+	if emit == nil {
+		emit = func(Event) {}
+	}
+	return func(e Event) {
+		if e.Kind == EvNotice && strings.TrimSpace(e.Text) != "" {
+			a.logEvent(session.Event{Type: session.TypeNotice, Turn: a.turnN, Step: a.stepN, Output: e.Text})
+		}
+		emit(e)
+	}
 }
 
 // traced wraps emit with debug logging of every event.
@@ -1063,24 +1079,29 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	accepted := tookLargeOutput(stripped)
 	u.Input = takeLargeOutput(stripped)
 	call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input, Intent: intent}
-	t, ok := a.Tools.Get(u.Name)
-	if !ok {
-		msg := fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames())
+	// A call that never runs still has to be written down. A refusal is
+	// the harness deciding something, and until it reached the ledger
+	// neither /why nor anything else reading the session afterwards could
+	// tell a call the user refused from one that was never made.
+	refuse := func(msg string) (string, bool, error) {
 		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+		a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN,
+			CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
 		return msg, true, nil
 	}
+	t, ok := a.Tools.Get(u.Name)
+	if !ok {
+		return refuse(fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames()))
+	}
 	if a.readOnly() && t.Mutating() {
-		msg := fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", u.Name, a.modeName())
-		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
-		return msg, true, nil
+		return refuse(fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", u.Name, a.modeName()))
 	}
 	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
 		return "", true, err
 	}
 	if deny != "" {
-		emit(Event{Kind: EvToolResult, Call: &call, Output: deny, IsError: true})
-		return deny, true, nil
+		return refuse(deny)
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
 	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Intent: intent})

@@ -23,6 +23,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--watch "<cmd>"` | stay running, re-run the command when files change, fix failures |
 | `--acp` | speak the Agent Client Protocol on stdio, for an editor |
 | `--inspect <subject>` | print one part of the session state and exit; `list` names them |
+| `--inspect features` | print the whole feature catalogue: commands, keys, flags, tools, config keys. `--inspect "features <query>"` searches it and the embedded manual |
 | `--doctor` | check config, credentials, providers, tools and report what is wrong |
 | `--init` | write a starter config file |
 | `--allow`, `--deny` | add a permission rule for this run |

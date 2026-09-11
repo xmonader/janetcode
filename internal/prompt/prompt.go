@@ -72,6 +72,39 @@ func expandHome(p string) string {
 	return p
 }
 
+// Harness tells the model what janetcode does without being asked.
+//
+// It is here because two failures were paid for on every session that
+// did not have it. The model redid the harness's work — copying files
+// before editing them, re-reading a file to recover output that was one
+// expand_output away, running the test suite in the foreground when the
+// gate was going to run it anyway — and, asked what janetcode could do
+// about something, it invented a command that does not exist and the
+// user typed it.
+//
+// It is deliberately a list of behaviours and the command that steers
+// each, not a manual: the manual is in the binary and the introspect
+// tool reads it, at the cost of a call rather than of every request.
+// HarnessBudget is the ceiling on this text; the estimator measures it
+// in TestHarnessSectionFitsItsBudget.
+const Harness = `# The harness you are running in
+janetcode does these already: do not redo them by hand, and name the command rather than inventing one.
+- Turns that change files are snapshotted first; /undo reverts a whole turn. Never copy a file before editing it.
+- Project check commands run after a changing turn and failures come back to you. /verify set "<cmd>" configures one.
+- Facts are remembered across sessions here: the memory tool, or /remember <fact>.
+- Long conversations are summarised for you and every tool result is archived; expand_output fetches exact text back by query or id. So never re-read or re-run to recover output you already saw, and never wrap up early for length.
+- bash background:true returns at once; /jobs lists jobs, ctrl+g backgrounds a slow one mid-turn.
+- Mutating calls ask the user, who can save a rule by shape. A refusal is an answer, not a call to retry.
+- Sessions are logged and resumable: /resume, -c. /goal <objective> keeps you going round after round.
+- introspect (via tool_search) searches janetcode's feature catalogue and manual. Use it before suggesting manual work or naming a command or setting you are unsure of.
+`
+
+// HarnessBudget is the most Harness may cost, in estimated tokens. The
+// whole point of the section is that it is cheaper than the work it
+// stops the model doing; a section that grows without measurement stops
+// being that.
+const HarnessBudget = 350
+
 // System returns the system prompt for a session rooted at cwd.
 func System(cwd string) string { return SystemWith(cwd, Override{}) }
 
@@ -112,6 +145,9 @@ func system(cwd, base string) string {
 - When the conversation grows long it is summarised for you: the summary, plus whatever was not summarised, is what you get next, and expand_output fetches anything exact you need back. So do not wrap up early, hand off, or start hedging because a task is taking a while — there is no cliff to run out of room before.
 - Be concise. Lead with the result. Use markdown; put code, commands and error output in fenced blocks.
 
+`)
+	sb.WriteString(Harness)
+	sb.WriteString(`
 # Environment
 `) // openai.applyCacheBreakpoints splits on this heading so cwd/date stay out of the cached prefix.
 	writeEnvironment(&sb, cwd)
