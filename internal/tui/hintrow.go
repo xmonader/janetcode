@@ -54,9 +54,13 @@ func (m *model) refreshHintState() {
 		s.VerifyConfigured = len(m.opts.Verify.Config.Commands) > 0
 	}
 	if ag := m.opts.Agent; ag != nil {
-		if usd, ok := ag.UsageSnapshot().Cost(ag.Price); ok {
+		snap := ag.UsageSnapshot()
+		usd, ok := snap.Cost(ag.Price)
+		if ok {
 			s.CostUSD = usd
 		}
+		s.Spent = snap.InputTokens > 0 || snap.OutputTokens > 0
+		s.CostKnown = ok
 		// The gauge is already computed for the status line; this reads
 		// the estimate the agent published rather than walking the
 		// history again.

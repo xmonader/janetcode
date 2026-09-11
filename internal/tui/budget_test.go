@@ -52,3 +52,25 @@ func TestBudgetCommandSetsTheSessionCeiling(t *testing.T) {
 		t.Fatalf("ceiling after nonsense = %v", h.m.opts.Agent.MaxCostUSD)
 	}
 }
+
+// A budget set before the first turn used to be met with "nothing prices
+// this model, so the spend is unknown and the budget cannot stop
+// anything" — for every model, priced or not, because nothing had been
+// spent yet. The status line then went on reporting the provider's own
+// figure against the ceiling, two lines apart.
+func TestBudgetDoesNotCallAModelUnpricedBeforeItHasBoughtAnything(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Agent.Price = nil
+	h.keys("/budget 0.50")
+	h.enter()
+	if v := plain(h.m.View()); strings.Contains(v, "nothing prices this model") {
+		t.Fatalf("warned about an unknown spend before the first call:\n%s", v)
+	}
+	// Once there has been a call and there is still no figure, it says so.
+	h.m.opts.Agent.Usage = llm.Usage{InputTokens: 1000, OutputTokens: 10}
+	h.keys("/budget 0.60")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "nothing prices this model") {
+		t.Fatalf("a model nothing can price went unmentioned after a call:\n%s", v)
+	}
+}

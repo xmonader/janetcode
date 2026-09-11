@@ -38,9 +38,15 @@ func (m *model) budgetCommand(arg string) {
 		}
 		a.MaxCostUSD = usd
 		line := "cost budget " + m.budgetStatus() + " · the session stops when it crosses that, give or take the model call in flight"
-		if _, known := a.UsageSnapshot().Cost(a.Price); !known {
+		snap := a.UsageSnapshot()
+		if _, known := snap.Cost(a.Price); !known && snap.InputTokens+snap.OutputTokens > 0 {
 			// A ceiling measured against an unknown spend never fires,
 			// and silently doing nothing is the worst way to say so.
+			// Only once there has been a call, though: before the first
+			// one the spend is zero and unpriceable for every model, and
+			// warning then told everyone who set a budget up front that
+			// it would not work — while the status line went on showing
+			// the provider's own figure against the ceiling.
 			line += "\nnothing prices this model, so the spend is unknown and the budget cannot stop anything · /usage says why"
 		}
 		m.transcript.info(line)

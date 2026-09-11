@@ -117,7 +117,7 @@ func TestEveryHintNamesSomethingThatExists(t *testing.T) {
 		{PasteLines: 80},
 		{CostUSD: 1.5},
 		{Untrusted: []string{".mcp.json", ".janetcode/hooks.json"}},
-		{UnpricedModel: "some/model"},
+		{UnpricedModel: "some/model", Spent: true},
 		{ResumedAfterCompaction: true},
 	}
 	seen := 0

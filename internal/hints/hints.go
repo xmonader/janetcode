@@ -73,9 +73,14 @@ type State struct {
 	Untrusted []string
 
 	// UnpricedModel is the model name when it was chosen by the
-	// environment and nothing can price it, so the cost figures are
-	// missing rather than wrong.
+	// environment and no price table knows it.
 	UnpricedModel string
+	// Spent is whether the session has bought anything yet, and
+	// CostKnown whether a figure came out of it. A price table is not
+	// the only source of one: most providers report the cost of a call
+	// with the call. So the hint that says the figures will be blank
+	// waits until there has been a call and they really are.
+	Spent, CostKnown bool
 
 	// ResumedAfterCompaction is set when this session was resumed and the
 	// history it came back with had already been summarised.
@@ -266,7 +271,7 @@ func Rules() []Rule {
 		},
 		{
 			ID: "unpriced-model", Feature: "prices",
-			When: func(s *State) bool { return s.UnpricedModel != "" },
+			When: func(s *State) bool { return s.UnpricedModel != "" && s.Spent && !s.CostKnown },
 			Text: func(s *State) string {
 				return "nothing can price " + s.UnpricedModel + ", so the cost figures will be blank rather than wrong. Add it under \"prices\" in the config file (input and output per million tokens) and /usage starts reporting"
 			},
