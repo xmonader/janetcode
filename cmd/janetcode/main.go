@@ -535,9 +535,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	// in the config directory — never in the project itself. The record
 	// is read once, here; it is written only when a hint fires.
 	hintStore := hints.Open(cfgDir, memory.Key(cwd))
-	hintEngine := hints.New(hintStore.Shown())
+	hintEngine := hints.New(hintStore.Load())
 	hintEngine.Off = !cfg.ShowHints()
-	hintEngine.Record = func(string) { _ = hintStore.Save(hintEngine.Shown()) }
+	hintEngine.Record = func(string) { _ = hintStore.Save(hintEngine.Shown(), hintEngine.Skipped()) }
 
 	// Which features this user has reached for, counted in memory and
 	// written once when the session ends. It stays on this machine:

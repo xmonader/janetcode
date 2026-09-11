@@ -23,6 +23,13 @@ type Store struct {
 
 type file struct {
 	Shown []string `json:"shown"`
+	// Skipped are rules that were spent without being said: the feature
+	// was already in use, or the first-run line had proposed the same
+	// thing. They suppress the rule exactly like a shown one, but
+	// counting them as hints given misreports what the user was told.
+	// A file written before this field existed has none, and everything
+	// in it reads as shown, which is what it meant at the time.
+	Skipped []string `json:"skipped,omitempty"`
 }
 
 // Open returns the store for a project under the config directory. A
@@ -43,34 +50,41 @@ func (s *Store) Path() string {
 	return s.path
 }
 
-// Shown reads the ids already given for this project. A missing or
+// Load reads the ids already spent for this project, split into the ones
+// that were said and the ones that were silently skipped. A missing or
 // unreadable file means "none": a hint repeated once is a smaller
 // failure than a session that will not start.
-func (s *Store) Shown() []string {
+func (s *Store) Load() (shown, skipped []string) {
 	if s == nil || s.path == "" {
-		return nil
+		return nil, nil
 	}
 	data, err := os.ReadFile(s.path)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	var f file
 	if json.Unmarshal(data, &f) != nil {
-		return nil
+		return nil, nil
 	}
-	return f.Shown
+	return f.Shown, f.Skipped
+}
+
+// Shown reads the ids that were actually said for this project.
+func (s *Store) Shown() []string {
+	shown, _ := s.Load()
+	return shown
 }
 
 // Save records the whole set. It is called when a hint fires, so the
 // record survives a session that ends unexpectedly.
-func (s *Store) Save(ids []string) error {
+func (s *Store) Save(shown, skipped []string) error {
 	if s == nil || s.path == "" {
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
 		return err
 	}
-	data, err := json.Marshal(file{Shown: ids})
+	data, err := json.Marshal(file{Shown: shown, Skipped: skipped})
 	if err != nil {
 		return err
 	}
