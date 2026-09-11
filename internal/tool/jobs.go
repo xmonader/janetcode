@@ -211,15 +211,23 @@ func (j *Jobs) Wait(ctx context.Context, id int) (Job, error) {
 }
 
 // Kill stops a running job's whole process group.
+//
+// The job's Done flag is not on its own enough to say the job is still
+// running. It is set by the goroutine waiting on the command, after
+// cmd.Wait has returned — that is, after the process has been reaped and
+// its pid handed back to the kernel to give to somebody else. A kill that
+// arrived in that window signalled a process group that was no longer
+// ours: SIGKILL to whatever tree had just been handed the recycled
+// number. So the process itself is asked too, under the lock, and a job
+// that has already been reaped is reported as finished, not signalled.
 func (j *Jobs) Kill(id int) error {
 	job := j.find(id)
 	if job == nil {
 		return fmt.Errorf("no job %d", id)
 	}
 	j.mu.Lock()
-	done := job.Done
-	j.mu.Unlock()
-	if done {
+	defer j.mu.Unlock()
+	if job.Done || processDone(job.cmd) {
 		return fmt.Errorf("job %d already finished", id)
 	}
 	if job.cmd.Cancel != nil {
