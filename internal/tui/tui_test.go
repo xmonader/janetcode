@@ -631,7 +631,15 @@ func TestMCPAuthCommand(t *testing.T) {
 
 	h.keys("/mcp auth secure")
 	h.enter()
-	h.pump(func() bool { _, ok := reg.Get("mcp__secure__whoami"); return ok })
+	// Wait for the banner, not for the tool. Registering the tools is the
+	// last thing the restarted server's own goroutine does; the banner is
+	// printed by the mcpDoneMsg that follows it through the queue, so a
+	// pump that stopped at the registration raced the message that the
+	// assertions below are about.
+	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "mcp secure ready") })
+	if _, ok := reg.Get("mcp__secure__whoami"); !ok {
+		t.Fatal("the server said it was ready without registering its tool")
+	}
 	select {
 	case u := <-opened:
 		if !strings.Contains(u, "/auth/authorize?") {
