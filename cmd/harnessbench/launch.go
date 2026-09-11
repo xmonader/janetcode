@@ -745,18 +745,6 @@ func cleanupGrokHome() {
 	}
 }
 
-func probeCmd(ctx context.Context, cfg runConfig, name string, args ...string) (command, stdout, stderr string, err error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	tool.Supervise(cmd)
-	cmd.Dir = os.TempDir() // never the repository
-	cmd.Env = childEnv(cfg, nil)
-	var outb, errb bytes.Buffer
-	cmd.Stdout = &outb
-	cmd.Stderr = &errb
-	err = cmd.Run()
-	return strings.Join(append([]string{name}, args...), " "), outb.String(), errb.String(), err
-}
-
 func childEnv(cfg runConfig, extra map[string]string) []string {
 	base := os.Environ()
 	out := make([]string, 0, len(base)+8)

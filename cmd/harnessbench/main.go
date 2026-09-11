@@ -358,20 +358,6 @@ func openclawEnv(env []string) []string {
 	return out
 }
 
-func failOpenclaw(cfg runConfig, tasks []eval.Task) ([]eval.BenchTaskResult, string) {
-	cmd, stdout, stderr, err := probeCmd(context.Background(), cfg, "openclaw", "--help")
-	excerpt := strings.TrimSpace(stderr + "\n" + stdout)
-	reason := "openclaw could not start"
-	if err != nil {
-		reason = "openclaw launch failed: " + err.Error()
-	}
-	if strings.Contains(excerpt, "Node.js") || strings.Contains(excerpt, "node") {
-		reason = firstLine(excerpt)
-	}
-	note := fmt.Sprintf("Tried `%s`. Failure:\n\n```\n%s\n```\n", cmd, excerpt)
-	return eval.UnavailableResults("openclaw", reason, cmd, excerpt, tasks), note
-}
-
 // keyFor picks the credential that belongs to the endpoint, falling back
 // to whichever is set when the host is not one it knows.
 func keyFor(baseURL string) string {
