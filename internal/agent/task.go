@@ -171,6 +171,24 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			in.Tools = profile.Tools
 		}
 	}
+	// A model asked for by name is resolved to whatever backend serves it,
+	// which may not be the one running this session. Refusing is better
+	// than sending the name to an endpoint that does not have it — and it
+	// is resolved here, before anything is built, because an editing job
+	// checks the project out first and a later refusal would leave that
+	// worktree and its base snapshot behind with nothing holding them.
+	var routedProv llm.Provider
+	var routedModel string
+	if in.Model != "" && in.Continue == "" {
+		if t.Models == nil {
+			return "", fmt.Errorf("this session cannot route to another model; run the job without model, or switch the session with /model")
+		}
+		prov, resolved, err := t.Models(in.Model)
+		if err != nil {
+			return "", err
+		}
+		routedProv, routedModel = prov, resolved
+	}
 	var kid *subagent
 	var err error
 	var childID string
@@ -215,18 +233,8 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			}
 		}
 	}
-	// A model asked for by name is resolved to whatever backend serves
-	// it, which may not be the one running this session. Refusing is
-	// better than sending the name to an endpoint that does not have it.
-	if in.Model != "" && in.Continue == "" {
-		if t.Models == nil {
-			return "", fmt.Errorf("this session cannot route to another model; run the job without model, or switch the session with /model")
-		}
-		prov, resolved, err := t.Models(in.Model)
-		if err != nil {
-			return "", err
-		}
-		kid.agent.Provider, kid.agent.Model = prov, resolved
+	if routedProv != nil {
+		kid.agent.Provider, kid.agent.Model = routedProv, routedModel
 	}
 	if childID == "" {
 		t.mu.Lock()

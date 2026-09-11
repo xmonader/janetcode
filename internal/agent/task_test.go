@@ -404,3 +404,37 @@ func TestTaskRunsOnAnotherModel(t *testing.T) {
 		t.Fatal("model accepted with no way to route it")
 	}
 }
+
+// An editing subagent whose model name cannot be routed must not leave its
+// checkout behind: the worktree and the base snapshot are made before the
+// name is resolved, and nothing remembers them when the call then fails.
+func TestTaskEditRefusedModelLeavesNoWorktree(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha\n"), 0o644)
+	gitInit(t, root)
+	parent := &Agent{Provider: &editScript{}, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent, Root: root}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+
+	// No resolver at all: the model parameter is refused.
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"go","edit":true,"model":"glm-5"}`)); err == nil {
+		t.Fatal("a model name was accepted without a resolver")
+	}
+	// A resolver that cannot serve the name: refused too.
+	task.Models = func(string) (llm.Provider, string, error) {
+		return nil, "", strErr("no configured provider serves it")
+	}
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"go","edit":true,"model":"nowhere-5"}`)); err == nil {
+		t.Fatal("an unroutable model was accepted")
+	}
+
+	if out, _ := gitRun(context.Background(), root, "worktree", "list"); strings.Count(out, "\n") != 0 {
+		t.Fatalf("stale worktrees left behind:\n%s", out)
+	}
+	if out, _ := gitRun(context.Background(), root, "for-each-ref", "refs/janetcode/"); out != "" {
+		t.Fatalf("snapshot ref left behind: %s", out)
+	}
+	if ids := task.ChildIDs(); len(ids) != 0 {
+		t.Fatalf("a failed run registered subagents: %v", ids)
+	}
+}
