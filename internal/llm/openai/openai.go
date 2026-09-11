@@ -682,9 +682,7 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if err != nil {
 		return nil, err
 	}
-	if key := p.cfg.CacheKey; key != "" && !p.noCacheKey {
-		w.PromptCacheKey = key
-	}
+	w.PromptCacheKey = p.cfg.CacheKey
 	if cacheableURL(p.cfg.BaseURL) {
 		applyCacheBreakpoints(&w)
 	}
@@ -754,6 +752,9 @@ func (p *Provider) applyDialect(w wireRequest) wireRequest {
 	if p.noStreamOptions {
 		w.StreamOptions = nil
 	}
+	if p.noCacheKey {
+		w.PromptCacheKey = ""
+	}
 	if p.noCacheControl {
 		stripCacheControl(&w)
 	}
@@ -784,6 +785,7 @@ func (p *Provider) learnDialect(err error) bool {
 		return true
 	case !p.noCacheKey && strings.Contains(msg, "prompt_cache_key"):
 		p.noCacheKey = true
+		return true
 	case !p.noCacheControl && (strings.Contains(msg, "cache_control") || strings.Contains(msg, "cachecontrol")):
 		p.noCacheControl = true
 		return true

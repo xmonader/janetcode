@@ -213,6 +213,46 @@ func TestContextCancelDuringStream(t *testing.T) {
 	}
 }
 
+// A server that rejects prompt_cache_key must be worked around on the same
+// turn, like every other quirk: learning the flag and then failing loses
+// the user's turn to a 400 the code knows how to survive.
+func TestDialectDropsPromptCacheKey(t *testing.T) {
+	var bodies []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		var b map[string]any
+		json.Unmarshal(raw, &b)
+		bodies = append(bodies, b)
+		if b["prompt_cache_key"] != nil {
+			w.WriteHeader(400)
+			io.WriteString(w, `{"error":{"message":"Unrecognized request argument supplied: prompt_cache_key"}}`)
+			return
+		}
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	p, err := New(Config{BaseURL: srv.URL + "/v1/", APIKey: "k", MaxRetries: 2, CacheKey: "sess-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := llm.Request{Model: "m", MaxTokens: 50, Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}
+	resp, err := p.Stream(context.Background(), req, nil)
+	if err != nil || resp.Message.Text() != "ok" {
+		t.Fatalf("err=%v resp=%+v", err, resp)
+	}
+	if len(bodies) != 2 {
+		t.Fatalf("expected the request to be resent without the key, got %d attempts", len(bodies))
+	}
+	if bodies[1]["prompt_cache_key"] != nil {
+		t.Fatalf("the resend still carries the rejected key: %v", bodies[1])
+	}
+	// Learned: the next call goes straight through without it.
+	bodies = nil
+	if _, err := p.Stream(context.Background(), req, nil); err != nil || len(bodies) != 1 {
+		t.Fatalf("err=%v attempts=%d", err, len(bodies))
+	}
+}
+
 func TestDialectFallbacks(t *testing.T) {
 	var bodies []map[string]any
 	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
