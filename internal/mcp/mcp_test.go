@@ -306,6 +306,32 @@ func TestManagerRegistersTools(t *testing.T) {
 	}
 }
 
+// StartAll waits for one onDone per server, but a server already running
+// (or already starting) is left alone and never calls its onDone — so a
+// second StartAll over the same set used to wait for a callback that
+// could not arrive, hanging the CLI before the prompt was even sent.
+func TestStartAllReturnsWhenAServerIsAlreadyUp(t *testing.T) {
+	m := &Manager{Options: Options{Root: t.TempDir(), HandshakeTimeout: 20 * time.Second}}
+	t.Cleanup(m.Close)
+	servers := map[string]ServerConfig{
+		"good": {Command: os.Args[0], Env: map[string]string{"MCP_FAKE_SERVER": "1"}},
+	}
+	m.StartAll(context.Background(), servers, nil)
+	if _, ok := m.Client("good"); !ok {
+		t.Fatal("the server did not start")
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		m.StartAll(context.Background(), servers, nil)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("StartAll never returned for a server that was already up")
+	}
+}
+
 func TestResourcesAndPrompts(t *testing.T) {
 	c := startFake(t)
 	if !c.Capabilities.Resources || !c.Capabilities.Prompts {
