@@ -79,6 +79,67 @@ func TestForegroundCommandCanBePromoted(t *testing.T) {
 	}
 }
 
+// Promotion has to survive the tool call returning. The command is started
+// on the turn's context, and os/exec kills a command as soon as that
+// context ends — which is the instant Run returns with "moved to the
+// background".
+func TestPromotedCommandKeepsRunning(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell")
+	}
+	dir := t.TempDir()
+	jobs := &Jobs{Dir: t.TempDir()}
+	defer jobs.KillAll()
+	run := &Running{}
+	b := Bash{Root: dir, Jobs: jobs, Running: run}
+	marker := filepath.Join(dir, "done")
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		in, _ := json.Marshal(map[string]any{
+			"command":    "echo start; sleep 0.4; echo after-promotion; touch " + marker + "; sleep 30",
+			"timeout_ms": 120000,
+		})
+		b.Run(context.Background(), in)
+	}()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for len(run.List()) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("the command never registered as promotable")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := run.PromoteLatest(); err != nil {
+		t.Fatal(err)
+	}
+	<-done
+
+	list := jobs.List()
+	if len(list) != 1 {
+		t.Fatalf("jobs = %+v", list)
+	}
+	// Work the command had not reached when it was promoted must still
+	// happen: a job killed by the departing tool call never gets here.
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			break
+		}
+		if j := jobs.List()[0]; j.Done {
+			t.Fatalf("the promoted job died on its own with exit %d", j.Exit)
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the promoted job never did the work it was promoted to finish")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err := jobs.Kill(list[0].ID); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPromoteErrors(t *testing.T) {
 	var nilRun *Running
 	if err := nilRun.PromoteLatest(); err == nil {

@@ -89,7 +89,22 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := ShellCommand(ctx, in.Command)
+	// The command runs on a context of its own rather than on the turn's.
+	// os/exec kills a command as soon as the context it was started with
+	// is done, and the turn's context is done the moment this call
+	// returns — which, for a command handed to the jobs registry, is
+	// while it is still meant to be running. Cancellation and the timeout
+	// reach the command through killCmd below instead, and promotion
+	// simply stops forwarding them.
+	runCtx, killCmd := context.WithCancel(context.WithoutCancel(ctx))
+	promoted := false
+	defer func() {
+		if !promoted {
+			killCmd()
+		}
+	}()
+
+	cmd := ShellCommand(runCtx, in.Command)
 	cmd.Dir = t.Root
 	cmd.Env = scrubEnv(os.Environ())
 	setProcessGroup(cmd)
@@ -113,6 +128,10 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var err error
 	select {
 	case err = <-wait:
+	case <-ctx.Done():
+		// Cancelled or out of time: kill the process group and reap.
+		killCmd()
+		err = <-wait
 	case <-promoteChan(fg):
 		job, perr := t.Jobs.Adopt(in.Command, cmd, out, wait)
 		if perr != nil {
@@ -120,6 +139,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			err = <-wait
 			break
 		}
+		promoted = true
 		t.Cache.invalidate()
 		return fmt.Sprintf("Moved to the background as job %d (pid %d): %s\nIt is still running; output is collected in %s. You will be told when it finishes; the job tool shows output, waits, or kills it.", job.ID, job.Pid, in.Command, job.OutPath), nil
 	}
