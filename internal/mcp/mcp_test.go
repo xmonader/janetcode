@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -18,6 +20,15 @@ import (
 // client is exercised over a real pipe and process boundary.
 func TestMain(m *testing.M) {
 	if os.Getenv("MCP_FAKE_SERVER") == "1" {
+		// Stand in for the real shape of a stdio server: a wrapper that
+		// forks the process doing the work. The child outlives its parent
+		// unless the whole group is stopped.
+		if pidfile := os.Getenv("MCP_FAKE_SERVER_CHILD"); pidfile != "" {
+			child := exec.Command("sleep", "100")
+			if err := child.Start(); err == nil {
+				os.WriteFile(pidfile, []byte(strconv.Itoa(child.Process.Pid)), 0o644)
+			}
+		}
 		fakeServer()
 		os.Exit(0)
 	}

@@ -24,6 +24,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/procgroup"
 )
 
 // Server describes how to start one language server.
@@ -340,6 +342,10 @@ type client struct {
 	diags  map[string]diagState     // uri → latest
 	waits  map[string]chan struct{} // uri → closed on the next publish
 	done   chan struct{}
+	// reaped is closed once cmd.Wait has returned. done only says the
+	// server stopped writing; stopping the process group has to wait for
+	// the real exit, or close returns while a zombie is still there.
+	reaped chan struct{}
 	err    error
 }
 
@@ -380,13 +386,19 @@ func start(ctx context.Context, root string, command []string, log func(string))
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &limitedWriter{w: &stderr, n: 4096}
+	// A language server is the heaviest thing janetcode starts, and some
+	// of them are launched through a wrapper or fork workers of their own.
+	// Its own process group is what lets close() take the workers with it
+	// instead of leaving a gigabyte of rust-analyzer behind.
+	procgroup.Set(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	c := &client{cmd: cmd, stdin: stdin, log: log, pend: map[int64]chan rpcResponse{}, docs: map[string]int{}, diags: map[string]diagState{}, waits: map[string]chan struct{}{}, done: make(chan struct{})}
+	c := &client{cmd: cmd, stdin: stdin, log: log, pend: map[int64]chan rpcResponse{}, docs: map[string]int{}, diags: map[string]diagState{}, waits: map[string]chan struct{}{}, done: make(chan struct{}), reaped: make(chan struct{})}
 	go c.read(bufio.NewReaderSize(stdout, 1<<20))
 	go func() {
 		err := cmd.Wait()
+		close(c.reaped)
 		c.pendM.Lock()
 		c.err = fmt.Errorf("%s exited: %v %s", command[0], err, strings.TrimSpace(stderr.String()))
 		for id, ch := range c.pend {
@@ -523,17 +535,14 @@ func (c *client) exitError() error {
 	return errors.New("language server closed its output")
 }
 
-// close asks the server to shut down and kills it if it lingers.
+// close asks the server to shut down, then stops its whole process group
+// so nothing it forked outlives the session.
 func (c *client) close() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_, _ = c.call(ctx, "shutdown", nil)
 	_ = c.notify("exit", nil)
-	select {
-	case <-c.done:
-	case <-time.After(2 * time.Second):
-		_ = c.cmd.Process.Kill()
-	}
+	procgroup.Stop(c.cmd, c.reaped, 2*time.Second)
 }
 
 func (c *client) call(ctx context.Context, method string, params any) (json.RawMessage, error) {

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/procgroup"
 )
 
 // stdioTransport runs the server as a child process and exchanges
@@ -44,6 +46,10 @@ func newStdioTransport(c *Client, cfg ServerConfig, root string) (*stdioTranspor
 	}
 	t := &stdioTransport{c: c, cmd: cmd, stdin: stdin, stderr: &ringBuffer{max: 4096}, done: make(chan struct{})}
 	cmd.Stderr = t.stderr
+	// Servers are usually launched through a wrapper (npx, uvx, a shell
+	// one-liner), so the process janetcode starts is rarely the server.
+	// Its own group is what makes close() able to reach the real one.
+	procgroup.Set(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %q: %w", cfg.Command, err)
 	}
@@ -75,16 +81,17 @@ func (t *stdioTransport) readLoop(r io.Reader) {
 	}
 }
 
+// close ends the server and everything it started.
+//
+// Closing stdin is the protocol's way of saying goodbye, but it only
+// reaches the wrapper: an `npx server` that exits on EOF leaves the server
+// it forked running, reparented to init, for the rest of the machine's
+// uptime. So the group is signalled as well, and while the wrapper is
+// still alive — that is what makes the group id certainly ours.
 func (t *stdioTransport) close() {
 	t.stdin.Close()
-	select {
-	case <-t.done:
-	case <-time.After(3 * time.Second):
-		if t.cmd.Process != nil {
-			t.cmd.Process.Kill()
-		}
-		<-t.done
-	}
+	procgroup.Stop(t.cmd, t.done, 3*time.Second)
+	<-t.done
 }
 
 func (t *stdioTransport) hint() string {

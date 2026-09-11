@@ -37,6 +37,15 @@ def diagnose(uri, version, text):
     send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": params})
 
 no_version = "--no-version" in sys.argv
+
+# --child=PATH forks a long-lived grandchild and records its pid, standing
+# in for the workers a real server starts. It only dies with the group.
+for arg in sys.argv[1:]:
+    if arg.startswith("--child="):
+        import subprocess
+        kid = subprocess.Popen(["sleep", "100"])
+        with open(arg[len("--child="):], "w") as f:
+            f.write(str(kid.pid))
 while True:
     msg = read()
     if msg is None:
