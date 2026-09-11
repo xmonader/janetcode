@@ -78,6 +78,8 @@ var flagWhen = map[string]string{
 	"append-system-prompt": "an experiment that adds instructions, recorded so the A/B is traceable",
 	"doctor":               "something is not working and you want to know which part",
 	"theme":                "one run in a different colour scheme without changing the config",
+	"web":                  "you want the session in a browser, on another screen or from a phone on the same machine",
+	"web-addr":             "the default loopback port is taken, or you are deliberately binding off loopback",
 }
 
 // configWhen describes each key of the config file. The struct's json

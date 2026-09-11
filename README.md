@@ -71,6 +71,14 @@ A prompt given as an argument starts the session with it:
 janetcode "explain how requests flow through this service"
 ```
 
+The same session in a browser, on loopback, with the same permission
+prompt:
+
+```sh
+janetcode --web
+# janetcode serving http://127.0.0.1:8787
+```
+
 One-shot, scriptable mode:
 
 ```sh

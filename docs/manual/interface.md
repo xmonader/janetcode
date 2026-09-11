@@ -2,6 +2,22 @@
 
 Part of the [janetcode manual](README.md); the [README](../../README.md) has the short version.
 
+`janetcode --web` is the same session in a browser: the transcript, the
+permission prompt and the composer, at `http://127.0.0.1:8787` (or
+`--web-addr`). It is the TUI's loop on a second screen, not a second
+product. Enter sends, shift+enter is a newline, esc cancels, and at a
+permission prompt the same keys apply (`y` once, `a` always, `r` save a
+rule, `n` deny, `c` cancel the turn). Ctrl+S steers a running turn.
+The composer has the same command list as the terminal: type `/` and the
+menu filters as you type (tab accepts). `/help` prints the sheet; `/help
+<topic>` searches the catalogue. A side panel (`]` or the header button)
+shows live context, stats, todos, jobs, changes, memory, skills, sessions
+and the inspect subjects. `/inspect <name>` dumps one subject into the
+transcript. `/yolo`, `/edits`, `/readonly`, `/plan`, `/undo`, `/compact`,
+`/context`, `/stats` and the rest of the slash commands work from the box,
+as does `!command`. The server binds loopback unless you tell it otherwise
+— anyone who can reach the port can approve commands in that directory.
+
 The transcript streams the model's markdown as it arrives, shows each tool
 call on one line with what it did and how long it took, and renders every
 edit as a diff with line numbers: three lines of context around each

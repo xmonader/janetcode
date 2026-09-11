@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>janetcode</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header id="header">
+  <div class="left">
+    <span class="mark">◆</span>
+    <span id="brand">janetcode</span>
+    <span id="title" class="title"></span>
+    <span id="model" class="dim"></span>
+    <span id="modes"></span>
+  </div>
+  <div class="right">
+    <span id="cost" class="dim"></span>
+    <span id="cwd" class="dim"></span>
+    <span id="gauge" title="context window">ctx <i></i></span>
+    <button type="button" id="panel-btn" title="side panel (])">panel</button>
+  </div>
+</header>
+<div id="workspace">
+  <main id="log" aria-live="polite"></main>
+  <aside id="drawer" hidden>
+    <nav id="tabs"></nav>
+    <pre id="drawer-body"></pre>
+  </aside>
+</div>
+<footer>
+  <div id="notice" class="notice" hidden></div>
+  <div id="perm" class="perm" hidden>
+    <div id="perm-line"></div>
+    <pre id="perm-preview" hidden></pre>
+    <div id="perm-keys" class="keys"></div>
+  </div>
+  <div id="menu" class="menu" hidden></div>
+  <div id="status" class="status">ready</div>
+  <form id="composer" autocomplete="off">
+    <label class="prompt" for="input">❯</label>
+    <textarea id="input" rows="1" placeholder="Ask for a change, a fix, or an explanation… · / for commands"></textarea>
+    <button type="submit" id="send">send</button>
+  </form>
+</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

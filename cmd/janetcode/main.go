@@ -52,6 +52,7 @@ import (
 	_ "github.com/xmonader/janetcode/internal/treesitter" // registers the grammar parser when built with -tags treesitter
 	"github.com/xmonader/janetcode/internal/tui"
 	"github.com/xmonader/janetcode/internal/verify"
+	"github.com/xmonader/janetcode/internal/webui"
 	"github.com/xmonader/janetcode/internal/worktree"
 )
 
@@ -212,6 +213,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		appendSystem = fs.String("append-system-prompt", "", "text (or @file) appended to the system prompt; JANETCODE_SYSTEM_MD=<file> replaces the base prompt. Both are recorded in eval results so a prompt A/B is traceable")
 		runDoctor    = fs.Bool("doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
 		themeFlag    = fs.String("theme", "", "colour theme for this run: auto, dark, light, or the name of a builtin or user theme (--inspect themes lists them)")
+		web          = fs.Bool("web", false, "serve the session in a browser instead of the terminal")
+		webAddr      = fs.String("web-addr", "127.0.0.1:8787", "listen address for --web. Loopback by default; anyone who can reach the port can approve commands in this directory")
 	)
 	// The flag set is published so the catalogue tests can walk exactly
 	// the flags this program declares. Declaring them in a helper instead
@@ -265,6 +268,12 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	if *watchCmd != "" && *until != "" {
 		return fmt.Errorf("%w: --watch and --until cannot be combined", headless.ErrBadInput)
+	}
+	if *web && *acpMode {
+		return fmt.Errorf("%w: --web and --acp cannot be combined", headless.ErrBadInput)
+	}
+	if *web && *promptText != "" {
+		return fmt.Errorf("%w: --web is a session, not a one-shot; drop -p", headless.ErrBadInput)
 	}
 
 	if *evalTrain != "" {
@@ -657,6 +666,37 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
 			Until: *until, Watch: *watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
 			Format: format, MaxCostUSD: *maxCost,
+		})
+	}
+	if *web {
+		if needsConnect {
+			return fmt.Errorf("no credentials yet: run janetcode without --web and use /connect, or set a key")
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		toStart := map[string]mcp.ServerConfig{}
+		for n, c := range cfg.MCPServers {
+			toStart[n] = c
+		}
+		if projectTrusted {
+			for n, c := range projectServers {
+				toStart[n] = c
+			}
+		}
+		servers.StartAll(ctx, toStart, func(name string, c *mcp.Client, err error) {
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "[mcp] %s failed: %v\n", name, err)
+				return
+			}
+			fmt.Fprintf(os.Stderr, "[mcp] %s ready: %d tools\n", name, len(c.Tools()))
+		})
+		if sess != nil {
+			defer func() { _ = sess.Sync() }()
+		}
+		return webui.Run(ctx, webui.Options{
+			Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
+			Version: version, Addr: *webAddr,
+			Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
 		})
 	}
 	return tui.Run(tui.Options{
