@@ -35,9 +35,17 @@ func (a *Agent) overBudget() (spent float64, over bool) {
 	return usd, usd >= a.MaxCostUSD
 }
 
-// budgetErr is what a run that ran out of money returns.
+// budgetErr is what a run that ran out of money returns. The usual money
+// format stops at four decimals, which turns a small ceiling into "spent
+// $0.0000 of $0.0000" -- a report that says nothing about the thing it is
+// reporting -- so figures that collide there are given the digits that
+// tell them apart.
 func (a *Agent) budgetErr(spent float64) error {
-	return fmt.Errorf("%w: spent %s of %s", ErrBudget, llm.FormatUSD(spent), llm.FormatUSD(a.MaxCostUSD))
+	got, want := llm.FormatUSD(spent), llm.FormatUSD(a.MaxCostUSD)
+	if got == want {
+		got, want = fmt.Sprintf("$%.8f", spent), fmt.Sprintf("$%.8f", a.MaxCostUSD)
+	}
+	return fmt.Errorf("%w: spent %s of %s", ErrBudget, got, want)
 }
 
 // stopForBudget ends the turn on the budget. When the model had asked for
