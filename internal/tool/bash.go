@@ -79,13 +79,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if max == 0 {
 		max = 10 * time.Minute
 	}
-	timeout := def
-	if in.TimeoutMS > 0 {
-		timeout = time.Duration(in.TimeoutMS) * time.Millisecond
-	}
-	if timeout > max {
-		timeout = max
-	}
+	timeout := clampTimeout(in.TimeoutMS, def, max)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -291,4 +285,24 @@ func scrubEnv(env []string) []string {
 		out = append(out, "LC_CTYPE=C.UTF-8")
 	}
 	return append(out, nonInteractiveEnv...)
+}
+
+// clampTimeout turns a timeout_ms from the model into a duration between
+// nothing and max, defaulting when it is absent.
+//
+// The clamp is done in milliseconds, before the multiplication: a
+// time.Duration counts nanoseconds, so a number of milliseconds past
+// about 2.5e11 overflows int64 and can come out negative. A negative
+// duration is not greater than max, so it used to survive the clamp and
+// reach context.WithTimeout as a deadline already in the past — the
+// command was killed the instant it started and reported as having timed
+// out after a nonsense interval. Models write 99999999999 for "no limit".
+func clampTimeout(ms int, def, max time.Duration) time.Duration {
+	if ms <= 0 {
+		return def
+	}
+	if maxMS := int64(max / time.Millisecond); int64(ms) > maxMS {
+		return max
+	}
+	return time.Duration(ms) * time.Millisecond
 }

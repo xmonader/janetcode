@@ -383,13 +383,7 @@ func (t JobTool) Run(ctx context.Context, input json.RawMessage) (string, error)
 		}
 		return job.Summary() + "\n" + Truncate(out), nil
 	case "wait":
-		timeout := 2 * time.Minute
-		if in.TimeoutMS > 0 {
-			timeout = time.Duration(in.TimeoutMS) * time.Millisecond
-		}
-		if timeout > 10*time.Minute {
-			timeout = 10 * time.Minute
-		}
+		timeout := clampTimeout(in.TimeoutMS, 2*time.Minute, 10*time.Minute)
 		wctx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		job, err := t.Jobs.Wait(wctx, in.ID)
