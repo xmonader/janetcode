@@ -66,6 +66,9 @@ type Options struct {
 	// Running is the registry of foreground commands that can be moved to
 	// the background (ctrl+g). Nil disables the key.
 	Running *tool.Running
+	// Typed collects the hosts the user names in their own messages;
+	// fetch_url reaches a private address only for one of them.
+	Typed *tool.URLSet
 	// AutoTitle asks the model for a short session title after the first turn.
 	AutoTitle bool
 	Agent     *agent.Agent
@@ -1757,6 +1760,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		case text == "":
 			m.status = "type what the model should do differently, then ctrl+s"
 		default:
+			m.opts.Typed.Note(text)
 			m.opts.Agent.Steer(m.inflatePastes(text))
 			m.steering = append(m.steering, text)
 			m.remember(text)
@@ -2184,6 +2188,12 @@ func (m *model) submit(text string) tea.Cmd {
 		return nil
 	}
 	m.transcript.user(text)
+	// A host the user just named is a host the user is asking about, so
+	// fetch_url may reach it even on a private network. Only main seeded
+	// this, from the first prompt, which left "look at
+	// http://localhost:8080/health" refused in the message that asked for
+	// it.
+	m.opts.Typed.Note(text)
 	m.lastUserText = text
 	text, atts := prompt.ExpandMentions(m.opts.Cwd, text)
 	if len(atts) > 0 {
@@ -2230,6 +2240,9 @@ func (m *model) shell(cmdline string) tea.Cmd {
 		m.refresh(false)
 		return nil
 	}
+	// A command the user ran themselves names hosts as much as a prompt
+	// does: curl localhost:3000 is the user pointing at it.
+	m.opts.Typed.Note(cmdline)
 	input, _ := json.Marshal(map[string]string{"command": cmdline})
 	call := agent.ToolCall{ID: fmt.Sprintf("shell-%d", time.Now().UnixNano()), Name: "shell", Input: input}
 	m.transcript.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})

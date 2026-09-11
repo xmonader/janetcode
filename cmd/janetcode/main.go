@@ -608,6 +608,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Models:    pool.For,
 		Jobs:      jobs,
 		Running:   deps.running,
+		Typed:     typed,
 		AutoTitle: true,
 		Verify:    &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: trust},
 		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: trust,

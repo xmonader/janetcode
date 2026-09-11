@@ -585,7 +585,10 @@ A URL pointing at the local machine or network — loopback, a private
 range, a link-local address (on a cloud instance, the credentials
 endpoint), `localhost`, `*.local`, `*.internal` — is fetched only when the
 user named that host themselves in their own message. The agent reaching
-one on its own initiative is reading something nobody offered it.
+one on its own initiative is reading something nobody offered it. Every
+message you send counts, not only the first: a prompt, a note steered
+into a running turn with `ctrl+s`, and a `!command` you ran yourself all
+add the hosts they name.
 
 ### Browsing
 

@@ -2801,3 +2801,27 @@ func TestCtrlGPromotesARunningCommand(t *testing.T) {
 		t.Errorf("the status line still offers the key:\n%s", h.m.statusView())
 	}
 }
+
+// A host the user names in the UI is one fetch_url may reach even on a
+// private network. main seeds the set from the first prompt only, so
+// without this every later message lost the permission.
+func TestTypedHostsAreNotedFromEveryUserMessage(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "looked"), StopReason: llm.StopEndTurn})
+	typed := &tool.URLSet{}
+	h.m.opts.Typed = typed
+	h.keys("check http://localhost:8080/health please")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	if !typed.Has("localhost:8080") {
+		t.Fatal("the host the user typed was not noted")
+	}
+	// A command the user runs themselves counts too.
+	h.m.opts.Typed.Note("curl http://127.0.0.1:9000/")
+	if !typed.Has("127.0.0.1:9000") {
+		t.Fatal("the host from a ! command was not noted")
+	}
+	// And a host nobody named stays out.
+	if typed.Has("169.254.169.254") {
+		t.Fatal("a host nobody typed is in the set")
+	}
+}
