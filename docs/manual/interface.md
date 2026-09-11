@@ -553,6 +553,15 @@ cheaper and more reliable than pixels.
 
 It is off by default because it launches a browser.
 
+The first `tool_search` that reveals anything reveals the rest of the
+deferred set too, as far as a twentieth of the context window will hold
+their schemas. Revealing a tool changes the tool list, and the tool list
+is part of the cached request prefix, so each reveal makes the model pay
+for the whole prefix again: one at a time, a browsing session pays that
+several times over. The batch happens once — a second would be a second
+break — and a deferred set too large for the budget stays deferred and is
+revealed by name as it is asked for.
+
 ### Calling tools from a script
 
 Some work cannot be batched. Reading twenty files and keeping the two that
