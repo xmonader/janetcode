@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFetchURL(t *testing.T) {
@@ -63,5 +64,36 @@ func TestFetchURL(t *testing.T) {
 	}
 	if !(FetchURL{}).Mutating() {
 		t.Fatal("fetch must ask for permission")
+	}
+}
+
+// A fetch cut short mid-body must fail, not hand back the bytes that did
+// arrive as though they were the whole page.
+func TestFetchCancelledMidBodyIsNotAPartialPage(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("Content-Length", "200000")
+		w.Write([]byte("the first half of the document\n"))
+		w.(http.Flusher).Flush()
+		<-release
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		cancel()
+	}()
+	typed := &URLSet{}
+	typed.Note("please look at " + srv.URL)
+	in, _ := json.Marshal(map[string]string{"url": srv.URL + "/slow"})
+	out, err := FetchURL{Typed: typed}.Run(ctx, in)
+	if err == nil {
+		t.Fatalf("a cancelled fetch returned a result: %q", out)
+	}
+	if strings.Contains(out, "first half") {
+		t.Fatalf("the partial body was handed back: %q", out)
 	}
 }
