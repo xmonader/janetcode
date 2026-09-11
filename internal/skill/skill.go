@@ -284,17 +284,39 @@ func headings(body string) string {
 
 // Index renders the skill list for the system prompt, or "" without
 // model-invocable skills.
-func Index(skills []Skill) string {
-	var sb strings.Builder
-	for _, s := range skills {
-		if s.ModelInvocable {
-			fmt.Fprintf(&sb, "- %s: %s\n", s.Name, s.Description)
-		}
+func Index(skills []Skill) string { return IndexWithin(skills, memory.IndexBudget) }
+
+// IndexWithin is Index with a byte budget. The list had none: a config
+// directory with a hundred skills in it put all hundred lines in every
+// request, and the skill tool can find the rest by name, which is what
+// the paragraph above already tells the model to do.
+func IndexWithin(skills []Skill, budget int) string {
+	if budget <= 0 {
+		budget = memory.IndexBudget
 	}
-	if sb.Len() == 0 {
+	const head = "\n# Skills\nSkill files hold instructions for specific kinds of task. Relevant ones are attached to a request automatically; for any other, call the skill tool with its name before starting work that matches it.\n"
+	var sb strings.Builder
+	sb.WriteString(head) // the heading counts against the budget too
+	shown, total := 0, 0
+	for _, s := range skills {
+		if !s.ModelInvocable {
+			continue
+		}
+		total++
+		line := fmt.Sprintf("- %s: %s\n", s.Name, s.Description)
+		if sb.Len()+len(line) > budget {
+			continue
+		}
+		sb.WriteString(line)
+		shown++
+	}
+	if shown == 0 {
 		return ""
 	}
-	return "\n# Skills\nSkill files hold instructions for specific kinds of task. Relevant ones are attached to a request automatically; for any other, call the skill tool with its name before starting work that matches it.\n" + sb.String()
+	if shown < total {
+		fmt.Fprintf(&sb, "- (%d more; the skill tool finds them by name)\n", total-shown)
+	}
+	return sb.String()
 }
 
 // Block renders a skill for injection into the user turn, listing its

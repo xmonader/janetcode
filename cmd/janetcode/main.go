@@ -1352,7 +1352,15 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		ag.Tools.Add(lsp.SymbolTool{M: diag})
 		ag.Diagnose = diagnoseNote(diag)
 	}
-	ag.SystemExtra = func() string { return mem.Index() + skill.Index(skills()) }
+	// The indexes are the part of the system prompt that grows with use
+	// rather than with the code, so their share of the window is what is
+	// capped, not a flat number of bytes: 8 KB is a twenty-fifth of a 200k
+	// window and a sixteenth of a 32k one. Both fall back to the flat
+	// ceiling when the window is unknown.
+	indexBudget := memory.BudgetFor(ag.ContextWindow)
+	ag.SystemExtra = func() string {
+		return mem.IndexWithin(indexBudget) + skill.IndexWithin(skills(), indexBudget)
+	}
 	repo := &repomap.Cache{Root: d.cwd}
 	// The search tools. On a measured fan-out set, offering these
 	// alongside bash cost 23% more context (x1.23 [1.10, 1.44]) for the
