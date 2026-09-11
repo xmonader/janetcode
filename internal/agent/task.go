@@ -434,7 +434,14 @@ func (t *Task) child(only []string, profile *skill.Profile) (*Agent, error) {
 		CompactAt:     p.CompactAt,
 		Archive:       p.Archive,
 		AutoApprove:   false,
-		Debug:         p.Debug,
+		// A deny rule holds for a subagent too, as it does for the
+		// editing one. Deny is consulted for read-only tools as well, so
+		// without this a path the user refused could be read simply by
+		// delegating the job. The allow list is deliberately not passed
+		// on: permission granted in the session is not permission the
+		// subagent asked for.
+		Rules: perm.Rules{Deny: p.Rules.Deny},
+		Debug: p.Debug,
 	}, nil
 }
 
