@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"bufio"
+	"context"
 	"strings"
 	"testing"
 )
@@ -27,5 +28,30 @@ func TestReadMessageRejectsAbsurdLength(t *testing.T) {
 	r = bufio.NewReader(strings.NewReader("Content-Length: -1\r\n\r\n"))
 	if _, err := readMessage(r); err == nil {
 		t.Fatal("a negative length was accepted")
+	}
+}
+
+// With more than one server up, a workspace-wide question used to be sent
+// to whichever the map happened to yield first, so "symbols search" asked
+// a different language's server on each invocation and gave a different
+// answer each time.
+func TestQueryClientIsStableAcrossCalls(t *testing.T) {
+	m := &Manager{}
+	m.clients = map[string]*client{"gopls": {}, "pyright": {}, "rust-analyzer": {}}
+	first, err := m.queryClient(context.Background(), "")
+	if err != nil || first == nil {
+		t.Fatalf("c=%v err=%v", first, err)
+	}
+	for i := 0; i < 50; i++ {
+		c, err := m.queryClient(context.Background(), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c != first {
+			t.Fatal("the same question went to a different server")
+		}
+	}
+	if first != m.clients["gopls"] {
+		t.Fatal("the choice should be the first server by name")
 	}
 }
