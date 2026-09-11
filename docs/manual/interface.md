@@ -81,6 +81,7 @@ paste that ends in a newline can never send itself.
 
 ```
 @path            attach a file, an image (png/jpg/gif/webp), or a directory listing; tab completes
+ctrl+g           move the command running in the foreground to the background, as a job
 ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, pngpaste on macOS)
 !command         run a shell command here; its output is shown and shared with the model
 /help      /quit      /clear (new session)     /yolo (toggle auto-approve)   /edits (edits go through, commands ask)
@@ -331,12 +332,13 @@ lists jobs, shows output, waits with a timeout, or kills one; `/jobs` and
 exits.
 
 A command already running in the foreground can be moved to the
-background instead of being waited out or killed: it keeps running, the
-output collected so far is written to the job log from the beginning, and
-it becomes a job like any other. `bash` exposes this as a Go API
-(`tool.Running.Promote`) so a key binding can reach it; the tool schema is
-unchanged, because this is the user's decision about a command that is
-already running, not the model's.
+background instead of being waited out or killed: press `ctrl+g`. It keeps
+running, the output collected so far is written to the job log from the
+beginning, and it becomes a job like any other — the transcript says
+`moved to background as job 1`, and the model is told when it finishes,
+as for any job. The status line offers the key only while there is a
+command to promote. The tool schema is unchanged, because this is the
+user's decision about a command that is already running, not the model's.
 
 `sed -i` is an edit, so it is shown as one: a `bash` call containing it is
 run once without `-i` and the diff it would make appears in the permission

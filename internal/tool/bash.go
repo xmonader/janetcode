@@ -113,13 +113,18 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var err error
 	select {
 	case err = <-wait:
+		// The command finished on its own. Anyone waiting on a promotion
+		// that raced with it hears that it did not happen.
+		fg.hand(0)
 	case <-promoteChan(fg):
 		job, perr := t.Jobs.Adopt(in.Command, cmd, out, wait)
 		if perr != nil {
 			// Promotion failed, so nothing was handed over: wait it out.
+			fg.hand(0)
 			err = <-wait
 			break
 		}
+		fg.hand(job.ID)
 		t.Cache.invalidate()
 		return fmt.Sprintf("Moved to the background as job %d (pid %d): %s\nIt is still running; output is collected in %s. You will be told when it finishes; the job tool shows output, waits, or kills it.", job.ID, job.Pid, in.Command, job.OutPath), nil
 	}

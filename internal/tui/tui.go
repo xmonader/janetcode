@@ -63,6 +63,9 @@ type Options struct {
 	Models func(string) (llm.Provider, string, error)
 	// Jobs are background commands; finished ones are announced while idle.
 	Jobs *tool.Jobs
+	// Running is the registry of foreground commands that can be moved to
+	// the background (ctrl+g). Nil disables the key.
+	Running *tool.Running
 	// AutoTitle asks the model for a short session title after the first turn.
 	AutoTitle bool
 	Agent     *agent.Agent
@@ -1729,6 +1732,20 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 				return nil, true
 			}
 		}
+	case "ctrl+g":
+		// A build or a test run that turns out to be long used to leave
+		// only waiting or cancelling. Promotion keeps the work: the
+		// command becomes a job, and the turn carries on.
+		job, err := m.opts.Running.PromoteLatest()
+		if err != nil {
+			m.status = err.Error()
+			m.refresh(false)
+			return nil, true
+		}
+		m.transcript.info(fmt.Sprintf("moved to background as job %d · /jobs shows it", job))
+		m.status = fmt.Sprintf("moved to background as job %d", job)
+		m.refresh(false)
+		return nil, true
 	case "ctrl+s":
 		// Say something to the turn that is running, rather than queueing
 		// it for the next one. The agent holds the note and hands it to
@@ -2891,6 +2908,7 @@ func (m *model) helpText() string {
 	sb.WriteString("  /command names match on their letters in order (/rsm finds /resume) · tab completes the argument of /resume, /model, /forget, /undo, /open and /diff\n")
 	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, or when idle twice to quit · ctrl+d quit\n")
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand the last turn (again folds it) · click a tool line or a thought to fold or unfold it · /verbose does the whole transcript · ctrl+l redraw\n")
+	sb.WriteString("  ctrl+g moves a command running in the foreground to the background: it becomes a job and keeps running, and the turn goes on\n")
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends · ctrl+s hands it to the running turn instead · up takes the last queued one back · esc cancels and gives them all back\n")
 	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
@@ -3338,7 +3356,13 @@ func (m *model) statusView() string {
 		left = m.spinner.View() + " " + styleDim.Render(m.phase)
 	case m.running:
 		el := shortDuration(time.Since(m.startedAt))
-		left = m.spinner.View() + " " + styleDim.Render(m.phase+" · "+el+" · esc to cancel")
+		hint := " · esc to cancel"
+		// Only while there is something to promote: a key that does
+		// nothing is worse than no key.
+		if len(m.opts.Running.List()) > 0 {
+			hint += " · ctrl+g backgrounds it"
+		}
+		left = m.spinner.View() + " " + styleDim.Render(m.phase+" · "+el+hint)
 	case m.status != "":
 		left = styleDim.Render(m.status)
 	default:
