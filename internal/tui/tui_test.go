@@ -3119,3 +3119,51 @@ func TestRetryPhaseCountsDown(t *testing.T) {
 		t.Fatalf("phase = %q", got)
 	}
 }
+
+// The prompt's placeholder was one long sentence cut wherever the window
+// ended, so a narrow terminal offered "· / for" where it meant "· / for
+// commands".
+func TestPlaceholderFitsTheWindow(t *testing.T) {
+	h := newHarness(t)
+	for _, w := range []int{120, 100, 80, 60, 48, 30} {
+		h.update(tea.WindowSizeMsg{Width: w, Height: 24})
+		p := h.m.placeholder()
+		if got := lipgloss.Width(p) + 2; got > w-4 {
+			t.Errorf("width %d: placeholder %q takes %d columns", w, p, got)
+		}
+		if strings.HasSuffix(p, "…") {
+			t.Errorf("width %d: placeholder cut mid-phrase: %q", w, p)
+		}
+	}
+	h.update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	if h.m.placeholder() != defaultPlaceholder {
+		t.Fatalf("a wide window lost the full placeholder: %q", h.m.placeholder())
+	}
+}
+
+func TestFitPhrase(t *testing.T) {
+	if got := fitPhrase(20, "a long phrase that will not fit at all", "short"); got != "short" {
+		t.Fatalf("got %q", got)
+	}
+	if got := fitPhrase(40, "fits fine"); got != "fits fine" {
+		t.Fatalf("got %q", got)
+	}
+	// Nothing fits: the shortest is cut, and says so.
+	if got := fitPhrase(6, "aaaaaaaaaaaa", "bbbbbbbbbbbb"); !strings.HasSuffix(got, "…") {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// renderCode cut a long line with truncateLine, which marks the cut
+// itself, and then added a second ellipsis: every clipped line of /diff,
+// /open and /changes ended in "……".
+func TestCodeLinesEndInOneEllipsis(t *testing.T) {
+	long := "/diff <path> shows the hunks · /diff revert <path>:<n> reverts one · /undo reverts a whole turn"
+	out := plain(renderCode(long, 40))
+	if strings.Contains(out, "……") {
+		t.Fatalf("two ellipses: %q", out)
+	}
+	if !strings.HasSuffix(strings.TrimRight(out, " "), "…") {
+		t.Fatalf("no cut mark: %q", out)
+	}
+}

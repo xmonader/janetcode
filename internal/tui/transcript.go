@@ -1104,7 +1104,9 @@ func renderCode(text string, width int) string {
 	out := make([]string, 0, len(lines))
 	for _, l := range lines {
 		if width > 6 && lipgloss.Width(l) > width-2 {
-			l = truncateLine(l, width-3) + "…"
+			// truncateLine already marks the cut; adding another ellipsis
+			// here ended every long line in "……".
+			l = truncateLine(l, width-2)
 		}
 		switch {
 		case strings.HasPrefix(l, "+++ ") || strings.HasPrefix(l, "--- "):

@@ -3606,20 +3606,52 @@ func (m *model) inputBox() lipgloss.Style {
 // placeholder is the hint shown in an empty input box. It names the same
 // states the border colours in styles.go do, and is recomputed every frame
 // so no transition can leave a stale hint behind.
+// fitPhrase picks the longest of several wordings of the same thing that
+// fits the space, rather than cutting the longest one mid-phrase. A
+// narrow window used to offer "· / for" where it meant "· / for
+// commands".
+func fitPhrase(room int, options ...string) string {
+	for _, o := range options {
+		if lipgloss.Width(o) <= room {
+			return o
+		}
+	}
+	if len(options) == 0 {
+		return ""
+	}
+	return truncateLine(options[len(options)-1], room)
+}
+
 func (m *model) placeholder() string {
+	// The box draws "❯ " before the textarea's own width.
+	room := m.input.Width() - 2
 	switch {
 	case m.denying:
-		return "Why? the model reads this · enter sends · esc skips"
+		return fitPhrase(room,
+			"Why? the model reads this · enter sends · esc skips",
+			"Why? enter sends · esc skips",
+			"Why?")
 	case m.opts.Agent.Provider == nil:
-		return "No provider yet · /connect picks one"
+		return fitPhrase(room, "No provider yet · /connect picks one", "/connect")
 	case m.running:
-		return "Type to queue a message for when this turn ends · esc cancels"
+		return fitPhrase(room,
+			"Type to queue a message for when this turn ends · esc cancels",
+			"Type to queue a message · esc cancels",
+			"queue · esc cancels")
 	case m.opts.Agent.PlanMode:
-		return "Plan mode: describe the change · /plan approve runs the plan"
+		return fitPhrase(room,
+			"Plan mode: describe the change · /plan approve runs the plan",
+			"Plan mode · /plan approve runs it",
+			"Plan mode")
 	case m.opts.Agent.ReadOnly:
-		return "Read-only: the model can inspect but change nothing"
+		return fitPhrase(room,
+			"Read-only: the model can inspect but change nothing",
+			"Read-only · nothing is changed",
+			"Read-only")
 	}
-	return defaultPlaceholder
+	return fitPhrase(room, defaultPlaceholder,
+		"Ask for a change or a fix · / for commands",
+		"/ for commands")
 }
 
 func (m *model) footerView() string {
