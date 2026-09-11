@@ -617,6 +617,17 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 		delete(extraEnv, "OPENAI_API_KEY")
 		delete(extraEnv, "OPENAI_BASE_URL")
 		delete(extraEnv, "DASHSCOPE_API_KEY")
+	case "janetcode":
+		// Driven exactly as the other CLIs are, reading the result object
+		// janetcode prints for itself rather than its eval results file.
+		argv = []string{cfg.JanetBin, "-p", prompt, "--yolo", "--output-format", "json",
+			"--provider", "openai", "--model", cfg.Model}
+		if sess != nil && step > 0 {
+			argv = append(argv, "--resume", sess.id)
+		} else if sess != nil {
+			argv = append(argv, "--continue")
+		}
+		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 	case "grok":
 		argv = []string{"grok", "-p", prompt, "--cwd", dir, "--always-approve", "--output-format", "json",
 			"--model", cfg.Model, "--max-turns", fmt.Sprint(cfg.MaxTurns), "--disable-web-search"}

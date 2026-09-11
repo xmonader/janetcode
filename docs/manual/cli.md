@@ -10,6 +10,8 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | flag | what it does |
 |---|---|
 | `-p "<prompt>"` | run one prompt headless; assistant text on stdout, tool activity on stderr |
+| `--output-format text\|json\|stream-json` | with `-p`: how the run reports itself (see below) |
+| `--max-cost <usd>` | with `-p`: stop once the run has spent this much, and exit 55 |
 | `--model`, `--provider` | override the configured model or backend for this run |
 | `--effort` | reasoning effort where the provider supports it |
 | `--yolo` | run mutating tools without asking |
@@ -28,3 +30,68 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--version` | print the version |
 
 Eval flags (`--eval` and the rest) are documented under [Evals](evals.md).
+
+## Output formats
+
+A headless run is usually read by a program, and prose is a poor way to
+tell one what a run cost or why it stopped. `--output-format` picks how
+the run reports itself; it applies only to `-p` (and `--watch`).
+
+- `text` (the default) is unchanged: the assistant's answer on stdout,
+  tool activity, notices, the verdict and a usage line on stderr.
+- `json` prints nothing on stdout until the end, then one object:
+
+```json
+{
+  "type": "result",
+  "harness": "janetcode",
+  "result": "out.txt now holds the uppercased text.",
+  "is_error": false,
+  "exit_code": 0,
+  "session_id": "20260911-153001-4f2a",
+  "model": "claude-opus-5",
+  "provider": "anthropic",
+  "usage": {
+    "input_tokens": 1840,
+    "output_tokens": 622,
+    "cache_read_tokens": 18304,
+    "cache_write_tokens": 1792
+  },
+  "cost_usd": 0.0412,
+  "cost_source": "reported",
+  "num_turns": 6,
+  "tool_calls": 9,
+  "permission_denials": 0,
+  "verdict": "tests pass",
+  "duration_ms": 41230
+}
+```
+
+  `input_tokens` excludes cache reads, which are counted separately.
+  `cost_source` is `reported` when the provider sent a figure with the
+  response, `list price` when it was worked out from a rate table — an
+  API-equivalent estimate, not money spent — and `unpriced` when neither
+  is available. `verdict` is what the turn demonstrated, computed from
+  what the harness watched rather than from what the model claimed.
+
+- `stream-json` prints one JSON object per line as things happen —
+  `text` deltas, `thinking`, `tool_start`, `tool_result`, `notice`,
+  `compacted`, `verdict`, `turn_done` — and ends with the same `result`
+  object as its last line. Everything is newline-delimited, so it can be
+  read a line at a time.
+
+## Exit codes
+
+| code | meaning |
+|---|---|
+| 0 | the run finished |
+| 1 | anything else |
+| 41 | no API key, or the endpoint rejected it (HTTP 401/403) |
+| 42 | the flags or the prompt do not make sense |
+| 52 | the configuration file cannot be used |
+| 53 | the turn hit its model-call cap |
+| 55 | the run reached `--max-cost` |
+| 130 | interrupted, as a shell reports a SIGINT |
+
+The code is also in the `exit_code` field of the result object, so a
+caller reading only stdout still has it.

@@ -92,13 +92,17 @@ func init() {
 }
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	err := run(os.Args[1:])
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "janetcode:", err)
 		if s := err.Error(); strings.Contains(s, "(HTTP 401)") || strings.Contains(s, "(HTTP 403)") {
 			fmt.Fprintln(os.Stderr, "janetcode: the endpoint rejected the API key; check the key for the provider in use (janetcode --doctor shows which key each provider has)")
 		}
-		os.Exit(1)
 	}
+	// The status says which of the handful of things that can go wrong
+	// went wrong, so a script can tell a missing key from a turn limit
+	// without reading the message.
+	os.Exit(headless.ExitCode(err))
 }
 
 // printFlags is flag.PrintDefaults for the flags keep selects, so the
@@ -151,6 +155,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	var (
 		promptText  = fs.String("p", "", "run this prompt headless and exit")
+		outFormat   = fs.String("output-format", "text", "with -p: how the run reports itself. text prints the answer on stdout and activity on stderr; json prints one result object on stdout (answer, usage, cost and where the figure came from, turns, tool calls, permission denials, verdict, session id, duration); stream-json prints one JSON object per line as things happen, ending with that result")
+		maxCost     = fs.Float64("max-cost", 0, "with -p: stop once the run has spent this much in USD (exit 55). The figure is the provider's when it reports one, otherwise list price")
 		until       = fs.String("until", "", "with -p: shell command that must exit 0 before the run is done (re-loops up to 5 times)")
 		watchCmd    = fs.String("watch", "", "watch mode: re-run this shell command whenever files change and have the model fix failures (use with --yolo)")
 		provider    = fs.String("provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")
@@ -224,20 +230,28 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	initial := strings.TrimSpace(strings.Join(fs.Args(), " "))
 	if initial != "" && *promptText != "" {
-		return errors.New("give the prompt either with -p or as an argument, not both")
+		return fmt.Errorf("%w: give the prompt either with -p or as an argument, not both", headless.ErrBadInput)
 	}
 	if *until != "" && *promptText == "" {
-		return errors.New("--until needs a headless prompt (-p)")
+		return fmt.Errorf("%w: --until needs a headless prompt (-p)", headless.ErrBadInput)
+	}
+	format, err := headless.ParseFormat(*outFormat)
+	if err != nil {
+		return fmt.Errorf("%w: %v", headless.ErrBadInput, err)
+	}
+	if format != headless.FormatText && *promptText == "" && *watchCmd == "" {
+		return fmt.Errorf("%w: --output-format applies to a headless run (-p)", headless.ErrBadInput)
 	}
 	if *watchCmd != "" && *until != "" {
-		return errors.New("--watch and --until cannot be combined")
+		return fmt.Errorf("%w: --watch and --until cannot be combined", headless.ErrBadInput)
 	}
 
 	if *evalTrain != "" {
 		cfgPath, _ := config.Path()
 		return trainCritic(strings.Split(*evalTrain, ","), filepath.Join(filepath.Dir(cfgPath), "critic.json"), os.Stdout)
 	}
-	cfg, err := config.Load(config.Overrides{Provider: *provider, Model: *model, Effort: *effort, AutoApprove: *yolo})
+	cfg, cerr := config.Load(config.Overrides{Provider: *provider, Model: *model, Effort: *effort, AutoApprove: *yolo})
+	err = cerr
 	// Interactive first run: open the TUI and ask for a provider instead
 	// of failing. Headless runs still need working credentials.
 	needsConnect := err != nil && errors.Is(err, config.ErrNoCredentials) && *promptText == "" && term.IsTerminal(int(os.Stdin.Fd()))
@@ -274,6 +288,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 	}
 	if err != nil && !needsConnect {
+		if !errors.Is(err, config.ErrNoCredentials) {
+			// A config file that cannot be used is a different thing from
+			// credentials that are merely missing, and exits differently.
+			return fmt.Errorf("%w: %w", headless.ErrConfig, err)
+		}
 		return err
 	}
 	var prov llm.Provider
@@ -555,6 +574,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
 			Until: *until, Watch: *watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
+			Format: format, MaxCostUSD: *maxCost,
 		})
 	}
 	return tui.Run(tui.Options{

@@ -15,6 +15,9 @@ func ParseUsageJSON(data []byte) UsageMetrics {
 	if len(data) == 0 {
 		return UsageMetrics{}
 	}
+	if u, ok := janetUsage(data); ok {
+		return u
+	}
 	if u, ok := openclawUsage(data); ok {
 		return u
 	}
@@ -603,6 +606,9 @@ func ExtractAssistantText(stdout []byte) string {
 		if t := strings.TrimSpace(rest); t != "" {
 			return t
 		}
+	}
+	if t := janetText(stdout); t != "" {
+		return t
 	}
 	// openclaw returns one object with the reply in a named field and a
 	// large diagnostic block beside it. Without this the whole object is
