@@ -102,6 +102,12 @@ type Config struct {
 	// Search selects the web_search backend: DuckDuckGo by default, or
 	// Brave Search with a key.
 	Search tool.SearchConfig `json:"search,omitempty"`
+	// FallbackModels are tried, in order, when a call fails in a way
+	// another model could survive: an exhausted quota, or rate limits
+	// and server errors that outlived the provider's own retries. Each
+	// is routed like any other model name, so a fallback may live on a
+	// different provider. At most three are used.
+	FallbackModels []string `json:"fallback_models,omitempty"`
 	// StreamIdleTimeout is how many seconds a streamed model call may
 	// produce nothing before it is given up on; every increment resets
 	// it. StreamMaxDuration is the longest one call may take however

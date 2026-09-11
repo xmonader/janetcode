@@ -49,6 +49,22 @@ environment are never copied into the config file.
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
 
+### Model fallback
+
+`fallback_models` is an ordered list (at most three are used, duplicates and
+the model in use dropped) tried when a call fails in a way another model
+could survive: an exhausted quota or plan, or rate limits and server errors
+that outlived the provider's own retries. A bad request, a context overflow
+or a cancellation fails as it always did — another model would fail the same
+way. Each name is routed like any other, so a fallback may live on a
+different provider. The partial answer from the failed attempt is discarded,
+the conversation is resent whole, and the model that works becomes the
+session's model (`/model` switches back).
+
+```json
+{ "model": "qwen3.7-plus", "fallback_models": ["glm-5", "claude-opus-5"] }
+```
+
 ### Stream watchdog
 
 A streamed model call can stop producing without ever failing: the socket

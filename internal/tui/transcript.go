@@ -245,6 +245,8 @@ func (t *transcript) apply(ev agent.Event) {
 		if ev.Duration > 0 {
 			e.dur = shortDuration(ev.Duration)
 		}
+	case agent.EvDiscard:
+		t.dropOpen()
 	case agent.EvTextBlockDone:
 		t.closeOpen()
 	case agent.EvTurnDone:
@@ -286,6 +288,20 @@ func (t *transcript) findTool(id string) *entry {
 		}
 	}
 	return nil
+}
+
+// dropOpen throws away the text and thinking still streaming: the call
+// that produced them failed and is being retried elsewhere, so half an
+// answer followed by a whole one would read as two.
+func (t *transcript) dropOpen() {
+	for len(t.entries) > 0 {
+		e := t.entries[len(t.entries)-1]
+		if (e.kind == entryAssistant || e.kind == entryThinking) && !e.done {
+			t.entries = t.entries[:len(t.entries)-1]
+			continue
+		}
+		return
+	}
 }
 
 // closeOpen marks streaming text/thinking entries finished so the next delta

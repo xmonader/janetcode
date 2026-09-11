@@ -93,6 +93,11 @@ const (
 	EvTurnDone      EventKind = "turn_done"      // Usage, StopReason
 	EvTextBlockDone EventKind = "text_block_end" // one assistant message finished streaming
 	EvVerdict       EventKind = "verdict"        // Text: what the turn demonstrated
+	// EvDiscard says the partial assistant text streamed so far is void
+	// and must be taken off the screen: the call it came from failed and
+	// is being retried on another model, so nothing of it reaches the
+	// conversation either.
+	EvDiscard EventKind = "discard"
 	// EvPhase names what the turn is waiting on right now — a retry and
 	// its countdown, a compaction, a subagent. It is a status line, never
 	// a transcript entry, and the next event supersedes it.
@@ -162,6 +167,16 @@ type Agent struct {
 	// called anyway. PlanMode does the same and asks for a plan.
 	ReadOnly bool
 	PlanMode bool
+	// Fallbacks are models tried in order when a call fails in a way
+	// another model could survive: an exhausted quota, or rate limits
+	// and server errors that outlived the provider's own retries. At
+	// most MaxFallbacks are used; the one that works becomes the
+	// session's model.
+	Fallbacks []string
+	// Route, when set, resolves a model name to the provider that serves
+	// it, so a fallback can be on a different backend. Without it a
+	// fallback is sent to the provider already in use.
+	Route func(model string) (llm.Provider, string, error)
 	// Pins are user notes kept in the system prompt across compaction.
 	Pins []string
 	// Jobs, when set, is polled before each model call so finished
@@ -594,7 +609,18 @@ func serialize(emit func(Event)) func(Event) {
 	}
 }
 
+// call sends the conversation to the session's model, falling back to the
+// configured alternatives when the failure is one another model could
+// survive (see fallback).
 func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, error) {
+	resp, err := a.callOn(ctx, a.Provider, a.Model, emit)
+	if err == nil {
+		return resp, nil
+	}
+	return a.fallback(ctx, err, emit)
+}
+
+func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, emit func(Event)) (*llm.Response, error) {
 	start := time.Now()
 	a.debugf("call start: %d messages, ~%d tokens", len(a.Messages), a.EstimateTokens())
 	system := a.systemPrompt()
@@ -602,8 +628,8 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 	a.usageMu.Lock()
 	a.prefix.note(a.turnN, system, a.Messages, defs)
 	a.usageMu.Unlock()
-	resp, err := a.Provider.Stream(ctx, llm.Request{
-		Model:     a.Model,
+	resp, err := prov.Stream(ctx, llm.Request{
+		Model:     model,
 		System:    system,
 		Messages:  a.Messages,
 		Tools:     defs,
