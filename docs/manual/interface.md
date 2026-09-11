@@ -229,6 +229,23 @@ model can read a skill with the `skill` tool. You can run one yourself as
 lists what is installed. Skills are re-read from disk every turn, so
 editing one takes effect immediately.
 
+### Encodings, byte-order marks and line endings
+
+The model works in UTF-8 text with LF line endings; files on disk are
+bytes. `read_file` detects a UTF-8 or UTF-16 byte-order mark and CRLF line
+endings, shows the file as UTF-8 with LF, and says what it found; a file
+that is neither UTF-8 nor marked is decoded as Latin-1, which round-trips
+every byte, and the guess is named in the result. `write_file` and
+`edit_file` put the form back: the mark, the line endings and the charset
+the file had. A new file is plain UTF-8 with LF — nothing is invented.
+Without this, the first edit in a Windows repository rewrites every line
+of the file it touched, and the first edit to a Latin-1 file turns the
+rest of it into mojibake.
+
+A file with a NUL byte in its first 4 KB is binary and is refused as text
+by `read_file` and `edit_file`. UTF-16 is full of NUL bytes and is text,
+so a file that announces itself with a UTF-16 mark is exempt.
+
 ### When an edit's quoted text nearly matches
 
 `edit_file` locates a change by quoting the text it replaces, and a model

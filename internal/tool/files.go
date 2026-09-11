@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -58,7 +59,8 @@ func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 		return "", fmt.Errorf("%s is a binary file (%d bytes)", in.Path, len(data))
 	}
 	t.Seen.Record(p, data)
-	lines := strings.Split(string(data), "\n")
+	text, shape := decodeText(data)
+	lines := strings.Split(text, "\n")
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}
@@ -88,20 +90,25 @@ func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	if end < len(lines) {
 		fmt.Fprintf(&sb, "... (%d more lines)\n", len(lines)-end)
 	}
-	return Truncate(sb.String()), nil
+	out := Truncate(sb.String())
+	if note := shape.Note(); note != "" {
+		out += "[" + note + "]\n"
+	}
+	return out, nil
 }
 
+// isBinary reports whether the file cannot be handled as text: a NUL byte
+// in the first 4 KB. UTF-16 is full of NUL bytes and is text, so a file
+// that announces itself with a UTF-16 byte-order mark is exempt.
 func isBinary(b []byte) bool {
+	if bytes.HasPrefix(b, []byte(bomUTF16L)) || bytes.HasPrefix(b, []byte(bomUTF16B)) {
+		return false
+	}
 	n := len(b)
-	if n > 8000 {
-		n = 8000
+	if n > binarySniffBytes {
+		n = binarySniffBytes
 	}
-	for _, c := range b[:n] {
-		if c == 0 {
-			return true
-		}
-	}
-	return false
+	return bytes.IndexByte(b[:n], 0) >= 0
 }
 
 // WriteFile creates or overwrites a file.
@@ -144,15 +151,27 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 	}
 	old, readErr := os.ReadFile(p)
 	existed := readErr == nil
-	if err := atomicWrite(p, []byte(in.Content)); err != nil {
+	// A file keeps the shape it had: its byte-order mark, its line endings
+	// and its charset. Otherwise the first write to a Windows or Latin-1
+	// repository rewrites every line of the file it touched.
+	oldText, shape := "", form{Charset: "utf-8"}
+	if existed {
+		oldText, shape = decodeText(old)
+	}
+	data := encodeText(in.Content, shape)
+	if err := atomicWrite(p, data); err != nil {
 		return "", err
 	}
-	t.Seen.Record(p, []byte(in.Content))
+	t.Seen.Record(p, data)
 	if !existed {
 		return fmt.Sprintf("Created %s (%s)", displayPath(t.Root, in.Path), plural(countLines(in.Content), "line")), nil
 	}
-	added, removed := diff.Stats(string(old), in.Content)
-	return fmt.Sprintf("Overwrote %s (+%d -%d lines)", displayPath(t.Root, in.Path), added, removed), nil
+	added, removed := diff.Stats(oldText, in.Content)
+	out := fmt.Sprintf("Overwrote %s (+%d -%d lines)", displayPath(t.Root, in.Path), added, removed)
+	if note := shape.Note(); note != "" {
+		out += "\n[" + note + "]"
+	}
+	return out, nil
 }
 
 func plural(n int, unit string) string {
@@ -188,7 +207,8 @@ func (t WriteFile) Preview(_ context.Context, input json.RawMessage) (string, er
 	if isBinary(old) {
 		return fmt.Sprintf("(replacing binary file %s, %d bytes)", in.Path, len(old)), nil
 	}
-	d := diff.Unified(in.Path, string(old), in.Content, 3)
+	oldText, _ := decodeText(old)
+	d := diff.Unified(in.Path, oldText, in.Content, 3)
 	if d == "" {
 		return "(no change: content is identical)", nil
 	}
@@ -317,6 +337,9 @@ type editPlan struct {
 	// that a replacement needed, so the model is told its quoted text was
 	// not what the file holds.
 	notes []string
+	// shape is the file's byte-order mark, line endings and charset, put
+	// back when the edit is written.
+	shape form
 }
 
 // oneEdit is a single replacement, located either by the text it replaces
@@ -487,7 +510,10 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	before := string(data)
+	if isBinary(data) {
+		return nil, &ErrPriorRead{Path: displayPath(t.Root, in.Path), Verb: "edit", Cause: CauseBinary}
+	}
+	before, shape := decodeText(data)
 	if lines > 0 {
 		// Anchors are resolved against the file as it is now, before any
 		// of this batch is applied, so a list of them is written against
@@ -508,7 +534,7 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: after, replacements: n, removed: removed}, nil
+		return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: after, replacements: n, removed: removed, shape: shape}, nil
 	}
 	content, total := before, 0
 	var notes []string
@@ -522,7 +548,7 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 		}
 		content, total = updated, total+n
 	}
-	return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: content, replacements: total, notes: notes}, nil
+	return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: content, replacements: total, notes: notes, shape: shape}, nil
 }
 
 // repairEdits fixes the two ways models malform the edits argument, both
@@ -755,10 +781,11 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	if err := atomicWrite(pl.path, []byte(pl.after)); err != nil {
+	data := encodeText(pl.after, pl.shape)
+	if err := atomicWrite(pl.path, data); err != nil {
 		return "", err
 	}
-	t.Seen.Record(pl.path, []byte(pl.after))
+	t.Seen.Record(pl.path, data)
 	added, removed := diff.Stats(pl.before, pl.after)
 	out := fmt.Sprintf("Edited %s (%s, +%d -%d lines)", pl.display, plural(pl.replacements, "replacement"), added, removed)
 	for _, r := range pl.removed {
@@ -766,6 +793,9 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	}
 	for _, n := range pl.notes {
 		out += "\n[" + n + "]"
+	}
+	if note := pl.shape.Note(); note != "" {
+		out += "\n[" + note + "]"
 	}
 	if first, last, ok := changed(pl.before, pl.after); ok {
 		if w := window(pl.after, first, last); w != "" {
