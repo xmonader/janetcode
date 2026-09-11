@@ -18,8 +18,19 @@ type Stats struct {
 	// (see Agent.recoverToolCalls) — turns a model would otherwise have
 	// ended having done nothing.
 	Recoveries int
-	Tools      []ToolStat // sorted by calls, descending
+	// WatchdogKills counts streamed calls the watchdog ended because they
+	// stopped producing, and Fallbacks counts calls that only succeeded
+	// on another model. Both are runs the harness saved rather than runs
+	// that went well, and a benchmark that cannot see them is comparing
+	// a harness against its own repair work without knowing it.
+	WatchdogKills int
+	Fallbacks     int
+	Tools         []ToolStat // sorted by calls, descending
 }
+
+// Saves is how many times the harness rescued a call that would
+// otherwise have been a wasted turn or a lost run.
+func (s Stats) Saves() int { return s.Recoveries + s.WatchdogKills + s.Fallbacks }
 
 // ToolStat is the tally for one tool.
 type ToolStat struct {
@@ -69,6 +80,18 @@ func (c *statsCounter) compacted() {
 func (c *statsCounter) recovered(n int) {
 	c.mu.Lock()
 	c.s.Recoveries += n
+	c.mu.Unlock()
+}
+
+func (c *statsCounter) watchdogKill() {
+	c.mu.Lock()
+	c.s.WatchdogKills++
+	c.mu.Unlock()
+}
+
+func (c *statsCounter) fellBack() {
+	c.mu.Lock()
+	c.s.Fallbacks++
 	c.mu.Unlock()
 }
 

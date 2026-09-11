@@ -2,12 +2,15 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 func TestLoopDetectorFindsFailingCycles(t *testing.T) {
@@ -208,5 +211,81 @@ func TestTurnStopsOnRepeatedAssistantText(t *testing.T) {
 	}
 	if len(f.requests) != sameTextStopAt {
 		t.Fatalf("%d model calls, want %d", len(f.requests), sameTextStopAt)
+	}
+}
+
+// freshBigTool returns a different long output on every call, so each
+// result is archived and the model sees a stub carrying its own sha256
+// and archive id.
+type freshBigTool struct{ n int }
+
+func (*freshBigTool) Name() string            { return "big" }
+func (*freshBigTool) Description() string     { return "produces a lot of output" }
+func (*freshBigTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
+func (*freshBigTool) Mutating() bool          { return false }
+func (b *freshBigTool) Run(context.Context, json.RawMessage) (string, error) {
+	b.n++
+	return fmt.Sprintf("run %d\n", b.n) + strings.Repeat("x", 40*1024), nil
+}
+
+// Loop detection keys on the call, never on the result, so a repeated
+// call whose earlier results were replaced by stubs is still a repeat.
+// The stub's sha256 identifies the output it stands for, which is a
+// different question, and feeding it into the comparison would break
+// this: the outputs of the identical call differ run to run (a timestamp,
+// a line count, a fresh archive id) while the call is the same, and that
+// is what "not making progress" means.
+func TestStubbedResultsDoNotHideARepeatedCall(t *testing.T) {
+	same := func() *llm.Response { return toolCall("t", "big", `{}`) }
+	f := &fake{responses: []*llm.Response{same(), same(), same(), same(), same(), text("done")}}
+	a, _ := newAgent(t, f, nil)
+	a.Tools = tool.NewRegistry(&freshBigTool{})
+	a.Archive = NewArchive(t.TempDir())
+	evs, emit := collect()
+	err := a.Run(context.Background(), "call it over and over", emit)
+	if !errors.Is(err, ErrStuck) {
+		t.Fatalf("err = %v, want ErrStuck after %d identical calls", err, loopStopAt)
+	}
+	// Each result really was stubbed, with a digest of its own: this is
+	// the condition the test is about, not an accident of size.
+	digests := map[string]bool{}
+	stubs := 0
+	for _, e := range *evs {
+		if e.Kind != EvToolResult || !strings.HasPrefix(e.Output, "[output is ") {
+			continue
+		}
+		stubs++
+		if m := regexp.MustCompile(`sha256 ([0-9a-f]+)`).FindStringSubmatch(e.Output); m != nil {
+			digests[m[1]] = true
+		}
+	}
+	if stubs < loopStopAt-1 || len(digests) != stubs {
+		t.Fatalf("%d stubbed results with %d distinct digests", stubs, len(digests))
+	}
+	// The nudge came first, at the third identical call, and named the
+	// tool rather than the output.
+	var nudged bool
+	for _, e := range *evs {
+		if e.Kind == EvToolResult && strings.Contains(e.Output, "identical big call this turn") {
+			nudged = true
+		}
+	}
+	if !nudged {
+		t.Error("the ladder did not nudge before it stopped the turn")
+	}
+}
+
+// The detector itself: the same call with a different result every time
+// is still the same call.
+func TestLoopDetectorIgnoresTheResultText(t *testing.T) {
+	var d loopDetector
+	d.reset()
+	for i := 1; i < loopStopAt; i++ {
+		if _, stop := d.record("grep", []byte(`{"pattern":"TODO"}`), false, false); stop {
+			t.Fatalf("stopped at call %d", i)
+		}
+	}
+	if _, stop := d.record("grep", []byte(`{"pattern":"TODO"}`), false, false); !stop {
+		t.Fatalf("call %d did not stop the turn: reason = %q", loopStopAt, d.reason)
 	}
 }

@@ -284,10 +284,15 @@ func archiveNote(id string, size, shown int, digest string) string {
 
 // outputDigest identifies the output the stub stands for. Two calls that
 // produced the same megabyte of output leave stubs that differ only in
-// their archive id, so without this nothing downstream — loop detection,
-// a reader comparing two runs — can tell "the same output again" from "a
+// their archive id, so without this a reader — a person, a diff of two
+// runs, the model itself — cannot tell "the same output again" from "a
 // different output of the same size". Twelve hex digits is plenty to
 // tell two results of one session apart and short enough to read.
+//
+// It deliberately plays no part in loop detection, which compares calls
+// and not results: the identical call repeated often returns outputs
+// that differ in a line count or a timestamp, and a model going nowhere
+// is a model repeating the call, whatever comes back.
 func outputDigest(out string) string {
 	sum := sha256.Sum256([]byte(out))
 	return hex.EncodeToString(sum[:])[:12]

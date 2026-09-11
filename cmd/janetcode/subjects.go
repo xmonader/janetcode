@@ -206,18 +206,19 @@ func promptReport(a *agent.Agent) string {
 }
 
 func hooksReport(a *agent.Agent) string {
-	if a == nil || a.Hooks == nil || len(a.Hooks.Config) == 0 {
+	if a == nil || a.Hooks == nil || a.Hooks.Config.Len() == 0 {
 		return "no hooks are configured"
 	}
-	events := make([]string, 0, len(a.Hooks.Config))
-	for e := range a.Hooks.Config {
+	events := make([]string, 0, len(a.Hooks.Config.Hooks))
+	for e := range a.Hooks.Config.Hooks {
 		events = append(events, e)
 	}
 	sort.Strings(events)
 	var b strings.Builder
-	fmt.Fprintf(&b, "hooks run in %s:\n", a.Hooks.Cwd)
+	lim := a.Hooks.Config.Limits.WithDefaults()
+	fmt.Fprintf(&b, "hooks run in %s (limits: %ds timeout, %ds for a project hook, %d bytes of output, %d per event):\n", a.Hooks.Cwd, lim.Timeout, lim.ProjectTimeout, lim.Output, lim.PerEvent)
 	for _, e := range events {
-		for _, h := range a.Hooks.Config[e] {
+		for _, h := range a.Hooks.Config.For(e) {
 			fmt.Fprintf(&b, "  %-14s %s\n", e, trunc(h.Command, 80))
 		}
 	}
@@ -680,8 +681,9 @@ func statsReport(a *agent.Agent) string {
 	if s.ModelTime > 0 {
 		fmt.Fprintf(&b, "model time %s (%d failed calls)\n", s.ModelTime.Round(time.Millisecond), s.ModelErrors)
 	}
-	if s.Recoveries > 0 {
-		fmt.Fprintf(&b, "%d tool calls recovered from text the model wrote instead of calling\n", s.Recoveries)
+	if s.Saves() > 0 {
+		fmt.Fprintf(&b, "recovered: %d tool calls from text the model wrote instead of calling · %d streams ended by the watchdog · %d calls that only worked on a fallback model\n",
+			s.Recoveries, s.WatchdogKills, s.Fallbacks)
 	}
 	if len(s.Tools) > 0 {
 		b.WriteString("\n  tool                calls  errors      time\n")

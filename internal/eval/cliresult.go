@@ -53,6 +53,25 @@ type CLIResult struct {
 	// harness watched rather than from what the model claimed.
 	Verdict    string `json:"verdict,omitempty"`
 	DurationMS int64  `json:"duration_ms"`
+	// Recoveries is the harness's repair work: what it had to rescue for
+	// the run to get this far. A run with a clean result and three
+	// recoveries is not the same run as one with none, and a benchmark
+	// that cannot see the difference credits the model with the
+	// harness's work.
+	Recoveries CLIRecoveries `json:"recoveries"`
+}
+
+// CLIRecoveries counts the ways a run was saved rather than smooth.
+type CLIRecoveries struct {
+	// ProseToolCalls were written as text and read back as calls.
+	ProseToolCalls int `json:"prose_tool_calls"`
+	// WatchdogKills are streams that stopped producing and were ended.
+	WatchdogKills int `json:"watchdog_kills"`
+	// ModelFallbacks are calls that only succeeded on another model.
+	ModelFallbacks int `json:"model_fallbacks"`
+	// Total is the sum, for a caller that only wants to know whether
+	// anything needed rescuing.
+	Total int `json:"total"`
 }
 
 // parseJanetResult recognises janetcode's own result object in a CLI's

@@ -53,7 +53,9 @@ type Options struct {
 	// Format is how the run reports itself: text, json or stream-json.
 	// The zero value is text.
 	Format Format
-	// MaxCostUSD ends the run once it has spent this much, between turns.
+	// MaxCostUSD ends the run once it has spent this much. The agent
+	// enforces it within a turn, after every model call; this is the
+	// between-turns backstop for the rounds --until and --watch drive.
 	// Zero means no ceiling.
 	MaxCostUSD float64
 }
@@ -81,6 +83,9 @@ func run(ctx context.Context, opts Options, rec *recorder) error {
 	ag := opts.Agent
 	if ag.Approver == nil {
 		ag.Approver = &stdinApprover{in: opts.Stdin, out: opts.Stderr}
+	}
+	if opts.MaxCostUSD > 0 {
+		ag.MaxCostUSD = opts.MaxCostUSD
 	}
 	if opts.Watch != "" {
 		return watch(ctx, opts, rec)

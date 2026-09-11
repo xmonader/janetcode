@@ -81,13 +81,14 @@ paste that ends in a newline can never send itself.
 
 ```
 @path            attach a file, an image (png/jpg/gif/webp), or a directory listing; tab completes
+ctrl+g           move the command running in the foreground to the background, as a job
 ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, pngpaste on macOS)
 !command         run a shell command here; its output is shown and shared with the model
 /help      /quit      /clear (new session)     /yolo (toggle auto-approve)   /edits (edits go through, commands ask)
 /plan <request> (plan mode: explore, write a plan; /plan approve executes it)
 /readonly  (toggle read-only: the model can inspect but change nothing)
 /connect   /model     /compact (summarise the context to free the window)
-/usage     /stats (turns, model calls, tool calls per tool, tokens, cost)
+/usage     /stats (turns, model calls, tool calls per tool, tokens, cost, what the harness had to recover)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
 /undo [preview]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
 /fork [title]  /title <text>  /history <words> (search every saved session)
@@ -331,12 +332,13 @@ lists jobs, shows output, waits with a timeout, or kills one; `/jobs` and
 exits.
 
 A command already running in the foreground can be moved to the
-background instead of being waited out or killed: it keeps running, the
-output collected so far is written to the job log from the beginning, and
-it becomes a job like any other. `bash` exposes this as a Go API
-(`tool.Running.Promote`) so a key binding can reach it; the tool schema is
-unchanged, because this is the user's decision about a command that is
-already running, not the model's.
+background instead of being waited out or killed: press `ctrl+g`. It keeps
+running, the output collected so far is written to the job log from the
+beginning, and it becomes a job like any other — the transcript says
+`moved to background as job 1`, and the model is told when it finishes,
+as for any job. The status line offers the key only while there is a
+command to promote. The tool schema is unchanged, because this is the
+user's decision about a command that is already running, not the model's.
 
 `sed -i` is an edit, so it is shown as one: a `bash` call containing it is
 run once without `-i` and the diff it would make appears in the permission
@@ -583,7 +585,10 @@ A URL pointing at the local machine or network — loopback, a private
 range, a link-local address (on a cloud instance, the credentials
 endpoint), `localhost`, `*.local`, `*.internal` — is fetched only when the
 user named that host themselves in their own message. The agent reaching
-one on its own initiative is reading something nobody offered it.
+one on its own initiative is reading something nobody offered it. Every
+message you send counts, not only the first: a prompt, a note steered
+into a running turn with `ctrl+s`, and a `!command` you ran yourself all
+add the hosts they name.
 
 ### Browsing
 
@@ -932,15 +937,38 @@ regexp on the tool name. What the hook prints decides:
   result (or to the handoff note for `pre_compact`);
   `{"continue":"…"}` on `stop` sends the model back with that text.
 - plain text on stdout is a note.
-- any other exit code, a crash or a timeout (10 s by default, `timeout`
-  in seconds) is logged and ignored: hooks fail open, so a broken hook
-  cannot wedge a session.
+- any other exit code, a crash or a timeout (`timeout` in seconds on the
+  hook, else `hooks.limits.timeout`) is logged and ignored: hooks fail
+  open, so a broken hook cannot wedge a session.
+
+Every hook runs on the critical path of a tool call, and what it prints
+is pasted into the conversation, so what hooks may cost is bounded. The
+bounds live in the same object, under `limits`:
+
+```json
+"hooks": {
+  "post_tool": [{"command": "gofmt -l ."}],
+  "limits": {"timeout": 10, "project_timeout": 60, "output": 65536, "per_event": 20}
+}
+```
+
+| key | default | what it bounds |
+| --- | --- | --- |
+| `timeout` | 10 | seconds a hook that names no `timeout` of its own may run |
+| `project_timeout` | 60 | the most a hook from the project file may ask for |
+| `output` | 65536 | bytes kept of one hook's stdout and stderr; the rest is dropped and said to be |
+| `per_event` | 20 | hooks run for one event; the rest are skipped and logged |
+
+Zero, or the key left out, means the default. A negative figure is refused
+on load (exit 52).
 
 A project's `.janetcode/hooks.json` is held to less than the user's own
 config, because trusting it is a decision about this checkout rather than
 a decision to hand the repository every power the user has: a project hook
 may not reach the network (`curl`, `wget`, `ssh`, `scp`, a bare URL), and
-its timeout is capped at 60 seconds. Each one dropped or trimmed is named,
+its timeout is capped at `project_timeout`. A `limits` object in the
+project file is ignored and said to be — a repository that could raise its
+own ceiling would not have one. Each hook dropped or trimmed is named,
 with what to do about it — copy it into your own config, which is a
 deliberate act. The user's own hooks are unrestricted.
 

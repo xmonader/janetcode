@@ -160,7 +160,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	var (
 		promptText   = fs.String("p", "", "run this prompt headless and exit")
 		outFormat    = fs.String("output-format", "text", "with -p: how the run reports itself. text prints the answer on stdout and activity on stderr; json prints one result object on stdout (answer, usage, cost and where the figure came from, turns, tool calls, permission denials, verdict, session id, duration); stream-json prints one JSON object per line as things happen, ending with that result")
-		maxCost      = fs.Float64("max-cost", 0, "with -p: stop once the run has spent this much in USD (exit 55). The figure is the provider's when it reports one, otherwise list price")
+		maxCost      = fs.Float64("max-cost", 0, "with -p: stop once the run has spent this much in USD (exit 55), checked after every model call. The figure is the provider's when it reports one, otherwise list price")
 		until        = fs.String("until", "", "with -p: shell command that must exit 0 before the run is done (re-loops up to 5 times)")
 		watchCmd     = fs.String("watch", "", "watch mode: re-run this shell command whenever files change and have the model fix failures (use with --yolo)")
 		provider     = fs.String("provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")
@@ -293,11 +293,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 	}
 	if err != nil && !needsConnect {
-		if !errors.Is(err, config.ErrNoCredentials) {
-			// A config file that cannot be used is a different thing from
-			// credentials that are merely missing, and exits differently.
-			return fmt.Errorf("%w: %w", headless.ErrConfig, err)
-		}
+		// A config file that cannot be used is a different thing from
+		// credentials that are merely missing, and exits differently.
+		// config.Load says which it is in the error's type, so nothing
+		// here has to guess from the wording.
 		return err
 	}
 	var prov llm.Provider
@@ -422,7 +421,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v (project hooks ignored)\n", err)
 	}
-	hooksTrusted := len(hooksCfg) > 0 && trust.Trusted(hookTrustKey(cwd), hooksHash)
+	hooksTrusted := hooksCfg.Len() > 0 && trust.Trusted(hookTrustKey(cwd), hooksHash)
 	ag.Hooks = &hook.Runner{Config: cfg.Hooks, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[hook] %s\n", s) }}
 	if hooksTrusted {
 		var hookNotes []string
@@ -430,7 +429,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		for _, n := range hookNotes {
 			fmt.Fprintf(os.Stderr, "[hooks] %s\n", n)
 		}
-	} else if len(hooksCfg) > 0 && *promptText != "" {
+	} else if hooksCfg.Len() > 0 && *promptText != "" {
 		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
 	}
 	verifyCfg, verifyHash, err := verify.Load(cwd)
@@ -608,6 +607,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Rules:     built.ruleInjector,
 		Models:    pool.For,
 		Jobs:      jobs,
+		Running:   deps.running,
+		Typed:     typed,
 		AutoTitle: true,
 		Verify:    &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: trust},
 		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: trust,
@@ -727,7 +728,7 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 			Limits:  cfg.StreamLimits(),
 		})
 	}
-	return nil, fmt.Errorf("provider %q has unknown type %q", cfg.Provider, p.Type)
+	return nil, fmt.Errorf("%w: provider %q has unknown type %q", config.ErrBadConfig, cfg.Provider, p.Type)
 }
 
 // promptRecord is what goes in the results file about the prompt: which

@@ -190,6 +190,19 @@ func (c *Config) PriceFor(model string) *llm.Price {
 // provider has no API key, so an interactive caller can ask for one.
 var ErrNoCredentials = errors.New("no API key")
 
+// ErrBadConfig marks a configuration the user has to fix: malformed JSON,
+// an unknown provider, a price table with nonsense in it, an invalid
+// effort or theme. It is distinct from ErrNoCredentials, which is a
+// working configuration missing only a key, and it is what the exit-code
+// classifier matches on so that "exit 52" is a property of the error and
+// not of the wording of its message.
+var ErrBadConfig = errors.New("bad configuration")
+
+// badf builds an ErrBadConfig error with a message of its own.
+func badf(format string, args ...any) error {
+	return fmt.Errorf("%w: %s", ErrBadConfig, fmt.Sprintf(format, args...))
+}
+
 // Overrides are command-line values; empty means "not given".
 type Overrides struct {
 	Provider    string
@@ -348,11 +361,11 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		dec := json.NewDecoder(strings.NewReader(string(data)))
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(cfg); err != nil {
-			return nil, fmt.Errorf("config %s: %w", path, err)
+			return nil, badf("config %s: %v", path, err)
 		}
 	case errors.Is(err, os.ErrNotExist):
 	default:
-		return nil, fmt.Errorf("config %s: %w", path, err)
+		return nil, badf("config %s: %v", path, err)
 	}
 
 	setIf := func(dst *string, key string) {
@@ -400,7 +413,7 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if !ok {
 		pre, isPreset := FindPreset(cfg.Provider)
 		if !isPreset {
-			return nil, fmt.Errorf("unknown provider %q (configured: %s; presets: %s)", cfg.Provider, orNone(cfg.ProviderNames()), presetNames())
+			return nil, badf("unknown provider %q (configured: %s; presets: %s)", cfg.Provider, orNone(cfg.ProviderNames()), presetNames())
 		}
 		active = Provider{Type: pre.Type, BaseURL: pre.BaseURL}
 		cfg.Providers[cfg.Provider] = active
@@ -426,7 +439,7 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		}
 	case "openai":
 		if cfg.Model == "" {
-			return nil, fmt.Errorf("provider %q needs a model: pass --model, set JANETCODE_MODEL, or set model in the config file (for example JANETCODE_MODEL=deepseek/deepseek-v4-flash)", cfg.Provider)
+			return nil, badf("provider %q needs a model: pass --model, set JANETCODE_MODEL, or set model in the config file (for example JANETCODE_MODEL=deepseek/deepseek-v4-flash)", cfg.Provider)
 		}
 		if len(active.Keys()) == 0 && active.NeedsKey() {
 			if cfg.Provider == "openai" {
@@ -435,17 +448,17 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 			return cfg, fmt.Errorf("%w for provider %q: set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
 		}
 	default:
-		return nil, fmt.Errorf("provider %q has type %q (want anthropic or openai)", cfg.Provider, active.Type)
+		return nil, badf("provider %q has type %q (want anthropic or openai)", cfg.Provider, active.Type)
 	}
 	switch cfg.Effort {
 	case "", "low", "medium", "high", "xhigh", "max":
 	default:
-		return nil, fmt.Errorf("invalid effort %q (want low, medium, high, xhigh or max)", cfg.Effort)
+		return nil, badf("invalid effort %q (want low, medium, high, xhigh or max)", cfg.Effort)
 	}
 	switch cfg.Theme {
 	case "", "auto", "dark", "light":
 	default:
-		return nil, fmt.Errorf("invalid theme %q (want auto, dark or light)", cfg.Theme)
+		return nil, badf("invalid theme %q (want auto, dark or light)", cfg.Theme)
 	}
 	if cfg.MaxTokens <= 0 {
 		cfg.MaxTokens = DefaultMaxTokens
@@ -454,18 +467,43 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		cfg.MaxIterations = DefaultMaxIter
 	}
 	if err := cfg.Hooks.Validate(); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
+		return nil, badf("%s: %v", path, err)
 	}
 	if _, err := cfg.Permissions.Rules(); err != nil {
-		return nil, fmt.Errorf("%s: permissions: %w", path, err)
+		return nil, badf("%s: permissions: %v", path, err)
 	}
 	if err := cfg.LSP.Validate(); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
+		return nil, badf("%s: %v", path, err)
 	}
 	if err := cfg.Search.Validate(); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
+		return nil, badf("%s: %v", path, err)
+	}
+	if err := validatePrices(cfg.Prices); err != nil {
+		return nil, badf("%s: %v", path, err)
 	}
 	return cfg, nil
+}
+
+// validatePrices rejects a price table that cannot mean what it says. A
+// negative rate would make a run appear to earn money, and a price with
+// every field zero is almost always a half-finished entry that silently
+// reports every turn as free; both are better caught at load than
+// discovered in a cost report.
+func validatePrices(prices map[string]llm.Price) error {
+	for name, p := range prices {
+		for _, f := range []struct {
+			field string
+			v     float64
+		}{{"input", p.Input}, {"output", p.Output}, {"cache_read", p.CacheRead}, {"cache_write", p.CacheWrite}} {
+			if f.v < 0 {
+				return fmt.Errorf("prices[%q].%s is %g: a price per million tokens cannot be negative", name, f.field, f.v)
+			}
+		}
+		if p.Input == 0 && p.Output == 0 && p.CacheRead == 0 && p.CacheWrite == 0 {
+			return fmt.Errorf("prices[%q] is all zeroes: remove the entry, or give it the rates per million tokens", name)
+		}
+	}
+	return nil
 }
 
 func orNone(names []string) string {

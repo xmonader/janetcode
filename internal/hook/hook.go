@@ -44,22 +44,149 @@ type Hook struct {
 	Timeout int `json:"timeout,omitempty"`
 }
 
-// Config maps event names to hooks, the shape used in config.json under
-// "hooks" and in <project>/.janetcode/hooks.json.
-type Config map[string][]Hook
+// Hooks maps event names to the hooks bound to them.
+type Hooks map[string][]Hook
+
+// Limits bound what hooks may cost a session. Every hook is a shell
+// command the harness runs on the critical path of a tool call, so the
+// bounds were always there -- they were constants nobody could reach.
+// A user who writes slow hooks, or many of them, is entitled to say so;
+// a user surprised by a hook that hangs a turn for ten seconds is
+// entitled to lower it. Zero in any field means the default.
+type Limits struct {
+	// Timeout is how many seconds a hook that names no timeout of its
+	// own may run.
+	Timeout int `json:"timeout,omitempty"`
+	// ProjectTimeout caps what a hook from the project file may ask for.
+	// The project's own limits are never read, so a repository cannot
+	// raise its own ceiling.
+	ProjectTimeout int `json:"project_timeout,omitempty"`
+	// Output is how many bytes of a hook's stdout and stderr are kept.
+	// A hook's note is pasted into the conversation, so an unbounded one
+	// is an unbounded context bill.
+	Output int `json:"output,omitempty"`
+	// PerEvent is how many hooks may run for one event. Hooks run in
+	// order on every tool call, so a long list is a long turn.
+	PerEvent int `json:"per_event,omitempty"`
+}
+
+// Limit defaults. DefaultTimeout and DefaultProjectTimeout are what the
+// package enforced as constants before the limits were configurable.
+const (
+	DefaultTimeout        = 10
+	DefaultProjectTimeout = 60
+	DefaultOutput         = 64 * 1024
+	DefaultPerEvent       = 20
+)
+
+// WithDefaults fills the zero fields.
+func (l Limits) WithDefaults() Limits {
+	if l.Timeout == 0 {
+		l.Timeout = DefaultTimeout
+	}
+	if l.ProjectTimeout == 0 {
+		l.ProjectTimeout = DefaultProjectTimeout
+	}
+	if l.Output == 0 {
+		l.Output = DefaultOutput
+	}
+	if l.PerEvent == 0 {
+		l.PerEvent = DefaultPerEvent
+	}
+	return l
+}
+
+// Validate rejects limits that cannot mean anything.
+func (l Limits) Validate() error {
+	for _, f := range []struct {
+		name string
+		v    int
+	}{{"timeout", l.Timeout}, {"project_timeout", l.ProjectTimeout}, {"output", l.Output}, {"per_event", l.PerEvent}} {
+		if f.v < 0 {
+			return fmt.Errorf("hooks: limits.%s is %d: it cannot be negative (0 means the default)", f.name, f.v)
+		}
+	}
+	return nil
+}
+
+// Config is the "hooks" object: the hooks by event name, plus the
+// "limits" object bounding them. It is the shape used in config.json
+// under "hooks" and in <project>/.janetcode/hooks.json.
+type Config struct {
+	Hooks  Hooks
+	Limits Limits
+}
+
+// limitsKey is the one key of the hooks object that is not an event.
+const limitsKey = "limits"
+
+// For returns the hooks bound to an event.
+func (c Config) For(event string) []Hook { return c.Hooks[event] }
+
+// Len is how many hooks are configured in total. It is what a caller
+// means by "are there any hooks here".
+func (c Config) Len() int {
+	n := 0
+	for _, hs := range c.Hooks {
+		n += len(hs)
+	}
+	return n
+}
+
+// UnmarshalJSON reads the object, taking "limits" as the limits and every
+// other key as an event.
+func (c *Config) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	c.Hooks = Hooks{}
+	for k, v := range raw {
+		if k == limitsKey {
+			dec := json.NewDecoder(bytes.NewReader(v))
+			dec.DisallowUnknownFields()
+			if err := dec.Decode(&c.Limits); err != nil {
+				return fmt.Errorf("hooks: limits: %w", err)
+			}
+			continue
+		}
+		var hs []Hook
+		if err := json.Unmarshal(v, &hs); err != nil {
+			return fmt.Errorf("hooks: %s: %w", k, err)
+		}
+		c.Hooks[k] = hs
+	}
+	return nil
+}
+
+// MarshalJSON writes the same shape back.
+func (c Config) MarshalJSON() ([]byte, error) {
+	raw := map[string]any{}
+	for k, hs := range c.Hooks {
+		raw[k] = hs
+	}
+	if c.Limits != (Limits{}) {
+		raw[limitsKey] = c.Limits
+	}
+	return json.Marshal(raw)
+}
 
 // ProjectFile is the per-project hook list, relative to the project root.
 const ProjectFile = ".janetcode/hooks.json"
 
-// Validate rejects unknown events, bad regexps and empty commands.
+// Validate rejects unknown events, bad regexps, empty commands and
+// limits that cannot mean anything.
 func (c Config) Validate() error {
-	for ev, hooks := range c {
+	if err := c.Limits.Validate(); err != nil {
+		return err
+	}
+	for ev, hooks := range c.Hooks {
 		known := false
 		for _, e := range Events {
 			known = known || e == ev
 		}
 		if !known {
-			return fmt.Errorf("hooks: unknown event %q (want one of %s)", ev, strings.Join(Events, ", "))
+			return fmt.Errorf("hooks: unknown event %q (want one of %s, or %q)", ev, strings.Join(Events, ", "), limitsKey)
 		}
 		for i, h := range hooks {
 			if strings.TrimSpace(h.Command) == "" {
@@ -81,28 +208,31 @@ func (c Config) Validate() error {
 func LoadProject(root string) (Config, string, error) {
 	data, err := os.ReadFile(filepath.Join(root, ProjectFile))
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, "", nil
+		return Config{}, "", nil
 	}
 	if err != nil {
-		return nil, "", err
+		return Config{}, "", err
 	}
 	var c Config
 	if err := json.Unmarshal(data, &c); err != nil {
-		return nil, "", fmt.Errorf("%s: %w", ProjectFile, err)
+		return Config{}, "", fmt.Errorf("%s: %w", ProjectFile, err)
 	}
 	if err := c.Validate(); err != nil {
-		return nil, "", fmt.Errorf("%s: %w", ProjectFile, err)
+		return Config{}, "", fmt.Errorf("%s: %w", ProjectFile, err)
 	}
 	sum := sha256.Sum256(data)
 	return c, hex.EncodeToString(sum[:]), nil
 }
 
-// Merge returns a config with the hooks of both, a's first.
+// Merge returns a config with the hooks of both, a's first. The limits
+// are a's: they are the user's, and b is where a project's hooks come
+// from. A repository that could raise the ceiling on its own hooks would
+// have no ceiling.
 func Merge(a, b Config) Config {
-	out := Config{}
+	out := Config{Hooks: Hooks{}, Limits: a.Limits}
 	for _, c := range []Config{a, b} {
-		for ev, hs := range c {
-			out[ev] = append(out[ev], hs...)
+		for ev, hs := range c.Hooks {
+			out.Hooks[ev] = append(out.Hooks[ev], hs...)
 		}
 	}
 	return out
@@ -125,31 +255,33 @@ func Merge(a, b Config) Config {
 // guard — the obvious move is the one that is stopped and named.
 var networkCommand = regexp.MustCompile(`(?i)\b(curl|wget|nc|ncat|netcat|telnet|ssh|scp|sftp|rsync|ftp)\b|https?://`)
 
-// projectTimeoutCap bounds how long one project hook may hold up a turn.
-const projectTimeoutCap = 60
-
 // Restrict returns the project hooks that a workspace scope is allowed to
-// contribute, and a note for each one dropped or trimmed. A nil config
-// gives nothing back and no notes.
-func Restrict(project Config) (Config, []string) {
-	if len(project) == 0 {
+// contribute, and a note for each one dropped or trimmed. The cap comes
+// from the user's limits, never the project's. An empty config gives
+// nothing back and no notes.
+func Restrict(project Config, lim Limits) (Config, []string) {
+	if project.Len() == 0 {
 		return project, nil
 	}
-	out := Config{}
+	maxSecs := lim.WithDefaults().ProjectTimeout
+	out := Config{Hooks: Hooks{}}
 	var notes []string
-	for ev, hooks := range project {
+	for ev, hooks := range project.Hooks {
 		for i, h := range hooks {
 			where := fmt.Sprintf("%s %s[%d] (%s)", ProjectFile, ev, i, firstWords(h.Command))
 			if networkCommand.MatchString(h.Command) {
 				notes = append(notes, where+" is not run: a project hook may not reach the network. Copy it into your own config if you want it.")
 				continue
 			}
-			if h.Timeout > projectTimeoutCap {
-				notes = append(notes, fmt.Sprintf("%s asked for a %ds timeout; a project hook is capped at %ds.", where, h.Timeout, projectTimeoutCap))
-				h.Timeout = projectTimeoutCap
+			if h.Timeout > maxSecs {
+				notes = append(notes, fmt.Sprintf("%s asked for a %ds timeout; a project hook is capped at %ds.", where, h.Timeout, maxSecs))
+				h.Timeout = maxSecs
 			}
-			out[ev] = append(out[ev], h)
+			out.Hooks[ev] = append(out.Hooks[ev], h)
 		}
+	}
+	if project.Limits != (Limits{}) {
+		notes = append(notes, ProjectFile+" sets hooks.limits; a project cannot raise its own limits, so the user's apply.")
 	}
 	return out, notes
 }
@@ -158,7 +290,7 @@ func Restrict(project Config) (Config, []string) {
 // scope may contribute. It returns the combined config and the notes
 // explaining anything the project asked for and did not get.
 func MergeScoped(user, project Config) (Config, []string) {
-	kept, notes := Restrict(project)
+	kept, notes := Restrict(project, user.Limits)
 	return Merge(user, kept), notes
 }
 
@@ -218,7 +350,7 @@ type Runner struct {
 }
 
 // Has reports whether any hook is bound to the event.
-func (r *Runner) Has(event string) bool { return r != nil && len(r.Config[event]) > 0 }
+func (r *Runner) Has(event string) bool { return r != nil && len(r.Config.For(event)) > 0 }
 
 // Run executes the hooks of in.Event in order. A deny stops the chain;
 // rewrites chain, so each hook sees the previous hook's input.
@@ -227,7 +359,12 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 	if r == nil {
 		return res
 	}
-	for i, h := range r.Config[in.Event] {
+	lim := r.Config.Limits.WithDefaults()
+	for i, h := range r.Config.For(in.Event) {
+		if i >= lim.PerEvent {
+			r.logf("%s: only the first %d hooks ran (hooks.limits.per_event)", in.Event, lim.PerEvent)
+			break
+		}
 		if h.Match != "" && in.Tool != "" {
 			if ok, _ := regexp.MatchString(h.Match, in.Tool); !ok {
 				continue
@@ -301,10 +438,12 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 type execOut struct{ stdout, stderr string }
 
 func (r *Runner) exec(ctx context.Context, h Hook, in Input) (execOut, int, error) {
-	timeout := time.Duration(h.Timeout) * time.Second
-	if timeout <= 0 {
-		timeout = 10 * time.Second
+	lim := r.Config.Limits.WithDefaults()
+	secs := h.Timeout
+	if secs <= 0 {
+		secs = lim.Timeout
 	}
+	timeout := time.Duration(secs) * time.Second
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	payload, err := json.Marshal(in)
@@ -324,8 +463,11 @@ func (r *Runner) exec(ctx context.Context, h Hook, in Input) (execOut, int, erro
 		"JANETCODE_TOOL="+in.Tool,
 		"JANETCODE_CWD="+in.Cwd,
 	)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	// A hook's stdout becomes a note in the conversation and its stderr a
+	// denial reason, so neither may be unbounded: a hook that cats a log
+	// would otherwise be paid for by every following model call.
+	stdout, stderr := &capped{max: lim.Output}, &capped{max: lim.Output}
+	cmd.Stdout, cmd.Stderr = stdout, stderr
 	err = cmd.Run()
 	out := execOut{stdout.String(), stderr.String()}
 	if ctx.Err() != nil {
@@ -339,6 +481,35 @@ func (r *Runner) exec(ctx context.Context, h Hook, in Input) (execOut, int, erro
 		return out, -1, err
 	}
 	return out, 0, nil
+}
+
+// capped is a writer that keeps the first max bytes and counts the rest,
+// so a hook cannot be stopped by writing but cannot flood the context
+// either.
+type capped struct {
+	max     int
+	buf     bytes.Buffer
+	dropped int
+}
+
+func (c *capped) Write(p []byte) (int, error) {
+	if room := c.max - c.buf.Len(); room > 0 {
+		if room > len(p) {
+			room = len(p)
+		}
+		c.buf.Write(p[:room])
+		c.dropped += len(p) - room
+	} else {
+		c.dropped += len(p)
+	}
+	return len(p), nil
+}
+
+func (c *capped) String() string {
+	if c.dropped == 0 {
+		return c.buf.String()
+	}
+	return fmt.Sprintf("%s\n[%d more bytes from this hook were dropped: hooks.limits.output is %d]", c.buf.String(), c.dropped, c.max)
 }
 
 func (r *Runner) logf(format string, args ...any) {

@@ -63,6 +63,12 @@ type Options struct {
 	Models func(string) (llm.Provider, string, error)
 	// Jobs are background commands; finished ones are announced while idle.
 	Jobs *tool.Jobs
+	// Running is the registry of foreground commands that can be moved to
+	// the background (ctrl+g). Nil disables the key.
+	Running *tool.Running
+	// Typed collects the hosts the user names in their own messages;
+	// fetch_url reaches a private address only for one of them.
+	Typed *tool.URLSet
 	// AutoTitle asks the model for a short session title after the first turn.
 	AutoTitle bool
 	Agent     *agent.Agent
@@ -824,7 +830,7 @@ func (m *model) hooksCommand(args []string) {
 	}
 	if len(args) > 0 && args[0] == "trust" {
 		switch {
-		case len(o.Project) == 0:
+		case o.Project.Len() == 0:
 			m.transcript.errorf("no %s in %s", hook.ProjectFile, shortPath(m.opts.Cwd))
 		case o.ProjectTrusted:
 			m.transcript.info("project hooks are already trusted")
@@ -853,7 +859,7 @@ func (m *model) hooksCommand(args []string) {
 		cfg   hook.Config
 	}{{"config file", o.Global}, {hook.ProjectFile, o.Project}} {
 		for _, ev := range hook.Events {
-			for _, h := range src.cfg[ev] {
+			for _, h := range src.cfg.For(ev) {
 				n++
 				match := h.Match
 				if match == "" {
@@ -867,7 +873,7 @@ func (m *model) hooksCommand(args []string) {
 		m.transcript.info("no hooks configured: add them under \"hooks\" in the config file or in " + hook.ProjectFile)
 		return
 	}
-	if len(o.Project) > 0 && !o.ProjectTrusted {
+	if o.Project.Len() > 0 && !o.ProjectTrusted {
 		sb.WriteString(hook.ProjectFile + " is present but not trusted; run /hooks trust to enable it\n")
 	}
 	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
@@ -1729,6 +1735,20 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 				return nil, true
 			}
 		}
+	case "ctrl+g":
+		// A build or a test run that turns out to be long used to leave
+		// only waiting or cancelling. Promotion keeps the work: the
+		// command becomes a job, and the turn carries on.
+		job, err := m.opts.Running.PromoteLatest()
+		if err != nil {
+			m.status = err.Error()
+			m.refresh(false)
+			return nil, true
+		}
+		m.transcript.info(fmt.Sprintf("moved to background as job %d · /jobs shows it", job))
+		m.status = fmt.Sprintf("moved to background as job %d", job)
+		m.refresh(false)
+		return nil, true
 	case "ctrl+s":
 		// Say something to the turn that is running, rather than queueing
 		// it for the next one. The agent holds the note and hands it to
@@ -1740,6 +1760,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		case text == "":
 			m.status = "type what the model should do differently, then ctrl+s"
 		default:
+			m.opts.Typed.Note(text)
 			m.opts.Agent.Steer(m.inflatePastes(text))
 			m.steering = append(m.steering, text)
 			m.remember(text)
@@ -2167,6 +2188,12 @@ func (m *model) submit(text string) tea.Cmd {
 		return nil
 	}
 	m.transcript.user(text)
+	// A host the user just named is a host the user is asking about, so
+	// fetch_url may reach it even on a private network. Only main seeded
+	// this, from the first prompt, which left "look at
+	// http://localhost:8080/health" refused in the message that asked for
+	// it.
+	m.opts.Typed.Note(text)
 	m.lastUserText = text
 	text, atts := prompt.ExpandMentions(m.opts.Cwd, text)
 	if len(atts) > 0 {
@@ -2213,6 +2240,9 @@ func (m *model) shell(cmdline string) tea.Cmd {
 		m.refresh(false)
 		return nil
 	}
+	// A command the user ran themselves names hosts as much as a prompt
+	// does: curl localhost:3000 is the user pointing at it.
+	m.opts.Typed.Note(cmdline)
 	input, _ := json.Marshal(map[string]string{"command": cmdline})
 	call := agent.ToolCall{ID: fmt.Sprintf("shell-%d", time.Now().UnixNano()), Name: "shell", Input: input}
 	m.transcript.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
@@ -2891,6 +2921,7 @@ func (m *model) helpText() string {
 	sb.WriteString("  /command names match on their letters in order (/rsm finds /resume) · tab completes the argument of /resume, /model, /forget, /undo, /open and /diff\n")
 	sb.WriteString("  esc cancel the turn (or clear the input) · ctrl+c cancel, or when idle twice to quit · ctrl+d quit\n")
 	sb.WriteString("  pgup/pgdn or mouse wheel scroll · ctrl+o expand the last turn (again folds it) · click a tool line or a thought to fold or unfold it · /verbose does the whole transcript · ctrl+l redraw\n")
+	sb.WriteString("  ctrl+g moves a command running in the foreground to the background: it becomes a job and keeps running, and the turn goes on\n")
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends · ctrl+s hands it to the running turn instead · up takes the last queued one back · esc cancels and gives them all back\n")
 	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
@@ -3338,7 +3369,13 @@ func (m *model) statusView() string {
 		left = m.spinner.View() + " " + styleDim.Render(m.phase)
 	case m.running:
 		el := shortDuration(time.Since(m.startedAt))
-		left = m.spinner.View() + " " + styleDim.Render(m.phase+" · "+el+" · esc to cancel")
+		hint := " · esc to cancel"
+		// Only while there is something to promote: a key that does
+		// nothing is worse than no key.
+		if len(m.opts.Running.List()) > 0 {
+			hint += " · ctrl+g backgrounds it"
+		}
+		left = m.spinner.View() + " " + styleDim.Render(m.phase+" · "+el+hint)
 	case m.status != "":
 		left = styleDim.Render(m.status)
 	default:
@@ -3723,8 +3760,18 @@ func (m *model) statsCommand() {
 	if usd, ok := u.Cost(ag.Price); ok {
 		sb.WriteString(" · cost " + llm.FormatUSD(usd))
 	}
-	if st.Recoveries > 0 {
-		fmt.Fprintf(&sb, "\n%s recovered from text the model wrote instead of calling", plural(st.Recoveries, "tool call"))
+	if st.Saves() > 0 {
+		var saves []string
+		if st.Recoveries > 0 {
+			saves = append(saves, plural(st.Recoveries, "tool call")+" recovered from text the model wrote instead of calling")
+		}
+		if st.WatchdogKills > 0 {
+			saves = append(saves, plural(st.WatchdogKills, "stream")+" ended by the watchdog")
+		}
+		if st.Fallbacks > 0 {
+			saves = append(saves, plural(st.Fallbacks, "call")+" that only worked on a fallback model")
+		}
+		fmt.Fprintf(&sb, "\nrecovered · %s", strings.Join(saves, " · "))
 	}
 	fmt.Fprintf(&sb, "\ncontext ~%s of %s · %s · %s undoable", shortTokens(ag.EstimateTokens()), tokensOrUnknown(ag.CompactThreshold()), plural(st.Compactions, "compaction"), plural(len(ag.Checkpoints()), "turn"))
 	if m.opts.Jobs != nil {

@@ -11,7 +11,7 @@ import (
 
 func TestPreToolDenyRewriteAndFailOpen(t *testing.T) {
 	var logs []string
-	r := &Runner{Cwd: t.TempDir(), Log: func(s string) { logs = append(logs, s) }, Config: Config{
+	r := &Runner{Cwd: t.TempDir(), Log: func(s string) { logs = append(logs, s) }, Config: Config{Hooks: Hooks{
 		PreTool: {
 			{Match: "^bash$", Command: `grep -q 'rm -rf' && { echo "no rm -rf here" >&2; exit 2; }; exit 0`},
 			{Command: `cat >/dev/null; echo '{"input":{"command":"echo rewritten"},"note":"rewrote it"}'`},
@@ -19,7 +19,7 @@ func TestPreToolDenyRewriteAndFailOpen(t *testing.T) {
 			{Command: `sleep 5`, Timeout: 1}, // timeout: ignored
 			{Match: "write_file", Command: `echo '{"decision":"deny"}'`},
 		},
-	}}
+	}}}
 	ctx := context.Background()
 	res := r.Run(ctx, Input{Event: PreTool, Tool: "bash", Input: json.RawMessage(`{"command":"rm -rf /tmp/x"}`)})
 	if !res.Denied || res.Reason != "no rm -rf here" {
@@ -51,10 +51,10 @@ func TestPreToolDenyRewriteAndFailOpen(t *testing.T) {
 
 func TestPostToolNotesAndStopContinue(t *testing.T) {
 	dir := t.TempDir()
-	r := &Runner{Cwd: dir, Config: Config{
+	r := &Runner{Cwd: dir, Config: Config{Hooks: Hooks{
 		PostTool: {{Command: `python3 -c 'import sys,json; d=json.load(sys.stdin); print("saw " + d["tool"] + " " + d["output"].strip() + (" ERR" if d["is_error"] else ""))'`}},
 		Stop:     {{Command: `python3 -c 'import sys,json; d=json.load(sys.stdin); print(json.dumps({"continue":"run the tests first"}) if "done" in d["text"] else "")'`}},
-	}}
+	}}}
 	ctx := context.Background()
 	res := r.Run(ctx, Input{Event: PostTool, Tool: "bash", Output: "hello\n", IsError: true})
 	if len(res.Notes) != 1 || res.Notes[0] != "saw bash hello ERR" {
@@ -67,7 +67,7 @@ func TestPostToolNotesAndStopContinue(t *testing.T) {
 		t.Fatalf("stop passthrough: %+v", res)
 	}
 	// Env vars and cwd reach the hook.
-	r.Config[PreCompact] = []Hook{{Command: `echo "$JANETCODE_EVENT in $(pwd)"`}}
+	r.Config.Hooks[PreCompact] = []Hook{{Command: `echo "$JANETCODE_EVENT in $(pwd)"`}}
 	res = r.Run(ctx, Input{Event: PreCompact, Tokens: 90000})
 	if len(res.Notes) != 1 || res.Notes[0] != "pre_compact in "+realPath(t, dir) {
 		t.Fatalf("env: %+v", res)
@@ -84,28 +84,128 @@ func realPath(t *testing.T, p string) string {
 
 func TestLoadProjectAndValidate(t *testing.T) {
 	root := t.TempDir()
-	if c, h, err := LoadProject(root); c != nil || h != "" || err != nil {
+	if c, h, err := LoadProject(root); c.Len() != 0 || h != "" || err != nil {
 		t.Fatalf("missing file: %v %q %v", c, h, err)
 	}
 	os.MkdirAll(filepath.Join(root, ".janetcode"), 0o755)
 	p := filepath.Join(root, ProjectFile)
 	os.WriteFile(p, []byte(`{"pre_tool":[{"match":"bash","command":"./check.sh"}]}`), 0o644)
 	c, h, err := LoadProject(root)
-	if err != nil || len(c[PreTool]) != 1 || len(h) != 64 {
+	if err != nil || len(c.For(PreTool)) != 1 || len(h) != 64 {
 		t.Fatalf("%v %q %v", c, h, err)
 	}
 	os.WriteFile(p, []byte(`{"on_save":[{"command":"x"}]}`), 0o644)
 	if _, _, err := LoadProject(root); err == nil || !strings.Contains(err.Error(), "unknown event") {
 		t.Fatalf("unknown event accepted: %v", err)
 	}
-	if err := (Config{PreTool: {{Match: "(", Command: "x"}}}).Validate(); err == nil {
+	if err := (Config{Hooks: Hooks{PreTool: {{Match: "(", Command: "x"}}}}).Validate(); err == nil {
 		t.Fatal("bad regexp accepted")
 	}
-	if err := (Config{Stop: {{Command: " "}}}).Validate(); err == nil {
+	if err := (Config{Hooks: Hooks{Stop: {{Command: " "}}}}).Validate(); err == nil {
 		t.Fatal("empty command accepted")
 	}
-	m := Merge(Config{PreTool: {{Command: "a"}}}, Config{PreTool: {{Command: "b"}}, Stop: {{Command: "c"}}})
-	if len(m[PreTool]) != 2 || m[PreTool][0].Command != "a" || len(m[Stop]) != 1 {
+	m := Merge(Config{Hooks: Hooks{PreTool: {{Command: "a"}}}}, Config{Hooks: Hooks{PreTool: {{Command: "b"}}, Stop: {{Command: "c"}}}})
+	if len(m.For(PreTool)) != 2 || m.For(PreTool)[0].Command != "a" || len(m.For(Stop)) != 1 {
 		t.Fatalf("merge = %+v", m)
+	}
+}
+
+// The limits are the user's to set, so they have to be readable from the
+// same "hooks" object the hooks themselves live in.
+func TestLimitsRoundTripThroughJSON(t *testing.T) {
+	var c Config
+	if err := json.Unmarshal([]byte(`{"pre_tool":[{"command":"x"}],"limits":{"timeout":3,"output":512,"per_event":2}}`), &c); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.For(PreTool)) != 1 || c.Limits.Timeout != 3 || c.Limits.Output != 512 || c.Limits.PerEvent != 2 {
+		t.Fatalf("config = %+v", c)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if d := c.Limits.WithDefaults(); d.ProjectTimeout != DefaultProjectTimeout || d.Timeout != 3 {
+		t.Fatalf("defaults = %+v", d)
+	}
+	data, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back Config
+	if err := json.Unmarshal(data, &back); err != nil || back.Limits != c.Limits || len(back.For(PreTool)) != 1 {
+		t.Fatalf("round trip = %s (%v)", data, err)
+	}
+	// A misspelled limit is a mistake, not a new setting.
+	if err := json.Unmarshal([]byte(`{"limits":{"timeoutt":3}}`), &Config{}); err == nil {
+		t.Fatal("unknown limit accepted")
+	}
+	// And a negative one cannot mean anything.
+	if err := (Config{Limits: Limits{Output: -1}}).Validate(); err == nil {
+		t.Fatal("negative limit accepted")
+	}
+}
+
+func TestLimitsBoundTimeoutOutputAndCount(t *testing.T) {
+	dir := t.TempDir()
+	var logs []string
+	// The default timeout applies to a hook that names none.
+	r := &Runner{Cwd: dir, Log: func(s string) { logs = append(logs, s) }, Config: Config{
+		Limits: Limits{Timeout: 1, Output: 64, PerEvent: 2},
+		Hooks: Hooks{
+			PostTool: {
+				{Command: `sleep 5`},
+				{Command: `python3 -c "print('y' * 5000)"`},
+				{Command: `echo third`},
+			},
+		},
+	}}
+	res := r.Run(context.Background(), Input{Event: PostTool, Tool: "bash"})
+	if len(logs) == 0 || !strings.Contains(logs[0], "timed out after 1s") {
+		t.Fatalf("logs = %q", logs)
+	}
+	if len(res.Notes) != 1 {
+		t.Fatalf("notes = %q", res.Notes)
+	}
+	if n := len(res.Notes[0]); n > 64+200 {
+		t.Fatalf("a %d-byte note got through a 64-byte limit", n)
+	}
+	if !strings.Contains(res.Notes[0], "were dropped") {
+		t.Fatalf("the truncation is not explained: %q", res.Notes[0])
+	}
+	// The third hook never ran: two per event was the limit.
+	for _, n := range res.Notes {
+		if strings.Contains(n, "third") {
+			t.Fatal("a hook ran past the per_event limit")
+		}
+	}
+	var said bool
+	for _, l := range logs {
+		said = said || strings.Contains(l, "per_event")
+	}
+	if !said {
+		t.Fatalf("nothing said the limit stopped a hook: %q", logs)
+	}
+}
+
+// A project may not raise its own limits: trusting a checkout's hooks is
+// not a decision to let it decide how long they may run.
+func TestProjectCannotRaiseItsOwnLimits(t *testing.T) {
+	user := Config{Limits: Limits{ProjectTimeout: 5}}
+	project := Config{
+		Limits: Limits{ProjectTimeout: 600},
+		Hooks:  Hooks{Stop: {{Command: "go build ./...", Timeout: 600}}},
+	}
+	merged, notes := MergeScoped(user, project)
+	if got := merged.For(Stop)[0].Timeout; got != 5 {
+		t.Fatalf("timeout = %d, want the user's 5", got)
+	}
+	if merged.Limits != user.Limits {
+		t.Fatalf("limits = %+v, want the user's %+v", merged.Limits, user.Limits)
+	}
+	var said bool
+	for _, n := range notes {
+		said = said || strings.Contains(n, "cannot raise its own limits")
+	}
+	if !said {
+		t.Fatalf("notes = %v", notes)
 	}
 }

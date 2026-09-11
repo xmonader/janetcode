@@ -45,8 +45,12 @@ func TestForegroundCommandCanBePromoted(t *testing.T) {
 	if live[0].Command == "" || live[0].Pid == 0 {
 		t.Fatalf("foreground entry = %+v", live[0])
 	}
-	if err := run.PromoteLatest(); err != nil {
+	job, err := run.PromoteLatest()
+	if err != nil {
 		t.Fatal(err)
+	}
+	if job != 1 {
+		t.Fatalf("promoted to job %d, want 1: the caller has to be able to name the job", job)
 	}
 	r := <-ch
 	if r.err != nil {
@@ -81,14 +85,14 @@ func TestForegroundCommandCanBePromoted(t *testing.T) {
 
 func TestPromoteErrors(t *testing.T) {
 	var nilRun *Running
-	if err := nilRun.PromoteLatest(); err == nil {
+	if _, err := nilRun.PromoteLatest(); err == nil {
 		t.Fatal("a session without promotion should say so")
 	}
 	run := &Running{}
-	if err := run.Promote(7); err == nil {
+	if _, err := run.Promote(7); err == nil {
 		t.Fatal("an unknown id should be an error")
 	}
-	if err := run.PromoteLatest(); err == nil {
+	if _, err := run.PromoteLatest(); err == nil {
 		t.Fatal("nothing running should be an error")
 	}
 }

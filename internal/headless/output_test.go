@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +40,7 @@ func TestExitCode(t *testing.T) {
 		{fmt.Errorf("turn: %w", agent.ErrMaxIterations), ExitTurnLimit},
 		{fmt.Errorf("%w: two prompts", ErrBadInput), ExitBadInput},
 		{fmt.Errorf("%w: %v", ErrConfig, errors.New("bad json")), ExitConfig},
+		{fmt.Errorf("%w: unknown provider %q", config.ErrBadConfig, "nope"), ExitConfig},
 		{fmt.Errorf("x: %w", llm.ErrNoAPIKey), ExitAuth},
 		{fmt.Errorf("x: %w", config.ErrNoCredentials), ExitAuth},
 		{errors.New("provider refused (HTTP 401)"), ExitAuth},
@@ -177,5 +179,25 @@ func TestTextFormatWritesNoEnvelope(t *testing.T) {
 	}
 	if !r.text() {
 		t.Fatal("text mode should ask the caller to print")
+	}
+}
+
+// A run that ends inside a turn -- on the budget, on an error -- still
+// paid for the calls it made, and the envelope has to say so. The
+// recorder only sees usage at EvTurnDone, which such a run never
+// reaches, so the figure comes from the agent's own counter.
+func TestEnvelopeReportsUsageOfAnUnfinishedTurn(t *testing.T) {
+	ag := &agent.Agent{Model: "m", Price: &llm.Price{Input: 3, Output: 15},
+		Usage: llm.Usage{InputTokens: 1000, OutputTokens: 2000}}
+	r := newRecorder(Options{Stdout: io.Discard, Agent: ag}, FormatJSON)
+	res := r.result(ag, fmt.Errorf("%w: spent it all", ErrBudget))
+	if res.Usage.InputTokens != 1000 || res.Usage.OutputTokens != 2000 {
+		t.Fatalf("usage = %+v", res.Usage)
+	}
+	if res.CostUSD == 0 || res.CostSource != "list price" {
+		t.Fatalf("cost = %v (%s)", res.CostUSD, res.CostSource)
+	}
+	if res.ExitCode != ExitBudget {
+		t.Fatalf("exit = %d", res.ExitCode)
 	}
 }

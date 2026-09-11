@@ -63,15 +63,19 @@ const (
 	ExitCancelled = 130 // interrupted, as a shell reports a SIGINT
 )
 
-// ErrBudget is returned when a run reaches its --max-cost ceiling.
-var ErrBudget = errors.New("the run reached its cost budget")
+// ErrBudget is returned when a run reaches its --max-cost ceiling. The
+// agent loop raises the same error from inside a turn, so there is one
+// error for the one condition.
+var ErrBudget = agent.ErrBudget
 
 // ErrBadInput marks a usage error, so main can exit 42 for it.
 var ErrBadInput = errors.New("bad input")
 
 // ErrConfig marks a configuration file that cannot be used, as against
-// credentials that are merely missing. The config package reports these
-// as plain messages, so the wrapping happens where it is loaded.
+// credentials that are merely missing. Most of these come typed out of
+// the config package as config.ErrBadConfig; ErrConfig stays for the
+// callers that know a configuration is at fault without the config
+// package having said so.
 var ErrConfig = errors.New("configuration")
 
 // ExitCode classifies an error into one of the codes above.
@@ -89,7 +93,7 @@ func ExitCode(err error) int {
 		return ExitBadInput
 	case errors.Is(err, llm.ErrNoAPIKey), errors.Is(err, config.ErrNoCredentials), isAuthHTTP(err):
 		return ExitAuth
-	case errors.Is(err, ErrConfig):
+	case errors.Is(err, ErrConfig), errors.Is(err, config.ErrBadConfig):
 		return ExitConfig
 	}
 	return ExitOther
@@ -244,6 +248,18 @@ func (r *recorder) result(ag *agent.Agent, err error) eval.CLIResult {
 		DurationMS:        time.Since(r.start).Milliseconds(),
 	}
 	if ag != nil {
+		// The recorder tallies usage from EvTurnDone, which a turn that
+		// ended early -- on the budget, on a cancellation, on an error --
+		// never sends: the run would report zero tokens for calls it
+		// certainly made. The agent counts every call as it returns, so
+		// that is the figure when there is one.
+		if u := ag.UsageSnapshot(); u.InputTokens+u.OutputTokens+u.CacheReadTokens+u.CacheWriteTokens > 0 {
+			res.Usage = usageOf(u)
+			if usd, ok := u.Cost(r.price); ok {
+				res.CostUSD = usd
+			}
+			res.CostSource = u.CostSource(r.price)
+		}
 		st := ag.Stats()
 		if st.ModelCalls > 0 {
 			res.NumTurns = st.ModelCalls
@@ -251,11 +267,19 @@ func (r *recorder) result(ag *agent.Agent, err error) eval.CLIResult {
 		if calls, _ := st.ToolCalls(); calls > 0 {
 			res.ToolCalls = calls
 		}
+		res.Recoveries = eval.CLIRecoveries{
+			ProseToolCalls: st.Recoveries,
+			WatchdogKills:  st.WatchdogKills,
+			ModelFallbacks: st.Fallbacks,
+			Total:          st.Saves(),
+		}
 	}
-	if usd, ok := r.usage.Cost(r.price); ok {
-		res.CostUSD = usd
+	if res.CostSource == "" {
+		if usd, ok := r.usage.Cost(r.price); ok {
+			res.CostUSD = usd
+		}
+		res.CostSource = r.usage.CostSource(r.price)
 	}
-	res.CostSource = r.usage.CostSource(r.price)
 	if err != nil {
 		res.IsError, res.Error = true, err.Error()
 	}

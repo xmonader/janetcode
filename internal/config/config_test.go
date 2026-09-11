@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 
@@ -345,5 +346,83 @@ func TestKeylessFileProviderYieldsToOneWithAKey(t *testing.T) {
 	}
 	if cfg, err := load(local, env(nil), Overrides{}); err != nil || cfg.Provider != "ollama" {
 		t.Fatalf("local server abandoned: %v %+v", err, cfg)
+	}
+}
+
+// Everything that is the user's fault in a config file must carry
+// ErrBadConfig, because that is what decides exit 52. Matching on the
+// wording of the message instead put the exit code one rephrasing away
+// from breaking.
+func TestBadConfigIsTyped(t *testing.T) {
+	dir := t.TempDir()
+	write := func(body string) string {
+		p := filepath.Join(dir, "config.json")
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	keyed := env(map[string]string{"ANTHROPIC_API_KEY": "k"})
+	cases := []struct {
+		name string
+		body string
+		ov   Overrides
+	}{
+		{"malformed json", `{"model": `, Overrides{}},
+		{"unknown field", `{"nosuchkey": 1}`, Overrides{}},
+		{"unknown provider", `{}`, Overrides{Provider: "nosuch"}},
+		{"bad provider type", `{"providers": {"weird": {"type": "grpc"}}}`, Overrides{Provider: "weird"}},
+		{"openai without a model", `{"providers": {"o": {"type": "openai", "api_key": "k"}}}`, Overrides{Provider: "o"}},
+		{"bad effort", `{}`, Overrides{Effort: "ultra"}},
+		{"bad theme", `{"theme": "purple"}`, Overrides{}},
+		{"negative price", `{"prices": {"m": {"input": -1}}}`, Overrides{}},
+		{"empty price entry", `{"prices": {"m": {}}}`, Overrides{}},
+		{"bad permission rule", `{"permissions": {"allow": ["bash("]}}`, Overrides{}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := load(write(c.body), keyed, c.ov)
+			if err == nil {
+				t.Fatal("want an error")
+			}
+			if !errors.Is(err, ErrBadConfig) {
+				t.Fatalf("err = %v, want it to wrap ErrBadConfig", err)
+			}
+			// A missing key is a different thing and exits differently.
+			if errors.Is(err, ErrNoCredentials) {
+				t.Fatalf("err = %v, should not read as missing credentials", err)
+			}
+		})
+	}
+	// The counter-case: a fine file with no key is not a bad config.
+	if _, err := load(write(`{}`), env(nil), Overrides{}); err == nil || errors.Is(err, ErrBadConfig) {
+		t.Fatalf("err = %v, want ErrNoCredentials only", err)
+	}
+}
+
+// hooks.limits is read from the same object as the hooks and validated
+// on load, so a bad figure is an error at start rather than a surprise
+// on the first tool call.
+func TestHookLimitsLoadAndValidate(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.json")
+	body := `{"hooks":{"pre_tool":[{"command":"./check.sh"}],"limits":{"timeout":3,"per_event":5}}}`
+	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := load(p, env(map[string]string{"ANTHROPIC_API_KEY": "k"}), Overrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Hooks.For("pre_tool")) != 1 || cfg.Hooks.Limits.Timeout != 3 || cfg.Hooks.Limits.PerEvent != 5 {
+		t.Fatalf("hooks = %+v", cfg.Hooks)
+	}
+	if d := cfg.Hooks.Limits.WithDefaults(); d.Output == 0 || d.ProjectTimeout == 0 {
+		t.Fatalf("unset limits did not default: %+v", d)
+	}
+	os.WriteFile(p, []byte(`{"hooks":{"limits":{"timeout":-1}}}`), 0o600)
+	_, err = load(p, env(map[string]string{"ANTHROPIC_API_KEY": "k"}), Overrides{})
+	if err == nil || !errors.Is(err, ErrBadConfig) {
+		t.Fatalf("err = %v, want ErrBadConfig", err)
 	}
 }

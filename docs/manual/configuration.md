@@ -80,6 +80,30 @@ disable it.
 { "stream_idle_timeout": 240, "stream_max_duration": 900 }
 ```
 
+### Hook limits
+
+A hook is a shell command on the critical path of a tool call whose output
+is pasted into the conversation, so what hooks may cost is bounded, and the
+bounds are yours to set. They live in the `"hooks"` object beside the hooks
+themselves, under `limits`: `timeout` (seconds a hook that names no timeout
+of its own may run, default 10), `project_timeout` (the most a hook from
+`.janetcode/hooks.json` may ask for, default 60), `output` (bytes kept of
+one hook's stdout and stderr, default 65536) and `per_event` (hooks run for
+one event, default 20).
+
+```json
+"hooks": {
+  "post_tool": [{"command": "gofmt -l ."}],
+  "limits": {"timeout": 5, "output": 8192}
+}
+```
+
+A key left out, or zero, means the default; a negative figure is refused on
+load (exit 52). A `limits` object in a project's hook file is ignored, with
+a note: trusting a checkout's hooks is not a decision to let it choose how
+long they may run. The hooks themselves, and what they can do, are
+described under Hooks in the interface manual.
+
 ### Project instructions
 
 `JANETCODE.md`, `AGENTS.md` or `CLAUDE.md` (first found in a directory

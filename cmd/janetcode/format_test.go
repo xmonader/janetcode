@@ -72,6 +72,12 @@ func TestOutputFormatJSONEndToEnd(t *testing.T) {
 	if res.CostSource == "" || res.DurationMS < 0 || res.IsError || res.ExitCode != 0 {
 		t.Errorf("res = %+v", res)
 	}
+	// A run that needed no rescuing says so with zeroes rather than by
+	// leaving the field out: a caller must not have to tell "nothing to
+	// report" from "this version does not report it".
+	if res.Recoveries.Total != 0 || !strings.Contains(out, `"recoveries"`) {
+		t.Errorf("recoveries = %+v in %s", res.Recoveries, out)
+	}
 	// The eval reader recognises it without being told which harness it is.
 	if got := eval.ExtractAssistantText([]byte(out)); !strings.Contains(got, "it says hello") {
 		t.Errorf("eval reader got %q", got)
@@ -132,5 +138,60 @@ func TestOutputFormatNeedsAHeadlessRun(t *testing.T) {
 	err = run([]string{"-p", "x", "--output-format", "yaml"})
 	if err == nil || headless.ExitCode(err) != headless.ExitBadInput {
 		t.Fatalf("err = %v, exit = %d", err, headless.ExitCode(err))
+	}
+}
+
+// What the harness had to rescue belongs in the envelope: a benchmark
+// that cannot see it credits the model with the harness's repair work.
+func TestJSONEnvelopeReportsRecoveries(t *testing.T) {
+	work := t.TempDir()
+	os.WriteFile(filepath.Join(work, "hello.txt"), []byte("hello\n"), 0o644)
+	home := t.TempDir()
+
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		var chunk string
+		if calls == 1 {
+			// The model writes the call as prose instead of emitting it.
+			prose := `I will read it.\n<invoke name="read_file">\n<parameter name="path">hello.txt</parameter>\n</invoke>`
+			body, _ := json.Marshal(prose)
+			chunk = `{"choices":[{"delta":{"content":` + string(body) + `},"finish_reason":"stop"}]}`
+		} else {
+			chunk = `{"choices":[{"delta":{"content":"it says hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":40,"completion_tokens":5}}`
+		}
+		io.WriteString(w, "data: "+chunk+"\n\ndata: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("OPENAI_API_KEY", "test-key")
+	t.Setenv("OPENAI_BASE_URL", srv.URL+"/v1")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	os.Chdir(work)
+
+	stdout, stderr := captureStd(t)
+	err := run([]string{"-p", "what does hello.txt say", "--provider", "openai", "--model", "test-model", "--yolo", "--output-format", "json"})
+	out, errOut := stdout(), stderr()
+	if err != nil {
+		t.Fatalf("run: %v\nstderr: %s", err, errOut)
+	}
+	var res eval.CLIResult
+	if jerr := json.Unmarshal([]byte(out), &res); jerr != nil {
+		t.Fatalf("stdout is not one JSON object: %v\n%s", jerr, out)
+	}
+	if res.Recoveries.ProseToolCalls != 1 || res.Recoveries.Total != 1 {
+		t.Fatalf("recoveries = %+v\n%s", res.Recoveries, out)
+	}
+	if res.Recoveries.WatchdogKills != 0 || res.Recoveries.ModelFallbacks != 0 {
+		t.Errorf("recoveries = %+v", res.Recoveries)
+	}
+	// The recovered call really ran: this is a rescue, not a tally.
+	if res.ToolCalls != 1 {
+		t.Errorf("tool calls = %d", res.ToolCalls)
 	}
 }

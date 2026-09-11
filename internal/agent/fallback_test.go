@@ -78,6 +78,11 @@ func TestFallbackRunsOnTheNextModel(t *testing.T) {
 	if !sawNotice {
 		t.Fatal("nothing said the turn was falling back")
 	}
+	// A run that only finished because of the fallback is a run the
+	// harness rescued, and the counters say so.
+	if st := a.Stats(); st.Fallbacks != 1 || st.Saves() != 1 {
+		t.Fatalf("stats = %+v", st)
+	}
 }
 
 func TestFallbackTriesEachInTurnAndReportsTheLast(t *testing.T) {

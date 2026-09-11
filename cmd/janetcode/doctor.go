@@ -233,17 +233,12 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 
 	global := 0
 	if cfg != nil {
-		for _, hs := range cfg.Hooks {
-			global += len(hs)
-		}
+		global = cfg.Hooks.Len()
 	}
 	if hooks, hash, err := hook.LoadProject(cwd); err != nil {
 		row(false, "hooks", err.Error())
 	} else {
-		n := 0
-		for _, hs := range hooks {
-			n += len(hs)
-		}
+		n := hooks.Len()
 		switch {
 		case n > 0:
 			row(true, "hooks", fmt.Sprintf("%s in %s · %s · %d global", plural(n, "hook"), hook.ProjectFile, trustNote(trust.Trusted(hookTrustKey(cwd), hash), "/hooks trust"), global))

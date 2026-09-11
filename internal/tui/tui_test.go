@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -2741,5 +2742,86 @@ func TestErrorMessageShape(t *testing.T) {
 	// Anything unrecognised is passed through rather than dressed up.
 	if got := friendlyError(errors.New("something odd"), "openai"); got != "something odd" {
 		t.Errorf("unrecognised error = %q", got)
+	}
+}
+
+// ctrl+g moves the command running in the foreground into the jobs
+// registry, and the transcript says which job it became.
+func TestCtrlGPromotesARunningCommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell")
+	}
+	h := newHarness(t)
+	run := &tool.Running{}
+	jobs := &tool.Jobs{Dir: t.TempDir()}
+	defer jobs.KillAll()
+	h.m.opts.Running = run
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		b := tool.Bash{Root: t.TempDir(), Jobs: jobs, Running: run}
+		in, _ := json.Marshal(map[string]any{"command": "echo start; sleep 30", "timeout_ms": 120000})
+		_, _ = b.Run(context.Background(), in)
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for len(run.List()) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("the command never registered as promotable")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	// While a command is promotable the status line offers the key.
+	h.m.running = true
+	if !strings.Contains(h.m.statusView(), "ctrl+g") {
+		t.Errorf("the status line does not offer the key:\n%s", h.m.statusView())
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlG})
+	var said bool
+	for _, e := range h.m.transcript.entries {
+		if strings.Contains(e.text, "moved to background as job 1") {
+			said = true
+		}
+	}
+	if !said {
+		t.Fatalf("the transcript does not name the job: %q", h.m.status)
+	}
+	if len(jobs.List()) != 1 {
+		t.Fatalf("jobs = %+v", jobs.List())
+	}
+	<-done
+	jobs.KillAll()
+	// With nothing running the key says so instead of doing nothing
+	// quietly, and the status line stops advertising it.
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlG})
+	if !strings.Contains(h.m.status, "no command is running") {
+		t.Errorf("status = %q", h.m.status)
+	}
+	if strings.Contains(h.m.statusView(), "ctrl+g") {
+		t.Errorf("the status line still offers the key:\n%s", h.m.statusView())
+	}
+}
+
+// A host the user names in the UI is one fetch_url may reach even on a
+// private network. main seeds the set from the first prompt only, so
+// without this every later message lost the permission.
+func TestTypedHostsAreNotedFromEveryUserMessage(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "looked"), StopReason: llm.StopEndTurn})
+	typed := &tool.URLSet{}
+	h.m.opts.Typed = typed
+	h.keys("check http://localhost:8080/health please")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	if !typed.Has("localhost:8080") {
+		t.Fatal("the host the user typed was not noted")
+	}
+	// A command the user runs themselves counts too.
+	h.m.opts.Typed.Note("curl http://127.0.0.1:9000/")
+	if !typed.Has("127.0.0.1:9000") {
+		t.Fatal("the host from a ! command was not noted")
+	}
+	// And a host nobody named stays out.
+	if typed.Has("169.254.169.254") {
+		t.Fatal("a host nobody typed is in the set")
 	}
 }
