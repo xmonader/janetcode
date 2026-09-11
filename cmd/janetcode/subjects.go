@@ -672,6 +672,9 @@ func statsReport(a *agent.Agent) string {
 	if s.ModelTime > 0 {
 		fmt.Fprintf(&b, "model time %s (%d failed calls)\n", s.ModelTime.Round(time.Millisecond), s.ModelErrors)
 	}
+	if s.Recoveries > 0 {
+		fmt.Fprintf(&b, "%d tool calls recovered from text the model wrote instead of calling\n", s.Recoveries)
+	}
 	if len(s.Tools) > 0 {
 		b.WriteString("\n  tool                calls  errors      time\n")
 		for _, t := range s.Tools {

@@ -3699,6 +3699,9 @@ func (m *model) statsCommand() {
 	if usd, ok := u.Cost(ag.Price); ok {
 		sb.WriteString(" · cost " + llm.FormatUSD(usd))
 	}
+	if st.Recoveries > 0 {
+		fmt.Fprintf(&sb, "\n%s recovered from text the model wrote instead of calling", plural(st.Recoveries, "tool call"))
+	}
 	fmt.Fprintf(&sb, "\ncontext ~%s of %s · %s · %s undoable", shortTokens(ag.EstimateTokens()), tokensOrUnknown(ag.CompactThreshold()), plural(st.Compactions, "compaction"), plural(len(ag.Checkpoints()), "turn"))
 	if m.opts.Jobs != nil {
 		if jobs := m.opts.Jobs.List(); len(jobs) > 0 {

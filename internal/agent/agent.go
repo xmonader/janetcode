@@ -362,6 +362,9 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			// Run merges into it.
 			return err
 		}
+		// A model that wrote its call as prose meant to call the tool;
+		// reading it back costs nothing and saves the turn.
+		a.recoverToolCalls(resp, emit)
 		a.lastInputTokens = resp.Usage.InputTokens + resp.Usage.CacheReadTokens + resp.Usage.CacheWriteTokens
 		a.lastInputMsgs = len(a.Messages)
 		a.Messages = append(a.Messages, resp.Message)
@@ -613,6 +616,51 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 		a.debugf("call done in %s: stop=%s usage=%+v", time.Since(start).Round(time.Millisecond), resp.StopReason, resp.Usage)
 	}
 	return resp, err
+}
+
+// recoverToolCalls rescues a turn whose tool calls arrived as text. Some
+// models — small ones, quantised ones, anything behind a gateway that
+// dropped the tool schema — write <invoke name=...> or a <tool_call> JSON
+// block into their answer instead of emitting a call. Left alone the turn
+// ends having done nothing; parsed, it does what the model asked for.
+// Only calls naming a tool this session actually has are taken, so prose
+// that merely looks like a call is still prose.
+func (a *Agent) recoverToolCalls(resp *llm.Response, emit func(Event)) {
+	if resp == nil || resp.StopReason == llm.StopToolUse || len(resp.Message.ToolUses()) > 0 {
+		return
+	}
+	text := resp.Message.Text()
+	calls, remaining, ok := llm.RecoverToolCalls(text)
+	if !ok {
+		return
+	}
+	kept := make([]llm.RecoveredCall, 0, len(calls))
+	for _, c := range calls {
+		if _, have := a.Tools.Get(c.Name); have {
+			kept = append(kept, c)
+		}
+	}
+	if len(kept) == 0 {
+		return
+	}
+	blocks := make([]llm.Block, 0, len(resp.Message.Blocks)+len(kept))
+	for _, b := range resp.Message.Blocks {
+		if b.Type != llm.BlockText {
+			blocks = append(blocks, b)
+		}
+	}
+	if remaining != "" {
+		blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: remaining})
+	}
+	blocks = append(blocks, llm.RecoveredBlocks(kept, fmt.Sprintf("recovered_%d_%d", a.turnN, a.stepN))...)
+	resp.Message.Blocks = blocks
+	resp.StopReason = llm.StopToolUse
+	a.stats.recovered(len(kept))
+	names := make([]string, 0, len(kept))
+	for _, c := range kept {
+		names = append(names, c.Name)
+	}
+	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("the model wrote %s as text instead of calling it; recovered and run", strings.Join(names, ", "))})
 }
 
 func (a *Agent) debugf(format string, args ...any) {

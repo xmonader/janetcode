@@ -14,7 +14,11 @@ type Stats struct {
 	ModelErrors int           // requests that failed (before any retry)
 	ModelTime   time.Duration // wall time spent waiting on the provider
 	Compactions int
-	Tools       []ToolStat // sorted by calls, descending
+	// Recoveries counts tool calls parsed back out of assistant text
+	// (see Agent.recoverToolCalls) — turns a model would otherwise have
+	// ended having done nothing.
+	Recoveries int
+	Tools      []ToolStat // sorted by calls, descending
 }
 
 // ToolStat is the tally for one tool.
@@ -59,6 +63,12 @@ func (c *statsCounter) model(d time.Duration, failed bool) {
 func (c *statsCounter) compacted() {
 	c.mu.Lock()
 	c.s.Compactions++
+	c.mu.Unlock()
+}
+
+func (c *statsCounter) recovered(n int) {
+	c.mu.Lock()
+	c.s.Recoveries += n
 	c.mu.Unlock()
 }
 

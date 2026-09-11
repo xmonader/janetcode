@@ -142,9 +142,13 @@ type Result struct {
 	ToolTime  time.Duration `json:"tool_time,omitempty"`
 	ToolCalls int           `json:"tool_calls"`
 	Turns     int           `json:"turns"` // model calls
-	Usage     llm.Usage     `json:"usage"`
-	CostUSD   float64       `json:"cost_usd"`
-	CostKnown bool          `json:"cost_known"`
+	// Recoveries counts tool calls parsed back out of assistant text,
+	// so a model that writes its calls as prose is visible in a run
+	// rather than looking like one that simply did nothing.
+	Recoveries int       `json:"recoveries,omitempty"`
+	Usage      llm.Usage `json:"usage"`
+	CostUSD    float64   `json:"cost_usd"`
+	CostKnown  bool      `json:"cost_known"`
 	// Compaction is what the context pipeline did during the run: how often
 	// the history was summarised, what the summariser calls cost (a subset
 	// of Usage), and how many archived outputs the model fetched back.
@@ -380,6 +384,7 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 	// Claude Code and still slower overall.
 	st := ag.Stats()
 	res.ModelTime = st.ModelTime
+	res.Recoveries = st.Recoveries
 	for _, t := range st.Tools {
 		res.ToolTime += t.Time
 	}
