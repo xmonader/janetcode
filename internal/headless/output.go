@@ -248,6 +248,18 @@ func (r *recorder) result(ag *agent.Agent, err error) eval.CLIResult {
 		DurationMS:        time.Since(r.start).Milliseconds(),
 	}
 	if ag != nil {
+		// The recorder tallies usage from EvTurnDone, which a turn that
+		// ended early -- on the budget, on a cancellation, on an error --
+		// never sends: the run would report zero tokens for calls it
+		// certainly made. The agent counts every call as it returns, so
+		// that is the figure when there is one.
+		if u := ag.UsageSnapshot(); u.InputTokens+u.OutputTokens+u.CacheReadTokens+u.CacheWriteTokens > 0 {
+			res.Usage = usageOf(u)
+			if usd, ok := u.Cost(r.price); ok {
+				res.CostUSD = usd
+			}
+			res.CostSource = u.CostSource(r.price)
+		}
 		st := ag.Stats()
 		if st.ModelCalls > 0 {
 			res.NumTurns = st.ModelCalls
@@ -262,10 +274,12 @@ func (r *recorder) result(ag *agent.Agent, err error) eval.CLIResult {
 			Total:          st.Saves(),
 		}
 	}
-	if usd, ok := r.usage.Cost(r.price); ok {
-		res.CostUSD = usd
+	if res.CostSource == "" {
+		if usd, ok := r.usage.Cost(r.price); ok {
+			res.CostUSD = usd
+		}
+		res.CostSource = r.usage.CostSource(r.price)
 	}
-	res.CostSource = r.usage.CostSource(r.price)
 	if err != nil {
 		res.IsError, res.Error = true, err.Error()
 	}
