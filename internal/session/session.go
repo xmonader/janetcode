@@ -362,8 +362,10 @@ func (s *Session) Append(e Event) (int, error) {
 
 // SetTitle stores a title in the metadata line and rewrites the file.
 func (s *Session) SetTitle(title string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Meta.Title = strings.TrimSpace(title)
-	return s.rewrite()
+	return s.rewriteLocked()
 }
 
 // Fork starts a new session holding a copy of this one's messages, so a
@@ -393,6 +395,8 @@ func Fork(dir string, from *Session, title string) (*Session, error) {
 
 // Label is the title, or the id when there is none.
 func (s *Session) Label() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Meta.Title != "" {
 		return s.Meta.Title
 	}
@@ -529,8 +533,10 @@ func snippetAround(text string, at int) string {
 
 // SavePins stores the pins in the metadata line and rewrites the file.
 func (s *Session) SavePins(pins []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Meta.Pins = append([]string(nil), pins...)
-	return s.rewrite()
+	return s.rewriteLocked()
 }
 
 // rewrite replaces the file with the metadata line followed by every event
