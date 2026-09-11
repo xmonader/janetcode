@@ -73,6 +73,34 @@ the variant name is recorded in the results file so a comparison says what
 it compared. The same names work as `JANETCODE_OFF=script` for a real
 session.
 
+## The two janetcode drivers in harnessbench
+
+`harnessbench` can run janetcode two ways, and they measure different
+things:
+
+- `--janetcode-driver eval` (the default) drives janetcode's own eval
+  runner: one process per batch of five, minimal agents, results read
+  back out of `--eval-json`.
+- `--janetcode-driver headless` drives it the way every other CLI in the
+  comparison is driven: one `janetcode -p --output-format json` per task,
+  with its result object read off stdout.
+
+Both now start from a private home — `HOME`, `XDG_CONFIG_HOME`,
+`XDG_DATA_HOME` and `XDG_CACHE_HOME` all point into a temporary
+directory — so neither reads the operator's config, sessions, memory,
+skills, MCP servers or permission rules, and both are given the same
+model-call cap (`--eval-max-turns` on one side, `--max-turns` on the
+other) with the tasks' `max_tool_calls` unenforced on both.
+
+What is left is a real difference rather than a harness artefact: the
+headless driver runs the whole product, so its agent carries the tools a
+session has (`fetch_url`, `web_search`, `task`, `job`, `skill`, `memory`,
+`goal_status`, `todo`, `tool_search`) where the eval agent carries nine.
+That shows up as a larger prompt — measured at 1.5k–3k more input tokens
+per task on evals 01–05 — and a correspondingly higher bill, and it is
+the point of having both: one asks what the model can do, the other what
+the product costs.
+
 ## Prompt A/B
 
 The prompt is the other half of the harness, and it can be swapped for a
