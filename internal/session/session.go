@@ -4,6 +4,7 @@ package session
 
 import (
 	"bufio"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -88,25 +89,46 @@ func New(dir, cwd, provider, model string) (*Session, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	id := time.Now().UTC().Format("20060102-150405") + "-" + randSuffix()
+	// An id already on disk would be written over from scratch by this
+	// session's first Append, taking the other conversation with it, so
+	// the suffix is drawn again until the path is free.
+	var id, path string
+	for tries := 0; ; tries++ {
+		suffix, err := randSuffix()
+		if err != nil {
+			return nil, err
+		}
+		id = time.Now().UTC().Format("20060102-150405") + "-" + suffix
+		path = filepath.Join(dir, id+".jsonl")
+		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		if tries == 16 {
+			return nil, fmt.Errorf("session id: %s is taken and no free suffix was found", id)
+		}
+	}
 	// The file is written with the first event, not here: a start that
 	// never gets to a prompt — no key, a bad key, a TUI opened and closed
 	// — would otherwise leave an empty session in the list every time.
 	return &Session{
 		Meta:      Meta{ID: id, Cwd: cwd, Provider: provider, Model: model, Created: time.Now().UTC()},
-		path:      filepath.Join(dir, id+".jsonl"),
+		path:      path,
 		unwritten: true,
 	}, nil
 }
 
-func randSuffix() string {
+// randSuffix distinguishes sessions started in the same second. It is the
+// only thing that does, and a collision is not cosmetic: the second
+// session's first Append rewrites the file at the shared path from
+// scratch, destroying the first session's conversation. So a suffix that
+// cannot be produced is fatal to New rather than silently 000000, which
+// is what a failed open or a short read of /dev/urandom used to give.
+func randSuffix() (string, error) {
 	b := make([]byte, 3)
-	f, err := os.Open("/dev/urandom")
-	if err == nil {
-		defer f.Close()
-		_, _ = f.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("session id: %w", err)
 	}
-	return fmt.Sprintf("%02x%02x%02x", b[0], b[1], b[2])
+	return fmt.Sprintf("%02x%02x%02x", b[0], b[1], b[2]), nil
 }
 
 // Open loads an existing session by ID and returns its messages.
