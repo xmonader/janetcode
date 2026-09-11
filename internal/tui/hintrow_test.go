@@ -132,13 +132,21 @@ func TestHintsOffSilencesEverythingAndOnBringsItBack(t *testing.T) {
 	}
 }
 
-func TestHintsAloneReportsTheState(t *testing.T) {
+// Whichever way round it is, /hints has to name the other way round.
+func TestHintsAloneReportsTheStateAndHowToChangeIt(t *testing.T) {
 	h := newHarness(t)
-	withHints(h)
+	e := withHints(h)
 	h.keys("/hints")
 	h.enter()
-	if v := plain(h.m.View()); !strings.Contains(v, "hints are on") {
-		t.Fatalf("/hints did not report its state:\n%s", v)
+	if v := plain(h.m.View()); !strings.Contains(v, "/hints off") {
+		t.Fatalf("/hints did not say how to silence them:\n%s", v)
+	}
+	e.Off = true
+	h.keys("/hints")
+	h.enter()
+	v := plain(h.m.View())
+	if !strings.Contains(v, "hints are off") || !strings.Contains(v, "/hints on") {
+		t.Fatalf("/hints with hints off did not say how to bring them back:\n%s", v)
 	}
 }
 

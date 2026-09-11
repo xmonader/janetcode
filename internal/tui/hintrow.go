@@ -137,12 +137,15 @@ func (m *model) hintsCommand(args []string) {
 	}
 	switch {
 	case len(args) == 0:
-		state := "on"
+		// Whichever way round it is, the line has to name the other
+		// way: somebody who has just turned hints off and typed /hints
+		// was being told again how to turn them off.
 		if m.hints.Off {
-			state = "off"
+			m.transcript.info("hints are off · /hints on brings them back for this session, and they stay off for every project while \"hints\": false is in the config file")
+			return
 		}
 		shown := len(m.hints.Shown())
-		m.transcript.info(plural(shown, "hint") + " given for this project · hints are " + state + " · /hints off silences them, and \"hints\": false in the config file does it for every project")
+		m.transcript.info(plural(shown, "hint") + " given for this project · /hints off silences them for this session, and \"hints\": false in the config file does it for every project")
 	case args[0] == "on":
 		m.hints.Off = false
 		m.transcript.info("hints on")
