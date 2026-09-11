@@ -683,6 +683,33 @@ and the tool's description says so.
 `JANETCODE_OFF=script` turns it off for a session, along with the other
 `-eval-off` names.
 
+### Asking janetcode about janetcode
+
+`/help` alone is still the keys-and-commands sheet. `/help <topic>` is a
+search: it ranks janetcode's whole feature catalogue — every slash
+command, key, command-line flag, tool, configuration key, and everything
+the harness does on its own — against the words you typed, and then
+quotes whatever the manual has to add. The manual is compiled into the
+binary, so this works with no network and no model call.
+
+```
+/help the context is full
+/help remember things across sessions
+/help my build takes forever
+```
+
+The catalogue is generated from the tables the program runs on: the
+command table, the flag set, the tool registry and the `Config` struct.
+It cannot describe a janetcode that does not exist, and tests fail when a
+command or a flag is added without a line saying when it helps.
+`--inspect features` prints the whole thing; `--inspect "features <query>"`
+searches it from a script.
+
+The model has the same catalogue through an `introspect` tool, so it can
+tell you the command for something instead of inventing one. That tool is
+*deferred*: its definition is not in any request until the model asks for
+it, so a session that never wonders about the harness pays nothing for it.
+
 ### Inspecting the session
 
 A session should not have to be guessed at. `/inspect <subject>` in the
@@ -708,6 +735,7 @@ the model can call on itself all report the same thing:
 | `repomap [query]` | the map and how files rank for a request |
 | `undo` | file changes recorded this session |
 | `all` | every subject at once |
+| `features` | the feature catalogue; `features <query>` searches it and the manual |
 
 Thirty-one subjects in all; `inspect list` names them. They report the live
 state, and each is reachable the same way from the terminal, the command

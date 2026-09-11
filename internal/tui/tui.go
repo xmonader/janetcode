@@ -24,6 +24,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -58,6 +59,9 @@ type Options struct {
 	LSP *lsp.Manager
 	// Inspect answers for every part of the session; /inspect reads it.
 	Inspect *inspect.Registry
+	// Features is the catalogue of what janetcode can do; /help <topic>
+	// searches it and the embedded manual. Nil leaves /help as it was.
+	Features *feature.Catalog
 	// Models resolves a model name to the backend serving it, so /model
 	// can follow a name to another provider.
 	Models func(string) (llm.Provider, string, error)
@@ -1004,7 +1008,9 @@ type command struct {
 }
 
 var commands = []command{
-	{name: "/help", args: "", help: "keys and commands"},
+	// No args here on purpose: enter on /help in the menu should print
+	// the sheet, not wait for a topic. /help <topic> still works typed.
+	{name: "/help", args: "", help: "keys and commands, or /help <topic> to search every feature and the manual"},
 	{name: "/compact", args: "", help: "summarise the conversation to free context"},
 	{name: "/clear", args: "", help: "start a new session"},
 	{name: "/resume", args: "[n|id]", help: "reopen an earlier session here: alone opens a searchable list, or name one"},
@@ -2484,6 +2490,13 @@ func (m *model) command(text string) tea.Cmd {
 	}
 	switch fields[0] {
 	case "/help", "/?":
+		// /help alone is the keys-and-commands sheet it has always been.
+		// /help <topic> is a search over the feature catalogue and the
+		// manual compiled into the binary: no model call, no network.
+		if len(fields) > 1 && m.opts.Features != nil {
+			m.transcript.info(feature.Answer(m.opts.Features, strings.Join(fields[1:], " "), ""))
+			break
+		}
 		m.transcript.info(m.helpText())
 	case "/quit", "/exit", "/q":
 		m.quitting = true

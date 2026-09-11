@@ -18,6 +18,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/eval"
+	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/inspect"
@@ -132,6 +134,10 @@ func printFlags(fs *flag.FlagSet, keep func(*flag.Flag) bool) {
 	})
 }
 
+// declaredFlags holds the flag set of the most recent run, for the
+// catalogue drift test. Nothing in the program reads it.
+var declaredFlags atomic.Pointer[flag.FlagSet]
+
 func run(args []string) error {
 	fs := flag.NewFlagSet("janetcode", flag.ContinueOnError)
 	fs.Usage = func() {
@@ -203,6 +209,12 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		appendSystem = fs.String("append-system-prompt", "", "text (or @file) appended to the system prompt; JANETCODE_SYSTEM_MD=<file> replaces the base prompt. Both are recorded in eval results so a prompt A/B is traceable")
 		runDoctor    = fs.Bool("doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
 	)
+	// The flag set is published so the catalogue tests can walk exactly
+	// the flags this program declares. Declaring them in a helper instead
+	// would mean renaming forty-odd locals whose names (version, model,
+	// resume) collide with package-level ones — a rename with nothing to
+	// gain but a tidier test.
+	declaredFlags.Store(fs)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -269,6 +281,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		cfgPath, _ := config.Path()
 		cwd, _ := os.Getwd()
 		registerOfflineSubjects(r, cfg, cfgPath, cwd, err)
+		registerFeatureSubject(r, buildCatalog(fs, nil))
 		return inspectOnce(r, *inspectWhat, os.Stdout)
 	}
 	if err == nil {
@@ -493,6 +506,14 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		task: task, skills: skills, rules: built.rules, ruleInjector: built.ruleInjector,
 	})
 	ag.Tools.Add(inspect.Tool{Registry: subjects})
+	// The feature catalogue is built from the tables this run is already
+	// holding: the flag set, the tool registry, the command table and the
+	// Config struct. It costs a few hundred small structs and no I/O.
+	catalog := buildCatalog(fs, ag.Tools)
+	registerFeatureSubject(subjects, catalog)
+	// Deferred: the model gets the schema only after asking for it, so a
+	// session that never wonders about the harness never pays for it.
+	ag.Tools.AddDeferred(feature.Introspect{Catalog: catalog})
 	if *inspectWhat != "" {
 		return inspectOnce(subjects, *inspectWhat, os.Stdout)
 	}
@@ -604,6 +625,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Hooks:     &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
 		LSP:       diag,
 		Inspect:   subjects,
+		Features:  catalog,
 		Rules:     built.ruleInjector,
 		Models:    pool.For,
 		Jobs:      jobs,

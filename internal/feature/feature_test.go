@@ -1,0 +1,130 @@
+package feature
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
+
+func sample() *Catalog {
+	c := New()
+	c.AddAll([]Feature{
+		{Name: "/undo", Kind: KindCommand, What: "revert everything the last turn changed", When: "the model changed the wrong thing", Topics: []string{"revert", "mistake"}},
+		{Name: "/compact", Kind: KindCommand, What: "summarise the conversation to free context", When: "the gauge is high", Topics: []string{"context", "full", "long", "output"}},
+		{Name: "/resume", Kind: KindCommand, What: "reopen an earlier session", When: "you closed the terminal"},
+		{Name: "ctrl+g", Kind: KindKey, What: "background the running command", When: "a build is holding the turn"},
+		{Name: "compact_at", Kind: KindConfig, What: "token count that triggers compaction", When: "you want it earlier or later"},
+	})
+	return c
+}
+
+func TestFindPrefersTheNameOverTheProse(t *testing.T) {
+	c := sample()
+	hits := c.Find("undo", 5)
+	if len(hits) == 0 || hits[0].Name != "/undo" {
+		t.Fatalf("undo ranked %v first", hits)
+	}
+	// A leading slash is how a user types a command; it must not change
+	// the answer.
+	if h := c.Find("/undo", 1); len(h) == 0 || h[0].Name != "/undo" {
+		t.Fatalf("/undo did not find itself")
+	}
+}
+
+func TestFindMatchesTheProblemNotOnlyTheName(t *testing.T) {
+	c := sample()
+	for _, tc := range []struct{ q, want string }{
+		{"the context is full", "/compact"},
+		{"a long output", "/compact"},
+		{"I made a mistake", "/undo"},
+		{"cmpct", "/compact"}, // letters in order, like the command menu
+	} {
+		hits := c.Find(tc.q, 4)
+		found := false
+		for _, h := range hits {
+			if h.Name == tc.want {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%q did not find %s (got %d hits)", tc.q, tc.want, len(hits))
+		}
+	}
+}
+
+func TestFindIsNotAWordFragmentSearch(t *testing.T) {
+	c := New()
+	c.Add(Feature{Name: "/x", Kind: KindCommand, What: "an undocumented thing", When: "never"})
+	if hits := c.Find("undo", 5); len(hits) != 0 {
+		t.Errorf("undo matched %q through a fragment of a longer word", hits[0].What)
+	}
+}
+
+func TestEmptyQueryFindsNothing(t *testing.T) {
+	if hits := sample().Find("   ", 5); hits != nil {
+		t.Errorf("a blank query returned %d hits", len(hits))
+	}
+}
+
+func TestAddReplacesRatherThanDuplicates(t *testing.T) {
+	c := sample()
+	n := c.Len()
+	c.Add(Feature{Name: "/undo", Kind: KindCommand, What: "changed"})
+	if c.Len() != n {
+		t.Fatalf("catalogue grew from %d to %d on a replacement", n, c.Len())
+	}
+	f, _ := c.Get(KindCommand, "/undo")
+	if f.What != "changed" {
+		t.Fatalf("replacement did not take: %q", f.What)
+	}
+}
+
+func TestSameNameInTwoKindsCoexist(t *testing.T) {
+	c := New()
+	c.Add(Feature{Name: "model", Kind: KindFlag, What: "the flag"})
+	c.Add(Feature{Name: "model", Kind: KindConfig, What: "the config key"})
+	if c.Len() != 2 {
+		t.Fatalf("kinds collided: %d entries", c.Len())
+	}
+}
+
+func TestIntrospectRefusesAnEmptyQuery(t *testing.T) {
+	tl := Introspect{Catalog: sample()}
+	if _, err := tl.Run(t.Context(), json.RawMessage(`{"query":"  "}`)); err == nil {
+		t.Fatal("an empty query was accepted")
+	}
+}
+
+func TestIntrospectAnswersFromTheCatalogue(t *testing.T) {
+	tl := Introspect{Catalog: sample()}
+	out, err := tl.Run(t.Context(), json.RawMessage(`{"query":"context is full"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "/compact") {
+		t.Fatalf("answer did not name /compact:\n%s", out)
+	}
+	if len(out) > MaxAnswerBytes+120 {
+		t.Fatalf("answer is %d bytes", len(out))
+	}
+}
+
+func TestIntrospectIsReadOnlyAndSchemaIsValid(t *testing.T) {
+	var tl Introspect
+	if tl.Mutating() {
+		t.Error("introspect claims to mutate")
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(tl.Schema(), &schema); err != nil {
+		t.Fatalf("schema is not JSON: %v", err)
+	}
+	if tl.Name() != "introspect" {
+		t.Errorf("name is %q", tl.Name())
+	}
+}
+
+func TestAnswerSurvivesANilCatalogue(t *testing.T) {
+	if got := Answer(nil, "zzzz no such thing zzzz", ""); got == "" {
+		t.Fatal("nil catalogue produced no answer at all")
+	}
+}
