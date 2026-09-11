@@ -324,6 +324,19 @@ lists jobs, shows output, waits with a timeout, or kills one; `/jobs` and
 `/jobs kill <n>` do the same for you. Every job is stopped when janetcode
 exits.
 
+A command already running in the foreground can be moved to the
+background instead of being waited out or killed: it keeps running, the
+output collected so far is written to the job log from the beginning, and
+it becomes a job like any other. `bash` exposes this as a Go API
+(`tool.Running.Promote`) so a key binding can reach it; the tool schema is
+unchanged, because this is the user's decision about a command that is
+already running, not the model's.
+
+`sed -i` is an edit, so it is shown as one: a `bash` call containing it is
+run once without `-i` and the diff it would make appears in the permission
+prompt, per file, the way an `edit_file` diff does. The preview never
+touches the file.
+
 ### Editing subagents in a worktree
 
 `task` with `edit: true` gives the subagent the full tool set inside a
@@ -895,6 +908,14 @@ regexp on the tool name. What the hook prints decides:
 - any other exit code, a crash or a timeout (10 s by default, `timeout`
   in seconds) is logged and ignored: hooks fail open, so a broken hook
   cannot wedge a session.
+
+A project's `.janetcode/hooks.json` is held to less than the user's own
+config, because trusting it is a decision about this checkout rather than
+a decision to hand the repository every power the user has: a project hook
+may not reach the network (`curl`, `wget`, `ssh`, `scp`, a bare URL), and
+its timeout is capped at 60 seconds. Each one dropped or trimmed is named,
+with what to do about it — copy it into your own config, which is a
+deliberate act. The user's own hooks are unrestricted.
 
 `/hooks` lists what is in effect.
 

@@ -108,6 +108,60 @@ func Merge(a, b Config) Config {
 	return out
 }
 
+// A hook runs a shell command on the user's machine every time the agent
+// touches a tool, and the project's hooks come from the repository rather
+// than from the user. Trusting a project's hook file is a decision about
+// this checkout, not a decision to hand the repository every power the
+// user has: the narrower scope must not be able to widen what the wider
+// one allows.
+//
+// So a project hook may not reach the network. The user's own config may
+// — it is the user's config — and a project that needs one says so, and
+// the user copies it into their own file, which is a deliberate act.
+
+// networkCommand matches the obvious ways a shell command reaches off the
+// machine. It is not a sandbox: a project hook can still run a script that
+// does anything. It is the same defence in depth as the self-modification
+// guard — the obvious move is the one that is stopped and named.
+var networkCommand = regexp.MustCompile(`(?i)\b(curl|wget|nc|ncat|netcat|telnet|ssh|scp|sftp|rsync|ftp)\b|https?://`)
+
+// projectTimeoutCap bounds how long one project hook may hold up a turn.
+const projectTimeoutCap = 60
+
+// Restrict returns the project hooks that a workspace scope is allowed to
+// contribute, and a note for each one dropped or trimmed. A nil config
+// gives nothing back and no notes.
+func Restrict(project Config) (Config, []string) {
+	if len(project) == 0 {
+		return project, nil
+	}
+	out := Config{}
+	var notes []string
+	for ev, hooks := range project {
+		for i, h := range hooks {
+			where := fmt.Sprintf("%s %s[%d] (%s)", ProjectFile, ev, i, firstWords(h.Command))
+			if networkCommand.MatchString(h.Command) {
+				notes = append(notes, where+" is not run: a project hook may not reach the network. Copy it into your own config if you want it.")
+				continue
+			}
+			if h.Timeout > projectTimeoutCap {
+				notes = append(notes, fmt.Sprintf("%s asked for a %ds timeout; a project hook is capped at %ds.", where, h.Timeout, projectTimeoutCap))
+				h.Timeout = projectTimeoutCap
+			}
+			out[ev] = append(out[ev], h)
+		}
+	}
+	return out, notes
+}
+
+// MergeScoped is Merge with the project side held to what a workspace
+// scope may contribute. It returns the combined config and the notes
+// explaining anything the project asked for and did not get.
+func MergeScoped(user, project Config) (Config, []string) {
+	kept, notes := Restrict(project)
+	return Merge(user, kept), notes
+}
+
 // Input is what a hook reads on stdin, as JSON.
 type Input struct {
 	Event   string          `json:"event"`

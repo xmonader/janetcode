@@ -95,6 +95,63 @@ func (j *Jobs) Start(root, command string) (*Job, error) {
 	return job, nil
 }
 
+// Adopt takes over a command that is already running in the foreground:
+// its output starts going to a job log from the beginning, and it becomes
+// a job like one started with background: true. wait is the channel the
+// caller's own Wait goroutine will send the command's result on, so the
+// process is waited for exactly once.
+func (j *Jobs) Adopt(command string, cmd *exec.Cmd, out *swapBuffer, wait <-chan error) (*Job, error) {
+	if j == nil {
+		return nil, errors.New("background jobs are not available")
+	}
+	dir := j.Dir
+	if dir == "" {
+		dir = filepath.Join(os.TempDir(), "janetcode-jobs")
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
+	j.mu.Lock()
+	j.next++
+	id := j.next
+	j.mu.Unlock()
+	f, err := os.CreateTemp(dir, fmt.Sprintf("job-%d-*.log", id))
+	if err != nil {
+		return nil, err
+	}
+	if err := out.attach(f); err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return nil, err
+	}
+	pid := 0
+	if cmd.Process != nil {
+		pid = cmd.Process.Pid
+	}
+	job := &Job{ID: id, Command: command, Pid: pid, Started: time.Now(), OutPath: f.Name(), cmd: cmd, done: make(chan struct{})}
+	j.mu.Lock()
+	j.jobs = append(j.jobs, job)
+	j.mu.Unlock()
+	go func() {
+		err := <-wait
+		f.Close()
+		j.mu.Lock()
+		job.Done, job.Ended = true, time.Now()
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			job.Exit = ee.ExitCode()
+			if job.Exit == -1 {
+				job.Exit = signalExitCode(ee)
+			}
+		} else if err != nil {
+			job.Exit = 1
+		}
+		j.mu.Unlock()
+		close(job.done)
+	}()
+	return job, nil
+}
+
 // List returns every job, oldest first, as copies.
 func (j *Jobs) List() []Job {
 	if j == nil {

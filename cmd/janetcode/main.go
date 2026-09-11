@@ -363,7 +363,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	typed := &tool.URLSet{}
 	typed.Note(initial)
 	typed.Note(*promptText)
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, models: pool.For, typed: typed}
+	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, models: pool.For, typed: typed, running: &tool.Running{}}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return err
@@ -393,7 +393,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	hooksTrusted := len(hooksCfg) > 0 && trust.Trusted(hookTrustKey(cwd), hooksHash)
 	ag.Hooks = &hook.Runner{Config: cfg.Hooks, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[hook] %s\n", s) }}
 	if hooksTrusted {
-		ag.Hooks.Config = hook.Merge(cfg.Hooks, hooksCfg)
+		var hookNotes []string
+		ag.Hooks.Config, hookNotes = hook.MergeScoped(cfg.Hooks, hooksCfg)
+		for _, n := range hookNotes {
+			fmt.Fprintf(os.Stderr, "[hooks] %s\n", n)
+		}
 	} else if len(hooksCfg) > 0 && *promptText != "" {
 		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
 	}
@@ -1129,6 +1133,9 @@ type agentDeps struct {
 	// typed holds the hosts the user named themselves. fetch_url reaches a
 	// private-network address only for a host that is in here.
 	typed *tool.URLSet
+	// running is the registry of foreground commands that can be moved to
+	// the background while they run.
+	running *tool.Running
 }
 
 // builtAgent is one session's agent and the pieces the caller still owns:
@@ -1170,7 +1177,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 			tool.ReadFile{Root: d.cwd, Seen: seen},
 			tool.WriteFile{Root: d.cwd, Seen: seen},
 			tool.EditFile{Root: d.cwd, Seen: seen, NoLines: envOff()["lineedit"]},
-			tool.Bash{Root: d.cwd, Cache: &tool.ShellCache{}, Jobs: jobs},
+			tool.Bash{Root: d.cwd, Cache: &tool.ShellCache{}, Jobs: jobs, Running: d.running},
 			tool.JobTool{Jobs: jobs},
 			tool.FetchURL{Typed: d.typed},
 			tool.WebSearch{Config: d.cfg.Search},
