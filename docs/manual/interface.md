@@ -91,6 +91,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost, what the harness had to recover)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
 /undo [preview]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
+/budget [usd | off] (stop the session once it has spent that much; alone reports it)
 /fork [title]  /title <text>  /history <words> (search every saved session)
 /open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)
 /context   (what fills the window)   /pin <note or @file>   /unpin <n>

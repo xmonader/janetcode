@@ -1048,6 +1048,7 @@ var commands = []command{
 	{name: "/connect", args: "", help: "connect to a provider (preset or custom API) and pick a model"},
 	{name: "/model", args: "[name]", help: "pick a model from a list, or set one by name"},
 	{name: "/usage", args: "", help: "tokens and cost for this session"},
+	{name: "/budget", args: "[usd|off]", help: "stop the session once it has spent this much; alone says what the ceiling is and what is left"},
 	{name: "/export", args: "[file.md]", help: "write this session as a Markdown transcript"},
 	{name: "/verbose", args: "", help: "toggle expanded tool output for the whole transcript (ctrl+o expands one turn)"},
 	{name: "/quit", args: "", help: "exit"},
@@ -1056,7 +1057,10 @@ var commands = []command{
 // idleOnly names the commands that cannot run while a turn is: they swap
 // the conversation or the backend under the turn's feet. Resolving one
 // mid-turn is blocked with one message, in one place.
-var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo"}
+// /budget is here for a different reason from the rest: the ceiling is
+// read by the turn that is running, so writing it from the key handler
+// while a turn is in flight would be a data race on the agent.
+var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget"}
 
 // argCompleters lists the commands whose argument can be enumerated.
 var argCompleters = map[string]func(m *model, partial string) []command{
@@ -1583,6 +1587,11 @@ func (m *model) applyEvent(ev agent.Event) {
 			if u.CostSource(m.opts.Agent.Price) != "reported" {
 				s += " est."
 			}
+		}
+		// A ceiling the session will stop on belongs where the spend is,
+		// not only in the message that announces it has been reached.
+		if m.opts.Agent.MaxCostUSD > 0 {
+			s += " · budget " + m.budgetStatus()
 		}
 		if ev.StopReason != "" && ev.StopReason != "end_turn" {
 			s += " · stopped: " + string(ev.StopReason)
@@ -2705,6 +2714,8 @@ func (m *model) command(text string) tea.Cmd {
 			line += "\ncost unpriced: the provider does not report it and no rate is known for this model; add it under \"prices\" in the config file, or wait for the rate table to be fetched"
 		}
 		m.transcript.info(line)
+	case "/budget":
+		m.budgetCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	default:
 		if c, ok := m.custom[fields[0]]; ok {
 			args := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
