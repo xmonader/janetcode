@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -101,9 +102,24 @@ type Config struct {
 	// Search selects the web_search backend: DuckDuckGo by default, or
 	// Brave Search with a key.
 	Search tool.SearchConfig `json:"search,omitempty"`
+	// StreamIdleTimeout is how many seconds a streamed model call may
+	// produce nothing before it is given up on; every increment resets
+	// it. StreamMaxDuration is the longest one call may take however
+	// steadily it streams. Zero means the default (240 and 900);
+	// negative disables the bound.
+	StreamIdleTimeout int `json:"stream_idle_timeout,omitempty"`
+	StreamMaxDuration int `json:"stream_max_duration,omitempty"`
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on. /remember always works.
 	Memory *bool `json:"memory,omitempty"`
+}
+
+// StreamLimits are the watchdog bounds for one streamed model call.
+func (c *Config) StreamLimits() llm.StreamLimits {
+	return llm.StreamLimits{
+		Idle: time.Duration(c.StreamIdleTimeout) * time.Second,
+		Max:  time.Duration(c.StreamMaxDuration) * time.Second,
+	}
 }
 
 // AutoMemory reports whether memory is extracted automatically.

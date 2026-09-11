@@ -676,12 +676,14 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 			Thinking:     cfg.ThinkingEnabled(),
 			HideThinking: !cfg.ThinkingShown(),
 			Effort:       cfg.Effort,
+			Limits:       cfg.StreamLimits(),
 		})
 	case "openai":
 		return openai.New(openai.Config{
 			APIKeys: p.Keys(),
 			BaseURL: p.BaseURL,
 			Name:    cfg.Provider,
+			Limits:  cfg.StreamLimits(),
 		})
 	}
 	return nil, fmt.Errorf("provider %q has unknown type %q", cfg.Provider, p.Type)

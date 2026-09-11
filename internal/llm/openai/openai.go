@@ -45,6 +45,9 @@ type Config struct {
 	// MaxRetries for connection errors, 429 and 5xx before any bytes are
 	// streamed. Default 2.
 	MaxRetries int
+	// Limits bound one streamed call: a resettable idle timeout and a
+	// lifetime cap. The zero value means the defaults.
+	Limits llm.StreamLimits
 	// CacheKey is a stable per-session string sent as prompt_cache_key.
 	// Servers that shard their prompt cache hash the prefix together with
 	// this key, so without one a session's growing prefix can land on a
@@ -661,6 +664,10 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if emit == nil {
 		emit = func(llm.Event) {}
 	}
+	// A stream that stops producing without failing would otherwise hang
+	// the turn for as long as the process lives.
+	ctx, wd := llm.Watch(ctx, p.cfg.Limits)
+	defer wd.Stop()
 	// Spacing imposed by earlier rate limits, if any. Costs nothing on a
 	// session the provider has never refused.
 	if err := p.pace.Wait(ctx); err != nil {
@@ -710,19 +717,20 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 			p.pace.Refused()
 		}
 		if attempt >= p.cfg.MaxRetries || !retryable(err) || ctx.Err() != nil {
-			return nil, err
+			return nil, wd.Wrap(err)
 		}
 		wait := time.Duration(500*(1<<attempt)) * time.Millisecond
 		emit(llm.Event{Type: llm.EventStatus, Text: fmt.Sprintf("retrying %d/%d · %s · in %s", attempt+1, p.cfg.MaxRetries, retryReason(err), wait.Round(time.Second/10))})
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, wd.Wrap(ctx.Err())
 		case <-time.After(wait):
 		}
 	}
 	defer resp.Body.Close()
 	p.pace.Served()
-	return readStream(resp.Body, emit)
+	out, err := readStream(resp.Body, wd, emit)
+	return out, wd.Wrap(err)
 }
 
 // applyDialect adjusts the request for quirks learned so far.
@@ -951,7 +959,9 @@ type toolAcc struct {
 	sortKey int
 }
 
-func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
+// readStream assembles the SSE body. wd, when set, is told about every
+// frame so a stream that keeps talking is never cut off for being idle.
+func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Response, error) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
 	var (
@@ -969,6 +979,7 @@ func readStream(r io.Reader, emit func(llm.Event)) (*llm.Response, error) {
 	// Blocks are emitted in the order: thinking, text, tool calls, matching how
 	// the model produced them well enough for history replay.
 	for sc.Scan() {
+		wd.Tick()
 		line := sc.Text()
 		if !strings.HasPrefix(line, "data:") {
 			continue

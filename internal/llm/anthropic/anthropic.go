@@ -35,6 +35,9 @@ type Config struct {
 	// Effort is one of low, medium, high, xhigh, max. Empty means the API
 	// default.
 	Effort string
+	// Limits bound one streamed call: a resettable idle timeout and a
+	// lifetime cap. The zero value means the defaults.
+	Limits llm.StreamLimits
 	// MaxRetries for transient failures. Default 2.
 	MaxRetries int
 	// HTTPClient overrides the default client (tests).
@@ -273,9 +276,13 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if err != nil {
 		return nil, err
 	}
+	// A stream that stops producing without failing would otherwise hang
+	// the turn for as long as the process lives.
+	ctx, wd := llm.Watch(ctx, p.cfg.Limits)
+	defer wd.Stop()
 	for rotations := 0; ; rotations++ {
 		client, idx := p.current()
-		resp, err := p.stream(ctx, client, params, emit)
+		resp, err := p.stream(ctx, client, params, wd, emit)
 		if err == nil {
 			p.ring.OK(idx)
 			return resp, nil
@@ -283,16 +290,17 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		if f, ok := keyProblem(err); ok && p.ring.Fail(idx, f) && rotations < p.ring.Len()-1 {
 			continue
 		}
-		return resp, err
+		return resp, wd.Wrap(err)
 	}
 }
 
-func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.MessageNewParams, emit func(llm.Event)) (*llm.Response, error) {
+func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.MessageNewParams, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Response, error) {
 	stream := client.Messages.NewStreaming(ctx, params)
 	msg := sdk.Message{}
 	// Track open tool_use blocks by index so we can emit start/end events.
 	openTools := map[int64]*llm.Block{}
 	for stream.Next() {
+		wd.Tick()
 		ev := stream.Current()
 		if err := msg.Accumulate(ev); err != nil {
 			return nil, fmt.Errorf("anthropic: accumulate: %w", err)

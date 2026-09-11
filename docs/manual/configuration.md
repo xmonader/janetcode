@@ -49,6 +49,21 @@ environment are never copied into the config file.
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
 
+### Stream watchdog
+
+A streamed model call can stop producing without ever failing: the socket
+stays open and the turn waits forever. Two bounds end it. `stream_idle_timeout`
+(seconds, default 240) is how long the stream may produce nothing; every
+increment resets it, so a slow model that keeps talking is never cut off.
+`stream_max_duration` (seconds, default 900) is the longest one call may
+take however steadily it streams, and nothing resets it. Either one ends
+the turn with a normal failure you can resend; set a bound negative to
+disable it.
+
+```json
+{ "stream_idle_timeout": 240, "stream_max_duration": 900 }
+```
+
 ### Project instructions
 
 If the working directory contains `JANETCODE.md`, `AGENTS.md` or `CLAUDE.md`

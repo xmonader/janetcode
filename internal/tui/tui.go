@@ -2403,6 +2403,8 @@ func friendlyError(err error, provider string) string {
 	case strings.Contains(l, "http 404") || strings.Contains(l, "model not found") || strings.Contains(l, "not_found"),
 		strings.Contains(l, "http 400") && strings.Contains(l, "model"):
 		return shape("model not available", errorCode(l), "Pick another with /model.")
+	case strings.Contains(l, "stream stalled"):
+		return shape("the model stopped sending", errorCode(l), "Resend it; raise stream_idle_timeout or stream_max_duration in the config if it keeps happening on long answers.")
 	case strings.Contains(l, "deadline exceeded") || strings.Contains(l, "timeout"):
 		return shape("the request timed out", errorCode(l), "Resend it; if it keeps happening the model may be overloaded.")
 	case strings.Contains(l, "http 5"):
@@ -2424,6 +2426,8 @@ func errorCode(l string) string {
 		return "dns"
 	case strings.Contains(l, "connection refused"):
 		return "refused"
+	case strings.Contains(l, "stream stalled"):
+		return "stalled stream"
 	case strings.Contains(l, "deadline exceeded") || strings.Contains(l, "timeout"):
 		return "timeout"
 	}

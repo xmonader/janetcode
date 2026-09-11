@@ -3,12 +3,14 @@ package openai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -573,7 +575,7 @@ func TestReadStreamSeparatesToolCallsWithoutIndex(t *testing.T) {
 	}
 	b.WriteString("data: [DONE]\n\n")
 
-	resp, err := readStream(strings.NewReader(b.String()), func(llm.Event) {})
+	resp, err := readStream(strings.NewReader(b.String()), nil, func(llm.Event) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -662,7 +664,7 @@ func TestReadStreamProviderQuirks(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp, err := readStream(strings.NewReader(stream(tc.chunks...)), func(llm.Event) {})
+			resp, err := readStream(strings.NewReader(stream(tc.chunks...)), nil, func(llm.Event) {})
 			if err != nil {
 				t.Fatalf("readStream: %v", err)
 			}
@@ -698,7 +700,7 @@ func TestReadStreamHostileFrames(t *testing.T) {
 			"data: " + `{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_b","function":{"name":"grep","arguments":"{\"pattern\":\"x\"}"}}]}}]}` + "\n\n" +
 			"data: " + `{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}` + "\n\n" +
 			"data: [DONE]\n\n"
-		resp, err := readStream(strings.NewReader(s), func(llm.Event) {})
+		resp, err := readStream(strings.NewReader(s), nil, func(llm.Event) {})
 		if err != nil {
 			t.Fatalf("readStream: %v", err)
 		}
@@ -717,7 +719,7 @@ func TestReadStreamHostileFrames(t *testing.T) {
 			"data:  \n\n" +
 			"data: " + `{"choices":[{"delta":{},"finish_reason":"stop"}]}` + "\n\n" +
 			"data: [DONE]\n\n"
-		resp, err := readStream(strings.NewReader(s), func(llm.Event) {})
+		resp, err := readStream(strings.NewReader(s), nil, func(llm.Event) {})
 		if err != nil {
 			t.Fatalf("an empty keep-alive frame must not fail the stream: %v", err)
 		}
@@ -736,7 +738,7 @@ func TestReadStreamWholeArgumentResend(t *testing.T) {
 		"data: " + `{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"path\":\"a.go\"}"}}]}}]}` + "\n\n" +
 		"data: " + `{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}` + "\n\n" +
 		"data: [DONE]\n\n"
-	resp, err := readStream(strings.NewReader(s), func(llm.Event) {})
+	resp, err := readStream(strings.NewReader(s), nil, func(llm.Event) {})
 	if err != nil {
 		t.Fatalf("readStream: %v", err)
 	}
@@ -834,5 +836,58 @@ func TestRetryAnnouncesItself(t *testing.T) {
 	}
 	if !strings.HasPrefix(status[0], "retrying 1/") || !strings.Contains(status[0], "rate limited") || !strings.Contains(status[0], " in ") {
 		t.Fatalf("status[0] = %q", status[0])
+	}
+}
+
+// A stream that goes quiet mid-answer must end as a failed call rather
+// than hang the turn for as long as the process lives.
+func TestStreamIdleWatchdog(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\n\n")
+		w.(http.Flusher).Flush()
+		<-release // never writes another frame
+	}))
+	defer srv.Close()
+	defer close(release)
+	p, err := New(Config{BaseURL: srv.URL + "/v1/", APIKey: "k", Limits: llm.StreamLimits{Idle: 50 * time.Millisecond, Max: -1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	if !errors.Is(err, llm.ErrStreamWatchdog) {
+		t.Fatalf("err = %v, want a stalled-stream error", err)
+	}
+}
+
+// A stream that keeps producing past the lifetime cap is still stopped.
+func TestStreamLifetimeWatchdog(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		for {
+			select {
+			case <-release:
+				return
+			default:
+			}
+			if _, err := io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"x\"}}]}\n\n"); err != nil {
+				return
+			}
+			w.(http.Flusher).Flush()
+			time.Sleep(5 * time.Millisecond)
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
+	p, err := New(Config{BaseURL: srv.URL + "/v1/", APIKey: "k", Limits: llm.StreamLimits{Idle: -1, Max: 80 * time.Millisecond}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	var st *llm.StreamStalled
+	if !errors.As(err, &st) || !st.Lifetime {
+		t.Fatalf("err = %v, want the lifetime cap", err)
 	}
 }
