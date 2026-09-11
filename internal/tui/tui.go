@@ -3147,16 +3147,32 @@ func (m *model) permissionKeys(tool, rule string, expandable bool) string {
 	if s, w := render(long, "   "); w <= room {
 		return s
 	}
-	// Shorter labels, and the rule cut to whatever is left.
-	fixed := lipgloss.Width("y once · a always for " + tool + " · r rule  · n deny · c cancel")
-	if left := room - fixed; left >= 12 && len(rule) > left {
-		rule = truncateLine(rule, left)
-	}
+	// The rule is the only part of the line the user cannot guess, so it
+	// is the last thing to go. Shorten it the way the rest of the
+	// interface shortens a path first, then spend the remaining width by
+	// dropping the descriptions of the keys that need one least: "y once"
+	// and "a always for edit_file" say nothing "y" and "a always" do not.
+	// Cutting the rule first is what left an 80-column terminal showing
+	// "r rule" with no rule at all, which is the one wording that makes
+	// the key useless.
+	rule = shortenPaths(m.opts.Cwd, rule)
 	medium := []seg{{"y", " once"}, {"a", " always for " + tool}, {"r", " rule " + rule}, {"n", " deny"}, {"c", " cancel"}}
 	if s, w := render(medium, " · "); w <= room {
 		return s
 	}
-	s, _ := render([]seg{{"y", " once"}, {"a", " always"}, {"r", " rule"}, {"n", " deny"}, {"c", " cancel"}}, " · ")
+	narrow := []seg{{"y", ""}, {"a", " always"}, {"r", " rule " + rule}, {"n", " deny"}, {"c", " cancel"}}
+	if s, w := render(narrow, " · "); w <= room {
+		return s
+	}
+	// Only now is the rule itself cut, to whatever the fixed part leaves.
+	fixed := lipgloss.Width("y · a always · r rule  · n deny · c cancel")
+	if left := room - fixed; left >= 6 && lipgloss.Width(rule) > left {
+		narrow[2].text = " rule " + truncateLine(rule, left)
+		if s, w := render(narrow, " · "); w <= room {
+			return s
+		}
+	}
+	s, _ := render([]seg{{"y", ""}, {"a", " always"}, {"r", " rule"}, {"n", " deny"}, {"c", " cancel"}}, " · ")
 	return s
 }
 

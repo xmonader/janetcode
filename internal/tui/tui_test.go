@@ -1714,6 +1714,31 @@ func TestPermissionKeysFitOneLine(t *testing.T) {
 	}
 }
 
+// TestPermissionKeysKeepTheRule: at 80 and 60 columns the line still
+// names the rule the r key would save. It used to degrade to a bare
+// "r rule", because the rule was cut before the descriptions of the keys
+// that do not need one.
+func TestPermissionKeysKeepTheRule(t *testing.T) {
+	h := newHarness(t)
+	for _, w := range []int{60, 80} {
+		h.m.width = w
+		for _, rule := range []string{"edit_file(cmd/*)", "bash(go test ./internal/...)", "edit_file(internal/tui/*)"} {
+			line := plain(h.m.permissionKeys("edit_file", rule, false))
+			if lipgloss.Width(line) > w-6 {
+				t.Fatalf("width %d rule %q: %d cols: %q", w, rule, lipgloss.Width(line), line)
+			}
+			i := strings.Index(line, " rule ")
+			if i < 0 {
+				t.Fatalf("width %d rule %q: no rule on the line: %q", w, rule, line)
+			}
+			rest := line[i+len(" rule "):]
+			if named, _, _ := strings.Cut(rest, " ·"); len(named) < 6 {
+				t.Fatalf("width %d rule %q: rule shown as %q", w, rule, named)
+			}
+		}
+	}
+}
+
 // TestGoalStartsWorkingAtOnce: /goal <objective> used to record the goal
 // and stop, since the loop only advanced when a turn ended. It starts
 // the first round immediately, and the status bar shows the goal.
