@@ -232,24 +232,13 @@ func TestStreamingWriteShowsProgress(t *testing.T) {
 	}
 }
 
-// TestPlanUpdatesRenderAsDeltas: the first plan shows whole; a later
-// rewrite shows only the lines that changed and the tally.
-func TestPlanUpdatesRenderAsDeltas(t *testing.T) {
+// TestPlanUpdatesRenderAsTheToolWroteThem: the delta is the tool's own
+// answer now, so the transcript shows the result as it stands rather
+// than deltaing it a second time — which would drop the lines the two
+// deltas happen to share.
+func TestPlanUpdatesRenderAsTheToolWroteThem(t *testing.T) {
 	first := "[ ] design\n[ ] parse\n[ ] eval\n\n0 of 3 done"
-	second := "[>] design\n[ ] parse\n[ ] eval\n\n0 of 3 done"
-	third := "[x] design\n[>] parse\n[ ] eval\n\n1 of 3 done"
-	if agent.PlanDelta("", first) != first {
-		t.Fatal("first plan shows whole")
-	}
-	if got := agent.PlanDelta(first, second); got != "[>] design\n0 of 3 done" {
-		t.Fatalf("second = %q", got)
-	}
-	if got := agent.PlanDelta(second, third); got != "[x] design\n[>] parse\n1 of 3 done" {
-		t.Fatalf("third = %q", got)
-	}
-	if got := agent.PlanDelta(third, third); got != third {
-		t.Fatalf("unchanged plan shown whole: %q", got)
-	}
+	update := "[>] design\n0 of 3 done"
 	tr := newTranscript()
 	c1 := agent.ToolCall{ID: "1", Name: "todo"}
 	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &c1})
@@ -258,10 +247,14 @@ func TestPlanUpdatesRenderAsDeltas(t *testing.T) {
 	c2 := agent.ToolCall{ID: "2", Name: "todo"}
 	tr.apply(agent.Event{Kind: agent.EvToolStart, Call: &c2})
 	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &c2})
-	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &c2, Output: second})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &c2, Output: update})
 	out := plain(tr.renderTool(tr.findTool("2"), 80, renderOpts{renderer: builtinRenderers}))
-	if strings.Contains(out, "[ ] parse") || !strings.Contains(out, "[>] design") {
-		t.Fatalf("second plan rendered whole:\n%s", out)
+	if strings.Contains(out, "[ ] parse") || !strings.Contains(out, "[>] design") || !strings.Contains(out, "0 of 3 done") {
+		t.Fatalf("the update was not shown as the tool wrote it:\n%s", out)
+	}
+	whole := plain(tr.renderTool(tr.findTool("1"), 80, renderOpts{renderer: builtinRenderers}))
+	if !strings.Contains(whole, "[ ] parse") {
+		t.Fatalf("the first plan was not shown whole:\n%s", whole)
 	}
 }
 

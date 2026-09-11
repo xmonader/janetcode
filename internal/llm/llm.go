@@ -221,13 +221,25 @@ func (u Usage) CostSource(p *Price) string {
 	return "unpriced"
 }
 
-// FormatUSD renders a cost compactly: $0.0042, $0.12, $3.40.
+// FormatUSD renders a cost with the fewest decimals that are honest:
+// $3.40, $1.50, $0.25, $0.2, $0.123, and below a cent whatever
+// FormatUSDPrecise needs to keep the figure from rounding away ($0.0023).
+//
+// Fixed decimals below a dollar printed three of them whatever the number
+// was, so a quarter-dollar budget read "$0.250" — a figure with a
+// precision it does not have, and the kind of thing a reader stops to
+// parse. At or above a dollar two decimals are how money is written, so
+// $1.50 keeps its trailing zero.
 func FormatUSD(usd float64) string {
 	switch {
 	case usd < 0.01:
-		return fmt.Sprintf("$%.4f", usd)
+		return FormatUSDPrecise(usd)
 	case usd < 1:
-		return fmt.Sprintf("$%.3f", usd)
+		s := strings.TrimRight(strconv.FormatFloat(usd, 'f', 3, 64), "0")
+		if strings.HasSuffix(s, ".") {
+			s += "00" // rounded up to a whole dollar
+		}
+		return "$" + s
 	}
 	return fmt.Sprintf("$%.2f", usd)
 }

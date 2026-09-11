@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/xmonader/janetcode/internal/rates"
 )
 
 // TestHeadlessEndToEnd drives the real binary entry point against a fake
@@ -165,6 +168,77 @@ func captureStd(t *testing.T) (func() string, func() string) {
 		}
 	}
 	return func() string { finish(); return bo.String() }, func() string { finish(); return be.String() }
+}
+
+// The rate-table refresh writes model-rates.json into the config
+// directory from a goroutine. It used to be started and forgotten, so a
+// run that finished before the 2.3 MB download did left a writer behind:
+// TestHeadlessAppliesThePromptOverride failed once in nine full-suite
+// runs with "TempDir RemoveAll: .config/janetcode not empty", the
+// download landing in a directory the test was deleting. The run now
+// waits for it, so when run returns nothing else is writing there.
+func TestTheRateRefreshDoesNotOutliveTheRun(t *testing.T) {
+	work := t.TempDir()
+	home := t.TempDir()
+
+	started := make(chan struct{})
+	rateSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		time.Sleep(150 * time.Millisecond) // outlast the run, as the real one does
+		io.WriteString(w, `{"test-model":{"input_cost_per_token":1e-7,"output_cost_per_token":2e-7}}`)
+	}))
+	defer rateSrv.Close()
+	old := rates.URL
+	rates.URL = rateSrv.URL
+	defer func() { rates.URL = old }()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, `data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`+"\n\n")
+		io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	cfgDir := filepath.Join(home, ".config", "janetcode")
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("OPENAI_API_KEY", "test-key")
+	t.Setenv("OPENAI_BASE_URL", srv.URL+"/v1")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	os.Chdir(work)
+
+	stdout, stderr := captureStd(t)
+	err := run([]string{"-p", "hello", "--provider", "openai", "--model", "test-model"})
+	_, errOut := stdout(), stderr()
+	if err != nil {
+		t.Fatalf("run: %v\nstderr: %s", err, errOut)
+	}
+	select {
+	case <-started:
+	default:
+		t.Fatal("the refresh never ran, so this proves nothing")
+	}
+	// The run outpaced the download, so the refresh was cancelled rather
+	// than finished: what matters is that it is over. Nothing may appear
+	// in the config directory after this point — the server answers at
+	// 150ms and we look well past that.
+	list := func() []string {
+		ents, err := os.ReadDir(cfgDir)
+		if err != nil {
+			return nil
+		}
+		var out []string
+		for _, e := range ents {
+			out = append(out, e.Name())
+		}
+		return out
+	}
+	at := strings.Join(list(), ",")
+	time.Sleep(500 * time.Millisecond)
+	if after := strings.Join(list(), ","); after != at {
+		t.Fatalf("something wrote to the config directory after the run: %q → %q", at, after)
+	}
 }
 
 // A prompt A/B is only traceable if the flag reaches the run. The TUI and

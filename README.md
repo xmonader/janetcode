@@ -311,6 +311,7 @@ make build     # bin/janetcode
 make test
 make race
 make lint
+make check     # gofmt, vet, tests, and windows/macOS compile-checked
 ```
 
 Layout:

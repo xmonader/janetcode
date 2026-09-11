@@ -136,6 +136,10 @@ type Agent struct {
 	stats statsCounter
 	// summaryFailedAt starts the summaryCooldown after a failed summary.
 	summaryFailedAt time.Time
+
+	// compactFloorSaid stops the notice about a too-low compact_at from
+	// being repeated on every turn of the session.
+	compactFloorSaid bool
 	// working is the typed record carried across compactions.
 	working WorkingMemory
 	// Predictor, when set, scores the running turn from its trajectory
@@ -395,7 +399,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		}
 	}
 
-	compactAt := a.CompactThreshold()
+	compactAt := a.raiseCompactFloor(emit)
 	stops, needs := 0, 0
 	corrections := 0
 	gate := gateState{}

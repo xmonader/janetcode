@@ -1331,7 +1331,7 @@ func newModel(opts Options) *model {
 	if firstRun != "" && strings.Contains(firstRun, "/verify set") {
 		// Already proposed, above; the rule that would propose it again
 		// three turns from now is spent here.
-		m.hints.MarkShown("verify-gate")
+		m.hints.MarkSpent("verify-gate")
 	}
 	m.hintState.Untrusted = opts.Untrusted
 	m.hintState.UnpricedModel = opts.UnpricedModel

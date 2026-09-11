@@ -30,6 +30,38 @@ const DefaultCompactAt = 80_000
 // human-readable note.
 const EvCompacted EventKind = "compacted"
 
+// MinCompactAt is the smallest threshold this agent can honour: the fixed
+// overhead every request carries — the system prompt and the tool schemas
+// — plus room for one full-size tool result. Below it the estimate is over
+// the threshold before the conversation has any content at all, so the
+// loop compacts after every tool call and the summary it writes is itself
+// too big; nothing is ever gained and the tool result that had just
+// arrived is thrown away. It must be called from the goroutine running
+// the turn (it reads the system prompt and the tool registry).
+func (a *Agent) MinCompactAt() int {
+	return estimateTokens(a.systemPrompt()) + a.toolTokens() + InlineOutput/4
+}
+
+// raiseCompactFloor returns the threshold to use for this turn, raising a
+// configured value that is below MinCompactAt rather than obeying it, and
+// saying so once. The raised value is written back to CompactAt so the
+// context gauge and /context agree with what actually happens.
+func (a *Agent) raiseCompactFloor(emit func(Event)) int {
+	at := a.CompactThreshold()
+	floor := a.MinCompactAt()
+	if at <= 0 || at >= floor {
+		return at
+	}
+	if !a.compactFloorSaid {
+		a.compactFloorSaid = true
+		if emit != nil {
+			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("compact_at is ~%d tokens, below the ~%d this model's system prompt, tools and one tool result need; compacting at ~%d instead", at, floor, floor)})
+		}
+	}
+	a.CompactAt = floor
+	return floor
+}
+
 const compactSystem = `You are compacting a coding-agent conversation so work can continue in a fresh context. Write a handoff note for another engineer-agent that will only see this note. Include, with concrete file paths, commands and names:
 1. The user's goal and any constraints or preferences they stated.
 2. What has been done so far and what was verified (tests, builds, outputs).
@@ -298,6 +330,18 @@ func tailStart(msgs []llm.Message) int {
 	return start
 }
 
+// lastAssistantStart is the index of the last assistant message, or -1.
+// Unlike tailStart it ignores the size rules: it is the floor under what
+// compaction keeps, not the tail it would prefer.
+func lastAssistantStart(msgs []llm.Message) int {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == llm.RoleAssistant {
+			return i
+		}
+	}
+	return -1
+}
+
 // TokenEstimate is the most recent EstimateTokens value. Unlike
 // EstimateTokens it reads no message state, so the UI can call it from
 // another goroutine while a turn is appending to the history.
@@ -415,6 +459,17 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	ts := tailStart(history)
 	if ts == 0 || chars(history[:ts]) < minHeadChars {
 		ts = len(history)
+	}
+	// Keeping nothing recent is never right when there is more than one
+	// exchange to compact: the summary then stands in for the turn that is
+	// still running, so the tool result that had just arrived is gone and
+	// the model asks for it again. Under a low threshold that repeated on
+	// every tool call, each compaction reporting "0 recent messages kept".
+	// Fall back to the last assistant message and everything after it.
+	if ts == len(history) && len(history) > 2 {
+		if k := lastAssistantStart(history); k > 0 {
+			ts = k
+		}
 	}
 	head, tail := history[:ts], history[ts:]
 	midTurn := len(tail) == 0 && history[len(history)-1].Role == llm.RoleUser // ends with tool results

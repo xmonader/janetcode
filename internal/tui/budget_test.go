@@ -18,12 +18,14 @@ func TestBudgetCommandSetsTheSessionCeiling(t *testing.T) {
 	}
 	h.m.opts.Agent.Price = &llm.Price{Input: 3, Output: 15}
 
-	h.keys("/budget 0.50")
+	h.keys("/budget 0.25")
 	h.enter()
-	if h.m.opts.Agent.MaxCostUSD != 0.50 {
+	if h.m.opts.Agent.MaxCostUSD != 0.25 {
 		t.Fatalf("ceiling = %v", h.m.opts.Agent.MaxCostUSD)
 	}
-	if v := plain(h.m.View()); !strings.Contains(v, "$0.50") {
+	// A quarter of a dollar is $0.25, not $0.250: money is printed with
+	// the fewest decimals that are honest.
+	if v := plain(h.m.View()); !strings.Contains(v, "$0.25") || strings.Contains(v, "$0.250") {
 		t.Fatalf("the ceiling was not reported:\n%s", v)
 	}
 
@@ -33,7 +35,7 @@ func TestBudgetCommandSetsTheSessionCeiling(t *testing.T) {
 	if v := plain(h.m.View()); !strings.Contains(v, "cost budget") {
 		t.Fatalf("/budget alone said nothing:\n%s", v)
 	}
-	if s := h.m.budgetStatus(); !strings.Contains(s, "of $0.50") {
+	if s := h.m.budgetStatus(); !strings.Contains(s, "of $0.25") {
 		t.Fatalf("budget status = %q", s)
 	}
 

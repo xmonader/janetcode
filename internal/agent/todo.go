@@ -63,10 +63,14 @@ func (a *Agent) Todos() []Todo {
 	return FoldTodos(a.Log.Events())
 }
 
+// noPlan is what a read of an empty plan says, and what PlanDelta takes
+// as "there was nothing here before".
+const noPlan = "no plan has been written"
+
 // RenderTodos draws the plan the way the model and the user both read it.
 func RenderTodos(todos []Todo) string {
 	if len(todos) == 0 {
-		return "no plan has been written"
+		return noPlan
 	}
 	done := 0
 	var b strings.Builder
@@ -97,7 +101,7 @@ func (*TodoTool) Description() string {
 		"Call it whenever the work has three or more distinct steps, or the user asked for several things — count them rather than judging whether the job feels complicated, and write the plan before starting rather than partway through. " +
 		"Mark exactly one step in_progress while you work on it, mark it completed as soon as it is done rather than in a batch at the end, and add steps as you discover them. " +
 		"The plan is what the user watches to see what is done and what is left, and it survives compaction, so it is also how you remember your own work on a long job. " +
-		"One edit or one question needs no plan. Calling it with no todos shows the current plan."
+		"One edit or one question needs no plan. A rewrite answers with the steps that changed and how many are done; calling it with no todos shows the whole plan."
 }
 func (*TodoTool) Mutating() bool { return false }
 func (*TodoTool) Schema() json.RawMessage {
@@ -130,8 +134,16 @@ func (t *TodoTool) Run(_ context.Context, input json.RawMessage) (string, error)
 	if err != nil {
 		return "", err
 	}
+	// The model rewrites the whole plan on every status change, and
+	// answering with the whole plan every time puts the same seven lines
+	// in the context seven times over. It already knows what it wrote;
+	// what it needs back is confirmation of what changed and where that
+	// leaves the work. The plan whole on creation, the changed steps and
+	// the tally after that, and the whole plan whenever it is asked for
+	// by calling with no todos.
+	prev := RenderTodos(t.Parent.Todos())
 	t.Parent.WriteTodos(todos)
-	return RenderTodos(todos), nil
+	return PlanDelta(prev, RenderTodos(todos)), nil
 }
 
 // WriteTodos records a plan on the log, so it outlives the tool result
@@ -280,20 +292,18 @@ func (*TodoTool) RenderCall(input json.RawMessage, _ tool.RenderContext) []strin
 	return []string{fmt.Sprintf("plan · %d steps", len(in.Todos))}
 }
 
-// RenderResult shows the plan whole the first time and as what changed
-// after that: the model rewrites the whole list on every status change,
-// and printing it whole each time reads as the same conversation
-// repeated.
-func (*TodoTool) RenderResult(_ json.RawMessage, out string, o tool.RenderContext) []string {
-	if o.Expanded {
-		return nil
-	}
-	return strings.Split(PlanDelta(o.Prev, out), "\n")
-}
+// RenderResult leaves the result alone. It used to delta the plan for the
+// transcript, because the model rewrote the whole list on every status
+// change; the tool itself answers that way now, so the result is already
+// whole the first time and the changed lines after that, and deltaing a
+// delta would drop lines.
+func (*TodoTool) RenderResult(json.RawMessage, string, tool.RenderContext) []string { return nil }
 
 // PlanDelta is the lines of cur that differ from prev, with the tally.
+// prev "" or a prev that says no plan was written yields cur whole: that
+// is a plan being created, and there is nothing to compare it against.
 func PlanDelta(prev, cur string) string {
-	if prev == "" || prev == cur {
+	if prev == "" || prev == noPlan || prev == cur {
 		return cur
 	}
 	before := map[string]bool{}

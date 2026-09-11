@@ -19,7 +19,7 @@ import (
 // withHints gives the harness a live engine, which newHarness does not,
 // because most of the tests in this package want a quiet transcript.
 func withHints(h *harness) *hints.Engine {
-	e := hints.New(nil)
+	e := hints.New(nil, nil)
 	h.m.hints = e
 	return e
 }
@@ -187,7 +187,7 @@ func TestTheHintRecordIsWrittenWhenOneFires(t *testing.T) {
 	e := withHints(h)
 	dir := t.TempDir()
 	store := hints.Open(dir, "proj")
-	e.Record = func(string) { _ = store.Save(e.Shown()) }
+	e.Record = func(string) { _ = store.Save(e.Shown(), e.Skipped()) }
 	h.m.observeBang("go test ./...")
 	h.m.observeBang("go test ./...")
 	if got := store.Shown(); len(got) != 1 || got[0] != "verify-gate" {
@@ -195,7 +195,7 @@ func TestTheHintRecordIsWrittenWhenOneFires(t *testing.T) {
 	}
 	// A new session for the same project does not repeat it.
 	h2 := newHarness(t)
-	h2.m.hints = hints.New(store.Shown())
+	h2.m.hints = hints.New(store.Load())
 	h2.m.observeBang("go test ./...")
 	h2.m.observeBang("go test ./...")
 	if v := plain(h2.m.View()); strings.Contains(v, "/verify set") {
@@ -228,8 +228,8 @@ func TestTheFirstRunLineIsSaidOnceAndNotEveryMorning(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := hints.New(store.Shown())
-		e.Record = func(string) { _ = store.Save(e.Shown()) }
+		e := hints.New(store.Load())
+		e.Record = func(string) { _ = store.Save(e.Shown(), e.Skipped()) }
 		ag := &agent.Agent{Provider: &scripted{}, Tools: tool.NewRegistry(), Model: "m", Log: sess}
 		m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test", Hints: e})
 		m.term.out = io.Discard
@@ -244,6 +244,23 @@ func TestTheFirstRunLineIsSaidOnceAndNotEveryMorning(t *testing.T) {
 	}
 }
 
+// /hints counted every spent rule as a hint given, including the ones
+// suppressed in silence because the first-run line had already proposed
+// the same thing. It now reports what was said and what was skipped.
+func TestHintsReportsShownAndSkippedApart(t *testing.T) {
+	h := newHarness(t)
+	e := hints.New(nil, nil)
+	h.m.hints = e
+	e.MarkShown("first-run")
+	e.MarkSpent("verify-gate")
+	h.keys("/hints")
+	h.enter()
+	v := plain(h.m.View())
+	if !strings.Contains(v, "1 hint shown for this project") || !strings.Contains(v, "1 skipped") {
+		t.Fatalf("/hints did not separate said from spent:\n%s", v)
+	}
+}
+
 func TestHintsOffSilencesTheFirstRunLineToo(t *testing.T) {
 	root := t.TempDir()
 	os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644)
@@ -251,7 +268,7 @@ func TestHintsOffSilencesTheFirstRunLineToo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := hints.New(nil)
+	e := hints.New(nil, nil)
 	e.Off = true
 	ag := &agent.Agent{Provider: &scripted{}, Tools: tool.NewRegistry(), Model: "m", Log: sess}
 	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test", Hints: e})
@@ -338,7 +355,7 @@ func TestNothingIsCountedWithoutAStore(t *testing.T) {
 // consulted on events; typing must not touch it at all.
 func TestHintsDoNotRunOnKeystrokes(t *testing.T) {
 	h := newHarness(t)
-	e := hints.New(nil)
+	e := hints.New(nil, nil)
 	var evals int
 	e.Rules = []hints.Rule{{
 		ID: "counter", When: func(*hints.State) bool { evals++; return false },

@@ -115,25 +115,39 @@ type Engine struct {
 	Off bool
 
 	shown map[string]bool
+	// skipped are the rules that were spent without being said. They
+	// suppress the rule as firmly as a shown one; they are kept apart
+	// so that /hints can report what was said rather than what was
+	// merely used up.
+	skipped map[string]bool
 	// Record persists that a hint has been given. Errors are ignored:
 	// the worst case of a failed write is one repeated hint.
 	Record func(id string)
 }
 
 // New builds an engine over the default rules, with the ids that have
-// already fired in this project.
-func New(shown []string) *Engine {
-	e := &Engine{Rules: Rules(), shown: map[string]bool{}}
+// already fired in this project: the ones that were said, and the ones
+// that were spent without being said.
+func New(shown, skipped []string) *Engine {
+	e := &Engine{Rules: Rules(), shown: map[string]bool{}, skipped: map[string]bool{}}
 	for _, id := range shown {
 		e.shown[id] = true
+	}
+	for _, id := range skipped {
+		e.skipped[id] = true
 	}
 	return e
 }
 
-// Shown lists the ids that have fired, for persisting.
-func (e *Engine) Shown() []string {
-	out := make([]string, 0, len(e.shown))
-	for id := range e.shown {
+// Shown lists the ids that were said, for persisting and for counting.
+func (e *Engine) Shown() []string { return sortedIDs(e.shown) }
+
+// Skipped lists the ids that were spent without being said.
+func (e *Engine) Skipped() []string { return sortedIDs(e.skipped) }
+
+func sortedIDs(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for id := range m {
 		out = append(out, id)
 	}
 	sort.Strings(out)
@@ -148,50 +162,69 @@ func (e *Engine) Eval(s *State) string {
 		return ""
 	}
 	for _, r := range e.Rules {
-		if e.shown[r.ID] || r.When == nil || r.Text == nil || !r.When(s) {
+		if e.spent(r.ID) || r.When == nil || r.Text == nil || !r.When(s) {
 			continue
 		}
 		// A feature the user already reaches for needs no introduction.
 		// The rule is still marked as fired: the moment it belonged to
 		// has passed, and offering it later would be worse than not.
 		if s.Used != nil && r.Feature != "" && s.Used(r.Feature) {
-			e.fire(r.ID)
+			e.fire(r.ID, false)
 			continue
 		}
-		e.fire(r.ID)
+		e.fire(r.ID, true)
 		return r.Text(s)
 	}
 	return ""
 }
 
-// MarkShown spends a rule without saying anything, for a caller that
-// has already said it some other way. The first-run line proposes the
-// verification command, so the rule that would propose it again is
-// spent there rather than left to repeat it three turns later.
 // Silent reports whether hints are turned off, for the one line the
 // terminal prints itself: somebody who asked for quiet meant this too.
 func (e *Engine) Silent() bool { return e != nil && e.Off }
 
-// Given reports whether an id has already fired in this project. It is
-// for the one line the terminal says itself rather than through a rule
-// — the first-run project line — which has to be as once-only as
-// everything else here.
+// Given reports whether an id has already fired in this project, said
+// or skipped. It is for the one line the terminal says itself rather
+// than through a rule — the first-run project line — which has to be as
+// once-only as everything else here.
 func (e *Engine) Given(id string) bool {
-	return e != nil && e.shown[id]
+	return e != nil && e.spent(id)
 }
 
+// MarkShown records an id the terminal said itself, so the rule that
+// would say it again is spent and the count of hints given includes it.
 func (e *Engine) MarkShown(id string) {
 	if e == nil || id == "" {
 		return
 	}
-	e.fire(id)
+	e.fire(id, true)
 }
 
-func (e *Engine) fire(id string) {
+// MarkSpent spends a rule without saying anything, for a caller that has
+// already covered the same ground some other way. The first-run line
+// proposes the verification command, so the rule that would propose it
+// again is spent there rather than left to repeat it three turns later —
+// but nobody was shown a hint, and /hints must not claim they were.
+func (e *Engine) MarkSpent(id string) {
+	if e == nil || id == "" {
+		return
+	}
+	e.fire(id, false)
+}
+
+func (e *Engine) spent(id string) bool { return e.shown[id] || e.skipped[id] }
+
+func (e *Engine) fire(id string, said bool) {
 	if e.shown == nil {
 		e.shown = map[string]bool{}
 	}
-	e.shown[id] = true
+	if e.skipped == nil {
+		e.skipped = map[string]bool{}
+	}
+	if said {
+		e.shown[id] = true
+	} else {
+		e.skipped[id] = true
+	}
 	if e.Record != nil {
 		e.Record(id)
 	}

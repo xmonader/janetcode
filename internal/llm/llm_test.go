@@ -70,7 +70,14 @@ func TestUsageCost(t *testing.T) {
 	if sum.CostUSD != 1.0 {
 		t.Fatalf("Add cost = %v", sum.CostUSD)
 	}
-	for in, want := range map[float64]string{0.0042: "$0.0042", 0.123: "$0.123", 3.4: "$3.40"} {
+	// The fewest decimals that are honest: no trailing zeros below a
+	// dollar, two decimals at or above one, and the precise formatter's
+	// significant digits below a cent.
+	for in, want := range map[float64]string{
+		0.0042: "$0.0042", 0.00023: "$0.00023", 0.01: "$0.01",
+		0.2: "$0.2", 0.25: "$0.25", 0.123: "$0.123", 0.9999: "$1.00",
+		1.5: "$1.50", 3.4: "$3.40",
+	} {
 		if got := FormatUSD(in); got != want {
 			t.Fatalf("FormatUSD(%v) = %q", in, got)
 		}

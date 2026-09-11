@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -144,8 +145,14 @@ func (m *model) hintsCommand(args []string) {
 			m.transcript.info("hints are off · /hints on brings them back for this session, and they stay off for every project while \"hints\": false is in the config file")
 			return
 		}
-		shown := len(m.hints.Shown())
-		m.transcript.info(plural(shown, "hint") + " given for this project · /hints off silences them for this session, and \"hints\": false in the config file does it for every project")
+		// Said and spent are different things: a rule suppressed because
+		// the first-run line had already proposed it was never a hint
+		// anybody read, and counting it as given overstated the help.
+		line := plural(len(m.hints.Shown()), "hint") + " shown for this project"
+		if n := len(m.hints.Skipped()); n > 0 {
+			line += fmt.Sprintf(", %d skipped", n)
+		}
+		m.transcript.info(line + " · /hints off silences them for this session, and \"hints\": false in the config file does it for every project")
 	case args[0] == "on":
 		m.hints.Off = false
 		m.transcript.info("hints on")
