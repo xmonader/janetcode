@@ -1065,24 +1065,29 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	accepted := tookLargeOutput(stripped)
 	u.Input = takeLargeOutput(stripped)
 	call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input, Intent: intent}
-	t, ok := a.Tools.Get(u.Name)
-	if !ok {
-		msg := fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames())
+	// A call that never runs still has to be written down. A refusal is
+	// the harness deciding something, and until it reached the ledger
+	// neither /why nor anything else reading the session afterwards could
+	// tell a call the user refused from one that was never made.
+	refuse := func(msg string) (string, bool, error) {
 		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+		a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN,
+			CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
 		return msg, true, nil
 	}
+	t, ok := a.Tools.Get(u.Name)
+	if !ok {
+		return refuse(fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames()))
+	}
 	if a.readOnly() && t.Mutating() {
-		msg := fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", u.Name, a.modeName())
-		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
-		return msg, true, nil
+		return refuse(fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", u.Name, a.modeName()))
 	}
 	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
 		return "", true, err
 	}
 	if deny != "" {
-		emit(Event{Kind: EvToolResult, Call: &call, Output: deny, IsError: true})
-		return deny, true, nil
+		return refuse(deny)
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
 	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Intent: intent})
