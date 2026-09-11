@@ -279,3 +279,71 @@ func TestLatestSkipsEmptySessions(t *testing.T) {
 		t.Fatalf("with nothing better, an empty session is still latest: %q", id)
 	}
 }
+
+// A session is named after the first thing the user said, and janetcode
+// writes user messages on the user's behalf: the output of a "!"
+// command, a goal round, an undo note. --sessions and the /resume picker
+// were full of rows called "I ran this command myself in /tmp/..." and
+// "Work on this goal until it is complete or you are blocked".
+func TestSyntheticMessagesDoNotNameASession(t *testing.T) {
+	for _, c := range []struct {
+		text string
+		want bool
+	}{
+		{"fix the failing test", false},
+		{"I ran this command myself in /tmp/x:\n$ ls\n<output>\na\n</output>", true},
+		{"Work on this goal until it is complete or you are blocked: ship it", true},
+		{"Continue the goal: ship it", true},
+		{"I undid change #2 (main.go) on my own; later changes to the file stayed.", true},
+		{"I reverted the file changes from your last edits:\nmain.go", true},
+		{"I reapplied the file changes I had undone:\nmain.go", true},
+		{"[image attached]", true},
+		{"<output>x</output>", true},
+	} {
+		if got := Synthetic(c.text); got != c.want {
+			t.Errorf("Synthetic(%.40q) = %v, want %v", c.text, got, c.want)
+		}
+	}
+
+	msgs := []llm.Message{
+		llm.TextMessage(llm.RoleUser, "I ran this command myself in /tmp/x:\n$ go test\n<output>\nok\n</output>"),
+		llm.TextMessage(llm.RoleAssistant, "noted"),
+		llm.TextMessage(llm.RoleUser, "now make the build green"),
+	}
+	if got := AutoTitle(msgs); got != "now make the build green" {
+		t.Fatalf("AutoTitle = %q", got)
+	}
+
+	dir := t.TempDir()
+	cwd := t.TempDir()
+	s, err := New(dir, cwd, "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	put(t, s, msgs...)
+	infos, err := List(dir, cwd)
+	if err != nil || len(infos) != 1 {
+		t.Fatalf("list: %v %d", err, len(infos))
+	}
+	if got := infos[0].Label(); got != "now make the build green" {
+		t.Fatalf("session label = %q", got)
+	}
+}
+
+// A session that is nothing but machinery still says something rather
+// than falling back to its id.
+func TestPreviewFallsBackToMachinery(t *testing.T) {
+	dir, cwd := t.TempDir(), t.TempDir()
+	s, err := New(dir, cwd, "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	put(t, s, llm.TextMessage(llm.RoleUser, "I ran this command myself in /tmp/x:\n$ ls"))
+	infos, err := List(dir, cwd)
+	if err != nil || len(infos) != 1 {
+		t.Fatalf("list: %v %d", err, len(infos))
+	}
+	if got := infos[0].Label(); !strings.HasPrefix(got, "I ran this command") {
+		t.Fatalf("label = %q", got)
+	}
+}

@@ -255,9 +255,21 @@ func List(dir, cwd string) ([]Info, error) {
 		}
 		for _, m := range msgs {
 			if m.Role == llm.RoleUser {
-				if t := strings.TrimSpace(m.Text()); t != "" {
+				if t := strings.TrimSpace(m.Text()); t != "" && !Synthetic(t) {
 					info.Preview = firstLine(t, 60)
 					break
+				}
+			}
+		}
+		if info.Preview == "" {
+			// Nothing but machinery in it: better the first line of that
+			// than the bare id.
+			for _, m := range msgs {
+				if m.Role == llm.RoleUser {
+					if t := strings.TrimSpace(m.Text()); t != "" {
+						info.Preview = firstLine(t, 60)
+						break
+					}
 				}
 			}
 		}
@@ -401,13 +413,43 @@ func (s *Session) Label() string {
 
 // AutoTitle derives a title from the first user message: its first line,
 // trimmed to a few words. It is the fallback when no model wrote one.
+// syntheticPrefixes open the user messages janetcode writes on the
+// user's behalf: the output of a "!" command shared with the model, a
+// goal round, an undo or redo note. They are user messages because that
+// is the only role a provider accepts them in, but nobody typed them,
+// so naming a session after one gave lists full of rows called "I ran
+// this command myself in /tmp/..." and "Work on this goal until it is
+// complete or you are blocked".
+var syntheticPrefixes = []string{
+	"I ran this command myself in ",
+	"Work on this goal until it is complete",
+	"Continue the goal: ",
+	"I undid change #",
+	"I reapplied the file changes",
+	"I reverted the file changes",
+}
+
+// Synthetic reports whether a user message is machinery rather than
+// something the person typed.
+func Synthetic(text string) bool {
+	if strings.HasPrefix(text, "[") || strings.HasPrefix(text, "<") {
+		return true
+	}
+	for _, p := range syntheticPrefixes {
+		if strings.HasPrefix(text, p) {
+			return true
+		}
+	}
+	return false
+}
+
 func AutoTitle(msgs []llm.Message) string {
 	for _, m := range msgs {
 		if m.Role != llm.RoleUser {
 			continue
 		}
 		t := strings.TrimSpace(m.Text())
-		if t == "" || strings.HasPrefix(t, "[") || strings.HasPrefix(t, "<") {
+		if t == "" || Synthetic(t) {
 			continue
 		}
 		words := strings.Fields(firstLine(t, 200))
