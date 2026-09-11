@@ -1161,6 +1161,9 @@ type model struct {
 	compacting bool
 	cancel     context.CancelFunc
 	startedAt  time.Time // when the running turn began
+	// phaseUntil is when the thing the phase names is due, so a wait the
+	// provider announced once counts down instead of standing still.
+	phaseUntil time.Time
 	// openedAt is when this window opened. /stats used startedAt, which
 	// is the turn clock: before the first turn it was the zero time and
 	// the session was reported as up for 2562047h47m16.854775807s.
@@ -1468,7 +1471,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case permissionMsg:
 		m.drainEvents() // the tool entry must exist before the prompt shows
 		m.pending = &msg
-		m.phase = "waiting for your approval"
+		m.setPhase("waiting for your approval")
 		m.term.announce("janetcode", "approval needed: "+msg.call.Name)
 		m.refresh(false)
 		return m, nil
@@ -1480,7 +1483,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case mcpPromptMsg:
 		m.running = false
-		m.phase = ""
+		m.setPhase("")
 		if msg.err != nil {
 			m.transcript.errorf("%s: %v", msg.command, msg.err)
 			m.refresh(false)
@@ -1585,35 +1588,35 @@ func (m *model) applyEvent(ev agent.Event) {
 	m.transcript.apply(ev)
 	switch ev.Kind {
 	case agent.EvThinking:
-		m.phase = "thinking"
+		m.setPhase("thinking")
 	case agent.EvText:
-		m.phase = "writing"
+		m.setPhase("writing")
 	case agent.EvToolStart:
-		m.phase = "preparing " + ev.Call.Name
+		m.setPhase("preparing " + ev.Call.Name)
 	case agent.EvToolInput:
 		// Streamed input: the status says what is being written and how
 		// much, instead of "preparing write_file" for a minute.
 		if e := m.transcript.lastTool(ev.Call); e != nil && e.call.Name != "" {
 			if s := streamingSummary(e.call.Name, e.input.String(), m.opts.Cwd); s != "" && s != "…" {
-				m.phase = e.call.Name + " " + s
+				m.setPhase(e.call.Name + " " + s)
 			}
 		}
 	case agent.EvPhase:
 		// The provider or the loop said what it is waiting on: a retry
 		// countdown, a compaction, a subagent.
-		m.phase = ev.Text
+		m.setPhase(ev.Text)
 	case agent.EvToolRun:
-		m.phase = "running " + ev.Call.Name
+		m.setPhase("running " + ev.Call.Name)
 		if ev.Call.Name == "task" {
-			m.phase = "waiting on subagent"
+			m.setPhase("waiting on subagent")
 		}
 	case agent.EvToolResult:
-		m.phase = "thinking"
+		m.setPhase("thinking")
 		if ev.Call != nil && ev.Call.Name == "goal_status" && !ev.IsError {
 			m.status = strings.TrimSpace(ev.Output)
 		}
 	case agent.EvCompacted:
-		m.phase = "thinking"
+		m.setPhase("thinking")
 	case agent.EvVerdict:
 		m.lastVerdict = shortenPaths(m.opts.Cwd, ev.Text)
 	case agent.EvTurnDone:
@@ -1719,7 +1722,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			// Ask why so the model can adapt; enter with nothing skips.
 			m.denying = true
 			m.input.Reset()
-			m.phase = "waiting for your reason"
+			m.setPhase("waiting for your reason")
 			m.layout()
 			m.refresh(false)
 		case "esc":
@@ -2240,7 +2243,7 @@ func (m *model) answer(d agent.Decision, reason string) {
 	m.pending = nil
 	m.pendingClosedAt = time.Now()
 	m.denying = false
-	m.phase = "thinking"
+	m.setPhase("thinking")
 	m.refresh(false)
 }
 
@@ -2334,7 +2337,7 @@ func (m *model) finishShell(msg shellDoneMsg) {
 		m.cancel()
 		m.cancel = nil
 	}
-	m.phase = ""
+	m.setPhase("")
 	out, isErr := msg.output, false
 	if msg.err != nil {
 		out, isErr = "Error: "+msg.err.Error(), true
@@ -2391,7 +2394,7 @@ func (m *model) startTurn(phase string) {
 	m.startedAt = time.Now()
 	m.status = ""
 	m.lastVerdict = ""
-	m.phase = phase
+	m.setPhase(phase)
 }
 
 // onOff names a toggle's new state, so every "/x is on" line reads the
@@ -2437,7 +2440,7 @@ func (m *model) cancelTurn() {
 		m.cancel()
 	}
 	m.cancelling = true
-	m.phase = "cancelling"
+	m.setPhase("cancelling")
 	m.status = "cancelling… (ctrl+c again to force quit)"
 }
 
@@ -2452,7 +2455,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	}
 	m.pending = nil
 	m.pendingClosedAt = time.Now()
-	m.phase = ""
+	m.setPhase("")
 	elapsed := shortDuration(time.Since(m.startedAt))
 	m.transcript.finishTurn()
 	switch {
@@ -3470,16 +3473,53 @@ func tailPath(p string, max int) string {
 	return "…" + string(r)
 }
 
+// waitRe matches the "in 12s" a provider puts at the end of a phase to
+// say how long it is about to sleep.
+var waitRe = regexp.MustCompile(`(.*\bin )([0-9.]+)(m?s)$`)
+
+// setPhase records what the turn is waiting on. A provider that is about
+// to sleep says so once — "retrying 1/2 · rate limited · in 6s" — and
+// that line then sat unchanged for six seconds next to a counter running
+// the other way, which reads as a frozen screen. The deadline is kept so
+// the line can count down to the moment something happens.
+func (m *model) setPhase(text string) {
+	m.phase, m.phaseUntil = text, time.Time{}
+	g := waitRe.FindStringSubmatch(text)
+	if g == nil {
+		return
+	}
+	d, err := time.ParseDuration(g[2] + g[3])
+	if err != nil || d <= 0 {
+		return
+	}
+	m.phase, m.phaseUntil = g[1], time.Now().Add(d)
+}
+
+// phaseText is the phase with its countdown resolved to now.
+func (m *model) phaseText() string {
+	if m.phaseUntil.IsZero() {
+		return m.phase
+	}
+	left := time.Until(m.phaseUntil)
+	if left < 0 {
+		left = 0
+	}
+	if left < time.Minute {
+		return fmt.Sprintf("%s%ds", m.phase, int(left.Round(time.Second)/time.Second))
+	}
+	return m.phase + shortDuration(left.Round(time.Second))
+}
+
 func (m *model) statusView() string {
 	var left string
 	switch {
 	case m.pending != nil:
 		left = styleWarn.Render("● approval needed")
 	case m.running && m.tight():
-		left = m.spinner.View() + " " + styleDim.Render(m.phase)
+		left = m.spinner.View() + " " + styleDim.Render(m.phaseText())
 	case m.running:
 		el := shortDuration(time.Since(m.startedAt))
-		left = m.spinner.View() + " " + styleDim.Render(m.phase+" · "+el+" · esc to cancel")
+		left = m.spinner.View() + " " + styleDim.Render(m.phaseText()+" · "+el+" · esc to cancel")
 	case m.status != "":
 		left = styleDim.Render(m.status)
 	default:

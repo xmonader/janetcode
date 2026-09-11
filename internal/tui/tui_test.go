@@ -3084,3 +3084,38 @@ func tailOf(s string) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// A provider announces a backoff once — "retrying 1/2 · rate limited ·
+// in 6s" — and the line then stood unchanged for six seconds beside a
+// counter running the other way, which reads as a frozen screen.
+func TestRetryPhaseCountsDown(t *testing.T) {
+	h := newHarness(t)
+	h.m.setPhase("retrying 1/2 · rate limited · in 6s")
+	if h.m.phaseUntil.IsZero() {
+		t.Fatal("no deadline taken from the phase")
+	}
+	first := h.m.phaseText()
+	if !strings.HasPrefix(first, "retrying 1/2 · rate limited · in ") {
+		t.Fatalf("phase = %q", first)
+	}
+	h.m.phaseUntil = time.Now().Add(2 * time.Second)
+	if got := h.m.phaseText(); got != "retrying 1/2 · rate limited · in 2s" {
+		t.Fatalf("phase after two seconds left = %q", got)
+	}
+	// Past the deadline it says now, not a negative number.
+	h.m.phaseUntil = time.Now().Add(-time.Second)
+	if got := h.m.phaseText(); !strings.HasSuffix(got, "in 0s") {
+		t.Fatalf("phase past the deadline = %q", got)
+	}
+	// A phase with no wait in it is left exactly as it came.
+	h.m.setPhase("running bash")
+	if !h.m.phaseUntil.IsZero() || h.m.phaseText() != "running bash" {
+		t.Fatalf("phase = %q until = %v", h.m.phaseText(), h.m.phaseUntil)
+	}
+	// And a stale countdown never survives the next phase.
+	h.m.setPhase("retrying 1/2 · in 30s")
+	h.m.setPhase("thinking")
+	if got := h.m.phaseText(); got != "thinking" {
+		t.Fatalf("phase = %q", got)
+	}
+}
