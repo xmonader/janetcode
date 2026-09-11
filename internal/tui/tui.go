@@ -2698,9 +2698,9 @@ func (m *model) command(text string) tea.Cmd {
 			shortTokens(u.InputTokens), shortTokens(u.OutputTokens), shortTokens(u.CacheReadTokens), shortTokens(u.CacheWriteTokens), shortTokens(m.opts.Agent.EstimateTokens()))
 		switch usd, ok := u.Cost(m.opts.Agent.Price); {
 		case ok && u.CostUSD > 0:
-			line += "\ncost " + llm.FormatUSD(usd) + " (reported by the provider)"
+			line += "\ncost " + llm.FormatUSDPrecise(usd) + " (reported by the provider)"
 		case ok:
-			line += "\ncost " + llm.FormatUSD(usd) + " at list price (an API-equivalent estimate from the config's \"prices\" or LiteLLM's rate table, not money spent)"
+			line += "\ncost " + llm.FormatUSDPrecise(usd) + " at list price (an API-equivalent estimate from the config's \"prices\" or LiteLLM's rate table, not money spent)"
 		default:
 			line += "\ncost unpriced: the provider does not report it and no rate is known for this model; add it under \"prices\" in the config file, or wait for the rate table to be fetched"
 		}

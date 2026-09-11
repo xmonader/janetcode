@@ -101,7 +101,7 @@ func run(ctx context.Context, opts Options, rec *recorder) error {
 		}
 		if opts.MaxCostUSD > 0 {
 			if spent, ok := rec.spentUSD(); ok && spent >= opts.MaxCostUSD {
-				return fmt.Errorf("%w: spent %s of %s", ErrBudget, llm.FormatUSD(spent), llm.FormatUSD(opts.MaxCostUSD))
+				return fmt.Errorf("%w: spent %s of %s", ErrBudget, llm.FormatUSDPrecise(spent), llm.FormatUSDPrecise(opts.MaxCostUSD))
 			}
 		}
 		if opts.Until == "" {

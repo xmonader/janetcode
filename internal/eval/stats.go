@@ -561,7 +561,7 @@ func WriteComparison(w io.Writer, c Comparison) {
 		if c.CostDelta < 0 {
 			sign = "-"
 		}
-		fmt.Fprintf(w, "cost per solved task %s → %s (%s%s)%s\n", llm.FormatUSD(c.Base.CostPerSolved), llm.FormatUSD(c.Current.CostPerSolved), sign, llm.FormatUSD(math.Abs(c.CostDelta)),
+		fmt.Fprintf(w, "cost per solved task %s → %s (%s%s)%s\n", llm.FormatUSDPrecise(c.Base.CostPerSolved), llm.FormatUSDPrecise(c.Current.CostPerSolved), sign, llm.FormatUSDPrecise(math.Abs(c.CostDelta)),
 			ratioNote(c.CostRatio, c.CostRatioLo, c.CostRatioHi, c.Paired && c.CostRatio > 0))
 	}
 	if c.Base.Passed > 0 && c.Current.Passed > 0 {
@@ -619,9 +619,9 @@ func ratioNote(r, lo, hi float64, ok bool) string {
 func summaryLine(s Summary) string {
 	cost := "cost unknown"
 	if s.CostKnown {
-		cost = "cost " + llm.FormatUSD(s.CostUSD)
+		cost = "cost " + llm.FormatUSDPrecise(s.CostUSD)
 		if s.Passed > 0 {
-			cost += " (" + llm.FormatUSD(s.CostPerSolved) + " per solved)"
+			cost += " (" + llm.FormatUSDPrecise(s.CostPerSolved) + " per solved)"
 		}
 	}
 	timing := ""

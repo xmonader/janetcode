@@ -97,3 +97,28 @@ func TestHarnessMessageIsMarkedSynthetic(t *testing.T) {
 		t.Fatalf("plain message serialises the mark: %s", b)
 	}
 }
+
+// A cheap model's figures live below the point where the compact money
+// format stops: four decimals turn a whole task's cost into "$0.0002" and
+// a small ceiling into "$0.0000", which reports nothing at all.
+func TestFormatUSDPreciseKeepsSubCentFigures(t *testing.T) {
+	cases := map[float64]string{
+		0.00023:     "$0.00023",
+		0.000004567: "$0.00000457",
+		0.0042:      "$0.0042",
+		0.0001:      "$0.0001",
+		0:           "$0.00",
+		0.123:       "$0.123",
+		3.4:         "$3.40",
+	}
+	for in, want := range cases {
+		if got := FormatUSDPrecise(in); got != want {
+			t.Errorf("FormatUSDPrecise(%v) = %q, want %q", in, got, want)
+		}
+	}
+	// Two ceilings that the compact format cannot tell apart must still
+	// read as two different numbers.
+	if a, b := FormatUSDPrecise(0.00005), FormatUSDPrecise(0.00009); a == b {
+		t.Errorf("%s and %s are the same figure", a, b)
+	}
+}

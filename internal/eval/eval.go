@@ -487,7 +487,7 @@ func Report(w io.Writer, results []Result) (passed int) {
 			}
 			costStr := "?"
 			if known {
-				costStr = llm.FormatUSD(cost)
+				costStr = llm.FormatUSDPrecise(cost)
 			}
 			fmt.Fprintf(w, "%d/%-3d %-28s %8s %6d %10s\n", tr.Passed, tr.Runs, trunc(tr.Name, 28), (dur / time.Duration(tr.Runs)).Round(100*time.Millisecond), tools, costStr)
 			for _, why := range reasons {
@@ -565,7 +565,7 @@ func costString(r Result) string {
 	if !r.CostKnown {
 		return "?"
 	}
-	return llm.FormatUSD(r.CostUSD)
+	return llm.FormatUSDPrecise(r.CostUSD)
 }
 
 func firstLine(s string) string {
