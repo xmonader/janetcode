@@ -63,6 +63,43 @@ func TestMissingKeyErrors(t *testing.T) {
 	}
 }
 
+func TestThemeValidation(t *testing.T) {
+	key := env(map[string]string{"ANTHROPIC_API_KEY": "k"})
+	// A builtin name is accepted and the resolved set is populated.
+	cfg, err := load(filepath.Join(t.TempDir(), "x.json"), env(map[string]string{"ANTHROPIC_API_KEY": "k", "JANETCODE_THEME": "gruvbox"}), Overrides{})
+	if err != nil {
+		t.Fatalf("builtin theme rejected: %v", err)
+	}
+	if cfg.Theme != "gruvbox" || cfg.ThemeSet == nil || !cfg.ThemeSet.Has("gruvbox") {
+		t.Fatalf("theme set not built: theme=%q set=%v", cfg.Theme, cfg.ThemeSet)
+	}
+	// An unknown name is a bad-config error naming the fix.
+	if _, err := load(filepath.Join(t.TempDir(), "x.json"), env(map[string]string{"ANTHROPIC_API_KEY": "k", "JANETCODE_THEME": "nope"}), Overrides{}); err == nil || !errors.Is(err, ErrBadConfig) || !strings.Contains(err.Error(), "unknown theme") {
+		t.Fatalf("unknown theme err = %v", err)
+	}
+	// A user theme with a bad colour is ErrBadConfig, naming the theme and field.
+	p := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(p, []byte(`{"theme":"mine","themes":{"mine":{"base":"default","roles":{"accent":"nope"}}}}`), 0o600)
+	if _, err := load(p, key, Overrides{}); err == nil || !errors.Is(err, ErrBadConfig) || !strings.Contains(err.Error(), "mine") || !strings.Contains(err.Error(), "accent") {
+		t.Fatalf("bad user-theme colour err = %v", err)
+	}
+	// A user theme that inherits from a base and overrides one role loads
+	// and is selectable.
+	os.WriteFile(p, []byte(`{"theme":"mine","themes":{"mine":{"base":"nord","dark":true,"roles":{"accent":"#010203"}}}}`), 0o600)
+	cfg, err = load(p, key, Overrides{})
+	if err != nil {
+		t.Fatalf("valid user theme rejected: %v", err)
+	}
+	if th, ok := cfg.ThemeSet.Get("mine"); !ok || th.Get("accent").Dark != "#010203" {
+		t.Fatalf("user theme not resolved: %+v", th)
+	}
+	// --theme overrides the file and is validated too.
+	os.WriteFile(p, []byte(`{"theme":"gruvbox"}`), 0o600)
+	if _, err := load(p, key, Overrides{Theme: "ghost"}); err == nil || !strings.Contains(err.Error(), "unknown theme") {
+		t.Fatalf("--theme override not validated: %v", err)
+	}
+}
+
 func TestFileEnvOverridePrecedence(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "config.json")
 	os.WriteFile(p, []byte(`{"provider":"openai","model":"file-model","max_tokens":123,"thinking":false,

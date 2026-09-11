@@ -26,13 +26,53 @@ pgup / pgdn      scroll (mouse wheel works)
 ctrl+c           cancel the turn; when idle, press twice to quit
 ```
 
-## Colour
+## Colour and themes
 
-One palette, adapted to the terminal's background, which is asked for once
-at start. `NO_COLOR` in the environment renders everything plain. A
-terminal that reports only the sixteen ANSI colours gets a palette named
-in those slots rather than truecolor hex quantised down — several of the
-dark foregrounds would otherwise land on black, which is the background.
+A theme is a full named palette: every colour role the interface draws
+with (accent, dim, faint, warn, err, ok, user, tool, the header
+foreground and background, the two border colours, and the two diff
+colours), plus the transcript's left gutter. The `default` theme is the
+palette janetcode has always drawn and is what you get if you never pick
+one, so an upgrade changes nothing on screen.
+
+The terminal's background is asked for once at start. `theme: auto` (the
+default) uses that answer to draw the default palette light or dark;
+`theme: dark` or `theme: light` pins it; `theme: <name>` selects a builtin
+or a theme you defined. `NO_COLOR` in the environment renders everything
+plain whatever the theme. A terminal that reports only the sixteen ANSI
+colours keeps the ANSI-named default palette rather than truecolor hex
+quantised down — several of the dark foregrounds would otherwise land on
+black, which is the background; the `mono` theme is built on ANSI indices
+for exactly that terminal.
+
+The builtin themes (`--inspect themes` lists them with their mode and
+description):
+
+| theme | mode | character |
+|---|---|---|
+| `default` | adapts | the historical palette; light or dark to match the terminal |
+| `solarized-dark` | dark | Ethan Schoonover's solarized, warm and low-glare |
+| `solarized-light` | light | solarized on paper |
+| `high-contrast` | dark | accessible: bright, saturated, well past the contrast floor |
+| `muted` | adapts | low-saturation greys with just enough tint to tell roles apart |
+| `mono` | adapts | near colourless; greys plus the terminal's own red/green/blue |
+| `gruvbox` | dark | warm retro amber and olive |
+| `nord` | dark | cool arctic blues |
+
+Every builtin clears a contrast ratio of about 3.5:1 for body text against
+the background it assumes (borders may sit lower); a test holds each one to
+that bar, so a shipped theme is always legible.
+
+### Switching themes: `/theme`
+
+`/theme` alone opens a searchable list of every theme with its
+description; enter applies the highlighted one live — the whole transcript
+recolours in place, no restart — and saves the choice to the config file.
+`/theme <name>` switches directly, `/theme list` prints them, and
+`--theme <name>` sets one for a single run without touching the config.
+Switching never re-asks the terminal for its background, so no keystroke is
+lost; selecting a single-mode theme (a dark-only one, say) pins the light
+or dark assumption to that theme.
 
 ## The terminal takes part
 

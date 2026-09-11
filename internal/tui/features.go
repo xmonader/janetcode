@@ -62,6 +62,7 @@ var commandWhen = map[string]string{
 	"/usage":       "you want the tokens and the money for this session alone",
 	"/budget":      "you want the session to stop on its own once it has spent a figure, instead of watching the cost line",
 	"/export":      "you want the conversation as a file to paste into a review or an issue",
+	"/theme":       "the current colours are hard to read, or you want a different look; try them live and keep the one you like",
 	"/verbose":     "tool output is being folded and you want all of it for the whole transcript",
 	"/quit":        "you are done",
 	"/why":         "the harness did something you did not ask for and you want it explained without spending a model call",
@@ -152,6 +153,7 @@ var commandTopics = map[string][]string{
 	"/why":         {"explain", "reason", "intervention", "harness", "did"},
 	"/inspect":     {"state", "debug", "internals", "subject"},
 	"/plan":        {"planning", "design", "approve", "before"},
+	"/theme":       {"colour", "color", "palette", "dark", "light", "scheme", "contrast", "solarized", "gruvbox", "nord"},
 }
 
 // Features renders the terminal's commands and keys as catalogue

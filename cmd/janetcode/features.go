@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -14,6 +16,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
+	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/tui"
 )
@@ -74,6 +77,7 @@ var flagWhen = map[string]string{
 	"mcp-auth":             "a remote MCP server needs an OAuth login once",
 	"append-system-prompt": "an experiment that adds instructions, recorded so the A/B is traceable",
 	"doctor":               "something is not working and you want to know which part",
+	"theme":                "one run in a different colour scheme without changing the config",
 }
 
 // configWhen describes each key of the config file. The struct's json
@@ -91,7 +95,8 @@ var configWhen = map[string][2]string{
 	"auto_approve":        {"approve every tool call without asking", "a sandbox or a container"},
 	"max_iterations":      {"cap on model calls in one turn", "a turn that loops is a turn that spends"},
 	"compact_at":          {"estimated token count that triggers compaction", "you want compaction earlier, later, or never (negative disables)"},
-	"theme":               {"dark, light or auto", "the terminal's own detection gets it wrong"},
+	"theme":               {"auto, dark, light or a named palette", "the terminal's own detection gets it wrong, or you want one of the builtin or user themes"},
+	"themes":              {"user-defined palettes by name, each a role→colour map with an optional base", "you want a colour scheme the builtins do not ship, or to tweak one that does"},
 	"providers":           {"the backends by name, with base urls and keys", "anything other than the default provider"},
 	"anthropic":           {"legacy single-provider section, folded into providers", "an old config file that still has one"},
 	"openai":              {"legacy single-provider section, folded into providers", "an old config file that still has one"},
@@ -267,6 +272,67 @@ func outputWidth() int {
 		return n
 	}
 	return 80
+}
+
+// registerThemeSubject makes the colour themes answerable through
+// --inspect themes and /inspect themes: the builtins and any user themes,
+// each with its mode and description and the active one marked. It needs
+// only the resolved theme set, so it works even when the run has no
+// provider.
+func registerThemeSubject(r *inspect.Registry, cfg *config.Config) {
+	r.AddText("themes", "the colour themes available: builtins and user themes, with the active one marked", func() string {
+		return themesReport(cfg)
+	})
+}
+
+func themesReport(cfg *config.Config) string {
+	set := cfg.ThemeSet
+	if set == nil {
+		if s, err := theme.Build(nil); err == nil {
+			set = s
+		}
+	}
+	if set == nil {
+		return "no themes"
+	}
+	active := "auto"
+	if cfg != nil && cfg.Theme != "" {
+		active = cfg.Theme
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "active theme: %s\n\n", active)
+	// default first, then the other builtins, then user themes.
+	all := set.All()
+	sort.SliceStable(all, func(i, j int) bool {
+		a, c := all[i], all[j]
+		if (a.Name == theme.DefaultName) != (c.Name == theme.DefaultName) {
+			return a.Name == theme.DefaultName
+		}
+		if a.Builtin != c.Builtin {
+			return a.Builtin
+		}
+		return a.Name < c.Name
+	})
+	for _, t := range all {
+		mark := "  "
+		if t.Name == active {
+			mark = "* "
+		}
+		mode := "light"
+		if t.Dark {
+			mode = "dark"
+		}
+		if t.Adaptive() {
+			mode = "adapts"
+		}
+		src := "builtin"
+		if !t.Builtin {
+			src = "user"
+		}
+		fmt.Fprintf(&b, "%s%-16s %-7s %-8s %s\n", mark, t.Name, mode, src, t.Desc)
+	}
+	b.WriteString("\nselect with the config \"theme\" key, --theme, or /theme in the session.")
+	return b.String()
 }
 
 // registerFeatureSubject makes the catalogue answerable through

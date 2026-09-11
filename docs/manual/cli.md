@@ -16,6 +16,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--compact-at <tokens>` | compact the history at this size instead of the configured one; `--eval-compact-at` with the everyday spelling |
 | `--model`, `--provider` | override the configured model or backend for this run |
 | `--effort` | reasoning effort where the provider supports it |
+| `--theme <name>` | colour theme for this run: `auto`, `dark`, `light`, or a builtin or user theme name. Overrides the config for this run only; `--inspect themes` lists them |
 | `--yolo` | run mutating tools without asking |
 | `--auto-edits` | auto-accept file edits; commands still ask. `/edits` toggles the same thing mid-session |
 | `--readonly` | read, search and answer, but change nothing |

@@ -179,6 +179,24 @@ func newTranscript() *transcript { return newTranscriptStyled("dark") }
 
 func newTranscriptStyled(style string) *transcript { return &transcript{styleName: style} }
 
+// restyle switches the transcript to a new display mode ("dark"/"light")
+// and drops every cached render so the next frame redraws every entry with
+// the palette the theme just installed. It keeps the entries themselves,
+// so a live /theme switch recolours the whole conversation in place with no
+// restart. Cheap: rendering is per-entry and the tail is what usually
+// re-renders anyway.
+func (t *transcript) restyle(style string) {
+	t.styleName = style
+	t.renderer = nil
+	t.rWidth = 0
+	for _, e := range t.entries {
+		e.rendered = ""
+		e.width = 0
+		e.final = false
+	}
+	t.lastRender = 0
+}
+
 func (t *transcript) add(e *entry) *entry {
 	t.entries = append(t.entries, e)
 	return e

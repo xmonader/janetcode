@@ -37,6 +37,7 @@ import (
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
+	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -102,8 +103,12 @@ type Options struct {
 	Cwd     string
 	Resumed int // messages loaded from a resumed session
 	Version string
-	// Theme is "dark", "light" or "" for terminal detection.
+	// Theme is "auto"/"" (detect), "dark", "light", or the name of a
+	// builtin or user theme.
 	Theme string
+	// Themes is the resolved, validated set of builtins plus user themes,
+	// from config. Nil falls back to the builtins alone.
+	Themes *theme.Set
 	// InitialPrompt is sent as soon as the UI is ready.
 	InitialPrompt string
 	// Memory is the project's memory store; AutoMemory extracts facts
@@ -1118,6 +1123,7 @@ var commands = []command{
 	{name: "/usage", args: "", help: "tokens and cost for this session"},
 	{name: "/budget", args: "[usd|off]", help: "stop the session once it has spent this much; alone says what the ceiling is and what is left"},
 	{name: "/export", args: "[file.md]", help: "write this session as a Markdown transcript"},
+	{name: "/theme", args: "[name]", help: "switch the colour theme: alone opens a searchable list, or name a builtin or user theme; the choice is saved"},
 	{name: "/verbose", args: "", help: "toggle expanded tool output for the whole transcript (ctrl+o expands one turn)"},
 	{name: "/hints", args: "[on|off]", help: "one-time hints about features this session could have used; alone says how many have been given"},
 	{name: "/quit", args: "", help: "exit"},
@@ -1135,6 +1141,7 @@ var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/
 var argCompleters = map[string]func(m *model, partial string) []command{
 	"/resume": (*model).completeSession,
 	"/model":  (*model).completeModel,
+	"/theme":  (*model).completeTheme,
 	"/forget": (*model).completeMemory,
 	"/undo":   (*model).completeUndo,
 	"/open":   (*model).completeFile,
@@ -1188,6 +1195,9 @@ type model struct {
 	width, height int
 	ready         bool
 	verbose       bool
+	// bgDark is the terminal background probed once at startup. auto and
+	// adaptive themes follow it; /theme switching never re-probes.
+	bgDark bool
 	// pinned is true while the transcript follows new output. The user
 	// scrolling away from the bottom clears it; reaching the bottom again,
 	// sending a prompt or starting a new session sets it. Resizing the
@@ -1274,9 +1284,22 @@ func newModel(opts Options) *model {
 	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(styleAccent))
 
 	applyColorProfile(os.Getenv)
-	style := detectTheme(opts.Theme)
+	// The terminal background is probed exactly once, here, before any
+	// theme pins lipgloss to a mode: a live /theme switch to a single-mode
+	// theme changes what lipgloss reports, so auto and adaptive themes must
+	// remember the real answer rather than re-reading it (re-reading would
+	// also talk to the terminal and eat keystrokes).
+	bgDark := lipgloss.HasDarkBackground()
+	th, dark := resolveTheme(opts.Theme, opts.Themes, bgDark)
+	lipgloss.SetHasDarkBackground(dark)
+	applyTheme(th)
+	style := "light"
+	if dark {
+		style = "dark"
+	}
 	m := &model{
 		opts:       opts,
+		bgDark:     bgDark,
 		pinned:     true,
 		approver:   &tuiApprover{},
 		transcript: newTranscriptStyled(style),
@@ -1353,6 +1376,45 @@ func resumedAfterCompaction(sess *session.Session) bool {
 		}
 	}
 	return false
+}
+
+// themeSetOr returns the given set or, when it is nil (a test, or a
+// session built without a config), a fresh set of just the builtins.
+func themeSetOr(set *theme.Set) *theme.Set {
+	if set != nil {
+		return set
+	}
+	s, _ := theme.Build(nil)
+	return s
+}
+
+// resolveTheme turns the configured theme name into the Theme to draw and
+// the mode (dark) to draw it in. auto follows the terminal background;
+// dark and light pin the default theme's mode; a named theme is drawn as
+// itself — an adaptive one still follows the terminal, a single-mode one
+// pins the background to its own light/dark, which is what "selecting a
+// dark-only theme pins the assumption" means. detectedDark is the
+// terminal's real background, probed once, so switching never re-probes.
+func resolveTheme(name string, set *theme.Set, detectedDark bool) (theme.Theme, bool) {
+	set = themeSetOr(set)
+	def := set.Default()
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "", "auto":
+		return def, detectedDark
+	case "dark":
+		return def, true
+	case "light":
+		return def, false
+	}
+	if t, ok := set.Get(name); ok {
+		if t.Adaptive() {
+			return t, detectedDark
+		}
+		return t, t.Dark
+	}
+	// The config validated the name, so this is only reached by a caller
+	// with no set; fall back to the default in the detected mode.
+	return def, detectedDark
 }
 
 // detectTheme decides which palette the session uses. An explicit theme
@@ -2811,6 +2873,10 @@ func (m *model) command(text string) tea.Cmd {
 		return m.goalCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/agents":
 		m.agentsCommand()
+	case "/theme":
+		if cmd := m.themeCommand(fields[1:]); cmd != nil {
+			return cmd
+		}
 	case "/hints":
 		m.hintsCommand(fields[1:])
 	case "/verbose":
