@@ -96,6 +96,15 @@ func doctor(w io.Writer, ov config.Overrides) error {
 		}
 		if err == nil {
 			row(true, "selected", fmt.Sprintf("%s / %s", cfg.Provider, cfg.Model))
+			theme := cfg.Theme
+			if theme == "" {
+				theme = "auto"
+			}
+			n := 0
+			if cfg.ThemeSet != nil {
+				n = len(cfg.ThemeSet.Names())
+			}
+			row(true, "theme", fmt.Sprintf("%s (%d themes available; /theme or --inspect themes lists them)", theme, n))
 			prov, perr := buildProvider(cfg)
 			if perr != nil {
 				row(false, "backend", perr.Error())

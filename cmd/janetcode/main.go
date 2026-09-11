@@ -211,6 +211,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		mcpAuth      = fs.String("mcp-auth", "", "log in to the named remote MCP server with OAuth (browser flow) and exit")
 		appendSystem = fs.String("append-system-prompt", "", "text (or @file) appended to the system prompt; JANETCODE_SYSTEM_MD=<file> replaces the base prompt. Both are recorded in eval results so a prompt A/B is traceable")
 		runDoctor    = fs.Bool("doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
+		themeFlag    = fs.String("theme", "", "colour theme for this run: auto, dark, light, or the name of a builtin or user theme (--inspect themes lists them)")
 	)
 	// The flag set is published so the catalogue tests can walk exactly
 	// the flags this program declares. Declaring them in a helper instead
@@ -246,7 +247,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		return printSessions()
 	}
 	if *runDoctor {
-		return doctor(os.Stdout, config.Overrides{Provider: *provider, Model: *model, Effort: *effort})
+		return doctor(os.Stdout, config.Overrides{Provider: *provider, Model: *model, Effort: *effort, Theme: *themeFlag})
 	}
 	initial := strings.TrimSpace(strings.Join(fs.Args(), " "))
 	if initial != "" && *promptText != "" {
@@ -270,7 +271,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		cfgPath, _ := config.Path()
 		return trainCritic(strings.Split(*evalTrain, ","), filepath.Join(filepath.Dir(cfgPath), "critic.json"), os.Stdout)
 	}
-	cfg, cerr := config.Load(config.Overrides{Provider: *provider, Model: *model, Effort: *effort, AutoApprove: *yolo})
+	cfg, cerr := config.Load(config.Overrides{Provider: *provider, Model: *model, Effort: *effort, Theme: *themeFlag, AutoApprove: *yolo})
 	err = cerr
 	// Interactive first run: open the TUI and ask for a provider instead
 	// of failing. Headless runs still need working credentials.
@@ -285,6 +286,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		cwd, _ := os.Getwd()
 		registerOfflineSubjects(r, cfg, cfgPath, cwd, err)
 		registerFeatureSubject(r, buildCatalog(fs, nil))
+		registerThemeSubject(r, cfg)
 		return inspectOnce(r, *inspectWhat, os.Stdout)
 	}
 	if err == nil {
@@ -536,6 +538,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	// Config struct. It costs a few hundred small structs and no I/O.
 	catalog := buildCatalog(fs, ag.Tools)
 	registerFeatureSubject(subjects, catalog)
+	registerThemeSubject(subjects, cfg)
 	// Deferred: the model gets the schema only after asking for it, so a
 	// session that never wonders about the harness never pays for it.
 	ag.Tools.AddDeferred(feature.Introspect{Catalog: catalog})
@@ -661,7 +664,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: cfgDir,
 		Memory: mem, AutoMemory: cfg.AutoMemory(),
 		Config: cfg, ConfigPath: cfgPath, Build: buildProvider, Connect: needsConnect,
-		Resumed: len(history), Version: version, Theme: cfg.Theme,
+		Resumed: len(history), Version: version, Theme: cfg.Theme, Themes: cfg.ThemeSet,
 		InitialPrompt: initial,
 		MCP: &tui.MCPOptions{
 			Manager: &servers, Global: cfg.MCPServers,

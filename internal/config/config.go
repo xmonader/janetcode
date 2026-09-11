@@ -16,6 +16,7 @@ import (
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -66,8 +67,18 @@ type Config struct {
 	// CompactAt is the estimated token count that triggers compaction;
 	// 0 means the default, negative disables.
 	CompactAt int `json:"compact_at,omitempty"`
-	// Theme is dark, light or auto.
+	// Theme selects the palette: auto (detect the terminal background),
+	// dark, light, or the name of a builtin or user theme. See the themes
+	// package for the builtins.
 	Theme string `json:"theme,omitempty"`
+	// Themes are user-defined palettes by name, each a role→colour map with
+	// an optional base to inherit from. They override or add to the
+	// builtins and are validated on load (a bad colour or an unknown role
+	// is ErrBadConfig). ThemeSet is the resolved, validated collection of
+	// builtins plus these plus any <cfgDir>/themes/<name>.json files; it is
+	// built by load, never read from the file.
+	Themes   map[string]json.RawMessage `json:"themes,omitempty"`
+	ThemeSet *theme.Set                 `json:"-"`
 	// Providers are the backends by name; Provider selects one. Presets
 	// (see Presets) can be referred to by name without a base_url.
 	Providers map[string]Provider `json:"providers,omitempty"`
@@ -216,6 +227,7 @@ type Overrides struct {
 	Provider    string
 	Model       string
 	Effort      string
+	Theme       string
 	AutoApprove bool
 }
 
@@ -397,6 +409,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if ov.Effort != "" {
 		cfg.Effort = ov.Effort
 	}
+	if ov.Theme != "" {
+		cfg.Theme = ov.Theme
+	}
 	if ov.AutoApprove {
 		cfg.AutoApprove = true
 	}
@@ -463,10 +478,28 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	default:
 		return nil, badf("invalid effort %q (want low, medium, high, xhigh or max)", cfg.Effort)
 	}
+	// Build the theme set from the builtins, the config "themes" object and
+	// any theme files in <cfgDir>/themes. A bad user theme is a config
+	// error, not a silent fallback, and it names the theme and the field.
+	userThemes, err := theme.ParseMap(cfg.Themes)
+	if err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
+	userThemes, err = theme.LoadDir(filepath.Join(filepath.Dir(path), "themes"), userThemes)
+	if err != nil {
+		return nil, badf("%s: themes: %v", path, err)
+	}
+	set, err := theme.Build(userThemes)
+	if err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
+	cfg.ThemeSet = set
 	switch cfg.Theme {
 	case "", "auto", "dark", "light":
 	default:
-		return nil, badf("invalid theme %q (want auto, dark or light)", cfg.Theme)
+		if !set.Has(cfg.Theme) {
+			return nil, badf("unknown theme %q (want auto, dark, light or one of: %s)", cfg.Theme, strings.Join(set.Names(), ", "))
+		}
 	}
 	if cfg.MaxTokens <= 0 {
 		cfg.MaxTokens = DefaultMaxTokens

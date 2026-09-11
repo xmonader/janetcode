@@ -112,7 +112,13 @@ type mdChunk struct {
 
 // renderOpts carries per-frame state into rendering.
 type renderOpts struct {
-	width   int
+	width int
+	// gutter is the left margin every top-level line steps in from, so the
+	// existing 2-column body indent steps in consistently from it. The
+	// effective content width is width-gutter; entries are rendered to that
+	// and then indented, so the body indent and diffs stay relative to the
+	// gutter, not the terminal edge.
+	gutter  int
 	resized bool
 	pending *permissionMsg
 	spinner string // current spinner frame for running tools
@@ -178,6 +184,24 @@ const liveRenderInterval = 80 * time.Millisecond
 func newTranscript() *transcript { return newTranscriptStyled("dark") }
 
 func newTranscriptStyled(style string) *transcript { return &transcript{styleName: style} }
+
+// restyle switches the transcript to a new display mode ("dark"/"light")
+// and drops every cached render so the next frame redraws every entry with
+// the palette the theme just installed. It keeps the entries themselves,
+// so a live /theme switch recolours the whole conversation in place with no
+// restart. Cheap: rendering is per-entry and the tail is what usually
+// re-renders anyway.
+func (t *transcript) restyle(style string) {
+	t.styleName = style
+	t.renderer = nil
+	t.rWidth = 0
+	for _, e := range t.entries {
+		e.rendered = ""
+		e.width = 0
+		e.final = false
+	}
+	t.lastRender = 0
+}
 
 func (t *transcript) add(e *entry) *entry {
 	t.entries = append(t.entries, e)
@@ -399,6 +423,22 @@ func (t *transcript) render(o renderOpts) string {
 	if width < 20 {
 		width = 20
 	}
+	// The gutter narrows the content and indents it: everything an entry
+	// renders is sized to width-gutter, so its own inner indents and diff
+	// gutters stay relative to the margin rather than overrunning it. A
+	// gutter that would leave less than the 20-column floor is dropped.
+	g := o.gutter
+	if g < 0 {
+		g = 0
+	}
+	if g > 0 && width-g >= 20 {
+		width -= g
+	} else {
+		g = 0
+	}
+	// From here on the entries are rendered at the narrowed width; o.width
+	// carries it so needsRender's width comparison and renderEntry agree.
+	o.width = width
 	if t.renderer == nil || t.rWidth != width {
 		r, err := glamour.NewTermRenderer(glamour.WithStyles(markdownStyle(t.styleName == "dark")), glamour.WithWordWrap(width-2))
 		if err == nil {
@@ -434,10 +474,18 @@ func (t *transcript) render(o renderOpts) string {
 			e.renderedN = len(e.text)
 			e.verbose = o.expand(e)
 		}
+		// The gutter is applied on the way out, not baked into the cached
+		// render, so it costs nothing when it collapses to zero and the
+		// per-entry cache survives a width-preserving toggle. Indenting adds
+		// no newlines, so the line map is unchanged.
+		out := e.rendered
+		if g > 0 {
+			out = indent(out, strings.Repeat(" ", g))
+		}
 		e.lineFrom = line
-		line += strings.Count(e.rendered, "\n")
+		line += strings.Count(out, "\n")
 		e.lineTo = line
-		sb.WriteString(e.rendered)
+		sb.WriteString(out)
 		sb.WriteByte('\n')
 		line++
 	}

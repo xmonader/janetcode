@@ -216,6 +216,71 @@ without a `/` is matched against the file name too. `/rules` lists what
 is defined, what brings each in, and which have been sent this session;
 `janetcode --inspect rules` prints the same outside the UI.
 
+## Themes
+
+The `"theme"` key selects the palette: `auto` (detect the terminal
+background, the default), `dark`, `light`, or the name of a builtin or a
+theme you define. The builtins are `default`, `solarized-dark`,
+`solarized-light`, `high-contrast`, `muted`, `mono`, `gruvbox` and `nord`;
+`janetcode --inspect themes` lists them, [interface.md](interface.md)
+describes them, and `/theme` switches between them live.
+
+A theme names fourteen colour roles — `accent`, `dim`, `faint`, `warn`,
+`err`, `ok`, `user`, `tool`, `head_bg`, `head_fg`, `border`,
+`border_active`, `diff_add`, `diff_del` — plus a `gutter` (the transcript's
+left margin, default 2) and whether it is `dark`. A role's colour is one
+string used in both terminal backgrounds, or a `{"light":…, "dark":…}`
+pair when it should adapt. A colour is a `#rrggbb` (or `#rgb`) hex or a
+`0`–`255` ANSI palette index.
+
+### User themes in the config file
+
+The `"themes"` object maps a name to a theme. Give it a `"base"` and it
+inherits every role you do not set, so a tweak is two lines:
+
+```json
+{
+  "theme": "warm-night",
+  "themes": {
+    "warm-night": {
+      "description": "gruvbox with a brighter prompt caret",
+      "dark": true,
+      "base": "gruvbox",
+      "gutter": 2,
+      "roles": {
+        "accent": "#fabd2f",
+        "border_active": "#fabd2f"
+      }
+    }
+  }
+}
+```
+
+A theme with no `base` must fill all fourteen roles itself. A bad theme is
+a configuration error at startup (exit 52), naming the theme and the field:
+an unknown role key, a colour that is neither hex nor an ANSI index, an
+unknown base, or a missing role after inheritance. A user theme may share a
+builtin's name to override it.
+
+### Theme files
+
+A theme can also live in its own file at `<config-dir>/themes/<name>.json`
+(the config directory is the one holding `config.json`, honouring
+`XDG_CONFIG_HOME`). The file is the theme object without the outer name —
+the file name is the theme name:
+
+```json
+{
+  "description": "my paper theme",
+  "dark": false,
+  "base": "solarized-light",
+  "roles": { "accent": "#1c72b8" }
+}
+```
+
+Files are loaded at startup and validated the same way; a name defined in
+the config `"themes"` object wins over a file of the same name.
+
 ## Prices
 
 `/cost`, the turn summary and the eval reports price tokens from three

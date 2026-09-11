@@ -37,6 +37,7 @@ import (
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
+	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -102,8 +103,12 @@ type Options struct {
 	Cwd     string
 	Resumed int // messages loaded from a resumed session
 	Version string
-	// Theme is "dark", "light" or "" for terminal detection.
+	// Theme is "auto"/"" (detect), "dark", "light", or the name of a
+	// builtin or user theme.
 	Theme string
+	// Themes is the resolved, validated set of builtins plus user themes,
+	// from config. Nil falls back to the builtins alone.
+	Themes *theme.Set
 	// InitialPrompt is sent as soon as the UI is ready.
 	InitialPrompt string
 	// Memory is the project's memory store; AutoMemory extracts facts
@@ -1118,6 +1123,7 @@ var commands = []command{
 	{name: "/usage", args: "", help: "tokens and cost for this session"},
 	{name: "/budget", args: "[usd|off]", help: "stop the session once it has spent this much; alone says what the ceiling is and what is left"},
 	{name: "/export", args: "[file.md]", help: "write this session as a Markdown transcript"},
+	{name: "/theme", args: "[name]", help: "switch the colour theme: alone opens a searchable list, or name a builtin or user theme; the choice is saved"},
 	{name: "/verbose", args: "", help: "toggle expanded tool output for the whole transcript (ctrl+o expands one turn)"},
 	{name: "/hints", args: "[on|off]", help: "one-time hints about features this session could have used; alone says how many have been given"},
 	{name: "/quit", args: "", help: "exit"},
@@ -1135,6 +1141,7 @@ var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/
 var argCompleters = map[string]func(m *model, partial string) []command{
 	"/resume": (*model).completeSession,
 	"/model":  (*model).completeModel,
+	"/theme":  (*model).completeTheme,
 	"/forget": (*model).completeMemory,
 	"/undo":   (*model).completeUndo,
 	"/open":   (*model).completeFile,
@@ -1188,6 +1195,9 @@ type model struct {
 	width, height int
 	ready         bool
 	verbose       bool
+	// bgDark is the terminal background probed once at startup. auto and
+	// adaptive themes follow it; /theme switching never re-probes.
+	bgDark bool
 	// pinned is true while the transcript follows new output. The user
 	// scrolling away from the bottom clears it; reaching the bottom again,
 	// sending a prompt or starting a new session sets it. Resizing the
@@ -1274,9 +1284,22 @@ func newModel(opts Options) *model {
 	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(styleAccent))
 
 	applyColorProfile(os.Getenv)
-	style := detectTheme(opts.Theme)
+	// The terminal background is probed exactly once, here, before any
+	// theme pins lipgloss to a mode: a live /theme switch to a single-mode
+	// theme changes what lipgloss reports, so auto and adaptive themes must
+	// remember the real answer rather than re-reading it (re-reading would
+	// also talk to the terminal and eat keystrokes).
+	bgDark := lipgloss.HasDarkBackground()
+	th, dark := resolveTheme(opts.Theme, opts.Themes, bgDark)
+	lipgloss.SetHasDarkBackground(dark)
+	applyTheme(th)
+	style := "light"
+	if dark {
+		style = "dark"
+	}
 	m := &model{
 		opts:       opts,
+		bgDark:     bgDark,
 		pinned:     true,
 		approver:   &tuiApprover{},
 		transcript: newTranscriptStyled(style),
@@ -1353,6 +1376,45 @@ func resumedAfterCompaction(sess *session.Session) bool {
 		}
 	}
 	return false
+}
+
+// themeSetOr returns the given set or, when it is nil (a test, or a
+// session built without a config), a fresh set of just the builtins.
+func themeSetOr(set *theme.Set) *theme.Set {
+	if set != nil {
+		return set
+	}
+	s, _ := theme.Build(nil)
+	return s
+}
+
+// resolveTheme turns the configured theme name into the Theme to draw and
+// the mode (dark) to draw it in. auto follows the terminal background;
+// dark and light pin the default theme's mode; a named theme is drawn as
+// itself — an adaptive one still follows the terminal, a single-mode one
+// pins the background to its own light/dark, which is what "selecting a
+// dark-only theme pins the assumption" means. detectedDark is the
+// terminal's real background, probed once, so switching never re-probes.
+func resolveTheme(name string, set *theme.Set, detectedDark bool) (theme.Theme, bool) {
+	set = themeSetOr(set)
+	def := set.Default()
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "", "auto":
+		return def, detectedDark
+	case "dark":
+		return def, true
+	case "light":
+		return def, false
+	}
+	if t, ok := set.Get(name); ok {
+		if t.Adaptive() {
+			return t, detectedDark
+		}
+		return t, t.Dark
+	}
+	// The config validated the name, so this is only reached by a caller
+	// with no set; fall back to the default in the detected mode.
+	return def, detectedDark
 }
 
 // detectTheme decides which palette the session uses. An explicit theme
@@ -2811,6 +2873,10 @@ func (m *model) command(text string) tea.Cmd {
 		return m.goalCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/agents":
 		m.agentsCommand()
+	case "/theme":
+		if cmd := m.themeCommand(fields[1:]); cmd != nil {
+			return cmd
+		}
 	case "/hints":
 		m.hintsCommand(fields[1:])
 	case "/verbose":
@@ -3465,6 +3531,23 @@ func (m *model) permissionBoxHeight() int {
 	return lines + 2 // border
 }
 
+// gutterCollapseWidth is the terminal width below which the transcript
+// gutter collapses to zero. Room to breathe is a luxury a wide terminal
+// can afford; a narrow one needs every column for diffs, code and tables,
+// so the leanness bias wins there.
+const gutterCollapseWidth = 88
+
+// gutter is the left margin the whole interface shares this frame: the
+// theme's gutter on a wide terminal, zero on a narrow one. It is applied
+// uniformly to the transcript's top-level lines, the header, the status
+// line and the input box, so one margin runs down the left of everything.
+func (m *model) gutter() int {
+	if activeGutter <= 0 || m.width < gutterCollapseWidth {
+		return 0
+	}
+	return activeGutter
+}
+
 func (m *model) layout() {
 	if m.width == 0 {
 		return
@@ -3488,7 +3571,9 @@ func (m *model) layout() {
 		m.viewport.Width = m.width
 		m.viewport.Height = vh
 	}
-	m.input.SetWidth(m.width - 4)
+	// The input box is inset by the gutter and drawn two columns narrower
+	// than the terminal (its border), so the textarea gets what is left.
+	m.input.SetWidth(m.width - 4 - m.gutter())
 }
 
 // refresh re-renders the transcript into the viewport, keeping it at the
@@ -3500,6 +3585,7 @@ func (m *model) refresh(resized bool) {
 	content := m.transcript.render(renderOpts{
 		cwd:      m.opts.Cwd,
 		width:    m.width,
+		gutter:   m.gutter(),
 		resized:  resized,
 		pending:  m.pending,
 		spinner:  m.spinner.View(),
@@ -3563,7 +3649,14 @@ func (m *model) View() string {
 // all fit the session title goes first, then the branch, then the path is
 // shortened — nothing is ever cut mid-glyph or allowed to wrap.
 func (m *model) headerView() string {
-	left := styleHeaderHi.Render(" ◆ janetcode ") + styleHeader.Render(m.headerModel())
+	// The shared left gutter indents the header's content by the same
+	// margin the transcript and input box use. It goes into `left`, so the
+	// header's own width arithmetic (which measures left) absorbs it.
+	lead := ""
+	if g := m.gutter(); g > 0 {
+		lead = styleHeader.Render(strings.Repeat(" ", g))
+	}
+	left := lead + styleHeaderHi.Render(" ◆ janetcode ") + styleHeader.Render(m.headerModel())
 	title := ""
 	if m.opts.Session != nil && m.opts.Session.Meta.Title != "" {
 		title = " · " + truncateLine(m.opts.Session.Meta.Title, max(12, m.width/3))
@@ -3739,11 +3832,17 @@ func (m *model) statusView() string {
 	if avail := m.width - lipgloss.Width(right) - 3; lipgloss.Width(left) > avail {
 		left = fitLine(left, avail)
 	}
-	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 2
+	// The status line shares the gutter: its left margin is the gutter, or
+	// the single space it has always had when the gutter has collapsed.
+	lead := m.gutter()
+	if lead < 1 {
+		lead = 1
+	}
+	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right) - lead - 1
 	if gap < 1 {
 		gap = 1
 	}
-	return fitLine(" "+left+strings.Repeat(" ", gap)+right+" ", m.width)
+	return fitLine(strings.Repeat(" ", lead)+left+strings.Repeat(" ", gap)+right+" ", m.width)
 }
 
 // contextGauge shows how full the context window is relative to the
@@ -3867,7 +3966,7 @@ func (m *model) footerView() string {
 			if i == idx {
 				mark, name, help = styleAccent.Render("▸ "), styleKey.Bold(true).Render(cmd.name), styleDim.Render(cmd.help)
 			}
-			parts = append(parts, fitLine(mark+name+" "+styleDim.Render(cmd.args)+"  "+help, m.width-1))
+			parts = append(parts, fitLine(mark+name+" "+styleDim.Render(cmd.args)+"  "+help, m.width-1-m.gutter()))
 		}
 		for i := end - start; i < rows; i++ {
 			parts = append(parts, "")
@@ -3894,8 +3993,14 @@ func (m *model) footerView() string {
 			lines[i] = "  " + lines[i]
 		}
 	}
-	parts = append(parts, box.Width(m.width-2).Render(strings.Join(lines, "\n")))
-	return strings.Join(parts, "\n")
+	parts = append(parts, box.Width(m.width-2-m.gutter()).Render(strings.Join(lines, "\n")))
+	out := strings.Join(parts, "\n")
+	// The whole footer — the notice row, the menu and the input box —
+	// shares the gutter with the transcript and header above it.
+	if g := m.gutter(); g > 0 {
+		out = indent(out, strings.Repeat(" ", g))
+	}
+	return out
 }
 
 // suggestedRule is the rule r would save, written the way the rest of
@@ -3921,7 +4026,11 @@ func (m *model) permissionView() string {
 		sb.WriteString("\n" + styleErr.Bold(true).Render("⚠ "+sanitize(c.Warning)))
 	}
 	sb.WriteString("\n" + m.permissionKeys(c.Name, m.suggestedRule(c.Name, c.Input), pendingExpandable(c)))
-	return stylePermBox.Width(m.width - 2).Render(sb.String())
+	box := stylePermBox.Width(m.width - 2 - m.gutter()).Render(sb.String())
+	if g := m.gutter(); g > 0 {
+		box = indent(box, strings.Repeat(" ", g))
+	}
+	return box
 }
 
 func shortPath(p string) string {

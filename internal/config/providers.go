@@ -186,6 +186,35 @@ func Update(path, name string, p Provider, model string) error {
 	return writePrivate(path, append(out, '\n'))
 }
 
+// UpdateKey rewrites one top-level key of the config file at path, leaving
+// every other key exactly as it was, the way Update touches only the
+// provider keys. It is how /theme persists a choice: the theme name is
+// written and nothing else in the file is reformatted or reordered beyond
+// what re-marshalling the untouched keys does. A missing file is created.
+func UpdateKey(path, key string, value any) error {
+	raw := map[string]json.RawMessage{}
+	data, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return fmt.Errorf("config %s: %w", path, err)
+		}
+	case errors.Is(err, os.ErrNotExist):
+	default:
+		return err
+	}
+	b, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	raw[key] = b
+	out, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writePrivate(path, append(out, '\n'))
+}
+
 // writePrivate atomically replaces path with data, readable by the owner
 // only.
 func writePrivate(path string, data []byte) error {
