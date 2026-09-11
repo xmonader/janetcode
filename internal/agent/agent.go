@@ -339,6 +339,20 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	a.cp.beginTurn(a.turnN, before)
 	a.mutated, a.mutations = false, 0
 	defer a.endTurn()
+	// A note typed with ctrl+s reaches the model before the turn's next
+	// call. A turn that ends with its final answer has no next call, so
+	// the note stays queued for the turn after this one. Say so, rather
+	// than letting the user watch what they typed disappear.
+	defer func() {
+		a.steerMu.Lock()
+		n := len(a.steer)
+		a.steerMu.Unlock()
+		if n > 0 {
+			emit(Event{Kind: EvNotice, Text: fmt.Sprintf(
+				"%d steering note(s) arrived after the turn's last model call; they go with your next message",
+				n)})
+		}
+	}()
 	a.loops.reset()
 	a.turnStart, a.warned = time.Now(), false
 	a.integ.userText = ""
