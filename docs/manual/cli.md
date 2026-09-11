@@ -17,8 +17,10 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--model`, `--provider` | override the configured model or backend for this run |
 | `--effort` | reasoning effort where the provider supports it |
 | `--yolo` | run mutating tools without asking |
+| `--auto-edits` | auto-accept file edits; commands still ask. `/edits` toggles the same thing mid-session |
 | `--readonly` | read, search and answer, but change nothing |
-| `--continue` (or `-c`), `--resume [id]` | carry on the last session here, or a named one |
+| `--continue` (or `-c`), `--resume <id>` (or `-r`) | carry on the last session here, or a named one |
+| `--replay <session>` | re-run a saved session against the current code, with the model's replies read from the recording instead of bought: it reports the tool calls it makes now against the ones recorded, and needs no API key |
 | `--sessions` | list the sessions recorded for this directory |
 | `--worktree <branch>` | run the session in a git worktree on that branch |
 | `--until "<cmd>"` | keep going until the command exits 0, at most five rounds |

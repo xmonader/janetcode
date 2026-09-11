@@ -439,6 +439,12 @@ approval: bubble
 Make the failing test pass. Do not weaken the test.
 ```
 
+A subagent that finished is not gone: `/agents` lists the continuable
+subagents this session started with the `task` tool, so when one has
+found something and the answer it wrote back is not the whole of it, the
+conversation with that subagent can be carried on rather than started
+again from an empty context.
+
 ### Prompt caching
 
 The request prefix is laid out to stay byte-identical between calls, so
@@ -917,6 +923,20 @@ without the plan: useful for reviews and for letting the model answer
 questions about a codebase you do not want touched. In both modes a
 mutating call the model tries anyway fails with a message rather than
 asking you.
+
+A long task the model is working through keeps a plan of its own, in the
+`todo` tool rather than in prose. `/todos` shows it: what is done, what
+is in progress and what is left, so a turn that has been running for
+minutes can be read without interrupting it.
+
+### Rating an answer
+
+`/feedback up` and `/feedback down` mark the last assistant message, with
+an optional note (`/feedback down the diff was backwards`). Nothing is
+sent to the model and nothing changes about the session: the rating goes
+into the session log, where a later review — or an eval comparing two
+prompts — can find it. It is a record for you, not a correction for the
+model; to correct the model, say so.
 
 ### Verification gates
 

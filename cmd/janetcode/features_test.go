@@ -3,9 +3,11 @@ package main
 import (
 	"flag"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	manual "github.com/xmonader/janetcode/docs/manual"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/hints"
 )
@@ -157,6 +159,78 @@ func TestEveryHintNamesSomethingThatExists(t *testing.T) {
 	if seen != len(hints.Rules()) {
 		t.Errorf("checked %d of %d rules", seen, len(hints.Rules()))
 	}
+}
+
+// TestEveryFeatureIsInTheManual is the drift gate on the documentation.
+// The catalogue is built from the tables the program runs on, so it
+// cannot describe a janetcode that does not exist; the manual can go
+// quiet about one that does. /agents, /feedback, /todos, --auto-edits,
+// --replay and eleven eval flags had all been shipped without a line
+// anywhere.
+func TestEveryFeatureIsInTheManual(t *testing.T) {
+	cat := buildCatalog(flagSet(t), nil)
+	var docs strings.Builder
+	for _, page := range manual.Pages() {
+		body, _ := manual.Page(page)
+		docs.WriteString(body + "\n")
+	}
+	readme, err := os.ReadFile(filepath.Join("..", "..", "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs.Write(readme)
+	// Line breaks are the manual's own wrapping and must not hide a
+	// mention: "click a tool\nline" documents "click a tool line".
+	hay := strings.Join(strings.Fields(docs.String()), " ")
+
+	mentions := func(name string) bool {
+		i := strings.Index(hay, name)
+		for i >= 0 {
+			before := byte(' ')
+			if i > 0 {
+				before = hay[i-1]
+			}
+			after := byte(' ')
+			if j := i + len(name); j < len(hay) {
+				after = hay[j]
+			}
+			if !wordByte(before) && before != '-' && !wordByte(after) && after != '-' {
+				return true
+			}
+			if j := strings.Index(hay[i+1:], name); j >= 0 {
+				i += 1 + j
+			} else {
+				return false
+			}
+		}
+		return false
+	}
+	for _, f := range cat.All() {
+		var names []string
+		switch f.Kind {
+		case feature.KindCommand:
+			names = []string{f.Name}
+		case feature.KindKey:
+			// A key's Name is sometimes an internal id ("ctrl+o
+			// transcript"); what the manual writes is the invocation.
+			names = []string{f.Name, f.Invocation()}
+		case feature.KindFlag:
+			names = []string{"-" + f.Name, "--" + f.Name}
+		default:
+			continue // tools and config keys are covered by their own pages
+		}
+		found := false
+		for _, n := range names {
+			found = found || mentions(n)
+		}
+		if !found {
+			t.Errorf("%s (%s) is in the catalogue and in no document", names[0], f.Kind)
+		}
+	}
+}
+
+func wordByte(b byte) bool {
+	return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9' || b == '_'
 }
 
 // TestIntrospectAnswersStayInBudget is the leanness gate on the tool:
