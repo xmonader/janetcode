@@ -63,7 +63,13 @@ the run reports itself; it applies only to `-p` (and `--watch`).
   "tool_calls": 9,
   "permission_denials": 0,
   "verdict": "tests pass",
-  "duration_ms": 41230
+  "duration_ms": 41230,
+  "recoveries": {
+    "prose_tool_calls": 1,
+    "watchdog_kills": 0,
+    "model_fallbacks": 1,
+    "total": 2
+  }
 }
 ```
 
@@ -73,6 +79,14 @@ the run reports itself; it applies only to `-p` (and `--watch`).
   API-equivalent estimate, not money spent — and `unpriced` when neither
   is available. `verdict` is what the turn demonstrated, computed from
   what the harness watched rather than from what the model claimed.
+  `recoveries` is the harness's repair work: `prose_tool_calls` were
+  written as text and read back as calls, `watchdog_kills` are streams
+  that stopped producing and were ended, `model_fallbacks` are calls that
+  only succeeded on another model. A clean run reports zeroes. The field
+  matters to a benchmark: a result reached after three rescues is not the
+  same result as one reached without them, and a comparison blind to it
+  credits the model with the harness's work. `/stats` says the same
+  thing in the terminal.
 
 - `stream-json` prints one JSON object per line as things happen —
   `text` deltas, `thinking`, `tool_start`, `tool_result`, `notice`,

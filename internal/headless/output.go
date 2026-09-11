@@ -255,6 +255,12 @@ func (r *recorder) result(ag *agent.Agent, err error) eval.CLIResult {
 		if calls, _ := st.ToolCalls(); calls > 0 {
 			res.ToolCalls = calls
 		}
+		res.Recoveries = eval.CLIRecoveries{
+			ProseToolCalls: st.Recoveries,
+			WatchdogKills:  st.WatchdogKills,
+			ModelFallbacks: st.Fallbacks,
+			Total:          st.Saves(),
+		}
 	}
 	if usd, ok := r.usage.Cost(r.price); ok {
 		res.CostUSD = usd

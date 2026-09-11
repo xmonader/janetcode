@@ -113,6 +113,7 @@ func (a *Agent) fallback(ctx context.Context, cause error, emit func(Event)) (*l
 		emit(Event{Kind: EvPhase, Text: "falling back to " + model})
 		resp, err := a.callOn(ctx, prov, model, emit)
 		if err == nil {
+			a.stats.fellBack()
 			a.Provider, a.Model = prov, model
 			emit(Event{Kind: EvNotice, Text: "this session continues on " + model + "; /model switches back"})
 			return resp, nil

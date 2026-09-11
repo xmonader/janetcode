@@ -690,6 +690,9 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, emi
 		MaxTokens: a.MaxTokens,
 	}, func(e llm.Event) { forward(e, emit) })
 	a.stats.model(time.Since(start), err != nil)
+	if errors.Is(err, llm.ErrStreamWatchdog) {
+		a.stats.watchdogKill()
+	}
 	if err != nil {
 		a.debugf("call failed after %s: %v", time.Since(start).Round(time.Millisecond), err)
 	} else {

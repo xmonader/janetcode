@@ -681,8 +681,9 @@ func statsReport(a *agent.Agent) string {
 	if s.ModelTime > 0 {
 		fmt.Fprintf(&b, "model time %s (%d failed calls)\n", s.ModelTime.Round(time.Millisecond), s.ModelErrors)
 	}
-	if s.Recoveries > 0 {
-		fmt.Fprintf(&b, "%d tool calls recovered from text the model wrote instead of calling\n", s.Recoveries)
+	if s.Saves() > 0 {
+		fmt.Fprintf(&b, "recovered: %d tool calls from text the model wrote instead of calling · %d streams ended by the watchdog · %d calls that only worked on a fallback model\n",
+			s.Recoveries, s.WatchdogKills, s.Fallbacks)
 	}
 	if len(s.Tools) > 0 {
 		b.WriteString("\n  tool                calls  errors      time\n")

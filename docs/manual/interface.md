@@ -88,7 +88,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /plan <request> (plan mode: explore, write a plan; /plan approve executes it)
 /readonly  (toggle read-only: the model can inspect but change nothing)
 /connect   /model     /compact (summarise the context to free the window)
-/usage     /stats (turns, model calls, tool calls per tool, tokens, cost)
+/usage     /stats (turns, model calls, tool calls per tool, tokens, cost, what the harness had to recover)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
 /undo [preview]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
 /fork [title]  /title <text>  /history <words> (search every saved session)

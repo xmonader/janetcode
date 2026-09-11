@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -111,5 +112,19 @@ func assertPaired(t *testing.T, msgs []llm.Message) {
 	}
 	if len(want) != 0 {
 		t.Fatalf("unanswered tool calls: %v", want)
+	}
+}
+
+// A stream the watchdog ends is counted too: it is the harness saving a
+// turn that would otherwise have waited forever.
+func TestWatchdogKillsAreCounted(t *testing.T) {
+	f := &fake{errs: []error{fmt.Errorf("call: %w", llm.ErrStreamWatchdog)}}
+	a, _ := newAgent(t, f, nil)
+	_, emit := collect()
+	if err := a.Run(context.Background(), "go", emit); err == nil {
+		t.Fatal("want the watchdog's error")
+	}
+	if st := a.Stats(); st.WatchdogKills != 1 || st.Saves() != 1 {
+		t.Fatalf("stats = %+v", st)
 	}
 }

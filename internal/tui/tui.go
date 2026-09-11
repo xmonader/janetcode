@@ -3760,8 +3760,18 @@ func (m *model) statsCommand() {
 	if usd, ok := u.Cost(ag.Price); ok {
 		sb.WriteString(" · cost " + llm.FormatUSD(usd))
 	}
-	if st.Recoveries > 0 {
-		fmt.Fprintf(&sb, "\n%s recovered from text the model wrote instead of calling", plural(st.Recoveries, "tool call"))
+	if st.Saves() > 0 {
+		var saves []string
+		if st.Recoveries > 0 {
+			saves = append(saves, plural(st.Recoveries, "tool call")+" recovered from text the model wrote instead of calling")
+		}
+		if st.WatchdogKills > 0 {
+			saves = append(saves, plural(st.WatchdogKills, "stream")+" ended by the watchdog")
+		}
+		if st.Fallbacks > 0 {
+			saves = append(saves, plural(st.Fallbacks, "call")+" that only worked on a fallback model")
+		}
+		fmt.Fprintf(&sb, "\nrecovered · %s", strings.Join(saves, " · "))
 	}
 	fmt.Fprintf(&sb, "\ncontext ~%s of %s · %s · %s undoable", shortTokens(ag.EstimateTokens()), tokensOrUnknown(ag.CompactThreshold()), plural(st.Compactions, "compaction"), plural(len(ag.Checkpoints()), "turn"))
 	if m.opts.Jobs != nil {
