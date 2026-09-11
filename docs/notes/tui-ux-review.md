@@ -1,5 +1,8 @@
 # TUI UX review: what four other harnesses do better
 
+See also [qwen-code-review.md](qwen-code-review.md) for the agent core and
+tools of qwen-code, reviewed the same way.
+
 Four Opus agents read the terminal UIs of qwen-code (React/Ink, ~166k
 lines), grok-build (ratatui, ~516k lines in the pager alone), pi (its
 own `pi-tui`, ~17k lines plus a 6.6k-line interactive mode) and kimi-code
