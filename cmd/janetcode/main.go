@@ -293,11 +293,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 	}
 	if err != nil && !needsConnect {
-		if !errors.Is(err, config.ErrNoCredentials) {
-			// A config file that cannot be used is a different thing from
-			// credentials that are merely missing, and exits differently.
-			return fmt.Errorf("%w: %w", headless.ErrConfig, err)
-		}
+		// A config file that cannot be used is a different thing from
+		// credentials that are merely missing, and exits differently.
+		// config.Load says which it is in the error's type, so nothing
+		// here has to guess from the wording.
 		return err
 	}
 	var prov llm.Provider
@@ -727,7 +726,7 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 			Limits:  cfg.StreamLimits(),
 		})
 	}
-	return nil, fmt.Errorf("provider %q has unknown type %q", cfg.Provider, p.Type)
+	return nil, fmt.Errorf("%w: provider %q has unknown type %q", config.ErrBadConfig, cfg.Provider, p.Type)
 }
 
 // promptRecord is what goes in the results file about the prompt: which

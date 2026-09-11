@@ -70,8 +70,10 @@ var ErrBudget = errors.New("the run reached its cost budget")
 var ErrBadInput = errors.New("bad input")
 
 // ErrConfig marks a configuration file that cannot be used, as against
-// credentials that are merely missing. The config package reports these
-// as plain messages, so the wrapping happens where it is loaded.
+// credentials that are merely missing. Most of these come typed out of
+// the config package as config.ErrBadConfig; ErrConfig stays for the
+// callers that know a configuration is at fault without the config
+// package having said so.
 var ErrConfig = errors.New("configuration")
 
 // ExitCode classifies an error into one of the codes above.
@@ -89,7 +91,7 @@ func ExitCode(err error) int {
 		return ExitBadInput
 	case errors.Is(err, llm.ErrNoAPIKey), errors.Is(err, config.ErrNoCredentials), isAuthHTTP(err):
 		return ExitAuth
-	case errors.Is(err, ErrConfig):
+	case errors.Is(err, ErrConfig), errors.Is(err, config.ErrBadConfig):
 		return ExitConfig
 	}
 	return ExitOther

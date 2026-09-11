@@ -39,6 +39,7 @@ func TestExitCode(t *testing.T) {
 		{fmt.Errorf("turn: %w", agent.ErrMaxIterations), ExitTurnLimit},
 		{fmt.Errorf("%w: two prompts", ErrBadInput), ExitBadInput},
 		{fmt.Errorf("%w: %v", ErrConfig, errors.New("bad json")), ExitConfig},
+		{fmt.Errorf("%w: unknown provider %q", config.ErrBadConfig, "nope"), ExitConfig},
 		{fmt.Errorf("x: %w", llm.ErrNoAPIKey), ExitAuth},
 		{fmt.Errorf("x: %w", config.ErrNoCredentials), ExitAuth},
 		{errors.New("provider refused (HTTP 401)"), ExitAuth},
