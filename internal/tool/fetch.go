@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,9 @@ import (
 type FetchURL struct {
 	// Client defaults to one with a 30s timeout.
 	Client *http.Client
+	// Typed holds the hosts the user named in their own messages. A
+	// private-network target is fetched only when the user asked for it.
+	Typed *URLSet
 }
 
 // MaxFetchBytes caps the response body read from the network.
@@ -46,14 +50,35 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 	if err := decode(input, &in); err != nil {
 		return "", err
 	}
-	u, err := url.Parse(strings.TrimSpace(in.URL))
+	target, rewritten := NormalizeURL(in.URL)
+	u, err := url.Parse(strings.TrimSpace(target))
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return "", fmt.Errorf("url must be absolute http(s): %q", in.URL)
+	}
+	if why := PrivateTarget(u); why != "" && !t.Typed.Has(u.Host) {
+		return "", fmt.Errorf("refused: %s, and you were not asked to fetch it. Only a URL the user named themselves may point inside the local machine or network", why)
 	}
 	client := t.Client
 	if client == nil {
 		client = &http.Client{Timeout: 30 * time.Second}
 	}
+	// A redirect is another host's chance to be fetched under the approval
+	// the user gave for this one, so a redirect off this host is handed
+	// back instead of followed. A downgrade to http is refused on the same
+	// grounds even when the host is unchanged: what was approved was a
+	// request nobody on the path could read.
+	guarded := *client
+	guarded.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		prev := via[len(via)-1].URL
+		if req.URL.Host != prev.Host || (prev.Scheme == "https" && req.URL.Scheme != "https") {
+			return http.ErrUseLastResponse
+		}
+		if len(via) >= 10 {
+			return errors.New("too many redirects")
+		}
+		return nil
+	}
+	client = &guarded
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return "", err
@@ -65,6 +90,13 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 		return "", err
 	}
 	defer resp.Body.Close()
+	if loc := resp.Header.Get("Location"); resp.StatusCode >= 300 && resp.StatusCode < 400 && loc != "" {
+		next := loc
+		if abs, aerr := u.Parse(loc); aerr == nil {
+			next = abs.String()
+		}
+		return fmt.Sprintf("%s %d redirects to %s.\nThat is a different host, or drops from https to http, so it was not followed: the permission you have is for %s. Fetch the new URL explicitly if you want it.", u.String(), resp.StatusCode, next, u.Host), nil
+	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxFetchBytes+1))
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return "", fmt.Errorf("read %s: %w", u.Host, err)
@@ -74,13 +106,22 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 		body = body[:MaxFetchBytes]
 	}
 	ct := resp.Header.Get("Content-Type")
+	// A Content-Type is a claim by the server. The bytes are not: a tar
+	// ball served as text/plain is still a tar ball, and putting it in the
+	// context as text costs a great deal and says nothing.
+	if kind := binaryKind(body); kind != "" {
+		return fmt.Sprintf("%s %d: the body is %s (%d bytes), whatever its Content-Type of %q says. It is not text and was not read.", u.String(), resp.StatusCode, kind, len(body), strings.TrimSpace(strings.Split(ct, ";")[0])), nil
+	}
 	text := string(body)
-	if strings.Contains(ct, "text/html") || (ct == "" && looksLikeHTML(text)) {
+	if strings.Contains(ct, "text/html") || looksLikeHTML(text) {
 		text = htmlToText(text)
 	}
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "%s %d %s\n\n", u.String(), resp.StatusCode, strings.TrimSpace(strings.Split(ct, ";")[0]))
-	sb.WriteString(Truncate(text))
+	if rewritten {
+		fmt.Fprintf(&sb, "[%s is the page around the file; this is the file itself]\n\n", in.URL)
+	}
+	sb.WriteString(EscapeDelimiters(Truncate(text)))
 	if truncated {
 		sb.WriteString("\n[response truncated at 1 MB]")
 	}
@@ -88,6 +129,79 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 		return sb.String(), fmt.Errorf("HTTP %d from %s", resp.StatusCode, u.Host)
 	}
 	return sb.String(), nil
+}
+
+// binaryMagic is the leading bytes of formats a fetch should never try to
+// read as text, with what to call them.
+var binaryMagic = []struct {
+	prefix []byte
+	name   string
+}{
+	{[]byte("\x89PNG\r\n\x1a\n"), "a PNG image"},
+	{[]byte("GIF8"), "a GIF image"},
+	{[]byte("\xff\xd8\xff"), "a JPEG image"},
+	{[]byte("%PDF-"), "a PDF"},
+	{[]byte("PK\x03\x04"), "a zip archive"},
+	{[]byte("\x1f\x8b"), "gzip-compressed data"},
+	{[]byte("\x7fELF"), "an ELF binary"},
+	{[]byte("BZh"), "bzip2-compressed data"},
+	{[]byte("\xfd7zXZ\x00"), "xz-compressed data"},
+	{[]byte("RIFF"), "a RIFF container (audio or video)"},
+	{[]byte("\x00\x00\x01\x00"), "an icon"},
+}
+
+// binaryKind names the format of a body that is not text, or "".
+func binaryKind(body []byte) string {
+	for _, m := range binaryMagic {
+		if bytes.HasPrefix(body, m.prefix) {
+			return m.name
+		}
+	}
+	n := len(body)
+	if n > 512 {
+		n = 512
+	}
+	if bytes.IndexByte(body[:n], 0) >= 0 {
+		return "binary data"
+	}
+	return ""
+}
+
+// Preview implements Previewer: the URL that will actually be fetched,
+// which is not always the one that was asked for.
+func (t FetchURL) Preview(_ context.Context, input json.RawMessage) (string, error) {
+	var in struct {
+		URL string `json:"url"`
+	}
+	if err := decode(input, &in); err != nil {
+		return "", err
+	}
+	if target, rewritten := NormalizeURL(in.URL); rewritten {
+		return "GET " + target + "\n(rewritten from " + in.URL + ": the raw file rather than the page around it)", nil
+	}
+	return "", nil
+}
+
+// Warn implements Warner.
+func (t FetchURL) Warn(input json.RawMessage) string {
+	var in struct {
+		URL string `json:"url"`
+	}
+	if json.Unmarshal(input, &in) != nil {
+		return ""
+	}
+	target, _ := NormalizeURL(in.URL)
+	u, err := url.Parse(strings.TrimSpace(target))
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	if why := PrivateTarget(u); why != "" {
+		return why
+	}
+	if u.Scheme == "http" {
+		return "http, not https: the request and the reply are readable in transit"
+	}
+	return ""
 }
 
 func looksLikeHTML(s string) bool {

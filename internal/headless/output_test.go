@@ -1,0 +1,181 @@
+package headless
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/eval"
+	"github.com/xmonader/janetcode/internal/llm"
+)
+
+func TestParseFormat(t *testing.T) {
+	for _, ok := range []string{"", "text", "json", "stream-json"} {
+		if _, err := ParseFormat(ok); err != nil {
+			t.Errorf("ParseFormat(%q) = %v", ok, err)
+		}
+	}
+	if _, err := ParseFormat("yaml"); err == nil {
+		t.Fatal("an unknown format must be refused")
+	}
+}
+
+func TestExitCode(t *testing.T) {
+	cases := []struct {
+		err  error
+		want int
+	}{
+		{nil, ExitOK},
+		{errors.New("something"), ExitOther},
+		{context.Canceled, ExitCancelled},
+		{fmt.Errorf("wrapped: %w", context.Canceled), ExitCancelled},
+		{fmt.Errorf("%w: spent $1", ErrBudget), ExitBudget},
+		{fmt.Errorf("turn: %w", agent.ErrMaxIterations), ExitTurnLimit},
+		{fmt.Errorf("%w: two prompts", ErrBadInput), ExitBadInput},
+		{fmt.Errorf("%w: %v", ErrConfig, errors.New("bad json")), ExitConfig},
+		{fmt.Errorf("x: %w", llm.ErrNoAPIKey), ExitAuth},
+		{fmt.Errorf("x: %w", config.ErrNoCredentials), ExitAuth},
+		{errors.New("provider refused (HTTP 401)"), ExitAuth},
+		{errors.New("provider refused (HTTP 403)"), ExitAuth},
+	}
+	for _, c := range cases {
+		if got := ExitCode(c.err); got != c.want {
+			t.Errorf("ExitCode(%v) = %d, want %d", c.err, got, c.want)
+		}
+	}
+}
+
+// fakeAgentEvents replays a run's events through the recorder.
+func replay(r *recorder, events ...agent.Event) {
+	for _, e := range events {
+		r.event(e)
+	}
+}
+
+func call(id, name string) *agent.ToolCall {
+	return &agent.ToolCall{ID: id, Name: name, Input: json.RawMessage(`{"command":"go test"}`)}
+}
+
+func TestRecorderBuildsTheResultEnvelope(t *testing.T) {
+	var out strings.Builder
+	opts := Options{Stdout: &out, Agent: &agent.Agent{Model: "m", Price: &llm.Price{Input: 1, Output: 2}}}
+	r := newRecorder(opts, FormatJSON)
+	replay(r,
+		agent.Event{Kind: agent.EvText, Text: "the "},
+		agent.Event{Kind: agent.EvText, Text: "answer"},
+		agent.Event{Kind: agent.EvToolRun, Call: call("t1", "bash")},
+		agent.Event{Kind: agent.EvToolResult, Call: call("t1", "bash"), Output: "ok", Duration: time.Second},
+		agent.Event{Kind: agent.EvToolRun, Call: call("t2", "write_file")},
+		agent.Event{Kind: agent.EvToolResult, Call: call("t2", "write_file"), Output: agent.DeniedMessage + " no", IsError: true},
+		agent.Event{Kind: agent.EvVerdict, Text: "tests pass"},
+		agent.Event{Kind: agent.EvTurnDone, Usage: llm.Usage{InputTokens: 1000, OutputTokens: 500, CacheReadTokens: 20, CacheWriteTokens: 10}, StopReason: llm.StopEndTurn},
+	)
+	res := r.result(nil, nil)
+	if res.Type != eval.CLIResultType || res.Harness != "janetcode" {
+		t.Fatalf("envelope identity = %+v", res)
+	}
+	if res.Result != "the answer" {
+		t.Errorf("result = %q", res.Result)
+	}
+	if res.Usage.InputTokens != 1000 || res.Usage.OutputTokens != 500 || res.Usage.CacheReadTokens != 20 || res.Usage.CacheWriteTokens != 10 {
+		t.Errorf("usage = %+v", res.Usage)
+	}
+	if res.ToolCalls != 2 || res.PermissionDenials != 1 || res.NumTurns != 1 {
+		t.Errorf("counts: tools=%d denials=%d turns=%d", res.ToolCalls, res.PermissionDenials, res.NumTurns)
+	}
+	if res.Verdict != "tests pass" {
+		t.Errorf("verdict = %q", res.Verdict)
+	}
+	// 1000/1e6*1 + 500/1e6*2 = 0.002
+	if res.CostUSD < 0.0019 || res.CostUSD > 0.0021 || res.CostSource != "list price" {
+		t.Errorf("cost = %v (%s)", res.CostUSD, res.CostSource)
+	}
+	if res.IsError || res.ExitCode != ExitOK {
+		t.Errorf("clean run reported as an error: %+v", res)
+	}
+
+	// An unpriced model says so rather than reporting zero as a fact.
+	r2 := newRecorder(Options{Stdout: &out, Agent: &agent.Agent{}}, FormatJSON)
+	if got := r2.result(nil, nil).CostSource; got != "unpriced" {
+		t.Errorf("cost source = %q", got)
+	}
+}
+
+func TestResultCarriesTheError(t *testing.T) {
+	var out strings.Builder
+	r := newRecorder(Options{Stdout: &out}, FormatJSON)
+	res := r.result(nil, fmt.Errorf("turn: %w", agent.ErrMaxIterations))
+	if !res.IsError || res.ExitCode != ExitTurnLimit || !strings.Contains(res.Error, "iterations") {
+		t.Fatalf("res = %+v", res)
+	}
+}
+
+func TestJSONFormatPrintsOneObject(t *testing.T) {
+	var out strings.Builder
+	r := newRecorder(Options{Stdout: &out}, FormatJSON)
+	replay(r, agent.Event{Kind: agent.EvText, Text: "hi"},
+		agent.Event{Kind: agent.EvTurnDone, Usage: llm.Usage{InputTokens: 3}})
+	r.finish(nil, nil)
+	var res eval.CLIResult
+	if err := json.Unmarshal([]byte(out.String()), &res); err != nil {
+		t.Fatalf("stdout is not one object: %v\n%s", err, out.String())
+	}
+	if res.Result != "hi" {
+		t.Fatalf("res = %+v", res)
+	}
+}
+
+func TestStreamJSONPrintsOneObjectPerLine(t *testing.T) {
+	var out strings.Builder
+	r := newRecorder(Options{Stdout: &out}, FormatStreamJSON)
+	replay(r,
+		agent.Event{Kind: agent.EvText, Text: "hi"},
+		agent.Event{Kind: agent.EvToolRun, Call: call("t1", "bash")},
+		agent.Event{Kind: agent.EvToolResult, Call: call("t1", "bash"), Output: "ok"},
+		agent.Event{Kind: agent.EvNotice, Text: "a notice"},
+		agent.Event{Kind: agent.EvVerdict, Text: "tests pass"},
+		agent.Event{Kind: agent.EvTurnDone, Usage: llm.Usage{InputTokens: 3}},
+	)
+	r.finish(nil, nil)
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 7 {
+		t.Fatalf("%d lines, want 7:\n%s", len(lines), out.String())
+	}
+	var kinds []string
+	for _, l := range lines {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(l), &m); err != nil {
+			t.Fatalf("line is not JSON: %q", l)
+		}
+		kinds = append(kinds, m["type"].(string))
+	}
+	want := "text tool_start tool_result notice verdict turn_done result"
+	if strings.Join(kinds, " ") != want {
+		t.Fatalf("kinds = %v, want %s", kinds, want)
+	}
+	// The last line is the same envelope json mode prints.
+	var res eval.CLIResult
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &res); err != nil || res.Harness != "janetcode" {
+		t.Fatalf("last line = %q %v", lines[len(lines)-1], err)
+	}
+}
+
+// Text mode is unchanged: nothing JSON-shaped reaches stdout from here.
+func TestTextFormatWritesNoEnvelope(t *testing.T) {
+	var out strings.Builder
+	r := newRecorder(Options{Stdout: &out}, FormatText)
+	replay(r, agent.Event{Kind: agent.EvTurnDone})
+	r.finish(nil, nil)
+	if out.String() != "" {
+		t.Fatalf("text mode wrote %q", out.String())
+	}
+	if !r.text() {
+		t.Fatal("text mode should ask the caller to print")
+	}
+}

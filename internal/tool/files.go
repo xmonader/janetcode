@@ -1,8 +1,10 @@
 package tool
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -57,7 +59,8 @@ func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 		return "", fmt.Errorf("%s is a binary file (%d bytes)", in.Path, len(data))
 	}
 	t.Seen.Record(p, data)
-	lines := strings.Split(string(data), "\n")
+	text, shape := decodeText(data)
+	lines := strings.Split(text, "\n")
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}
@@ -87,20 +90,25 @@ func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	if end < len(lines) {
 		fmt.Fprintf(&sb, "... (%d more lines)\n", len(lines)-end)
 	}
-	return Truncate(sb.String()), nil
+	out := Truncate(sb.String())
+	if note := shape.Note(); note != "" {
+		out += "[" + note + "]\n"
+	}
+	return out, nil
 }
 
+// isBinary reports whether the file cannot be handled as text: a NUL byte
+// in the first 4 KB. UTF-16 is full of NUL bytes and is text, so a file
+// that announces itself with a UTF-16 byte-order mark is exempt.
 func isBinary(b []byte) bool {
+	if bytes.HasPrefix(b, []byte(bomUTF16L)) || bytes.HasPrefix(b, []byte(bomUTF16B)) {
+		return false
+	}
 	n := len(b)
-	if n > 8000 {
-		n = 8000
+	if n > binarySniffBytes {
+		n = binarySniffBytes
 	}
-	for _, c := range b[:n] {
-		if c == 0 {
-			return true
-		}
-	}
-	return false
+	return bytes.IndexByte(b[:n], 0) >= 0
 }
 
 // WriteFile creates or overwrites a file.
@@ -138,20 +146,32 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return "", err
 	}
-	if err := t.Seen.Check(p, in.Path); err != nil {
+	if err := t.Seen.Check(p, in.Path, "write"); err != nil {
 		return "", err
 	}
 	old, readErr := os.ReadFile(p)
 	existed := readErr == nil
-	if err := atomicWrite(p, []byte(in.Content)); err != nil {
+	// A file keeps the shape it had: its byte-order mark, its line endings
+	// and its charset. Otherwise the first write to a Windows or Latin-1
+	// repository rewrites every line of the file it touched.
+	oldText, shape := "", form{Charset: "utf-8"}
+	if existed {
+		oldText, shape = decodeText(old)
+	}
+	data := encodeText(in.Content, shape)
+	if err := atomicWrite(p, data); err != nil {
 		return "", err
 	}
-	t.Seen.Record(p, []byte(in.Content))
+	t.Seen.Record(p, data)
 	if !existed {
 		return fmt.Sprintf("Created %s (%s)", displayPath(t.Root, in.Path), plural(countLines(in.Content), "line")), nil
 	}
-	added, removed := diff.Stats(string(old), in.Content)
-	return fmt.Sprintf("Overwrote %s (+%d -%d lines)", displayPath(t.Root, in.Path), added, removed), nil
+	added, removed := diff.Stats(oldText, in.Content)
+	out := fmt.Sprintf("Overwrote %s (+%d -%d lines)", displayPath(t.Root, in.Path), added, removed)
+	if note := shape.Note(); note != "" {
+		out += "\n[" + note + "]"
+	}
+	return out, nil
 }
 
 func plural(n int, unit string) string {
@@ -159,6 +179,12 @@ func plural(n int, unit string) string {
 		return "1 " + unit
 	}
 	return fmt.Sprintf("%d %ss", n, unit)
+}
+
+// Guard implements Guard: a write to one of janetcode's own control
+// surfaces asks, whatever the permission mode.
+func (t WriteFile) Guard(input json.RawMessage) (bool, string) {
+	return guardSelfModify(t.Root, input)
 }
 
 // Preview implements Previewer: a diff against the existing file, or the
@@ -187,7 +213,8 @@ func (t WriteFile) Preview(_ context.Context, input json.RawMessage) (string, er
 	if isBinary(old) {
 		return fmt.Sprintf("(replacing binary file %s, %d bytes)", in.Path, len(old)), nil
 	}
-	d := diff.Unified(in.Path, string(old), in.Content, 3)
+	oldText, _ := decodeText(old)
+	d := diff.Unified(in.Path, oldText, in.Content, 3)
 	if d == "" {
 		return "(no change: content is identical)", nil
 	}
@@ -312,6 +339,13 @@ type editPlan struct {
 	// in the input verifies, so the answer says what it actually hit —
 	// otherwise a miscounted line is a silent wrong edit.
 	removed []string
+	// notes records any rung of the matching ladder below an exact match
+	// that a replacement needed, so the model is told its quoted text was
+	// not what the file holds.
+	notes []string
+	// shape is the file's byte-order mark, line endings and charset, put
+	// back when the edit is written.
+	shape form
 }
 
 // oneEdit is a single replacement, located either by the text it replaces
@@ -368,7 +402,7 @@ func (e oneEdit) resolve(lines []string) (oneEdit, error) {
 // apply performs one replacement on content, reporting how many times the
 // text was found. The errors name the edit's position when there are
 // several, so the model can tell which of them did not fit.
-func (e oneEdit) apply(content, display string, index, total int) (string, int, error) {
+func (e oneEdit) apply(content, display string, index, total int) (string, int, string, error) {
 	where := ""
 	if total > 1 {
 		where = fmt.Sprintf("edit %d of %d: ", index+1, total)
@@ -376,22 +410,63 @@ func (e oneEdit) apply(content, display string, index, total int) (string, int, 
 	if e.Old == "" {
 		// A replacement with no location at all is the common shape of
 		// this mistake; saying so beats naming the field that is empty.
-		return "", 0, fmt.Errorf("%sthis edit says what to write but not where: give old_string (the exact text to replace) or from_line and to_line", where)
+		return "", 0, "", fmt.Errorf("%sthis edit says what to write but not where: give old_string (the exact text to replace) or from_line and to_line", where)
 	}
 	if e.Old == e.New {
-		return "", 0, fmt.Errorf("%sold_string and new_string are identical", where)
+		return "", 0, "", fmt.Errorf("%sold_string and new_string are identical", where)
 	}
-	n := strings.Count(content, e.Old)
-	switch {
-	case n == 0:
-		return "", 0, fmt.Errorf("%sold_string not found in %s", where, display)
-	case n > 1 && !e.ReplaceAll:
-		return "", 0, fmt.Errorf("%sold_string matches %d times in %s; make it unique or set replace_all", where, n, display)
+	if n := strings.Count(content, e.Old); n > 0 {
+		switch {
+		case n > 1 && !e.ReplaceAll:
+			return "", 0, "", fmt.Errorf("%sold_string matches %d times in %s; make it unique or set replace_all", where, n, display)
+		case e.ReplaceAll:
+			return strings.ReplaceAll(content, e.Old, e.New), n, "", nil
+		}
+		return strings.Replace(content, e.Old, e.New, 1), n, "", nil
 	}
-	if e.ReplaceAll {
-		return strings.ReplaceAll(content, e.Old, e.New), n, nil
+	// Exact matching missed. Each rung below is more forgiving than the
+	// last and the first one that finds the text wins, so the outcome does
+	// not depend on how far down the ladder the search happened to get.
+	for _, rung := range []struct {
+		find func(string, string) [][2]int
+		note string
+	}{
+		{matchFolded, "matched after folding equivalent characters (dashes, quotes, spaces): old_string did not match the file byte for byte"},
+		{matchLines, "matched ignoring trailing whitespace on each line: old_string did not match the file byte for byte"},
+	} {
+		spans := dropOverlaps(rung.find(content, e.Old))
+		if len(spans) == 0 {
+			continue
+		}
+		if len(spans) > 1 && !e.ReplaceAll {
+			return "", 0, "", fmt.Errorf("%sold_string matches %d times in %s (%s); make it unique or set replace_all", where, len(spans), display, rung.note)
+		}
+		if !e.ReplaceAll {
+			spans = spans[:1]
+		}
+		return replaceSpans(content, spans, e.New), len(spans), where + rung.note, nil
 	}
-	return strings.Replace(content, e.Old, e.New, 1), n, nil
+	msg := fmt.Sprintf("%sold_string not found in %s", where, display)
+	if nm := nearMiss(content, e.Old, display); nm != "" {
+		msg += ".\n" + nm
+	}
+	return "", 0, "", errors.New(msg)
+}
+
+// checkSeen resolves the edit's path and asks Seen whether the file is
+// still the one the agent looked at.
+func (t EditFile) checkSeen(input json.RawMessage) error {
+	var in struct {
+		Path string `json:"path"`
+	}
+	if json.Unmarshal(input, &in) != nil || strings.TrimSpace(in.Path) == "" {
+		return nil // the plan will report what is wrong with the input
+	}
+	p, err := resolvePath(t.Root, in.Path)
+	if err != nil {
+		return nil
+	}
+	return t.Seen.Check(p, displayPath(t.Root, in.Path), "edit")
 }
 
 func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
@@ -441,7 +516,10 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	before := string(data)
+	if isBinary(data) {
+		return nil, &ErrPriorRead{Path: displayPath(t.Root, in.Path), Verb: "edit", Cause: CauseBinary}
+	}
+	before, shape := decodeText(data)
 	if lines > 0 {
 		// Anchors are resolved against the file as it is now, before any
 		// of this batch is applied, so a list of them is written against
@@ -462,17 +540,21 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: after, replacements: n, removed: removed}, nil
+		return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: after, replacements: n, removed: removed, shape: shape}, nil
 	}
 	content, total := before, 0
+	var notes []string
 	for i, e := range edits {
-		updated, n, err := e.apply(content, in.Path, i, len(edits))
+		updated, n, note, err := e.apply(content, in.Path, i, len(edits))
 		if err != nil {
 			return nil, err
 		}
+		if note != "" {
+			notes = append(notes, note)
+		}
 		content, total = updated, total+n
 	}
-	return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: content, replacements: total}, nil
+	return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: content, replacements: total, notes: notes, shape: shape}, nil
 }
 
 // repairEdits fixes the two ways models malform the edits argument, both
@@ -695,21 +777,31 @@ func changed(before, after string) (first, last int, ok bool) {
 }
 
 func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) {
+	// The state of the file is checked before the plan is built: a file
+	// that vanished since it was read must say so, not fail as an open
+	// error with no explanation of what happened to it.
+	if err := t.checkSeen(input); err != nil {
+		return "", err
+	}
 	pl, err := t.plan(input)
 	if err != nil {
 		return "", err
 	}
-	if err := t.Seen.Check(pl.path, pl.display); err != nil {
+	data := encodeText(pl.after, pl.shape)
+	if err := atomicWrite(pl.path, data); err != nil {
 		return "", err
 	}
-	if err := atomicWrite(pl.path, []byte(pl.after)); err != nil {
-		return "", err
-	}
-	t.Seen.Record(pl.path, []byte(pl.after))
+	t.Seen.Record(pl.path, data)
 	added, removed := diff.Stats(pl.before, pl.after)
 	out := fmt.Sprintf("Edited %s (%s, +%d -%d lines)", pl.display, plural(pl.replacements, "replacement"), added, removed)
 	for _, r := range pl.removed {
 		out += "\nreplaced " + r
+	}
+	for _, n := range pl.notes {
+		out += "\n[" + n + "]"
+	}
+	if note := pl.shape.Note(); note != "" {
+		out += "\n[" + note + "]"
 	}
 	if first, last, ok := changed(pl.before, pl.after); ok {
 		if w := window(pl.after, first, last); w != "" {
@@ -717,6 +809,12 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 		}
 	}
 	return out, nil
+}
+
+// Guard implements Guard: an edit to one of janetcode's own control
+// surfaces asks, whatever the permission mode.
+func (t EditFile) Guard(input json.RawMessage) (bool, string) {
+	return guardSelfModify(t.Root, input)
 }
 
 // Preview implements Previewer with a unified diff of the edit.

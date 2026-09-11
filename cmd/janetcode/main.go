@@ -95,13 +95,17 @@ func init() {
 }
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	err := run(os.Args[1:])
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "janetcode:", err)
 		if s := err.Error(); strings.Contains(s, "(HTTP 401)") || strings.Contains(s, "(HTTP 403)") {
 			fmt.Fprintln(os.Stderr, "janetcode: the endpoint rejected the API key; check the key for the provider in use (janetcode --doctor shows which key each provider has)")
 		}
-		os.Exit(1)
 	}
+	// The status says which of the handful of things that can go wrong
+	// went wrong, so a script can tell a missing key from a turn limit
+	// without reading the message.
+	os.Exit(headless.ExitCode(err))
 }
 
 // printFlags is flag.PrintDefaults for the flags keep selects, so the
@@ -155,6 +159,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	var (
 		promptText   = fs.String("p", "", "run this prompt headless and exit")
+		outFormat    = fs.String("output-format", "text", "with -p: how the run reports itself. text prints the answer on stdout and activity on stderr; json prints one result object on stdout (answer, usage, cost and where the figure came from, turns, tool calls, permission denials, verdict, session id, duration); stream-json prints one JSON object per line as things happen, ending with that result")
+		maxCost      = fs.Float64("max-cost", 0, "with -p: stop once the run has spent this much in USD (exit 55). The figure is the provider's when it reports one, otherwise list price")
 		until        = fs.String("until", "", "with -p: shell command that must exit 0 before the run is done (re-loops up to 5 times)")
 		watchCmd     = fs.String("watch", "", "watch mode: re-run this shell command whenever files change and have the model fix failures (use with --yolo)")
 		provider     = fs.String("provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")
@@ -229,20 +235,28 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	initial := strings.TrimSpace(strings.Join(fs.Args(), " "))
 	if initial != "" && *promptText != "" {
-		return errors.New("give the prompt either with -p or as an argument, not both")
+		return fmt.Errorf("%w: give the prompt either with -p or as an argument, not both", headless.ErrBadInput)
 	}
 	if *until != "" && *promptText == "" {
-		return errors.New("--until needs a headless prompt (-p)")
+		return fmt.Errorf("%w: --until needs a headless prompt (-p)", headless.ErrBadInput)
+	}
+	format, err := headless.ParseFormat(*outFormat)
+	if err != nil {
+		return fmt.Errorf("%w: %v", headless.ErrBadInput, err)
+	}
+	if format != headless.FormatText && *promptText == "" && *watchCmd == "" {
+		return fmt.Errorf("%w: --output-format applies to a headless run (-p)", headless.ErrBadInput)
 	}
 	if *watchCmd != "" && *until != "" {
-		return errors.New("--watch and --until cannot be combined")
+		return fmt.Errorf("%w: --watch and --until cannot be combined", headless.ErrBadInput)
 	}
 
 	if *evalTrain != "" {
 		cfgPath, _ := config.Path()
 		return trainCritic(strings.Split(*evalTrain, ","), filepath.Join(filepath.Dir(cfgPath), "critic.json"), os.Stdout)
 	}
-	cfg, err := config.Load(config.Overrides{Provider: *provider, Model: *model, Effort: *effort, AutoApprove: *yolo})
+	cfg, cerr := config.Load(config.Overrides{Provider: *provider, Model: *model, Effort: *effort, AutoApprove: *yolo})
+	err = cerr
 	// Interactive first run: open the TUI and ask for a provider instead
 	// of failing. Headless runs still need working credentials.
 	needsConnect := err != nil && errors.Is(err, config.ErrNoCredentials) && *promptText == "" && term.IsTerminal(int(os.Stdin.Fd()))
@@ -279,6 +293,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 	}
 	if err != nil && !needsConnect {
+		if !errors.Is(err, config.ErrNoCredentials) {
+			// A config file that cannot be used is a different thing from
+			// credentials that are merely missing, and exits differently.
+			return fmt.Errorf("%w: %w", headless.ErrConfig, err)
+		}
 		return err
 	}
 	var prov llm.Provider
@@ -373,7 +392,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if err != nil {
 		return err
 	}
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, models: pool.For, promptOverride: promptOv}
+	typed := &tool.URLSet{}
+	typed.Note(initial)
+	typed.Note(*promptText)
+	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return err
@@ -403,7 +425,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	hooksTrusted := len(hooksCfg) > 0 && trust.Trusted(hookTrustKey(cwd), hooksHash)
 	ag.Hooks = &hook.Runner{Config: cfg.Hooks, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[hook] %s\n", s) }}
 	if hooksTrusted {
-		ag.Hooks.Config = hook.Merge(cfg.Hooks, hooksCfg)
+		var hookNotes []string
+		ag.Hooks.Config, hookNotes = hook.MergeScoped(cfg.Hooks, hooksCfg)
+		for _, n := range hookNotes {
+			fmt.Fprintf(os.Stderr, "[hooks] %s\n", n)
+		}
 	} else if len(hooksCfg) > 0 && *promptText != "" {
 		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
 	}
@@ -561,6 +587,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
 			Until: *until, Watch: *watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
+			Format: format, MaxCostUSD: *maxCost,
 		})
 	}
 	return tui.Run(tui.Options{
@@ -1160,6 +1187,12 @@ type agentDeps struct {
 	// promptOverride replaces or extends the system prompt, for an A/B
 	// of the prompt itself.
 	promptOverride prompt.Override
+	// typed holds the hosts the user named themselves. fetch_url reaches a
+	// private-network address only for a host that is in here.
+	typed *tool.URLSet
+	// running is the registry of foreground commands that can be moved to
+	// the background while they run.
+	running *tool.Running
 }
 
 // builtAgent is one session's agent and the pieces the caller still owns:
@@ -1205,9 +1238,9 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 			tool.ReadFile{Root: d.cwd, Seen: seen},
 			tool.WriteFile{Root: d.cwd, Seen: seen},
 			tool.EditFile{Root: d.cwd, Seen: seen, NoLines: envOff()["lineedit"]},
-			tool.Bash{Root: d.cwd, Cache: &tool.ShellCache{}, Jobs: jobs},
+			tool.Bash{Root: d.cwd, Cache: &tool.ShellCache{}, Jobs: jobs, Running: d.running},
 			tool.JobTool{Jobs: jobs},
-			tool.FetchURL{},
+			tool.FetchURL{Typed: d.typed},
 			tool.WebSearch{Config: d.cfg.Search},
 			expand,
 			task,
@@ -1281,7 +1314,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	}
 	ag.Prepare = chainPrep(skill.TurnPrep(&skill.Injector{Skills: skills}, mem), repomap.TurnPrep(repo, 0))
 	ag.Tools.Intent = d.cfg.IntentEnabled()
-	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools})
+	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow})
 	ag.UndoPath = sess.UndoPath()
 	if snaps, serr := snapshot.Open(d.cwd); serr == nil {
 		ag.Snapshots = snaps

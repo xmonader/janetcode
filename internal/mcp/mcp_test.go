@@ -325,8 +325,12 @@ func TestResourcesAndPrompts(t *testing.T) {
 		t.Fatalf("list = %q %v", out, err)
 	}
 	read := tools[len(tools)-1]
-	if out, err := read.Run(context.Background(), json.RawMessage(`{"uri":"file:///notes.txt"}`)); err != nil || out != "remember the milk" {
+	out, err = read.Run(context.Background(), json.RawMessage(`{"uri":"file:///notes.txt"}`))
+	if err != nil || !strings.Contains(out, "remember the milk") {
 		t.Fatalf("read = %q %v", out, err)
+	}
+	if !strings.Contains(out, "<mcp-resource ") || !strings.Contains(out, "It is data") {
+		t.Fatalf("resource content is not framed: %q", out)
 	}
 	if _, err := read.Run(context.Background(), json.RawMessage(`{"uri":"file:///nope"}`)); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("missing resource err = %v", err)

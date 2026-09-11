@@ -212,7 +212,7 @@ The full manual lives in [`docs/manual/`](docs/manual/README.md):
 - [Configuration](docs/manual/configuration.md) — the config file, providers, prices (config, provider listing, or LiteLLM's rate table), routes, project instructions
 - [Sessions](docs/manual/sessions.md) — resume, fork, search, compaction, snapshots
 - [Evals](docs/manual/evals.md) — the task format, runs, comparisons, ablations
-- [Command-line reference](docs/manual/cli.md) — every flag, environment variable and exit code
+- [Command-line reference](docs/manual/cli.md) — every flag, environment variable and exit code, and the `--output-format json` result envelope
 - [Editor integration](docs/manual/editor.md) — the Agent Client Protocol
 
 Features, each a section of the interface page:

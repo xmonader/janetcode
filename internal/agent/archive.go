@@ -2,6 +2,8 @@ package agent
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -257,7 +259,9 @@ func (a *Agent) stash(toolUse, name, subject, out string) string {
 		return tool.TruncateTo(out, budget) + "\n[archive unavailable: " + err.Error() + "]"
 	}
 	a.logEvent(session.Event{Type: session.TypeSpillSave, Name: name, CallID: toolUse, Output: id, Tokens: len(out)})
-	return archiveNote(id, len(out), budget) + tool.TruncateTo(out, budget)
+	// The preview is untrusted text standing where a whole result was, so
+	// it cannot be allowed to close or open one of the harness's own tags.
+	return archiveNote(id, len(out), budget, outputDigest(out)) + tool.EscapeDelimiters(tool.TruncateTo(out, budget))
 }
 
 // inlineBudget is how much of a tool's output stays in the conversation;
@@ -274,8 +278,19 @@ func inlineBudget(name string) int {
 	return InlineOutput
 }
 
-func archiveNote(id string, size, shown int) string {
-	return fmt.Sprintf("[output is %s; about %s of the middle is omitted here. The full output is saved as %s: expand_output {\"id\":%q,\"grep\":\"<regexp>\"} finds lines in it, {\"id\":%q,\"offset\":<line>,\"limit\":<lines>} reads a slice.]\n", humanBytes(size), humanBytes(size-shown), id, id, id)
+func archiveNote(id string, size, shown int, digest string) string {
+	return fmt.Sprintf("[output is %s (sha256 %s); about %s of the middle is omitted here. The full output is saved as %s: expand_output {\"id\":%q,\"grep\":\"<regexp>\"} finds lines in it, {\"id\":%q,\"offset\":<line>,\"limit\":<lines>} reads a slice.]\n", humanBytes(size), digest, humanBytes(size-shown), id, id, id)
+}
+
+// outputDigest identifies the output the stub stands for. Two calls that
+// produced the same megabyte of output leave stubs that differ only in
+// their archive id, so without this nothing downstream — loop detection,
+// a reader comparing two runs — can tell "the same output again" from "a
+// different output of the same size". Twelve hex digits is plenty to
+// tell two results of one session apart and short enough to read.
+func outputDigest(out string) string {
+	sum := sha256.Sum256([]byte(out))
+	return hex.EncodeToString(sum[:])[:12]
 }
 
 func humanBytes(n int) string {

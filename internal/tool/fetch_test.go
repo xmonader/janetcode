@@ -27,9 +27,13 @@ func TestFetchURL(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	// The test server is on the loopback address, which is refused unless
+	// the user named it — so say they did.
+	typed := &URLSet{}
+	typed.Note("please look at " + srv.URL)
 	run := func(u string) (string, error) {
 		in, _ := json.Marshal(map[string]string{"url": u})
-		return FetchURL{}.Run(context.Background(), in)
+		return FetchURL{Typed: typed}.Run(context.Background(), in)
 	}
 	out, err := run(srv.URL + "/page")
 	if err != nil {

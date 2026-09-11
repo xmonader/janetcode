@@ -50,6 +50,12 @@ type Options struct {
 	WatchInterval time.Duration
 	// WatchRounds bounds consecutive fix attempts per failure; zero means 5.
 	WatchRounds int
+	// Format is how the run reports itself: text, json or stream-json.
+	// The zero value is text.
+	Format Format
+	// MaxCostUSD ends the run once it has spent this much, between turns.
+	// Zero means no ceiling.
+	MaxCostUSD float64
 }
 
 // DefaultUntilRounds bounds the re-loops when --until keeps failing.
@@ -61,12 +67,23 @@ var ErrUntilFailed = errors.New("the --until check did not pass")
 // Run executes the prompt, streaming assistant text to Stdout and tool
 // activity to Stderr. It returns the agent's error, if any.
 func Run(ctx context.Context, opts Options) error {
+	format := opts.Format
+	if format == "" {
+		format = FormatText
+	}
+	rec := newRecorder(opts, format)
+	err := run(ctx, opts, rec)
+	rec.finish(opts.Agent, err)
+	return err
+}
+
+func run(ctx context.Context, opts Options, rec *recorder) error {
 	ag := opts.Agent
 	if ag.Approver == nil {
 		ag.Approver = &stdinApprover{in: opts.Stdin, out: opts.Stderr}
 	}
 	if opts.Watch != "" {
-		return watch(ctx, opts)
+		return watch(ctx, opts, rec)
 	}
 	blocks := append([]llm.Block{{Type: llm.BlockText, Text: opts.Prompt}}, opts.Images...)
 	rounds := opts.UntilRounds
@@ -74,8 +91,13 @@ func Run(ctx context.Context, opts Options) error {
 		rounds = DefaultUntilRounds
 	}
 	for round := 1; ; round++ {
-		if err := turn(ctx, opts, blocks); err != nil {
+		if err := turn(ctx, opts, rec, blocks); err != nil {
 			return err
+		}
+		if opts.MaxCostUSD > 0 {
+			if spent, ok := rec.spentUSD(); ok && spent >= opts.MaxCostUSD {
+				return fmt.Errorf("%w: spent %s of %s", ErrBudget, llm.FormatUSD(spent), llm.FormatUSD(opts.MaxCostUSD))
+			}
 		}
 		if opts.Until == "" {
 			return nil
@@ -95,7 +117,7 @@ func Run(ctx context.Context, opts Options) error {
 
 // watch re-runs the watched command whenever the tree changes and asks
 // the model to fix failures. It ends when ctx does.
-func watch(ctx context.Context, opts Options) error {
+func watch(ctx context.Context, opts Options, rec *recorder) error {
 	interval := opts.WatchInterval
 	if interval <= 0 {
 		interval = time.Second
@@ -139,7 +161,7 @@ func watch(ctx context.Context, opts Options) error {
 		}
 		fmt.Fprintf(&sb, "The watched command failed after files changed.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nFind the cause and fix it (fix attempt %d of %d). Do not weaken the check itself.", opts.Watch, exit, tool.TruncateTo(strings.TrimSpace(out), 4000), fixes, rounds)
 		fmt.Fprintf(opts.Stderr, "[watch] asking the model to fix it (%d/%d)\n", fixes, rounds)
-		if err := turn(ctx, opts, []llm.Block{{Type: llm.BlockText, Synthetic: true, Text: sb.String()}}); err != nil {
+		if err := turn(ctx, opts, rec, []llm.Block{{Type: llm.BlockText, Synthetic: true, Text: sb.String()}}); err != nil {
 			if ctx.Err() != nil {
 				return nil
 			}
@@ -187,12 +209,18 @@ func check(ctx context.Context, cwd, command string) (string, int) {
 
 // turn runs one agent turn. The session file is written as the turn
 // happens, by the agent's event log.
-func turn(ctx context.Context, opts Options, blocks []llm.Block) error {
+func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) error {
 	ag := opts.Agent
 	if ag.Log == nil && opts.Session != nil {
 		ag.Log = opts.Session
 	}
 	err := ag.RunBlocks(ctx, blocks, func(e agent.Event) {
+		rec.event(e)
+		if !rec.text() {
+			// json collects and prints once at the end; stream-json has
+			// already written this event as a line of its own.
+			return
+		}
 		switch e.Kind {
 		case agent.EvText:
 			fmt.Fprint(opts.Stdout, e.Text)

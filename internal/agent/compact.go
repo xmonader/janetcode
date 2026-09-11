@@ -750,13 +750,13 @@ func (a *Agent) trimOld(toolUse, name, subject, text string) string {
 		if i := strings.Index(text, "\n"); i > 0 && strings.HasPrefix(text, "[output is ") {
 			return text[:i+1] + tool.TruncateTo(text[i+1:], pruneKeep)
 		}
-		return archiveNote(id, len(text), pruneKeep) + tool.TruncateTo(text, pruneKeep)
+		return archiveNote(id, len(text), pruneKeep, outputDigest(text)) + tool.EscapeDelimiters(tool.TruncateTo(text, pruneKeep))
 	}
 	id, err := a.Archive.PutSubject(toolUse, name, subject, text)
 	if err != nil {
 		return tool.TruncateTo(text, pruneKeep)
 	}
-	return archiveNote(id, len(text), pruneKeep) + tool.TruncateTo(text, pruneKeep)
+	return archiveNote(id, len(text), pruneKeep, outputDigest(text)) + tool.EscapeDelimiters(tool.TruncateTo(text, pruneKeep))
 }
 
 // syncSurface records any message the harness rewrote in place — pruning

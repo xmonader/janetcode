@@ -1,0 +1,279 @@
+package headless
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/eval"
+	"github.com/xmonader/janetcode/internal/llm"
+)
+
+// A headless run is something a script reads. Printing the answer as prose
+// on stdout and everything else as prose on stderr is fine for a human and
+// useless for a program: what did it cost, how many turns did it take, did
+// a permission get denied, did it stop because it ran out of turns or
+// because it finished? Those are the questions a benchmark, a CI job or a
+// wrapper asks, and they were only answerable by parsing the prose.
+//
+// Format is how a headless run reports itself.
+type Format string
+
+const (
+	// FormatText is the original: the answer on stdout, activity on stderr.
+	FormatText Format = "text"
+	// FormatJSON prints one object at the end, on stdout, and nothing else.
+	FormatJSON Format = "json"
+	// FormatStreamJSON prints one JSON object per line as things happen,
+	// ending with the same result object.
+	FormatStreamJSON Format = "stream-json"
+)
+
+// ParseFormat validates the --output-format value.
+func ParseFormat(s string) (Format, error) {
+	switch Format(strings.TrimSpace(s)) {
+	case "", FormatText:
+		return FormatText, nil
+	case FormatJSON:
+		return FormatJSON, nil
+	case FormatStreamJSON:
+		return FormatStreamJSON, nil
+	}
+	return "", fmt.Errorf("unknown --output-format %q: want text, json or stream-json", s)
+}
+
+// Exit codes. A caller that only sees the status still learns which of the
+// handful of things that can go wrong went wrong, which is the difference
+// between a retry and a bug report.
+const (
+	ExitOK        = 0
+	ExitOther     = 1
+	ExitAuth      = 41  // no key, or the endpoint rejected it
+	ExitBadInput  = 42  // the flags or the prompt do not make sense
+	ExitConfig    = 52  // the configuration file is wrong
+	ExitTurnLimit = 53  // the turn hit its model-call cap
+	ExitBudget    = 55  // the run reached --max-cost
+	ExitCancelled = 130 // interrupted, as a shell reports a SIGINT
+)
+
+// ErrBudget is returned when a run reaches its --max-cost ceiling.
+var ErrBudget = errors.New("the run reached its cost budget")
+
+// ErrBadInput marks a usage error, so main can exit 42 for it.
+var ErrBadInput = errors.New("bad input")
+
+// ErrConfig marks a configuration file that cannot be used, as against
+// credentials that are merely missing. The config package reports these
+// as plain messages, so the wrapping happens where it is loaded.
+var ErrConfig = errors.New("configuration")
+
+// ExitCode classifies an error into one of the codes above.
+func ExitCode(err error) int {
+	switch {
+	case err == nil:
+		return ExitOK
+	case errors.Is(err, context.Canceled):
+		return ExitCancelled
+	case errors.Is(err, ErrBudget):
+		return ExitBudget
+	case errors.Is(err, agent.ErrMaxIterations):
+		return ExitTurnLimit
+	case errors.Is(err, ErrBadInput):
+		return ExitBadInput
+	case errors.Is(err, llm.ErrNoAPIKey), errors.Is(err, config.ErrNoCredentials), isAuthHTTP(err):
+		return ExitAuth
+	case errors.Is(err, ErrConfig):
+		return ExitConfig
+	}
+	return ExitOther
+}
+
+// isAuthHTTP spots the provider saying the key is not good enough. The
+// providers report this as a message rather than a typed error, so the
+// message is what there is to go on.
+func isAuthHTTP(err error) bool {
+	s := err.Error()
+	return strings.Contains(s, "(HTTP 401)") || strings.Contains(s, "(HTTP 403)")
+}
+
+// recorder watches the events of a run and builds the result envelope.
+// For stream-json it also writes one line per event as it happens.
+type recorder struct {
+	format Format
+	out    io.Writer
+	start  time.Time
+
+	mu        sync.Mutex
+	enc       *json.Encoder
+	usage     llm.Usage
+	turns     int
+	tools     int
+	denials   int
+	verdict   string
+	turnText  strings.Builder
+	answer    string
+	sessionID string
+	model     string
+	provider  string
+	price     *llm.Price
+}
+
+func newRecorder(opts Options, format Format) *recorder {
+	r := &recorder{format: format, out: opts.Stdout, start: time.Now()}
+	if format == FormatStreamJSON {
+		r.enc = json.NewEncoder(opts.Stdout)
+	}
+	if opts.Agent != nil {
+		r.model, r.price = opts.Agent.Model, opts.Agent.Price
+	}
+	if opts.Session != nil {
+		r.sessionID, r.provider = opts.Session.Meta.ID, opts.Session.Meta.Provider
+	}
+	return r
+}
+
+// text reports whether the caller should also print the human rendering.
+func (r *recorder) text() bool { return r.format == FormatText }
+
+// streamEvent is one line of --output-format stream-json.
+type streamEvent struct {
+	Type       string          `json:"type"`
+	Text       string          `json:"text,omitempty"`
+	Name       string          `json:"name,omitempty"`
+	ID         string          `json:"id,omitempty"`
+	Intent     string          `json:"intent,omitempty"`
+	Input      json.RawMessage `json:"input,omitempty"`
+	Output     string          `json:"output,omitempty"`
+	IsError    bool            `json:"is_error,omitempty"`
+	DurationMS int64           `json:"duration_ms,omitempty"`
+	StopReason string          `json:"stop_reason,omitempty"`
+	Usage      *eval.CLIUsage  `json:"usage,omitempty"`
+}
+
+func (r *recorder) emit(e streamEvent) {
+	if r.enc == nil {
+		return
+	}
+	_ = r.enc.Encode(e)
+}
+
+// event records one loop event, and streams it when asked to.
+func (r *recorder) event(e agent.Event) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	switch e.Kind {
+	case agent.EvText:
+		r.turnText.WriteString(e.Text)
+		r.emit(streamEvent{Type: "text", Text: e.Text})
+	case agent.EvThinking:
+		r.emit(streamEvent{Type: "thinking", Text: e.Text})
+	case agent.EvToolRun:
+		r.tools++
+		if e.Call != nil {
+			r.emit(streamEvent{Type: "tool_start", Name: e.Call.Name, ID: e.Call.ID, Intent: e.Call.Intent, Input: json.RawMessage(e.Call.Input)})
+		}
+	case agent.EvToolResult:
+		if e.IsError && strings.HasPrefix(e.Output, agent.DeniedMessage) {
+			r.denials++
+		}
+		name, id := "", ""
+		if e.Call != nil {
+			name, id = e.Call.Name, e.Call.ID
+		}
+		r.emit(streamEvent{Type: "tool_result", Name: name, ID: id, Output: e.Output, IsError: e.IsError, DurationMS: e.Duration.Milliseconds()})
+	case agent.EvNotice:
+		r.emit(streamEvent{Type: "notice", Text: e.Text})
+	case agent.EvCompacted:
+		r.emit(streamEvent{Type: "compacted", Text: e.Text})
+	case agent.EvVerdict:
+		r.verdict = e.Text
+		r.emit(streamEvent{Type: "verdict", Text: e.Text, IsError: e.IsError})
+	case agent.EvTurnDone:
+		r.turns++
+		r.usage.Add(e.Usage)
+		if t := strings.TrimSpace(r.turnText.String()); t != "" {
+			r.answer = t
+		}
+		r.turnText.Reset()
+		u := usageOf(e.Usage)
+		r.emit(streamEvent{Type: "turn_done", StopReason: string(e.StopReason), Usage: &u})
+	}
+}
+
+func usageOf(u llm.Usage) eval.CLIUsage {
+	return eval.CLIUsage{
+		InputTokens:      u.InputTokens,
+		OutputTokens:     u.OutputTokens,
+		CacheReadTokens:  u.CacheReadTokens,
+		CacheWriteTokens: u.CacheWriteTokens,
+	}
+}
+
+// spentUSD is what the run has cost so far, and whether that is known.
+func (r *recorder) spentUSD() (float64, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.usage.Cost(r.price)
+}
+
+// result builds the envelope. modelCalls and toolCalls come from the
+// agent's own counters where it has them, which survive compaction.
+func (r *recorder) result(ag *agent.Agent, err error) eval.CLIResult {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	res := eval.CLIResult{
+		Type:              eval.CLIResultType,
+		Harness:           "janetcode",
+		Result:            r.answer,
+		ExitCode:          ExitCode(err),
+		SessionID:         r.sessionID,
+		Model:             r.model,
+		Provider:          r.provider,
+		Usage:             usageOf(r.usage),
+		NumTurns:          r.turns,
+		ToolCalls:         r.tools,
+		PermissionDenials: r.denials,
+		Verdict:           r.verdict,
+		DurationMS:        time.Since(r.start).Milliseconds(),
+	}
+	if ag != nil {
+		st := ag.Stats()
+		if st.ModelCalls > 0 {
+			res.NumTurns = st.ModelCalls
+		}
+		if calls, _ := st.ToolCalls(); calls > 0 {
+			res.ToolCalls = calls
+		}
+	}
+	if usd, ok := r.usage.Cost(r.price); ok {
+		res.CostUSD = usd
+	}
+	res.CostSource = r.usage.CostSource(r.price)
+	if err != nil {
+		res.IsError, res.Error = true, err.Error()
+	}
+	return res
+}
+
+// finish writes the result object for json and stream-json. Text mode has
+// already said everything it is going to say.
+func (r *recorder) finish(ag *agent.Agent, err error) {
+	if r.format == FormatText {
+		return
+	}
+	res := r.result(ag, err)
+	enc := json.NewEncoder(r.out)
+	enc.SetIndent("", "  ")
+	if r.format == FormatStreamJSON {
+		// One object per line, so the last line is the result.
+		enc.SetIndent("", "")
+	}
+	_ = enc.Encode(res)
+}

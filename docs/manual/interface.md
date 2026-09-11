@@ -235,6 +235,90 @@ model can read a skill with the `skill` tool. You can run one yourself as
 lists what is installed. Skills are re-read from disk every turn, so
 editing one takes effect immediately.
 
+### Changing janetcode's own settings always asks
+
+Everything that decides what janetcode may do without asking is a file:
+the config file, `.mcp.json`, everything under `.janetcode/` (hooks,
+permission rules, verification, rules, skills, commands) and the memory
+store. A model that can write files can therefore widen its own
+permissions and then use them — and `--yolo`, auto-edit mode and a saved
+allow rule are exactly the settings under which that would happen
+unobserved.
+
+So those paths are carved out. A `write_file`, an `edit_file` or a `bash`
+command that touches one asks for permission whatever the mode, and the
+prompt says which surface is being changed. Through the shell the obvious
+forms are recognised: a `>` or `>>` redirect, and `cp`, `mv`, `rm`, `tee`,
+`sed -i`, `patch`, `install`, `truncate` and the rest with one of those
+paths as an argument. Reading them is not affected.
+
+This is defence in depth, not a boundary: a determined model has a
+hundred ways to write a file, and this catches the obvious ones. What it
+buys is that the single move which turns a limited session into an
+unlimited one is the one move always shown to a human.
+
+### Encodings, byte-order marks and line endings
+
+The model works in UTF-8 text with LF line endings; files on disk are
+bytes. `read_file` detects a UTF-8 or UTF-16 byte-order mark and CRLF line
+endings, shows the file as UTF-8 with LF, and says what it found; a file
+that is neither UTF-8 nor marked is decoded as Latin-1, which round-trips
+every byte, and the guess is named in the result. `write_file` and
+`edit_file` put the form back: the mark, the line endings and the charset
+the file had. A new file is plain UTF-8 with LF — nothing is invented.
+Without this, the first edit in a Windows repository rewrites every line
+of the file it touched, and the first edit to a Latin-1 file turns the
+rest of it into mojibake.
+
+A file with a NUL byte in its first 4 KB is binary and is refused as text
+by `read_file` and `edit_file`. UTF-16 is full of NUL bytes and is text,
+so a file that announces itself with a UTF-16 mark is exempt.
+
+### When an edit's quoted text nearly matches
+
+`edit_file` locates a change by quoting the text it replaces, and a model
+quoting text it read a moment ago still gets it wrong in ways that have
+nothing to do with the code: an em dash where the file has a hyphen, a
+curly quote for a straight one, a non-breaking space inside an indent, a
+trailing space the file does not have. After an exact match misses, the
+search runs again over a folded view of both sides (the dash, quote and
+space variants each stand for one character), and then again ignoring
+trailing whitespace on every line. Leading whitespace is never relaxed —
+in Python and YAML it is the program — and an ambiguous match on a rung
+is refused exactly as an ambiguous exact match is. When a rung below
+exact matching was needed, the result says so, so you can see the file
+did not hold what the model thought it held.
+
+When nothing matches at all, the failure shows the closest region of the
+file as a diff against what was asked for, so the next attempt is aimed
+at the text that is actually there instead of guessing again.
+
+### Files that are not what you read
+
+Before a write or an edit lands, janetcode checks that the file is still
+the one the agent looked at, and says precisely what is wrong when it is
+not: it changed on disk, it disappeared, the path is a directory, it went
+binary, or — for `write_file` on a file that already exists — it was never
+read at all. The instruction differs by verb, because the two tools need
+different things: an edit names the text it replaces, so re-reading the
+part being changed is enough; a write replaces everything, so it asks for
+the whole file. An edit of a file that was never read is still allowed —
+it cannot silently destroy text it did not name — and the coach supplies
+the content when such an edit misses.
+
+### When exit 1 is an answer
+
+`grep`, `rg`, `diff`, `cmp` and `test` use exit code 1 to say "I looked
+and found nothing" — no matching line, two files that differ, a false
+condition. That is an answer, not a failure, so the result says so:
+`[exit code 1] no lines matched; for this command that is an answer, not
+a failure`, and the call is not flagged as an error. Only exit 1 is read
+this way; grep's exit 2 (a bad pattern, an unreadable file) and every
+other non-zero code are reported unchanged. The command whose status the
+line carries is worked out the way a shell works it out — the last stage
+of the pipeline — and a line joined with `&&`, where either side could
+have produced the 1, stays an ordinary failure.
+
 ### Background jobs
 
 `bash` with `background: true` starts a command detached (its own
@@ -245,6 +329,19 @@ exit 0` in the transcript, with the last lines of output. The `job` tool
 lists jobs, shows output, waits with a timeout, or kills one; `/jobs` and
 `/jobs kill <n>` do the same for you. Every job is stopped when janetcode
 exits.
+
+A command already running in the foreground can be moved to the
+background instead of being waited out or killed: it keeps running, the
+output collected so far is written to the job log from the beginning, and
+it becomes a job like any other. `bash` exposes this as a Go API
+(`tool.Running.Promote`) so a key binding can reach it; the tool schema is
+unchanged, because this is the user's decision about a command that is
+already running, not the model's.
+
+`sed -i` is an edit, so it is shown as one: a `bash` call containing it is
+run once without `-i` and the diff it would make appears in the permission
+prompt, per file, the way an `edit_file` diff does. The preview never
+touches the file.
 
 ### Editing subagents in a worktree
 
@@ -465,6 +562,29 @@ that a small model fails some of the time; 35 live runs with 3 failures
 were not enough to beat the baseline, so more failing runs are needed
 before the critic earns its place.
 
+### What fetch_url will not do
+
+A fetch is approved for one URL, so it stays on that URL. A redirect to a
+different host, or a redirect from https down to http, is handed back to
+the model instead of followed — the permission was for the host that was
+asked about, and a redirect is another host's chance to be fetched under
+it. A same-host redirect is followed as usual.
+
+A GitHub blob URL is rewritten to `raw.githubusercontent.com` before the
+permission check, so the host approved, and any rule saved, is the host
+actually contacted — and what comes back is the file rather than the
+several hundred kilobytes of page around it.
+
+A Content-Type is the server's claim; the bytes are not. A body whose
+leading bytes are a PNG, a PDF, a zip, gzip or an ELF binary is named and
+not read, whatever it was served as.
+
+A URL pointing at the local machine or network — loopback, a private
+range, a link-local address (on a cloud instance, the credentials
+endpoint), `localhost`, `*.local`, `*.internal` — is fetched only when the
+user named that host themselves in their own message. The agent reaching
+one on its own initiative is reading something nobody offered it.
+
 ### Browsing
 
 janetcode has no browser tool of its own and does not need one: it speaks
@@ -495,6 +615,15 @@ tree, which is what the harnesses that measured this concluded is both
 cheaper and more reliable than pixels.
 
 It is off by default because it launches a browser.
+
+The first `tool_search` that reveals anything reveals the rest of the
+deferred set too, as far as a twentieth of the context window will hold
+their schemas. Revealing a tool changes the tool list, and the tool list
+is part of the cached request prefix, so each reveal makes the model pay
+for the whole prefix again: one at a time, a browsing session pays that
+several times over. The batch happens once — a second would be a second
+break — and a deferred set too large for the budget stays deferred and is
+revealed by name as it is asked for.
 
 ### Calling tools from a script
 
@@ -601,6 +730,17 @@ to an archive on disk, and `expand_output` reads it back.
 - `grep` takes a regexp, and an `id` with `offset`/`limit` reads a slice.
 - Entries are labelled with what the call was about, so the listing says
   `ctx-12 read_file ledger/parse.py` rather than just `read_file`.
+
+The stub that replaces a long result names the archive id and carries a
+short sha256 of the output before it was cut down. The id is unique per
+call, so without the digest two runs of the same command that produced
+the same megabyte leave stubs that look different; with it, "the same
+output again" is visible without fetching either one back.
+
+A preview is untrusted text standing where a whole result was, so the
+harness's own tags — `<system-reminder>`, `<harness>` and the rest — are
+escaped in it. A file, a log or a fetched page that contains one still
+reads the same; it no longer parses as the harness speaking.
 
 Every compaction note ends by saying it is a summary and that exact values
 live in the archive, because a model that takes a summary for the whole
@@ -796,6 +936,14 @@ regexp on the tool name. What the hook prints decides:
   in seconds) is logged and ignored: hooks fail open, so a broken hook
   cannot wedge a session.
 
+A project's `.janetcode/hooks.json` is held to less than the user's own
+config, because trusting it is a decision about this checkout rather than
+a decision to hand the repository every power the user has: a project hook
+may not reach the network (`curl`, `wget`, `ssh`, `scp`, a bare URL), and
+its timeout is capped at 60 seconds. Each one dropped or trimmed is named,
+with what to do about it — copy it into your own config, which is a
+deliberate act. The user's own hooks are unrestricted.
+
 `/hooks` lists what is in effect.
 
 ### MCP servers
@@ -835,6 +983,18 @@ unless the server marks them read-only. Servers that publish resources get
 `mcp__<server>__list_resources` and `read_resource` tools, and every prompt
 a server offers becomes a slash command: `/mcp__<server>__<prompt> args`.
 `/mcp` shows status, tools and prompts.
+
+Resource content is written by whoever runs the server, so it is framed
+with a delimiter it cannot close: `<mcp-resource <nonce> uri=…>` with a
+fresh random nonce per call, and a line after it saying the text inside is
+data and any instruction in it is the server's, not the user's. A fixed
+delimiter would be one the content could simply contain.
+
+A tool call whose connection failed before a reply arrived is retried only
+when the server marked the tool read-only or idempotent. Otherwise the
+model is told that the call may or may not have taken effect and that it
+was not repeated: a lost reply says nothing about whether the server
+created the issue or sent the message.
 
 ### Custom commands
 

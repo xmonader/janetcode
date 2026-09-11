@@ -56,3 +56,55 @@ func TestDeferredToolsHiddenUntilSearched(t *testing.T) {
 		t.Fatal("remove did not clear deferred entry")
 	}
 }
+
+// Each reveal invalidates the cached request prefix, so the rest of the
+// deferred set comes with the first one that fits — once.
+func TestFirstRevealTakesTheRestThatFit(t *testing.T) {
+	r := NewRegistry(namedTool{"read_file", "Read a file"})
+	for _, n := range []string{"mcp__a__one", "mcp__b__two", "mcp__c__three", "mcp__d__four"} {
+		r.AddDeferred(namedTool{n, "A tool that does something"})
+	}
+	ts := &ToolSearch{Registry: r, ContextWindow: 200000}
+	r.Add(ts)
+	out, err := ts.Run(context.Background(), json.RawMessage(`{"query":"one"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "## mcp__a__one") {
+		t.Fatalf("the asked-for tool is missing: %q", out)
+	}
+	if !strings.Contains(out, "because they fit alongside") || !strings.Contains(out, "mcp__d__four") {
+		t.Fatalf("the rest should have come with it: %q", out)
+	}
+	if len(r.Deferred()) != 0 {
+		t.Fatalf("%d tools still deferred", len(r.Deferred()))
+	}
+}
+
+// A window too small for the batch reveals only what was asked for, and
+// the batch is offered once however many searches follow.
+func TestBatchRevealIsBoundedAndHappensOnce(t *testing.T) {
+	big := strings.Repeat("a long description. ", 400)
+	r := NewRegistry(namedTool{"read_file", "Read a file"})
+	r.AddDeferred(namedTool{"mcp__a__one", big})
+	r.AddDeferred(namedTool{"mcp__b__two", big})
+	r.AddDeferred(namedTool{"mcp__c__three", big})
+	ts := &ToolSearch{Registry: r, ContextWindow: 4000} // 200 tokens of budget
+	r.Add(ts)
+	out, _ := ts.Run(context.Background(), json.RawMessage(`{"query":"one"}`))
+	if strings.Contains(out, "because they fit alongside") {
+		t.Fatalf("nothing fits in this window: %q", out)
+	}
+	if len(r.Deferred()) != 2 {
+		t.Fatalf("deferred = %d, want 2", len(r.Deferred()))
+	}
+	// The second search reveals what it matched and no batch: a second
+	// batch would break the prefix a second time.
+	out, _ = ts.Run(context.Background(), json.RawMessage(`{"query":"two"}`))
+	if strings.Contains(out, "because they fit alongside") {
+		t.Fatalf("the batch must happen at most once: %q", out)
+	}
+	if len(r.Deferred()) != 1 {
+		t.Fatalf("deferred = %d, want 1", len(r.Deferred()))
+	}
+}

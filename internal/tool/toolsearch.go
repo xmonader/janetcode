@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+
+	"github.com/xmonader/janetcode/internal/llm"
 )
 
 // ToolSearch exposes deferred tools on demand: the model asks for what it
@@ -13,7 +16,20 @@ import (
 // part of every later request.
 type ToolSearch struct {
 	Registry *Registry
+	// ContextWindow is the model's input limit in tokens, when known. It
+	// sets how much of the deferred set may be revealed in one go.
+	ContextWindow int
+
+	mu      sync.Mutex
+	batched bool
 }
+
+// revealShare is the fraction of the context window the one-off batch
+// reveal may spend on schemas.
+const revealShare = 20 // one twentieth, i.e. 5%
+
+// bytesPerToken is the rough rule the rest of the harness uses too.
+const bytesPerToken = 4
 
 const toolSearchMax = 8
 
@@ -105,12 +121,56 @@ func (t *ToolSearch) Run(ctx context.Context, input json.RawMessage) (string, er
 	}
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Loaded %d tools; they are callable from now on:\n", len(hits))
+	chosen := map[string]bool{}
 	for _, h := range hits {
 		d := defs[h.i]
 		t.Registry.Activate(d.Name)
+		chosen[d.Name] = true
 		fmt.Fprintf(&sb, "\n## %s\n%s\nInput schema: %s\n", d.Name, d.Description, string(d.InputSchema))
 	}
+	if rest := t.revealRest(defs, chosen); len(rest) > 0 {
+		fmt.Fprintf(&sb, "\nAlso loaded, and callable from here on, because they fit alongside: %s\n", strings.Join(rest, ", "))
+		sb.WriteString("Call tool_search with one of these names to see its schema.\n")
+	}
 	return Truncate(sb.String()), nil
+}
+
+// revealRest activates the rest of the deferred set, once, when their
+// schemas together fit a twentieth of the context window.
+//
+// Every reveal invalidates the cached request prefix, because the tool
+// list is part of it: revealing one tool at a time makes the model pay
+// for the whole prefix again on each call, which on a large MCP set is
+// most of what the session costs. Doing it once, in a batch, breaks the
+// prefix once. It is deliberately not repeated: a second batch would be a
+// second break, and by then the model has what it asked for.
+func (t *ToolSearch) revealRest(defs []llm.ToolDef, already map[string]bool) []string {
+	if t.ContextWindow <= 0 {
+		return nil
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.batched {
+		return nil
+	}
+	t.batched = true
+	budget := t.ContextWindow / revealShare * bytesPerToken
+	var names []string
+	for _, d := range defs {
+		if already[d.Name] {
+			continue
+		}
+		size := len(d.Name) + len(d.Description) + len(d.InputSchema)
+		if size > budget {
+			// Keep going: a smaller one further down the list may fit, and
+			// the order is by name, not by size.
+			continue
+		}
+		budget -= size
+		t.Registry.Activate(d.Name)
+		names = append(names, d.Name)
+	}
+	return names
 }
 
 func firstSentence(s string) string {

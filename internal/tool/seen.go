@@ -45,35 +45,110 @@ func (s *Seen) Forget(path string) {
 	s.mu.Unlock()
 }
 
-// ErrChanged is returned by Check when the file differs from what the
-// agent last saw.
-type ErrChanged struct{ Path string }
-
-func (e *ErrChanged) Error() string {
-	return fmt.Sprintf("%s changed on disk since you last read it (edited outside this session?). Read it again before changing it.", e.Path)
+// Read reports whether the agent has seen this file in this session.
+func (s *Seen) Read(path string) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.hashes[path]
+	return ok
 }
 
-// Check compares the file's current content with what was recorded; a
-// path never seen passes.
-func (s *Seen) Check(path, display string) error {
+// Cause says why the file the agent is about to change is not the file it
+// last saw. Each one needs a different thing done about it, so each gets
+// its own message rather than one "read it again".
+type Cause int
+
+const (
+	// CauseChanged: read earlier, different content now.
+	CauseChanged Cause = iota
+	// CauseDisappeared: read earlier, not there now.
+	CauseDisappeared
+	// CauseNeverRead: the agent has not looked at this file at all.
+	CauseNeverRead
+	// CauseDirectory: the path names a directory.
+	CauseDirectory
+	// CauseBinary: the file is not text.
+	CauseBinary
+)
+
+// ErrPriorRead is a refusal to change a file the agent has not established
+// the current contents of. Verb is "edit" or "write": the guidance differs,
+// because an edit only has to match the region it replaces while a write
+// replaces everything.
+type ErrPriorRead struct {
+	Path  string
+	Verb  string
+	Cause Cause
+}
+
+// reread is the verb-specific instruction that ends most of the messages.
+func (e *ErrPriorRead) reread() string {
+	if e.Verb == "write" {
+		// write_file replaces the file, so a window of it is not enough:
+		// whatever is outside the window is what gets thrown away.
+		return "Read the whole file with read_file before writing it; write_file replaces everything, so a partial read is not enough here."
+	}
+	return "Read it again with read_file before editing — a partial read (offset/limit) around the part you are changing is enough."
+}
+
+func (e *ErrPriorRead) Error() string {
+	switch e.Cause {
+	case CauseDisappeared:
+		return fmt.Sprintf("%s was read earlier in this session but is not there now: it was deleted, moved or renamed. Find out where it went before you %s it; writing would re-create it at the old path and leave the new one stale.", e.Path, e.Verb)
+	case CauseNeverRead:
+		return fmt.Sprintf("%s already exists and has not been read in this session, so writing it would replace content you have not seen. %s", e.Path, e.reread())
+	case CauseDirectory:
+		return fmt.Sprintf("%s is a directory, not a file. list_dir shows what is in it and glob finds files by pattern; name a file inside it to %s.", e.Path, e.Verb)
+	case CauseBinary:
+		return fmt.Sprintf("%s is a binary file (a NUL byte in its first 4 KB), so it cannot be %sed as text. Use bash if you really have to change it.", e.Path, e.Verb)
+	default:
+		return fmt.Sprintf("%s changed on disk since you last read it: the user edited it, a formatter ran, or another session touched it. %s", e.Path, e.reread())
+	}
+}
+
+// ErrChanged is the old single-cause error, kept as the name callers test
+// for; it is now ErrPriorRead with CauseChanged.
+type ErrChanged = ErrPriorRead
+
+// Check compares the file's current content with what was recorded and
+// reports what is wrong with it, if anything. verb is "edit" or "write".
+//
+// A file the agent has never read passes for an edit: an edit names the
+// exact text it replaces, so it cannot silently destroy something it did
+// not see, and the coach supplies the content when one misses. A write
+// does not name anything, so overwriting an unread file is refused.
+func (s *Seen) Check(path, display, verb string) error {
 	if s == nil {
 		return nil
+	}
+	st, statErr := os.Stat(path)
+	if statErr == nil && st.IsDir() {
+		return &ErrPriorRead{Path: display, Verb: verb, Cause: CauseDirectory}
 	}
 	s.mu.Lock()
 	want, ok := s.hashes[path]
 	s.mu.Unlock()
 	if !ok {
+		if verb == "write" && statErr == nil {
+			return &ErrPriorRead{Path: display, Verb: verb, Cause: CauseNeverRead}
+		}
 		return nil
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &ErrChanged{Path: display}
+			return &ErrPriorRead{Path: display, Verb: verb, Cause: CauseDisappeared}
 		}
 		return nil // unreadable: the write will report the real problem
 	}
+	if isBinary(data) {
+		return &ErrPriorRead{Path: display, Verb: verb, Cause: CauseBinary}
+	}
 	if hashBytes(data) != want {
-		return &ErrChanged{Path: display}
+		return &ErrPriorRead{Path: display, Verb: verb, Cause: CauseChanged}
 	}
 	return nil
 }

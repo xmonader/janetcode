@@ -837,7 +837,11 @@ func (m *model) hooksCommand(args []string) {
 			if m.opts.Agent.Hooks == nil {
 				m.opts.Agent.Hooks = &hook.Runner{Cwd: m.opts.Cwd}
 			}
-			m.opts.Agent.Hooks.Config = hook.Merge(o.Global, o.Project)
+			cfg, notes := hook.MergeScoped(o.Global, o.Project)
+			m.opts.Agent.Hooks.Config = cfg
+			for _, n := range notes {
+				m.transcript.info(noteNotice + "hooks: " + n)
+			}
 			m.transcript.info("trusted " + hook.ProjectFile + " · its hooks are active")
 		}
 		return

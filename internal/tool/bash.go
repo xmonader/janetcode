@@ -1,7 +1,6 @@
 package tool
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -24,6 +23,10 @@ type Bash struct {
 	Cache *ShellCache
 	// Jobs, when set, enables background: true.
 	Jobs *Jobs
+	// Running, when set with Jobs, lets a foreground command be promoted
+	// to a background job while it runs instead of being waited out or
+	// killed. See Running.Promote.
+	Running *Running
 }
 
 func (Bash) Name() string { return "bash" }
@@ -91,12 +94,35 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	cmd.Env = scrubEnv(os.Environ())
 	setProcessGroup(cmd)
 	cmd.WaitDelay = 2 * time.Second
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
+	out := &swapBuffer{}
+	cmd.Stdout = out
+	cmd.Stderr = out
 	cmd.Stdin = nil
 
-	err := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("start bash: %w", err)
+	}
+	// The wait runs in its own goroutine so the command can be handed to
+	// the jobs registry while it is still running: the same channel is
+	// then the job's wait, so the process is reaped exactly once.
+	wait := make(chan error, 1)
+	go func() { wait <- cmd.Wait() }()
+	fg := t.Running.add(in.Command, cmd, out)
+	defer t.Running.remove(fg)
+
+	var err error
+	select {
+	case err = <-wait:
+	case <-promoteChan(fg):
+		job, perr := t.Jobs.Adopt(in.Command, cmd, out, wait)
+		if perr != nil {
+			// Promotion failed, so nothing was handed over: wait it out.
+			err = <-wait
+			break
+		}
+		t.Cache.invalidate()
+		return fmt.Sprintf("Moved to the background as job %d (pid %d): %s\nIt is still running; output is collected in %s. You will be told when it finishes; the job tool shows output, waits, or kills it.", job.ID, job.Pid, in.Command, job.OutPath), nil
+	}
 	result := out.String()
 	exit := 0
 	if err != nil {
@@ -112,14 +138,14 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 				exit = signalExitCode(ee)
 			}
 		default:
-			return "", fmt.Errorf("start bash: %w", err)
+			return "", fmt.Errorf("bash: %w", err)
 		}
 	}
 	if result == "" {
 		result = "(no output)"
 	}
 	if exit != 0 {
-		result += fmt.Sprintf("\n[exit code %d]", exit)
+		result += exitNote(in.Command, exit)
 	}
 	result = Truncate(result)
 	t.Cache.put(cacheKey, result)
@@ -159,6 +185,9 @@ func (t Bash) Guard(input json.RawMessage) (bool, string) {
 	if risk, why := Classify(in.Command, t.Root); risk == RiskEscapes {
 		return true, why
 	}
+	if what := selfModifyingCommand(in.Command, t.Root); what != "" {
+		return true, what + ", which decides what janetcode may do without asking"
+	}
 	return false, ""
 }
 
@@ -173,6 +202,9 @@ func (t Bash) Warn(input json.RawMessage) string {
 	var notes []string
 	if risk, why := Classify(in.Command, t.Root); risk != RiskOrdinary {
 		notes = append(notes, why)
+	}
+	if what := selfModifyingCommand(in.Command, t.Root); what != "" {
+		notes = append(notes, what)
 	}
 	for _, d := range dangerPatterns {
 		if d.re.MatchString(in.Command) {
