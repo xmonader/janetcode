@@ -163,6 +163,18 @@ func (e *Engine) Eval(s *State) string {
 // has already said it some other way. The first-run line proposes the
 // verification command, so the rule that would propose it again is
 // spent there rather than left to repeat it three turns later.
+// Silent reports whether hints are turned off, for the one line the
+// terminal prints itself: somebody who asked for quiet meant this too.
+func (e *Engine) Silent() bool { return e != nil && e.Off }
+
+// Given reports whether an id has already fired in this project. It is
+// for the one line the terminal says itself rather than through a rule
+// — the first-run project line — which has to be as once-only as
+// everything else here.
+func (e *Engine) Given(id string) bool {
+	return e != nil && e.shown[id]
+}
+
 func (e *Engine) MarkShown(id string) {
 	if e == nil || id == "" {
 		return

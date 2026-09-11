@@ -88,6 +88,11 @@ func (m *model) noteUse(name string) {
 	m.opts.Usage.Note(name)
 }
 
+// firstRunID is the id the first-run project line is recorded under, in
+// the same per-project file the hint rules use. It is not a rule — the
+// engine never evaluates it — only a name for "this has been said".
+const firstRunID = "first-run-project"
+
 // firstRunLine is what a directory janetcode has never seen before gets
 // instead of a generic tip: one line naming what the project looks like,
 // the verification command ready to paste, and the language server if it

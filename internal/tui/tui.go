@@ -1303,6 +1303,7 @@ func newModel(opts Options) *model {
 	for _, c := range prompt.CustomCommands(opts.Cwd, opts.ConfigDir) {
 		m.custom["/"+c.Name] = c
 	}
+	m.hints = opts.Hints
 	var firstRun string
 	if opts.Resumed > 0 {
 		m.transcript.banner(m.welcome(resumedLine(opts.Session.Meta.ID, opts.Resumed)))
@@ -1310,16 +1311,23 @@ func newModel(opts Options) *model {
 	} else {
 		m.transcript.banner(m.welcome(""))
 		// The first session in a directory janetcode has not seen gets
-		// one specific line rather than a generic tip.
-		if firstRun = m.firstRunLine(); firstRun != "" {
-			m.transcript.tip(firstRun)
+		// one specific line rather than a generic tip. The first session
+		// only: it is recorded in the same per-project file the hints
+		// use, because a line that says "this is a Go project" every
+		// morning for a year is not orientation, it is noise, and a
+		// project with no .janetcode directory of its own never grew one
+		// to notice.
+		if !m.hints.Given(firstRunID) && !m.hints.Silent() {
+			if firstRun = m.firstRunLine(); firstRun != "" {
+				m.transcript.tip(firstRun)
+				m.hints.MarkShown(firstRunID)
+			}
 		}
 	}
 	// The hints that are about the session's starting conditions — an
 	// untrusted .mcp.json, a model nothing can price, a resumed session
 	// whose history was already summarised — are evaluated here, once,
 	// while the facts are in front of the user.
-	m.hints = opts.Hints
 	if firstRun != "" && strings.Contains(firstRun, "/verify set") {
 		// Already proposed, above; the rule that would propose it again
 		// three turns from now is spent here.
