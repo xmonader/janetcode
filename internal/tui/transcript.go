@@ -929,6 +929,14 @@ func summarizeInput(name, raw string, max int, cwd string) string {
 	for _, k := range []string{"command", "pattern", "path", "url", "description"} {
 		if v, ok := m[k].(string); ok {
 			extra := ""
+			if k == "command" || k == "description" {
+				// A command redirecting into the project carried the whole
+				// absolute path, which is the same for every call and ate
+				// the width the command itself needed: the prompt read
+				// "allow bash seq 1 400 > /tmp/claude-1000/-home-driver-…"
+				// and never reached the file name.
+				v = shortenPaths(cwd, v)
+			}
 			if k == "pattern" {
 				if p, ok := m["path"].(string); ok && p != "" {
 					extra = " in " + relTo(cwd, p)
