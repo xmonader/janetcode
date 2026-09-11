@@ -104,6 +104,33 @@ a note: trusting a checkout's hooks is not a decision to let it choose how
 long they may run. The hooks themselves, and what they can do, are
 described under Hooks in the interface manual.
 
+### Hooks and the network
+
+A hook from `.janetcode/hooks.json` may not reach the network: trusting a
+checkout's hooks is a decision about this checkout, not a decision to hand
+the repository everything you can reach. Your own hooks may, and a project
+that needs one says so in its README for you to copy across.
+
+A hook says which it is with `"network"`:
+
+```json
+"hooks": {
+  "post_tool": [
+    {"command": "curl -s https://ci.example/notify", "network": true},
+    {"command": "grep -rn \"https://\" .", "network": false}
+  ]
+}
+```
+
+`true` is a declaration that the command goes off the machine, and a
+project hook that carries it is refused by name. `false` says it does not,
+and a project hook that carries it runs even though its command text looks
+like it might. Leave the key out and the command text is guessed at
+instead, which is what happened to every hook before the key existed: the
+guess reads `curl`, `wget`, `ssh`, `rsync` and a URL as reaching out, so it
+refuses a `grep` for a URL and cannot see a python one-liner that opens a
+socket. Say what the hook does and the guess is not consulted.
+
 ### Project instructions
 
 `JANETCODE.md`, `AGENTS.md` or `CLAUDE.md` (first found in a directory

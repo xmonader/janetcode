@@ -57,3 +57,40 @@ func TestRestrictLeavesOrdinaryHooksAlone(t *testing.T) {
 		t.Fatalf("empty = %v %v", kept, notes)
 	}
 }
+
+// What a project hook says about itself decides whether it may run, and
+// the command-text guess is only for hooks that say nothing. The guess
+// reads a grep for a URL as reaching the network and cannot see a socket
+// opened from python, so it is the weaker answer of the two.
+func TestRestrictBelievesTheHooksOwnNetworkFlag(t *testing.T) {
+	yes, no := true, false
+	project := Config{Hooks: Hooks{PostTool: {
+		{Command: `grep -rn "https://" .`, Network: &no},
+		{Command: "python3 -c 'import socket'", Network: &yes},
+		{Command: "gofmt -l ."},
+	}}}
+	kept, notes := Restrict(project, Limits{})
+	got := kept.For(PostTool)
+	if len(got) != 2 {
+		t.Fatalf("kept %d hooks, want 2: %+v (notes %v)", len(got), got, notes)
+	}
+	if !strings.Contains(got[0].Command, "grep") {
+		t.Errorf("the hook that says it stays on the machine was refused for looking like it does not: %+v", got)
+	}
+	if len(notes) != 1 || !strings.Contains(notes[0], "python3") {
+		t.Fatalf("notes = %v; the hook that declared the network should be the one refused", notes)
+	}
+}
+
+// A hook that says nothing is still guessed at, and the note tells the
+// author how to say otherwise.
+func TestRestrictStillGuessesForAHookThatSaysNothing(t *testing.T) {
+	project := Config{Hooks: Hooks{PostTool: {{Command: "curl -s https://example.invalid"}}}}
+	kept, notes := Restrict(project, Limits{})
+	if len(kept.For(PostTool)) != 0 {
+		t.Fatal("a curl with no declaration should still be refused")
+	}
+	if len(notes) != 1 || !strings.Contains(notes[0], `"network": false`) {
+		t.Fatalf("notes = %v", notes)
+	}
+}
