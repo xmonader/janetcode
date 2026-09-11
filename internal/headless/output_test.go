@@ -168,6 +168,84 @@ func TestStreamJSONPrintsOneObjectPerLine(t *testing.T) {
 	}
 }
 
+// A retry that succeeded is a line of the stream and a count in the
+// result: the countdown that was shown while it happened is gone, and
+// the run otherwise looks like one that never had to wait.
+func TestStreamJSONReportsARetry(t *testing.T) {
+	var out strings.Builder
+	r := newRecorder(Options{Stdout: &out}, FormatStreamJSON)
+	replay(r,
+		agent.Event{Kind: agent.EvRetry, Text: "retried 2× · rate limited · waited 1.5s",
+			Retry: &llm.Retry{Attempts: 2, Reason: "rate limited", Wait: 1500 * time.Millisecond}},
+		agent.Event{Kind: agent.EvText, Text: "hi"},
+		agent.Event{Kind: agent.EvTurnDone, Usage: llm.Usage{InputTokens: 3}},
+	)
+	r.finish(nil, nil)
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	var first map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
+		t.Fatalf("line is not JSON: %q", lines[0])
+	}
+	if first["type"] != "retry" || first["attempts"] != 2.0 || first["wait_ms"] != 1500.0 || first["text"] != "rate limited" {
+		t.Fatalf("retry line = %v", first)
+	}
+	var res eval.CLIResult
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &res); err != nil {
+		t.Fatal(err)
+	}
+	if res.Retries != 1 {
+		t.Fatalf("retries = %d, want 1", res.Retries)
+	}
+}
+
+// A consumer of stream-json pairs results with starts by id. Some calls
+// never run -- refused by a permission rule, hidden by read-only mode,
+// stopped by the budget, naming a tool that does not exist -- and the
+// loop emits a result for them with no EvToolRun, because nothing was
+// about to execute. The stream still has to be well formed.
+func TestStreamJSONPairsEveryResultWithAStart(t *testing.T) {
+	var out strings.Builder
+	r := newRecorder(Options{Stdout: &out}, FormatStreamJSON)
+	replay(r,
+		// Refused by a rule: a result and no run.
+		agent.Event{Kind: agent.EvToolResult, Call: call("t1", "bash"),
+			Output: "Denied by permission rule bash(*).", IsError: true, Denied: true},
+		// A call that did run, the ordinary way.
+		agent.Event{Kind: agent.EvToolRun, Call: call("t2", "read_file")},
+		agent.Event{Kind: agent.EvToolResult, Call: call("t2", "read_file"), Output: "ok"},
+		agent.Event{Kind: agent.EvTurnDone},
+	)
+	r.finish(nil, nil)
+	started, ended := map[string]bool{}, map[string]bool{}
+	var starts int
+	for _, l := range strings.Split(strings.TrimSpace(out.String()), "\n") {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(l), &m); err != nil {
+			t.Fatalf("line is not JSON: %q", l)
+		}
+		switch m["type"] {
+		case "tool_start":
+			starts++
+			started[m["id"].(string)] = true
+		case "tool_result":
+			id := m["id"].(string)
+			if !started[id] {
+				t.Fatalf("result for %q with no start", id)
+			}
+			ended[id] = true
+		}
+	}
+	if starts != 2 || len(ended) != 2 {
+		t.Fatalf("%d starts, %d results", starts, len(ended))
+	}
+	// The refusal is counted, whichever gate wrote it: only the
+	// interactive approver's wording used to be recognised, so a --deny
+	// rule produced a run reporting no denials at all.
+	if got := r.result(nil, nil).PermissionDenials; got != 1 {
+		t.Fatalf("permission_denials = %d, want 1", got)
+	}
+}
+
 // Text mode is unchanged: nothing JSON-shaped reaches stdout from here.
 func TestTextFormatWritesNoEnvelope(t *testing.T) {
 	var out strings.Builder

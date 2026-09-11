@@ -102,6 +102,12 @@ const (
 	// its countdown, a compaction, a subagent. It is a status line, never
 	// a transcript entry, and the next event supersedes it.
 	EvPhase EventKind = "phase"
+	// EvRetry reports a model call that failed, was retried and then
+	// succeeded. EvPhase already showed the countdown, but a status line
+	// is gone the moment the next one lands: once the call answers, a
+	// turn that cost four attempts and eight seconds of backoff looked
+	// exactly like one that cost none. Retry carries what it took.
+	EvRetry EventKind = "retry"
 )
 
 // Event is a loop notification for the UI.
@@ -114,6 +120,15 @@ type Event struct {
 	Duration   time.Duration
 	Usage      llm.Usage
 	StopReason llm.StopReason
+	// Retry is set on EvRetry: what the model call had to survive.
+	Retry *llm.Retry
+	// Denied marks an EvToolResult that is a refusal rather than a
+	// failure: a permission rule, a hook, read-only mode or the user
+	// saying no. A caller counting denials cannot tell them apart from
+	// the message alone -- each of those paths words it differently --
+	// and a headless run reported zero denials for a call a --deny rule
+	// had refused.
+	Denied bool
 }
 
 // Agent holds one conversation and the machinery to advance it.
@@ -701,7 +716,12 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, emi
 		Messages:  a.Messages,
 		Tools:     defs,
 		MaxTokens: a.MaxTokens,
-	}, func(e llm.Event) { forward(e, emit) })
+	}, func(e llm.Event) {
+		if e.Type == llm.EventRetried && e.Retry != nil {
+			a.stats.retried(e.Retry.Attempts)
+		}
+		forward(e, emit)
+	})
 	a.stats.model(time.Since(start), err != nil)
 	if errors.Is(err, llm.ErrStreamWatchdog) {
 		a.stats.watchdogKill()
@@ -1083,25 +1103,28 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	// the harness deciding something, and until it reached the ledger
 	// neither /why nor anything else reading the session afterwards could
 	// tell a call the user refused from one that was never made.
-	refuse := func(msg string) (string, bool, error) {
-		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+	// denied says whether the refusal is a permission decision (a rule,
+	// read-only mode) rather than a malformed call, so the headless
+	// recorder can count it as one.
+	refuse := func(msg string, denied bool) (string, bool, error) {
+		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true, Denied: denied})
 		a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN,
 			CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
 		return msg, true, nil
 	}
 	t, ok := a.Tools.Get(u.Name)
 	if !ok {
-		return refuse(fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames()))
+		return refuse(fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames()), false)
 	}
 	if a.readOnly() && t.Mutating() {
-		return refuse(fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", u.Name, a.modeName()))
+		return refuse(fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", u.Name, a.modeName()), true)
 	}
 	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
 		return "", true, err
 	}
 	if deny != "" {
-		return refuse(deny)
+		return refuse(deny, true)
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
 	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Intent: intent})
@@ -1299,7 +1322,23 @@ func forward(e llm.Event, emit func(Event)) {
 		emit(Event{Kind: EvToolInput, Text: e.Text})
 	case llm.EventStatus:
 		emit(Event{Kind: EvPhase, Text: e.Text})
+	case llm.EventRetried:
+		if e.Retry != nil {
+			emit(Event{Kind: EvRetry, Text: retryLine(*e.Retry), Retry: e.Retry})
+		}
 	}
+}
+
+// retryLine is the one-liner a completed retry leaves behind.
+func retryLine(r llm.Retry) string {
+	s := fmt.Sprintf("retried %d×", r.Attempts)
+	if r.Reason != "" {
+		s += " · " + r.Reason
+	}
+	if r.Wait > 0 {
+		s += fmt.Sprintf(" · waited %s", r.Wait.Round(time.Second/10))
+	}
+	return s
 }
 
 // editTool reports the tools AutoEdits covers: the ones that change files

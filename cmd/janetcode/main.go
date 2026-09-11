@@ -168,6 +168,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		promptText   = fs.String("p", "", "run this prompt headless and exit")
 		outFormat    = fs.String("output-format", "text", "with -p: how the run reports itself. text prints the answer on stdout and activity on stderr; json prints one result object on stdout (answer, usage, cost and where the figure came from, turns, tool calls, permission denials, verdict, session id, duration); stream-json prints one JSON object per line as things happen, ending with that result")
 		maxCost      = fs.Float64("max-cost", 0, "with -p: stop once the run has spent this much in USD (exit 55), checked after every model call. The figure is the provider's when it reports one, otherwise list price")
+		maxTurns     = fs.Int("max-turns", 0, "cap the model calls one turn may make (0: the configured max_iterations). The same cap --eval-max-turns applies to an eval run, so a benchmark can give a headless run and an eval run the same budget")
+		compactAt    = fs.Int("compact-at", 0, "compact the history at this many estimated tokens instead of the configured value; the same knob --eval-compact-at applies to an eval run")
 		until        = fs.String("until", "", "with -p: shell command that must exit 0 before the run is done (re-loops up to 5 times)")
 		watchCmd     = fs.String("watch", "", "watch mode: re-run this shell command whenever files change and have the model fix failures (use with --yolo)")
 		provider     = fs.String("provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")
@@ -318,6 +320,16 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		if prov, err = buildProvider(cfg); err != nil {
 			return err
 		}
+	}
+	// The turn cap and the compaction threshold are settings, not eval
+	// plumbing: a headless run driven by a benchmark needs the same two
+	// knobs the eval runner takes, and applying them to the config means
+	// every path downstream -- headless, TUI and ACP -- reads one value.
+	if *maxTurns > 0 {
+		cfg.MaxIterations = *maxTurns
+	}
+	if *compactAt > 0 {
+		cfg.CompactAt = *compactAt
 	}
 	cwd, err := os.Getwd()
 	if err != nil {

@@ -688,6 +688,11 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	}
 	var resp *http.Response
 	rotations := 0
+	// What the call had to survive, reported once it finally answers. A
+	// status line is gone as soon as the next one replaces it, so without
+	// this a turn that took four attempts is indistinguishable afterwards
+	// from one that took none.
+	var retried llm.Retry
 	for attempt := 0; ; attempt++ {
 		body, err := json.Marshal(p.applyDialect(w))
 		if err != nil {
@@ -697,6 +702,10 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		resp, err = p.do(ctx, body, key)
 		if err == nil {
 			p.ring.OK(idx)
+			if retried.Attempts > 0 && emit != nil {
+				r := retried
+				emit(llm.Event{Type: llm.EventRetried, Retry: &r})
+			}
 			break
 		}
 		if p.learnDialect(err) {
@@ -733,6 +742,7 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		if errors.As(err, &ra) && ra.RetryAfter > 0 {
 			wait = ra.RetryAfter
 		}
+		retried.Attempts, retried.Reason, retried.Wait = attempt+1, retryReason(err), retried.Wait+wait
 		emit(llm.Event{Type: llm.EventStatus, Text: fmt.Sprintf("retrying %d/%d · %s · in %s", attempt+1, p.cfg.MaxRetries, retryReason(err), wait.Round(time.Second/10))})
 		select {
 		case <-ctx.Done():

@@ -114,12 +114,16 @@ type recorder struct {
 	out    io.Writer
 	start  time.Time
 
-	mu        sync.Mutex
+	mu sync.Mutex
+	// started is the ids a tool_start has been written for, so a result
+	// never arrives for a call the consumer has not seen begin.
+	started   map[string]bool
 	enc       *json.Encoder
 	usage     llm.Usage
 	turns     int
 	tools     int
 	denials   int
+	retries   int
 	verdict   string
 	turnText  strings.Builder
 	answer    string
@@ -130,7 +134,7 @@ type recorder struct {
 }
 
 func newRecorder(opts Options, format Format) *recorder {
-	r := &recorder{format: format, out: opts.Stdout, start: time.Now()}
+	r := &recorder{format: format, out: opts.Stdout, start: time.Now(), started: map[string]bool{}}
 	if format == FormatStreamJSON {
 		r.enc = json.NewEncoder(opts.Stdout)
 	}
@@ -159,6 +163,11 @@ type streamEvent struct {
 	DurationMS int64           `json:"duration_ms,omitempty"`
 	StopReason string          `json:"stop_reason,omitempty"`
 	Usage      *eval.CLIUsage  `json:"usage,omitempty"`
+	// Attempts and WaitMS describe a retry event: the call failed this
+	// many times and spent this long in backoff before it answered. Text
+	// carries the reason.
+	Attempts int   `json:"attempts,omitempty"`
+	WaitMS   int64 `json:"wait_ms,omitempty"`
 }
 
 func (r *recorder) emit(e streamEvent) {
@@ -181,17 +190,34 @@ func (r *recorder) event(e agent.Event) {
 	case agent.EvToolRun:
 		r.tools++
 		if e.Call != nil {
+			r.started[e.Call.ID] = true
 			r.emit(streamEvent{Type: "tool_start", Name: e.Call.Name, ID: e.Call.ID, Intent: e.Call.Intent, Input: json.RawMessage(e.Call.Input)})
 		}
 	case agent.EvToolResult:
-		if e.IsError && strings.HasPrefix(e.Output, agent.DeniedMessage) {
+		if e.Denied || (e.IsError && strings.HasPrefix(e.Output, agent.DeniedMessage)) {
 			r.denials++
 		}
 		name, id := "", ""
 		if e.Call != nil {
 			name, id = e.Call.Name, e.Call.ID
 		}
+		// A call that never ran -- refused by a rule, hidden by read-only,
+		// stopped by the budget, or naming a tool that does not exist --
+		// produces a result and no EvToolRun, because nothing was about
+		// to execute. A consumer pairing results with starts by id then
+		// sees a result for a call it never saw begin. The stream is this
+		// package's contract, so the missing start is written here rather
+		// than by making the loop claim it was going to run the call.
+		if e.Call != nil && !r.started[id] {
+			r.started[id] = true
+			r.emit(streamEvent{Type: "tool_start", Name: name, ID: id, Intent: e.Call.Intent, Input: json.RawMessage(e.Call.Input)})
+		}
 		r.emit(streamEvent{Type: "tool_result", Name: name, ID: id, Output: e.Output, IsError: e.IsError, DurationMS: e.Duration.Milliseconds()})
+	case agent.EvRetry:
+		r.retries++
+		if e.Retry != nil {
+			r.emit(streamEvent{Type: "retry", Text: e.Retry.Reason, Attempts: e.Retry.Attempts, WaitMS: e.Retry.Wait.Milliseconds()})
+		}
 	case agent.EvNotice:
 		r.emit(streamEvent{Type: "notice", Text: e.Text})
 	case agent.EvCompacted:
@@ -246,6 +272,7 @@ func (r *recorder) result(ag *agent.Agent, err error) eval.CLIResult {
 		PermissionDenials: r.denials,
 		Verdict:           r.verdict,
 		DurationMS:        time.Since(r.start).Milliseconds(),
+		Retries:           r.retries,
 	}
 	if ag != nil {
 		// The recorder tallies usage from EvTurnDone, which a turn that
@@ -261,6 +288,11 @@ func (r *recorder) result(ag *agent.Agent, err error) eval.CLIResult {
 			res.CostSource = u.CostSource(r.price)
 		}
 		st := ag.Stats()
+		if st.Retries > 0 {
+			// The agent's counter survives a turn that ended early, which
+			// the event tally does not.
+			res.Retries = st.Retries
+		}
 		if st.ModelCalls > 0 {
 			res.NumTurns = st.ModelCalls
 		}

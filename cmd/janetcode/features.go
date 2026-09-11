@@ -27,6 +27,8 @@ var flagWhen = map[string]string{
 	"p":                    "scripting janetcode, or one question you do not want a terminal session for",
 	"output-format":        "a script or a CI job that has to read the result rather than a human",
 	"max-cost":             "an unattended run you do not want to discover afterwards was expensive",
+	"max-turns":            "capping the model calls a session may make, the same cap for the TUI, headless and ACP",
+	"compact-at":           "compacting earlier than the default, to test compaction or to keep a small model within its window",
 	"until":                "the run is done when a command passes, not when the model says so",
 	"watch":                "you want failures fixed as you save, without pressing enter",
 	"provider":             "this run should go somewhere other than the configured backend",

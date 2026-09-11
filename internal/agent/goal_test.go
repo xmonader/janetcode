@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/session"
@@ -82,5 +83,48 @@ func TestPausedGoalIsResumable(t *testing.T) {
 	a.SetGoalPhase(g.ID, GoalActive, "")
 	if got := ActiveGoal(a.Log.Events()); got == nil || got.ID != id {
 		t.Fatalf("resumed goal = %+v", got)
+	}
+}
+
+func TestGoalStatusTwiceIsNotAnError(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}}
+	id := a.CreateGoal("ship the cache", 0)
+	tl := &GoalStatus{Parent: a}
+	if _, err := tl.Run(context.Background(), []byte(`{"status":"complete"}`)); err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	// The second call is the model confirming what it already did. An
+	// error there sends it round again; a plain statement of the phase
+	// does not.
+	out, err := tl.Run(context.Background(), []byte(`{"status":"complete"}`))
+	if err != nil {
+		t.Fatalf("second call returned an error: %v", err)
+	}
+	if !strings.Contains(out, id) || !strings.Contains(out, GoalComplete) {
+		t.Fatalf("second call said %q, want the id and the phase", out)
+	}
+}
+
+func TestGoalStatusOnABlockedGoalReportsTheReason(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}}
+	id := a.CreateGoal("ship the cache", 0)
+	tl := &GoalStatus{Parent: a}
+	if _, err := tl.Run(context.Background(), []byte(`{"status":"blocked","reason":"no credentials"}`)); err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	out, err := tl.Run(context.Background(), []byte(`{"status":"complete"}`))
+	if err != nil {
+		t.Fatalf("second call returned an error: %v", err)
+	}
+	if !strings.Contains(out, id) || !strings.Contains(out, GoalBlocked) || !strings.Contains(out, "no credentials") {
+		t.Fatalf("second call said %q, want the id, the phase and the reason", out)
+	}
+}
+
+func TestGoalStatusWithNoGoalAtAllStillErrors(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}}
+	tl := &GoalStatus{Parent: a}
+	if _, err := tl.Run(context.Background(), []byte(`{"status":"complete"}`)); err == nil {
+		t.Fatal("marking a goal that was never created should be an error")
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Role is the author of a message.
@@ -296,15 +297,34 @@ const (
 	// a retry and its countdown — so a stalled call does not look like a
 	// slow one. Text carries the phrase to show; no content is implied.
 	EventStatus EventType = "status"
+	// EventRetried reports a call that failed, was retried and then
+	// succeeded. EventStatus says the same thing while it is happening,
+	// but it is a status line that the next one overwrites: once the call
+	// lands there is no trace that it ever took four attempts and eight
+	// seconds of waiting. Retry carries the count, the reason and the
+	// wait, so a run can be read afterwards and say so.
+	EventRetried EventType = "retried"
 )
+
+// Retry describes what one model call had to survive before it answered.
+type Retry struct {
+	// Attempts is how many retries were made, not counting the first try.
+	Attempts int
+	// Reason is why the last failure was worth retrying ("rate limited",
+	// "server error"), in the provider's own words.
+	Reason string
+	// Wait is the total time spent in backoff between the attempts.
+	Wait time.Duration
+}
 
 // Event is one streamed increment. Text carries the delta for text, thinking
 // and partial tool-input JSON. Block is set on tool_use start (ID+Name) and
-// end (complete Input).
+// end (complete Input). Retry is set on EventRetried.
 type Event struct {
 	Type  EventType
 	Text  string
 	Block *Block
+	Retry *Retry
 }
 
 // Provider is a chat backend. Stream must call emit for every increment on the

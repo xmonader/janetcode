@@ -59,6 +59,10 @@ type CLIResult struct {
 	// that cannot see the difference credits the model with the
 	// harness's work.
 	Recoveries CLIRecoveries `json:"recoveries"`
+	// Retries counts model calls that failed transiently and succeeded on
+	// a later attempt. The wait is already in duration_ms; this says how
+	// much of it was the provider refusing rather than thinking.
+	Retries int `json:"retries"`
 }
 
 // CLIRecoveries counts the ways a run was saved rather than smooth.

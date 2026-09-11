@@ -62,6 +62,7 @@ const (
 	noteCompact  = "⇣ "
 	noteUndo     = "↶ "
 	noteGoal     = "◎ "
+	noteRetry    = "↻ "
 )
 
 type entry struct {
@@ -263,6 +264,12 @@ func (t *transcript) apply(ev agent.Event) {
 		// dropped here for a long time while headless mode printed it.
 		t.closeOpen()
 		t.add(&entry{kind: entryVerdict, text: shortenPaths(t.cwd, ev.Text), isError: ev.IsError})
+	case agent.EvRetry:
+		// The status line that counted the retry down is gone the moment
+		// the call lands, so a turn that cost four attempts read exactly
+		// like one that cost none. One dim line under the turn says so.
+		t.closeOpen()
+		t.info(noteRetry + ev.Text)
 	case agent.EvNotice:
 		t.closeOpen()
 		if isAttachNote(ev.Text) {

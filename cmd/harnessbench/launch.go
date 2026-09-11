@@ -26,10 +26,7 @@ var (
 )
 
 func runJanetBatch(ctx context.Context, cfg runConfig, batchN int, tasks []eval.Task, logW io.Writer) []eval.BenchTaskResult {
-	bin := cfg.JanetBin
-	if !filepath.IsAbs(bin) {
-		bin = filepath.Join(cfg.RepoRoot, bin)
-	}
+	bin := janetBin(cfg)
 	if _, err := os.Stat(bin); err != nil {
 		reason := "janetcode binary not found at " + bin
 		return eval.UnavailableResults("janetcode", reason, bin+" --eval", err.Error(), tasks)
@@ -49,13 +46,13 @@ func runJanetBatch(ctx context.Context, cfg runConfig, batchN int, tasks []eval.
 	}
 	defer os.RemoveAll(batchDir)
 	jsonOut := filepath.Join(batchDir, fmt.Sprintf("batch%d.json", batchN))
-	xdg, err := os.MkdirTemp("", "janetcode-xdg-")
+	home, cleanup, err := janetHome()
 	if err != nil {
 		// Without a private config dir janetcode would read the operator's
 		// real settings; that is not a benchmark run.
 		return eval.UnavailableResults("janetcode", "scratch config dir: "+err.Error(), bin+" --eval", err.Error(), tasks)
 	}
-	defer os.RemoveAll(xdg)
+	defer cleanup()
 
 	args := []string{
 		"--eval", cfg.EvalsDir,
@@ -71,14 +68,7 @@ func runJanetBatch(ctx context.Context, cfg runConfig, batchN int, tasks []eval.
 	cmd := exec.CommandContext(ctx, bin, args...)
 	tool.Supervise(cmd)
 	cmd.Dir = cfg.RepoRoot
-	cmd.Env = childEnv(cfg, map[string]string{
-		"XDG_CONFIG_HOME":    xdg,
-		"OPENAI_API_KEY":     cfg.Key,
-		"OPENAI_BASE_URL":    cfg.BaseURL,
-		"DASHSCOPE_API_KEY":  cfg.Key,
-		"JANETCODE_PROVIDER": "openai",
-		"JANETCODE_MODEL":    cfg.Model,
-	})
+	cmd.Env = childEnv(cfg, janetEnv(cfg, home))
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = io.MultiWriter(&stdout, logW)
 	cmd.Stderr = io.MultiWriter(&stderr, logW)
@@ -620,14 +610,37 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 	case "janetcode":
 		// Driven exactly as the other CLIs are, reading the result object
 		// janetcode prints for itself rather than its eval results file.
-		argv = []string{cfg.JanetBin, "-p", prompt, "--yolo", "--output-format", "json",
-			"--provider", "openai", "--model", cfg.Model}
+		//
+		// The limits are the ones the eval driver passes, spelled with the
+		// everyday flags: the same model-call cap, and the tasks'
+		// max_tool_calls left unenforced (a headless run never enforces
+		// them, which is what --eval-no-tool-limit buys on the other side).
+		// Without the cap the two drivers ran the same tasks on different
+		// budgets -- 40 model calls against the configured 50 -- and a task
+		// that failed on only one of them said nothing about either.
+		argv = []string{janetBin(cfg), "-p", prompt, "--yolo", "--output-format", "json",
+			"--provider", "openai", "--model", cfg.Model,
+			"--max-turns", fmt.Sprint(cfg.MaxTurns)}
 		if sess != nil && step > 0 {
 			argv = append(argv, "--resume", sess.id)
 		} else if sess != nil {
 			argv = append(argv, "--continue")
 		}
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
+		// A headless run is the whole product: it reads the operator's
+		// config, sessions, memory, skills, MCP servers and permission
+		// rules from the real home directory. The eval driver has run in a
+		// private one since it was written, and a comparison between the
+		// two only says something about janetcode if both start from
+		// nothing.
+		jhome, jcleanup, herr := janetHome()
+		if herr != nil {
+			return "", "", nil, 0, fmt.Errorf("janetcode private home: %w", herr)
+		}
+		defer jcleanup()
+		for k, v := range janetEnv(cfg, jhome) {
+			extraEnv[k] = v
+		}
 	case "grok":
 		argv = []string{"grok", "-p", prompt, "--cwd", dir, "--always-approve", "--output-format", "json",
 			"--model", cfg.Model, "--max-turns", fmt.Sprint(cfg.MaxTurns), "--disable-web-search"}
@@ -662,6 +675,50 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 	cmd.Stderr = &errb
 	err = cmd.Run()
 	return outb.String(), errb.String(), argv, exitCode(err), err
+}
+
+// janetBin is the janetcode binary as an absolute path. Every harness
+// runs with its working directory set to the task's, so the default
+// "bin/janetcode" resolves against that directory and not against the
+// repository: the eval driver had always made it absolute, the headless
+// one had not, and every headless task died instantly with an empty log
+// and exit 1 -- which reads as janetcode producing nothing rather than as
+// janetcode never having been started.
+func janetBin(cfg runConfig) string {
+	bin := cfg.JanetBin
+	if !filepath.IsAbs(bin) {
+		bin = filepath.Join(cfg.RepoRoot, bin)
+	}
+	return bin
+}
+
+// janetHome is a private home for one janetcode invocation: its config,
+// its sessions, its memory and its caches, none of which are the
+// operator's. Both janetcode drivers call it, so neither can drift into
+// reading the real one.
+func janetHome() (string, func(), error) {
+	dir, err := os.MkdirTemp("", "janetcode-home-")
+	if err != nil {
+		return "", func() {}, err
+	}
+	return dir, func() { os.RemoveAll(dir) }, nil
+}
+
+// janetEnv is the environment both janetcode drivers run with: the
+// endpoint under test, and the private home janetHome made. It is one
+// function so that a variable added for one driver reaches the other.
+func janetEnv(cfg runConfig, home string) map[string]string {
+	return map[string]string{
+		"HOME":               home,
+		"XDG_CONFIG_HOME":    filepath.Join(home, "config"),
+		"XDG_DATA_HOME":      filepath.Join(home, "data"),
+		"XDG_CACHE_HOME":     filepath.Join(home, "cache"),
+		"OPENAI_API_KEY":     cfg.Key,
+		"OPENAI_BASE_URL":    cfg.BaseURL,
+		"DASHSCOPE_API_KEY":  cfg.Key,
+		"JANETCODE_PROVIDER": "openai",
+		"JANETCODE_MODEL":    cfg.Model,
+	}
 }
 
 func probeGrok(ctx context.Context, cfg runConfig, tasks []eval.Task) ([]eval.BenchTaskResult, string, bool) {
