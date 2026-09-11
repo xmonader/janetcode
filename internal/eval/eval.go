@@ -144,11 +144,18 @@ type Result struct {
 	Turns     int           `json:"turns"` // model calls
 	// Recoveries counts tool calls parsed back out of assistant text,
 	// so a model that writes its calls as prose is visible in a run
-	// rather than looking like one that simply did nothing.
-	Recoveries int       `json:"recoveries,omitempty"`
-	Usage      llm.Usage `json:"usage"`
-	CostUSD    float64   `json:"cost_usd"`
-	CostKnown  bool      `json:"cost_known"`
+	// rather than looking like one that simply did nothing. WatchdogKills
+	// and ModelFallbacks are the other two ways a run was rescued rather
+	// than smooth: a stream that stopped producing and was ended, and a
+	// call that only succeeded on another model. A passing run with three
+	// of these is not the same run as one with none, and a comparison
+	// that cannot see them credits the model with the harness's work.
+	Recoveries     int       `json:"recoveries,omitempty"`
+	WatchdogKills  int       `json:"watchdog_kills,omitempty"`
+	ModelFallbacks int       `json:"model_fallbacks,omitempty"`
+	Usage          llm.Usage `json:"usage"`
+	CostUSD        float64   `json:"cost_usd"`
+	CostKnown      bool      `json:"cost_known"`
 	// Compaction is what the context pipeline did during the run: how often
 	// the history was summarised, what the summariser calls cost (a subset
 	// of Usage), and how many archived outputs the model fetched back.
@@ -388,7 +395,7 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 	// Claude Code and still slower overall.
 	st := ag.Stats()
 	res.ModelTime = st.ModelTime
-	res.Recoveries = st.Recoveries
+	res.Recoveries, res.WatchdogKills, res.ModelFallbacks = st.Recoveries, st.WatchdogKills, st.Fallbacks
 	for _, t := range st.Tools {
 		res.ToolTime += t.Time
 	}
