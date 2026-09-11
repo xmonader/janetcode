@@ -51,7 +51,12 @@ func (c *ShellCache) key(root, command string) string {
 	if fp == "" {
 		return ""
 	}
-	sum := sha256.Sum256([]byte(fp + "\x00" + strings.TrimSpace(command)))
+	// The root is part of the key. The fingerprint is HEAD plus the
+	// working-tree changes, and two checkouts of the same commit — a git
+	// worktree, a second clone — produce exactly the same one, so a cache
+	// shared between them would answer a question about this tree with an
+	// answer computed in that one.
+	sum := sha256.Sum256([]byte(root + "\x00" + fp + "\x00" + strings.TrimSpace(command)))
 	return hex.EncodeToString(sum[:])
 }
 

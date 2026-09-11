@@ -42,6 +42,21 @@ type Hook struct {
 	Command string `json:"command"`
 	// Timeout in seconds; zero means 10.
 	Timeout int `json:"timeout,omitempty"`
+	// Network is the hook's own word for whether it reaches off the
+	// machine. It is what decides whether a project hook may run (see
+	// Restrict); left out, the command text is guessed at instead. A
+	// pointer so that "not said" and "said no" are different answers.
+	Network *bool `json:"network,omitempty"`
+}
+
+// ReachesNetwork reports whether the hook goes off the machine: what the
+// hook says about itself where it says anything, and a guess from the
+// command text where it does not.
+func (h Hook) ReachesNetwork() bool {
+	if h.Network != nil {
+		return *h.Network
+	}
+	return networkCommand.MatchString(h.Command)
 }
 
 // Hooks maps event names to the hooks bound to them.
@@ -248,6 +263,13 @@ func Merge(a, b Config) Config {
 // So a project hook may not reach the network. The user's own config may
 // — it is the user's config — and a project that needs one says so, and
 // the user copies it into their own file, which is a deliberate act.
+//
+// A hook says what it is with "network": true or false, and that is what
+// decides. The regexp below is only for hooks that say nothing, which is
+// every hook written before the key existed: guessing from command text
+// refuses `grep -n "https://" .` for containing a URL and lets through a
+// python one-liner that opens a socket, so a hook that knows the answer
+// should be believed over a guess.
 
 // networkCommand matches the obvious ways a shell command reaches off the
 // machine. It is not a sandbox: a project hook can still run a script that
@@ -269,8 +291,12 @@ func Restrict(project Config, lim Limits) (Config, []string) {
 	for ev, hooks := range project.Hooks {
 		for i, h := range hooks {
 			where := fmt.Sprintf("%s %s[%d] (%s)", ProjectFile, ev, i, firstWords(h.Command))
-			if networkCommand.MatchString(h.Command) {
-				notes = append(notes, where+" is not run: a project hook may not reach the network. Copy it into your own config if you want it.")
+			if h.ReachesNetwork() {
+				why := " is not run: a project hook may not reach the network. Copy it into your own config if you want it."
+				if h.Network == nil {
+					why += ` If it does not reach the network, say so with "network": false.`
+				}
+				notes = append(notes, where+why)
 				continue
 			}
 			if h.Timeout > maxSecs {

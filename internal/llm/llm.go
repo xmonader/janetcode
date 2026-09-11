@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 )
 
@@ -227,6 +229,40 @@ func FormatUSD(usd float64) string {
 		return fmt.Sprintf("$%.3f", usd)
 	}
 	return fmt.Sprintf("$%.2f", usd)
+}
+
+// FormatUSDPrecise renders a cost without rounding it out of existence.
+//
+// FormatUSD stops at four decimals, which is fine for a session total and
+// useless for the figures a cheap model actually produces: a task that
+// cost $0.00023 prints as "$0.0002", a $0.00005 budget as "$0.0000", and
+// a message like "spent $0.0000 of $0.0000" says nothing about the thing
+// it is reporting. Below a cent the number is given three significant
+// digits with the trailing zeros trimmed, so $0.00023 stays $0.00023;
+// above one, nothing changes.
+func FormatUSDPrecise(usd float64) string {
+	if usd < 0 {
+		return "-" + FormatUSDPrecise(-usd)
+	}
+	if usd == 0 {
+		return "$0.00"
+	}
+	if usd >= 0.01 {
+		return FormatUSD(usd)
+	}
+	decimals := 2 - int(math.Floor(math.Log10(usd)))
+	if decimals > 12 {
+		decimals = 12
+	}
+	s := strconv.FormatFloat(usd, 'f', decimals, 64)
+	if strings.Contains(s, ".") {
+		s = strings.TrimRight(s, "0")
+		// Keep it looking like money even when it lands on a round number.
+		if n := len(s) - strings.IndexByte(s, '.') - 1; n < 2 {
+			s += strings.Repeat("0", 2-n)
+		}
+	}
+	return "$" + s
 }
 
 // StopReason says why the model stopped generating.

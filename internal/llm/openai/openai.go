@@ -946,7 +946,15 @@ func retryable(err error) bool {
 // and the wire index is kept only as the sort key, so sparse or
 // out-of-order indices still order correctly while a reused one does not
 // collide.
-func slotFor(index *int, pos int, id, name string, tools map[int]*toolAcc, order []int, byIndex map[int]int, next *int) int {
+//
+// An id, when there is one, outranks all of that. A provider that sends
+// several index-less calls per chunk and then continues them — chunk one
+// opens a and b, chunk two carries arguments for a and then for b — has
+// nothing but the id to say which is which, and the position heuristic
+// reads every continuation as a new call. So an index-less delta whose id
+// is already accumulating goes back to its own slot, and only a delta with
+// no id at all falls through to the heuristic.
+func slotFor(index *int, pos int, id, name string, tools map[int]*toolAcc, order []int, byIndex map[int]int, byID map[string]int, next *int) int {
 	newSlot := func(sortKey int) int {
 		slot := *next
 		*next++
@@ -965,6 +973,11 @@ func slotFor(index *int, pos int, id, name string, tools map[int]*toolAcc, order
 		slot = newSlot(*index)
 		byIndex[*index] = slot
 		return slot
+	}
+	if id != "" {
+		if slot, seen := byID[id]; seen {
+			return slot
+		}
 	}
 	if len(order) == 0 {
 		return newSlot(0)
@@ -1002,6 +1015,35 @@ func mergeArguments(buf *strings.Builder, chunk string) string {
 	return added
 }
 
+// mergeName folds one streamed function-name delta into the name held so
+// far, and is the name side of what mergeArguments does for arguments.
+//
+// Some providers repeat the whole function name on every delta of a call
+// rather than sending it once. Appending those gives "read_fileread_file",
+// a tool nothing is registered under, and the turn ends on an unknown
+// tool. A repeat is recognisable the same way a resent argument string is:
+// it is what is already held, or it grows it from the front. Anything else
+// is a genuine fragment ("read_" then "file") and is appended.
+func mergeName(cur, chunk string) string {
+	switch {
+	case cur == "":
+		return chunk
+	case chunk == "" || chunk == cur:
+		return cur
+	case strings.HasPrefix(chunk, cur):
+		// The name so far, resent with more of it: take the longer one.
+		return chunk
+	case strings.HasSuffix(cur, chunk):
+		// The tail again. A real fragment that repeats the end of the
+		// name it is extending would have to be a tool called something
+		// like "aa" streamed one letter at a time; a resend is far more
+		// likely, and doubling the name is fatal where dropping a
+		// duplicate is not.
+		return cur
+	}
+	return cur + chunk
+}
+
 type toolAcc struct {
 	id, name string
 	args     strings.Builder
@@ -1020,6 +1062,7 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 		text     strings.Builder
 		thinking strings.Builder
 		tools    = map[int]*toolAcc{}
+		byID     = map[string]int{}
 		order    []int
 		byIndex  = map[int]int{}
 		nextSlot int
@@ -1088,16 +1131,19 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 				emit(llm.Event{Type: llm.EventTextDelta, Text: d.Content})
 			}
 			for i, tc := range d.ToolCalls {
-				idx := slotFor(tc.Index, i, tc.ID, tc.Function.Name, tools, order, byIndex, &nextSlot)
+				idx := slotFor(tc.Index, i, tc.ID, tc.Function.Name, tools, order, byIndex, byID, &nextSlot)
 				acc := tools[idx]
 				if !slices.Contains(order, idx) {
 					order = append(order, idx)
 				}
 				if tc.ID != "" {
 					acc.id = tc.ID
+					if _, seen := byID[tc.ID]; !seen {
+						byID[tc.ID] = idx
+					}
 				}
 				if tc.Function.Name != "" {
-					acc.name += tc.Function.Name
+					acc.name = mergeName(acc.name, tc.Function.Name)
 				}
 				if !acc.started && acc.name != "" {
 					acc.started = true

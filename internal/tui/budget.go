@@ -1,0 +1,59 @@
+package tui
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/xmonader/janetcode/internal/llm"
+)
+
+// A cost ceiling was wired only from the headless flag, so the one place
+// a session runs long enough to want one — a TUI session left working on
+// something — was the one place it could not be set. /budget sets it for
+// this session, with the same behaviour headless has: the turn is stopped
+// as soon as the spend crosses the line, tools the model had asked for
+// are answered rather than run, and the run in flight may overshoot by
+// the model call that was already going when it crossed.
+func (m *model) budgetCommand(arg string) {
+	a := m.opts.Agent
+	switch {
+	case arg == "":
+		if a.MaxCostUSD <= 0 {
+			m.transcript.info("no cost budget · /budget 0.50 stops the session once it has spent that much")
+			return
+		}
+		m.transcript.info("cost budget " + m.budgetStatus() + " · /budget off removes it")
+	case strings.EqualFold(arg, "off"), strings.EqualFold(arg, "none"), arg == "0":
+		if a.MaxCostUSD <= 0 {
+			m.transcript.info("there was no cost budget")
+			return
+		}
+		a.MaxCostUSD = 0
+		m.transcript.info("cost budget removed")
+	default:
+		usd, err := strconv.ParseFloat(strings.TrimPrefix(arg, "$"), 64)
+		if err != nil || usd <= 0 {
+			m.transcript.errorf("%q is not an amount · /budget 0.50, or /budget off", arg)
+			return
+		}
+		a.MaxCostUSD = usd
+		line := "cost budget " + m.budgetStatus() + " · the session stops when it crosses that, give or take the model call in flight"
+		if _, known := a.UsageSnapshot().Cost(a.Price); !known {
+			// A ceiling measured against an unknown spend never fires,
+			// and silently doing nothing is the worst way to say so.
+			line += "\nnothing prices this model, so the spend is unknown and the budget cannot stop anything · /usage says why"
+		}
+		m.transcript.info(line)
+	}
+}
+
+// budgetStatus is the spend against the ceiling, for the status line and
+// for /budget itself.
+func (m *model) budgetStatus() string {
+	a := m.opts.Agent
+	s := llm.FormatUSDPrecise(a.MaxCostUSD)
+	if spent, known := a.UsageSnapshot().Cost(a.Price); known {
+		s = llm.FormatUSDPrecise(spent) + " of " + s
+	}
+	return s
+}

@@ -109,3 +109,24 @@ func TestFreshTokensAreReportedApart(t *testing.T) {
 		t.Fatalf("the report must separate them:\n%s", b.String())
 	}
 }
+
+// A run that passed because the harness rescued it three times is not the
+// same run as one that passed cleanly, and the report said only how many
+// passed. The prose recoveries were carried per run and the other two
+// kinds were not, and nothing printed any of them.
+func TestHarnessRepairsAreSummarisedAndPrinted(t *testing.T) {
+	s := Summarize([]Result{
+		{Name: "a", Passed: true, Recoveries: 2, WatchdogKills: 1},
+		{Name: "b", Passed: true, ModelFallbacks: 3},
+	})
+	if s.Recoveries != 2 || s.WatchdogKills != 1 || s.ModelFallbacks != 3 {
+		t.Fatalf("summary = %d/%d/%d", s.Recoveries, s.WatchdogKills, s.ModelFallbacks)
+	}
+	line := summaryLine(s)
+	if !strings.Contains(line, "harness repairs: 6") {
+		t.Fatalf("the summary does not say what the harness had to rescue:\n%s", line)
+	}
+	if clean := summaryLine(Summarize([]Result{{Name: "a", Passed: true}})); strings.Contains(clean, "harness repairs") {
+		t.Fatalf("a clean set should say nothing:\n%s", clean)
+	}
+}

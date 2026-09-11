@@ -114,6 +114,10 @@ type Summary struct {
 	FactsInArchive, FactsRetrieved                                      int
 	// ModelTime and ToolTime say where the wall time went.
 	ModelTime, ToolTime time.Duration
+	// Recoveries, WatchdogKills and ModelFallbacks total the harness's
+	// repair work across the runs: prose read back as tool calls, streams
+	// ended for going quiet, and calls that only worked on another model.
+	Recoveries, WatchdogKills, ModelFallbacks int
 	// ByTask is the pass fraction per task name, sorted by name.
 	ByTask []TaskRate
 	// ByTool is how often each tool was actually reached for. A tool the
@@ -162,6 +166,9 @@ func Summarize(rs []Result) Summary {
 		s.Duration += r.Duration
 		s.ModelTime += r.ModelTime
 		s.ToolTime += r.ToolTime
+		s.Recoveries += r.Recoveries
+		s.WatchdogKills += r.WatchdogKills
+		s.ModelFallbacks += r.ModelFallbacks
 		s.Usage.Add(r.Usage)
 		s.Compactions += r.Compaction.Count
 		s.SummaryUsage.Add(r.Compaction.Summary)
@@ -554,7 +561,7 @@ func WriteComparison(w io.Writer, c Comparison) {
 		if c.CostDelta < 0 {
 			sign = "-"
 		}
-		fmt.Fprintf(w, "cost per solved task %s → %s (%s%s)%s\n", llm.FormatUSD(c.Base.CostPerSolved), llm.FormatUSD(c.Current.CostPerSolved), sign, llm.FormatUSD(math.Abs(c.CostDelta)),
+		fmt.Fprintf(w, "cost per solved task %s → %s (%s%s)%s\n", llm.FormatUSDPrecise(c.Base.CostPerSolved), llm.FormatUSDPrecise(c.Current.CostPerSolved), sign, llm.FormatUSDPrecise(math.Abs(c.CostDelta)),
 			ratioNote(c.CostRatio, c.CostRatioLo, c.CostRatioHi, c.Paired && c.CostRatio > 0))
 	}
 	if c.Base.Passed > 0 && c.Current.Passed > 0 {
@@ -612,9 +619,9 @@ func ratioNote(r, lo, hi float64, ok bool) string {
 func summaryLine(s Summary) string {
 	cost := "cost unknown"
 	if s.CostKnown {
-		cost = "cost " + llm.FormatUSD(s.CostUSD)
+		cost = "cost " + llm.FormatUSDPrecise(s.CostUSD)
 		if s.Passed > 0 {
-			cost += " (" + llm.FormatUSD(s.CostPerSolved) + " per solved)"
+			cost += " (" + llm.FormatUSDPrecise(s.CostPerSolved) + " per solved)"
 		}
 	}
 	timing := ""
@@ -634,6 +641,14 @@ func summaryLine(s Summary) string {
 	ctx += fresh
 	if s.Compactions > 0 {
 		ctx += fmt.Sprintf(" · %d compaction(s), summaries %s in / %s out, %d expand(s)", s.Compactions, shortTokens(contextTokens(s.SummaryUsage)), shortTokens(s.SummaryUsage.OutputTokens), s.Expands)
+	}
+	if saves := s.Recoveries + s.WatchdogKills + s.ModelFallbacks; saves > 0 {
+		// What the harness had to rescue for these runs to get this far.
+		// Without it a pass rate reads as the model's, and a harness
+		// change that repairs more is indistinguishable from one that
+		// needs to repair less.
+		ctx += fmt.Sprintf("\nharness repairs: %d (%d tool call(s) read back out of prose · %d stream(s) ended by the watchdog · %d call(s) that only worked on a fallback model)",
+			saves, s.Recoveries, s.WatchdogKills, s.ModelFallbacks)
 	}
 	if s.FactsAsked > 0 {
 		ctx += fmt.Sprintf("\nfacts after compaction: %d/%d recalled (%.0f%%) · %d still in the archive · %d actually retrieved · %d grounded · %d unknown · %d searched",

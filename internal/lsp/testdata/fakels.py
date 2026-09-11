@@ -2,7 +2,7 @@
 """A tiny language server for tests: every line containing ERR is an error,
 every line containing WARN a warning. It also asks the client for
 workspace/configuration after initialized, like gopls does."""
-import json, sys
+import json, sys, time
 
 def read():
     length = None
@@ -37,12 +37,30 @@ def diagnose(uri, version, text):
     send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": params})
 
 no_version = "--no-version" in sys.argv
+
+# --slow-init=SECONDS holds the initialize answer back, standing in for a
+# cold rust-analyzer indexing a large tree.
+slow_init = 0.0
+for arg in sys.argv[1:]:
+    if arg.startswith("--slow-init="):
+        slow_init = float(arg[len("--slow-init="):])
+
+# --child=PATH forks a long-lived grandchild and records its pid, standing
+# in for the workers a real server starts. It only dies with the group.
+for arg in sys.argv[1:]:
+    if arg.startswith("--child="):
+        import subprocess
+        kid = subprocess.Popen(["sleep", "100"])
+        with open(arg[len("--child="):], "w") as f:
+            f.write(str(kid.pid))
 while True:
     msg = read()
     if msg is None:
         break
     method = msg.get("method")
     if method == "initialize":
+        if slow_init:
+            time.sleep(slow_init)
         send({"jsonrpc": "2.0", "id": msg["id"], "result": {"capabilities": {"textDocumentSync": 1}}})
     elif method == "initialized":
         send({"jsonrpc": "2.0", "id": 99, "method": "workspace/configuration", "params": {"items": [{"section": "fake"}]}})

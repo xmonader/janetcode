@@ -537,5 +537,12 @@ func OpenBrowser(target string) error {
 	if _, err := exec.LookPath(cmd.Path); err != nil {
 		return err
 	}
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	// The opener hands the URL to the desktop and exits at once, but
+	// nothing was waiting for it, so every /mcp auth left a zombie behind
+	// for the rest of the session. Reap it; there is nothing to report.
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
