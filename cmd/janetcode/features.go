@@ -209,18 +209,7 @@ func configKeys() []string {
 
 // firstSentence trims a usage or description string to its first
 // sentence, so a catalogue row stays one line.
-func firstSentence(s string) string {
-	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
-	for i := 0; i < len(s)-1; i++ {
-		if s[i] == '.' && s[i+1] == ' ' {
-			return s[:i]
-		}
-	}
-	if i := strings.Index(s, "; "); i > 40 {
-		return s[:i]
-	}
-	return strings.TrimSuffix(s, ".")
-}
+func firstSentence(s string) string { return feature.Headline(s, 41) }
 
 // untrustedInput says which of the project's own files are present but
 // not enabled. A file sitting in the repository does nothing until it is

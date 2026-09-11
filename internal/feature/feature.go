@@ -321,6 +321,59 @@ func (c *Catalog) Summary() string {
 	return strings.Join(parts, ", ")
 }
 
+// Headline trims a description down to the one line a catalogue row can
+// hold: the first sentence, or the first clause once the sentence runs
+// past minClause characters.
+//
+// It exists because the two tables the catalogue is built from — the
+// terminal's command help and the flag set's usage strings — are written
+// for a reader, not for a column. Cutting them naively produced rows
+// like "revert everything the last turn changed (git snapshot", which
+// reads as a bug in janetcode rather than as a truncation: the sentence
+// break had been found inside a parenthesis. So a cut is only ever made
+// at bracket depth zero, and never at the full stop inside "e.g.".
+func Headline(s string, minClause int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '(', '[':
+			depth++
+			continue
+		case ')', ']':
+			if depth > 0 {
+				depth--
+			}
+			continue
+		}
+		if depth > 0 || i+1 >= len(s) || s[i+1] != ' ' {
+			continue
+		}
+		switch s[i] {
+		case '.':
+			if !abbreviation(s[:i]) {
+				return s[:i]
+			}
+		case ';':
+			if i >= minClause {
+				return s[:i]
+			}
+		}
+	}
+	return strings.TrimSuffix(s, ".")
+}
+
+// abbreviation reports whether the full stop after s closes something
+// like "e.g." or "i.e." rather than a sentence: the word it ends is one
+// letter long, or already has a full stop inside it.
+func abbreviation(s string) bool {
+	word := s
+	if i := strings.LastIndexAny(word, " \t"); i >= 0 {
+		word = word[i+1:]
+	}
+	return len(word) <= 1 || strings.Contains(word, ".")
+}
+
 // Explain renders one feature in full, for /help <topic>.
 func (f Feature) Explain() string {
 	var b strings.Builder

@@ -123,6 +123,27 @@ func TestIntrospectIsReadOnlyAndSchemaIsValid(t *testing.T) {
 	}
 }
 
+func TestHeadlineDoesNotCutInsideBracketsOrAbbreviations(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it",
+			"revert everything the last turn changed (git snapshot; file copies outside git)"},
+		{"comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'",
+			"comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'"},
+		{"configured provider or preset name, e.g. anthropic, openai, openrouter, ollama",
+			"configured provider or preset name, e.g. anthropic, openai, openrouter, ollama"},
+		{"one sentence. And a second one that is dropped.", "one sentence"},
+		{"a clause long enough to be worth cutting; and the rest",
+			"a clause long enough to be worth cutting"},
+		{"short; keep", "short; keep"},
+		{"trailing full stop.", "trailing full stop"},
+	}
+	for _, c := range cases {
+		if got := Headline(c.in, 31); got != c.want {
+			t.Errorf("Headline(%q)\n got %q\nwant %q", c.in, got, c.want)
+		}
+	}
+}
+
 func TestAnswerSurvivesANilCatalogue(t *testing.T) {
 	if got := Answer(nil, "zzzz no such thing zzzz", ""); got == "" {
 		t.Fatal("nil catalogue produced no answer at all")

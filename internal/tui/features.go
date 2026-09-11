@@ -1,10 +1,6 @@
 package tui
 
-import (
-	"strings"
-
-	"github.com/xmonader/janetcode/internal/feature"
-)
+import "github.com/xmonader/janetcode/internal/feature"
 
 // This file turns the two tables the terminal already runs on — the
 // slash commands and the keys — into catalogue entries, so that
@@ -186,10 +182,6 @@ func Features() []feature.Feature {
 
 // firstClause keeps a command's description to one line. A few entries
 // in the table explain two things separated by a semicolon; the
-// catalogue wants the first, and the manual has the rest.
-func firstClause(help string) string {
-	if i := strings.Index(help, "; "); i > 30 {
-		return help[:i]
-	}
-	return help
-}
+// catalogue wants the first, and the manual has the rest. The cut is
+// feature.Headline's, which will not break a line inside a bracket.
+func firstClause(help string) string { return feature.Headline(help, 31) }
