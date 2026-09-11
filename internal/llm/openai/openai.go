@@ -62,11 +62,19 @@ type Provider struct {
 	ring *llm.KeyRing
 	http *http.Client
 	// pace widens the gap between requests after the provider starts
-	// refusing them, so a long run stops walking into the same limit.
-	pace llm.Pacer
+	// refusing them, so a long run stops walking into the same limit. It
+	// is per provider value, not shared with the siblings ForTask hands
+	// out, so one unit of work being refused does not slow the others.
+	pace *llm.Pacer
 
-	// Dialect quirks learned from 400 responses, kept for the provider's
-	// lifetime so each is paid for at most once.
+	// dialect is shared with every sibling: a quirk is a property of the
+	// server, so it is learned — and paid for — at most once.
+	dialect *dialect
+}
+
+// dialect is what a server told us about itself through its 400s, kept
+// for the lifetime of the provider and everything ForTask derives from it.
+type dialect struct {
 	mu               sync.Mutex
 	useMaxCompletion bool // send max_completion_tokens instead of max_tokens
 	noStreamOptions  bool // server rejects stream_options
@@ -106,7 +114,21 @@ func New(cfg Config) (*Provider, error) {
 			Transport: &http.Transport{ResponseHeaderTimeout: 2 * time.Minute, Proxy: http.ProxyFromEnvironment},
 		}
 	}
-	return &Provider{cfg: cfg, ring: ring, http: hc}, nil
+	return &Provider{cfg: cfg, ring: ring, http: hc, pace: &llm.Pacer{}, dialect: &dialect{}}, nil
+}
+
+// ForTask returns a provider for one unit of concurrent work: the same
+// endpoint, the same key ring and the same learned dialect, but a pacer of
+// its own.
+//
+// A pacer is shared state that only ever widens, so one shared across
+// concurrent tasks turns a single 429 on one of them into a gap in front
+// of every request the others make — the eval driver, which runs its tasks
+// in one process, was measurably slower than the same tasks in separate
+// processes for no reason but that. The key ring has to stay shared: it is
+// where a burnt key is remembered, and that is worth knowing everywhere.
+func (p *Provider) ForTask() llm.Provider {
+	return &Provider{cfg: p.cfg, ring: p.ring, http: p.http, pace: &llm.Pacer{}, dialect: p.dialect}
 }
 
 // localURL reports whether u points at this machine.
@@ -758,21 +780,21 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 
 // applyDialect adjusts the request for quirks learned so far.
 func (p *Provider) applyDialect(w wireRequest) wireRequest {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.useMaxCompletion {
+	p.dialect.mu.Lock()
+	defer p.dialect.mu.Unlock()
+	if p.dialect.useMaxCompletion {
 		w.MaxCompletionTokens, w.MaxTokens = w.MaxTokens, 0
 	}
-	if p.noStreamOptions {
+	if p.dialect.noStreamOptions {
 		w.StreamOptions = nil
 	}
-	if p.noCacheKey {
+	if p.dialect.noCacheKey {
 		w.PromptCacheKey = ""
 	}
-	if p.noCacheControl {
+	if p.dialect.noCacheControl {
 		stripCacheControl(&w)
 	}
-	if p.noJSONSchema {
+	if p.dialect.noJSONSchema {
 		// The caller parses the reply either way; without the constraint
 		// it is asking rather than requiring, which is what it did before.
 		w.ResponseFormat = nil
@@ -788,23 +810,23 @@ func (p *Provider) learnDialect(err error) bool {
 		return false
 	}
 	msg := strings.ToLower(ae.Message)
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.dialect.mu.Lock()
+	defer p.dialect.mu.Unlock()
 	switch {
-	case !p.useMaxCompletion && strings.Contains(msg, "max_completion_tokens") && strings.Contains(msg, "max_tokens"):
-		p.useMaxCompletion = true
+	case !p.dialect.useMaxCompletion && strings.Contains(msg, "max_completion_tokens") && strings.Contains(msg, "max_tokens"):
+		p.dialect.useMaxCompletion = true
 		return true
-	case !p.noStreamOptions && strings.Contains(msg, "stream_options"):
-		p.noStreamOptions = true
+	case !p.dialect.noStreamOptions && strings.Contains(msg, "stream_options"):
+		p.dialect.noStreamOptions = true
 		return true
-	case !p.noCacheKey && strings.Contains(msg, "prompt_cache_key"):
-		p.noCacheKey = true
+	case !p.dialect.noCacheKey && strings.Contains(msg, "prompt_cache_key"):
+		p.dialect.noCacheKey = true
 		return true
-	case !p.noCacheControl && (strings.Contains(msg, "cache_control") || strings.Contains(msg, "cachecontrol")):
-		p.noCacheControl = true
+	case !p.dialect.noCacheControl && (strings.Contains(msg, "cache_control") || strings.Contains(msg, "cachecontrol")):
+		p.dialect.noCacheControl = true
 		return true
-	case !p.noJSONSchema && (strings.Contains(msg, "response_format") || strings.Contains(msg, "json_schema")):
-		p.noJSONSchema = true
+	case !p.dialect.noJSONSchema && (strings.Contains(msg, "response_format") || strings.Contains(msg, "json_schema")):
+		p.dialect.noJSONSchema = true
 		return true
 	}
 	return false

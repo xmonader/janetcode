@@ -892,7 +892,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		// ones that need a terminal or the network. A benchmark run
 		// against a smaller agent measures something nobody uses.
 		ag := &agent.Agent{
-			Provider:      prov,
+			Provider:      llm.ForTaskOr(prov),
 			Off:           off,
 			Prepare:       prep,
 			PlanCheck:     repo.CheckPlan,

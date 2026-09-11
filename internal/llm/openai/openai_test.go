@@ -617,7 +617,7 @@ func TestRequestCarriesTheSchema(t *testing.T) {
 // A server that rejects the field is learned from and the call is retried
 // without it, since the reply is parsed either way.
 func TestLearnDialectDropsJSONSchema(t *testing.T) {
-	p := &Provider{}
+	p := &Provider{dialect: &dialect{}}
 	w := wireRequest{ResponseFormat: &wireResponseFormat{Type: "json_schema"}}
 	if got := p.applyDialect(w); got.ResponseFormat == nil {
 		t.Fatal("dropped before the server complained")
