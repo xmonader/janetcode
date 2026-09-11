@@ -11,6 +11,99 @@ import (
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
+// The model rewrites the whole plan on every status change, and the tool
+// used to answer with the whole plan every time: a seven-step plan
+// updated seven times put its seven lines into the context seven times
+// over. An update now answers with the steps that changed and the tally;
+// creation and an explicit read still answer whole.
+func TestTodoUpdatesAnswerWithWhatChanged(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}}
+	tl := &TodoTool{Parent: a}
+	ctx := context.Background()
+
+	steps := []string{
+		"read the importer", "add the currency column", "migrate the table",
+		"update the callers", "write the tests", "run the suite", "update the README",
+	}
+	plan := func(done int) []byte {
+		var b strings.Builder
+		b.WriteString(`{"todos":[`)
+		for i, s := range steps {
+			if i > 0 {
+				b.WriteString(",")
+			}
+			status := "pending"
+			switch {
+			case i < done:
+				status = "completed"
+			case i == done:
+				status = "in_progress"
+			}
+			b.WriteString(`{"text":"` + s + `","status":"` + status + `"}`)
+		}
+		b.WriteString(`]}`)
+		return []byte(b.String())
+	}
+
+	// Creation: whole, so the model can see the plan it just made.
+	first, err := tl.Run(ctx, plan(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range steps {
+		if !strings.Contains(first, s) {
+			t.Fatalf("the new plan left out %q:\n%s", s, first)
+		}
+	}
+
+	// Seven updates, each marking one step done and starting the next.
+	whole, delta := len(first), len(first)
+	for done := 1; done <= len(steps); done++ {
+		out, err := tl.Run(ctx, plan(done))
+		if err != nil {
+			t.Fatal(err)
+		}
+		whole += len(RenderTodos(a.Todos()))
+		delta += len(out)
+		// Two lines change per update — the step finished and the one
+		// started — plus the tally; the last update finishes the plan and
+		// starts nothing.
+		if lines := strings.Count(out, "\n") + 1; lines > 3 {
+			t.Fatalf("update %d returned %d lines:\n%s", done, lines, out)
+		}
+		if !strings.Contains(out, "[x] "+steps[done-1]) {
+			t.Fatalf("update %d did not report the step it finished:\n%s", done, out)
+		}
+		if !strings.Contains(out, "of 7 done") {
+			t.Fatalf("update %d has no tally:\n%s", done, out)
+		}
+		if done < len(steps) && strings.Contains(out, steps[len(steps)-1]) && done != len(steps)-1 {
+			t.Fatalf("update %d carried an untouched step:\n%s", done, out)
+		}
+	}
+	if delta >= whole/2 {
+		t.Fatalf("a seven-step plan updated seven times: %d bytes whole, %d as deltas", whole, delta)
+	}
+	t.Logf("seven-step plan, seven updates: %d bytes whole, %d as deltas, %d saved (%d%%)",
+		whole, delta, whole-delta, 100*(whole-delta)/whole)
+
+	// An explicit read still answers with the whole plan.
+	read, err := tl.Run(ctx, []byte(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range steps {
+		if !strings.Contains(read, s) {
+			t.Fatalf("a read left out %q:\n%s", s, read)
+		}
+	}
+	// And the plan carried across a compaction is the log's, not the
+	// result's, so it is untouched by any of this.
+	if note := renderOpenPlan(openTodos(a.Todos())); note != "" {
+		t.Fatalf("a finished plan carried %q forward", note)
+	}
+}
+
 func TestTodoWriteReadAndFold(t *testing.T) {
 	a := &Agent{Log: &session.Memory{}}
 	tl := &TodoTool{Parent: a}
