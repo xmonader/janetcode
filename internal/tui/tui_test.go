@@ -2852,3 +2852,34 @@ func TestTypedWordsInPickerSearch(t *testing.T) {
 		t.Fatalf("picker search took %q", got)
 	}
 }
+
+// The prompt offers r to save a rule, and used to print that rule as an
+// absolute path truncated in the middle — "edit_file(/tmp/claude-1000/-h…"
+// said nothing about what would be allowed. Paths are now written the way
+// the rest of the interface writes them.
+func TestSuggestedRuleUsesShortPaths(t *testing.T) {
+	h := newHarness(t)
+	cwd := h.m.opts.Cwd
+	got := h.m.suggestedRule("edit_file", json.RawMessage(`{"path":`+strconv.Quote(filepath.Join(cwd, "main.go"))+`}`))
+	if got != "edit_file(./*)" {
+		t.Fatalf("rule in the working directory = %q", got)
+	}
+	got = h.m.suggestedRule("edit_file", json.RawMessage(`{"path":`+strconv.Quote(filepath.Join(cwd, "internal", "tui", "x.go"))+`}`))
+	if got != "edit_file(internal/tui/*)" {
+		t.Fatalf("rule under the working directory = %q", got)
+	}
+	// A bash rule is a command, not a path, and is left alone.
+	if got := h.m.suggestedRule("bash", json.RawMessage(`{"command":"go test ./..."}`)); got != "bash(go test *)" {
+		t.Fatalf("bash rule = %q", got)
+	}
+}
+
+// The banner used to say "esc cancels" about the permission prompt while
+// /help said esc denies and c cancels the turn.
+func TestBannerMatchesPermissionKeys(t *testing.T) {
+	h := newHarness(t)
+	v := plain(h.m.View())
+	if !strings.Contains(v, "esc denies") || strings.Contains(v, "n deny · esc cancels") {
+		t.Fatalf("banner:\n%s", v)
+	}
+}

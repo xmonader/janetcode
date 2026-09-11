@@ -1267,13 +1267,14 @@ func (m *model) welcome(resumed string) string {
 	sb.WriteString("\n")
 	switch {
 	case m.opts.Agent.AutoApprove:
-		sb.WriteString("auto-approve is on: tools run without asking")
+		sb.WriteString("auto-approve is on: tools run without asking · esc cancels the turn")
 	case m.opts.Agent.AutoEdits:
-		sb.WriteString("edits go through, commands ask (/edits)")
+		sb.WriteString("edits go through, commands ask (/edits) · esc denies")
 	default:
-		sb.WriteString("edits and commands ask first · y allow · a always · n deny")
+		// esc at a prompt denies the one call; c stops the whole turn.
+		sb.WriteString("edits and commands ask first · y allow · a always · n deny · esc denies · c cancels")
 	}
-	sb.WriteString(" · esc cancels · /help\n")
+	sb.WriteString(" · /help\n")
 	sb.WriteString("@file attaches · !cmd runs and shares the output · /undo reverts a bad change")
 	return sb.String()
 }
@@ -3544,6 +3545,19 @@ func (m *model) footerView() string {
 	return strings.Join(parts, "\n")
 }
 
+// suggestedRule is the rule r would save, written the way the rest of
+// the interface writes a path: relative to the working directory, or
+// with the home directory as ~. The rule saved to disk stays absolute;
+// only the prompt is shortened, because an absolute path truncated in
+// the middle told the user nothing about what they were about to allow.
+func (m *model) suggestedRule(name string, input json.RawMessage) string {
+	r := perm.Suggest(name, perm.Subject(name, input))
+	if dir, ok := strings.CutSuffix(r.Pattern, "/*"); ok && filepath.IsAbs(dir) {
+		r.Pattern = relTo(m.opts.Cwd, dir) + "/*"
+	}
+	return r.String()
+}
+
 func (m *model) permissionView() string {
 	c := m.pending.call
 	var sb strings.Builder
@@ -3553,8 +3567,7 @@ func (m *model) permissionView() string {
 	if c.Warning != "" {
 		sb.WriteString("\n" + styleErr.Bold(true).Render("⚠ "+sanitize(c.Warning)))
 	}
-	rule := perm.Suggest(c.Name, perm.Subject(c.Name, c.Input)).String()
-	sb.WriteString("\n" + m.permissionKeys(c.Name, rule, pendingExpandable(c)))
+	sb.WriteString("\n" + m.permissionKeys(c.Name, m.suggestedRule(c.Name, c.Input), pendingExpandable(c)))
 	return stylePermBox.Width(m.width - 2).Render(sb.String())
 }
 
