@@ -4,6 +4,7 @@ package session
 
 import (
 	"bufio"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -87,25 +89,46 @@ func New(dir, cwd, provider, model string) (*Session, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	id := time.Now().UTC().Format("20060102-150405") + "-" + randSuffix()
+	// An id already on disk would be written over from scratch by this
+	// session's first Append, taking the other conversation with it, so
+	// the suffix is drawn again until the path is free.
+	var id, path string
+	for tries := 0; ; tries++ {
+		suffix, err := randSuffix()
+		if err != nil {
+			return nil, err
+		}
+		id = time.Now().UTC().Format("20060102-150405") + "-" + suffix
+		path = filepath.Join(dir, id+".jsonl")
+		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		if tries == 16 {
+			return nil, fmt.Errorf("session id: %s is taken and no free suffix was found", id)
+		}
+	}
 	// The file is written with the first event, not here: a start that
 	// never gets to a prompt — no key, a bad key, a TUI opened and closed
 	// — would otherwise leave an empty session in the list every time.
 	return &Session{
 		Meta:      Meta{ID: id, Cwd: cwd, Provider: provider, Model: model, Created: time.Now().UTC()},
-		path:      filepath.Join(dir, id+".jsonl"),
+		path:      path,
 		unwritten: true,
 	}, nil
 }
 
-func randSuffix() string {
+// randSuffix distinguishes sessions started in the same second. It is the
+// only thing that does, and a collision is not cosmetic: the second
+// session's first Append rewrites the file at the shared path from
+// scratch, destroying the first session's conversation. So a suffix that
+// cannot be produced is fatal to New rather than silently 000000, which
+// is what a failed open or a short read of /dev/urandom used to give.
+func randSuffix() (string, error) {
 	b := make([]byte, 3)
-	f, err := os.Open("/dev/urandom")
-	if err == nil {
-		defer f.Close()
-		_, _ = f.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("session id: %w", err)
 	}
-	return fmt.Sprintf("%02x%02x%02x", b[0], b[1], b[2])
+	return fmt.Sprintf("%02x%02x%02x", b[0], b[1], b[2]), nil
 }
 
 // Open loads an existing session by ID and returns its messages.
@@ -362,8 +385,10 @@ func (s *Session) Append(e Event) (int, error) {
 
 // SetTitle stores a title in the metadata line and rewrites the file.
 func (s *Session) SetTitle(title string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Meta.Title = strings.TrimSpace(title)
-	return s.rewrite()
+	return s.rewriteLocked()
 }
 
 // Fork starts a new session holding a copy of this one's messages, so a
@@ -393,6 +418,8 @@ func Fork(dir string, from *Session, title string) (*Session, error) {
 
 // Label is the title, or the id when there is none.
 func (s *Session) Label() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Meta.Title != "" {
 		return s.Meta.Title
 	}
@@ -505,7 +532,24 @@ func newer(a, b Meta) bool {
 	return a.ID > b.ID
 }
 
+// snippetAround returns the line of text around byte offset at, which the
+// caller found in a lowercased copy of it.
+//
+// Lowercasing is not length-preserving: Ⱥ and Ⱦ each gain a byte, so a
+// message containing one puts the offset past the end of the original and
+// every slice below panics. The offset is therefore clamped and pulled
+// back to a rune boundary before anything is cut with it — a snippet a
+// couple of bytes off centre beats taking the whole search down.
 func snippetAround(text string, at int) string {
+	if at > len(text) {
+		at = len(text)
+	}
+	if at < 0 {
+		at = 0
+	}
+	for at > 0 && at < len(text) && !utf8.RuneStart(text[at]) {
+		at--
+	}
 	start := strings.LastIndexByte(text[:at], '\n') + 1
 	end := strings.IndexByte(text[at:], '\n')
 	if end < 0 {
@@ -522,15 +566,24 @@ func snippetAround(text string, at int) string {
 		if from+120 > len(line) {
 			from = len(line) - 120
 		}
-		line = "…" + line[from:from+120] + "…"
+		to := from + 120
+		for from > 0 && !utf8.RuneStart(line[from]) {
+			from--
+		}
+		for to < len(line) && !utf8.RuneStart(line[to]) {
+			to++
+		}
+		line = "…" + line[from:to] + "…"
 	}
 	return line
 }
 
 // SavePins stores the pins in the metadata line and rewrites the file.
 func (s *Session) SavePins(pins []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.Meta.Pins = append([]string(nil), pins...)
-	return s.rewrite()
+	return s.rewriteLocked()
 }
 
 // rewrite replaces the file with the metadata line followed by every event

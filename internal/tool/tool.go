@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -240,11 +239,6 @@ func decode(input json.RawMessage, v any) error {
 		return fmt.Errorf("invalid input: %w", err)
 	}
 	return nil
-}
-
-func fileExists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
 }
 
 // Previewer is implemented by tools that can describe what Run would do

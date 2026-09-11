@@ -510,12 +510,22 @@ func (m *Manager) queryClient(ctx context.Context, hint string) (*client, error)
 	if hint != "" {
 		return m.clientFor(ctx, hint)
 	}
+	// Map iteration order is random, so with two servers up the same
+	// question went to a different language's server each time it was
+	// asked and got a different answer. Take the first by name instead:
+	// arbitrary, but the same arbitrary choice every time.
 	m.mu.Lock()
-	for _, c := range m.clients {
-		m.mu.Unlock()
+	first := ""
+	for name := range m.clients {
+		if first == "" || name < first {
+			first = name
+		}
+	}
+	c := m.clients[first]
+	m.mu.Unlock()
+	if c != nil {
 		return c, nil
 	}
-	m.mu.Unlock()
 	// Nothing running yet: start the server for any file type it handles,
 	// by naming a file with each configured extension.
 	for _, s := range m.Config.Active() {

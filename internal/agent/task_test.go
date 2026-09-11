@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -402,5 +403,80 @@ func TestTaskRunsOnAnotherModel(t *testing.T) {
 	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, bare)
 	if _, err := bare.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"explore","model":"glm-5"}`)); err == nil {
 		t.Fatal("model accepted with no way to route it")
+	}
+}
+
+// An editing subagent whose model name cannot be routed must not leave its
+// checkout behind: the worktree and the base snapshot are made before the
+// name is resolved, and nothing remembers them when the call then fails.
+func TestTaskEditRefusedModelLeavesNoWorktree(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha\n"), 0o644)
+	gitInit(t, root)
+	parent := &Agent{Provider: &editScript{}, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent, Root: root}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+
+	// No resolver at all: the model parameter is refused.
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"go","edit":true,"model":"glm-5"}`)); err == nil {
+		t.Fatal("a model name was accepted without a resolver")
+	}
+	// A resolver that cannot serve the name: refused too.
+	task.Models = func(string) (llm.Provider, string, error) {
+		return nil, "", strErr("no configured provider serves it")
+	}
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"go","edit":true,"model":"nowhere-5"}`)); err == nil {
+		t.Fatal("an unroutable model was accepted")
+	}
+
+	if out, _ := gitRun(context.Background(), root, "worktree", "list"); strings.Count(out, "\n") != 0 {
+		t.Fatalf("stale worktrees left behind:\n%s", out)
+	}
+	if out, _ := gitRun(context.Background(), root, "for-each-ref", "refs/janetcode/"); out != "" {
+		t.Fatalf("snapshot ref left behind: %s", out)
+	}
+	if ids := task.ChildIDs(); len(ids) != 0 {
+		t.Fatalf("a failed run registered subagents: %v", ids)
+	}
+}
+
+// A deny rule is the user saying "not this, ever". The editing subagent
+// inherits the parent's deny list; the read-only one did not, so
+// delegating a job was a way to read exactly what a rule refused.
+func TestSubagentInheritsDenyRulesButNotAllow(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "secret.txt"), []byte("token"), 0o644)
+	parent := &Agent{
+		Provider: &scriptedByPrompt{}, Model: "m", System: "sys",
+		Rules: perm.Rules{
+			Deny:  []perm.Rule{{Tool: "read_file", Pattern: "secret.txt"}},
+			Allow: []perm.Rule{{Tool: "bash", Pattern: "rm -rf *"}},
+		},
+	}
+	task := &Task{Parent: parent, Root: root}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+
+	kid, err := task.child(nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := kid.Rules.Decide("read_file", "secret.txt"); v != perm.Denied {
+		t.Fatalf("a read-only subagent decided the denied path %q", v)
+	}
+	// The parent's allow list is not inherited: a subagent must not carry
+	// permission the user granted for another context.
+	if v, _ := kid.Rules.Decide("bash", "rm -rf /"); v == perm.Allowed {
+		t.Fatal("a subagent inherited an allow rule")
+	}
+
+	// The editing subagent has had this all along; keep it that way.
+	gitInit(t, root)
+	wt, err := newWorktree(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer wt.remove(context.Background())
+	if v, _ := task.editingChild(wt, nil).Rules.Decide("read_file", "secret.txt"); v != perm.Denied {
+		t.Fatalf("an editing subagent decided the denied path %q", v)
 	}
 }

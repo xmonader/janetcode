@@ -79,17 +79,26 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if max == 0 {
 		max = 10 * time.Minute
 	}
-	timeout := def
-	if in.TimeoutMS > 0 {
-		timeout = time.Duration(in.TimeoutMS) * time.Millisecond
-	}
-	if timeout > max {
-		timeout = max
-	}
+	timeout := clampTimeout(in.TimeoutMS, def, max)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := ShellCommand(ctx, in.Command)
+	// The command runs on a context of its own rather than on the turn's.
+	// os/exec kills a command as soon as the context it was started with
+	// is done, and the turn's context is done the moment this call
+	// returns — which, for a command handed to the jobs registry, is
+	// while it is still meant to be running. Cancellation and the timeout
+	// reach the command through killCmd below instead, and promotion
+	// simply stops forwarding them.
+	runCtx, killCmd := context.WithCancel(context.WithoutCancel(ctx))
+	promoted := false
+	defer func() {
+		if !promoted {
+			killCmd()
+		}
+	}()
+
+	cmd := ShellCommand(runCtx, in.Command)
 	cmd.Dir = t.Root
 	cmd.Env = scrubEnv(os.Environ())
 	setProcessGroup(cmd)
@@ -116,6 +125,12 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		// The command finished on its own. Anyone waiting on a promotion
 		// that raced with it hears that it did not happen.
 		fg.hand(0)
+	case <-ctx.Done():
+		// Cancelled or out of time: kill the process group and reap. A
+		// promotion racing with the cancel hears the same no.
+		killCmd()
+		err = <-wait
+		fg.hand(0)
 	case <-promoteChan(fg):
 		job, perr := t.Jobs.Adopt(in.Command, cmd, out, wait)
 		if perr != nil {
@@ -124,6 +139,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			err = <-wait
 			break
 		}
+		promoted = true
 		fg.hand(job.ID)
 		t.Cache.invalidate()
 		return fmt.Sprintf("Moved to the background as job %d (pid %d): %s\nIt is still running; output is collected in %s. You will be told when it finishes; the job tool shows output, waits, or kills it.", job.ID, job.Pid, in.Command, job.OutPath), nil
@@ -276,4 +292,24 @@ func scrubEnv(env []string) []string {
 		out = append(out, "LC_CTYPE=C.UTF-8")
 	}
 	return append(out, nonInteractiveEnv...)
+}
+
+// clampTimeout turns a timeout_ms from the model into a duration between
+// nothing and max, defaulting when it is absent.
+//
+// The clamp is done in milliseconds, before the multiplication: a
+// time.Duration counts nanoseconds, so a number of milliseconds past
+// about 2.5e11 overflows int64 and can come out negative. A negative
+// duration is not greater than max, so it used to survive the clamp and
+// reach context.WithTimeout as a deadline already in the past — the
+// command was killed the instant it started and reported as having timed
+// out after a nonsense interval. Models write 99999999999 for "no limit".
+func clampTimeout(ms int, def, max time.Duration) time.Duration {
+	if ms <= 0 {
+		return def
+	}
+	if maxMS := int64(max / time.Millisecond); int64(ms) > maxMS {
+		return max
+	}
+	return time.Duration(ms) * time.Millisecond
 }

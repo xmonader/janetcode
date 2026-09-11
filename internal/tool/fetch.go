@@ -97,8 +97,12 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 		}
 		return fmt.Sprintf("%s %d redirects to %s.\nThat is a different host, or drops from https to http, so it was not followed: the permission you have is for %s. Fetch the new URL explicitly if you want it.", u.String(), resp.StatusCode, next, u.Host), nil
 	}
+	// A read that stopped short — cancelled, or the connection dropped —
+	// is not a page. Returning the bytes that did arrive gives the model
+	// half a document with nothing to say it is half, and it answers from
+	// it as if it had read the whole thing.
 	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxFetchBytes+1))
-	if err != nil && !errors.Is(err, context.Canceled) {
+	if err != nil {
 		return "", fmt.Errorf("read %s: %w", u.Host, err)
 	}
 	truncated := len(body) > MaxFetchBytes

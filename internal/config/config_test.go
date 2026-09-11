@@ -426,3 +426,72 @@ func TestHookLimitsLoadAndValidate(t *testing.T) {
 		t.Fatalf("err = %v, want ErrBadConfig", err)
 	}
 }
+
+// Flag beats environment beats file, for every scalar that takes all
+// three. The existing precedence test always sets the flag, so the
+// environment layer in the middle was only ever checked for base_url:
+// dropping the setIf for effort, theme or provider passed the suite.
+func TestEnvBeatsFileForEveryScalar(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	file := `{"provider":"anthropic","model":"file-model","effort":"low","theme":"light",
+	  "anthropic":{"api_key":"k"},"openai":{"api_key":"k2"}}`
+	os.WriteFile(p, []byte(file), 0o600)
+
+	// Environment alone, no flags: every value comes from the environment.
+	cfg, err := load(p, env(map[string]string{
+		"JANETCODE_PROVIDER": "openai",
+		"JANETCODE_MODEL":    "env-model",
+		"JANETCODE_EFFORT":   "high",
+		"JANETCODE_THEME":    "dark",
+	}), Overrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Provider != "openai" {
+		t.Errorf("provider = %q, want the environment's", cfg.Provider)
+	}
+	if cfg.Model != "env-model" {
+		t.Errorf("model = %q, want the environment's", cfg.Model)
+	}
+	if cfg.Effort != "high" {
+		t.Errorf("effort = %q, want the environment's", cfg.Effort)
+	}
+	if cfg.Theme != "dark" {
+		t.Errorf("theme = %q, want the environment's", cfg.Theme)
+	}
+
+	// Flags on top of the same environment win.
+	cfg, err = load(p, env(map[string]string{
+		"JANETCODE_PROVIDER": "openai",
+		"JANETCODE_MODEL":    "env-model",
+		"JANETCODE_EFFORT":   "high",
+	}), Overrides{Provider: "anthropic", Model: "flag-model", Effort: "low"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Provider != "anthropic" || cfg.Model != "flag-model" || cfg.Effort != "low" {
+		t.Fatalf("flags did not win: provider=%q model=%q effort=%q", cfg.Provider, cfg.Model, cfg.Effort)
+	}
+
+	// A value only the file has survives both.
+	os.WriteFile(p, []byte(file), 0o600)
+	cfg, err = load(p, env(map[string]string{"JANETCODE_MODEL": "env-model"}), Overrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Effort != "low" || cfg.Theme != "light" {
+		t.Fatalf("file values lost: effort=%q theme=%q", cfg.Effort, cfg.Theme)
+	}
+}
+
+// An unusable theme is refused with its name, the way an unusable effort
+// already is: silently falling back leaves the user with a colour scheme
+// they did not choose and no idea why.
+func TestInvalidThemeIsRefused(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(p, []byte(`{"provider":"anthropic","anthropic":{"api_key":"k"}}`), 0o600)
+	_, err := load(p, env(map[string]string{"JANETCODE_THEME": "chartreuse"}), Overrides{})
+	if err == nil || !strings.Contains(err.Error(), "chartreuse") {
+		t.Fatalf("err = %v", err)
+	}
+}

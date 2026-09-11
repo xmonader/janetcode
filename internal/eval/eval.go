@@ -325,7 +325,11 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 	}
 	for name, content := range t.Files {
 		p := filepath.Join(dir, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err == nil {
+		// err is declared here, not in the if: an err scoped to the if
+		// leaves the check below reading the outer err, which is the nil
+		// from MkdirTemp, and the failure goes unreported.
+		err := os.MkdirAll(filepath.Dir(p), 0o755)
+		if err == nil {
 			err = os.WriteFile(p, []byte(content), 0o644)
 		}
 		if err != nil {

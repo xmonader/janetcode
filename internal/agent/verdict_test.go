@@ -128,6 +128,11 @@ func TestExercisedReadsRealRunnerOutput(t *testing.T) {
 		"Tests:       4 passed, 4 total":         true,
 		"":                                       false,
 		"Compiling foo v0.1.0\n    Finished dev": false,
+		// A go test binary run directly prints PASS and no "ok" line.
+		"=== RUN   TestX\n--- PASS: TestX (0.00s)\nPASS": true,
+		// But a build log saying its own checks pass is not evidence.
+		"all lint rules pass":           false,
+		"PASSWORD=xxx\nbuild succeeded": false,
 	} {
 		ran, _ := exercised(out)
 		if ran != wantRan {

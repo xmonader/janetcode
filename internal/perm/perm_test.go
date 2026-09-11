@@ -112,3 +112,74 @@ func TestLoadProjectAndMerge(t *testing.T) {
 		t.Fatalf("merge = %+v", m)
 	}
 }
+
+// The rule shapes that grant or refuse the broadest access, and that no
+// test held down: a rule on every tool, and a rule with an explicit but
+// empty pattern, which matches every call of its tool.
+func TestWildcardToolAndEmptyPattern(t *testing.T) {
+	star, err := Parse("*(*secret*)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if star.Tool != "*" || star.Pattern != "*secret*" {
+		t.Fatalf("parsed %+v", star)
+	}
+	rs := Rules{Deny: []Rule{star}}
+	// A deny on * has to reach every tool, whatever it is called.
+	for _, tool := range []string{"bash", "read_file", "edit_file", "mcp__x__y", "something_new"} {
+		if v, _ := rs.Decide(tool, "cat /etc/secrets/db"); v != Denied {
+			t.Fatalf("%s was not denied by a rule on every tool", tool)
+		}
+	}
+	// And only where the pattern matches.
+	if v, _ := rs.Decide("bash", "ls"); v != Ask {
+		t.Fatalf("an unrelated subject was decided %q", v)
+	}
+
+	// tool() is an explicit empty pattern, which means "every call".
+	empty, err := Parse("read_file()")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty.Pattern != "" {
+		t.Fatalf("parsed %+v", empty)
+	}
+	allow := Rules{Allow: []Rule{empty}}
+	for _, subject := range []string{"a.go", "/etc/passwd", ""} {
+		if v, _ := allow.Decide("read_file", subject); v != Allowed {
+			t.Fatalf("read_file(%q) was decided %q", subject, v)
+		}
+	}
+	if v, _ := allow.Decide("bash", "ls"); v != Ask {
+		t.Fatal("an empty pattern must not widen past its own tool")
+	}
+
+	// A bare rule on everything, with no pattern at all, stops the lot.
+	if v, _ := (Rules{Deny: []Rule{{Tool: "*"}}}).Decide("bash", "ls"); v != Denied {
+		t.Fatal("a bare deny on * let a call through")
+	}
+}
+
+// Add refuses duplicates on the allow list too, not only on deny: a rule
+// saved twice from two "always allow" answers would otherwise grow the
+// file without bound and show twice in /permissions.
+func TestAddDeduplicatesAllowAndDeny(t *testing.T) {
+	var rs Rules
+	r := Rule{Tool: "bash", Pattern: "go test *"}
+	if !rs.Add(Allowed, r) {
+		t.Fatal("the first add should report a change")
+	}
+	if rs.Add(Allowed, r) {
+		t.Fatal("the same allow rule was added twice")
+	}
+	if len(rs.Allow) != 1 {
+		t.Fatalf("allow = %+v", rs.Allow)
+	}
+	// The same rule on the other list is a different thing.
+	if !rs.Add(Denied, r) {
+		t.Fatal("deny should be tracked separately from allow")
+	}
+	if rs.Add(Denied, r) {
+		t.Fatal("the same deny rule was added twice")
+	}
+}

@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -140,5 +141,42 @@ func TestScrubEnvLocale(t *testing.T) {
 	got = scrubEnv([]string{"LC_ALL=de_DE.UTF-8", "LC_CTYPE=de_DE.UTF-8"})
 	if v, ok := get(got, "LC_ALL"); !ok || v != "de_DE.UTF-8" {
 		t.Errorf("a real LC_ALL must survive, got %q %v", v, ok)
+	}
+}
+
+// timeout_ms comes from the model, which writes 99999999999 for "no
+// limit". A time.Duration counts nanoseconds, so multiplying that by a
+// millisecond overflows int64 and comes out negative — and a negative
+// duration is not greater than the cap, so it used to survive the clamp
+// and reach context.WithTimeout as a deadline already in the past.
+func TestTimeoutFromTheModelIsClamped(t *testing.T) {
+	def, max := 2*time.Minute, 10*time.Minute
+	cases := []struct {
+		ms   int
+		want time.Duration
+	}{
+		{0, def},
+		{-1, def},
+		{5000, 5 * time.Second},
+		{99999999999, max},
+		{1 << 62, max},
+		{math.MaxInt, max},
+	}
+	for _, c := range cases {
+		if got := clampTimeout(c.ms, def, max); got != c.want {
+			t.Errorf("clampTimeout(%d) = %s, want %s", c.ms, got, c.want)
+		}
+	}
+}
+
+// The same number reaching the bash tool must not make the command time
+// out the instant it starts.
+func TestHugeTimeoutDoesNotKillTheCommandAtOnce(t *testing.T) {
+	out, err := Bash{Root: t.TempDir()}.Run(context.Background(), raw(`{"command":"echo hi","timeout_ms":99999999999}`))
+	if err != nil || !strings.Contains(out, "hi") {
+		t.Fatalf("out=%q err=%v", out, err)
+	}
+	if strings.Contains(out, "timed out") {
+		t.Fatalf("the command was killed on its own deadline: %q", out)
 	}
 }

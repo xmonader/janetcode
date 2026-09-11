@@ -296,7 +296,7 @@ func (t *httpTransport) ensureSSE(ctx context.Context) error {
 	}
 	if t.sseReady == nil {
 		t.sseReady = make(chan error, 1)
-		go t.openSSE()
+		go t.openSSE(t.sseReady)
 	}
 	ready := t.sseReady
 	t.mu.Unlock()
@@ -309,16 +309,38 @@ func (t *httpTransport) ensureSSE(ctx context.Context) error {
 	}
 }
 
-// openSSE runs the long-lived GET stream for the legacy transport.
-func (t *httpTransport) openSSE() {
+// openSSE runs the long-lived GET stream for the legacy transport. ready
+// is the latch ensureSSE is waiting on, passed in rather than read from
+// the transport because a failure clears the field.
+func (t *httpTransport) openSSE(ready chan error) {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() {
-		<-t.closed
-		cancel()
+		// Ends with the transport, or with this function: without the
+		// second case the watcher stays parked on a channel that is only
+		// closed by Close, so a transport abandoned without one leaks
+		// this goroutine and its context for the life of the process.
+		select {
+		case <-t.closed:
+			cancel()
+		case <-ctx.Done():
+		}
 	}()
+	// A stream that never opened is not a verdict on the server, only on
+	// this attempt: a blip on the initial GET used to be latched in
+	// sseReady and returned to every later caller for the rest of the
+	// process, with no way to retry short of restarting the server.
+	fail := func(err error) {
+		t.mu.Lock()
+		if t.sseReady == ready {
+			t.sseReady = nil
+		}
+		t.mu.Unlock()
+		ready <- err
+	}
 	req, err := t.newRequest(ctx, http.MethodGet, t.url, nil)
 	if err != nil {
-		t.sseReady <- err
+		fail(err)
 		return
 	}
 	req.Header.Set("Accept", "text/event-stream")
@@ -330,13 +352,13 @@ func (t *httpTransport) openSSE() {
 		return r, err
 	})
 	if err != nil {
-		t.sseReady <- err
+		fail(err)
 		return
 	}
 	if resp.StatusCode >= 300 || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
-		t.sseReady <- &statusError{code: resp.StatusCode, body: "not an SSE endpoint: " + string(body)}
+		fail(&statusError{code: resp.StatusCode, body: "not an SSE endpoint: " + string(body)})
 		return
 	}
 	defer resp.Body.Close()
@@ -356,12 +378,12 @@ func (t *httpTransport) openSSE() {
 		t.mu.Unlock()
 		if !announced {
 			announced = true
-			t.sseReady <- nil
+			ready <- nil
 		}
 		return true
 	})
 	if !announced {
-		t.sseReady <- errors.New("SSE stream ended before announcing an endpoint")
+		fail(errors.New("SSE stream ended before announcing an endpoint"))
 	}
 	select {
 	case <-t.closed:

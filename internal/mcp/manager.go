@@ -46,14 +46,18 @@ func (m *Manager) Client(name string) (*Client, bool) {
 
 // Start launches one server in the background. onDone runs when it is up
 // or failed; either way the manager remembers the outcome.
-func (m *Manager) Start(ctx context.Context, name string, cfg ServerConfig, onDone func(name string, c *Client, err error)) {
+//
+// It reports whether a start was actually begun. A server already running
+// or already starting is left alone and its onDone is never called, which
+// a caller that waits on onDone has to know about.
+func (m *Manager) Start(ctx context.Context, name string, cfg ServerConfig, onDone func(name string, c *Client, err error)) bool {
 	m.mu.Lock()
 	if m.clients == nil {
 		m.clients, m.errs, m.starting = map[string]*Client{}, map[string]error{}, map[string]bool{}
 	}
 	if m.starting[name] || m.clients[name] != nil {
 		m.mu.Unlock()
-		return
+		return false
 	}
 	m.starting[name] = true
 	delete(m.errs, name)
@@ -86,6 +90,7 @@ func (m *Manager) Start(ctx context.Context, name string, cfg ServerConfig, onDo
 			onDone(name, c, err)
 		}
 	}()
+	return true
 }
 
 // Stop closes one server and removes its tools, so Start can bring it
@@ -112,12 +117,17 @@ func (m *Manager) StartAll(ctx context.Context, servers map[string]ServerConfig,
 	var wg sync.WaitGroup
 	for name, cfg := range servers {
 		wg.Add(1)
-		m.Start(ctx, name, cfg, func(name string, c *Client, err error) {
+		started := m.Start(ctx, name, cfg, func(name string, c *Client, err error) {
 			defer wg.Done()
 			if onDone != nil {
 				onDone(name, c, err)
 			}
 		})
+		// A server already up or already starting never calls onDone, so
+		// waiting for it here would wait forever.
+		if !started {
+			wg.Done()
+		}
 	}
 	wg.Wait()
 }

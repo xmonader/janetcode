@@ -55,9 +55,13 @@ func (s *Session) SaveFeedback(items []Feedback) error {
 // Rate last assistant/message (or seq if >0).
 func (s *Session) Rate(seq int, rating Rating, note string) error {
 	if seq == 0 {
-		for i := len(s.ev) - 1; i >= 0; i-- {
-			if s.ev[i].Type == TypeAssistant {
-				seq = s.ev[i].Seq
+		// The log is appended to from the turn's tool goroutines while
+		// the UI rates a message, so take a snapshot rather than reading
+		// the live slice.
+		ev := s.Events()
+		for i := len(ev) - 1; i >= 0; i-- {
+			if ev[i].Type == TypeAssistant {
+				seq = ev[i].Seq
 				break
 			}
 		}
