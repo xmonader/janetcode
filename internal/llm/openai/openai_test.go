@@ -733,6 +733,40 @@ func TestReadStreamProviderQuirks(t *testing.T) {
 		},
 		want: want{names: []string{"read_file"}, args: []string{`{"path":"a"}`}},
 	}, {
+		// Two index-less calls opened in one chunk and continued in the
+		// next. Only the id says which continuation belongs to which
+		// call; by position, every one of them looks like a new call.
+		name: "index-less calls continued by id",
+		chunks: []string{
+			`{"choices":[{"delta":{"tool_calls":[{"id":"a","function":{"name":"read_file","arguments":""}},{"id":"b","function":{"name":"grep","arguments":""}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"id":"a","function":{"arguments":"{\"path\":"}},{"id":"b","function":{"arguments":"{\"pattern\":"}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"id":"a","function":{"arguments":"\"a\"}"}},{"id":"b","function":{"arguments":"\"x\"}"}}]}}]}`,
+			`{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		},
+		want: want{names: []string{"read_file", "grep"}, args: []string{`{"path":"a"}`, `{"pattern":"x"}`}},
+	}, {
+		// The name resent whole on every delta of the call, the way some
+		// providers send it. Appending gave "read_fileread_fileread_file".
+		name: "the name is resent on every delta",
+		chunks: []string{
+			`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"a","function":{"name":"read_file","arguments":""}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"read_file","arguments":"{\"path\":"}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"read_file","arguments":"\"a\"}"}}]}}]}`,
+			`{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		},
+		want: want{names: []string{"read_file"}, args: []string{`{"path":"a"}`}},
+	}, {
+		// The same thing one step at a time: the name grows from the
+		// front instead of arriving in fragments.
+		name: "the name is resent as it grows",
+		chunks: []string{
+			`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"a","function":{"name":"read"}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"read_fi"}}]}}]}`,
+			`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"read_file","arguments":"{\"path\":\"a\"}"}}]}}]}`,
+			`{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		},
+		want: want{names: []string{"read_file"}, args: []string{`{"path":"a"}`}},
+	}, {
 		name: "text alongside a tool call",
 		chunks: []string{
 			`{"choices":[{"delta":{"content":"Let me look. "}}]}`,
