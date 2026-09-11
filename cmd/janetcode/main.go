@@ -30,6 +30,7 @@ import (
 	"github.com/xmonader/janetcode/internal/eval"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/headless"
+	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -518,6 +519,14 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		return inspectOnce(subjects, *inspectWhat, os.Stdout)
 	}
 
+	// The hint engine remembers what it has already said, per project,
+	// in the config directory — never in the project itself. The record
+	// is read once, here; it is written only when a hint fires.
+	hintStore := hints.Open(cfgDir, memory.Key(cwd))
+	hintEngine := hints.New(hintStore.Shown())
+	hintEngine.Off = !cfg.ShowHints()
+	hintEngine.Record = func(string) { _ = hintStore.Save(hintEngine.Shown()) }
+
 	if *acpMode {
 		// The editor owns stdout: only ACP frames may go there, so every
 		// other message in this mode is already on stderr.
@@ -622,17 +631,25 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			Project: projectServers, ProjectHash: projectHash, ProjectTrusted: projectTrusted, Trust: trust,
 			Tokens: tokens,
 		},
-		Hooks:     &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
-		LSP:       diag,
-		Inspect:   subjects,
-		Features:  catalog,
-		Rules:     built.ruleInjector,
-		Models:    pool.For,
-		Jobs:      jobs,
-		Running:   deps.running,
-		Typed:     typed,
-		AutoTitle: true,
-		Verify:    &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: trust},
+		Hooks:    &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
+		LSP:      diag,
+		Inspect:  subjects,
+		Features: catalog,
+		Hints:    hintEngine,
+		Untrusted: untrustedProjectFiles(untrustedInput{
+			mcp:       len(projectServers) > 0 && !projectTrusted,
+			hooks:     hooksCfg.Len() > 0 && !hooksTrusted,
+			perms:     len(projRules.Allow) > 0 && !permTrusted,
+			verifying: verifyDefined && !verifyTrusted,
+		}),
+		UnpricedModel: unpricedModel(cfg, os.Getenv),
+		Rules:         built.ruleInjector,
+		Models:        pool.For,
+		Jobs:          jobs,
+		Running:       deps.running,
+		Typed:         typed,
+		AutoTitle:     true,
+		Verify:        &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: trust},
 		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: trust,
 			Save: func(kind string, r perm.Rule) error { return config.AddPermission(cfgPath, kind, r) }},
 	})

@@ -25,6 +25,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
+	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -62,6 +63,14 @@ type Options struct {
 	// Features is the catalogue of what janetcode can do; /help <topic>
 	// searches it and the embedded manual. Nil leaves /help as it was.
 	Features *feature.Catalog
+	// Hints is the one-time hint engine. Nil, or an engine with Off set,
+	// means the session says nothing beyond what it is asked.
+	Hints *hints.Engine
+	// Untrusted names project files that are present but waiting for
+	// approval (.mcp.json and friends), for the hint that says so.
+	Untrusted []string
+	// UnpricedModel is the configured model when nothing can price it.
+	UnpricedModel string
 	// Models resolves a model name to the backend serving it, so /model
 	// can follow a name to another provider.
 	Models func(string) (llm.Provider, string, error)
@@ -1056,6 +1065,7 @@ var commands = []command{
 	{name: "/usage", args: "", help: "tokens and cost for this session"},
 	{name: "/export", args: "[file.md]", help: "write this session as a Markdown transcript"},
 	{name: "/verbose", args: "", help: "toggle expanded tool output for the whole transcript (ctrl+o expands one turn)"},
+	{name: "/hints", args: "[on|off]", help: "one-time hints about features this session could have used; alone says how many have been given"},
 	{name: "/quit", args: "", help: "exit"},
 }
 
@@ -1141,34 +1151,37 @@ type model struct {
 	histIdx      int    // == len(history) when not browsing
 	draft        string // input saved while browsing history
 
-	running        bool
-	cancelling     bool
-	compacting     bool
-	cancel         context.CancelFunc
-	startedAt      time.Time
-	phase          string // what the agent is doing right now
-	pending        *permissionMsg
-	denying        bool // the input box is collecting a reason for a denial
-	status         string
-	lastTurn       string                   // usage summary of the last turn
-	lastVerdict    string                   // the last turn's verdict line
-	ticks          int                      // tick count, for slow periodic checks
-	lastUsage      llm.Usage                // the last turn's usage
-	verifyTipShown bool                     // the one-time hint about verification gates
-	queued         []string                 // prompts typed while a turn was running
-	steering       []string                 // notes handed to the running turn (ctrl+s)
-	custom         map[string]prompt.Custom // user-defined slash commands
-	clipboard      func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
-	compIdx        int                      // highlighted row of the completion menu
-	compArgs       bool                     // the menu is offering arguments, not commands
-	compFor        string                   // input value the highlight belongs to
-	lastFind       string                   // last /find query, for repeats
-	lastFindAt     int                      // line of the last hit, so repeats advance past it
-	picker         *picker                  // open searchable list
-	connect        *connect                 // open provider/model dialog
-	connectGen     int
-	quitting       bool
-	branch         string
+	running     bool
+	cancelling  bool
+	compacting  bool
+	cancel      context.CancelFunc
+	startedAt   time.Time
+	phase       string // what the agent is doing right now
+	pending     *permissionMsg
+	denying     bool // the input box is collecting a reason for a denial
+	status      string
+	lastTurn    string                   // usage summary of the last turn
+	lastVerdict string                   // the last turn's verdict line
+	ticks       int                      // tick count, for slow periodic checks
+	lastUsage   llm.Usage                // the last turn's usage
+	hints       *hints.Engine            // event-driven one-time hints; nil disables them
+	hintState   hints.State              // what the hint rules are allowed to look at
+	bangSeen    map[string]int           // !commands the user ran, by command line
+	denials     map[string]int           // refusals by the rule shape they would have saved
+	queued      []string                 // prompts typed while a turn was running
+	steering    []string                 // notes handed to the running turn (ctrl+s)
+	custom      map[string]prompt.Custom // user-defined slash commands
+	clipboard   func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
+	compIdx     int                      // highlighted row of the completion menu
+	compArgs    bool                     // the menu is offering arguments, not commands
+	compFor     string                   // input value the highlight belongs to
+	lastFind    string                   // last /find query, for repeats
+	lastFindAt  int                      // line of the last hit, so repeats advance past it
+	picker      *picker                  // open searchable list
+	connect     *connect                 // open provider/model dialog
+	connectGen  int
+	quitting    bool
+	branch      string
 	// term writes the escape sequences that let the terminal take part:
 	// OSC 133 zones, desktop notifications, the window title.
 	term *termIntegration
@@ -1230,7 +1243,31 @@ func newModel(opts Options) *model {
 	} else {
 		m.transcript.banner(m.welcome(""))
 	}
+	// The hints that are about the session's starting conditions — an
+	// untrusted .mcp.json, a model nothing can price, a resumed session
+	// whose history was already summarised — are evaluated here, once,
+	// while the facts are in front of the user.
+	m.hints = opts.Hints
+	m.hintState.Untrusted = opts.Untrusted
+	m.hintState.UnpricedModel = opts.UnpricedModel
+	m.hintState.ResumedAfterCompaction = opts.Resumed > 0 && resumedAfterCompaction(opts.Session)
+	m.noteHint(nil)
 	return m
+}
+
+// resumedAfterCompaction reports whether the session being reopened had
+// already been summarised, which is why the model has a summary rather
+// than the conversation.
+func resumedAfterCompaction(sess *session.Session) bool {
+	if sess == nil {
+		return false
+	}
+	for _, e := range sess.Events() {
+		if e.Type == session.TypeCompactSummary {
+			return true
+		}
+	}
+	return false
 }
 
 // detectTheme decides which palette the session uses. An explicit theme
@@ -1546,6 +1583,7 @@ func (m *model) drainEvents() {
 
 func (m *model) applyEvent(ev agent.Event) {
 	m.transcript.apply(ev)
+	m.observeEvent(ev)
 	switch ev.Kind {
 	case agent.EvThinking:
 		m.phase = "thinking"
@@ -1610,6 +1648,10 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		m.input.InsertString(m.storePaste(string(msg.Runes)))
 		m.layout()
 		m.status = fmt.Sprintf("pasted %s as a chip · it is sent in full", plural(strings.Count(string(msg.Runes), "\n")+1, "line"))
+		// A bracketed paste is one event, not a keystroke: the whole
+		// text arrives at once, which is the moment @path is worth
+		// knowing about.
+		m.observePaste(string(msg.Runes))
 		m.refresh(false)
 		return nil, true
 	}
@@ -2179,10 +2221,16 @@ func (m *model) answer(d agent.Decision, reason string) {
 	}
 	m.pending.reply <- verdict{d: d, reason: reason}
 	m.transcript.permissionAnswered(m.pending.call, d)
+	call := m.pending.call
 	m.pending = nil
 	m.pendingClosedAt = time.Now()
 	m.denying = false
 	m.phase = "thinking"
+	if d == agent.Deny {
+		// Counted by the rule the r key would have saved, because that is
+		// what the hint is going to offer.
+		m.observeDenial(perm.Suggest(call.Name, perm.Subject(call.Name, call.Input)).String())
+	}
 	m.refresh(false)
 }
 
@@ -2249,6 +2297,9 @@ func (m *model) shell(cmdline string) tea.Cmd {
 	// A command the user ran themselves names hosts as much as a prompt
 	// does: curl localhost:3000 is the user pointing at it.
 	m.opts.Typed.Note(cmdline)
+	// It also says what the project's check command is: somebody running
+	// the tests by hand twice is somebody who has not met /verify.
+	m.observeBang(cmdline)
 	input, _ := json.Marshal(map[string]string{"command": cmdline})
 	call := agent.ToolCall{ID: fmt.Sprintf("shell-%d", time.Now().UnixNano()), Name: "shell", Input: input}
 	m.transcript.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
@@ -2392,12 +2443,16 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		}
 		if n := m.filesChangedLastTurn(); n > 0 {
 			m.status += fmt.Sprintf(" · %s changed · /undo reverts", plural(n, "file"))
-			if m.opts.Verify != nil && len(m.opts.Verify.Config.Commands) == 0 && !m.verifyTipShown {
-				m.verifyTipShown = true
-				m.transcript.tip("/verify set \"go test ./...\" runs the project's checks after every change and sends failures back to the model; it is saved in .janetcode/verify.json")
-			}
 		}
 	}
+	// The end of a turn is where the hint rules get their chance: the
+	// counters are settled, nothing is being asked of the user, and a
+	// line here is read rather than scrolled past.
+	m.noteHint(func(s *hints.State) {
+		if m.filesChangedLastTurn() > 0 {
+			s.MutatingTurns++
+		}
+	})
 	m.reportCacheWaste()
 	m.steering = nil
 	m.term.turnEnded(msg.err == nil, m.status)
@@ -2561,6 +2616,8 @@ func (m *model) command(text string) tea.Cmd {
 		return m.goalCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/agents":
 		m.agentsCommand()
+	case "/hints":
+		m.hintsCommand(fields[1:])
 	case "/verbose":
 		m.verbose = !m.verbose
 		m.transcript.info("verbose tool output " + onOff(m.verbose))
@@ -3105,7 +3162,7 @@ var helpGroups = []struct {
 	{"reviewing the work", []string{"/open", "/diff", "/changes", "/blame", "/find", "/verbose", "/export", "/usage", "/stats", "/context"}},
 	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/jobs"}},
 	{"the project", []string{"/memory", "/remember", "/forget", "/skills", "/verify", "/permissions", "/hooks", "/mcp", "/lsp"}},
-	{"diagnostics", []string{"/inspect", "/trajectory", "/reload"}},
+	{"diagnostics", []string{"/inspect", "/trajectory", "/reload", "/hints"}},
 }
 
 // quitArmWindow is how long a first ctrl+c when idle stays armed.

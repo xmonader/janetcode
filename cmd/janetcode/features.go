@@ -220,6 +220,45 @@ func firstSentence(s string) string {
 	return strings.TrimSuffix(s, ".")
 }
 
+// untrustedInput says which of the project's own files are present but
+// not enabled. A file sitting in the repository does nothing until it is
+// trusted, and a user who does not know that thinks the feature is
+// broken.
+type untrustedInput struct {
+	mcp, hooks, perms, verifying bool
+}
+
+func untrustedProjectFiles(in untrustedInput) []string {
+	var out []string
+	if in.mcp {
+		out = append(out, ".mcp.json")
+	}
+	if in.hooks {
+		out = append(out, ".janetcode/hooks.json")
+	}
+	if in.perms {
+		out = append(out, ".janetcode/permissions.json")
+	}
+	if in.verifying {
+		out = append(out, ".janetcode/verify.json")
+	}
+	return out
+}
+
+// unpricedModel names the model when it came from the environment and
+// nothing can price it, which is why the cost figures will be blank.
+// Only the environment, because a model written into the config file is
+// a deliberate choice made next to the prices.
+func unpricedModel(cfg *config.Config, getenv func(string) string) string {
+	if cfg == nil || getenv("JANETCODE_MODEL") == "" || cfg.Model == "" {
+		return ""
+	}
+	if cfg.PriceFor(cfg.Model) != nil {
+		return ""
+	}
+	return cfg.Model
+}
+
 // registerFeatureSubject makes the catalogue answerable through
 // --inspect features and /inspect features, beside every other part of
 // the session state.

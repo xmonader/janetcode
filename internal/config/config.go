@@ -118,6 +118,11 @@ type Config struct {
 	// Memory enables automatic extraction of project memory after turns
 	// that changed something; nil means on. /remember always works.
 	Memory *bool `json:"memory,omitempty"`
+	// Hints enables the one-time notes about features a session could
+	// have used; nil means on. Each fires at most once per project, so
+	// turning them off is for somebody who knows the harness and wants
+	// the transcript quiet. /hints on|off does it for one session.
+	Hints *bool `json:"hints,omitempty"`
 }
 
 // StreamLimits are the watchdog bounds for one streamed model call.
@@ -130,6 +135,9 @@ func (c *Config) StreamLimits() llm.StreamLimits {
 
 // AutoMemory reports whether memory is extracted automatically.
 func (c *Config) AutoMemory() bool { return c.Memory == nil || *c.Memory }
+
+// ShowHints reports whether one-time feature hints are enabled.
+func (c *Config) ShowHints() bool { return c.Hints == nil || *c.Hints }
 
 // ModelMeta is what a provider's model list said about one model.
 type ModelMeta struct {

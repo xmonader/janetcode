@@ -722,6 +722,31 @@ janetcode could do about something, it used to invent a command that does
 not exist. That section sits above the cache breakpoint, so on a provider
 with prompt caching it is read from the cache after the first request.
 
+### One-time hints
+
+janetcode has features nobody finds. A user who has approved the same
+command nine times does not know that pressing `r` would have stopped it
+asking; a user watching a test suite hold a turn open for two minutes does
+not know about `ctrl+g`. A manual does not help, because nobody reads one
+at the moment they need it.
+
+So a small rule engine watches what the session is already watching and
+puts one faint line in the transcript at the moment the problem is in front
+of you: the verification gate on the third changing turn (or the second time
+you run the tests yourself with `!`), the `r` key on the third refusal of
+the same shape of call, `ctrl+g` after a command holds a turn for twenty
+seconds, `/context` and `/compact` at 60% of the window, `@path` after a
+large paste or a stack trace, `/usage` at $0.50, the trust command for a
+project file that is present but not enabled, the `prices` key for a model
+nothing can price, and `/context` on a session resumed after a compaction.
+
+Each fires at most once per project, ever. One at most per moment. Never
+while a permission prompt or a picker is open. Never for a feature you
+already use. `/hints off`, or `"hints": false` in the config file, silences
+the lot. The rules are evaluated on events — a turn ending, a tool result, a
+denial, a paste — never on a render and never on a keystroke, which is
+tested.
+
 ### Inspecting the session
 
 A session should not have to be guessed at. `/inspect <subject>` in the

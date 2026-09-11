@@ -1,0 +1,187 @@
+package tui
+
+import (
+	"regexp"
+	"strings"
+
+	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/hints"
+)
+
+// The terminal's side of the hint engine: it watches what it is already
+// watching, and asks the engine whether any of it is worth a line.
+//
+// Everything here runs on events — an agent event, a turn ending, a
+// denial, a paste — and never on a render or a keystroke. Recording an
+// observation is a field assignment; evaluating is a walk over nine
+// predicates. The only I/O is the one small write that happens when a
+// hint fires, which happens at most nine times in the life of a project.
+
+// noteHint records an observation and evaluates. A hint that comes out
+// goes into the transcript as a tip, the same faint one-line form the
+// first-run notes have always used.
+func (m *model) noteHint(record func(*hints.State)) {
+	if m.hints == nil || m.hints.Off {
+		return
+	}
+	if record != nil {
+		record(&m.hintState)
+	}
+	m.refreshHintState()
+	if text := m.hints.Eval(&m.hintState); text != "" {
+		m.transcript.tip(text)
+		// Only once there is a window: at startup the first layout has
+		// not happened yet, and the banner is redrawn with everything
+		// else the moment it does.
+		if m.width > 0 {
+			m.refresh(false)
+		}
+	}
+}
+
+// refreshHintState fills in the parts of the state that are cheap to
+// read from what the session already holds: the gauge, the spend, and
+// whether the user is being asked something.
+func (m *model) refreshHintState() {
+	s := &m.hintState
+	s.Blocked = m.pending != nil || m.picker != nil || m.connect != nil || m.denying
+	s.Promotable = m.opts.Running != nil
+	if m.opts.Verify != nil {
+		s.VerifyConfigured = len(m.opts.Verify.Config.Commands) > 0
+	}
+	if ag := m.opts.Agent; ag != nil {
+		if usd, ok := ag.UsageSnapshot().Cost(ag.Price); ok {
+			s.CostUSD = usd
+		}
+		// The gauge is already computed for the status line; this reads
+		// the estimate the agent published rather than walking the
+		// history again.
+		if limit := ag.CompactThreshold(); limit > 0 {
+			est := ag.TokenEstimate()
+			if !m.running {
+				est = ag.EstimateTokens()
+			}
+			s.ContextPct = est * 100 / limit
+		}
+	}
+	s.Used = m.featureUsed
+}
+
+// featureUsed reports whether the user has reached for a feature
+// before, so that a hint never introduces something they already know.
+// It is replaced by the usage counter in a later change; until then
+// nothing is known, which is the safe answer.
+func (m *model) featureUsed(string) bool { return false }
+
+// hintsCommand is /hints on|off.
+func (m *model) hintsCommand(args []string) {
+	if m.hints == nil {
+		m.transcript.info("hints are not available in this session")
+		return
+	}
+	switch {
+	case len(args) == 0:
+		state := "on"
+		if m.hints.Off {
+			state = "off"
+		}
+		shown := len(m.hints.Shown())
+		m.transcript.info(plural(shown, "hint") + " given for this project · hints are " + state + " · /hints off silences them, and \"hints\": false in the config file does it for every project")
+	case args[0] == "on":
+		m.hints.Off = false
+		m.transcript.info("hints on")
+	case args[0] == "off":
+		m.hints.Off = true
+		m.transcript.info("hints off · \"hints\": false in the config file makes it permanent")
+	default:
+		m.transcript.errorf("usage: /hints [on|off]")
+	}
+}
+
+// slowCommandSeconds is how long a foreground command has to hold a turn
+// before ctrl+g is worth mentioning.
+const slowCommandSeconds = 20
+
+// observeEvent is called from applyEvent for the kinds the hints care
+// about. It is a switch over two event kinds, on a path that already
+// switches over ten.
+func (m *model) observeEvent(ev agent.Event) {
+	if m.hints == nil || m.hints.Off {
+		return
+	}
+	if ev.Kind != agent.EvToolResult || ev.Call == nil || ev.Call.Name != "bash" {
+		return
+	}
+	secs := int(ev.Duration.Seconds())
+	if secs < slowCommandSeconds || secs <= m.hintState.SlowCommandSeconds {
+		return
+	}
+	m.noteHint(func(s *hints.State) {
+		s.SlowCommandSeconds = secs
+		s.SlowCommand = ev.Call.Name
+	})
+}
+
+// testCommandRe recognises the commands a user runs by hand over and
+// over and should have handed to the verification gate instead.
+var testCommandRe = regexp.MustCompile(`(?i)\b(go test|pytest|npm (run )?test|yarn test|cargo (test|build)|make (test|check)|go build|go vet|tsc|jest|mvn|gradle|rspec|phpunit|ctest)\b`)
+
+// observeBang records a shell command the user ran themselves. The
+// second time the same test command is typed, the gate is worth naming.
+func (m *model) observeBang(cmdline string) {
+	if m.hints == nil || m.hints.Off {
+		return
+	}
+	cmdline = strings.TrimSpace(cmdline)
+	if cmdline == "" || !testCommandRe.MatchString(cmdline) {
+		return
+	}
+	if m.bangSeen == nil {
+		m.bangSeen = map[string]int{}
+	}
+	m.bangSeen[cmdline]++
+	if m.bangSeen[cmdline] < 2 {
+		return
+	}
+	m.noteHint(func(s *hints.State) { s.RepeatedBangCommand = cmdline })
+}
+
+// observeDenial records a refusal by the rule shape it would have
+// saved, which is the shape the r key offers.
+func (m *model) observeDenial(shape string) {
+	if m.hints == nil || m.hints.Off || shape == "" {
+		return
+	}
+	if m.denials == nil {
+		m.denials = map[string]int{}
+	}
+	m.denials[shape]++
+	if m.denials[shape] < 3 {
+		return
+	}
+	m.noteHint(func(s *hints.State) {
+		s.DeniedShape, s.DeniedCount = shape, m.denials[shape]
+	})
+}
+
+// traceRe matches the shapes of a pasted stack trace or diagnostic dump
+// in the languages janetcode is most often pointed at.
+var traceRe = regexp.MustCompile(`(?m)^\s*(at [\w.$]+\(|File "|\s+File |goroutine \d+ \[|panic: |Traceback \(most recent|\tat |Caused by: |\s+at .*\.(java|kt|scala|cs):\d+)`)
+
+// observePaste is the one hint that runs from a key event, because a
+// bracketed paste *is* one event: the whole text arrives at once, and
+// the moment to mention @path is while the user is looking at what they
+// just pasted.
+func (m *model) observePaste(text string) {
+	if m.hints == nil || m.hints.Off {
+		return
+	}
+	lines := strings.Count(text, "\n") + 1
+	trace := traceRe.MatchString(text)
+	if lines < 40 && !trace {
+		return
+	}
+	m.noteHint(func(s *hints.State) {
+		s.PasteLines, s.PasteLooksLikeTrace = lines, trace
+	})
+}
