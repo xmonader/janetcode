@@ -68,9 +68,21 @@ func Interventions(events []session.Event) []Intervention {
 		case session.TypeCompactStart:
 			iv.Kind, iv.Text = IvCompaction, textOr(e, "the conversation was summarised to free context")
 		case session.TypeVerdict:
+			// Only a verdict that disagrees. Every turn ends with one,
+			// so counting the agreeable ones made /why answer "verdict
+			// (turn 2) · nothing here edited code" after a session in
+			// which the harness had done nothing at all — and buried
+			// the compaction or the refusal that /why exists for behind
+			// a row of them.
+			if !e.IsError {
+				continue
+			}
 			iv.Kind, iv.Text = IvVerdict, textOr(e, "")
 			if iv.Text == "" {
 				continue
+			}
+			if e.Name != "" {
+				iv.Text = e.Name + ": " + iv.Text
 			}
 		case session.TypeNotice:
 			iv.Kind, iv.Text = classifyNotice(textOr(e, "")), textOr(e, "")
@@ -177,7 +189,7 @@ var because = map[InterventionKind]string{
 	IvVerdict:    "janetcode watched what the turn actually did — which files changed, which commands ran and what they exited with — and compared it with what the model said about it. The verdict is the harness's account, not the model's.",
 	IvFallback:   "the model call failed in a way another model could survive (an exhausted quota, or rate limits and server errors that outlived the provider's own retries), so the call was retried on the next model in fallback_models. The partial answer from the failed attempt was discarded.",
 	IvWatchdog:   "the streamed model call stopped producing for longer than the idle limit, so it was ended rather than left hanging. stream_idle_timeout and stream_max_duration in the config set those bounds.",
-	IvBudget:     "the run reached the spending limit it was given (--max-cost), so it stopped after the model call that crossed it. /usage has the breakdown.",
+	IvBudget:     "the session reached the spending limit it was given — /budget in the terminal, --max-cost headless — so it stopped after the model call that crossed it. /usage has the breakdown, and /budget off removes the ceiling.",
 	IvRefused:    "the tool call was not allowed: you refused it, a deny rule matched it, or the session is read-only. The model was told so and can work around it; /permissions shows the rules in force.",
 	IvRecovery:   "the model wrote a tool call as text instead of calling it. janetcode read the text back as a call and ran it, so the turn carried on rather than stalling on a formatting mistake.",
 	IvArchive:    "the model asked for a value it no longer had in context, and janetcode fetched the matching excerpts out of the archive and gave them back instead of letting it guess.",

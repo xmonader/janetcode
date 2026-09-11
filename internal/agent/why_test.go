@@ -31,7 +31,11 @@ func recorded() []session.Event {
 			Output: "context pruned: ~90000 → ~40000 tokens"},
 		{Seq: 9, Time: t(8), Type: session.TypeNotice, Turn: 2,
 			Output: "1 of 2 verification commands failed · sending the model back to fix it (1/3)"},
-		{Seq: 10, Time: t(9), Type: session.TypeVerdict, Turn: 2, Output: "tests pass"},
+		// A verdict that agrees with the model is not an intervention;
+		// one that contradicts it is.
+		{Seq: 10, Time: t(9), Type: session.TypeVerdict, Turn: 2, Name: "no changes", Output: "nothing here edited code"},
+		{Seq: 10, Time: t(9), Type: session.TypeVerdict, Turn: 2, Name: "unverified", IsError: true,
+			Output: "code changed and nothing was run"},
 		{Seq: 11, Time: t(10), Type: session.TypeNotice, Turn: 3,
 			Output: "turn stopped: the same tool call three times with no new result"},
 		{Seq: 12, Time: t(11), Type: session.TypeTurnEnd, Turn: 3, Reason: "stuck"},
@@ -52,6 +56,24 @@ func TestInterventionsPickOutTheHarnessAndNothingElse(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("%d: got %q, wanted %q", i, got[i], want[i])
 		}
+	}
+}
+
+// Every turn ends with a verdict, so counting the ones that agree with
+// the model made /why answer "verdict · nothing here edited code" after
+// a session in which the harness had done nothing at all, and buried
+// the compaction or the refusal that /why exists for.
+func TestAVerdictThatAgreesIsNotAnIntervention(t *testing.T) {
+	for _, iv := range Interventions(recorded()) {
+		if strings.Contains(iv.Text, "nothing here edited code") {
+			t.Fatal("an agreeable verdict was reported as an intervention")
+		}
+	}
+	got := WhyLast([]session.Event{
+		{Seq: 1, Type: session.TypeVerdict, Turn: 1, Name: "verified", Output: "tests pass"},
+	}, 1)
+	if !strings.Contains(got, "has not intervened") {
+		t.Fatalf("a session of nothing but agreeable verdicts claimed an intervention:\n%s", got)
 	}
 }
 
