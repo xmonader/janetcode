@@ -722,6 +722,23 @@ janetcode could do about something, it used to invent a command that does
 not exist. That section sits above the cache breakpoint, so on a provider
 with prompt caching it is read from the cache after the first request.
 
+### Why did it do that? `/why`
+
+The harness intervenes. It summarises a conversation that got long, stops
+a turn going in circles, sends the model back to fix a failing test, falls
+back to another model when a quota runs out, kills a stream that stopped
+producing, refuses a tool call, contradicts an answer that claimed more
+than the turn showed. Each of those is surprising the first time it
+happens, and each leaves a record in the session ledger.
+
+`/why` reads that ledger and explains the most recent one in a paragraph:
+what kind of intervention it was, what the harness said at the time, and
+why it does that. `/why 2` is the one before, and so on back. There is no
+model call behind it — asking the model why the harness did something is
+asking the wrong party, and paying for the answer — so it costs nothing
+and can be asked as often as it is useful. `/trajectory` still has the raw
+records.
+
 ### One-time hints
 
 janetcode has features nobody finds. A user who has approved the same

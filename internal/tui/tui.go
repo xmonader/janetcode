@@ -500,6 +500,27 @@ func (m *model) trajectoryCommand(args []string) {
 	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 }
 
+// whyCommand explains the last thing the harness did on its own. It
+// reads the ledger the session already has open and answers from a table
+// of explanations: no model call, so asking costs nothing and can be
+// asked as often as it is useful.
+func (m *model) whyCommand(args []string) {
+	if m.opts.Session == nil {
+		m.transcript.errorf("no session")
+		return
+	}
+	n := 1
+	if len(args) > 0 {
+		v, err := strconv.Atoi(args[0])
+		if err != nil || v < 1 {
+			m.transcript.errorf("usage: /why [n] · n counts back from the most recent")
+			return
+		}
+		n = v
+	}
+	m.transcript.info(agent.WhyLast(m.sessionEvents(), n))
+}
+
 func (m *model) feedbackCommand(args []string) {
 	if m.opts.Session == nil {
 		m.transcript.errorf("no session")
@@ -1048,6 +1069,7 @@ var commands = []command{
 	{name: "/unpin", args: "<n>", help: "remove a pin"},
 	{name: "/plan", args: "[request|approve|off]", help: "plan mode: the model explores and writes a plan; approve executes it"},
 	{name: "/trajectory", args: "[n|grep <words>]", help: "event ledger of this session (turn/step/tool/compaction); n shows one record"},
+	{name: "/why", args: "[n]", help: "explain the last thing the harness did on its own, in plain words; n goes further back"},
 	{name: "/feedback", args: "up|down [note]", help: "rate the last assistant message (not sent to the model)"},
 	{name: "/goal", args: "[objective|pause|resume|done]", help: "set a goal and start on it now; the model keeps going round after round until it is complete or blocked"},
 	{name: "/agents", args: "", help: "list continuable subagents started with the task tool"},
@@ -2608,6 +2630,8 @@ func (m *model) command(text string) tea.Cmd {
 		}
 	case "/plan":
 		return m.planCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/why":
+		m.whyCommand(fields[1:])
 	case "/trajectory":
 		m.trajectoryCommand(fields[1:])
 	case "/feedback":
@@ -3162,7 +3186,7 @@ var helpGroups = []struct {
 	{"reviewing the work", []string{"/open", "/diff", "/changes", "/blame", "/find", "/verbose", "/export", "/usage", "/stats", "/context"}},
 	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/jobs"}},
 	{"the project", []string{"/memory", "/remember", "/forget", "/skills", "/verify", "/permissions", "/hooks", "/mcp", "/lsp"}},
-	{"diagnostics", []string{"/inspect", "/trajectory", "/reload", "/hints"}},
+	{"diagnostics", []string{"/why", "/inspect", "/trajectory", "/reload", "/hints"}},
 }
 
 // quitArmWindow is how long a first ctrl+c when idle stays armed.

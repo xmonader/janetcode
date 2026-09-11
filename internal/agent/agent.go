@@ -307,7 +307,7 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 // RunBlocks is Run for a user turn made of several blocks (text plus
 // images).
 func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Event)) error {
-	emit = serialize(a.traced(emit))
+	emit = serialize(a.ledgered(a.traced(emit)))
 	if a.Provider == nil {
 		return errors.New("agent: no provider")
 	}
@@ -426,8 +426,8 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			note, stop := a.loops.recordText(resp.Message.Text())
 			a.loopMu.Unlock()
 			if stop {
+				// The notice is logged by the ledger wrapper around emit.
 				emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
-				a.logEvent(session.Event{Type: session.TypeNotice, Output: "turn stopped: " + a.loops.reason})
 				a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
 				return ErrStuck
 			}
@@ -520,7 +520,6 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		if a.stuck {
 			a.stuck = false
 			emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
-			a.logEvent(session.Event{Type: session.TypeNotice, Output: "turn stopped: " + a.loops.reason})
 			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
 			return ErrStuck
 		}
@@ -751,6 +750,23 @@ func (a *Agent) debugf(format string, args ...any) {
 		return
 	}
 	fmt.Fprintf(a.Debug, "%s "+format+"\n", append([]any{time.Now().Format("15:04:05.000")}, args...)...)
+}
+
+// ledgered wraps emit so that every harness notice lands in the session
+// ledger as well as on the screen. Without it a notice is a line that
+// scrolls away, and /why — and anyone reading the session afterwards —
+// has nothing to work from. It writes one small record per notice, of
+// which a busy turn produces a handful.
+func (a *Agent) ledgered(emit func(Event)) func(Event) {
+	if emit == nil {
+		emit = func(Event) {}
+	}
+	return func(e Event) {
+		if e.Kind == EvNotice && strings.TrimSpace(e.Text) != "" {
+			a.logEvent(session.Event{Type: session.TypeNotice, Turn: a.turnN, Step: a.stepN, Output: e.Text})
+		}
+		emit(e)
+	}
 }
 
 // traced wraps emit with debug logging of every event.
