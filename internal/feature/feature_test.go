@@ -164,6 +164,24 @@ func TestKindNamedTurnsAListingQueryIntoAListing(t *testing.T) {
 	}
 }
 
+func TestListWrapsToTheTerminalWidth(t *testing.T) {
+	c := sample()
+	c.Add(Feature{Name: "/verify", Kind: KindCommand,
+		Invoke: "/verify [set <cmd>|mutate <test cmd>|clear|trust]",
+		What:   "run the project's checks now; set adds one to .janetcode/verify.json",
+		When:   "you want the harness to run the build or the tests after every change and hand failures back to the model"})
+	for _, w := range []int{60, 80, 110} {
+		for _, line := range strings.Split(c.ListWidth(w), "\n") {
+			if len(line) > w {
+				t.Errorf("at %d columns a line is %d wide: %q", w, len(line), line)
+			}
+		}
+	}
+	if !strings.Contains(c.ListWidth(80), "/verify [set <cmd>|mutate <test cmd>|clear|trust]\n") {
+		t.Error("a wide invocation did not get a line of its own")
+	}
+}
+
 func names(fs []Feature) []string {
 	out := make([]string, len(fs))
 	for i, f := range fs {

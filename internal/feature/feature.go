@@ -396,12 +396,26 @@ func subsequence(q, s string) bool {
 	return i == len(q)
 }
 
-// List renders the whole catalogue, grouped by kind.
-func (c *Catalog) List() string {
+// List renders the whole catalogue, grouped by kind, for a terminal
+// eighty columns wide.
+func (c *Catalog) List() string { return c.ListWidth(0) }
+
+// ListWidth renders the whole catalogue wrapped to a terminal of the
+// given width. Unwrapped, the longest row was three hundred characters:
+// --inspect features in an eighty-column terminal produced a wall of
+// text broken mid-word by the terminal, in which the invocation column
+// was invisible. Wrapping is done here, where the columns are known,
+// rather than left to the terminal, which does not know them.
+func (c *Catalog) ListWidth(width int) string {
+	if width < 40 {
+		width = 80
+	}
 	all := c.All()
 	if len(all) == 0 {
 		return "no features registered"
 	}
+	const gutter = "  "
+	col := 2 + nameColumn(all) + 1
 	var b strings.Builder
 	var kind Kind
 	for _, f := range all {
@@ -409,9 +423,71 @@ func (c *Catalog) List() string {
 			kind = f.Kind
 			fmt.Fprintf(&b, "\n%s (%d)\n", plural(kind), countKind(all, kind))
 		}
-		fmt.Fprintf(&b, "  %s\n", f.Line())
+		inv := f.Invocation()
+		if len(inv) > col-3 {
+			// An invocation wider than the column gets the line to
+			// itself rather than pushing every description out of line.
+			b.WriteString(gutter + inv + "\n")
+		} else {
+			b.WriteString(gutter + inv + strings.Repeat(" ", col-2-len(inv)))
+			b.WriteString(wrapAt(f.What, width, col, false) + "\n")
+			if f.When == "" {
+				continue
+			}
+			b.WriteString(wrapAt("when: "+f.When, width, col, true) + "\n")
+			continue
+		}
+		b.WriteString(wrapAt(f.What, width, col, true) + "\n")
+		if f.When != "" {
+			b.WriteString(wrapAt("when: "+f.When, width, col, true) + "\n")
+		}
 	}
 	return strings.TrimSpace(b.String())
+}
+
+// nameColumn is the width of the invocation column: wide enough for
+// most entries, never wide enough to squeeze the descriptions. The
+// handful of invocations that spell out every sub-command are what the
+// cap is for.
+func nameColumn(all []Feature) int {
+	const cap = 22
+	w := 0
+	for _, f := range all {
+		if n := len(f.Invocation()); n > w && n <= cap {
+			w = n
+		}
+	}
+	return w
+}
+
+// wrapAt folds text into the space left of width from column indent,
+// indenting continuation lines to match. When lead is true the first
+// line is indented too.
+func wrapAt(text string, width, indent int, lead bool) string {
+	room := width - indent
+	if room < 20 {
+		room = 20
+	}
+	pad := strings.Repeat(" ", indent)
+	var b strings.Builder
+	if lead {
+		b.WriteString(pad)
+	}
+	line := 0
+	for i, w := range strings.Fields(text) {
+		switch {
+		case i == 0:
+		case line+1+len(w) > room:
+			b.WriteString("\n" + pad)
+			line = 0
+		default:
+			b.WriteString(" ")
+			line++
+		}
+		b.WriteString(w)
+		line += len(w)
+	}
+	return b.String()
 }
 
 func countKind(all []Feature, k Kind) int {
@@ -439,7 +515,7 @@ func plural(k Kind) string {
 // its own" is not a sentence anybody wrote on purpose.
 func counted(k Kind) string {
 	if k == KindBehave {
-		return "things the harness does on its own"
+		return "automatic behaviours"
 	}
 	return plural(k)
 }

@@ -3,8 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	"os"
 	"reflect"
+	"strconv"
 	"strings"
+
+	"golang.org/x/term"
 
 	"github.com/xmonader/janetcode/internal/inspect"
 
@@ -250,6 +254,21 @@ func unpricedModel(cfg *config.Config, getenv func(string) string) string {
 	return cfg.Model
 }
 
+// outputWidth is how wide the catalogue listing may be: the terminal's
+// width when there is a terminal, $COLUMNS when a pager or a script has
+// set one, and eighty otherwise. Piped output gets eighty rather than
+// one long line, because the thing on the other end of the pipe is
+// usually less or a file somebody will read.
+func outputWidth() int {
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w >= 40 {
+		return w
+	}
+	if n, err := strconv.Atoi(os.Getenv("COLUMNS")); err == nil && n >= 40 {
+		return n
+	}
+	return 80
+}
+
 // registerFeatureSubject makes the catalogue answerable through
 // --inspect features and /inspect features, beside every other part of
 // the session state.
@@ -260,7 +279,7 @@ func registerFeatureSubject(r *inspect.Registry, c *feature.Catalog) {
 		Usage:   "[query]",
 		Report: func(_ context.Context, arg string) (string, error) {
 			if strings.TrimSpace(arg) == "" {
-				return c.Summary() + "\n" + c.List(), nil
+				return c.Summary() + "\n" + c.ListWidth(outputWidth()), nil
 			}
 			return feature.Answer(c, arg, ""), nil
 		},
