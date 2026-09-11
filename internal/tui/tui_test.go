@@ -2883,3 +2883,46 @@ func TestBannerMatchesPermissionKeys(t *testing.T) {
 		t.Fatalf("banner:\n%s", v)
 	}
 }
+
+// A goal round is machinery, not something the user typed. The whole
+// continuation — objective plus a paragraph telling the model that
+// rounds are a budget and not to announce them — used to be echoed into
+// the transcript as a user message, and the session title was generated
+// from it, so /resume listed sessions called "Work on this goal until it
+// is complete or you are blocked".
+func TestGoalRoundIsOneLine(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "on it")})
+	h.keys("/goal make the tests pass")
+	h.enter()
+	v := plain(h.m.View())
+	if strings.Contains(v, "Rounds are a budget") || strings.Contains(v, "Work on this goal until") {
+		t.Fatalf("continuation prompt echoed to the user:\n%s", v)
+	}
+	if !strings.Contains(v, "goal g1 round 1/") || !strings.Contains(v, "make the tests pass") {
+		t.Fatalf("round not announced:\n%s", v)
+	}
+	if got := h.m.opts.Session.Meta.Title; got != "make the tests pass" {
+		t.Fatalf("session title = %q", got)
+	}
+	// The model still receives the full continuation.
+	if !strings.Contains(h.m.lastUserText, "Rounds are a budget") {
+		t.Fatalf("the model got %q", h.m.lastUserText)
+	}
+}
+
+// Notices and verdicts are composed by the agent, which only knows
+// absolute paths; one file name could wrap the line twice and bury the
+// sentence it belonged to.
+func TestNoticePathsAreShortened(t *testing.T) {
+	h := newHarness(t)
+	cwd := h.m.opts.Cwd
+	h.m.transcript.apply(agent.Event{Kind: agent.EvVerdict,
+		Text: "⚠ self-checked: 1 file(s) edited and tests passed, but " + filepath.Join(cwd, "main_test.go") + " changed in the same turn"})
+	line := h.m.transcript.entries[len(h.m.transcript.entries)-1].text
+	if strings.Contains(line, cwd) {
+		t.Fatalf("absolute path in the verdict: %s", line)
+	}
+	if !strings.Contains(line, "main_test.go changed in the same turn") {
+		t.Fatalf("verdict: %s", line)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/charmbracelet/x/ansi"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -162,6 +163,9 @@ type transcript struct {
 	renderer  *glamour.TermRenderer
 	rWidth    int
 	styleName string // glamour standard style: "dark" or "light"
+	// cwd shortens the absolute paths the agent writes into notices and
+	// verdicts, the way tool lines already shorten theirs.
+	cwd string
 }
 
 // liveRenderInterval throttles markdown rendering of streaming text.
@@ -258,13 +262,13 @@ func (t *transcript) apply(ev agent.Event) {
 		// The one line that says whether the turn showed its work. It was
 		// dropped here for a long time while headless mode printed it.
 		t.closeOpen()
-		t.add(&entry{kind: entryVerdict, text: ev.Text, isError: ev.IsError})
+		t.add(&entry{kind: entryVerdict, text: shortenPaths(t.cwd, ev.Text), isError: ev.IsError})
 	case agent.EvNotice:
 		t.closeOpen()
 		if isAttachNote(ev.Text) {
-			t.info(noteAttached + ev.Text)
+			t.info(noteAttached + shortenPaths(t.cwd, ev.Text))
 		} else {
-			t.info(noteNotice + ev.Text)
+			t.info(noteNotice + shortenPaths(t.cwd, ev.Text))
 		}
 	}
 }
@@ -940,6 +944,20 @@ func summarizeInput(name, raw string, max int, cwd string) string {
 		}
 	}
 	return truncateLine(raw, max)
+}
+
+// shortenPaths rewrites absolute paths inside a sentence the way tool
+// lines write them. Notices and verdicts are composed by the agent,
+// which only ever knows absolute paths, so a single file name could
+// wrap the line twice and bury the sentence it belonged to.
+func shortenPaths(cwd, s string) string {
+	if cwd != "" {
+		s = strings.ReplaceAll(s, cwd+string(filepath.Separator), "")
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		s = strings.ReplaceAll(s, home+string(filepath.Separator), "~"+string(filepath.Separator))
+	}
+	return s
 }
 
 // relTo shows p relative to cwd when it lies under it, with the home

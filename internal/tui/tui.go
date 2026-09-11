@@ -563,6 +563,17 @@ func (m *model) goalCommand(arg string) tea.Cmd {
 	default:
 		id := ag.CreateGoal(arg, 0)
 		m.transcript.info("goal " + id + " active: " + arg)
+		// The objective is what this session is about. Without this the
+		// title was generated from the first message the model saw, which
+		// for a goal is the continuation prompt: sessions came back from
+		// /resume called "Work on this goal until it is complete or you
+		// are blocked".
+		if m.opts.Session != nil && m.opts.Session.Meta.Title == "" {
+			m.titleGen++
+			if err := m.opts.Session.SetTitle(cutWords(arg, 60)); err != nil {
+				m.transcript.errorf("save title: %v", err)
+			}
+		}
 		return m.startGoalRound()
 	}
 }
@@ -575,11 +586,27 @@ func (m *model) startGoalRound() tea.Cmd {
 		m.transcript.info("the goal continues when this turn ends")
 		return nil
 	}
-	cont := m.opts.Agent.GoalContinuation()
+	return m.goalRound()
+}
+
+// goalRound starts the active goal's next round, announcing it as one
+// line naming the goal, the round and the objective.
+func (m *model) goalRound() tea.Cmd {
+	ag := m.opts.Agent
+	var note string
+	if ag.Log != nil {
+		if g := agent.ActiveGoal(ag.Log.Events()); g != nil {
+			note = fmt.Sprintf("%sgoal %s round %d/%d \u00b7 %s", noteGoal, g.ID, g.Rounds+1, g.MaxRounds, g.Objective)
+		}
+	}
+	cont := ag.GoalContinuation()
 	if cont == "" {
 		return nil
 	}
-	return m.submit(cont)
+	if note == "" {
+		note = noteGoal + "goal continuing"
+	}
+	return m.submitAs(cont, note)
 }
 
 func (m *model) agentsCommand() {
@@ -1202,6 +1229,7 @@ func newModel(opts Options) *model {
 			m.branch = "git"
 		}
 	}
+	m.transcript.cwd = opts.Cwd
 	m.clipboard = readClipboardImage
 	if opts.Session != nil {
 		m.histFile = histPath(dirOf(opts.Session), opts.Cwd)
@@ -1582,7 +1610,7 @@ func (m *model) applyEvent(ev agent.Event) {
 	case agent.EvCompacted:
 		m.phase = "thinking"
 	case agent.EvVerdict:
-		m.lastVerdict = ev.Text
+		m.lastVerdict = shortenPaths(m.opts.Cwd, ev.Text)
 	case agent.EvTurnDone:
 		u := ev.Usage
 		m.lastUsage = u
@@ -2211,14 +2239,26 @@ func (m *model) answer(d agent.Decision, reason string) {
 	m.refresh(false)
 }
 
-func (m *model) submit(text string) tea.Cmd {
+func (m *model) submit(text string) tea.Cmd { return m.submitAs(text, "") }
+
+// submitAs sends text to the model but shows note in its place when the
+// prompt is machinery rather than something the user wrote. A goal round
+// used to appear in the transcript as a user message carrying the whole
+// continuation, housekeeping paragraph included, as though the user had
+// typed "(This is round 1 of at most 8. Rounds are a budget, not a
+// plan...)".
+func (m *model) submitAs(text, note string) tea.Cmd {
 	text = m.inflatePastes(text)
 	if m.opts.Agent.Provider == nil {
 		m.transcript.errorf("not connected to a provider yet: run /connect")
 		m.refresh(false)
 		return nil
 	}
-	m.transcript.user(text)
+	if note != "" {
+		m.transcript.info(note)
+	} else {
+		m.transcript.user(text)
+	}
 	m.lastUserText = text
 	text, atts := prompt.ExpandMentions(m.opts.Cwd, text)
 	if len(atts) > 0 {
@@ -2418,9 +2458,8 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	m.steering = nil
 	m.term.turnEnded(msg.err == nil, m.status)
 	if msg.err == nil && len(m.queued) == 0 {
-		if cont := m.opts.Agent.GoalContinuation(); cont != "" {
-			m.transcript.info(noteGoal + "goal continuing")
-			return m.submit(cont)
+		if cmd := m.goalRound(); cmd != nil {
+			return cmd
 		}
 	}
 	if len(m.queued) == 0 {
@@ -2522,6 +2561,7 @@ func (m *model) command(text string) tea.Cmd {
 		m.opts.Agent.UndoPath = sess.UndoPath()
 		m.titleGen++ // a title generated for the old conversation must not land here
 		m.transcript = newTranscriptStyled(m.transcript.styleName)
+		m.transcript.cwd = m.opts.Cwd
 		m.transcript.banner(m.welcome(""))
 		m.transcript.info("new session " + sess.Meta.ID)
 		m.lastTurn, m.lastVerdict, m.status = "", "", ""
