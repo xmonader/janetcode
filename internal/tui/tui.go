@@ -1156,11 +1156,15 @@ type model struct {
 	histIdx      int    // == len(history) when not browsing
 	draft        string // input saved while browsing history
 
-	running        bool
-	cancelling     bool
-	compacting     bool
-	cancel         context.CancelFunc
-	startedAt      time.Time
+	running    bool
+	cancelling bool
+	compacting bool
+	cancel     context.CancelFunc
+	startedAt  time.Time // when the running turn began
+	// openedAt is when this window opened. /stats used startedAt, which
+	// is the turn clock: before the first turn it was the zero time and
+	// the session was reported as up for 2562047h47m16.854775807s.
+	openedAt       time.Time
 	phase          string // what the agent is doing right now
 	pending        *permissionMsg
 	denying        bool // the input box is collecting a reason for a denial
@@ -1229,6 +1233,7 @@ func newModel(opts Options) *model {
 			m.branch = "git"
 		}
 	}
+	m.openedAt = time.Now()
 	m.transcript.cwd = opts.Cwd
 	m.clipboard = readClipboardImage
 	if opts.Session != nil {
@@ -2999,8 +3004,11 @@ func (m *model) helpText() string {
 	const col = 22
 	descStyle := lipgloss.NewStyle().Width(width - col - 2)
 	seen := map[string]bool{}
+	// A heading printed hard against the previous group's last command
+	// read as that command's second line: "/lsp  language servers and
+	// the diagnostics they reported" followed by "diagnostics".
 	writeGroup := func(title string, names []string) {
-		sb.WriteString(title + "\n")
+		sb.WriteString("\n" + title + "\n")
 		for _, n := range names {
 			c, ok := byName[n]
 			if !ok {
@@ -3030,14 +3038,13 @@ func (m *model) helpText() string {
 	if len(rest) > 0 {
 		writeGroup("custom commands and skills", rest)
 	}
-	sb.WriteString("custom commands: drop prompt templates in .janetcode/commands/<name>.md (or the config dir); $ARGUMENTS is replaced")
+	sb.WriteString("\ncustom commands: drop prompt templates in .janetcode/commands/<name>.md (or the config dir); $ARGUMENTS is replaced")
 	return sb.String()
 }
 
-// permissionKeys is the keys line of the permission box, in the longest
-// wording that fits on one line. The box has a fixed height in the
-// layout, so a wrapped keys line would run over the input.
-// permissionKeys is the key line of the permission box. expandable says
+// permissionKeys is the key line of the permission box, in the longest
+// wording that fits on one line: the box has a fixed height in the
+// layout, so a wrapped key line would run over the input. expandable says
 // whether there is more of the call to see: without that, the line used to
 // offer ctrl+o even for a two-line diff that was already shown whole.
 func (m *model) permissionKeys(tool, rule string, expandable bool) string {
@@ -3813,7 +3820,7 @@ func (m *model) statsCommand() {
 	st := ag.Stats()
 	u := ag.UsageSnapshot()
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "session %s · up %s · %s · %s", m.opts.Session.Label(), shortDuration(time.Since(m.startedAt)), plural(st.Turns, "turn"), plural(st.ModelCalls, "model call"))
+	fmt.Fprintf(&sb, "session %s · open %s · %s · %s", m.opts.Session.Label(), shortDuration(time.Since(m.openedAt)), plural(st.Turns, "turn"), plural(st.ModelCalls, "model call"))
 	if st.ModelErrors > 0 {
 		fmt.Fprintf(&sb, " (%d failed)", st.ModelErrors)
 	}

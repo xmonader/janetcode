@@ -2926,3 +2926,40 @@ func TestNoticePathsAreShortened(t *testing.T) {
 		t.Fatalf("verdict: %s", line)
 	}
 }
+
+// /stats reported the session as open for 2562047h47m16.854775807s
+// before the first turn: it measured from startedAt, which is the clock
+// for the turn that is running and is the zero time until one does.
+func TestStatsReportsWindowAge(t *testing.T) {
+	h := newHarness(t)
+	h.m.openedAt = time.Now().Add(-90 * time.Second)
+	h.keys("/stats")
+	h.enter()
+	var line string
+	for _, e := range h.m.transcript.entries {
+		if strings.Contains(e.text, "session ") && strings.Contains(e.text, "open ") {
+			line = e.text
+		}
+	}
+	if line == "" {
+		t.Fatalf("no stats line:\n%s", plain(h.m.View()))
+	}
+	if !strings.Contains(line, "open 1m") {
+		t.Fatalf("stats line = %q", line)
+	}
+	if strings.Contains(line, "2562047h") {
+		t.Fatalf("stats measured from the turn clock: %q", line)
+	}
+}
+
+// A group heading printed hard against the last command of the group
+// before it read as that command's second line.
+func TestHelpSeparatesGroups(t *testing.T) {
+	h := newHarness(t)
+	help := h.m.helpText()
+	for _, g := range helpGroups {
+		if !strings.Contains(help, "\n\n"+g.title+"\n") {
+			t.Errorf("group %q has no blank line before it", g.title)
+		}
+	}
+}
