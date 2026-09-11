@@ -1,0 +1,702 @@
+[
+  {
+    "harness": "janetcode",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 2921,
+    "input_tokens": {
+      "value": 4660,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 75,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 4548,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000199722,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 01-create-file --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 13197,
+    "input_tokens": {
+      "value": 5420,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 389,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 14212,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000296158,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 02-go-add-function --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 11762,
+    "input_tokens": {
+      "value": 5285,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 340,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9435,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000271535,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 03-fix-failing-test --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 4918,
+    "input_tokens": {
+      "value": 5131,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 280,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9157,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000256113,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 04-python-fizzbuzz --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 11852,
+    "input_tokens": {
+      "value": 5643,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 873,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 19655,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 8,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000384753,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 05-rename-symbol --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 5638,
+    "input_tokens": {
+      "value": 4889,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 236,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9119,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000241875,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 06-read-and-answer --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 6436,
+    "input_tokens": {
+      "value": 5054,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 321,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9127,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000258259,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 07-json-config-edit --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 8954,
+    "input_tokens": {
+      "value": 5151,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 429,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 18571,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000304653,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 08-shell-script --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 6079,
+    "input_tokens": {
+      "value": 5198,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 251,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 13756,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000269158,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 09-makefile-target --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 5661,
+    "input_tokens": {
+      "value": 5005,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 289,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 13773,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00026683899999999994,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 10-append-preserve --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 16368,
+    "input_tokens": {
+      "value": 5599,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 569,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 14352,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000326076,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 11-go-return-error --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 8562,
+    "input_tokens": {
+      "value": 5277,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 497,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 14384,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000306568,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 12-python-bugfix --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 17960,
+    "input_tokens": {
+      "value": 5279,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 827,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9632,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000335432,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 13-multi-file-package --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 4733,
+    "input_tokens": {
+      "value": 4838,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 195,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9120,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000234794,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 14-gitignore --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 3534,
+    "input_tokens": {
+      "value": 4805,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 113,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 4551,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000209437,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 15-yes-no-question --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 9527,
+    "input_tokens": {
+      "value": 5068,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 458,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 14085,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00029281099999999997,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 16-readme --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 5829,
+    "input_tokens": {
+      "value": 4981,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 217,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 13779,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000256745,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 17-csv-sort --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 2609,
+    "input_tokens": {
+      "value": 4682,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 98,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 4550,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000203394,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 18-find-mentions --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 14712,
+    "input_tokens": {
+      "value": 5401,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 718,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 18997,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000352985,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 19-write-test --provider openai --model qwen/qwen3.7-flash"
+  },
+  {
+    "harness": "janetcode",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 9652,
+    "input_tokens": {
+      "value": 4966,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 303,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 9125,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000253465,
+      "set": true
+    },
+    "command": "janetcode --eval --eval-only 20-env-default --provider openai --model qwen/qwen3.7-flash"
+  }
+]

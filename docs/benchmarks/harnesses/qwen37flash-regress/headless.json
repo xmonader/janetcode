@@ -1,0 +1,703 @@
+[
+  {
+    "harness": "janetcode",
+    "task": "01-create-file",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 7664,
+    "input_tokens": {
+      "value": 6394,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 109,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 6259,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000274983,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Create a file named hello.txt containing exactly the text: hello world --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40",
+    "stderr_excerpt": "[memory] remembered create-hello-file (feedback, project): Create a hello.txt with 'hello world'"
+  },
+  {
+    "harness": "janetcode",
+    "task": "02-go-add-function",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 28753,
+    "input_tokens": {
+      "value": 7373,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 640,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 26184,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00043843000000000007,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p math.go has Add. Add a Mul(a, b int) int function in the same package so that math_test.go passes. Run the tests. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "03-fix-failing-test",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 23266,
+    "input_tokens": {
+      "value": 7408,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 492,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 19887,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000402277,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p go test fails. Find the bug and fix it in the implementation, not the test. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "04-python-fizzbuzz",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 15612,
+    "input_tokens": {
+      "value": 6982,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 524,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 12577,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000368871,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Write fizzbuzz.py: given a number N as its only argument it prints FizzBuzz for 1..N, one per line (Fizz for multiples of 3, Buzz for 5, FizzBuzz for both, the number otherwise). --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "05-rename-symbol",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 13221,
+    "input_tokens": {
+      "value": 7197,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 546,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 12825,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000382189,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Rename the function Fetch to Load everywhere in this package, including its callers. The code must still build. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "06-read-and-answer",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 11856,
+    "input_tokens": {
+      "value": 7452,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 346,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 25604,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00039965599999999997,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p What does Compute(3) return? Reply with just the number. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "07-json-config-edit",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 11273,
+    "input_tokens": {
+      "value": 6695,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 282,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 12547,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00032617500000000005,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p In config.json change the port to 8080. Keep every other key exactly as it is. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "08-shell-script",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 18750,
+    "input_tokens": {
+      "value": 6987,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 449,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 25391,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00039661700000000004,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Write count.sh that prints the number of lines in input.txt and nothing else. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "09-makefile-target",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 13908,
+    "input_tokens": {
+      "value": 6910,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 341,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 18910,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000360648,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Add a greet target to the Makefile that prints hi. Keep the existing targets. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "10-append-preserve",
+    "batch": 2,
+    "passed": true,
+    "wall_time_ms": 11426,
+    "input_tokens": {
+      "value": 6398,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 378,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 6260,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00031014000000000004,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Append the line 'four' to the end of list.txt. Do not change the existing lines. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "11-go-return-error",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 23582,
+    "input_tokens": {
+      "value": 7287,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 418,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 19656,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000387358,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Parse ignores the error from strconv.Atoi. Change Parse to return (int, error) and propagate it; update the test's expectations only if needed to compile. Run go vet and the tests. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "12-python-bugfix",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 17598,
+    "input_tokens": {
+      "value": 7148,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 453,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 19341,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 4,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00038603299999999993,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p python3 test_stats.py fails. Fix the bug in stats.py. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "13-multi-file-package",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 36400,
+    "input_tokens": {
+      "value": 7373,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 940,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 32410,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 6,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000496628,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Create a Go package 'stack' in stack/ with a Stack type (Push, Pop returning (int, bool)) and a test that pushes 1,2 and pops 2 then 1. Run the tests. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "14-gitignore",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 13009,
+    "input_tokens": {
+      "value": 6548,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 233,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 12540,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.00031497400000000004,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Add node_modules/ and dist/ to .gitignore, keeping what is there. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "15-yes-no-question",
+    "batch": 3,
+    "passed": true,
+    "wall_time_ms": 2997,
+    "input_tokens": {
+      "value": 6479,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 89,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 6261,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000275347,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Does any Go file in this directory call fmt.Println? Answer yes or no, then name the file if yes. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "16-readme",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 21446,
+    "input_tokens": {
+      "value": 6985,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 569,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 19517,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 5,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000396111,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Write a README.md for this tool: a title heading, one paragraph on what it does, and a Usage section showing the command. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "17-csv-sort",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 10599,
+    "input_tokens": {
+      "value": 6690,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 249,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 18906,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 3,
+      "set": true
+    },
+    "turns": {
+      "value": 4,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000341228,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Write sorted.csv: the rows of data.csv sorted by score descending, same header. Use a script or a command, your choice. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "18-find-mentions",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 15379,
+    "input_tokens": {
+      "value": 6386,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 111,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 6260,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 1,
+      "set": true
+    },
+    "turns": {
+      "value": 2,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000275014,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Which files mention 'flux capacitor'? List only the file names. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "19-write-test",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 32139,
+    "input_tokens": {
+      "value": 7410,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 792,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 26014,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 6,
+      "set": true
+    },
+    "turns": {
+      "value": 5,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000458766,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Add a test file for Reverse covering an empty string, a single rune, and a multi-byte string like 'héllo'. Run it. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  },
+  {
+    "harness": "janetcode",
+    "task": "20-env-default",
+    "batch": 4,
+    "passed": true,
+    "wall_time_ms": 13089,
+    "input_tokens": {
+      "value": 6684,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 202,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 12545,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "value": 2,
+      "set": true
+    },
+    "turns": {
+      "value": 3,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.000315911,
+      "set": true
+    },
+    "command": "/home/driver/wspace/janetcode/.claude/worktrees/agent-ab75cdf97827ab170/bin/janetcode -p Write main.go: a program that prints the PORT environment variable, or 3000 when it is unset. --yolo --output-format json --provider openai --model qwen/qwen3.7-flash --max-turns 40"
+  }
+]
