@@ -188,6 +188,12 @@ everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
   that may also replace an entry that became wrong. Duplicates and
   near-duplicates merge instead of piling up. `"memory": false` turns it
   off; `/remember` and the tool still work.
+- **A credential is never remembered.** An entry whose text holds
+  something API-key-shaped — a vendor key, a private-key block, a JWT, a
+  long opaque value assigned to something called a secret — is refused
+  with a note saying why: memory is written to disk and read back into
+  every later prompt, which is the last place a key should be. Where the
+  value lives is worth remembering; the value is not.
 - `/memory` lists entries, `/memory <words>` recalls, `/memory show <name>`
   prints one, `/remember [-g] <fact>` adds (`-g` global), `/forget
   <name|number>` removes. Files are plain markdown you can edit by hand.

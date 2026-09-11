@@ -44,6 +44,12 @@ type Block struct {
 	Name  string          `json:"name,omitempty"`
 	Input json.RawMessage `json:"input,omitempty"`
 
+	// ReplyID is the id the provider itself gave a tool call, when the
+	// harness had to rename it (a provider that repeats or omits ids).
+	// The reply goes back under this one: it is the only id the provider
+	// knows, while ID is what the harness keys by.
+	ReplyID string `json:"reply_id,omitempty"`
+
 	// Tool result fields (BlockToolResult).
 	ToolUseID string `json:"tool_use_id,omitempty"`
 	IsError   bool   `json:"is_error,omitempty"`
@@ -101,6 +107,15 @@ func (m Message) Text() string {
 		}
 	}
 	return sb.String()
+}
+
+// WireID is the id a block goes out to the provider under: the
+// provider's own, when the harness renamed the call.
+func (b Block) WireID() string {
+	if b.ReplyID != "" {
+		return b.ReplyID
+	}
+	return b.ID
 }
 
 // ToolUses returns the tool_use blocks in order.

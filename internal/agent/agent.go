@@ -251,6 +251,9 @@ type Agent struct {
 	mutated bool // a mutating tool ran successfully this turn
 
 	allowed map[string]bool
+	// callIDs is every tool-call id handed out this conversation, so a
+	// provider that repeats or omits one cannot collide with it.
+	callIDs map[string]bool
 	cp      checkpointer
 	coach   coach
 	coachMu sync.Mutex // read_file runs in parallel goroutines
@@ -387,6 +390,13 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		// A model that wrote its call as prose meant to call the tool;
 		// reading it back costs nothing and saves the turn.
 		a.recoverToolCalls(resp, emit)
+		// Every call gets an id of its own, whatever the server numbered
+		// it: the transcript, the permission prompt and the log all key
+		// by it. The reply still goes back under the server's own id.
+		if a.callIDs == nil {
+			a.callIDs = map[string]bool{}
+		}
+		normalizeCallIDs(&resp.Message, a.callIDs, a.turnN, a.stepN)
 		a.lastInputTokens = resp.Usage.InputTokens + resp.Usage.CacheReadTokens + resp.Usage.CacheWriteTokens
 		a.lastInputMsgs = len(a.Messages)
 		a.Messages = append(a.Messages, resp.Message)
@@ -426,7 +436,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 				for _, u := range uses {
 					call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
 					msg := fmt.Sprintf("%s was not run: the response hit the output token limit, so its arguments may be cut short. Reissue it with complete arguments, and make them smaller if they were long.", u.Name)
-					results = append(results, llm.ToolResult(u.ID, msg, true))
+					results = append(results, llm.ToolResult(replyID(u), msg, true))
 					emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
 					a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
 				}
@@ -569,7 +579,7 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 			}
 			out, isErr, err := a.execute(ctx, u, emit)
 			if err == nil {
-				results[i] = llm.ToolResult(u.ID, out, isErr)
+				results[i] = llm.ToolResult(replyID(u), out, isErr)
 				filled[i] = true
 			}
 		}(i, u)
@@ -579,7 +589,7 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 	cancelled := func() ([]llm.Block, error) {
 		for i, u := range uses {
 			if !filled[i] {
-				results[i] = llm.ToolResult(u.ID, "Cancelled by user before the tool finished.", true)
+				results[i] = llm.ToolResult(replyID(u), "Cancelled by user before the tool finished.", true)
 			}
 		}
 		return results, ctx.Err()
@@ -595,7 +605,7 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		if err != nil {
 			return cancelled()
 		}
-		results[i] = llm.ToolResult(u.ID, out, isErr)
+		results[i] = llm.ToolResult(replyID(u), out, isErr)
 		filled[i] = true
 	}
 	return results, nil

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	sdk "github.com/anthropics/anthropic-sdk-go"
@@ -46,6 +48,12 @@ type Config struct {
 
 // Provider is the Anthropic Messages API backend.
 type Provider struct {
+	// mu guards effort, the tier learned from a provider that refused
+	// the one configured; it is kept for the provider's lifetime so the
+	// refusal is paid for once.
+	mu     sync.Mutex
+	effort string
+
 	cfg     Config
 	client  sdk.Client // first key's client; kept for tests
 	clients []sdk.Client
@@ -203,7 +211,7 @@ func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
 				if len(input) == 0 {
 					input = json.RawMessage(`{}`)
 				}
-				blocks = append(blocks, sdk.NewToolUseBlock(b.ID, input, b.Name))
+				blocks = append(blocks, sdk.NewToolUseBlock(b.WireID(), input, b.Name))
 			case llm.BlockToolResult:
 				content := b.Text
 				if content == "" {
@@ -272,25 +280,86 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if emit == nil {
 		emit = func(llm.Event) {}
 	}
-	params, err := buildParams(req, p.cfg)
-	if err != nil {
-		return nil, err
-	}
 	// A stream that stops producing without failing would otherwise hang
 	// the turn for as long as the process lives.
 	ctx, wd := llm.Watch(ctx, p.cfg.Limits)
 	defer wd.Stop()
 	for rotations := 0; ; rotations++ {
+		params, err := buildParams(req, p.config())
+		if err != nil {
+			return nil, err
+		}
 		client, idx := p.current()
 		resp, err := p.stream(ctx, client, params, wd, emit)
 		if err == nil {
 			p.ring.OK(idx)
 			return resp, nil
 		}
+		if p.clampEffort(err) {
+			// The model does not go that high; the next tier down is
+			// what the user asked for as nearly as this model can, and
+			// it is remembered so it is paid for once.
+			rotations--
+			continue
+		}
 		if f, ok := keyProblem(err); ok && p.ring.Fail(idx, f) && rotations < p.ring.Len()-1 {
 			continue
 		}
 		return resp, wd.Wrap(err)
+	}
+}
+
+// efforts are the reasoning tiers, weakest first. Rank order is what
+// makes a refusal recoverable: a model that will not take "max" will
+// usually take the tier below it, and the difference between tiers is
+// how hard it thinks, not whether the request is valid.
+var efforts = []string{"low", "medium", "high", "xhigh", "max"}
+
+// config is the configuration as it stands, with any clamped effort.
+func (p *Provider) config() Config {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	cfg := p.cfg
+	if p.effort != "" {
+		cfg.Effort = p.effort
+	}
+	return cfg
+}
+
+// clampEffort lowers the reasoning tier by one rank when the provider
+// rejected the one asked for, and reports whether the request should be
+// sent again. Below the lowest tier the parameter is dropped entirely.
+func (p *Provider) clampEffort(err error) bool {
+	var ae *APIError
+	if !errors.As(err, &ae) || ae.Status != 400 {
+		return false
+	}
+	msg := strings.ToLower(ae.Message)
+	if !strings.Contains(msg, "effort") && !strings.Contains(msg, "output_config") {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	current := p.effort
+	if current == "" {
+		current = p.cfg.Effort
+	}
+	if current == "" {
+		return false // nothing was asked for; the complaint is about something else
+	}
+	rank := -1
+	for i, e := range efforts {
+		if e == current {
+			rank = i
+		}
+	}
+	switch {
+	case rank <= 0:
+		p.effort, p.cfg.Effort = "", ""
+		return current != ""
+	default:
+		p.effort = efforts[rank-1]
+		return true
 	}
 }
 

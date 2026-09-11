@@ -418,6 +418,11 @@ func parsePricing(pricing map[string]json.RawMessage) (llm.Price, bool) {
 type APIError struct {
 	Status  int
 	Message string
+	// RetryAfter is the server's own Retry-After, kept only for the two
+	// statuses that mean "come back later" — 429 and 503. On anything
+	// else the header is advice about a failure that is not going to
+	// clear, and honouring it only adds the wait to the error.
+	RetryAfter time.Duration
 }
 
 func (e *APIError) Error() string {
@@ -488,7 +493,7 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 				case llm.BlockText:
 					text.WriteString(b.Text)
 				case llm.BlockToolUse:
-					tc := wireToolCall{ID: b.ID, Type: "function"}
+					tc := wireToolCall{ID: b.WireID(), Type: "function"}
 					tc.Function.Name = b.Name
 					tc.Function.Arguments = string(b.Input)
 					if tc.Function.Arguments == "" {
@@ -720,6 +725,12 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 			return nil, wd.Wrap(err)
 		}
 		wait := time.Duration(500*(1<<attempt)) * time.Millisecond
+		// The server's own Retry-After wins where it gave one: it knows
+		// when its window resets, and the backoff is only a guess.
+		var ra *APIError
+		if errors.As(err, &ra) && ra.RetryAfter > 0 {
+			wait = ra.RetryAfter
+		}
 		emit(llm.Event{Type: llm.EventStatus, Text: fmt.Sprintf("retrying %d/%d · %s · in %s", attempt+1, p.cfg.MaxRetries, retryReason(err), wait.Round(time.Second/10))})
 		select {
 		case <-ctx.Done():
@@ -813,9 +824,37 @@ func (p *Provider) do(ctx context.Context, body []byte, key string) (*http.Respo
 		if msg == "" {
 			msg = http.StatusText(resp.StatusCode)
 		}
-		return nil, &APIError{Status: resp.StatusCode, Message: msg}
+		ae := &APIError{Status: resp.StatusCode, Message: msg}
+		if resp.StatusCode == 429 || resp.StatusCode == 503 {
+			ae.RetryAfter = retryAfter(resp.Header.Get("Retry-After"))
+		}
+		return nil, ae
 	}
 	return resp, nil
+}
+
+// maxRetryAfter is the longest the provider may ask the harness to wait.
+const maxRetryAfter = 2 * time.Minute
+
+// retryAfter reads a Retry-After header in either form the RFC allows,
+// seconds or an HTTP date, and ignores anything longer than a couple of
+// minutes: a server asking for an hour is telling the user to come back
+// later, not telling the harness to sleep through it.
+func retryAfter(v string) time.Duration {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0
+	}
+	var d time.Duration
+	if secs, err := strconv.Atoi(v); err == nil {
+		d = time.Duration(secs) * time.Second
+	} else if when, err := http.ParseTime(v); err == nil {
+		d = time.Until(when)
+	}
+	if d <= 0 || d > maxRetryAfter {
+		return 0
+	}
+	return d
 }
 
 // exhausted are the ways a provider says the account has run out, rather
@@ -869,7 +908,14 @@ func retryable(err error) bool {
 			return false
 		}
 		// 529 is Anthropic's "overloaded", which gateways pass through.
-		return ae.Status == 429 || ae.Status == 408 || ae.Status == 529 || ae.Status >= 500
+		// 500 and 501 are not retried: a plain internal error is the
+		// server saying this request broke it, and sending it again
+		// breaks it again — with the real reason buried under retries.
+		switch ae.Status {
+		case 429, 408, 529, 502, 503, 504:
+			return true
+		}
+		return false
 	}
 	// Connection-level failures.
 	return !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)

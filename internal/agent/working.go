@@ -367,13 +367,7 @@ func (w *WorkingMemory) Render() string {
 	}
 	if len(w.Todos) > 0 {
 		b.WriteString("\nPlan still open (rewrite it with the todo tool as you go):\n")
-		for _, t := range w.Todos {
-			mark := "[ ]"
-			if t.Status == TodoDoing {
-				mark = "[>]"
-			}
-			fmt.Fprintf(&b, "%s %s\n", mark, t.Text)
-		}
+		b.WriteString(renderOpenPlan(w.Todos))
 	}
 	section := func(title string, items []string) {
 		if len(items) == 0 {

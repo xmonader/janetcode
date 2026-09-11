@@ -29,6 +29,10 @@ const (
 type Todo struct {
 	Text   string `json:"text"`
 	Status string `json:"status"`
+	// BlockedBy names steps that must finish first, by their text. It is
+	// what turns a list into a plan: a model that writes "wait for the
+	// migration" as step 4 otherwise starts it anyway.
+	BlockedBy []string `json:"blocked_by,omitempty"`
 }
 
 // Done reports whether the step is finished.
@@ -74,7 +78,11 @@ func RenderTodos(todos []Todo) string {
 		case TodoDoing:
 			mark = "[>]"
 		}
-		fmt.Fprintf(&b, "%s %s\n", mark, t.Text)
+		fmt.Fprintf(&b, "%s %s", mark, t.Text)
+		if len(t.BlockedBy) > 0 && !t.Done() {
+			fmt.Fprintf(&b, " (after: %s)", strings.Join(t.BlockedBy, "; "))
+		}
+		b.WriteString("\n")
 	}
 	fmt.Fprintf(&b, "\n%d of %d done", done, len(todos))
 	return b.String()
@@ -97,7 +105,8 @@ func (*TodoTool) Schema() json.RawMessage {
 "todos":{"type":"array","description":"The whole plan, in order; omit to read the current one","items":{
 "type":"object","properties":{
 "text":{"type":"string","description":"What the step is, in a few words"},
-"status":{"type":"string","enum":["pending","in_progress","completed"]}},
+"status":{"type":"string","enum":["pending","in_progress","completed"]},
+"blocked_by":{"type":"array","items":{"type":"string"},"description":"Optional: the exact text of steps that must finish first"}},
 "required":["text","status"],"additionalProperties":false}}},
 "additionalProperties":false}`)
 }
@@ -135,8 +144,38 @@ func (a *Agent) WriteTodos(todos []Todo) {
 	a.logEvent(session.Event{Type: session.TypeTodoWrite, Tokens: len(todos), Extra: raw})
 }
 
+// maxPlanNote caps the plan carried across a compaction. The whole plan
+// is on the log and the todo tool reads it back in full; what the note
+// is for is knowing there is a plan and what is next, and a long one
+// would be re-read on every request for the rest of the session.
+const maxPlanNote = 800
+
+// renderOpenPlan draws the open steps for the compaction note, within
+// maxPlanNote characters, saying how many it left out.
+func renderOpenPlan(todos []Todo) string {
+	var b strings.Builder
+	for i, t := range todos {
+		mark := "[ ]"
+		if t.Status == TodoDoing {
+			mark = "[>]"
+		}
+		line := mark + " " + t.Text
+		if len(t.BlockedBy) > 0 {
+			line += " (after: " + strings.Join(t.BlockedBy, "; ") + ")"
+		}
+		line += "\n"
+		if b.Len()+len(line) > maxPlanNote {
+			fmt.Fprintf(&b, "… and %d more steps; call todo to read the whole plan\n", len(todos)-i)
+			break
+		}
+		b.WriteString(line)
+	}
+	return b.String()
+}
+
 // validateTodos rejects a plan that cannot be worked from: empty steps,
-// an unknown status, or several steps claimed to be in progress at once.
+// an unknown status, several steps claimed to be in progress at once, a
+// dependency on a step that is not in the plan, or a cycle of them.
 func validateTodos(todos []Todo) ([]Todo, error) {
 	out := make([]Todo, 0, len(todos))
 	doing := 0
@@ -155,12 +194,66 @@ func validateTodos(todos []Todo) ([]Todo, error) {
 		if t.Status == TodoDoing {
 			doing++
 		}
-		out = append(out, Todo{Text: text, Status: t.Status})
+		var blocked []string
+		for _, b := range t.BlockedBy {
+			if b = strings.TrimSpace(b); b != "" && b != text {
+				blocked = append(blocked, b)
+			}
+		}
+		out = append(out, Todo{Text: text, Status: t.Status, BlockedBy: blocked})
 	}
 	if doing > 1 {
 		return nil, fmt.Errorf("%d steps are in_progress; work on one at a time", doing)
 	}
+	if err := checkBlocks(out); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+// checkBlocks rejects dependencies that name nothing, and cycles. A plan
+// whose steps wait for each other is not a plan, and finding that out at
+// step four costs a turn.
+func checkBlocks(todos []Todo) error {
+	index := map[string]int{}
+	for i, t := range todos {
+		index[t.Text] = i
+	}
+	for i, t := range todos {
+		for _, b := range t.BlockedBy {
+			if _, ok := index[b]; !ok {
+				return fmt.Errorf("step %d is blocked_by %q, which is not a step in this plan; use the exact text of the step it waits for", i+1, b)
+			}
+		}
+	}
+	// Depth-first search; state 1 is on the stack, 2 is finished.
+	state := make([]int, len(todos))
+	var path []string
+	var visit func(int) error
+	visit = func(i int) error {
+		switch state[i] {
+		case 1:
+			return fmt.Errorf("these steps wait for each other and none of them can start: %s", strings.Join(append(path, todos[i].Text), " → "))
+		case 2:
+			return nil
+		}
+		state[i] = 1
+		path = append(path, todos[i].Text)
+		for _, b := range todos[i].BlockedBy {
+			if err := visit(index[b]); err != nil {
+				return err
+			}
+		}
+		path = path[:len(path)-1]
+		state[i] = 2
+		return nil
+	}
+	for i := range todos {
+		if err := visit(i); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // openTodos is the part of the plan still to do, for the note carried

@@ -244,6 +244,13 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 	if e.Description == "" && e.Body == "" {
 		return Entry{}, Unchanged, errors.New("nothing to remember")
 	}
+	// Memory is written to disk and read back into every later prompt,
+	// so a credential that lands here is a credential that keeps being
+	// sent. The entry is refused rather than scrubbed: what was worth
+	// remembering was where the value lives, not the value.
+	if what := ScanSecret(e.Description + "\n" + e.Body); what != "" {
+		return Entry{}, Unchanged, errSecret(what)
+	}
 	if e.Description == "" {
 		e.Description = oneLine(e.Body, MaxIndexLine)
 	}

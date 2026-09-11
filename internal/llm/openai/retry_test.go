@@ -1,0 +1,117 @@
+package openai
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/xmonader/janetcode/internal/llm"
+)
+
+// A plain 500 is the server saying this request broke it; sending the
+// same request again breaks it again, with the real reason buried under
+// the retries.
+func TestInternalErrorIsNotRetried(t *testing.T) {
+	var calls atomic.Int32
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		http.Error(w, `{"error":{"message":"internal error"}}`, 500)
+	})
+	_, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	if err == nil {
+		t.Fatal("want an error")
+	}
+	if n := calls.Load(); n != 1 {
+		t.Fatalf("%d requests, want 1", n)
+	}
+	for _, status := range []int{502, 503, 504, 429, 408, 529} {
+		if !retryable(&APIError{Status: status, Message: "x"}) {
+			t.Errorf("%d should be retried", status)
+		}
+	}
+	for _, status := range []int{500, 501, 400, 404, 422} {
+		if retryable(&APIError{Status: status, Message: "x"}) {
+			t.Errorf("%d should not be retried", status)
+		}
+	}
+}
+
+func TestRetryAfterIsHonouredOnlyWhereItMeansComeBack(t *testing.T) {
+	if got := retryAfter("2"); got != 2*time.Second {
+		t.Fatalf("seconds form = %v", got)
+	}
+	if got := retryAfter(time.Now().Add(3 * time.Second).UTC().Format(http.TimeFormat)); got <= 0 || got > 4*time.Second {
+		t.Fatalf("date form = %v", got)
+	}
+	if got := retryAfter("3600"); got != 0 {
+		t.Fatalf("an hour should be ignored, got %v", got)
+	}
+	for _, v := range []string{"", "soon", "-1", "0"} {
+		if got := retryAfter(v); got != 0 {
+			t.Fatalf("retryAfter(%q) = %v", v, got)
+		}
+	}
+
+	// The header is kept on 429 and 503, and nowhere else: on another
+	// status it is advice about a failure that is not going to clear.
+	for _, tc := range []struct {
+		status int
+		want   time.Duration
+	}{{429, time.Second}, {503, time.Second}, {500, 0}, {400, 0}} {
+		status := tc.status
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, fmt.Sprintf(`{"error":{"message":"status %d"}}`, status), status)
+		}))
+		p, err := New(Config{BaseURL: srv.URL + "/v1", APIKey: "k", MaxRetries: 0})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+		var ae *APIError
+		if !errors.As(err, &ae) {
+			t.Fatalf("status %d: err = %v", status, err)
+		}
+		if ae.RetryAfter != tc.want {
+			t.Errorf("status %d: RetryAfter = %v, want %v", status, ae.RetryAfter, tc.want)
+		}
+		srv.Close()
+	}
+}
+
+// A 429 with a Retry-After waits for as long as the server asked, not
+// for the harness's guess.
+func TestRetryWaitsAsTheServerAsked(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, `{"error":{"message":"slow down"}}`, 429)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	defer srv.Close()
+	p, err := New(Config{BaseURL: srv.URL + "/v1", APIKey: "k", MaxRetries: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	resp, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Message.Text() != "ok" {
+		t.Fatalf("text = %q", resp.Message.Text())
+	}
+	if waited := time.Since(start); waited < 900*time.Millisecond {
+		t.Fatalf("waited %v, want the second the server asked for", waited)
+	}
+}
