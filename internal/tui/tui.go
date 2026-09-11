@@ -1350,6 +1350,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// A word that spells a key name is text, not that key. It is
+		// delivered one character at a time, which is what was typed, so
+		// neither this model nor the textarea can mistake it. Not at a
+		// permission prompt: there a run of characters is still ignored
+		// as a whole rather than answering with its first letter.
+		if typedAsKey(msg) && m.pending == nil {
+			var cmds []tea.Cmd
+			var mm tea.Model = m
+			for _, r := range msg.Runes {
+				var cmd tea.Cmd
+				mm, cmd = mm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}, Paste: msg.Paste})
+				cmds = append(cmds, cmd)
+			}
+			return mm, tea.Batch(cmds...)
+		}
 		if cmd, handled := m.handleKey(msg); handled {
 			return m, cmd
 		}
@@ -1585,6 +1600,42 @@ func (m *model) applyEvent(ev agent.Event) {
 	}
 }
 
+// typedKeyNames are the key names bubbletea gives a key press that a
+// person can also type as a word. bubbles' key.Matches compares only
+// KeyMsg.String(), so a run of typed characters that happens to spell
+// one of these is indistinguishable from the key itself.
+var typedKeyNames = map[string]bool{
+	"up": true, "down": true, "left": true, "right": true,
+	"home": true, "end": true, "insert": true, "delete": true,
+	"pgup": true, "pgdown": true, "tab": true, "enter": true,
+	"esc": true, "backspace": true, "space": true, "runes": true,
+	"f1": true, "f2": true, "f3": true, "f4": true, "f5": true,
+	"f6": true, "f7": true, "f8": true, "f9": true, "f10": true,
+	"f11": true, "f12": true,
+}
+
+// typedAsKey reports whether a run of typed characters would be taken
+// for a key press by anything that switches on KeyMsg.String().
+func typedAsKey(msg tea.KeyMsg) bool {
+	return msg.Type == tea.KeyRunes && !msg.Alt && len(msg.Runes) > 1 &&
+		typedKeyNames[string(msg.Runes)]
+}
+
+// keyName is the name to switch on for one key press. Bubbletea splits
+// typed text into runs of runes between spaces and delivers each run as
+// one KeyRunes message whose String() is the text itself, so the words
+// "right", "left", "up", "down", "home", "end", "enter", "esc" and
+// "delete" used to arrive as those keys: the word disappeared from the
+// prompt, the cursor jumped, or ↑ pulled in a history entry in the
+// middle of a sentence. Typed text of more than one rune is never a key
+// name, so it falls through to the textarea.
+func keyName(msg tea.KeyMsg) string {
+	if msg.Type == tea.KeyRunes && !msg.Alt && len(msg.Runes) > 1 {
+		return ""
+	}
+	return msg.String()
+}
+
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	if m.picker != nil {
 		return m.handlePickerKey(msg)
@@ -1604,7 +1655,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	// Permission prompt takes over the keyboard.
 	if m.pending != nil && m.denying {
 		// Collecting an optional reason: enter sends it, esc denies silently.
-		switch msg.String() {
+		switch keyName(msg) {
 		case "enter":
 			m.answer(agent.Deny, strings.TrimSpace(m.input.Value()))
 			m.input.Reset()
@@ -1623,7 +1674,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return nil, true
 	}
 	if m.pending != nil {
-		switch msg.String() {
+		switch keyName(msg) {
 		case "y", "Y", "enter":
 			m.answer(agent.Allow, "")
 		case "a", "A":
@@ -1654,7 +1705,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		return nil, true
 	}
-	switch msg.String() {
+	switch keyName(msg) {
 	case "ctrl+c":
 		// Three stages: cancel a running turn, else clear typed text, else
 		// quit. A second press while a cancel is pending forces the quit.
@@ -1805,7 +1856,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		// With text in the input these are the textarea's readline keys
 		// (kill line, back/forward a character); they page the transcript
 		// only when there is nothing to edit.
-		if k := msg.String(); k == "pgup" || k == "pgdown" || m.input.Value() == "" {
+		if k := keyName(msg); k == "pgup" || k == "pgdown" || m.input.Value() == "" {
 			return m.scroll(msg), true
 		}
 		return nil, false

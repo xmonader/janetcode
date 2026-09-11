@@ -70,7 +70,7 @@ func (m *model) pickerRows() ([]row, int) {
 // handlePickerKey drives the modal; every key is consumed.
 func (m *model) handlePickerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	p := m.picker
-	switch msg.String() {
+	switch keyName(msg) {
 	case "esc", "ctrl+c":
 		m.closePicker()
 		return nil, true
@@ -78,7 +78,7 @@ func (m *model) handlePickerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		rows, idx := m.pickerRows()
 		if len(rows) > 0 {
 			d := 1
-			if msg.String() == "up" || msg.String() == "ctrl+p" {
+			if keyName(msg) == "up" || keyName(msg) == "ctrl+p" {
 				d = -1
 			}
 			p.idx = (idx + d + len(rows)) % len(rows)
@@ -89,7 +89,7 @@ func (m *model) handlePickerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	case "pgup", "pgdown":
 		rows, idx := m.pickerRows()
 		if len(rows) > 0 {
-			if msg.String() == "pgup" {
+			if keyName(msg) == "pgup" {
 				p.idx = max(idx-m.dialogStep(p.winRows), 0)
 			} else {
 				p.idx = min(idx+m.dialogStep(p.winRows), len(rows)-1)

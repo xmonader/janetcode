@@ -367,7 +367,7 @@ func (m *model) visible() ([]row, int) {
 func (m *model) handleConnectKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	c := m.connect
 	c.problem = ""
-	switch msg.String() {
+	switch keyName(msg) {
 	case "ctrl+c":
 		m.closeConnect("")
 		return nil, true
@@ -385,7 +385,7 @@ func (m *model) handleConnectKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		rows, idx := m.visible()
 		if len(rows) > 0 {
 			d := 1
-			if msg.String() == "up" || msg.String() == "ctrl+p" {
+			if keyName(msg) == "up" || keyName(msg) == "ctrl+p" {
 				d = -1
 			}
 			c.idx = (idx + d + len(rows)) % len(rows)
@@ -396,7 +396,7 @@ func (m *model) handleConnectKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	case "pgup", "pgdown":
 		rows, idx := m.visible()
 		if len(rows) > 0 {
-			if msg.String() == "pgup" {
+			if keyName(msg) == "pgup" {
 				c.idx = max(idx-m.dialogStep(c.rows), 0)
 			} else {
 				c.idx = min(idx+m.dialogStep(c.rows), len(rows)-1)

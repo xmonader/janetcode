@@ -2786,3 +2786,69 @@ func TestFitRows(t *testing.T) {
 		}
 	}
 }
+
+// typed feeds text the way bubbletea's reader does: every run of
+// characters between spaces arrives as one KeyRunes message, and a space
+// as KeySpace. h.keys sends one rune at a time, which hides the whole
+// class of collisions this models.
+func (h *harness) typed(s string) {
+	flush := func(run []rune) {
+		if len(run) > 0 {
+			h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: run})
+		}
+	}
+	var run []rune
+	for _, r := range s {
+		if r == ' ' {
+			flush(run)
+			run = nil
+			h.update(tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
+			continue
+		}
+		run = append(run, r)
+	}
+	flush(run)
+}
+
+// Bubbletea splits typed text at spaces and hands each run over as one
+// KeyRunes message whose String() is the word itself, and bubbles'
+// key.Matches compares nothing else. Typing "move it right" therefore
+// lost the word "right", "up" pulled a history entry into the middle of
+// a sentence, and "home" jumped the cursor to the start of the line.
+func TestTypedWordsAreNotKeyPresses(t *testing.T) {
+	h := newHarness(t)
+	h.m.remember("first prompt")
+	for _, word := range []string{"right", "left", "up", "down", "home", "end", "delete", "esc", "enter", "tab", "insert", "pgup"} {
+		h.m.input.Reset()
+		h.typed("aa " + word + " bb")
+		if got := h.m.input.Value(); got != "aa "+word+" bb" {
+			t.Errorf("typing %q gave %q", "aa "+word+" bb", got)
+		}
+	}
+	// Real key presses still are key presses.
+	h.m.input.Reset()
+	h.update(tea.KeyMsg{Type: tea.KeyUp})
+	if h.m.input.Value() != "first prompt" {
+		t.Fatalf("up no longer browses history: %q", h.m.input.Value())
+	}
+}
+
+// The same collision in the searchable modals: typing "end" in the
+// session or model search used to page the highlight instead.
+func TestTypedWordsInPickerSearch(t *testing.T) {
+	h := newHarness(t)
+	h.m.openPicker(&picker{
+		title: "Pick",
+		rows: []row{{key: "alpha", cells: []string{"alpha"}, name: "alpha"},
+			{key: "friend", cells: []string{"friend"}, name: "friend"}},
+		choose: func(r row, typed string) tea.Cmd { return nil },
+	})
+	h.typed("friend")
+	if got := h.m.picker.field.Value(); got != "friend" {
+		t.Fatalf("picker search took %q", got)
+	}
+	h.typed(" end")
+	if got := h.m.picker.field.Value(); got != "friend end" {
+		t.Fatalf("picker search took %q", got)
+	}
+}
