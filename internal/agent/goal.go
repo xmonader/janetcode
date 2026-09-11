@@ -146,8 +146,21 @@ func (g *GoalStatus) Run(_ context.Context, input json.RawMessage) (string, erro
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", err
 	}
-	cur := ActiveGoal(g.Parent.Log.Events())
+	events := g.Parent.Log.Events()
+	cur := ActiveGoal(events)
 	if cur == nil {
+		// A model that has just completed a goal often calls this again
+		// on the next turn, to confirm. "Error: no active goal" reads as
+		// something having gone wrong, so it tries once more, and again;
+		// the settled goal is the answer it was looking for, and saying
+		// so plainly is what stops the retry loop.
+		if last := LastGoal(events, ""); last != nil {
+			msg := "goal " + last.ID + " is already " + last.Phase
+			if last.Reason != "" {
+				msg += ": " + last.Reason
+			}
+			return msg + ". There is nothing left to mark; do not call goal_status again for it.", nil
+		}
 		return "", fmt.Errorf("no active goal")
 	}
 	phase := GoalComplete
