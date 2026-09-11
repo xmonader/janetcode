@@ -75,7 +75,7 @@ var keyFeatures = []feature.Feature{
 	{Name: "ctrl+g", Kind: feature.KindKey, Manual: "interface",
 		What:   "move the command running in the foreground to the background, as a job, and let the turn continue",
 		When:   "a build or a test suite is taking minutes and the turn is blocked on it",
-		Topics: []string{"background", "job", "slow", "hang", "stuck", "promote"}},
+		Topics: []string{"background", "job", "slow", "hang", "stuck", "promote", "forever", "minutes", "waiting"}},
 	{Name: "ctrl+o", Kind: feature.KindKey, Manual: "interface",
 		What:   "expand the last turn's folded tool output (again folds it)",
 		When:   "a tool result was truncated on screen and you want the rest",
@@ -135,12 +135,12 @@ var commandInvoke = map[string]string{
 // contain the word a user would search for. It is deliberately short:
 // the description already carries most of the vocabulary.
 var commandTopics = map[string][]string{
-	"/compact":     {"context", "full", "window", "summarise", "shrink", "long", "output"},
+	"/compact":     {"context", "full", "window", "summarise", "shrink", "long", "output", "forgot", "forget", "lost"},
 	"/context":     {"window", "full", "tokens", "gauge", "budget"},
 	"/undo":        {"revert", "checkpoint", "snapshot", "mistake", "restore"},
 	"/verify":      {"test", "tests", "build", "gate", "check", "ci", "lint"},
-	"/remember":    {"memory", "persist", "across", "sessions", "learn", "recall"},
-	"/memory":      {"remember", "persist", "across", "sessions", "learn", "recall"},
+	"/remember":    {"memory", "persist", "across", "sessions", "learn", "recall", "forgot", "forget"},
+	"/memory":      {"remember", "persist", "across", "sessions", "learn", "recall", "forgot", "forget"},
 	"/resume":      {"session", "sessions", "continue", "yesterday", "reopen"},
 	"/jobs":        {"background", "long", "running", "kill"},
 	"/permissions": {"approve", "allow", "deny", "rule", "trust", "prompt"},

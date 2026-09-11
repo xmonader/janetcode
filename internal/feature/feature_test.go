@@ -123,6 +123,55 @@ func TestIntrospectIsReadOnlyAndSchemaIsValid(t *testing.T) {
 	}
 }
 
+func TestFindReadsTheCommandNamedInTheMiddleOfASentence(t *testing.T) {
+	c := sample()
+	c.Add(Feature{Name: "/remember", Kind: KindCommand, What: "add a fact to the project memory", When: "a fact you are tired of repeating"})
+	hits := c.Find("remember this for next time", 5)
+	if len(hits) == 0 || hits[0].Name != "/remember" {
+		t.Fatalf("ranked %v first, not /remember", names(hits))
+	}
+}
+
+func TestFindIgnoresFillerWords(t *testing.T) {
+	c := sample()
+	// "what" and "this" appear in half the catalogue's prose and must
+	// not be what decides the order.
+	hits := c.Find("what is this", 5)
+	if len(hits) != 0 {
+		t.Errorf("a query of nothing but filler matched %v", names(hits))
+	}
+}
+
+func TestFindSaysNothingRatherThanGuessing(t *testing.T) {
+	c := sample()
+	if hits := c.Find("zzz nothing at all zzz", 5); len(hits) != 0 {
+		t.Errorf("gibberish matched %v", names(hits))
+	}
+}
+
+func TestKindNamedTurnsAListingQueryIntoAListing(t *testing.T) {
+	for _, q := range []string{"keys", "keybindings", "commands", "config keys"} {
+		if _, ok := KindNamed(q); !ok {
+			t.Errorf("%q was not recognised as a kind", q)
+		}
+	}
+	if _, ok := KindNamed("undo"); ok {
+		t.Error("undo was taken for a kind")
+	}
+	out := Answer(sample(), "keys", "")
+	if !strings.Contains(out, "ctrl+g") {
+		t.Errorf("/help keys did not list the keys:\n%s", out)
+	}
+}
+
+func names(fs []Feature) []string {
+	out := make([]string, len(fs))
+	for i, f := range fs {
+		out[i] = f.Name
+	}
+	return out
+}
+
 func TestHeadlineDoesNotCutInsideBracketsOrAbbreviations(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it",
