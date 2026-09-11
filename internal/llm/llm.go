@@ -335,6 +335,26 @@ type Provider interface {
 	Stream(ctx context.Context, req Request, emit func(Event)) (*Response, error)
 }
 
+// PerTask is a provider that can hand out a sibling for one unit of
+// concurrent work, sharing everything worth sharing (the endpoint, the key
+// ring, whatever the server has taught us) but not the rate-limit pacing,
+// which only ever widens and would otherwise let one refused task slow
+// every other one down. Callers that run tasks in parallel in a single
+// process should ask for one each; ForTaskOr does that where it exists and
+// returns p unchanged where it does not.
+type PerTask interface {
+	Provider
+	ForTask() Provider
+}
+
+// ForTaskOr returns a per-task sibling of p when p offers one.
+func ForTaskOr(p Provider) Provider {
+	if pt, ok := p.(PerTask); ok {
+		return pt.ForTask()
+	}
+	return p
+}
+
 // ModelInfo is one model a provider offers.
 type ModelInfo struct {
 	ID   string
