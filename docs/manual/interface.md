@@ -229,6 +229,19 @@ model can read a skill with the `skill` tool. You can run one yourself as
 lists what is installed. Skills are re-read from disk every turn, so
 editing one takes effect immediately.
 
+### When exit 1 is an answer
+
+`grep`, `rg`, `diff`, `cmp` and `test` use exit code 1 to say "I looked
+and found nothing" — no matching line, two files that differ, a false
+condition. That is an answer, not a failure, so the result says so:
+`[exit code 1] no lines matched; for this command that is an answer, not
+a failure`, and the call is not flagged as an error. Only exit 1 is read
+this way; grep's exit 2 (a bad pattern, an unreadable file) and every
+other non-zero code are reported unchanged. The command whose status the
+line carries is worked out the way a shell works it out — the last stage
+of the pipeline — and a line joined with `&&`, where either side could
+have produced the 1, stays an ordinary failure.
+
 ### Background jobs
 
 `bash` with `background: true` starts a command detached (its own

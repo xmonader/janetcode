@@ -119,7 +119,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		result = "(no output)"
 	}
 	if exit != 0 {
-		result += fmt.Sprintf("\n[exit code %d]", exit)
+		result += exitNote(in.Command, exit)
 	}
 	result = Truncate(result)
 	t.Cache.put(cacheKey, result)
