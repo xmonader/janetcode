@@ -62,6 +62,9 @@ type Session struct {
 	mu      sync.Mutex
 	ev      []Event
 	nextSeq int
+	// lastSync is when the log was last forced to durable storage; see
+	// syncInterval.
+	lastSync time.Time
 }
 
 // Dir returns the sessions directory, honouring XDG_DATA_HOME.
@@ -384,15 +387,44 @@ func (s *Session) Append(e Event) (int, error) {
 		f.Close()
 		return 0, err
 	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		return 0, err
+	// The line is in the kernel now, so it survives janetcode crashing,
+	// which is the failure a session log is for. Forcing it to the platter
+	// as well costs 3.6ms an event on this machine, and a turn writes
+	// dozens: the tool call, its arguments, its result, every notice and
+	// the verdict. That is paid on the event path, between the model
+	// answering and the user seeing it. Sync at most once a second
+	// instead, which bounds what a power cut can take to the events of one
+	// second; a clean end rewrites and syncs the whole file anyway
+	// (SetSettled), and Sync forces it on demand.
+	if now := time.Now(); now.Sub(s.lastSync) >= syncInterval {
+		if err := f.Sync(); err != nil {
+			f.Close()
+			return 0, err
+		}
+		s.lastSync = now
 	}
 	if err := f.Close(); err != nil {
 		return 0, err
 	}
 	s.ev = append(s.ev, e)
 	return e.Seq, nil
+}
+
+// syncInterval bounds how much of the log a power cut can cost.
+const syncInterval = time.Second
+
+// Sync forces the log to durable storage. Appending does this on its own
+// schedule; call it when the session is about to be left alone.
+func (s *Session) Sync() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	s.lastSync = time.Now()
+	return f.Sync()
 }
 
 // SetTitle stores a title in the metadata line and rewrites the file.

@@ -632,6 +632,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			}
 			fmt.Fprintf(os.Stderr, "[mcp] %s ready: %d tools\n", name, len(c.Tools()))
 		})
+		// Appending syncs on a timer, not per event; a headless run has no
+		// settling step to force the last of it out, so it does that here.
+		if sess != nil {
+			defer func() { _ = sess.Sync() }()
+		}
 		return headless.Run(ctx, headless.Options{
 			Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
