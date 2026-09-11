@@ -15,6 +15,41 @@ const sample = `{
  "free-thing": {"input_cost_per_token": 0, "output_cost_per_token": 0}
 }`
 
+// TestOneBadEntryDoesNotLoseTheTable: the fast path decodes the whole
+// file into Entry at once, which one badly typed rate would fail. The
+// per-entry fallback has to catch that and drop only the bad entry.
+func TestOneBadEntryDoesNotLoseTheTable(t *testing.T) {
+	bad := `{"broken": {"input_cost_per_token": "three"},
+ "gpt-4o-mini": {"input_cost_per_token": 1.5e-07, "output_cost_per_token": 6e-07}}`
+	tb, err := Parse([]byte(bad))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := tb.Models["broken"]; ok {
+		t.Fatal("an entry with a string rate was priced")
+	}
+	if tb.PriceFor("gpt-4o-mini") == nil {
+		t.Fatal("the good entry was lost with the bad one")
+	}
+}
+
+// TestLazyTableIsNotOnTheStartupPath: the cached table is read in the
+// background, so a run that never asks for a price never waits for it.
+func TestLazyTableIsNotOnTheStartupPath(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(CachePath(dir), []byte(sample), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	l := LoadLazy(dir)
+	if l.PriceFor("gpt-4o-mini") == nil {
+		t.Fatal("the lazy table did not price a model the cache lists")
+	}
+	// A missing cache must behave like the nil *Table it replaced.
+	if LoadLazy(t.TempDir()).PriceFor("gpt-4o-mini") != nil {
+		t.Fatal("an empty config directory priced a model")
+	}
+}
+
 // TestPricesComeOutPerMillionUnderAnyProviderName: the table is per
 // token; janetcode prices per million. A model is found under the name
 // the provider uses, under LiteLLM's prefix, or by its base name.

@@ -293,7 +293,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		// cache is read now; a refresh runs in the background.
 		if cfgPath, perr := config.Path(); perr == nil {
 			dir := filepath.Dir(cfgPath)
-			cfg.RatesTable = rates.Load(dir)
+			cfg.RatesTable = rates.LoadLazy(dir)
 			if !rates.Fresh(dir) {
 				go func() {
 					rctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
