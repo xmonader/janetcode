@@ -23,6 +23,12 @@ type Snapshot struct {
 	Path    string `json:"path"`
 	Data    []byte `json:"data,omitempty"`
 	Existed bool   `json:"existed"`
+	// Failed marks a file whose state before the turn could not be read
+	// — a permission, a device error, something that is not a regular
+	// file. Restoring the empty copy would write over the real content
+	// with nothing and call it an undo, so the file is left alone and
+	// the failure is reported instead.
+	Failed bool `json:"failed,omitempty"`
 }
 
 // Checkpoint is the state before a turn that changed something. Inside a
@@ -109,7 +115,11 @@ func (c *checkpointer) snapshot(repo *snapshot.Repo, t tool.Tool, input []byte) 
 		if data, err := os.ReadFile(p); err == nil {
 			snap.Data, snap.Existed = data, true
 		} else if !errors.Is(err, os.ErrNotExist) {
-			continue // unreadable: cannot promise a restore
+			// Unreadable: the checkpoint records that it could not be
+			// captured rather than quietly holding nothing, which an
+			// undo would otherwise write over the file as if it were
+			// the state before the turn.
+			snap.Failed = true
 		}
 		if !c.open {
 			c.openCheckpoint(repo)
@@ -176,6 +186,10 @@ func (a *Agent) UndoPreview() ([]string, error) {
 		if seen[f.Path] {
 			continue
 		}
+		if f.Failed {
+			out = append(out, "cannot restore "+f.Path+" (not captured)")
+			continue
+		}
 		if f.Existed {
 			out = append(out, "restore "+f.Path)
 		} else {
@@ -229,6 +243,8 @@ func (a *Agent) captureState(like Checkpoint, label string) (Checkpoint, bool) {
 		s := Snapshot{Path: f.Path}
 		if data, err := os.ReadFile(f.Path); err == nil {
 			s.Data, s.Existed = data, true
+		} else if !errors.Is(err, os.ErrNotExist) {
+			s.Failed = true
 		}
 		cp.Files = append(cp.Files, s)
 	}
@@ -435,6 +451,10 @@ func (a *Agent) restore(cp Checkpoint) ([]string, error) {
 	sort.SliceStable(files, func(i, j int) bool { return i > j })
 	for _, f := range files {
 		var err error
+		if f.Failed {
+			errs = append(errs, fmt.Errorf("%s: its state before the turn could not be captured, so it was left as it is", f.Path))
+			continue
+		}
 		if f.Existed {
 			err = tool.AtomicWrite(f.Path, f.Data)
 		} else if err = os.Remove(f.Path); errors.Is(err, os.ErrNotExist) {

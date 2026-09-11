@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -329,3 +330,50 @@ func TestAutoEditsLetsEditsThroughAndCommandsAsk(t *testing.T) {
 		t.Fatalf("approver asked for %v, want just bash", asked)
 	}
 }
+
+// A file whose state before the turn could not be read is recorded as a
+// failed capture: an undo says so and leaves the file alone, rather than
+// writing an empty copy over it and reporting a restore.
+func TestUndoReportsAFailedCapture(t *testing.T) {
+	root := t.TempDir()
+	// A directory is not a file the copier can read, and is portable in
+	// a way chmod is not.
+	path := filepath.Join(root, "blocked")
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(path, "keep.txt"), []byte("still here"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &Agent{}
+	a.cp.beginTurn(1, 0)
+	a.cp.snapshot(nil, touchTool{paths: []string{path}}, nil)
+	cps := a.Checkpoints()
+	if len(cps) != 1 || len(cps[0].Files) != 1 || !cps[0].Files[0].Failed {
+		t.Fatalf("checkpoint = %+v", cps)
+	}
+	preview, err := a.UndoPreview()
+	if err != nil || len(preview) != 1 || !strings.Contains(preview[0], "cannot restore") {
+		t.Fatalf("preview = %v, %v", preview, err)
+	}
+	done, err := a.Undo()
+	if err == nil || !strings.Contains(err.Error(), "could not be captured") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(done) != 0 {
+		t.Fatalf("nothing was restored, but undo reported %v", done)
+	}
+	if _, serr := os.Stat(filepath.Join(path, "keep.txt")); serr != nil {
+		t.Fatalf("undo damaged what it could not capture: %v", serr)
+	}
+}
+
+// touchTool is a mutating tool that declares the paths it would write.
+type touchTool struct{ paths []string }
+
+func (touchTool) Name() string                                         { return "touch" }
+func (touchTool) Description() string                                  { return "touches files" }
+func (touchTool) Schema() json.RawMessage                              { return json.RawMessage(`{"type":"object"}`) }
+func (touchTool) Mutating() bool                                       { return true }
+func (touchTool) Run(context.Context, json.RawMessage) (string, error) { return "ok", nil }
+func (t touchTool) Touches(json.RawMessage) ([]string, error)          { return t.paths, nil }
