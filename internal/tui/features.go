@@ -1,10 +1,6 @@
 package tui
 
-import (
-	"strings"
-
-	"github.com/xmonader/janetcode/internal/feature"
-)
+import "github.com/xmonader/janetcode/internal/feature"
 
 // This file turns the two tables the terminal already runs on — the
 // slash commands and the keys — into catalogue entries, so that
@@ -79,7 +75,7 @@ var keyFeatures = []feature.Feature{
 	{Name: "ctrl+g", Kind: feature.KindKey, Manual: "interface",
 		What:   "move the command running in the foreground to the background, as a job, and let the turn continue",
 		When:   "a build or a test suite is taking minutes and the turn is blocked on it",
-		Topics: []string{"background", "job", "slow", "hang", "stuck", "promote"}},
+		Topics: []string{"background", "job", "slow", "hang", "stuck", "promote", "forever", "minutes", "waiting"}},
 	{Name: "ctrl+o", Kind: feature.KindKey, Manual: "interface",
 		What:   "expand the last turn's folded tool output (again folds it)",
 		When:   "a tool result was truncated on screen and you want the rest",
@@ -139,12 +135,12 @@ var commandInvoke = map[string]string{
 // contain the word a user would search for. It is deliberately short:
 // the description already carries most of the vocabulary.
 var commandTopics = map[string][]string{
-	"/compact":     {"context", "full", "window", "summarise", "shrink", "long", "output"},
+	"/compact":     {"context", "full", "window", "summarise", "shrink", "long", "output", "forgot", "forget", "lost"},
 	"/context":     {"window", "full", "tokens", "gauge", "budget"},
 	"/undo":        {"revert", "checkpoint", "snapshot", "mistake", "restore"},
 	"/verify":      {"test", "tests", "build", "gate", "check", "ci", "lint"},
-	"/remember":    {"memory", "persist", "across", "sessions", "learn", "recall"},
-	"/memory":      {"remember", "persist", "across", "sessions", "learn", "recall"},
+	"/remember":    {"memory", "persist", "across", "sessions", "learn", "recall", "forgot", "forget"},
+	"/memory":      {"remember", "persist", "across", "sessions", "learn", "recall", "forgot", "forget"},
 	"/resume":      {"session", "sessions", "continue", "yesterday", "reopen"},
 	"/jobs":        {"background", "long", "running", "kill"},
 	"/permissions": {"approve", "allow", "deny", "rule", "trust", "prompt"},
@@ -186,10 +182,6 @@ func Features() []feature.Feature {
 
 // firstClause keeps a command's description to one line. A few entries
 // in the table explain two things separated by a semicolon; the
-// catalogue wants the first, and the manual has the rest.
-func firstClause(help string) string {
-	if i := strings.Index(help, "; "); i > 30 {
-		return help[:i]
-	}
-	return help
-}
+// catalogue wants the first, and the manual has the rest. The cut is
+// feature.Headline's, which will not break a line inside a bracket.
+func firstClause(help string) string { return feature.Headline(help, 31) }

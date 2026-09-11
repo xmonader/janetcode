@@ -107,7 +107,7 @@ func TestOffSilencesEverything(t *testing.T) {
 func TestAFeatureTheUserKnowsIsNotIntroduced(t *testing.T) {
 	e := New(nil)
 	s := &State{
-		MutatingTurns: 9, ContextPct: 70,
+		MutatingTurns: 9, ContextPct: 70, Spent: true,
 		Used: func(f string) bool { return f == "/verify" },
 	}
 	got := e.Eval(s)
@@ -203,6 +203,24 @@ func TestEveryRuleHasAnIdAndSomethingToSay(t *testing.T) {
 	}
 	if len(seen) < 9 {
 		t.Errorf("only %d rules", len(seen))
+	}
+}
+
+// The hint used to fire at startup, on the strength of the price table
+// alone, and told a user of a provider that reports its own costs that
+// "the cost figures will be blank rather than wrong" while the status
+// line showed a cost. It waits for a call that produced no figure.
+func TestTheUnpricedHintWaitsToSeeWhetherTheFiguresAreActuallyBlank(t *testing.T) {
+	e := New(nil)
+	if got := e.Eval(&State{UnpricedModel: "x/y"}); got != "" {
+		t.Fatalf("fired before a single call: %q", got)
+	}
+	if got := e.Eval(&State{UnpricedModel: "x/y", Spent: true, CostKnown: true}); got != "" {
+		t.Fatalf("fired although the provider reported a cost: %q", got)
+	}
+	got := e.Eval(&State{UnpricedModel: "x/y", Spent: true})
+	if !strings.Contains(got, "x/y") {
+		t.Fatalf("did not fire once the figures really were blank: %q", got)
 	}
 }
 

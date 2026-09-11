@@ -123,6 +123,114 @@ func TestIntrospectIsReadOnlyAndSchemaIsValid(t *testing.T) {
 	}
 }
 
+func TestFindReadsTheCommandNamedInTheMiddleOfASentence(t *testing.T) {
+	c := sample()
+	c.Add(Feature{Name: "/remember", Kind: KindCommand, What: "add a fact to the project memory", When: "a fact you are tired of repeating"})
+	hits := c.Find("remember this for next time", 5)
+	if len(hits) == 0 || hits[0].Name != "/remember" {
+		t.Fatalf("ranked %v first, not /remember", names(hits))
+	}
+}
+
+func TestFindIgnoresFillerWords(t *testing.T) {
+	c := sample()
+	// "what" and "this" appear in half the catalogue's prose and must
+	// not be what decides the order.
+	hits := c.Find("what is this", 5)
+	if len(hits) != 0 {
+		t.Errorf("a query of nothing but filler matched %v", names(hits))
+	}
+}
+
+func TestFindSaysNothingRatherThanGuessing(t *testing.T) {
+	c := sample()
+	if hits := c.Find("zzz nothing at all zzz", 5); len(hits) != 0 {
+		t.Errorf("gibberish matched %v", names(hits))
+	}
+}
+
+func TestKindNamedTurnsAListingQueryIntoAListing(t *testing.T) {
+	for _, q := range []string{"keys", "keybindings", "commands", "config keys"} {
+		if _, ok := KindNamed(q); !ok {
+			t.Errorf("%q was not recognised as a kind", q)
+		}
+	}
+	if _, ok := KindNamed("undo"); ok {
+		t.Error("undo was taken for a kind")
+	}
+	out := Answer(sample(), "keys", "")
+	if !strings.Contains(out, "ctrl+g") {
+		t.Errorf("/help keys did not list the keys:\n%s", out)
+	}
+}
+
+// The transcript wraps to the terminal width with no hanging indent, so
+// at eighty columns a "when" line came back to column zero and the rows
+// ran into each other. /help wraps its own rows.
+func TestAnswerWrapsWithAHangingIndent(t *testing.T) {
+	c := sample()
+	out := AnswerWidth(c, "the context is full", "", 60)
+	for _, line := range strings.Split(out, "\n") {
+		if len(line) > 60 {
+			t.Errorf("line is %d wide: %q", len(line), line)
+		}
+	}
+	if !strings.Contains(out, "\n      when:") {
+		t.Errorf("no indented when line:\n%s", out)
+	}
+	// Unwrapped is what the model gets: a request is not a terminal.
+	if strings.Contains(Answer(c, "the context is full", ""), "\n  summar") {
+		t.Error("the unwrapped answer was wrapped")
+	}
+}
+
+func TestListWrapsToTheTerminalWidth(t *testing.T) {
+	c := sample()
+	c.Add(Feature{Name: "/verify", Kind: KindCommand,
+		Invoke: "/verify [set <cmd>|mutate <test cmd>|clear|trust]",
+		What:   "run the project's checks now; set adds one to .janetcode/verify.json",
+		When:   "you want the harness to run the build or the tests after every change and hand failures back to the model"})
+	for _, w := range []int{60, 80, 110} {
+		for _, line := range strings.Split(c.ListWidth(w), "\n") {
+			if len(line) > w {
+				t.Errorf("at %d columns a line is %d wide: %q", w, len(line), line)
+			}
+		}
+	}
+	if !strings.Contains(c.ListWidth(80), "/verify [set <cmd>|mutate <test cmd>|clear|trust]\n") {
+		t.Error("a wide invocation did not get a line of its own")
+	}
+}
+
+func names(fs []Feature) []string {
+	out := make([]string, len(fs))
+	for i, f := range fs {
+		out[i] = f.Name
+	}
+	return out
+}
+
+func TestHeadlineDoesNotCutInsideBracketsOrAbbreviations(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it",
+			"revert everything the last turn changed (git snapshot; file copies outside git)"},
+		{"comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'",
+			"comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'"},
+		{"configured provider or preset name, e.g. anthropic, openai, openrouter, ollama",
+			"configured provider or preset name, e.g. anthropic, openai, openrouter, ollama"},
+		{"one sentence. And a second one that is dropped.", "one sentence"},
+		{"a clause long enough to be worth cutting; and the rest",
+			"a clause long enough to be worth cutting"},
+		{"short; keep", "short; keep"},
+		{"trailing full stop.", "trailing full stop"},
+	}
+	for _, c := range cases {
+		if got := Headline(c.in, 31); got != c.want {
+			t.Errorf("Headline(%q)\n got %q\nwant %q", c.in, got, c.want)
+		}
+	}
+}
+
 func TestAnswerSurvivesANilCatalogue(t *testing.T) {
 	if got := Answer(nil, "zzzz no such thing zzzz", ""); got == "" {
 		t.Fatal("nil catalogue produced no answer at all")

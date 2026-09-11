@@ -121,3 +121,28 @@ JANETCODE_SYSTEM_MD=prompts/terse.md janetcode --eval evals --eval-runs 5 \
   --eval-label terse --eval-json terse.json
 janetcode --eval-report terse.json --eval-compare base.json
 ```
+
+## Every eval flag
+
+The environment variables above are what `make eval` sets; each is a flag
+on `janetcode --eval <file-or-directory>` and can be given directly.
+
+| flag | what it does |
+|---|---|
+| `--eval <path>` | run the tasks in this file or directory and exit |
+| `--eval-jobs <n>` | tasks to run at once (default 2) |
+| `--eval-only <names>` | run only these tasks, by name or tag |
+| `--eval-runs <n>` | repeat every task this many times, so the report is rates rather than coin flips |
+| `--eval-json <file>` | write the run's numbers for a later comparison |
+| `--eval-report <file>` | re-read a saved results file and print it again |
+| `--eval-compare <file>` | pair against a baseline results file and print the delta with a bootstrap interval |
+| `--eval-label <text>` | name this variant, so two runs can be told apart in a results file |
+| `--eval-keep` | keep the work directory of every task, to look at one that failed |
+| `--eval-off <behaviour>` | turn one harness behaviour off for the run: an ablation |
+| `--eval-timeout <seconds>` | replace every task's own timeout, so a benchmark gives each harness the same wall budget |
+| `--eval-max-turns <n>` | cap the model calls one task may spend (`--max-turns` is the same cap for a real run) |
+| `--eval-no-tool-limit` | ignore each task's `max_tool_calls`, for comparing against harnesses that enforce no tool budget |
+| `--eval-compact-at <tokens>` | compact earlier than the default, to force compaction on tasks that would not otherwise reach it |
+| `--eval-facts <n>` | after each run that compacted, probe up to n facts mined from what compaction removed and record how many the model still recalls |
+| `--eval-facts-blind` | probe without `expand_output`: what the compacted context alone retains |
+| `--eval-train` | fit the trajectory critic on the runs recorded so far |

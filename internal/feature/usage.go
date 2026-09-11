@@ -161,9 +161,13 @@ func (u *Usage) Summary(c *Catalog) string {
 	if len(rest) == 0 {
 		return ""
 	}
+	// The bare name, not the invocation: "/verify [set <cmd>|mutate
+	// <test cmd>|clear|trust] · /undo [preview|n] · @path · ctrl+g ·
+	// /goal [objective|pause|resume|done]" wrapped onto two lines and
+	// read as syntax to learn rather than as five things to try.
 	var names []string
 	for _, f := range rest {
-		names = append(names, f.Invocation())
+		names = append(names, f.Name)
 	}
 	return "not yet tried: " + strings.Join(names, " · ") + " · /help <topic> explains any of them"
 }

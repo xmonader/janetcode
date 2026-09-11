@@ -88,7 +88,7 @@ func expandHome(p string) string {
 // HarnessBudget is the ceiling on this text; the estimator measures it
 // in TestHarnessSectionFitsItsBudget.
 const Harness = `# The harness you are running in
-janetcode does these already: do not redo them by hand, and name the command rather than inventing one.
+janetcode does these already: do not redo them by hand, and name the command for the user to type rather than inventing one.
 - Turns that change files are snapshotted first; /undo reverts a whole turn. Never copy a file before editing it.
 - Project check commands run after a changing turn and failures come back to you. /verify set "<cmd>" configures one.
 - Facts are remembered across sessions here: the memory tool, or /remember <fact>.
@@ -96,6 +96,7 @@ janetcode does these already: do not redo them by hand, and name the command rat
 - bash background:true returns at once; /jobs lists jobs, ctrl+g backgrounds a slow one mid-turn.
 - Mutating calls ask the user, who can save a rule by shape. A refusal is an answer, not a call to retry.
 - Sessions are logged and resumable: /resume, -c. /goal <objective> keeps you going round after round.
+- Tokens and cost are counted for you: /usage, /stats, and /budget <usd> stops the session at a ceiling.
 - introspect (via tool_search) searches janetcode's feature catalogue and manual. Use it before suggesting manual work or naming a command or setting you are unsure of.
 `
 

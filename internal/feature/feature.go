@@ -178,7 +178,36 @@ func (c *Catalog) Find(query string, limit int) []Feature {
 			hits = append(hits, scored{f, s})
 		}
 	}
-	sort.SliceStable(hits, func(i, j int) bool { return hits[i].s > hits[j].s })
+	// A query none of whose words does better than brushing one line of
+	// somebody's prose has not matched anything: "zzz nothing at all
+	// zzz" used to come back with five confident rows, because
+	// "nothing" appears in the description of --acp. Saying so is the
+	// more useful answer.
+	if len(hits) > 0 {
+		best := 0
+		for _, h := range hits {
+			if h.s > best {
+				best = h.s
+			}
+		}
+		if best < incidental {
+			return nil
+		}
+	}
+	// Equal scores are broken by kind, so that a query which brushes a
+	// command and a benchmark flag equally offers the command. A flag's
+	// usage string is long prose and collects incidental word matches
+	// that a three-word command description cannot.
+	rank := map[Kind]int{}
+	for i, k := range Kinds {
+		rank[k] = i
+	}
+	sort.SliceStable(hits, func(i, j int) bool {
+		if hits[i].s != hits[j].s {
+			return hits[i].s > hits[j].s
+		}
+		return rank[hits[i].f.Kind] < rank[hits[j].f.Kind]
+	})
 	if limit > 0 && len(hits) > limit {
 		hits = hits[:limit]
 	}
@@ -188,6 +217,11 @@ func (c *Catalog) Find(query string, limit int) []Feature {
 	}
 	return out
 }
+
+// incidental is the score one word of a description happening to appear
+// in a query is worth. Nothing above it in the whole catalogue means
+// nothing matched.
+const incidental = 120
 
 // score rates one feature against a query. The name is worth far more
 // than the prose: "undo" should find /undo before it finds the three
@@ -209,19 +243,109 @@ func score(f Feature, q string, words []string) int {
 	}
 	hay := strings.ToLower(f.What + " " + f.When + " " + strings.Join(f.Topics, " "))
 	for _, w := range words {
-		if len(w) < 3 {
+		if len(w) < 3 || stopWords[w] {
 			continue
 		}
-		for _, t := range f.Topics {
-			if strings.EqualFold(t, w) {
-				s += 120
-			}
-		}
-		if containsWord(hay, w) {
-			s += 60
-		}
+		s += wordScore(f, name, inv, hay, w)
 	}
 	return s
+}
+
+// wordScore rates one word of a multi-word query. The word is tried
+// against the feature's name as well as its prose, because a user who
+// types "remember this for next time" has named the command in the
+// middle of a sentence and should be given /remember rather than the six
+// entries whose description happens to mention memory. It is tried in
+// its stemmed forms too, so "spending" reaches "spend".
+func wordScore(f Feature, name, inv, hay, w string) int {
+	best := 0
+	for _, v := range stems(w) {
+		s := 0
+		switch {
+		case name == v:
+			s += 400
+		case containsInflected(name, v, 1), containsInflected(inv, v, 1):
+			// Only a plural's worth of slack here: the prose can afford
+			// "session" finding "sessions", but a name may not, or
+			// "next time" scores --eval-timeout above /remember.
+			s += 150
+		}
+		for _, t := range f.Topics {
+			if strings.EqualFold(t, v) {
+				s += 120
+				break
+			}
+		}
+		if containsWord(hay, v) {
+			s += 60
+		}
+		if s > best {
+			best = s
+		}
+	}
+	return best
+}
+
+// stems returns the word and the shorter forms worth trying. The hay
+// side already tolerates a short suffix ("session" finds "sessions"), so
+// this is only the other direction: a query that is longer than the word
+// in the catalogue.
+func stems(w string) []string {
+	out := []string{w}
+	for _, suffix := range []string{"ing", "ed", "es", "s"} {
+		if strings.HasSuffix(w, suffix) && len(w)-len(suffix) >= 3 {
+			out = append(out, w[:len(w)-len(suffix)])
+			break
+		}
+	}
+	return out
+}
+
+// stopWords are the words that carry no signal in a question about a
+// feature. Without them "how do I stop it spending" ranks every entry
+// whose prose contains "this" or "run" beside the one entry that is
+// about spending. Words that are themselves feature names — "why",
+// "diff", "plan", "off" — are deliberately not here.
+var stopWords = map[string]bool{
+	"and": true, "any": true, "are": true, "but": true, "can": true,
+	"did": true, "does": true, "for": true, "from": true, "had": true,
+	"has": true, "have": true, "how": true, "its": true, "just": true,
+	"more": true, "not": true, "now": true, "please": true, "some": true,
+	"that": true, "the": true, "their": true, "them": true, "then": true,
+	"there": true, "they": true, "this": true, "very": true, "was": true,
+	"were": true, "what": true, "when": true, "which": true, "will": true,
+	"with": true, "you": true, "your": true, "thing": true, "things": true,
+	"work": true, "works": true,
+	// Two-letter filler matters only to the manual search, which counts
+	// every word; the catalogue already ignores anything this short.
+	"it": true, "we": true, "us": true, "me": true, "my": true,
+	"do": true, "is": true, "of": true, "to": true, "in": true,
+	"as": true, "be": true, "an": true, "at": true, "so": true,
+}
+
+// KindNamed maps a query that is only asking for a whole kind — "keys",
+// "commands", "config", "what flags are there" — onto that kind. "/help
+// keys" used to be a word search that ranked /connect above the sheet of
+// keybindings, because "keys" appears in the prose of a config key; what
+// the user asked for was the list.
+func KindNamed(query string) (Kind, bool) {
+	q := strings.ToLower(strings.TrimSpace(query))
+	q = strings.Trim(q, "?.")
+	switch q {
+	case "key", "keys", "keybinding", "keybindings", "keyboard", "shortcut", "shortcuts", "hotkeys":
+		return KindKey, true
+	case "command", "commands", "slash commands", "slash command":
+		return KindCommand, true
+	case "flag", "flags", "options", "command line", "command-line flags":
+		return KindFlag, true
+	case "tool", "tools":
+		return KindTool, true
+	case "config", "configuration", "config key", "config keys", "settings":
+		return KindConfig, true
+	case "harness", "automatic", "automatically":
+		return KindBehave, true
+	}
+	return "", false
 }
 
 // containsWord reports whether hay contains w as a whole word or as a
@@ -231,7 +355,9 @@ func score(f Feature, q string, words []string) int {
 // most a suffix behind.
 const maxInflection = 3
 
-func containsWord(hay, w string) bool {
+func containsWord(hay, w string) bool { return containsInflected(hay, w, maxInflection) }
+
+func containsInflected(hay, w string, maxTail int) bool {
 	for i := 0; i+len(w) <= len(hay); {
 		j := strings.Index(hay[i:], w)
 		if j < 0 {
@@ -243,7 +369,7 @@ func containsWord(hay, w string) bool {
 			for k := j + len(w); k < len(hay) && isWordByte(hay[k]); k++ {
 				tail++
 			}
-			if tail <= maxInflection {
+			if tail <= maxTail {
 				return true
 			}
 		}
@@ -270,12 +396,26 @@ func subsequence(q, s string) bool {
 	return i == len(q)
 }
 
-// List renders the whole catalogue, grouped by kind.
-func (c *Catalog) List() string {
+// List renders the whole catalogue, grouped by kind, for a terminal
+// eighty columns wide.
+func (c *Catalog) List() string { return c.ListWidth(0) }
+
+// ListWidth renders the whole catalogue wrapped to a terminal of the
+// given width. Unwrapped, the longest row was three hundred characters:
+// --inspect features in an eighty-column terminal produced a wall of
+// text broken mid-word by the terminal, in which the invocation column
+// was invisible. Wrapping is done here, where the columns are known,
+// rather than left to the terminal, which does not know them.
+func (c *Catalog) ListWidth(width int) string {
+	if width < 40 {
+		width = 80
+	}
 	all := c.All()
 	if len(all) == 0 {
 		return "no features registered"
 	}
+	const gutter = "  "
+	col := 2 + nameColumn(all) + 1
 	var b strings.Builder
 	var kind Kind
 	for _, f := range all {
@@ -283,9 +423,71 @@ func (c *Catalog) List() string {
 			kind = f.Kind
 			fmt.Fprintf(&b, "\n%s (%d)\n", plural(kind), countKind(all, kind))
 		}
-		fmt.Fprintf(&b, "  %s\n", f.Line())
+		inv := f.Invocation()
+		if len(inv) > col-3 {
+			// An invocation wider than the column gets the line to
+			// itself rather than pushing every description out of line.
+			b.WriteString(gutter + inv + "\n")
+		} else {
+			b.WriteString(gutter + inv + strings.Repeat(" ", col-2-len(inv)))
+			b.WriteString(wrapAt(f.What, width, col, false) + "\n")
+			if f.When == "" {
+				continue
+			}
+			b.WriteString(wrapAt("when: "+f.When, width, col, true) + "\n")
+			continue
+		}
+		b.WriteString(wrapAt(f.What, width, col, true) + "\n")
+		if f.When != "" {
+			b.WriteString(wrapAt("when: "+f.When, width, col, true) + "\n")
+		}
 	}
 	return strings.TrimSpace(b.String())
+}
+
+// nameColumn is the width of the invocation column: wide enough for
+// most entries, never wide enough to squeeze the descriptions. The
+// handful of invocations that spell out every sub-command are what the
+// cap is for.
+func nameColumn(all []Feature) int {
+	const cap = 22
+	w := 0
+	for _, f := range all {
+		if n := len(f.Invocation()); n > w && n <= cap {
+			w = n
+		}
+	}
+	return w
+}
+
+// wrapAt folds text into the space left of width from column indent,
+// indenting continuation lines to match. When lead is true the first
+// line is indented too.
+func wrapAt(text string, width, indent int, lead bool) string {
+	room := width - indent
+	if room < 20 {
+		room = 20
+	}
+	pad := strings.Repeat(" ", indent)
+	var b strings.Builder
+	if lead {
+		b.WriteString(pad)
+	}
+	line := 0
+	for i, w := range strings.Fields(text) {
+		switch {
+		case i == 0:
+		case line+1+len(w) > room:
+			b.WriteString("\n" + pad)
+			line = 0
+		default:
+			b.WriteString(" ")
+			line++
+		}
+		b.WriteString(w)
+		line += len(w)
+	}
+	return b.String()
 }
 
 func countKind(all []Feature, k Kind) int {
@@ -309,16 +511,78 @@ func plural(k Kind) string {
 	}
 }
 
+// counted is the same label after a number. "9 what the harness does on
+// its own" is not a sentence anybody wrote on purpose.
+func counted(k Kind) string {
+	if k == KindBehave {
+		return "automatic behaviours"
+	}
+	return plural(k)
+}
+
 // Summary is the one-line count used by --inspect features and /stats.
 func (c *Catalog) Summary() string {
 	all := c.All()
 	var parts []string
 	for _, k := range Kinds {
 		if n := countKind(all, k); n > 0 {
-			parts = append(parts, fmt.Sprintf("%d %s", n, plural(k)))
+			parts = append(parts, fmt.Sprintf("%d %s", n, counted(k)))
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+// Headline trims a description down to the one line a catalogue row can
+// hold: the first sentence, or the first clause once the sentence runs
+// past minClause characters.
+//
+// It exists because the two tables the catalogue is built from — the
+// terminal's command help and the flag set's usage strings — are written
+// for a reader, not for a column. Cutting them naively produced rows
+// like "revert everything the last turn changed (git snapshot", which
+// reads as a bug in janetcode rather than as a truncation: the sentence
+// break had been found inside a parenthesis. So a cut is only ever made
+// at bracket depth zero, and never at the full stop inside "e.g.".
+func Headline(s string, minClause int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '(', '[':
+			depth++
+			continue
+		case ')', ']':
+			if depth > 0 {
+				depth--
+			}
+			continue
+		}
+		if depth > 0 || i+1 >= len(s) || s[i+1] != ' ' {
+			continue
+		}
+		switch s[i] {
+		case '.':
+			if !abbreviation(s[:i]) {
+				return s[:i]
+			}
+		case ';':
+			if i >= minClause {
+				return s[:i]
+			}
+		}
+	}
+	return strings.TrimSuffix(s, ".")
+}
+
+// abbreviation reports whether the full stop after s closes something
+// like "e.g." or "i.e." rather than a sentence: the word it ends is one
+// letter long, or already has a full stop inside it.
+func abbreviation(s string) bool {
+	word := s
+	if i := strings.LastIndexAny(word, " \t"); i >= 0 {
+		word = word[i+1:]
+	}
+	return len(word) <= 1 || strings.Contains(word, ".")
 }
 
 // Explain renders one feature in full, for /help <topic>.

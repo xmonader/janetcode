@@ -142,7 +142,13 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		promoted = true
 		fg.hand(job.ID)
 		t.Cache.invalidate()
-		return fmt.Sprintf("Moved to the background as job %d (pid %d): %s\nIt is still running; output is collected in %s. You will be told when it finishes; the job tool shows output, waits, or kills it.", job.ID, job.Pid, in.Command, job.OutPath), nil
+		// What this result says matters more than it looks. The user
+		// pressed ctrl+g precisely so the turn would stop waiting; a
+		// result that mentions the job tool's wait action gets one —
+		// observed live, the model answered a promotion by calling job
+		// wait with a thirty-second timeout, which put the turn back
+		// where ctrl+g had taken it from. So it says what not to do.
+		return fmt.Sprintf("Moved to the background as job %d (pid %d): %s\nThe user pressed ctrl+g so this command would stop holding the turn open. It keeps running, its output is collected in %s, and you will be told when it finishes. Carry on with the rest of the work now: do not wait on this job and do not run the command again.", job.ID, job.Pid, in.Command, job.OutPath), nil
 	}
 	result := out.String()
 	exit := 0

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,8 +9,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/hints"
+	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // withHints gives the harness a live engine, which newHarness does not,
@@ -44,20 +48,25 @@ func TestAnUnrelatedShellCommandIsNotATestCommand(t *testing.T) {
 	}
 }
 
-func TestThreeRefusalsOfTheSameShapeOfferTheRuleKey(t *testing.T) {
+func TestThreeRefusalsOfTheSameShapeOfferADenyRule(t *testing.T) {
 	h := newHarness(t)
 	withHints(h)
 	h.m.hintState.VerifyConfigured = true
 	for i := 0; i < 2; i++ {
 		h.m.observeDenial("bash(git push *)")
 	}
-	if strings.Contains(plain(h.m.View()), "saves a rule") {
+	if strings.Contains(plain(h.m.View()), "/permissions deny") {
 		t.Fatal("hinted before the third refusal")
 	}
 	h.m.observeDenial("bash(git push *)")
 	v := plain(h.m.View())
-	if !strings.Contains(v, "bash(git push *)") || !strings.Contains(v, "pressing r") {
-		t.Fatalf("third refusal did not offer the r key:\n%s", v)
+	// A refusal must never be answered with the key that allows it for
+	// ever. The r key is for the opposite case.
+	if !strings.Contains(v, "bash(git push *)") || !strings.Contains(v, "/permissions deny") {
+		t.Fatalf("third refusal did not offer a deny rule:\n%s", v)
+	}
+	if strings.Contains(v, "pressing r") {
+		t.Fatalf("three refusals were answered with the allow key:\n%s", v)
 	}
 	// Different shapes are counted apart.
 	h2 := newHarness(t)
@@ -66,7 +75,7 @@ func TestThreeRefusalsOfTheSameShapeOfferTheRuleKey(t *testing.T) {
 	h2.m.observeDenial("bash(rm *)")
 	h2.m.observeDenial("bash(curl *)")
 	h2.m.observeDenial("edit_file")
-	if v := plain(h2.m.View()); strings.Contains(v, "pressing r") {
+	if v := plain(h2.m.View()); strings.Contains(v, "/permissions deny") {
 		t.Fatalf("three different shapes were counted as one:\n%s", v)
 	}
 }
@@ -123,13 +132,21 @@ func TestHintsOffSilencesEverythingAndOnBringsItBack(t *testing.T) {
 	}
 }
 
-func TestHintsAloneReportsTheState(t *testing.T) {
+// Whichever way round it is, /hints has to name the other way round.
+func TestHintsAloneReportsTheStateAndHowToChangeIt(t *testing.T) {
 	h := newHarness(t)
-	withHints(h)
+	e := withHints(h)
 	h.keys("/hints")
 	h.enter()
-	if v := plain(h.m.View()); !strings.Contains(v, "hints are on") {
-		t.Fatalf("/hints did not report its state:\n%s", v)
+	if v := plain(h.m.View()); !strings.Contains(v, "/hints off") {
+		t.Fatalf("/hints did not say how to silence them:\n%s", v)
+	}
+	e.Off = true
+	h.keys("/hints")
+	h.enter()
+	v := plain(h.m.View())
+	if !strings.Contains(v, "hints are off") || !strings.Contains(v, "/hints on") {
+		t.Fatalf("/hints with hints off did not say how to bring them back:\n%s", v)
 	}
 }
 
@@ -197,6 +214,52 @@ func TestTheFirstSessionInAGoProjectProposesTheCommand(t *testing.T) {
 	}
 	if strings.Contains(line, "\n") {
 		t.Fatalf("the first-run note is more than one line:\n%s", line)
+	}
+}
+
+func TestTheFirstRunLineIsSaidOnceAndNotEveryMorning(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := hints.Open(t.TempDir(), "proj")
+	open := func() *model {
+		sess, err := session.New(t.TempDir(), root, "fake", "m")
+		if err != nil {
+			t.Fatal(err)
+		}
+		e := hints.New(store.Shown())
+		e.Record = func(string) { _ = store.Save(e.Shown()) }
+		ag := &agent.Agent{Provider: &scripted{}, Tools: tool.NewRegistry(), Model: "m", Log: sess}
+		m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test", Hints: e})
+		m.term.out = io.Discard
+		mm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+		return mm.(*model)
+	}
+	if v := plain(open().View()); !strings.Contains(v, "Go project") {
+		t.Fatalf("the first session said nothing about the project:\n%s", v)
+	}
+	if v := plain(open().View()); strings.Contains(v, "Go project") {
+		t.Fatalf("the second session said it again:\n%s", v)
+	}
+}
+
+func TestHintsOffSilencesTheFirstRunLineToo(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644)
+	sess, err := session.New(t.TempDir(), root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := hints.New(nil)
+	e.Off = true
+	ag := &agent.Agent{Provider: &scripted{}, Tools: tool.NewRegistry(), Model: "m", Log: sess}
+	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test", Hints: e})
+	m.term.out = io.Discard
+	mm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m = mm.(*model)
+	if v := plain(m.View()); strings.Contains(v, "Go project") {
+		t.Fatalf("hints were off and the first-run line still appeared:\n%s", v)
 	}
 }
 

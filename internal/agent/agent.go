@@ -796,7 +796,12 @@ func (a *Agent) ledgered(emit func(Event)) func(Event) {
 		emit = func(Event) {}
 	}
 	return func(e Event) {
-		if e.Kind == EvNotice && strings.TrimSpace(e.Text) != "" {
+		// A retry is ledgered too. It is a thing the harness did on its
+		// own — it waited, and it bought the call twice — and it leaves
+		// a "↻ retried 2× · rate limited · waited 1.5s" line in the
+		// transcript that /why could not account for, because the only
+		// record of it was that line.
+		if (e.Kind == EvNotice || e.Kind == EvRetry) && strings.TrimSpace(e.Text) != "" {
 			a.logEvent(session.Event{Type: session.TypeNotice, Turn: a.turnN, Step: a.stepN, Output: e.Text})
 		}
 		emit(e)

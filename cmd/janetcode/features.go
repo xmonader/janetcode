@@ -3,8 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	"os"
 	"reflect"
+	"strconv"
 	"strings"
+
+	"golang.org/x/term"
 
 	"github.com/xmonader/janetcode/internal/inspect"
 
@@ -209,18 +213,7 @@ func configKeys() []string {
 
 // firstSentence trims a usage or description string to its first
 // sentence, so a catalogue row stays one line.
-func firstSentence(s string) string {
-	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
-	for i := 0; i < len(s)-1; i++ {
-		if s[i] == '.' && s[i+1] == ' ' {
-			return s[:i]
-		}
-	}
-	if i := strings.Index(s, "; "); i > 40 {
-		return s[:i]
-	}
-	return strings.TrimSuffix(s, ".")
-}
+func firstSentence(s string) string { return feature.Headline(s, 41) }
 
 // untrustedInput says which of the project's own files are present but
 // not enabled. A file sitting in the repository does nothing until it is
@@ -261,6 +254,21 @@ func unpricedModel(cfg *config.Config, getenv func(string) string) string {
 	return cfg.Model
 }
 
+// outputWidth is how wide the catalogue listing may be: the terminal's
+// width when there is a terminal, $COLUMNS when a pager or a script has
+// set one, and eighty otherwise. Piped output gets eighty rather than
+// one long line, because the thing on the other end of the pipe is
+// usually less or a file somebody will read.
+func outputWidth() int {
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w >= 40 {
+		return w
+	}
+	if n, err := strconv.Atoi(os.Getenv("COLUMNS")); err == nil && n >= 40 {
+		return n
+	}
+	return 80
+}
+
 // registerFeatureSubject makes the catalogue answerable through
 // --inspect features and /inspect features, beside every other part of
 // the session state.
@@ -271,7 +279,7 @@ func registerFeatureSubject(r *inspect.Registry, c *feature.Catalog) {
 		Usage:   "[query]",
 		Report: func(_ context.Context, arg string) (string, error) {
 			if strings.TrimSpace(arg) == "" {
-				return c.Summary() + "\n" + c.List(), nil
+				return c.Summary() + "\n" + c.ListWidth(outputWidth()), nil
 			}
 			return feature.Answer(c, arg, ""), nil
 		},

@@ -89,7 +89,7 @@ func registerSubjects(r *inspect.Registry, d subjectDeps) {
 	r.AddText("goals", "session goals and their rounds", func() string { return goalsReport(d.agent) })
 	r.AddText("memory", "the working memory carried across compactions", func() string { return workingReport(d.agent) })
 	r.AddText("tools", "the tools the model can call, with their sizes", func() string { return toolsReport(d.agent) })
-	r.AddText("stats", "tool calls, model calls and timings so far", func() string { return statsReport(d.agent) })
+	r.AddText("stats", "tool calls, model calls, timings, tokens and cost so far", func() string { return statsReport(d.agent) })
 	r.AddText("trajectory", "the features the critic scores this turn on", func() string { return trajectoryReport(d.agent) })
 	r.AddText("config", "the resolved configuration and where it came from", func() string {
 		return configReport(d.cfg, d.cfgPath, d.version, d.cwd)
@@ -680,6 +680,25 @@ func statsReport(a *agent.Agent) string {
 		s.Turns, s.ModelCalls, calls, errs, s.Compactions)
 	if s.ModelTime > 0 {
 		fmt.Fprintf(&b, "model time %s (%d failed calls)\n", s.ModelTime.Round(time.Millisecond), s.ModelErrors)
+	}
+	// Tokens and money, the same figures /stats shows a user. Asked how
+	// much a session had cost, the model called inspect stats — which is
+	// what the system prompt points it at — read a report of turns and
+	// timings with no money in it anywhere, and told the user janetcode
+	// does not track cost. It does; this subject simply was not saying.
+	u := a.UsageSnapshot()
+	if u.InputTokens+u.OutputTokens > 0 {
+		fmt.Fprintf(&b, "tokens · in %d · out %d · cache read %d · cache write %d",
+			u.InputTokens, u.OutputTokens, u.CacheReadTokens, u.CacheWriteTokens)
+		if usd, ok := u.Cost(a.Price); ok {
+			b.WriteString(" · cost " + llm.FormatUSD(usd) + " (" + u.CostSource(a.Price) + ")")
+		} else {
+			b.WriteString(" · cost unknown: nothing prices this model")
+		}
+		if a.MaxCostUSD > 0 {
+			b.WriteString(" · budget " + llm.FormatUSDPrecise(a.MaxCostUSD))
+		}
+		b.WriteString("\n")
 	}
 	if s.Saves() > 0 {
 		fmt.Fprintf(&b, "recovered: %d tool calls from text the model wrote instead of calling · %d streams ended by the watchdog · %d calls that only worked on a fallback model\n",

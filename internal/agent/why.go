@@ -45,6 +45,7 @@ const (
 	IvPlan       InterventionKind = "plan check"
 	IvNudge      InterventionKind = "nudge"
 	IvOversized  InterventionKind = "oversized output"
+	IvRetry      InterventionKind = "retried call"
 )
 
 // Intervention is one thing the harness did without being asked.
@@ -68,9 +69,21 @@ func Interventions(events []session.Event) []Intervention {
 		case session.TypeCompactStart:
 			iv.Kind, iv.Text = IvCompaction, textOr(e, "the conversation was summarised to free context")
 		case session.TypeVerdict:
+			// Only a verdict that disagrees. Every turn ends with one,
+			// so counting the agreeable ones made /why answer "verdict
+			// (turn 2) · nothing here edited code" after a session in
+			// which the harness had done nothing at all — and buried
+			// the compaction or the refusal that /why exists for behind
+			// a row of them.
+			if !e.IsError {
+				continue
+			}
 			iv.Kind, iv.Text = IvVerdict, textOr(e, "")
 			if iv.Text == "" {
 				continue
+			}
+			if e.Name != "" {
+				iv.Text = e.Name + ": " + iv.Text
 			}
 		case session.TypeNotice:
 			iv.Kind, iv.Text = classifyNotice(textOr(e, "")), textOr(e, "")
@@ -114,11 +127,17 @@ func textOr(e session.Event, fallback string) string {
 func refusalRe(out string) bool {
 	l := strings.ToLower(out)
 	return strings.Contains(l, "denied by the user") ||
-		strings.Contains(l, "permission denied by") ||
+		strings.Contains(l, "permission denied") ||
 		strings.Contains(l, "the user denied") ||
 		strings.Contains(l, "refused: ") ||
 		strings.Contains(l, "not permitted") ||
 		strings.Contains(l, "read-only mode") ||
+		// "Denied by permission rule read_file." — the text a --deny
+		// rule actually produces. The pattern here used to read "denied
+		// by a permission rule", an article that nothing writes, so the
+		// one intervention a user is most likely to ask /why about was
+		// the one kind it could not see.
+		strings.Contains(l, "denied by permission rule") ||
 		strings.Contains(l, "denied by a permission rule")
 }
 
@@ -129,6 +148,8 @@ func refusalRe(out string) bool {
 func classifyNotice(text string) InterventionKind {
 	l := strings.ToLower(text)
 	switch {
+	case strings.HasPrefix(l, "retried "):
+		return IvRetry
 	case strings.HasPrefix(l, "turn stopped:"):
 		return IvLoop
 	case strings.HasPrefix(l, "verifying:"), strings.Contains(l, "sending the model back to fix"),
@@ -177,7 +198,7 @@ var because = map[InterventionKind]string{
 	IvVerdict:    "janetcode watched what the turn actually did — which files changed, which commands ran and what they exited with — and compared it with what the model said about it. The verdict is the harness's account, not the model's.",
 	IvFallback:   "the model call failed in a way another model could survive (an exhausted quota, or rate limits and server errors that outlived the provider's own retries), so the call was retried on the next model in fallback_models. The partial answer from the failed attempt was discarded.",
 	IvWatchdog:   "the streamed model call stopped producing for longer than the idle limit, so it was ended rather than left hanging. stream_idle_timeout and stream_max_duration in the config set those bounds.",
-	IvBudget:     "the run reached the spending limit it was given (--max-cost), so it stopped after the model call that crossed it. /usage has the breakdown.",
+	IvBudget:     "the session reached the spending limit it was given — /budget in the terminal, --max-cost headless — so it stopped after the model call that crossed it. /usage has the breakdown, and /budget off removes the ceiling.",
 	IvRefused:    "the tool call was not allowed: you refused it, a deny rule matched it, or the session is read-only. The model was told so and can work around it; /permissions shows the rules in force.",
 	IvRecovery:   "the model wrote a tool call as text instead of calling it. janetcode read the text back as a call and ran it, so the turn carried on rather than stalling on a formatting mistake.",
 	IvArchive:    "the model asked for a value it no longer had in context, and janetcode fetched the matching excerpts out of the archive and gave them back instead of letting it guess.",
@@ -189,6 +210,7 @@ var because = map[InterventionKind]string{
 	IvPathRule:   "a path-scoped project rule matched a file the turn touched, so its text was sent to the model once. /rules shows which rules exist and which have been sent.",
 	IvPlan:       "janetcode checked the model's plan against what it was actually doing and said so.",
 	IvOversized:  "a tool returned more than fits sensibly in the context, so it was archived and the model was given the head of it plus the id to read the rest with.",
+	IvRetry:      "the model call failed in a way that usually passes on a second try — a rate limit, a 5xx, a connection dropped mid-stream — so janetcode waited and asked again on the same model, backing off a little longer each time. Nothing was lost and you were not asked; the turn carried on. A failure that another model could survive is a fallback instead, and /usage counts what the extra attempts cost.",
 	IvNudge:      "janetcode put a note in front of the model about how the turn was going. Nudges are how the harness steers without taking over.",
 }
 

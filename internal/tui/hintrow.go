@@ -54,9 +54,13 @@ func (m *model) refreshHintState() {
 		s.VerifyConfigured = len(m.opts.Verify.Config.Commands) > 0
 	}
 	if ag := m.opts.Agent; ag != nil {
-		if usd, ok := ag.UsageSnapshot().Cost(ag.Price); ok {
+		snap := ag.UsageSnapshot()
+		usd, ok := snap.Cost(ag.Price)
+		if ok {
 			s.CostUSD = usd
 		}
+		s.Spent = snap.InputTokens > 0 || snap.OutputTokens > 0
+		s.CostKnown = ok
 		// The gauge is already computed for the status line; this reads
 		// the estimate the agent published rather than walking the
 		// history again.
@@ -87,6 +91,11 @@ func (m *model) noteUse(name string) {
 	}
 	m.opts.Usage.Note(name)
 }
+
+// firstRunID is the id the first-run project line is recorded under, in
+// the same per-project file the hint rules use. It is not a rule — the
+// engine never evaluates it — only a name for "this has been said".
+const firstRunID = "first-run-project"
 
 // firstRunLine is what a directory janetcode has never seen before gets
 // instead of a generic tip: one line naming what the project looks like,
@@ -128,12 +137,15 @@ func (m *model) hintsCommand(args []string) {
 	}
 	switch {
 	case len(args) == 0:
-		state := "on"
+		// Whichever way round it is, the line has to name the other
+		// way: somebody who has just turned hints off and typed /hints
+		// was being told again how to turn them off.
 		if m.hints.Off {
-			state = "off"
+			m.transcript.info("hints are off · /hints on brings them back for this session, and they stay off for every project while \"hints\": false is in the config file")
+			return
 		}
 		shown := len(m.hints.Shown())
-		m.transcript.info(plural(shown, "hint") + " given for this project · hints are " + state + " · /hints off silences them, and \"hints\": false in the config file does it for every project")
+		m.transcript.info(plural(shown, "hint") + " given for this project · /hints off silences them for this session, and \"hints\": false in the config file does it for every project")
 	case args[0] == "on":
 		m.hints.Off = false
 		m.transcript.info("hints on")
