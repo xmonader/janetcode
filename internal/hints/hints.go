@@ -207,28 +207,36 @@ func Rules() []Rule {
 				if cmd == "" {
 					cmd = "go test ./..."
 				}
-				return fmt.Sprintf("/verify set %q runs it after every turn that changes code and hands failures straight back to the model, so you do not have to. It is saved in .janetcode/verify.json", cmd)
+				return fmt.Sprintf("/verify set %q runs it after every turn that changes code and hands failures straight back to the model, so you do not have to", cmd)
 			},
 		},
 		{
-			ID: "permission-rule", Feature: "r",
+			// The rule fires on refusals, so it must offer a refusal.
+			// It used to offer the r key, which saves an *allow* rule:
+			// the advice after three denials was to let the thing
+			// through for ever.
+			ID: "permission-rule", Feature: "/permissions",
 			When: func(s *State) bool { return s.DeniedCount >= 3 && s.DeniedShape != "" },
 			Text: func(s *State) string {
-				return fmt.Sprintf("that is the %d%s time you have refused %s — pressing r at the prompt saves a rule so calls of that shape never ask again, and /permissions lists what is saved", s.DeniedCount, ordinal(s.DeniedCount), s.DeniedShape)
+				return fmt.Sprintf("that is the %d%s time you have refused %s — /permissions deny %q refuses calls of that shape from now on without asking you again, and /permissions lists what is saved", s.DeniedCount, ordinal(s.DeniedCount), s.DeniedShape, s.DeniedShape)
 			},
 		},
 		{
 			ID: "background-slow", Feature: "ctrl+g",
 			When: func(s *State) bool { return s.Promotable && s.SlowCommandSeconds >= 20 },
 			Text: func(s *State) string {
-				return fmt.Sprintf("that command held the turn for %ds — ctrl+g moves a running foreground command to the background, where it keeps going as a job (/jobs) while the turn carries on", s.SlowCommandSeconds)
+				// Said after the command finished, so it has to read as
+				// advice for next time: "ctrl+g moves the running
+				// command" invites somebody to press it now, at an idle
+				// prompt, where it does nothing.
+				return fmt.Sprintf("that command held the turn for %ds — while the next one is still running, ctrl+g hands it to the background, where it finishes as a job (/jobs shows it) and the turn carries on without waiting", s.SlowCommandSeconds)
 			},
 		},
 		{
 			ID: "context-filling", Feature: "/compact",
 			When: func(s *State) bool { return s.ContextPct >= 60 },
 			Text: func(s *State) string {
-				return fmt.Sprintf("the context is %d%% full. It will be summarised automatically before it runs out: the recent turns are kept whole and the exact text of every tool result stays in the archive, which the model reads back with expand_output. /context shows what is filling it and /compact does it now rather than mid-task", s.ContextPct)
+				return fmt.Sprintf("the context is %d%% full — /context shows what is filling it, /compact summarises it now rather than mid-task. Either way nothing is lost: the exact text of every tool result stays in the archive the model reads back", s.ContextPct)
 			},
 		},
 		{
@@ -267,7 +275,7 @@ func Rules() []Rule {
 			ID: "resumed-compacted", Feature: "/context",
 			When: func(s *State) bool { return s.ResumedAfterCompaction },
 			Text: func(_ *State) string {
-				return "this session was summarised before you left it, so the model has the summary and the recent turns rather than the whole conversation. /context shows what came back, and the exact text of the old tool results is still in the archive"
+				return "this session had been summarised before you left it, so the model has that summary and the recent turns rather than the whole conversation — /context shows what came back"
 			},
 		},
 	}

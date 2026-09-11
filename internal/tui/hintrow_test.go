@@ -48,20 +48,25 @@ func TestAnUnrelatedShellCommandIsNotATestCommand(t *testing.T) {
 	}
 }
 
-func TestThreeRefusalsOfTheSameShapeOfferTheRuleKey(t *testing.T) {
+func TestThreeRefusalsOfTheSameShapeOfferADenyRule(t *testing.T) {
 	h := newHarness(t)
 	withHints(h)
 	h.m.hintState.VerifyConfigured = true
 	for i := 0; i < 2; i++ {
 		h.m.observeDenial("bash(git push *)")
 	}
-	if strings.Contains(plain(h.m.View()), "saves a rule") {
+	if strings.Contains(plain(h.m.View()), "/permissions deny") {
 		t.Fatal("hinted before the third refusal")
 	}
 	h.m.observeDenial("bash(git push *)")
 	v := plain(h.m.View())
-	if !strings.Contains(v, "bash(git push *)") || !strings.Contains(v, "pressing r") {
-		t.Fatalf("third refusal did not offer the r key:\n%s", v)
+	// A refusal must never be answered with the key that allows it for
+	// ever. The r key is for the opposite case.
+	if !strings.Contains(v, "bash(git push *)") || !strings.Contains(v, "/permissions deny") {
+		t.Fatalf("third refusal did not offer a deny rule:\n%s", v)
+	}
+	if strings.Contains(v, "pressing r") {
+		t.Fatalf("three refusals were answered with the allow key:\n%s", v)
 	}
 	// Different shapes are counted apart.
 	h2 := newHarness(t)
@@ -70,7 +75,7 @@ func TestThreeRefusalsOfTheSameShapeOfferTheRuleKey(t *testing.T) {
 	h2.m.observeDenial("bash(rm *)")
 	h2.m.observeDenial("bash(curl *)")
 	h2.m.observeDenial("edit_file")
-	if v := plain(h2.m.View()); strings.Contains(v, "pressing r") {
+	if v := plain(h2.m.View()); strings.Contains(v, "/permissions deny") {
 		t.Fatalf("three different shapes were counted as one:\n%s", v)
 	}
 }

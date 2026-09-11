@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/feature"
+	"github.com/xmonader/janetcode/internal/hints"
 )
 
 // flagSet runs the cheapest command there is so that run() declares its
@@ -92,6 +93,69 @@ func TestCatalogCoversEveryKind(t *testing.T) {
 	}
 	if cat.Len() < 120 {
 		t.Errorf("catalogue holds only %d features", cat.Len())
+	}
+}
+
+// TestEveryHintNamesSomethingThatExists is the drift gate on the hint
+// texts. A one-time hint is the one moment a user is told a command
+// name, and a hint that names a command janetcode does not have — or a
+// key that was renamed — is worse than no hint at all, because it is
+// spent and never shown again.
+func TestEveryHintNamesSomethingThatExists(t *testing.T) {
+	cat := buildCatalog(flagSet(t), nil)
+	known := map[string]bool{}
+	for _, f := range cat.All() {
+		known[strings.ToLower(f.Name)] = true
+		known[strings.ToLower(f.Invocation())] = true
+	}
+	// Every rule, with a state contrived to make it fire.
+	states := []*hints.State{
+		{MutatingTurns: 3},
+		{DeniedCount: 3, DeniedShape: "bash(git push *)"},
+		{Promotable: true, SlowCommandSeconds: 42},
+		{ContextPct: 70},
+		{PasteLines: 80},
+		{CostUSD: 1.5},
+		{Untrusted: []string{".mcp.json", ".janetcode/hooks.json"}},
+		{UnpricedModel: "some/model"},
+		{ResumedAfterCompaction: true},
+	}
+	seen := 0
+	for _, r := range hints.Rules() {
+		var text string
+		for _, s := range states {
+			if r.When(s) {
+				text = r.Text(s)
+				break
+			}
+		}
+		if text == "" {
+			t.Errorf("no state in the test makes %s fire", r.ID)
+			continue
+		}
+		seen++
+		if r.Feature != "" && !known[strings.ToLower(r.Feature)] {
+			t.Errorf("hint %s points at %q, which is not in the catalogue", r.ID, r.Feature)
+		}
+		for _, word := range strings.Fields(text) {
+			word = strings.Trim(word, `"'.,:;()`)
+			if !strings.HasPrefix(word, "/") || len(word) < 2 {
+				continue
+			}
+			if strings.Contains(word, "/") && !known[strings.ToLower(word)] {
+				t.Errorf("hint %s names %s, which is not a command: %q", r.ID, word, text)
+			}
+		}
+		// One line, and short enough to read in the transcript.
+		if strings.Contains(text, "\n") {
+			t.Errorf("hint %s is more than one line: %q", r.ID, text)
+		}
+		if n := len(text); n > 230 {
+			t.Errorf("hint %s is %d characters, too long to read as a tip: %q", r.ID, n, text)
+		}
+	}
+	if seen != len(hints.Rules()) {
+		t.Errorf("checked %d of %d rules", seen, len(hints.Rules()))
 	}
 }
 
