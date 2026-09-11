@@ -3,7 +3,7 @@ PKG := ./...
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build install test race lint clean run eval eval-baseline eval-train cross harness-bench harness-bench-large
+.PHONY: build install test race lint check clean run eval eval-baseline eval-train cross harness-bench harness-bench-large
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BIN) ./cmd/$(BIN)
@@ -19,6 +19,18 @@ race:
 
 lint:
 	go vet $(PKG)
+
+# The ordinary gate: formatting, vet, the tests, and the other two
+# platforms compile-checked. The cross-compile belongs here rather than
+# only in `cross`, because a build-tagged file that compiles on one OS
+# and not another — bash_windows.go and its neighbours — is otherwise
+# found by whoever happens to run `make cross`, which is nobody, and
+# then by a user. `gofmt -l` prints and exits 0, so it is gated by hand.
+check: lint test
+	@test -z "$$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
+	GOOS=windows GOARCH=amd64 go vet $(PKG)
+	GOOS=windows GOARCH=amd64 go build $(PKG)
+	GOOS=darwin GOARCH=arm64 go vet $(PKG)
 
 # Live behaviour tests against the configured provider (costs money).
 # EVAL_ONLY=go,files narrows by task name or tag; EVAL_JOBS sets parallelism;
