@@ -60,3 +60,38 @@ func TestShellCacheReplaysOnUnchangedTree(t *testing.T) {
 		t.Fatalf("non-git = %q", out)
 	}
 }
+
+// Two worktrees of the same commit have the same fingerprint — HEAD plus
+// a clean status is all there is to one — so with the root left out of
+// the key a cache shared between them served the first worktree's output
+// as the answer for the second.
+func TestShellCacheKeysAreNotSharedBetweenWorktrees(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	root := t.TempDir()
+	run := func(dir string, args ...string) {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	run(root, "init", "-q")
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("1"), 0o644)
+	run(root, "add", ".")
+	run(root, "commit", "-q", "-m", "init")
+	other := filepath.Join(t.TempDir(), "wt")
+	run(root, "worktree", "add", "-q", "-b", "second", other)
+
+	c := &ShellCache{}
+	command := "go test ./..."
+	a, b := c.key(root, command), c.key(other, command)
+	if a == "" || b == "" {
+		t.Fatalf("no key: %q %q", a, b)
+	}
+	if a == b {
+		t.Fatal("two worktrees share a cache key; one's output would be served as the other's")
+	}
+}
