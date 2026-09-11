@@ -86,7 +86,7 @@ func TestCompactKeepsPendingUserText(t *testing.T) {
 }
 
 func TestAutoCompactBeforeCallAndOnOverflow(t *testing.T) {
-	big := strings.Repeat("x", 4000) // ~1000 tokens
+	big := strings.Repeat("x", 40_000) // ~10k tokens
 	f := &fake{responses: []*llm.Response{
 		text(`{"next":["note A"]}`), // compaction triggered by estimate
 		text("answer one"),          // real call
@@ -94,7 +94,7 @@ func TestAutoCompactBeforeCallAndOnOverflow(t *testing.T) {
 		text(`{"next":["note B"]}`), // compaction triggered by overflow
 		text("answer two"),          // retry
 	}, errs: []error{nil, nil, errors.New("400: prompt is too long: 210000 tokens > 200000 maximum")}}
-	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", CompactAt: 500}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", CompactAt: 7_000}
 	a.Messages = []llm.Message{llm.TextMessage(llm.RoleUser, big), llm.TextMessage(llm.RoleAssistant, "ok")}
 	var kinds []EventKind
 	emit := func(e Event) {
@@ -126,9 +126,10 @@ func TestAutoCompactBeforeCallAndOnOverflow(t *testing.T) {
 }
 
 func TestCompactMidTurnMarksContinuation(t *testing.T) {
+	// Nothing precedes the interrupted turn, so there is no recent pair to
+	// keep: the summary stands in for the whole turn and says so.
 	f := &fake{responses: []*llm.Response{text("note")}}
 	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Messages: []llm.Message{
-		llm.TextMessage(llm.RoleUser, "do it"),
 		toolCall("t1", "read_file", `{}`).Message,
 		llm.ToolResultMessage(llm.ToolResult("t1", "big output", false)),
 	}}
@@ -137,6 +138,73 @@ func TestCompactMidTurnMarksContinuation(t *testing.T) {
 	}
 	if !strings.Contains(a.Messages[0].Text(), "interrupted mid-task") {
 		t.Fatalf("missing continuation marker: %q", a.Messages[0].Text())
+	}
+}
+
+// A compaction that would keep nothing recent keeps the last assistant
+// message and everything after it instead. Otherwise the result that had
+// just arrived is replaced by a summary written before it existed, and the
+// model asks for it again — which is what a threshold low enough to
+// compact after every tool call did.
+func TestCompactKeepsTheLastExchange(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("note")}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, "do it"),
+		toolCall("t1", "read_file", `{}`).Message,
+		llm.ToolResultMessage(llm.ToolResult("t1", "big output", false)),
+	}}
+	var kept string
+	if err := a.Compact(context.Background(), func(e Event) {
+		if e.Kind == EvCompacted {
+			kept = e.Text
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Messages) != 3 || a.Messages[2].Blocks[0].Text != "big output" {
+		t.Fatalf("messages = %+v", a.Messages)
+	}
+	if strings.Contains(kept, "(0 recent") {
+		t.Fatalf("kept nothing: %q", kept)
+	}
+}
+
+// A threshold below the fixed cost of a request is raised, once, with a
+// notice: obeying it would compact before there is anything to compact.
+func TestCompactAtBelowTheFloorIsRaised(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("hello")}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", System: strings.Repeat("prompt ", 400), CompactAt: 900}
+	floor := a.MinCompactAt()
+	if floor <= 900 {
+		t.Fatalf("floor = %d", floor)
+	}
+	var notes []string
+	emit := func(e Event) {
+		if e.Kind == EvNotice {
+			notes = append(notes, e.Text)
+		}
+	}
+	if err := a.Run(context.Background(), "hi", emit); err != nil {
+		t.Fatal(err)
+	}
+	if a.CompactAt != floor || a.CompactThreshold() != floor {
+		t.Fatalf("CompactAt = %d, want %d", a.CompactAt, floor)
+	}
+	if len(notes) != 1 || !strings.Contains(notes[0], "below the") {
+		t.Fatalf("notes = %v", notes)
+	}
+	// Nothing was summarised: the fake had one response, the answer.
+	if len(f.requests) != 1 {
+		t.Fatalf("requests = %d", len(f.requests))
+	}
+	// The notice is said once per session, not once per turn.
+	f.responses = append(f.responses, text("again"))
+	notes = nil
+	if err := a.Run(context.Background(), "again", emit); err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) != 0 {
+		t.Fatalf("notice repeated: %v", notes)
 	}
 }
 
