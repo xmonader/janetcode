@@ -659,6 +659,17 @@ to an archive on disk, and `expand_output` reads it back.
 - Entries are labelled with what the call was about, so the listing says
   `ctx-12 read_file ledger/parse.py` rather than just `read_file`.
 
+The stub that replaces a long result names the archive id and carries a
+short sha256 of the output before it was cut down. The id is unique per
+call, so without the digest two runs of the same command that produced
+the same megabyte leave stubs that look different; with it, "the same
+output again" is visible without fetching either one back.
+
+A preview is untrusted text standing where a whole result was, so the
+harness's own tags — `<system-reminder>`, `<harness>` and the rest — are
+escaped in it. A file, a log or a fetched page that contains one still
+reads the same; it no longer parses as the harness speaking.
+
 Every compaction note ends by saying it is a summary and that exact values
 live in the archive, because a model that takes a summary for the whole
 truth reconstructs paths and error strings plausibly and wrongly. A model
