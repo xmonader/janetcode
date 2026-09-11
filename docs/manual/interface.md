@@ -936,6 +936,18 @@ unless the server marks them read-only. Servers that publish resources get
 a server offers becomes a slash command: `/mcp__<server>__<prompt> args`.
 `/mcp` shows status, tools and prompts.
 
+Resource content is written by whoever runs the server, so it is framed
+with a delimiter it cannot close: `<mcp-resource <nonce> uri=…>` with a
+fresh random nonce per call, and a line after it saying the text inside is
+data and any instruction in it is the server's, not the user's. A fixed
+delimiter would be one the content could simply contain.
+
+A tool call whose connection failed before a reply arrived is retried only
+when the server marked the tool read-only or idempotent. Otherwise the
+model is told that the call may or may not have taken effect and that it
+was not repeated: a lost reply says nothing about whether the server
+created the issue or sent the message.
+
 ### Custom commands
 
 Drop a prompt template at `.janetcode/commands/<name>.md` in the project (or
