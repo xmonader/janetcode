@@ -2743,3 +2743,46 @@ func TestErrorMessageShape(t *testing.T) {
 		t.Errorf("unrecognised error = %q", got)
 	}
 }
+
+// A short terminal used to lose the top of a modal: the dialog always drew
+// twelve list rows, and lipgloss.Place centred a box taller than the body,
+// so the title, the search field and the highlighted row scrolled off the
+// screen. The list now shrinks to what the body can hold.
+func TestDialogFitsShortTerminal(t *testing.T) {
+	h := newHarness(t)
+	cfg := &config.Config{Provider: "fake", Model: "m", Providers: map[string]config.Provider{
+		"fake": {Type: "openai", BaseURL: "http://fake", APIKey: "k0"},
+	}}
+	h.withConfig(t, cfg, func(c *config.Config) (llm.Provider, error) { return &listing{}, nil })
+	h.update(tea.WindowSizeMsg{Width: 60, Height: 18})
+	h.keys("/connect")
+	h.enter()
+	if h.m.connect == nil {
+		t.Fatal("dialog not open")
+	}
+	v := plain(h.m.View())
+	if lines := strings.Count(v, "\n") + 1; lines > 18 {
+		t.Fatalf("view is %d lines at height 18:\n%s", lines, v)
+	}
+	if !strings.Contains(v, "Connect to a provider") || !strings.Contains(v, "search providers") {
+		t.Fatalf("title or search field cut off:\n%s", v)
+	}
+	if !strings.Contains(v, "▸ ") {
+		t.Fatalf("highlight not visible:\n%s", v)
+	}
+	// Tall terminals keep the full twelve rows.
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	if got := strings.Count(plain(h.m.View()), "\n"); got < 20 {
+		t.Fatalf("tall view collapsed to %d lines", got)
+	}
+}
+
+func TestFitRows(t *testing.T) {
+	for _, c := range []struct{ height, chrome, want int }{
+		{40, 9, dialogRows}, {18, 9, 9}, {12, 9, minDialogRows}, {4, 9, minDialogRows},
+	} {
+		if got := fitRows(c.height, c.chrome); got != c.want {
+			t.Errorf("fitRows(%d,%d) = %d, want %d", c.height, c.chrome, got, c.want)
+		}
+	}
+}

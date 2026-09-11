@@ -34,7 +34,35 @@ const (
 const (
 	dialogRows  = 12
 	dialogWidth = 88
+	// minDialogRows is the shortest list worth drawing: below this the
+	// modal is useless anyway, so it is allowed to be the whole body.
+	minDialogRows = 3
 )
+
+// fitRows is how many list lines a modal may draw when the body is
+// height rows tall and chrome lines are spent on the title, the search
+// field and the help line. A short terminal used to get the full
+// twelve, which pushed the title and the search field off the top of
+// the screen because lipgloss.Place centres what it is given.
+// dialogStep is how far pgup and pgdown move in a modal list: the window
+// the last frame actually fitted, never zero.
+func (m *model) dialogStep(win int) int {
+	if win < minDialogRows {
+		return dialogRows
+	}
+	return win
+}
+
+func fitRows(height, chrome int) int {
+	avail := height - chrome
+	if avail < minDialogRows {
+		return minDialogRows
+	}
+	if avail > dialogRows {
+		return dialogRows
+	}
+	return avail
+}
 
 // row is one selectable line; section groups rows under a heading.
 type row struct {
@@ -61,7 +89,10 @@ type connect struct {
 	idx       int
 	idxFor    string // search text the highlight belongs to
 	problem   string
-	gen       int // ignores model lists from an abandoned dialog
+	// rows is the list budget the last frame fitted, so pgup and pgdown
+	// move by a screenful of the window actually drawn.
+	rows int
+	gen  int // ignores model lists from an abandoned dialog
 }
 
 // modelsMsg carries the asynchronously fetched model list.
@@ -366,9 +397,9 @@ func (m *model) handleConnectKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		rows, idx := m.visible()
 		if len(rows) > 0 {
 			if msg.String() == "pgup" {
-				c.idx = max(idx-dialogRows, 0)
+				c.idx = max(idx-m.dialogStep(c.rows), 0)
 			} else {
-				c.idx = min(idx+dialogRows, len(rows)-1)
+				c.idx = min(idx+m.dialogStep(c.rows), len(rows)-1)
 			}
 			c.idxFor = c.field.Value()
 			m.refresh(false)
@@ -518,7 +549,11 @@ func (m *model) connectView(height int) string {
 	}
 	switch c.step {
 	case stepPick, stepModel:
-		lines = append(lines, m.listLines(inner)...)
+		// Two border rows, the lines added above, the blank and the help
+		// line below, and the "n of m" counter.
+		budget := fitRows(height, len(lines)+5)
+		m.connect.rows = budget
+		lines = append(lines, m.listLines(inner, budget)...)
 	case stepName:
 		add(styleDim.Render("Used as the provider's name in the config file and in --provider."))
 	case stepURL:
@@ -597,7 +632,7 @@ func (m *model) dialogContext() string {
 	return strings.Join(parts, " · ")
 }
 
-func (m *model) listLines(inner int) []string {
+func (m *model) listLines(inner, budget int) []string {
 	c := m.connect
 	rows, idx := m.visible()
 	var out []string
@@ -613,7 +648,7 @@ func (m *model) listLines(inner int) []string {
 		}
 		return out
 	}
-	return renderRows(rows, idx, inner)
+	return renderRows(rows, idx, inner, budget)
 }
 
 // matchRows keeps the rows whose key contains every word of the query, so
@@ -637,26 +672,64 @@ func matchRows(src []row, query string) []row {
 	return out
 }
 
+// fits reports whether a window starting at start still draws row idx
+// within budget lines, counting the section headings it must emit.
+func fits(rows []row, start, idx, budget int) bool {
+	used, section := 0, ""
+	if start > 0 {
+		section = rows[start-1].section
+	}
+	for i := start; i < len(rows); i++ {
+		if rows[i].section != "" && rows[i].section != section {
+			section = rows[i].section
+			used++
+		}
+		used++
+		if used > budget {
+			return false
+		}
+		if i == idx {
+			return true
+		}
+	}
+	return false
+}
+
 // renderRows draws a window of a row list with its sections, columns and
 // highlight. Every searchable list in the interface goes through it.
-func renderRows(rows []row, idx, inner int) []string {
-	var out []string
-	start := 0
-	if idx >= dialogRows {
-		start = idx - dialogRows + 1
+// budget is the number of screen lines the window may occupy, section
+// headings included, so a short terminal gets a shorter list rather than
+// a box taller than the screen.
+func renderRows(rows []row, idx, inner, budget int) []string {
+	if budget <= 0 {
+		budget = dialogRows
 	}
-	end := min(len(rows), start+dialogRows)
+	widths := columnWidths(rows, inner-4)
+	// Section headings take a line too, so the window that holds the
+	// highlight is found by walking the start back until idx is drawn.
+	start := 0
+	if idx >= budget {
+		start = idx - budget + 1
+	}
+	for start > 0 && !fits(rows, start, idx, budget) {
+		start++
+	}
+	var out []string
 	section := ""
 	if start > 0 {
 		section = rows[start-1].section
 	}
-	widths := columnWidths(rows, inner-4)
-	for i := start; i < end; i++ {
+	shown := 0
+	for i := start; i < len(rows) && len(out) < budget; i++ {
 		r := rows[i]
 		if r.section != "" && r.section != section {
+			if len(out)+2 > budget {
+				break // a heading with no row under it says nothing
+			}
 			section = r.section
 			out = append(out, styleSection.Render(strings.ToUpper(section)))
 		}
+		shown++
 		// The last column takes what is left after the tag.
 		last := inner - 2
 		for _, w := range widths[:len(widths)-1] {
@@ -693,7 +766,7 @@ func renderRows(rows []row, idx, inner int) []string {
 		}
 		out = append(out, truncateLine(line, inner))
 	}
-	if len(rows) > dialogRows {
+	if shown < len(rows) {
 		out = append(out, styleFaint.Render(fmt.Sprintf("  %d of %d", idx+1, len(rows))))
 	}
 	return out
