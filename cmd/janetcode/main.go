@@ -293,7 +293,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		// cache is read now; a refresh runs in the background.
 		if cfgPath, perr := config.Path(); perr == nil {
 			dir := filepath.Dir(cfgPath)
-			cfg.RatesTable = rates.Load(dir)
+			cfg.RatesTable = rates.LoadLazy(dir)
 			if !rates.Fresh(dir) {
 				go func() {
 					rctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -632,6 +632,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			}
 			fmt.Fprintf(os.Stderr, "[mcp] %s ready: %d tools\n", name, len(c.Tools()))
 		})
+		// Appending syncs on a timer, not per event; a headless run has no
+		// settling step to force the last of it out, so it does that here.
+		if sess != nil {
+			defer func() { _ = sess.Sync() }()
+		}
 		return headless.Run(ctx, headless.Options{
 			Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
@@ -1347,7 +1352,15 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		ag.Tools.Add(lsp.SymbolTool{M: diag})
 		ag.Diagnose = diagnoseNote(diag)
 	}
-	ag.SystemExtra = func() string { return mem.Index() + skill.Index(skills()) }
+	// The indexes are the part of the system prompt that grows with use
+	// rather than with the code, so their share of the window is what is
+	// capped, not a flat number of bytes: 8 KB is a twenty-fifth of a 200k
+	// window and a sixteenth of a 32k one. Both fall back to the flat
+	// ceiling when the window is unknown.
+	indexBudget := memory.BudgetFor(ag.ContextWindow)
+	ag.SystemExtra = func() string {
+		return mem.IndexWithin(indexBudget) + skill.IndexWithin(skills(), indexBudget)
+	}
 	repo := &repomap.Cache{Root: d.cwd}
 	// The search tools. On a measured fan-out set, offering these
 	// alongside bash cost 23% more context (x1.23 [1.10, 1.44]) for the

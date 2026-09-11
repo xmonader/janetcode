@@ -307,25 +307,38 @@ func (t EditFile) Description() string {
 	return d
 }
 func (EditFile) Mutating() bool { return true }
+
+// Schema describes one edit's fields once. An edit can be given at the
+// top level or as an item of edits, and the two took the same fields with
+// the same descriptions written out twice — a kilobyte of the request,
+// every request, saying nothing the first copy had not said. The items
+// list the fields with their types only and point at the descriptions
+// above.
 func (t EditFile) Schema() json.RawMessage {
 	locator := `"old_string":{"type":"string","description":"Exact text to find"},`
+	bare := `"old_string":{"type":"string"},`
 	if !t.NoLines {
 		locator = `"old_string":{"type":"string","description":"Exact text to find; omit when giving from_line and to_line"},
 "from_line":{"type":"integer","description":"First line to replace, 1-based and inclusive, as numbered by read_file. Cheaper than old_string: give this and to_line instead of retyping the text"},
 "to_line":{"type":"integer","description":"Last line to replace, 1-based and inclusive; equal to from_line replaces one line"},
 "from_anchor":{"type":"string","description":"First line to replace, as the mark read_file showed beside it (12:abc). Survives earlier edits moving the line, and is refused rather than guessed if the line has changed"},
 "to_anchor":{"type":"string","description":"Last line to replace, as its mark; equal to from_anchor replaces one line"},`
+		bare = `"old_string":{"type":"string"},
+"from_line":{"type":"integer"},
+"to_line":{"type":"integer"},
+"from_anchor":{"type":"string"},
+"to_anchor":{"type":"string"},`
 	}
 	return json.RawMessage(`{"type":"object","properties":{
 "path":{"type":"string","description":"File path"},
 ` + locator + `
 "new_string":{"type":"string","description":"The text to write. Pair it with old_string (or from_line/to_line) saying where it goes; new_string on its own is rejected"},
 "replace_all":{"type":"boolean","description":"Replace every occurrence (default false); only with old_string"},
-"edits":{"type":"array","description":"Several edits to this one file; use instead of a single edit when you have more than one change to make. Every edit must locate itself the same way — all by old_string, or all by line range","items":{
+"edits":{"type":"array","description":"Several edits to this one file; use instead of a single edit when you have more than one change to make. Each item takes the same fields as above, and every edit must locate itself the same way — all by old_string, or all by line range","items":{
 "type":"object","properties":{
-` + locator + `
-"new_string":{"type":"string","description":"The text to write. Pair it with old_string (or from_line/to_line) saying where it goes; new_string on its own is rejected"},
-"replace_all":{"type":"boolean","description":"Replace every occurrence (default false); only with old_string"}},
+` + bare + `
+"new_string":{"type":"string"},
+"replace_all":{"type":"boolean"}},
 "required":["new_string"],"additionalProperties":false}}},
 "required":["path"],"additionalProperties":false}`)
 }

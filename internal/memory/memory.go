@@ -354,17 +354,46 @@ func (s *Store) Touch(entries ...Entry) {
 // Index renders names and descriptions for the system prompt, or "" when
 // nothing is remembered. It stays within IndexBudget; bodies are not
 // included, the model recalls them when needed.
-func (s *Store) Index() string {
+func (s *Store) Index() string { return s.IndexWithin(IndexBudget) }
+
+// BudgetFor is how many bytes of index a model with this context window
+// should give up to the things it might need rather than the things it
+// asked for. IndexBudget is a flat 8 KB — 2,000 tokens — which is a
+// twenty-fifth of a 200k window and a sixteenth of a 32k one. Two per
+// cent of the window is the same share either way; the flat figure stays
+// as the ceiling, since past a point a longer index is not more useful,
+// just longer. A window that is not known keeps the ceiling.
+func BudgetFor(contextWindow int) int {
+	if contextWindow <= 0 {
+		return IndexBudget
+	}
+	b := contextWindow * 4 / 50 // 2% of the window, at four bytes a token
+	if b > IndexBudget {
+		return IndexBudget
+	}
+	if b < 1024 {
+		// Below this an index is not worth having at all, but the entries
+		// the user wrote by hand should not vanish silently either.
+		return 1024
+	}
+	return b
+}
+
+// IndexWithin is Index with an explicit byte budget.
+func (s *Store) IndexWithin(budget int) string {
 	entries := s.Entries()
 	if len(entries) == 0 {
 		return ""
+	}
+	if budget <= 0 {
+		budget = IndexBudget
 	}
 	var sb strings.Builder
 	sb.WriteString("\n# Memory\nWhat you learned in earlier sessions, as name (type): description. Feedback and user entries say how the user wants you to work: follow them. Relevant entries are attached to a request automatically; for any other, call memory {\"action\":\"recall\"} before relying on it. When the user tells you something worth keeping (a preference, a correction, a decision, a fact about the project), save it with memory {\"action\":\"remember\"}.\n")
 	shown := 0
 	for _, e := range entries {
 		line := fmt.Sprintf("- %s (%s%s): %s\n", e.Name, e.Type, scopeTag(e), e.Description)
-		if sb.Len()+len(line) > IndexBudget {
+		if sb.Len()+len(line) > budget {
 			break
 		}
 		sb.WriteString(line)

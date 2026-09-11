@@ -303,15 +303,31 @@ func tailStart(msgs []llm.Message) int {
 // another goroutine while a turn is appending to the history.
 func (a *Agent) TokenEstimate() int { return int(a.estimate.Load()) }
 
+// toolTokens is the estimated size of the tool definitions, remembered
+// between calls. Building them means asking every tool to describe
+// itself and re-serialising its schema — 182µs and 434 allocations for
+// seventeen tools — and the TUI asks for the estimate twice on every
+// keystroke while the user types. The registry's version says when the
+// answer can still be reused.
+func (a *Agent) toolTokens() int {
+	v := a.Tools.Version()
+	if a.toolTokensAt == v && a.toolTokensFor != 0 {
+		return a.toolTokensFor
+	}
+	n := 0
+	for _, d := range a.Tools.Defs() {
+		n += estimateTokens(d.Description) + estimateTokens(string(d.InputSchema))
+	}
+	a.toolTokensAt, a.toolTokensFor = v, n
+	return n
+}
+
 // EstimateTokens approximates the prompt size of the current history. It
 // uses the last real input-token count when available and a
 // character-class estimate (see estimateTokens) for what was added since.
 // It must be called from the goroutine running the turn.
 func (a *Agent) EstimateTokens() int {
-	est := estimateTokens(a.systemPrompt())
-	for _, d := range a.Tools.Defs() {
-		est += estimateTokens(d.Description) + estimateTokens(string(d.InputSchema))
-	}
+	est := estimateTokens(a.systemPrompt()) + a.toolTokens()
 	for i, m := range a.Messages {
 		if i < a.lastInputMsgs {
 			continue

@@ -167,6 +167,9 @@ type transcript struct {
 	// cwd shortens the absolute paths the agent writes into notices and
 	// verdicts, the way tool lines already shorten theirs.
 	cwd string
+	// lastRender is the size of the frame just built, so the next one can
+	// size its builder in one allocation instead of growing into it.
+	lastRender int
 }
 
 // liveRenderInterval throttles markdown rendering of streaming text.
@@ -405,6 +408,11 @@ func (t *transcript) render(o renderOpts) string {
 	}
 	now := time.Now()
 	var sb strings.Builder
+	// The whole transcript is concatenated every frame, so on a long one
+	// the builder's doubling is most of what the render allocates: five
+	// copies of a megabyte to produce one. The last frame's size is the
+	// right guess for this one.
+	sb.Grow(t.lastRender + 1024)
 	line := 0
 	for i, e := range t.entries {
 		if e.kind == entryBanner && o.tight {
@@ -433,12 +441,31 @@ func (t *transcript) render(o renderOpts) string {
 		sb.WriteByte('\n')
 		line++
 	}
+	t.lastRender = sb.Len()
 	return sb.String()
+}
+
+// fixedText reports whether an entry's content can never change after it
+// is added. Only assistant and thinking text grows (transcript.apply
+// appends to it) and only a tool entry has a spinner, a duration and an
+// output that arrive later; everything else is written once. Without this
+// every notice, every line the user typed and the banner were re-rendered
+// on every frame for the life of the session, because they are never
+// marked done and the switch below fell through to "yes".
+func fixedText(k entryKind) bool {
+	switch k {
+	case entryInfo, entryCode, entryError, entryUser, entryBanner, entryVerdict, entryTip:
+		return true
+	}
+	return false
 }
 
 func (t *transcript) needsRender(e *entry, o renderOpts, now time.Time) bool {
 	if e.rendered == "" || e.width != o.width || e.verbose != o.expand(e) {
 		return true
+	}
+	if fixedText(e.kind) {
+		return false
 	}
 	if e.done && e.final {
 		return e.kind == entryTool && o.pending != nil && o.pending.call.ID == e.call.ID
