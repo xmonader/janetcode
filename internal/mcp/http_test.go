@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -200,5 +201,44 @@ func TestHTTPErrors(t *testing.T) {
 	defer dead.Close()
 	if _, err := Start(context.Background(), "x", ServerConfig{URL: dead.URL}, Options{HandshakeTimeout: 2 * time.Second}); err == nil {
 		t.Fatal("silent server accepted")
+	}
+}
+
+// A stream that would not open is a verdict on the attempt, not on the
+// server: the failure used to be latched in sseReady and handed to every
+// later caller for the life of the process, so one blip on the initial
+// GET made the server permanently unreachable with no way to retry.
+func TestSSEFailureIsNotPermanent(t *testing.T) {
+	var attempts int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
+		if atomic.AddInt32(&attempts, 1) == 1 {
+			http.Error(w, "try again", http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "event: endpoint\ndata: /messages\n\n")
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	tr, err := newHTTPTransport(&Client{}, ServerConfig{URL: srv.URL + "/sse"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.close()
+	if err := tr.ensureSSE(context.Background()); err == nil {
+		t.Fatal("the first attempt should have failed")
+	}
+	// The second attempt must actually go back to the server.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := tr.ensureSSE(ctx); err != nil {
+		t.Fatalf("the transport stayed poisoned after one failure: %v", err)
+	}
+	if n := atomic.LoadInt32(&attempts); n < 2 {
+		t.Fatalf("the server saw %d attempts; the second never left the client", n)
 	}
 }
