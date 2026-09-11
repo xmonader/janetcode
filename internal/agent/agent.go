@@ -308,6 +308,11 @@ type Agent struct {
 	// so EstimateTokens only has to guess about what came after.
 	lastInputTokens int
 	lastInputMsgs   int
+
+	// Estimated size of the tool definitions and the registry version it
+	// was measured at; see toolTokens.
+	toolTokensFor int
+	toolTokensAt  uint64
 }
 
 // ErrMaxIterations is returned when a turn exceeds MaxIterations model calls.

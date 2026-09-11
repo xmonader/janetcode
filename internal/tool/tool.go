@@ -38,6 +38,26 @@ type Registry struct {
 	// It is set on the registry rather than per tool so that MCP tools and
 	// anything registered at runtime carry it too.
 	Intent bool
+	// version changes whenever the set of visible tools does. It exists
+	// so a caller that only wants the size of the definitions — the
+	// context gauge, which the TUI recomputes on every keystroke — can
+	// cache that instead of asking seventeen tools to describe
+	// themselves again (182µs and 434 allocations a time).
+	version uint64
+}
+
+// Version identifies the current set of visible tool definitions. It
+// changes when a tool is added, removed, deferred or activated, and when
+// the intent field is switched on or off. Two calls returning the same
+// value mean Defs would return the same bytes.
+func (r *Registry) Version() uint64 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	v := r.version << 1
+	if r.Intent {
+		v |= 1
+	}
+	return v
 }
 
 // NewRegistry builds a registry from the given tools. Duplicate names panic
@@ -67,6 +87,7 @@ func (r *Registry) Add(t Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.tools[t.Name()] = t
+	r.version++
 }
 
 // AddDeferred registers a tool whose schema is not sent to the model until
@@ -80,6 +101,7 @@ func (r *Registry) AddDeferred(t Tool) {
 		r.deferred = map[string]bool{}
 	}
 	r.deferred[t.Name()] = true
+	r.version++
 }
 
 // Activate makes a deferred tool's schema part of every request from now
@@ -91,6 +113,7 @@ func (r *Registry) Activate(name string) bool {
 		return false
 	}
 	delete(r.deferred, name)
+	r.version++
 	return true
 }
 
@@ -118,6 +141,7 @@ func (r *Registry) Remove(name string) {
 	defer r.mu.Unlock()
 	delete(r.tools, name)
 	delete(r.deferred, name)
+	r.version++
 }
 
 // Defs returns the tool definitions in stable (sorted) order so the request
