@@ -2,6 +2,7 @@ package eval
 
 import (
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -233,8 +234,12 @@ func TestLargeSetDistinctFromSmallEvals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The large set owns 31–35 and lives in its own directory; everything
+	// else numbered above 20 (the hard set, the multistep set) is allowed
+	// in evals/ itself. The guard is the range, not the floor: a floor
+	// would forbid every set added after the large one.
 	for _, tsk := range small {
-		if TaskIndex(tsk.Name) >= LargeTaskMin {
+		if n := TaskIndex(tsk.Name); n >= LargeTaskMin && n <= LargeTaskMax {
 			t.Fatalf("large task in evals/: %s", tsk.Name)
 		}
 	}
@@ -362,5 +367,39 @@ func TestSessionGrowthTable(t *testing.T) {
 	}
 	if strings.Contains(report, "### 01-create-file") {
 		t.Fatal("single-prompt task got a growth table")
+	}
+}
+
+// The multistep set (51–62) is the one built to have room above and below
+// the pass rate: single prompts a capable model only gets right when it
+// plans, runs something and reads the result back. A task there whose tool
+// budget is tight, or whose check cannot fail, measures the budget or
+// nothing instead of the harness, so the loader is asked about both.
+func TestMultistepSetIsWellFormed(t *testing.T) {
+	tasks, err := Load(filepath.Join("..", "..", "evals"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := Filter(tasks, []string{"multistep"})
+	if len(got) != 12 {
+		t.Fatalf("multistep count = %d, want 12", len(got))
+	}
+	sort.Slice(got, func(i, j int) bool { return TaskIndex(got[i].Name) < TaskIndex(got[j].Name) })
+	for i, tsk := range got {
+		if n := TaskIndex(tsk.Name); n != 51+i {
+			t.Fatalf("task %d is %s, want number %d", i, tsk.Name, 51+i)
+		}
+		if tsk.Session() {
+			t.Fatalf("%s: the multistep set is single-prompt", tsk.Name)
+		}
+		if strings.TrimSpace(tsk.Check) == "" {
+			t.Fatalf("%s: no check", tsk.Name)
+		}
+		if tsk.MaxToolCalls < 40 || tsk.MaxToolCalls > 60 {
+			t.Fatalf("%s: max_tool_calls %d is outside 40–60, so the limit could decide the result", tsk.Name, tsk.MaxToolCalls)
+		}
+		if tsk.Timeout < 360 {
+			t.Fatalf("%s: timeout %ds is under the six-minute budget", tsk.Name, tsk.Timeout)
+		}
 	}
 }

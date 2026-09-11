@@ -1,0 +1,15 @@
+{
+  "name": "54-csv-clean",
+  "prompt": "raw.csv in this directory is an export with the header `id,name,amount,region`. Write clean.py so that `python3 clean.py` reads raw.csv from the current directory and writes clean.csv with the same header and these rules: every field is stripped of leading and trailing whitespace; a row that does not have exactly four fields is dropped; a row whose amount is empty or is not a decimal number (optional sign, digits, optionally a dot and more digits) is dropped; when the same id appears more than once only the first occurrence in file order is kept; amount is written with exactly two decimals; region is uppercased; rows are written sorted by id compared as an integer; blank lines are skipped. The export is ordinary CSV and may use any quoting and any line endings the standard tools produce, so read and write it as CSV rather than by splitting on commas. Your script will be run again on a different export with the same header, so it must work from the file rather than from what happens to be in this one. Check your work against raw.csv before you finish.",
+  "files": {
+    "raw.csv": "id,name,amount,region\r\n3, Alice ,12.5,us\r\n1,\"Bob, Jr.\",7,eu\r\n\r\n2,Carol,$12.00,us\r\n1,Duplicate Bob,99.99,eu\r\n5,Dave,,us\r\n4,Eve, -3.456 ,ap\r\n6,Frank,0,us\r\n7,Grace,N/A,us\r\n8,Heidi,5\r\n"
+  },
+  "check": "set -u\ncat > .checkcsv.py <<'CHK_EOF'\nimport csv, json, sys\nwant = json.loads(sys.argv[1])\nwith open(\"clean.csv\", newline=\"\") as f:\n    got = [r for r in csv.reader(f) if r]\nif got != want:\n    print(\"clean.csv rows =\", got)\n    print(\"want            =\", want)\n    sys.exit(1)\nCHK_EOF\ntest -f clean.py || { echo 'no clean.py'; exit 1; }\nrm -f clean.csv\npython3 clean.py || { echo 'clean.py failed on raw.csv'; exit 1; }\npython3 .checkcsv.py \"[[\\\"id\\\", \\\"name\\\", \\\"amount\\\", \\\"region\\\"], [\\\"1\\\", \\\"Bob, Jr.\\\", \\\"7.00\\\", \\\"EU\\\"], [\\\"3\\\", \\\"Alice\\\", \\\"12.50\\\", \\\"US\\\"], [\\\"4\\\", \\\"Eve\\\", \\\"-3.46\\\", \\\"AP\\\"], [\\\"6\\\", \\\"Frank\\\", \\\"0.00\\\", \\\"US\\\"]]\" || exit 1\ncat > raw.csv <<'RAW2_EOF'\nid,name,amount,region\n9,\"Multi\nLine\",2.5,eu\n11,Zed, 4 ,US\n9,Dup,1,us\n12,Yan,abc,eu\nRAW2_EOF\nrm -f clean.csv\npython3 clean.py || { echo 'clean.py failed on the second fixture'; exit 1; }\npython3 .checkcsv.py \"[[\\\"id\\\", \\\"name\\\", \\\"amount\\\", \\\"region\\\"], [\\\"9\\\", \\\"Multi\\\\nLine\\\", \\\"2.50\\\", \\\"EU\\\"], [\\\"11\\\", \\\"Zed\\\", \\\"4.00\\\", \\\"US\\\"]]\" || exit 1\nexit 0\n",
+  "timeout": 600,
+  "max_tool_calls": 50,
+  "tags": [
+    "python",
+    "multistep",
+    "data"
+  ]
+}
