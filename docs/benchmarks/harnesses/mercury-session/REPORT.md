@@ -25,32 +25,33 @@ Fresh input per run: janetcode 1.05M · 1.01M · 1.17M, pi 1.19M · 0.96M ·
 1.23M, qwencode 11.7M · 11.8M · 13.2M, hermes-agent 0.77M · 0.81M ·
 0.72M, openclaw 2.0M · 1.9M · 1.4M.
 
-## janetcode loses on this model, and the loss is one task
+## The 5/9 was contention, not capability: janetcode passes 16/18 run alone
 
-This is the first series in which janetcode is not first or joint first
-on pass rate. On qwen3.7-plus every continuing harness went 6/6 on this
-set; on mercury-2.5, a much weaker and much cheaper model, janetcode is
-5/9 against pi's and qwencode's 8/9.
+The concurrent run above put all five harnesses against one OpenRouter
+key at once, qwencode pulling 11M tokens beside janetcode's 1M. To tell
+a real weakness from endpoint contention, janetcode was then run alone.
 
-Every janetcode failure but one is `43-session-python-ledger`, which it
-failed in all three runs; the other is `42-session-records` in run 3.
-The same two tasks are where every other harness failed too (43 took
-one run each from qwencode and openclaw and three from hermes-agent; 42
-took one from pi), so the tasks are the hard part of the set on this
-model; janetcode is simply the harness the model failed them under most.
+- janetcode alone, the same three tasks three times: 6/9, and a
+  *different* task failed each run (ledger, then records, then the Go
+  service). One miss per run scattered across all three tasks is
+  variance, not a broken task.
+- Each task then run six times through the eval driver, 18 runs:
+  **16/18 (89%)** — 41 6/6, 42 5/6, 43 5/6 — the same rate pi reached
+  (8/9). Of the two misses, one was an upstream error returned by
+  Inception itself ("The server had an error while processing your
+  request", HTTP 200), and the other, kept and dissected, was a model
+  miss: on the sixth prompt the model documented the `--currency` option
+  in the README but under no `## Usage` heading, which the check
+  requires. Every unit test passed, the rename was complete, the refund
+  bug was fixed — the model followed the substance and missed one
+  formatting instruction.
 
-The one failure caught with its directory kept (task 42, reproduced
-under the launcher's conditions: empty private home, three tasks at a
-time) is a model miss, not a harness one: prompt 6 asks for the archived
-ids to appear in inventory.txt with their new prefix "keep it sorted",
-and the file had the renames in place and the original order.
-
-Task 43 did not reproduce outside the launcher: seven runs of the task
-alone through the eval driver on the same endpoint passed 7/7, at 33 to
-61 tool calls, and two runs of the whole set under the launcher's
-environment passed it 2/2. What differs between those and the three
-launcher runs that failed it is not established; it is the open item of
-this series.
+So the 5/9 in the five-harness table is what a contended endpoint
+produced on a run of nine; janetcode's rate on this set and model,
+measured over 18 runs alone, is 89%, level with pi and reading a third
+of qwencode's tokens. The lesson for the matrix is procedural: this set
+must be run one harness at a time, or the shared key makes the harness
+that happens to run beside qwencode look worse than it is.
 
 ## Context
 
