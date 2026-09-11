@@ -77,6 +77,24 @@ func TestAVerdictThatAgreesIsNotAnIntervention(t *testing.T) {
 	}
 }
 
+// Every wording a refusal actually reaches the ledger in. --deny
+// produces the third of these, and it used to be invisible to /why.
+func TestEveryShapeOfRefusalIsSeenAsOne(t *testing.T) {
+	for _, out := range []string{
+		DeniedMessage,
+		"Permission denied: no approver configured for mutating tools.",
+		"Denied by permission rule read_file. Do not retry this call; choose another approach or ask the user to change the rule.",
+		"refused: read-only mode is on",
+	} {
+		ivs := Interventions([]session.Event{
+			{Seq: 1, Type: session.TypeToolResult, Turn: 1, Name: "read_file", IsError: true, Output: out},
+		})
+		if len(ivs) != 1 || ivs[0].Kind != IvRefused {
+			t.Errorf("%q was not read as a refusal: %v", firstLineOf(out), ivs)
+		}
+	}
+}
+
 func TestAToolThatSimplyFailedIsNotAnIntervention(t *testing.T) {
 	for _, iv := range Interventions(recorded()) {
 		if strings.Contains(iv.Text, "undefined: foo") {

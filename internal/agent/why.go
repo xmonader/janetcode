@@ -126,11 +126,17 @@ func textOr(e session.Event, fallback string) string {
 func refusalRe(out string) bool {
 	l := strings.ToLower(out)
 	return strings.Contains(l, "denied by the user") ||
-		strings.Contains(l, "permission denied by") ||
+		strings.Contains(l, "permission denied") ||
 		strings.Contains(l, "the user denied") ||
 		strings.Contains(l, "refused: ") ||
 		strings.Contains(l, "not permitted") ||
 		strings.Contains(l, "read-only mode") ||
+		// "Denied by permission rule read_file." — the text a --deny
+		// rule actually produces. The pattern here used to read "denied
+		// by a permission rule", an article that nothing writes, so the
+		// one intervention a user is most likely to ask /why about was
+		// the one kind it could not see.
+		strings.Contains(l, "denied by permission rule") ||
 		strings.Contains(l, "denied by a permission rule")
 }
 

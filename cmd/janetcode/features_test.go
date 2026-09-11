@@ -113,7 +113,7 @@ func TestEveryHintNamesSomethingThatExists(t *testing.T) {
 		{MutatingTurns: 3},
 		{DeniedCount: 3, DeniedShape: "bash(git push *)"},
 		{Promotable: true, SlowCommandSeconds: 42},
-		{ContextPct: 70},
+		{ContextPct: 70, Spent: true, CostKnown: true},
 		{PasteLines: 80},
 		{CostUSD: 1.5},
 		{Untrusted: []string{".mcp.json", ".janetcode/hooks.json"}},

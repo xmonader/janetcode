@@ -107,7 +107,7 @@ func TestOffSilencesEverything(t *testing.T) {
 func TestAFeatureTheUserKnowsIsNotIntroduced(t *testing.T) {
 	e := New(nil)
 	s := &State{
-		MutatingTurns: 9, ContextPct: 70,
+		MutatingTurns: 9, ContextPct: 70, Spent: true,
 		Used: func(f string) bool { return f == "/verify" },
 	}
 	got := e.Eval(s)

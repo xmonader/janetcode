@@ -239,7 +239,12 @@ func Rules() []Rule {
 		},
 		{
 			ID: "context-filling", Feature: "/compact",
-			When: func(s *State) bool { return s.ContextPct >= 60 },
+			// Not before the conversation exists. With a low compact_at
+			// the system prompt alone can be 70% of the threshold, and
+			// the first thing a fresh session said was "the context is
+			// 70% full · /compact summarises it now" — advice about a
+			// conversation the user had not started.
+			When: func(s *State) bool { return s.ContextPct >= 60 && s.Spent },
 			Text: func(s *State) string {
 				return fmt.Sprintf("the context is %d%% full — /context shows what is filling it, /compact summarises it now rather than mid-task. Either way nothing is lost: the exact text of every tool result stays in the archive the model reads back", s.ContextPct)
 			},
