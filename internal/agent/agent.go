@@ -389,6 +389,23 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		u := resp.Usage
 		a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &msg, Usage: &u})
 		emit(Event{Kind: EvTextBlockDone})
+		// A model that keeps writing the same message has stopped reading
+		// its own results; the ladder is the same as for a repeated call.
+		// The note rides with this step's tool results, because nothing
+		// may come between a tool call and its answer.
+		repeatNote := ""
+		if !a.Off["loops"] {
+			a.loopMu.Lock()
+			note, stop := a.loops.recordText(resp.Message.Text())
+			a.loopMu.Unlock()
+			if stop {
+				emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
+				a.logEvent(session.Event{Type: session.TypeNotice, Output: "turn stopped: " + a.loops.reason})
+				a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
+				return ErrStuck
+			}
+			repeatNote = note
+		}
 
 		// A response cut off at the output limit may have had its tool
 		// arguments truncated mid-JSON and then repaired into something
@@ -458,6 +475,10 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			}
 		}
 		results, err := a.executeAll(ctx, uses, emit)
+		if repeatNote != "" && len(results) > 0 {
+			results[len(results)-1].Text += repeatNote
+			emit(Event{Kind: EvNotice, Text: strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(repeatNote), "[harness]"))})
+		}
 		if planNote != "" && len(results) > 0 {
 			results[len(results)-1].Text += "\n\n[harness] " + planNote
 			emit(Event{Kind: EvNotice, Text: planNote})

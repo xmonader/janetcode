@@ -93,7 +93,7 @@ func FoldTrajectory(events []session.Event) map[string]float64 {
 					testFails++
 				}
 			}
-			seq = append(seq, newSignature(e.Name, []byte(e.Arguments), e.IsError))
+			seq = append(seq, newSignature(e.Name, []byte(e.Arguments), e.IsError, false))
 		}
 	}
 	f["tool_calls"] = float64(calls)

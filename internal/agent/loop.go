@@ -24,6 +24,27 @@ const (
 	cycleNudgeAt = 3
 	cycleStopAt  = 6
 	maxCycle     = 4
+	// alternateNudgeAt repetitions of a two-call A-B-A-B alternation say
+	// so, alternateStopAt ends the turn. Unlike cycle these need no
+	// failing step: two calls traded back and forth are not progress
+	// even when both succeed.
+	alternateNudgeAt = 5
+	alternateStopAt  = 8
+	// thrashWindow recent calls holding thrashNudgeAt reads of one file
+	// say so, thrashStopAt end the turn. A file read eight times in
+	// fifteen calls is being re-read instead of remembered.
+	thrashWindow  = 15
+	thrashNudgeAt = 5
+	thrashStopAt  = 8
+	// maxTurnCalls is the most tool calls one turn may make. Past this a
+	// turn is not working, it is running.
+	maxTurnCalls = 100
+	// sameTextNudgeAt identical assistant messages in a turn say so,
+	// sameTextStopAt end it. Shorter texts are acknowledgements, not an
+	// answer being repeated.
+	sameTextNudgeAt = 2
+	sameTextStopAt  = 3
+	minRepeatedText = 40
 )
 
 // ErrStuck ends a turn that keeps repeating the same tool call.
@@ -36,6 +57,10 @@ const EvNotice EventKind = "notice"
 type loopDetector struct {
 	calls map[string]int // tool + canonical input → count this turn
 	fails map[string]int
+	// texts counts identical assistant messages this turn.
+	texts map[string]int
+	// total is every tool call this turn, however varied.
+	total int
 	// seq is the turn's calls as coarse signatures (tool, subject,
 	// failed) for cycle detection; reason says why the turn stopped.
 	seq    []signature
@@ -50,14 +75,17 @@ type signature struct {
 	name    string
 	subject string
 	failed  bool
+	// changed marks a mutating call that succeeded: it moved the world
+	// on, so repeating around it is work rather than a loop.
+	changed bool
 }
 
 func (d *loopDetector) reset() {
-	d.calls, d.fails = map[string]int{}, map[string]int{}
-	d.seq, d.reason = nil, ""
+	d.calls, d.fails, d.texts = map[string]int{}, map[string]int{}, map[string]int{}
+	d.seq, d.reason, d.total = nil, "", 0
 }
 
-func newSignature(name string, input []byte, isErr bool) signature {
+func newSignature(name string, input []byte, isErr, changed bool) signature {
 	subject := ""
 	if s := subjectsOf(name, input); len(s) > 0 {
 		subject = s[0]
@@ -69,7 +97,7 @@ func newSignature(name string, input []byte, isErr bool) signature {
 	if isErr {
 		label += " fails"
 	}
-	return signature{key: fmt.Sprintf("%s\x00%s\x00%t", name, subject, isErr), label: label, name: name, subject: subject, failed: isErr}
+	return signature{key: fmt.Sprintf("%s\x00%s\x00%t", name, subject, isErr), label: label, name: name, subject: subject, failed: isErr, changed: changed}
 }
 
 // cycle reports the shortest period (2..maxCycle) the turn's recent
@@ -108,6 +136,77 @@ func (d *loopDetector) cycle() (period, reps int) {
 	return 0, 0
 }
 
+// alternation reports how many times the turn's last calls have traded
+// between two different signatures — A B A B — and what they are. A
+// two-call cycle is the commonest shape of a model that is not getting
+// anywhere, and unlike cycle it counts even when nothing fails: writing
+// a file and reading it back, twice, is work; eight times is not.
+func (d *loopDetector) alternation() (reps int, a, b string) {
+	n := len(d.seq)
+	if n < 4 {
+		return 0, "", ""
+	}
+	x, y := d.seq[n-2], d.seq[n-1]
+	if x.key == y.key || x.changed || y.changed {
+		// A pair with a successful edit in it is an edit-and-check
+		// rhythm, which is how the work is meant to go.
+		return 0, "", ""
+	}
+	reps = 1
+	for i := n - 4; i >= 0; i -= 2 {
+		if d.seq[i].key != x.key || d.seq[i+1].key != y.key {
+			break
+		}
+		reps++
+	}
+	return reps, x.label, y.label
+}
+
+// thrash reports the file read most often in the recent calls and how
+// many times, when that is more than once. A model re-reading one file
+// every few calls has lost what it already read, and reading it again
+// will not help.
+func (d *loopDetector) thrash() (path string, n int) {
+	seq := d.seq
+	if len(seq) > thrashWindow {
+		seq = seq[len(seq)-thrashWindow:]
+	}
+	counts := map[string]int{}
+	for _, s := range seq {
+		if s.name == "read_file" && s.subject != "" {
+			counts[s.subject]++
+		}
+	}
+	for p, c := range counts {
+		if c > n {
+			path, n = p, c
+		}
+	}
+	return path, n
+}
+
+// recordText notes an assistant message and calls out a model saying the
+// same thing over and over — the shape a small model falls into when it
+// has stopped reading its own tool results.
+func (d *loopDetector) recordText(text string) (note string, stop bool) {
+	if d.texts == nil {
+		d.reset()
+	}
+	text = strings.TrimSpace(text)
+	if len(text) < minRepeatedText {
+		return "", false
+	}
+	d.texts[text]++
+	switch n := d.texts[text]; {
+	case n >= sameTextStopAt:
+		d.reason = fmt.Sprintf("the model wrote the same message %d times", n)
+		return "", true
+	case n >= sameTextNudgeAt:
+		return fmt.Sprintf("\n\n[harness] You have written this same message %d times this turn. Repeating it is not making progress: do the next thing, or say what is blocking you.", n), false
+	}
+	return "", false
+}
+
 func (d *loopDetector) describeCycle(period int) string {
 	var parts []string
 	for _, s := range d.seq[len(d.seq)-period:] {
@@ -138,7 +237,12 @@ func (d *loopDetector) record(name string, input []byte, isErr, mutating bool) (
 	default:
 		d.fails[key] = 0
 	}
-	d.seq = append(d.seq, newSignature(name, input, isErr))
+	d.seq = append(d.seq, newSignature(name, input, isErr, mutating && !isErr))
+	d.total++
+	if d.total >= maxTurnCalls {
+		d.reason = fmt.Sprintf("the turn made %d tool calls without finishing", d.total)
+		return "", true
+	}
 	if period, reps := d.cycle(); period > 0 {
 		switch {
 		case reps >= cycleStopAt:
@@ -156,6 +260,20 @@ func (d *loopDetector) record(name string, input []byte, isErr, mutating bool) (
 		return fmt.Sprintf("\n\n[harness] This exact %s call has now failed %d times with the same input. Repeating it will not change the result: read the error, change the input or the approach, or tell the user what is blocking you.", name, d.fails[key]), false
 	case n >= loopNudgeAt:
 		return fmt.Sprintf("\n\n[harness] This is the %s identical %s call this turn. If you already have what you need from it, move on; if not, change the input.", ordinal(n), name), false
+	}
+	if reps, a, b := d.alternation(); reps >= alternateNudgeAt {
+		if reps >= alternateStopAt {
+			d.reason = fmt.Sprintf("the model alternated between two calls %d times: %s ⇄ %s", reps, a, b)
+			return "", true
+		}
+		return fmt.Sprintf("\n\n[harness] You have gone back and forth between %s and %s %d times. Alternating between two calls is not progress: do something different, or tell the user what is blocking you.", a, b, reps), false
+	}
+	if path, reads := d.thrash(); reads >= thrashNudgeAt {
+		if reads >= thrashStopAt {
+			d.reason = fmt.Sprintf("the model read %s %d times in %d calls", path, reads, min(len(d.seq), thrashWindow))
+			return "", true
+		}
+		return fmt.Sprintf("\n\n[harness] You have read %s %d times in the last %d calls. You already have it: work from what it said, or read a different part of it with offset and limit.", path, reads, min(len(d.seq), thrashWindow)), false
 	}
 	return "", false
 }
