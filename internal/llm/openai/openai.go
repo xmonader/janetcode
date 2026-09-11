@@ -701,7 +701,11 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		}
 		if p.learnDialect(err) {
 			// A parameter the server rejects was dropped or renamed; resend
-			// immediately without counting it as a retry.
+			// immediately without counting it as a retry. continue runs
+			// the post statement, so attempt has to be put back — as the
+			// key rotation below does — or working out the dialect spends
+			// the budget meant for transient failures.
+			attempt--
 			continue
 		}
 		if f, ok := keyProblem(err); ok {

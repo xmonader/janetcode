@@ -253,6 +253,46 @@ func TestDialectDropsPromptCacheKey(t *testing.T) {
 	}
 }
 
+// Working out the server's dialect must not eat the retry budget: the
+// corrections are not failures, and a server with a couple of quirks would
+// otherwise have nothing left for the first transient error after them.
+func TestDialectNegotiationDoesNotSpendRetries(t *testing.T) {
+	attempts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		var b map[string]any
+		json.Unmarshal(raw, &b)
+		attempts++
+		reject := func(msg string) {
+			w.WriteHeader(400)
+			io.WriteString(w, `{"error":{"message":"`+msg+`"}}`)
+		}
+		switch {
+		case b["max_tokens"] != nil:
+			reject("Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.")
+		case b["stream_options"] != nil:
+			reject("Unrecognized request argument supplied: stream_options")
+		case attempts == 3:
+			// Two corrections done; now one transient failure, which the
+			// single configured retry has to cover.
+			w.WriteHeader(503)
+			io.WriteString(w, `{"error":{"message":"upstream hiccup"}}`)
+		default:
+			io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	p, err := New(Config{BaseURL: srv.URL + "/v1/", APIKey: "k", MaxRetries: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := llm.Request{Model: "m", MaxTokens: 50, Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}
+	resp, err := p.Stream(context.Background(), req, nil)
+	if err != nil || resp.Message.Text() != "ok" {
+		t.Fatalf("err=%v after %d attempts", err, attempts)
+	}
+}
+
 func TestDialectFallbacks(t *testing.T) {
 	var bodies []map[string]any
 	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
