@@ -295,10 +295,22 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			dir := filepath.Dir(cfgPath)
 			cfg.RatesTable = rates.LoadLazy(dir)
 			if !rates.Fresh(dir) {
+				// The refresh writes model-rates.json into the config
+				// directory, and it is background work only for as long as
+				// the run lasts: a goroutine still downloading 2.3 MB after
+				// run returns outlives whatever set that directory up. A
+				// test's TempDir cleanup raced exactly that and failed with
+				// ".config/janetcode not empty". Cancel it and wait for it
+				// on the way out, so nothing writes there after the run.
+				rctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				done := make(chan struct{})
 				go func() {
-					rctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					defer cancel()
+					defer close(done)
 					_, _ = rates.Refresh(rctx, dir)
+				}()
+				defer func() {
+					cancel()
+					<-done
 				}()
 			}
 		}

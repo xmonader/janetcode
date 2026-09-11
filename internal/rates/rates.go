@@ -20,7 +20,10 @@ import (
 )
 
 // URL is the raw rate table LiteLLM publishes.
-const URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+// URL is where the table is fetched from. It is a variable rather than a
+// constant so a test can point the refresh at a local server instead of
+// the network.
+var URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
 
 // TTL is how long a cached table is used before a refresh is attempted.
 const TTL = 24 * time.Hour
