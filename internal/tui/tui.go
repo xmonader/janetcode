@@ -2741,7 +2741,7 @@ func (m *model) command(text string) tea.Cmd {
 		// /help <topic> is a search over the feature catalogue and the
 		// manual compiled into the binary: no model call, no network.
 		if len(fields) > 1 && m.opts.Features != nil {
-			m.transcript.info(feature.Answer(m.opts.Features, strings.Join(fields[1:], " "), ""))
+			m.transcript.info(feature.AnswerWidth(m.opts.Features, strings.Join(fields[1:], " "), "", m.width-4))
 			break
 		}
 		m.transcript.info(m.helpText())

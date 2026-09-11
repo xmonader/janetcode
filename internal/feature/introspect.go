@@ -60,17 +60,20 @@ func (t Introspect) Run(_ context.Context, input json.RawMessage) (string, error
 // Answer is the body of the introspect tool and of /help <topic>: the
 // best catalogue matches, then whatever the manual has to add, trimmed
 // to the budget.
-func Answer(c *Catalog, query string, kind Kind) string {
+func Answer(c *Catalog, query string, kind Kind) string { return AnswerWidth(c, query, kind, 0) }
+
+// AnswerWidth is Answer wrapped to a terminal of the given width, for
+// /help <topic>. Zero means no wrapping, which is what the model wants:
+// a request is not a terminal.
+func AnswerWidth(c *Catalog, query string, kind Kind, width int) string {
 	var b strings.Builder
 	// A query that names a whole kind is a request for the list, not a
 	// word search: "/help keys" wants the keybindings.
 	if k, ok := KindNamed(query); ok && kind == "" && c != nil {
 		if rows := c.OfKind(k); len(rows) > 0 {
-			b.WriteString("janetcode " + plural(k) + ":\n")
-			for _, f := range rows {
-				fmt.Fprintf(&b, "  %-24s %s\n", f.Invocation(), f.What)
-			}
-			return strings.TrimRight(b.String(), "\n")
+			sub := New()
+			sub.AddAll(rows)
+			return sub.ListWidth(width)
 		}
 	}
 	var hits []Feature
@@ -92,9 +95,21 @@ func Answer(c *Catalog, query string, kind Kind) string {
 	if len(hits) > 0 {
 		b.WriteString("janetcode features matching " + quoted(query) + ":\n")
 		for _, f := range hits {
-			fmt.Fprintf(&b, "  %s — %s\n", f.Invocation(), f.What)
+			row, when := "  "+f.Invocation()+" — "+f.What, "when: "+f.When
+			if width <= 0 {
+				b.WriteString(row + "\n")
+				if f.When != "" {
+					b.WriteString("      " + when + "\n")
+				}
+				continue
+			}
+			// Wrapped here, where the columns are known. The transcript
+			// wraps to the terminal width with no hanging indent, so at
+			// eighty columns the "when" line came back to column zero
+			// and the rows ran into each other.
+			b.WriteString(wrapAt(strings.TrimLeft(row, " "), width, 2, true) + "\n")
 			if f.When != "" {
-				fmt.Fprintf(&b, "      when: %s\n", f.When)
+				b.WriteString(wrapAt(when, width, 6, true) + "\n")
 			}
 		}
 	}

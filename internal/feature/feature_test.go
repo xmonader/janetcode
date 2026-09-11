@@ -164,6 +164,26 @@ func TestKindNamedTurnsAListingQueryIntoAListing(t *testing.T) {
 	}
 }
 
+// The transcript wraps to the terminal width with no hanging indent, so
+// at eighty columns a "when" line came back to column zero and the rows
+// ran into each other. /help wraps its own rows.
+func TestAnswerWrapsWithAHangingIndent(t *testing.T) {
+	c := sample()
+	out := AnswerWidth(c, "the context is full", "", 60)
+	for _, line := range strings.Split(out, "\n") {
+		if len(line) > 60 {
+			t.Errorf("line is %d wide: %q", len(line), line)
+		}
+	}
+	if !strings.Contains(out, "\n      when:") {
+		t.Errorf("no indented when line:\n%s", out)
+	}
+	// Unwrapped is what the model gets: a request is not a terminal.
+	if strings.Contains(Answer(c, "the context is full", ""), "\n  summar") {
+		t.Error("the unwrapped answer was wrapped")
+	}
+}
+
 func TestListWrapsToTheTerminalWidth(t *testing.T) {
 	c := sample()
 	c.Add(Feature{Name: "/verify", Kind: KindCommand,
