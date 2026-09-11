@@ -166,3 +166,67 @@ func captureStd(t *testing.T) (func() string, func() string) {
 	}
 	return func() string { finish(); return bo.String() }, func() string { finish(); return be.String() }
 }
+
+// A prompt A/B is only traceable if the flag reaches the run. The TUI and
+// the eval runner both build their agent with the override applied;
+// headless uses the same agent, and this is what says so.
+func TestHeadlessAppliesThePromptOverride(t *testing.T) {
+	work := t.TempDir()
+	home := t.TempDir()
+	base := filepath.Join(home, "base.md")
+	os.WriteFile(base, []byte("You are BASEBOT, and nothing else."), 0o600)
+
+	var lastReq map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		json.Unmarshal(raw, &lastReq)
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, `data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`+"\n\n")
+		io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("OPENAI_API_KEY", "test-key")
+	t.Setenv("OPENAI_BASE_URL", srv.URL+"/v1")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	os.Chdir(work)
+
+	sysOf := func() string {
+		return lastReq["messages"].([]any)[0].(map[string]any)["content"].(string)
+	}
+
+	// --append-system-prompt lands after the harness's own prompt.
+	stdout, stderr := captureStd(t)
+	err := run([]string{"-p", "hello", "--provider", "openai", "--model", "test-model", "--append-system-prompt", "Answer in French."})
+	_, errOut := stdout(), stderr()
+	if err != nil {
+		t.Fatalf("run: %v\nstderr: %s", err, errOut)
+	}
+	sys := sysOf()
+	if !strings.Contains(sys, "You are janetcode") || !strings.HasSuffix(strings.TrimSpace(sys), "Answer in French.") {
+		t.Fatalf("appended text missing: %q", sys)
+	}
+
+	// JANETCODE_SYSTEM_MD replaces the base, keeping the environment
+	// section a prompt is useless without.
+	t.Setenv("JANETCODE_SYSTEM_MD", base)
+	stdout, stderr = captureStd(t)
+	err = run([]string{"-p", "hello", "--provider", "openai", "--model", "test-model", "--append-system-prompt", "@" + base})
+	_, errOut = stdout(), stderr()
+	if err != nil {
+		t.Fatalf("run with a replaced base: %v\nstderr: %s", err, errOut)
+	}
+	sys = sysOf()
+	if strings.Contains(sys, "You are janetcode") {
+		t.Fatalf("the base prompt was not replaced: %q", sys)
+	}
+	if strings.Count(sys, "You are BASEBOT") != 2 { // the base, and the appended @file
+		t.Fatalf("override not applied twice over: %q", sys)
+	}
+	if !strings.Contains(sys, work) {
+		t.Fatalf("the environment section went missing with the base: %q", sys)
+	}
+}
