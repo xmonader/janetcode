@@ -16,9 +16,81 @@ var InstructionFiles = []string{"JANETCODE.md", "AGENTS.md", "CLAUDE.md"}
 
 const maxInstructionBytes = 32 * 1024
 
+// Override changes the prompt for an experiment: a base replaced
+// wholesale, or text added at the end. Both are recorded in an eval
+// results file, so a run that used one can be told apart from one that
+// did not.
+type Override struct {
+	// Base, when set, replaces the harness's own instructions. The
+	// environment section and the project instructions still follow it:
+	// a prompt without the working directory or the date is not a
+	// prompt anybody meant to write.
+	Base string
+	// BaseFile is where Base was read from, for the record.
+	BaseFile string
+	// Append is added after everything else.
+	Append string
+}
+
+// SystemMDEnv names a file whose contents replace the base prompt.
+const SystemMDEnv = "JANETCODE_SYSTEM_MD"
+
+// LoadOverride reads the environment's prompt override and the text of
+// an --append-system-prompt argument, which may be @file.
+func LoadOverride(getenv func(string) string, append string) (Override, error) {
+	var o Override
+	if p := strings.TrimSpace(getenv(SystemMDEnv)); p != "" {
+		data, err := os.ReadFile(expandHome(p))
+		if err != nil {
+			return o, fmt.Errorf("%s: %w", SystemMDEnv, err)
+		}
+		if strings.TrimSpace(string(data)) == "" {
+			return o, fmt.Errorf("%s: %s is empty", SystemMDEnv, p)
+		}
+		o.Base, o.BaseFile = strings.TrimSpace(string(data)), p
+	}
+	if text := strings.TrimSpace(append); text != "" {
+		if strings.HasPrefix(text, "@") {
+			data, err := os.ReadFile(expandHome(text[1:]))
+			if err != nil {
+				return o, fmt.Errorf("--append-system-prompt: %w", err)
+			}
+			text = strings.TrimSpace(string(data))
+		}
+		o.Append = text
+	}
+	return o, nil
+}
+
+func expandHome(p string) string {
+	if strings.HasPrefix(p, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, p[2:])
+		}
+	}
+	return p
+}
+
 // System returns the system prompt for a session rooted at cwd.
-func System(cwd string) string {
+func System(cwd string) string { return SystemWith(cwd, Override{}) }
+
+// SystemWith is System with an experiment's override applied.
+func SystemWith(cwd string, o Override) string {
+	s := system(cwd, o.Base)
+	if o.Append != "" {
+		s += "\n\n" + o.Append + "\n"
+	}
+	return s
+}
+
+func system(cwd, base string) string {
 	var sb strings.Builder
+	if base != "" {
+		sb.WriteString(base)
+		sb.WriteString("\n\n# Environment\n")
+		writeEnvironment(&sb, cwd)
+		return sb.String()
+	}
 	sb.WriteString(`You are janetcode, a coding agent running in the user's terminal. You help with software engineering tasks: reading and modifying code, running commands, debugging, and explaining.
 
 # How to work
@@ -41,16 +113,22 @@ func System(cwd string) string {
 
 # Environment
 `) // openai.applyCacheBreakpoints splits on this heading so cwd/date stay out of the cached prefix.
-	fmt.Fprintf(&sb, "- Working directory: %s\n", cwd)
-	fmt.Fprintf(&sb, "- Platform: %s/%s\n", runtime.GOOS, runtime.GOARCH)
-	fmt.Fprintf(&sb, "- Date: %s\n", time.Now().Format("2006-01-02"))
+	writeEnvironment(&sb, cwd)
+	return sb.String()
+}
+
+// writeEnvironment is everything below the "# Environment" heading: where
+// the session is, when it is, and what the project itself says.
+func writeEnvironment(sb *strings.Builder, cwd string) {
+	fmt.Fprintf(sb, "- Working directory: %s\n", cwd)
+	fmt.Fprintf(sb, "- Platform: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(sb, "- Date: %s\n", time.Now().Format("2006-01-02"))
 	if git := gitInfo(cwd); git != "" {
 		sb.WriteString(git)
 	}
 	if name, text := projectInstructions(cwd); text != "" {
-		fmt.Fprintf(&sb, "\n# Project instructions (from %s)\n%s\n", name, text)
+		fmt.Fprintf(sb, "\n# Project instructions (from %s)\n%s\n", name, text)
 	}
-	return sb.String()
 }
 
 func gitInfo(cwd string) string {

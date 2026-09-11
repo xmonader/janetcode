@@ -72,3 +72,24 @@ checked against its own published data.
 the variant name is recorded in the results file so a comparison says what
 it compared. The same names work as `JANETCODE_OFF=script` for a real
 session.
+
+## Prompt A/B
+
+The prompt is the other half of the harness, and it can be swapped for a
+run without a rebuild. `JANETCODE_SYSTEM_MD=<file>` replaces the base
+instructions (the environment section and the project instructions still
+follow them: a prompt with no working directory or date is not one anybody
+meant to write), and `--append-system-prompt "<text>"` — or `@file` — adds
+text at the end. Both work for an eval run and for a real session.
+
+A results file records which file replaced the base, what was appended and
+a sha256 of the base as it was read, so two runs that differ only in their
+prompt can be told apart afterwards, and a file that has since changed
+cannot be mistaken for the one measured:
+
+```sh
+janetcode --eval evals --eval-runs 5 --eval-json base.json
+JANETCODE_SYSTEM_MD=prompts/terse.md janetcode --eval evals --eval-runs 5 \
+  --eval-label terse --eval-json terse.json
+janetcode --eval-report terse.json --eval-compare base.json
+```

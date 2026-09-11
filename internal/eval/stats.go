@@ -22,7 +22,20 @@ type File struct {
 	Variant string    `json:"variant,omitempty"`
 	When    time.Time `json:"when"`
 	Runs    int       `json:"runs"`
-	Results []Result  `json:"results"`
+	// Prompt records a replaced or extended system prompt. Two runs that
+	// differ only in their prompt are otherwise indistinguishable in the
+	// file, which is the one comparison a prompt experiment needs.
+	Prompt  *PromptRecord `json:"prompt,omitempty"`
+	Results []Result      `json:"results"`
+}
+
+// PromptRecord identifies the prompt a run used: which file replaced the
+// base, what was appended, and a digest of the whole thing as sent, so a
+// file that has since changed cannot be mistaken for the one measured.
+type PromptRecord struct {
+	BaseFile string `json:"base_file,omitempty"`
+	Append   string `json:"append,omitempty"`
+	SHA256   string `json:"sha256,omitempty"`
 }
 
 // WriteFile saves results with their run identity.

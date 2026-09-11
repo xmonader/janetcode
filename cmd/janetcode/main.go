@@ -4,6 +4,8 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -146,52 +148,54 @@ Environment: ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_
              (a key may be a comma-separated list; they are rotated on rate limits),
              JANETCODE_PROVIDER, JANETCODE_MODEL, JANETCODE_EFFORT, JANETCODE_THEME
              JANETCODE_OFF=<names> disables behaviours for a session (see -eval-off)
+             JANETCODE_SYSTEM_MD=<file> replaces the base system prompt
              JANETCODE_DEBUG=<file> appends a timestamped event log
 Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode/config.json)
 `)
 	}
 	var (
-		promptText  = fs.String("p", "", "run this prompt headless and exit")
-		until       = fs.String("until", "", "with -p: shell command that must exit 0 before the run is done (re-loops up to 5 times)")
-		watchCmd    = fs.String("watch", "", "watch mode: re-run this shell command whenever files change and have the model fix failures (use with --yolo)")
-		provider    = fs.String("provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")
-		model       = fs.String("model", "", "model id (default claude-opus-5 for anthropic)")
-		effort      = fs.String("effort", "", "anthropic effort: low, medium, high, xhigh, max")
-		yolo        = fs.Bool("yolo", false, "auto-approve every tool call")
-		readonly    = fs.Bool("readonly", false, "read-only: no edits or commands, the model can only inspect")
-		continueC   = fs.Bool("c", false, "short for -continue")
-		resumeR     = fs.String("r", "", "short for -resume <id>")
-		autoEdits   = fs.Bool("auto-edits", false, "auto-accept file edits; commands still ask (/edits toggles it)")
-		evalPath    = fs.String("eval", "", "run the eval tasks in this file or directory against the configured provider and exit")
-		evalJobs    = fs.Int("eval-jobs", 2, "eval tasks to run at once")
-		evalOnly    = fs.String("eval-only", "", "comma-separated task names or tags to run")
-		evalJSON    = fs.String("eval-json", "", "write eval results to this JSON file")
-		replayPath  = fs.String("replay", "", "re-run a saved session against the current code, with the model's replies read from the recording instead of bought: reports the tool calls it makes now against the ones recorded, and needs no API key")
-		evalReport  = fs.String("eval-report", "", "re-read a saved results file and print its report and tool adoption, without running anything; with --eval-compare it prints the paired comparison of two saved files")
-		evalKeep    = fs.Bool("eval-keep", false, "keep eval work directories")
-		evalRuns    = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips). One run per task is a coin flip: this set swings 21% between identical runs, so a comparison wants 3 or more")
-		evalCompare = fs.String("eval-compare", "", "results file of a baseline run to compare against (paired by task, bootstrap interval)")
-		evalOff     = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify, repomap, working, plan, critic")
-		evalLabel   = fs.String("eval-label", "", "name recorded in the results file for this variant")
-		evalTrain   = fs.String("eval-train", "", "train the trajectory critic from these eval result files (comma-separated files or directories) and exit")
-		evalTimeout = fs.Duration("eval-timeout", 0, "replace every task's timeout with this wall budget (benchmarks give each harness the same)")
-		evalTurns   = fs.Int("eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
-		evalNoLimit = fs.Bool("eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
-		inspectWhat = fs.String("inspect", "", "print one part of the session state and exit: context, events, archive, retrieval, compaction, tools, config, lsp, mcp, jobs, skills, repomap and more; `list` names them all")
-		wtBranch    = fs.String("worktree", "", "run the session in a git worktree on this branch, in a checkout under .git: the real tree is untouched, two sessions can work on one repository at once, and the result is a branch to review and merge")
-		acpMode     = fs.Bool("acp", false, "serve the Agent Client Protocol on stdin/stdout, for an ACP editor that launches janetcode as a subprocess (nothing but protocol messages goes to stdout)")
-		evalFacts   = fs.Int("eval-facts", 0, "after each run that compacted, probe up to N facts mined from what compaction removed (exit codes, output lines, file lines) and record how many the model still recalls")
-		evalBlind   = fs.Bool("eval-facts-blind", false, "probe without expand_output: what the compacted context alone retains")
-		evalCompact = fs.Int("eval-compact-at", 0, "compact the history at this many estimated tokens instead of the default: a low value forces compaction on tasks that would not otherwise reach it, to measure what it costs and what it loses")
-		allow       = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
-		deny        = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
-		cont        = fs.Bool("continue", false, "resume the latest session for this directory")
-		resume      = fs.String("resume", "", "resume the session with this id")
-		showVersion = fs.Bool("version", false, "print version and exit")
-		listSess    = fs.Bool("sessions", false, "list saved sessions for this directory and exit")
-		initCfg     = fs.Bool("init", false, "write an example config file and exit")
-		mcpAuth     = fs.String("mcp-auth", "", "log in to the named remote MCP server with OAuth (browser flow) and exit")
-		runDoctor   = fs.Bool("doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
+		promptText   = fs.String("p", "", "run this prompt headless and exit")
+		until        = fs.String("until", "", "with -p: shell command that must exit 0 before the run is done (re-loops up to 5 times)")
+		watchCmd     = fs.String("watch", "", "watch mode: re-run this shell command whenever files change and have the model fix failures (use with --yolo)")
+		provider     = fs.String("provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")
+		model        = fs.String("model", "", "model id (default claude-opus-5 for anthropic)")
+		effort       = fs.String("effort", "", "anthropic effort: low, medium, high, xhigh, max")
+		yolo         = fs.Bool("yolo", false, "auto-approve every tool call")
+		readonly     = fs.Bool("readonly", false, "read-only: no edits or commands, the model can only inspect")
+		continueC    = fs.Bool("c", false, "short for -continue")
+		resumeR      = fs.String("r", "", "short for -resume <id>")
+		autoEdits    = fs.Bool("auto-edits", false, "auto-accept file edits; commands still ask (/edits toggles it)")
+		evalPath     = fs.String("eval", "", "run the eval tasks in this file or directory against the configured provider and exit")
+		evalJobs     = fs.Int("eval-jobs", 2, "eval tasks to run at once")
+		evalOnly     = fs.String("eval-only", "", "comma-separated task names or tags to run")
+		evalJSON     = fs.String("eval-json", "", "write eval results to this JSON file")
+		replayPath   = fs.String("replay", "", "re-run a saved session against the current code, with the model's replies read from the recording instead of bought: reports the tool calls it makes now against the ones recorded, and needs no API key")
+		evalReport   = fs.String("eval-report", "", "re-read a saved results file and print its report and tool adoption, without running anything; with --eval-compare it prints the paired comparison of two saved files")
+		evalKeep     = fs.Bool("eval-keep", false, "keep eval work directories")
+		evalRuns     = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips). One run per task is a coin flip: this set swings 21% between identical runs, so a comparison wants 3 or more")
+		evalCompare  = fs.String("eval-compare", "", "results file of a baseline run to compare against (paired by task, bootstrap interval)")
+		evalOff      = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify, repomap, working, plan, critic")
+		evalLabel    = fs.String("eval-label", "", "name recorded in the results file for this variant")
+		evalTrain    = fs.String("eval-train", "", "train the trajectory critic from these eval result files (comma-separated files or directories) and exit")
+		evalTimeout  = fs.Duration("eval-timeout", 0, "replace every task's timeout with this wall budget (benchmarks give each harness the same)")
+		evalTurns    = fs.Int("eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
+		evalNoLimit  = fs.Bool("eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
+		inspectWhat  = fs.String("inspect", "", "print one part of the session state and exit: context, events, archive, retrieval, compaction, tools, config, lsp, mcp, jobs, skills, repomap and more; `list` names them all")
+		wtBranch     = fs.String("worktree", "", "run the session in a git worktree on this branch, in a checkout under .git: the real tree is untouched, two sessions can work on one repository at once, and the result is a branch to review and merge")
+		acpMode      = fs.Bool("acp", false, "serve the Agent Client Protocol on stdin/stdout, for an ACP editor that launches janetcode as a subprocess (nothing but protocol messages goes to stdout)")
+		evalFacts    = fs.Int("eval-facts", 0, "after each run that compacted, probe up to N facts mined from what compaction removed (exit codes, output lines, file lines) and record how many the model still recalls")
+		evalBlind    = fs.Bool("eval-facts-blind", false, "probe without expand_output: what the compacted context alone retains")
+		evalCompact  = fs.Int("eval-compact-at", 0, "compact the history at this many estimated tokens instead of the default: a low value forces compaction on tasks that would not otherwise reach it, to measure what it costs and what it loses")
+		allow        = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
+		deny         = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
+		cont         = fs.Bool("continue", false, "resume the latest session for this directory")
+		resume       = fs.String("resume", "", "resume the session with this id")
+		showVersion  = fs.Bool("version", false, "print version and exit")
+		listSess     = fs.Bool("sessions", false, "list saved sessions for this directory and exit")
+		initCfg      = fs.Bool("init", false, "write an example config file and exit")
+		mcpAuth      = fs.String("mcp-auth", "", "log in to the named remote MCP server with OAuth (browser flow) and exit")
+		appendSystem = fs.String("append-system-prompt", "", "text (or @file) appended to the system prompt; JANETCODE_SYSTEM_MD=<file> replaces the base prompt. Both are recorded in eval results so a prompt A/B is traceable")
+		runDoctor    = fs.Bool("doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
 	)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -322,8 +326,12 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
+		ov, err := prompt.LoadOverride(os.Getenv, *appendSystem)
+		if err != nil {
+			return err
+		}
 		return runEval(ctx, cfg, prov, evalOptions{path: *evalPath, jobs: *evalJobs, only: *evalOnly, jsonOut: *evalJSON, keep: *evalKeep,
-			runs: *evalRuns, compare: *evalCompare, off: *evalOff, label: *evalLabel,
+			runs: *evalRuns, compare: *evalCompare, off: *evalOff, label: *evalLabel, prompt: ov,
 			timeout: *evalTimeout, maxTurns: *evalTurns, noToolLimit: *evalNoLimit, compactAt: *evalCompact, facts: *evalFacts, factsBlind: *evalBlind})
 	}
 
@@ -361,7 +369,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		mem.Embed = func(ctx context.Context, texts []string) ([][]float32, error) { return em.Embed(ctx, model, texts) }
 	}
 	pool := newProviderPool(cfg, prov)
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, models: pool.For}
+	promptOv, err := prompt.LoadOverride(os.Getenv, *appendSystem)
+	if err != nil {
+		return err
+	}
+	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, models: pool.For, promptOverride: promptOv}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return err
@@ -691,6 +703,21 @@ func buildProvider(cfg *config.Config) (llm.Provider, error) {
 	return nil, fmt.Errorf("provider %q has unknown type %q", cfg.Provider, p.Type)
 }
 
+// promptRecord is what goes in the results file about the prompt: which
+// file replaced the base, what was appended, and a digest of the base as
+// it was read, so an experiment stays traceable after the file changes.
+func promptRecord(o prompt.Override) *eval.PromptRecord {
+	if o.Base == "" && o.Append == "" {
+		return nil
+	}
+	r := &eval.PromptRecord{BaseFile: o.BaseFile, Append: o.Append}
+	if o.Base != "" {
+		sum := sha256.Sum256([]byte(o.Base))
+		r.SHA256 = hex.EncodeToString(sum[:])
+	}
+	return r
+}
+
 type evalOptions struct {
 	path, only, jsonOut string
 	jobs, runs          int
@@ -702,6 +729,9 @@ type evalOptions struct {
 	facts               int
 	factsBlind          bool
 	compare, off, label string
+	// prompt records a replaced or extended system prompt, so an A/B of
+	// the prompt itself can be told apart in the results file.
+	prompt prompt.Override
 }
 
 // runEval runs the eval tasks with fresh, minimal agents (core tools, no
@@ -782,7 +812,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			Archive:       archive,
 			Price:         cfg.PriceFor(cfg.Model),
 			Tools:         evalTools(root, repo, expand, off),
-			System:        prompt.System(root),
+			System:        prompt.SystemWith(root, o.prompt),
 			Model:         cfg.Model,
 			MaxTokens:     cfg.MaxTokens,
 			MaxIterations: maxIter,
@@ -821,7 +851,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		eval.WriteComparison(os.Stdout, eval.Compare(baseline.Results, results))
 	}
 	if o.jsonOut != "" {
-		if err := eval.WriteFile(o.jsonOut, eval.File{Model: cfg.Provider + "/" + cfg.Model, Variant: variant, Results: results}); err != nil {
+		if err := eval.WriteFile(o.jsonOut, eval.File{Model: cfg.Provider + "/" + cfg.Model, Variant: variant, Results: results, Prompt: promptRecord(o.prompt)}); err != nil {
 			return err
 		}
 		fmt.Fprintln(os.Stderr, "wrote", o.jsonOut)
@@ -1127,6 +1157,9 @@ type agentDeps struct {
 	readOnly bool
 	// autoEdits starts the session with file edits auto-accepted.
 	autoEdits bool
+	// promptOverride replaces or extends the system prompt, for an A/B
+	// of the prompt itself.
+	promptOverride prompt.Override
 }
 
 // builtAgent is one session's agent and the pieces the caller still owns:
@@ -1179,7 +1212,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 			expand,
 			task,
 		),
-		System:        prompt.System(d.cwd),
+		System:        prompt.SystemWith(d.cwd, d.promptOverride),
 		Model:         d.cfg.Model,
 		MaxTokens:     d.cfg.MaxTokens,
 		MaxIterations: d.cfg.MaxIterations,
