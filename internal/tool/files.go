@@ -138,7 +138,7 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return "", err
 	}
-	if err := t.Seen.Check(p, in.Path); err != nil {
+	if err := t.Seen.Check(p, in.Path, "write"); err != nil {
 		return "", err
 	}
 	old, readErr := os.ReadFile(p)
@@ -392,6 +392,22 @@ func (e oneEdit) apply(content, display string, index, total int) (string, int, 
 		return strings.ReplaceAll(content, e.Old, e.New), n, nil
 	}
 	return strings.Replace(content, e.Old, e.New, 1), n, nil
+}
+
+// checkSeen resolves the edit's path and asks Seen whether the file is
+// still the one the agent looked at.
+func (t EditFile) checkSeen(input json.RawMessage) error {
+	var in struct {
+		Path string `json:"path"`
+	}
+	if json.Unmarshal(input, &in) != nil || strings.TrimSpace(in.Path) == "" {
+		return nil // the plan will report what is wrong with the input
+	}
+	p, err := resolvePath(t.Root, in.Path)
+	if err != nil {
+		return nil
+	}
+	return t.Seen.Check(p, displayPath(t.Root, in.Path), "edit")
 }
 
 func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
@@ -695,11 +711,14 @@ func changed(before, after string) (first, last int, ok bool) {
 }
 
 func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) {
-	pl, err := t.plan(input)
-	if err != nil {
+	// The state of the file is checked before the plan is built: a file
+	// that vanished since it was read must say so, not fail as an open
+	// error with no explanation of what happened to it.
+	if err := t.checkSeen(input); err != nil {
 		return "", err
 	}
-	if err := t.Seen.Check(pl.path, pl.display); err != nil {
+	pl, err := t.plan(input)
+	if err != nil {
 		return "", err
 	}
 	if err := atomicWrite(pl.path, []byte(pl.after)); err != nil {

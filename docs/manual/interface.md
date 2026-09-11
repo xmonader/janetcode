@@ -229,6 +229,19 @@ model can read a skill with the `skill` tool. You can run one yourself as
 lists what is installed. Skills are re-read from disk every turn, so
 editing one takes effect immediately.
 
+### Files that are not what you read
+
+Before a write or an edit lands, janetcode checks that the file is still
+the one the agent looked at, and says precisely what is wrong when it is
+not: it changed on disk, it disappeared, the path is a directory, it went
+binary, or — for `write_file` on a file that already exists — it was never
+read at all. The instruction differs by verb, because the two tools need
+different things: an edit names the text it replaces, so re-reading the
+part being changed is enough; a write replaces everything, so it asks for
+the whole file. An edit of a file that was never read is still allowed —
+it cannot silently destroy text it did not name — and the coach supplies
+the content when such an edit misses.
+
 ### When exit 1 is an answer
 
 `grep`, `rg`, `diff`, `cmp` and `test` use exit code 1 to say "I looked
