@@ -50,6 +50,24 @@ environment are never copied into the config file.
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
 
+### What janetcode records about you
+
+Two small files in the config directory, and nothing else:
+
+- `hints/<project>.json` — the ids of the hints already given for one
+  project, so each is given once.
+- `usage.json` — a map from feature name to how often you have used it,
+  written once when a session ends. It is what lets the hints skip the
+  features you already know and `/stats` name up to five you have never
+  tried.
+
+Neither leaves the machine. There is no endpoint, no identifier and no
+timestamp; nothing in janetcode reads them except the hint rules and
+`/stats`, and deleting them costs nothing but a few repeated hints. The
+record of *what you did* — the conversations, the tool calls, the costs —
+is the session log, which is also local and which `/history` and
+`/resume` read.
+
 ### Hints
 
 `"hints": false` turns off the one-time notes about features a session

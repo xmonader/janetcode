@@ -63,6 +63,10 @@ type Options struct {
 	// Features is the catalogue of what janetcode can do; /help <topic>
 	// searches it and the embedded manual. Nil leaves /help as it was.
 	Features *feature.Catalog
+	// Usage counts which catalogue features the user has reached for, so
+	// hints can skip what they already know and /stats can name what they
+	// have not tried. It stays on this machine; nil disables counting.
+	Usage *feature.Usage
 	// Hints is the one-time hint engine. Nil, or an engine with Off set,
 	// means the session says nothing beyond what it is asked.
 	Hints *hints.Engine
@@ -1716,6 +1720,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		case "a", "A":
 			m.answer(agent.AllowSession, "")
 		case "r", "R":
+			m.noteUse("r")
 			m.answer(agent.AllowAlways, "")
 		case "n", "N":
 			// Ask why so the model can adapt; enter with nothing skips.
@@ -1795,6 +1800,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 	case "ctrl+o":
+		m.noteUse("ctrl+o")
 		switch expanded, any := m.transcript.toggleLastTurn(); {
 		case !any:
 			m.status = "nothing folded in the last turn · /verbose expands every turn"
@@ -1820,6 +1826,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		// A build or a test run that turns out to be long used to leave
 		// only waiting or cancelling. Promotion keeps the work: the
 		// command becomes a job, and the turn carries on.
+		m.noteUse("ctrl+g")
 		job, err := m.opts.Running.PromoteLatest()
 		if err != nil {
 			m.status = err.Error()
@@ -1841,6 +1848,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		case text == "":
 			m.status = "type what the model should do differently, then ctrl+s"
 		default:
+			m.noteUse("ctrl+s")
 			m.opts.Typed.Note(text)
 			m.opts.Agent.Steer(m.inflatePastes(text))
 			m.steering = append(m.steering, text)
@@ -1855,6 +1863,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	case "ctrl+v":
 		// Text paste arrives through the terminal on its own; ctrl+v grabs an
 		// image from the clipboard and attaches it as an @mention.
+		m.noteUse("ctrl+v")
 		m.pasteImage()
 		return nil, true
 	case "tab":
@@ -2284,6 +2293,7 @@ func (m *model) submit(text string) tea.Cmd {
 	m.lastUserText = text
 	text, atts := prompt.ExpandMentions(m.opts.Cwd, text)
 	if len(atts) > 0 {
+		m.noteUse("@path")
 		names := make([]string, len(atts))
 		for i, a := range atts {
 			names[i] = a.Path
@@ -2333,6 +2343,7 @@ func (m *model) shell(cmdline string) tea.Cmd {
 	// It also says what the project's check command is: somebody running
 	// the tests by hand twice is somebody who has not met /verify.
 	m.observeBang(cmdline)
+	m.noteUse("!command")
 	input, _ := json.Marshal(map[string]string{"command": cmdline})
 	call := agent.ToolCall{ID: fmt.Sprintf("shell-%d", time.Now().UnixNano()), Name: "shell", Input: input}
 	m.transcript.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
@@ -2576,6 +2587,7 @@ func (m *model) command(text string) tea.Cmd {
 			return nil
 		}
 	}
+	m.noteUse(fields[0])
 	switch fields[0] {
 	case "/help", "/?":
 		// /help alone is the keys-and-commands sheet it has always been.
@@ -3902,6 +3914,11 @@ func (m *model) statsCommand() {
 			}
 			fmt.Fprintf(&sb, "  %s total", shortDuration(t.Time))
 		}
+	}
+	// What you have never reached for, from counts kept on this machine
+	// and nowhere else.
+	if line := m.opts.Usage.Summary(m.opts.Features); line != "" {
+		sb.WriteString("\n" + line)
 	}
 	m.transcript.info(sb.String())
 }

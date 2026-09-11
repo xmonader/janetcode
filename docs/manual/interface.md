@@ -786,6 +786,12 @@ the lot. The rules are evaluated on events — a turn ending, a tool result, a
 denial, a paste — never on a render and never on a keystroke, which is
 tested.
 
+`/stats` ends with a "not yet tried" line naming up to five catalogue
+features you have never reached for. It comes from a count kept in the
+config directory — feature name to number, written once when a session
+ends — which never leaves the machine and which nothing reads but the
+hint rules and that line.
+
 ### Inspecting the session
 
 A session should not have to be guessed at. `/inspect <subject>` in the

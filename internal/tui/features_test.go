@@ -9,15 +9,6 @@ import (
 	"github.com/xmonader/janetcode/internal/feature"
 )
 
-// commandAliases are the second names the dispatch switch answers to.
-// They are not separate features, so they need no catalogue entry.
-var commandAliases = map[string]string{
-	"/?": "/help", "/exit": "/quit", "/q": "/quit", "/new": "/clear",
-	"/perms": "/permissions", "/ctx": "/context", "/todo": "/todos",
-	"/i": "/inspect", "/search": "/find", "/sessions": "/resume",
-	"/cost": "/usage",
-}
-
 // TestEveryCommandIsCatalogued is the drift gate. A command the user can
 // type but that the catalogue cannot describe is a feature nobody can
 // find: /help <topic> will not mention it, --inspect features will not

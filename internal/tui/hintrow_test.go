@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/hints"
 )
 
@@ -227,6 +228,46 @@ func TestTheFirstRunLineWritesNothingIntoTheProject(t *testing.T) {
 	after, _ := os.ReadDir(h.m.opts.Cwd)
 	if len(before) != len(after) {
 		t.Fatalf("the first run created something: %d → %d entries", len(before), len(after))
+	}
+}
+
+func TestUsingACommandIsCountedAndStopsTheHintForIt(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Usage = feature.OpenUsage(t.TempDir())
+	withHints(h)
+	h.keys("/verify")
+	h.enter()
+	if !h.m.opts.Usage.Used("/verify") {
+		t.Fatal("/verify was not counted")
+	}
+	// And now the hint that would introduce it stays quiet, because the
+	// user has met it.
+	h.m.observeBang("go test ./...")
+	h.m.observeBang("go test ./...")
+	if v := plain(h.m.View()); strings.Contains(v, "/verify set \"go test") {
+		t.Fatalf("introduced a command the user had just used:\n%s", v)
+	}
+}
+
+func TestAliasesAreCountedAsTheCommandTheyName(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Usage = feature.OpenUsage(t.TempDir())
+	h.keys("/ctx")
+	h.enter()
+	if !h.m.opts.Usage.Used("/context") {
+		t.Fatal("/ctx was not counted as /context")
+	}
+}
+
+func TestNothingIsCountedWithoutAStore(t *testing.T) {
+	h := newHarness(t) // no Usage in the options
+	h.keys("/verify")
+	h.enter()
+	h.m.noteUse("@path")
+	// Nothing to assert but the absence of a panic and of a file: a nil
+	// store has to be a session that simply does not count.
+	if h.m.opts.Usage.Used("/verify") {
+		t.Fatal("a nil store reported a use")
 	}
 }
 

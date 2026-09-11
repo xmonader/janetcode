@@ -527,6 +527,14 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	hintEngine.Off = !cfg.ShowHints()
 	hintEngine.Record = func(string) { _ = hintStore.Save(hintEngine.Shown()) }
 
+	// Which features this user has reached for, counted in memory and
+	// written once when the session ends. It stays on this machine:
+	// there is no endpoint and nothing in janetcode reads it but the
+	// hint rules and /stats.
+	usage := feature.OpenUsage(cfgDir)
+	defer func() { _ = usage.Flush() }()
+	fs.Visit(func(f *flag.Flag) { usage.Note(f.Name) })
+
 	if *acpMode {
 		// The editor owns stdout: only ACP frames may go there, so every
 		// other message in this mode is already on stderr.
@@ -636,6 +644,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Inspect:  subjects,
 		Features: catalog,
 		Hints:    hintEngine,
+		Usage:    usage,
 		Untrusted: untrustedProjectFiles(untrustedInput{
 			mcp:       len(projectServers) > 0 && !projectTrusted,
 			hooks:     hooksCfg.Len() > 0 && !hooksTrusted,

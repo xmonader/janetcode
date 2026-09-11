@@ -117,6 +117,15 @@ var keyFeatures = []feature.Feature{
 		Topics: []string{"fold", "unfold", "detail"}},
 }
 
+// commandAliases are the second names the dispatch switch answers to.
+// They are not separate features, so they need no catalogue entry.
+var commandAliases = map[string]string{
+	"/?": "/help", "/exit": "/quit", "/q": "/quit", "/new": "/clear",
+	"/perms": "/permissions", "/ctx": "/context", "/todo": "/todos",
+	"/i": "/inspect", "/search": "/find", "/sessions": "/resume",
+	"/cost": "/usage",
+}
+
 // commandInvoke overrides what the catalogue says to type, for the few
 // commands whose argument is not in the table. /help takes a topic but
 // carries no args, so that enter on it in the command menu prints the

@@ -73,9 +73,20 @@ func (m *model) refreshHintState() {
 
 // featureUsed reports whether the user has reached for a feature
 // before, so that a hint never introduces something they already know.
-// It is replaced by the usage counter in a later change; until then
-// nothing is known, which is the safe answer.
-func (m *model) featureUsed(string) bool { return false }
+func (m *model) featureUsed(name string) bool { return m.opts.Usage.Used(name) }
+
+// noteUse records that the user reached for a feature. It is a map
+// increment on an event that was being handled anyway; the file is
+// written once, when the session ends.
+func (m *model) noteUse(name string) {
+	if name == "" {
+		return
+	}
+	if canonical := commandAliases[name]; canonical != "" {
+		name = canonical
+	}
+	m.opts.Usage.Note(name)
+}
 
 // firstRunLine is what a directory janetcode has never seen before gets
 // instead of a generic tip: one line naming what the project looks like,
