@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -509,7 +510,24 @@ func newer(a, b Meta) bool {
 	return a.ID > b.ID
 }
 
+// snippetAround returns the line of text around byte offset at, which the
+// caller found in a lowercased copy of it.
+//
+// Lowercasing is not length-preserving: Ⱥ and Ⱦ each gain a byte, so a
+// message containing one puts the offset past the end of the original and
+// every slice below panics. The offset is therefore clamped and pulled
+// back to a rune boundary before anything is cut with it — a snippet a
+// couple of bytes off centre beats taking the whole search down.
 func snippetAround(text string, at int) string {
+	if at > len(text) {
+		at = len(text)
+	}
+	if at < 0 {
+		at = 0
+	}
+	for at > 0 && at < len(text) && !utf8.RuneStart(text[at]) {
+		at--
+	}
 	start := strings.LastIndexByte(text[:at], '\n') + 1
 	end := strings.IndexByte(text[at:], '\n')
 	if end < 0 {
@@ -526,7 +544,14 @@ func snippetAround(text string, at int) string {
 		if from+120 > len(line) {
 			from = len(line) - 120
 		}
-		line = "…" + line[from:from+120] + "…"
+		to := from + 120
+		for from > 0 && !utf8.RuneStart(line[from]) {
+			from--
+		}
+		for to < len(line) && !utf8.RuneStart(line[to]) {
+			to++
+		}
+		line = "…" + line[from:to] + "…"
 	}
 	return line
 }

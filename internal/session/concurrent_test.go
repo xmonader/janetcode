@@ -1,8 +1,12 @@
 package session
 
 import (
+	"strings"
 	"sync"
 	"testing"
+	"unicode/utf8"
+
+	"github.com/xmonader/janetcode/internal/llm"
 )
 
 // The agent appends from parallel tool goroutines while the UI goroutine
@@ -63,5 +67,31 @@ func TestConcurrentMetadataAndAppend(t *testing.T) {
 
 	if s.Meta.Title != "a title" || len(s.Meta.Pins) != 2 {
 		t.Fatalf("metadata lost: %+v", s.Meta)
+	}
+}
+
+// The match offset comes from a lowercased copy of the message, and
+// lowercasing is not length-preserving: Ⱥ and Ⱦ each gain a byte. A
+// conversation containing one therefore put the offset past the end of
+// the original and /history panicked on it.
+func TestSearchSnippetSurvivesNonASCII(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir, "/work", "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := llm.TextMessage(llm.RoleUser, strings.Repeat("Ⱥ", 40)+" needle here")
+	if _, err := s.Append(Event{Type: TypeUserMessage, Surface: true, Message: &msg}); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := Search(dir, "/work", "needle", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 {
+		t.Fatalf("hits = %+v", hits)
+	}
+	if !utf8.ValidString(hits[0].Snippet) {
+		t.Fatalf("snippet is not valid UTF-8: %q", hits[0].Snippet)
 	}
 }
