@@ -710,6 +710,18 @@ tell you the command for something instead of inventing one. That tool is
 *deferred*: its definition is not in any request until the model asks for
 it, so a session that never wonders about the harness pays nothing for it.
 
+The model also carries a short section of the system prompt — measured at
+312 estimated tokens, with a test that fails above 350 — listing what the
+harness does on its own: checkpoints, the verification gate, memory,
+compaction and `expand_output`, background jobs, permission rules,
+sessions, `/goal`. It is there because both failures it prevents were
+paid for on every session without it. The model used to redo the
+harness's work (copying a file before editing it, re-reading a file to
+recover output that was one `expand_output` away) and, asked what
+janetcode could do about something, it used to invent a command that does
+not exist. That section sits above the cache breakpoint, so on a provider
+with prompt caching it is read from the cache after the first request.
+
 ### Inspecting the session
 
 A session should not have to be guessed at. `/inspect <subject>` in the
