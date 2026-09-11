@@ -136,18 +136,37 @@ type Manager struct {
 	Config  Config
 	Log     func(string)
 	mu      sync.Mutex
-	clients map[string]*client // by server name
-	failed  map[string]string
+	clients map[string]*client // by server name, once handshaken
+	// starting holds the servers whose handshake is still in flight, so a
+	// second caller waits for it instead of starting a second server.
+	starting map[string]*pending
+	failed   map[string]string
 	// restarts counts how often a server has been started again after
 	// dying, so one that keeps crashing is given up on.
 	restarts map[string]int
 	byExt    map[string]string // extension → server name
+	// life is cancelled by Close, which is what ends a handshake that is
+	// still running. closed says the manager is gone, so a start that
+	// finishes after it is stopped rather than registered as a server
+	// nothing will ever close.
+	life   context.Context
+	stop   context.CancelFunc
+	closed bool
+}
+
+// pending is one handshake in flight. ready is closed once c and err are
+// set, and everything else waiting on that server reads them then.
+type pending struct {
+	ready chan struct{}
+	c     *client
+	err   error
 }
 
 // New prepares a manager; nothing starts until Diagnose is called.
 func New(root string, cfg Config) *Manager {
-	m := &Manager{Root: root, Config: cfg, clients: map[string]*client{}, failed: map[string]string{},
-		restarts: map[string]int{}, byExt: map[string]string{}}
+	m := &Manager{Root: root, Config: cfg, clients: map[string]*client{}, starting: map[string]*pending{},
+		failed: map[string]string{}, restarts: map[string]int{}, byExt: map[string]string{}}
+	m.life, m.stop = context.WithCancel(context.Background())
 	for name, s := range cfg.Active() {
 		for _, e := range s.Extensions {
 			m.byExt[strings.ToLower(e)] = name
@@ -249,7 +268,9 @@ func (m *Manager) Status() []string {
 	return out
 }
 
-// Close stops every server.
+// Close stops every server, including one still shaking hands: a cold
+// rust-analyzer takes the better part of a minute to answer initialize,
+// and a session that ended inside that window used to leave it running.
 func (m *Manager) Close() {
 	if m == nil {
 		return
@@ -257,7 +278,12 @@ func (m *Manager) Close() {
 	m.mu.Lock()
 	clients := m.clients
 	m.clients = map[string]*client{}
+	m.closed = true
+	stop := m.stop
 	m.mu.Unlock()
+	if stop != nil {
+		stop()
+	}
 	for _, c := range clients {
 		c.close()
 	}
@@ -282,13 +308,21 @@ func (m *Manager) format(abs string, ds []Diagnostic) []string {
 	return out
 }
 
+// clientFor returns the server for the path, starting it if it is not up.
+//
+// The lock covers the maps and nothing else. It used to be held across
+// start(), whose initialize call is allowed thirty seconds: a cold
+// rust-analyzer or clangd indexing a large tree froze every other caller
+// for that whole time — /lsp would not answer, and the next edit's
+// diagnostics queued behind a handshake they had nothing to do with. A
+// start in flight is a pending entry in the map instead, and anyone else
+// who wants that server waits on it, on their own context.
 func (m *Manager) clientFor(ctx context.Context, path string) (*client, error) {
 	name := m.ServerFor(path)
 	if name == "" {
 		return nil, nil
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if c, ok := m.clients[name]; ok {
 		// A server that has died must not be handed out again: every
 		// query against it fails with its exit status, which reads as a
@@ -300,23 +334,58 @@ func (m *Manager) clientFor(ctx context.Context, path string) (*client, error) {
 			m.restarts[name]++
 			if m.restarts[name] > maxRestarts {
 				m.failed[name] = fmt.Sprintf("exited %d times; not started again this session", m.restarts[name])
+				m.mu.Unlock()
 				return nil, nil
 			}
 		} else {
+			m.mu.Unlock()
 			return c, nil
 		}
 	}
 	if _, bad := m.failed[name]; bad {
+		m.mu.Unlock()
 		return nil, nil
 	}
-	s := m.Config.Active()[name]
-	c, err := start(ctx, m.Root, s.Command, m.Log)
-	if err != nil {
-		m.failed[name] = err.Error()
-		return nil, fmt.Errorf("lsp: %s: %w", name, err)
+	if p, ok := m.starting[name]; ok {
+		m.mu.Unlock()
+		select {
+		case <-p.ready:
+			return p.c, p.err
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
-	m.clients[name] = c
-	return c, nil
+	p := &pending{ready: make(chan struct{})}
+	m.starting[name] = p
+	command := m.Config.Active()[name].Command
+	life := m.life
+	m.mu.Unlock()
+
+	// The handshake runs on the manager's own context, not the caller's:
+	// one caller giving up on a slow server must not kill the server
+	// everyone else is waiting for. Close is what cancels it.
+	if life == nil {
+		life = context.Background()
+	}
+	c, err := start(life, m.Root, command, m.Log)
+
+	m.mu.Lock()
+	delete(m.starting, name)
+	switch {
+	case err != nil:
+		m.failed[name] = err.Error()
+		p.err = fmt.Errorf("lsp: %s: %w", name, err)
+	case m.closed:
+		// Close ran while this was shaking hands, so the server is ours
+		// to stop: nothing gets a client out of a closed manager.
+		defer c.close()
+	default:
+		m.clients[name] = c
+		p.c = c
+	}
+	m.mu.Unlock()
+	close(p.ready)
+	return p.c, p.err
 }
 
 // maxRestarts bounds how often one server is restarted after dying.
