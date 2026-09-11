@@ -32,6 +32,7 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -50,6 +51,9 @@ type Options struct {
 	Perms *PermOptions
 	// Verify carries the project's verification commands (/verify).
 	Verify *VerifyOptions
+	// Rules says which path-scoped rules this session has already given
+	// the model, for /rules to mark them.
+	Rules *rules.Injector
 	// LSP reports language-server status (/lsp).
 	LSP *lsp.Manager
 	// Inspect answers for every part of the session; /inspect reads it.
@@ -1025,6 +1029,7 @@ var commands = []command{
 	{name: "/readonly", args: "", help: "toggle read-only mode (no edits or commands)"},
 	{name: "/memory", args: "", help: "what janetcode remembers about this project"},
 	{name: "/skills", args: "", help: "skill files available to the model"},
+	{name: "/rules", args: "", help: "path-scoped project rules: what brings each in, and which have been sent this session"},
 	{name: "/remember", args: "<fact>", help: "add a fact to the project memory"},
 	{name: "/forget", args: "<n>", help: "remove memory entry n"},
 	{name: "/yolo", args: "", help: "toggle auto-approve for tools"},
@@ -2594,6 +2599,21 @@ func (m *model) command(text string) tea.Cmd {
 		var sb strings.Builder
 		for _, s := range skills {
 			fmt.Fprintf(&sb, "%-20s %s  (%s)\n", s.Name, s.Description, s.Source)
+		}
+		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+	case "/rules":
+		rs := rules.Load(m.opts.Cwd, m.opts.ConfigDir)
+		if len(rs) == 0 {
+			m.transcript.info("no path-scoped rules: add .janetcode/rules/<name>.md with a paths: list in its frontmatter, and it is sent once, when a tool call touches a matching path")
+			break
+		}
+		var sb strings.Builder
+		for _, r := range rs {
+			state := "waiting"
+			if m.opts.Rules.Sent(r.Name) {
+				state = "sent"
+			}
+			fmt.Fprintf(&sb, "%-18s %-7s %-26s %s\n", r.Name, state, strings.Join(r.Paths, ","), r.Description)
 		}
 		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 	case "/memory", "/remember", "/forget":

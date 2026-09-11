@@ -19,6 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/repomap"
+	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -44,6 +45,10 @@ type subjectDeps struct {
 	jobs    *tool.Jobs
 	task    *agent.Task
 	skills  func() []skill.Skill
+	// rules are the project's path-scoped rules; ruleInjector says which
+	// of them this session has already given the model.
+	rules        func() []rules.Rule
+	ruleInjector *rules.Injector
 }
 
 // registerSubjects wires every subsystem into the registry. A subsystem
@@ -95,6 +100,9 @@ func registerSubjects(r *inspect.Registry, d subjectDeps) {
 	r.AddText("jobs", "background jobs, running and finished", func() string { return jobsReport(d.jobs) })
 	r.AddText("subagents", "subagents that can be continued, and what they spent", func() string { return subagentsReport(d.task) })
 	r.AddText("skills", "the skills discovered for this project", func() string { return skillsReport(d.skills) })
+	r.AddText("rules", "path-scoped project rules and whether they have been sent", func() string {
+		return rulesReport(d.rules, d.ruleInjector)
+	})
 	r.AddText("notes", "the remembered notes available to the model", func() string { return notesReport(d.mem) })
 	r.Add(inspect.Subject{
 		Name: "repomap", Summary: "the repository map and how files rank", Usage: "[query]",
@@ -902,6 +910,28 @@ func skillsReport(load func() []skill.Skill) string {
 	fmt.Fprintf(&b, "%d skills:\n", len(sk))
 	for _, s := range sk {
 		fmt.Fprintf(&b, "  %-24s %s\n", s.Name, trunc(s.Description, 80))
+	}
+	return b.String()
+}
+
+// rulesReport lists the conditional instructions and what brings each
+// in, marking the ones this session has already sent.
+func rulesReport(load func() []rules.Rule, inj *rules.Injector) string {
+	if load == nil {
+		return "rules are not loaded in this session"
+	}
+	rs := load()
+	if len(rs) == 0 {
+		return "no path-scoped rules: add .janetcode/rules/<name>.md with a paths: list in its frontmatter"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d rules (each sent once, when a call touches a matching path):\n", len(rs))
+	for _, r := range rs {
+		state := "waiting"
+		if inj.Sent(r.Name) {
+			state = "sent"
+		}
+		fmt.Fprintf(&b, "  %-20s %-7s %-28s %s\n", r.Name, state, strings.Join(r.Paths, ","), trunc(r.Description, 50))
 	}
 	return b.String()
 }

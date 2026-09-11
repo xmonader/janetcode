@@ -85,6 +85,34 @@ disable it.
 If the working directory contains `JANETCODE.md`, `AGENTS.md` or `CLAUDE.md`
 (first found wins), its contents are added to the system prompt.
 
+### Path-scoped rules
+
+Anything in the system prompt is paid for on every request of every
+session, which is why project instructions have to stay short — and why
+the things worth saying about one corner of a repository usually go
+unsaid. A rule says them where they belong. Put a markdown file in
+`.janetcode/rules/` (or `rules/` under the config directory, or
+`.claude/rules/`) with a `paths:` list in its frontmatter:
+
+```markdown
+---
+description: migrations are append-only
+paths: db/migrations/**, *.sql
+---
+Never edit a migration that has been applied. Add a new one instead, and
+keep the down migration in the same file.
+```
+
+Nothing is sent until a tool call touches a matching path; then the rule
+is added to the conversation once for the session, as harness text — so
+it costs nothing in the sessions and turns it does not apply to. A rule
+with no `paths:` is ignored: instructions that always apply belong in
+`JANETCODE.md`, where their cost is visible. Globs are matched against
+the path the call named, `*` spans anything including `/`, and a glob
+without a `/` is matched against the file name too. `/rules` lists what
+is defined, what brings each in, and which have been sent this session;
+`janetcode --inspect rules` prints the same outside the UI.
+
 ## Prices
 
 `/cost`, the turn summary and the eval reports price tokens from three

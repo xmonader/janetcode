@@ -242,7 +242,8 @@ Features, each a section of the interface page:
 - [Hooks](docs/manual/interface.md#hooks) — shell commands at fixed points of the loop that can block or rewrite a call
 - [MCP servers](docs/manual/interface.md#mcp-servers) — stdio and remote servers, with OAuth, deferred tools and a trust store
 - [Custom commands](docs/manual/interface.md#custom-commands) — prompt templates as `/name` from `.janetcode/commands/`
-- [Project instructions](docs/manual/configuration.md#project-instructions) — `JANETCODE.md`, `AGENTS.md` or `CLAUDE.md` in the working directory
+- [Project instructions](docs/manual/configuration.md#project-instructions) — `JANETCODE.md`, `AGENTS.md` or `CLAUDE.md`, from the working directory up to the repository root
+- [Path-scoped rules](docs/manual/configuration.md#path-scoped-rules) — `.janetcode/rules/*.md` sent only when a call touches a path they name (`/rules`)
 
 ## What has been measured
 

@@ -39,6 +39,7 @@ import (
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/rates"
 	"github.com/xmonader/janetcode/internal/repomap"
+	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/snapshot"
@@ -452,7 +453,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	registerSubjects(subjects, subjectDeps{
 		agent: ag, session: sess, cfg: cfg, cfgPath: cfgPath, cwd: cwd, version: version,
 		archive: archive, mem: mem, repo: repo, diag: diag, mcp: &servers, jobs: jobs,
-		task: task, skills: skills,
+		task: task, skills: skills, rules: built.rules, ruleInjector: built.ruleInjector,
 	})
 	ag.Tools.Add(inspect.Tool{Registry: subjects})
 	if *inspectWhat != "" {
@@ -565,6 +566,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Hooks:     &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
 		LSP:       diag,
 		Inspect:   subjects,
+		Rules:     built.ruleInjector,
 		Models:    pool.For,
 		Jobs:      jobs,
 		AutoTitle: true,
@@ -1137,6 +1139,10 @@ type builtAgent struct {
 	repo    *repomap.Cache
 	archive *agent.Archive
 	skills  func() []skill.Skill
+	// rules lists the project's path-scoped rules; ruleInjector says
+	// which of them this session has already sent.
+	rules        func() []rules.Rule
+	ruleInjector *rules.Injector
 }
 
 // close releases what the agent held. It is the caller's job, since the
@@ -1200,6 +1206,11 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		ag.Tools.Add(&agent.Script{Parent: ag, Root: d.cwd})
 	}
 	skills := func() []skill.Skill { return skill.Load(d.cwd, cfgDir) }
+	// Path-scoped rules: nothing is sent until a call touches a path a
+	// rule names, and then once for the session.
+	ruleSet := func() []rules.Rule { return rules.Load(d.cwd, cfgDir) }
+	injector := &rules.Injector{Rules: ruleSet}
+	ag.PathRules = injector.For
 	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(d.cwd, cfgDir) }
 	ag.Tools.Add(&skill.Tool{Skills: skills})
 	ag.Tools.Add(&memory.Tool{Store: mem})
@@ -1246,5 +1257,5 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
 
-	return builtAgent{agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills}, nil
+	return builtAgent{agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector}, nil
 }

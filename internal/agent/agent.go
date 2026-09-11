@@ -237,6 +237,12 @@ type Agent struct {
 	SystemExtra func() string
 	extraText   string
 	extraFrozen bool
+	// PathRules, when set, is asked after each tool call which project
+	// rules the paths it touched bring in, and returns the text of those
+	// not sent yet (see package rules). Each arrives as harness text
+	// before the next model call, so instructions can be added to a
+	// session without being added to every request of it.
+	PathRules func(paths []string) []string
 	// Prepare, when set, may add blocks to a user turn before it is sent
 	// (skills attach themselves this way). The returned note, if any, is
 	// emitted as a notice.
@@ -253,6 +259,7 @@ type Agent struct {
 	usageMu sync.Mutex  // the status bar reads Usage while a turn runs
 	steerMu sync.Mutex  // guards steer, written from the UI goroutine
 	steer   []string    // notes for the running turn (see Steer)
+	harness []string    // harness text for the running turn (path rules)
 	turnUse llm.Usage   // what the turn in progress has cost so far
 	cache   cacheLedger // prefix paid for twice, and why
 	prefix  prefixWatch // where the cached prefix stopped matching
@@ -758,24 +765,38 @@ func (a *Agent) Steer(text string) {
 // turn goroutine, just before the call that will read them.
 func (a *Agent) deliverSteering(emit func(Event)) {
 	a.steerMu.Lock()
-	notes := a.steer
-	a.steer = nil
+	notes, harness := a.steer, a.harness
+	a.steer, a.harness = nil, nil
 	a.steerMu.Unlock()
+	if len(harness) > 0 {
+		// Harness text — a path-scoped rule this turn brought in — is
+		// delivered the same way but marked synthetic, so nothing
+		// downstream mistakes it for the user's words.
+		a.deliverText(strings.Join(harness, "\n\n"), true)
+	}
 	if len(notes) == 0 {
 		return
 	}
 	text := strings.Join(notes, "\n\n")
+	a.deliverText(text, false)
+	emit(Event{Kind: EvNotice, Text: "steering the turn: " + strings.SplitN(text, "\n", 2)[0]})
+}
+
+// deliverText adds text to the conversation for the next model call. It
+// rides with the trailing tool results when there are any: two user
+// messages in a row are not something every provider accepts.
+func (a *Agent) deliverText(text string, synthetic bool) {
 	n := len(a.Messages)
 	if n > 0 && a.Messages[n-1].Role == llm.RoleUser {
-		// The trailing message is this step's tool results. The note
-		// rides with them: two user messages in a row are not something
-		// every provider accepts.
-		a.Messages[n-1].Blocks = append(a.Messages[n-1].Blocks, llm.Block{Type: llm.BlockText, Text: text})
+		a.Messages[n-1].Blocks = append(a.Messages[n-1].Blocks, llm.Block{Type: llm.BlockText, Text: text, Synthetic: synthetic})
 		a.logUserMessage(true)
-	} else {
-		a.appendUserText(text)
+		return
 	}
-	emit(Event{Kind: EvNotice, Text: "steering the turn: " + strings.SplitN(text, "\n", 2)[0]})
+	if synthetic {
+		a.appendHarnessText(text)
+		return
+	}
+	a.appendUserText(text)
 }
 
 // appendUserText adds text as a new user message. It never mutates a message
@@ -1020,6 +1041,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
 	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Intent: intent})
+	// A rule scoped to these paths joins the conversation before the
+	// next model call, once for the session.
+	a.applyPathRules(t, u.Input, emit)
 	if t.Mutating() {
 		a.cp.snapshot(a.Snapshots, t, u.Input)
 	}
