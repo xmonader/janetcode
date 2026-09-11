@@ -2963,3 +2963,87 @@ func TestHelpSeparatesGroups(t *testing.T) {
 		}
 	}
 }
+
+// The prompt box grew a line at a time, but the textarea was resized
+// after it had already scrolled: it decided where to scroll with the old
+// height, and nothing ever scrolled it back. A two-line prompt showed
+// only its second line, and the first line of a paste was invisible.
+func TestInputBoxShowsItsFirstLine(t *testing.T) {
+	h := newHarness(t)
+	h.update(tea.WindowSizeMsg{Width: 110, Height: 32})
+	paste := func(text string) {
+		h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(text), Paste: true})
+	}
+	newline := func() { h.update(tea.KeyMsg{Type: tea.KeyCtrlJ}) }
+	h.keys("alpha")
+	newline()
+	h.keys("beta")
+	newline()
+	h.keys("gamma")
+	v := plain(h.m.View())
+	for _, want := range []string{"❯ alpha", "beta", "gamma"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("three-line prompt lost %q:\n%s", want, v)
+		}
+	}
+	h.m.input.Reset()
+	paste("alpha\nbeta\ngamma")
+	v = plain(h.m.View())
+	if !strings.Contains(v, "❯ alpha") {
+		t.Fatalf("first line of a paste not shown:\n%s", v)
+	}
+	// The invariant behind it: the textarea is never resized after it has
+	// already decided where to scroll, because its height never changes.
+	if got, want := h.m.input.Height(), h.m.inputLimit(); got != want {
+		t.Fatalf("textarea height %d, want the box limit %d", got, want)
+	}
+	// A paste longer than the box keeps the tail, where the cursor is.
+	h.m.input.Reset()
+	var lines []string
+	for i := 1; i <= 8; i++ {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+	paste(strings.Join(lines, "\n"))
+	v = plain(h.m.View())
+	if !strings.Contains(v, "line 8") {
+		t.Fatalf("tail of a long prompt not shown:\n%s", v)
+	}
+	if strings.Contains(v, "line 1\n") {
+		t.Fatalf("box did not scroll for a long prompt:\n%s", v)
+	}
+	// The box never grows past its limit.
+	if got := h.m.inputHeight(); got != maxInputLines {
+		t.Fatalf("input height = %d", got)
+	}
+}
+
+// tool.Bash reports a non-zero exit inside the output rather than as an
+// error, so !nosuchcommand was shown with the same green tick as a
+// command that worked.
+func TestFailingBangCommandIsMarkedFailed(t *testing.T) {
+	for _, c := range []struct {
+		out  string
+		code int
+		ok   bool
+	}{
+		{"bash: nope: command not found\n[exit code 127]", 127, true},
+		{"hello", 0, false},
+		{"[exit code 1] no lines matched; for this command that is an answer, not a failure", 0, false},
+	} {
+		code, ok := exitCode(c.out)
+		if code != c.code || ok != c.ok {
+			t.Errorf("exitCode(%q) = %d,%v want %d,%v", c.out, code, ok, c.code, c.ok)
+		}
+	}
+
+	h := newHarness(t)
+	call := agent.ToolCall{ID: "shell-1", Name: "shell", Input: json.RawMessage(`{"command":"nosuchcommand"}`)}
+	h.m.finishShell(shellDoneMsg{call: call, output: "bash: nosuchcommand: command not found\n[exit code 127]", dur: time.Millisecond})
+	if !strings.Contains(h.m.status, "exit code 127") {
+		t.Fatalf("status = %q", h.m.status)
+	}
+	last := h.m.transcript.entries[len(h.m.transcript.entries)-1]
+	if !last.isError {
+		t.Fatalf("failed command not marked as an error")
+	}
+}

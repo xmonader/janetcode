@@ -2342,14 +2342,45 @@ func (m *model) finishShell(msg shellDoneMsg) {
 	if out == "" {
 		out = "(no output)"
 	}
+	// The shell tool reports a non-zero exit in the output, not as an
+	// error, so "!nosuchcommand" used to be shown with the same green
+	// tick as a command that worked.
+	failed := ""
+	if !isErr {
+		if code, ok := exitCode(out); ok {
+			isErr, failed = true, fmt.Sprintf("exit code %d", code)
+		}
+	}
 	m.transcript.apply(agent.Event{Kind: agent.EvToolResult, Call: &msg.call, Output: out, IsError: isErr, Duration: msg.dur})
 	var in struct{ Command string }
 	json.Unmarshal(msg.call.Input, &in)
 	m.opts.Agent.AddContext(fmt.Sprintf("I ran this command myself in %s:\n$ %s\n<output>\n%s\n</output>", m.opts.Cwd, in.Command, strings.TrimRight(out, "\n")))
-	m.status = "ran in " + shortDuration(msg.dur) + " · output shared with the model"
+	m.status = "ran in " + shortDuration(msg.dur)
+	if failed != "" {
+		m.status += " · " + failed
+	}
+	m.status += " · output shared with the model"
 	if len(m.queued) > 0 {
 		m.status += " · sending queued prompt"
 	}
+}
+
+// exitCodeRe matches the note tool.Bash appends for a non-zero exit.
+// The form that ends "not a failure" is grep or diff saying it found
+// nothing, which is an answer and not a red mark.
+var exitCodeRe = regexp.MustCompile(`\[exit code (\d+)\]`)
+
+// exitCode reports the non-zero exit a command's output carries.
+func exitCode(out string) (int, bool) {
+	m := exitCodeRe.FindStringSubmatch(out)
+	if m == nil || strings.Contains(out, "not a failure") {
+		return 0, false
+	}
+	n, err := strconv.Atoi(m[1])
+	if err != nil || n == 0 {
+		return 0, false
+	}
+	return n, true
 }
 
 func (m *model) startTurn(phase string) {
@@ -3185,17 +3216,22 @@ func (m *model) menuRows() int {
 	return menuRows
 }
 
+// inputLimit is the tallest the prompt box may grow, which is also the
+// height the textarea itself is always given (see layout).
+func (m *model) inputLimit() int {
+	if m.compactMode() {
+		return 3
+	}
+	return maxInputLines
+}
+
 func (m *model) inputHeight() int {
 	n := m.input.LineCount()
 	if n < minInputLines {
 		n = minInputLines
 	}
-	maxLines := maxInputLines
-	if m.compactMode() {
-		maxLines = 3
-	}
-	if n > maxLines {
-		n = maxLines
+	if limit := m.inputLimit(); n > limit {
+		n = limit
 	}
 	return n
 }
@@ -3247,7 +3283,13 @@ func (m *model) layout() {
 	if m.width == 0 {
 		return
 	}
-	m.input.SetHeight(m.inputHeight())
+	// The textarea is always as tall as the box may ever grow, and the
+	// box takes the top of what it draws. Sizing it to the current line
+	// count instead meant the textarea scrolled on the keystroke that
+	// added a line (its height was still the old one when it decided)
+	// and never scrolled back, so a two-line prompt showed only its
+	// second line and the first line of a paste was invisible.
+	m.input.SetHeight(m.inputLimit())
 	vh := m.height - 1 - 1 - m.footerHeight() // header, status
 	if vh < 3 {
 		vh = 3
@@ -3581,6 +3623,9 @@ func (m *model) footerView() string {
 	}
 	m.input.Placeholder = m.placeholder()
 	lines := strings.Split(m.input.View(), "\n")
+	if n := m.inputHeight(); n < len(lines) {
+		lines = lines[:n] // the rest is the textarea's blank padding
+	}
 	for i := range lines {
 		if i == 0 {
 			lines[i] = prompt + lines[i]
