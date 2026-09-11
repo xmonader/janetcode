@@ -25,7 +25,12 @@ type Stats struct {
 	// a harness against its own repair work without knowing it.
 	WatchdogKills int
 	Fallbacks     int
-	Tools         []ToolStat // sorted by calls, descending
+	// Retries counts model calls that failed transiently and succeeded on
+	// a later attempt. They are not a rescue in the sense Saves means —
+	// the same model answered in the end — but a run that spent four
+	// attempts on every call is not the run the timings suggest.
+	Retries int
+	Tools   []ToolStat // sorted by calls, descending
 }
 
 // Saves is how many times the harness rescued a call that would
@@ -80,6 +85,18 @@ func (c *statsCounter) compacted() {
 func (c *statsCounter) recovered(n int) {
 	c.mu.Lock()
 	c.s.Recoveries += n
+	c.mu.Unlock()
+}
+
+// retried records one model call that needed n retries before it
+// answered. The call is counted once, not once per attempt: the question
+// it answers is how many calls were not clean.
+func (c *statsCounter) retried(n int) {
+	if n <= 0 {
+		return
+	}
+	c.mu.Lock()
+	c.s.Retries++
 	c.mu.Unlock()
 }
 

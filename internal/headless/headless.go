@@ -250,6 +250,8 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 			// run at all, so it goes to stderr beside the tool activity
 			// rather than being dropped as the TUI-only line it was.
 			fmt.Fprintf(opts.Stderr, "\n[verdict] %s\n", e.Text)
+		case agent.EvRetry:
+			fmt.Fprintf(opts.Stderr, "[retry] %s\n", e.Text)
 		case agent.EvNotice:
 			fmt.Fprintf(opts.Stderr, "[notice] %s\n", e.Text)
 		case agent.EvTurnDone:

@@ -102,6 +102,12 @@ const (
 	// its countdown, a compaction, a subagent. It is a status line, never
 	// a transcript entry, and the next event supersedes it.
 	EvPhase EventKind = "phase"
+	// EvRetry reports a model call that failed, was retried and then
+	// succeeded. EvPhase already showed the countdown, but a status line
+	// is gone the moment the next one lands: once the call answers, a
+	// turn that cost four attempts and eight seconds of backoff looked
+	// exactly like one that cost none. Retry carries what it took.
+	EvRetry EventKind = "retry"
 )
 
 // Event is a loop notification for the UI.
@@ -114,6 +120,8 @@ type Event struct {
 	Duration   time.Duration
 	Usage      llm.Usage
 	StopReason llm.StopReason
+	// Retry is set on EvRetry: what the model call had to survive.
+	Retry *llm.Retry
 }
 
 // Agent holds one conversation and the machinery to advance it.
@@ -702,7 +710,12 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, emi
 		Messages:  a.Messages,
 		Tools:     defs,
 		MaxTokens: a.MaxTokens,
-	}, func(e llm.Event) { forward(e, emit) })
+	}, func(e llm.Event) {
+		if e.Type == llm.EventRetried && e.Retry != nil {
+			a.stats.retried(e.Retry.Attempts)
+		}
+		forward(e, emit)
+	})
 	a.stats.model(time.Since(start), err != nil)
 	if errors.Is(err, llm.ErrStreamWatchdog) {
 		a.stats.watchdogKill()
@@ -1278,7 +1291,23 @@ func forward(e llm.Event, emit func(Event)) {
 		emit(Event{Kind: EvToolInput, Text: e.Text})
 	case llm.EventStatus:
 		emit(Event{Kind: EvPhase, Text: e.Text})
+	case llm.EventRetried:
+		if e.Retry != nil {
+			emit(Event{Kind: EvRetry, Text: retryLine(*e.Retry), Retry: e.Retry})
+		}
 	}
+}
+
+// retryLine is the one-liner a completed retry leaves behind.
+func retryLine(r llm.Retry) string {
+	s := fmt.Sprintf("retried %d×", r.Attempts)
+	if r.Reason != "" {
+		s += " · " + r.Reason
+	}
+	if r.Wait > 0 {
+		s += fmt.Sprintf(" · waited %s", r.Wait.Round(time.Second/10))
+	}
+	return s
 }
 
 // editTool reports the tools AutoEdits covers: the ones that change files

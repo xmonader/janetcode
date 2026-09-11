@@ -168,6 +168,36 @@ func TestStreamJSONPrintsOneObjectPerLine(t *testing.T) {
 	}
 }
 
+// A retry that succeeded is a line of the stream and a count in the
+// result: the countdown that was shown while it happened is gone, and
+// the run otherwise looks like one that never had to wait.
+func TestStreamJSONReportsARetry(t *testing.T) {
+	var out strings.Builder
+	r := newRecorder(Options{Stdout: &out}, FormatStreamJSON)
+	replay(r,
+		agent.Event{Kind: agent.EvRetry, Text: "retried 2× · rate limited · waited 1.5s",
+			Retry: &llm.Retry{Attempts: 2, Reason: "rate limited", Wait: 1500 * time.Millisecond}},
+		agent.Event{Kind: agent.EvText, Text: "hi"},
+		agent.Event{Kind: agent.EvTurnDone, Usage: llm.Usage{InputTokens: 3}},
+	)
+	r.finish(nil, nil)
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	var first map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &first); err != nil {
+		t.Fatalf("line is not JSON: %q", lines[0])
+	}
+	if first["type"] != "retry" || first["attempts"] != 2.0 || first["wait_ms"] != 1500.0 || first["text"] != "rate limited" {
+		t.Fatalf("retry line = %v", first)
+	}
+	var res eval.CLIResult
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &res); err != nil {
+		t.Fatal(err)
+	}
+	if res.Retries != 1 {
+		t.Fatalf("retries = %d, want 1", res.Retries)
+	}
+}
+
 // Text mode is unchanged: nothing JSON-shaped reaches stdout from here.
 func TestTextFormatWritesNoEnvelope(t *testing.T) {
 	var out strings.Builder

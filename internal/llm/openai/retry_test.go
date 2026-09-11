@@ -115,3 +115,62 @@ func TestRetryWaitsAsTheServerAsked(t *testing.T) {
 		t.Fatalf("waited %v, want the second the server asked for", waited)
 	}
 }
+
+// A retry that succeeds leaves a record of itself. The status line that
+// counted it down is gone the moment the call lands, so without this a
+// turn that took three attempts is indistinguishable from a clean one.
+func TestSucceededRetryIsReported(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) <= 2 {
+			http.Error(w, `{"error":{"message":"slow down"}}`, 429)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	defer srv.Close()
+	p, err := New(Config{BaseURL: srv.URL + "/v1", APIKey: "k", MaxRetries: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got *llm.Retry
+	_, err = p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, func(e llm.Event) {
+		if e.Type == llm.EventRetried {
+			got = e.Retry
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil {
+		t.Fatal("no retried event after two refusals")
+	}
+	if got.Attempts != 2 || got.Reason == "" || got.Wait <= 0 {
+		t.Fatalf("retry = %+v, want two attempts with a reason and a wait", *got)
+	}
+}
+
+// A call that never failed says nothing.
+func TestCleanCallReportsNoRetry(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	defer srv.Close()
+	p, err := New(Config{BaseURL: srv.URL + "/v1", APIKey: "k", MaxRetries: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := false
+	if _, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, func(e llm.Event) {
+		if e.Type == llm.EventRetried {
+			seen = true
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if seen {
+		t.Fatal("a clean call reported a retry")
+	}
+}

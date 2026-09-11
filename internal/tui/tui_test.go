@@ -2357,6 +2357,25 @@ func TestPhaseNamesWhatTheTurnWaitsOn(t *testing.T) {
 	}
 }
 
+// TestFinishedRetryLeavesALine: the countdown is a status line the next
+// phase overwrites, so once the call lands a turn that cost three
+// attempts read exactly like a clean one. A completed retry leaves one
+// dim line under the turn instead.
+func TestFinishedRetryLeavesALine(t *testing.T) {
+	h := newHarness(t)
+	h.m.running = true
+	before := len(h.m.transcript.entries)
+	h.m.applyEvent(agent.Event{Kind: agent.EvRetry, Text: "retried 2× · rate limited · waited 1.5s",
+		Retry: &llm.Retry{Attempts: 2, Reason: "rate limited", Wait: 1500 * time.Millisecond}})
+	h.m.refresh(false)
+	if n := len(h.m.transcript.entries); n != before+1 {
+		t.Fatalf("entries %d, want %d", n, before+1)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "retried 2×") || !strings.Contains(v, "rate limited") {
+		t.Fatalf("retry line missing from the transcript:\n%s", v)
+	}
+}
+
 // TestTerminalIntegration covers the escape sequences the terminal needs
 // to take part: OSC 133 zones around a turn, and a notification only
 // while the window is unfocused.

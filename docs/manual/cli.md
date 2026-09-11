@@ -71,7 +71,8 @@ the run reports itself; it applies only to `-p` (and `--watch`).
     "watchdog_kills": 0,
     "model_fallbacks": 1,
     "total": 2
-  }
+  },
+  "retries": 1
 }
 ```
 
@@ -88,13 +89,18 @@ the run reports itself; it applies only to `-p` (and `--watch`).
   matters to a benchmark: a result reached after three rescues is not the
   same result as one reached without them, and a comparison blind to it
   credits the model with the harness's work. `/stats` says the same
-  thing in the terminal.
+  thing in the terminal. `retries` counts model calls that failed
+  transiently — a rate limit, a server error — and succeeded on a later
+  attempt; the backoff is already inside `duration_ms`, and this says how
+  much of the wall time was the provider refusing rather than thinking.
 
 - `stream-json` prints one JSON object per line as things happen —
   `text` deltas, `thinking`, `tool_start`, `tool_result`, `notice`,
-  `compacted`, `verdict`, `turn_done` — and ends with the same `result`
-  object as its last line. Everything is newline-delimited, so it can be
-  read a line at a time.
+  `retry`, `compacted`, `verdict`, `turn_done` — and ends with the same
+  `result` object as its last line. Everything is newline-delimited, so it
+  can be read a line at a time. A `retry` line carries `attempts`,
+  `wait_ms` and the provider's reason in `text`; it is written when the
+  call finally answers, since until then there is nothing to report.
 
 ## Exit codes
 

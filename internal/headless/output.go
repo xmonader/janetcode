@@ -120,6 +120,7 @@ type recorder struct {
 	turns     int
 	tools     int
 	denials   int
+	retries   int
 	verdict   string
 	turnText  strings.Builder
 	answer    string
@@ -159,6 +160,11 @@ type streamEvent struct {
 	DurationMS int64           `json:"duration_ms,omitempty"`
 	StopReason string          `json:"stop_reason,omitempty"`
 	Usage      *eval.CLIUsage  `json:"usage,omitempty"`
+	// Attempts and WaitMS describe a retry event: the call failed this
+	// many times and spent this long in backoff before it answered. Text
+	// carries the reason.
+	Attempts int   `json:"attempts,omitempty"`
+	WaitMS   int64 `json:"wait_ms,omitempty"`
 }
 
 func (r *recorder) emit(e streamEvent) {
@@ -192,6 +198,11 @@ func (r *recorder) event(e agent.Event) {
 			name, id = e.Call.Name, e.Call.ID
 		}
 		r.emit(streamEvent{Type: "tool_result", Name: name, ID: id, Output: e.Output, IsError: e.IsError, DurationMS: e.Duration.Milliseconds()})
+	case agent.EvRetry:
+		r.retries++
+		if e.Retry != nil {
+			r.emit(streamEvent{Type: "retry", Text: e.Retry.Reason, Attempts: e.Retry.Attempts, WaitMS: e.Retry.Wait.Milliseconds()})
+		}
 	case agent.EvNotice:
 		r.emit(streamEvent{Type: "notice", Text: e.Text})
 	case agent.EvCompacted:
@@ -246,6 +257,7 @@ func (r *recorder) result(ag *agent.Agent, err error) eval.CLIResult {
 		PermissionDenials: r.denials,
 		Verdict:           r.verdict,
 		DurationMS:        time.Since(r.start).Milliseconds(),
+		Retries:           r.retries,
 	}
 	if ag != nil {
 		// The recorder tallies usage from EvTurnDone, which a turn that
@@ -261,6 +273,11 @@ func (r *recorder) result(ag *agent.Agent, err error) eval.CLIResult {
 			res.CostSource = u.CostSource(r.price)
 		}
 		st := ag.Stats()
+		if st.Retries > 0 {
+			// The agent's counter survives a turn that ended early, which
+			// the event tally does not.
+			res.Retries = st.Retries
+		}
 		if st.ModelCalls > 0 {
 			res.NumTurns = st.ModelCalls
 		}
