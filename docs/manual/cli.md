@@ -101,6 +101,12 @@ the run reports itself; it applies only to `-p` (and `--watch`).
   can be read a line at a time. A `retry` line carries `attempts`,
   `wait_ms` and the provider's reason in `text`; it is written when the
   call finally answers, since until then there is nothing to report.
+  Every `tool_result` is preceded by a `tool_start` with the same `id`,
+  including for a call that never ran — refused by a rule, hidden by
+  `--readonly`, stopped by `--max-cost`, or naming a tool that does not
+  exist — so a consumer can pair the two without special cases.
+  `permission_denials` counts every refusal, whoever made it: a `--deny`
+  rule, a hook, read-only mode, or the person at the terminal.
 
 ## Exit codes
 

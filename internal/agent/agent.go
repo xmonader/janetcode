@@ -122,6 +122,13 @@ type Event struct {
 	StopReason llm.StopReason
 	// Retry is set on EvRetry: what the model call had to survive.
 	Retry *llm.Retry
+	// Denied marks an EvToolResult that is a refusal rather than a
+	// failure: a permission rule, a hook, read-only mode or the user
+	// saying no. A caller counting denials cannot tell them apart from
+	// the message alone -- each of those paths words it differently --
+	// and a headless run reported zero denials for a call a --deny rule
+	// had refused.
+	Denied bool
 }
 
 // Agent holds one conversation and the machinery to advance it.
@@ -1084,7 +1091,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	if a.readOnly() && t.Mutating() {
 		msg := fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", u.Name, a.modeName())
-		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true, Denied: true})
 		return msg, true, nil
 	}
 	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
@@ -1092,7 +1099,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		return "", true, err
 	}
 	if deny != "" {
-		emit(Event{Kind: EvToolResult, Call: &call, Output: deny, IsError: true})
+		emit(Event{Kind: EvToolResult, Call: &call, Output: deny, IsError: true, Denied: true})
 		return deny, true, nil
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
