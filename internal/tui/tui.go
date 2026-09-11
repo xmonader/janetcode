@@ -4151,6 +4151,12 @@ func (m *model) statsCommand() {
 		if st.Fallbacks > 0 {
 			saves = append(saves, plural(st.Fallbacks, "call")+" that only worked on a fallback model")
 		}
+		if st.Retries > 0 {
+			// A turn behind two 429s showed "↻ retried 2×" and then a
+			// /stats reading "1 model call", with nothing to say the
+			// call had been bought three times.
+			saves = append(saves, plural(st.Retries, "call")+" that succeeded on a retry")
+		}
 		fmt.Fprintf(&sb, "\nrecovered · %s", strings.Join(saves, " · "))
 	}
 	fmt.Fprintf(&sb, "\ncontext ~%s of %s · %s · %s undoable", shortTokens(ag.EstimateTokens()), tokensOrUnknown(ag.CompactThreshold()), plural(st.Compactions, "compaction"), plural(len(ag.Checkpoints()), "turn"))

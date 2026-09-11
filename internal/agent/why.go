@@ -45,6 +45,7 @@ const (
 	IvPlan       InterventionKind = "plan check"
 	IvNudge      InterventionKind = "nudge"
 	IvOversized  InterventionKind = "oversized output"
+	IvRetry      InterventionKind = "retried call"
 )
 
 // Intervention is one thing the harness did without being asked.
@@ -147,6 +148,8 @@ func refusalRe(out string) bool {
 func classifyNotice(text string) InterventionKind {
 	l := strings.ToLower(text)
 	switch {
+	case strings.HasPrefix(l, "retried "):
+		return IvRetry
 	case strings.HasPrefix(l, "turn stopped:"):
 		return IvLoop
 	case strings.HasPrefix(l, "verifying:"), strings.Contains(l, "sending the model back to fix"),
@@ -207,6 +210,7 @@ var because = map[InterventionKind]string{
 	IvPathRule:   "a path-scoped project rule matched a file the turn touched, so its text was sent to the model once. /rules shows which rules exist and which have been sent.",
 	IvPlan:       "janetcode checked the model's plan against what it was actually doing and said so.",
 	IvOversized:  "a tool returned more than fits sensibly in the context, so it was archived and the model was given the head of it plus the id to read the rest with.",
+	IvRetry:      "the model call failed in a way that usually passes on a second try — a rate limit, a 5xx, a connection dropped mid-stream — so janetcode waited and asked again on the same model, backing off a little longer each time. Nothing was lost and you were not asked; the turn carried on. A failure that another model could survive is a fallback instead, and /usage counts what the extra attempts cost.",
 	IvNudge:      "janetcode put a note in front of the model about how the turn was going. Nudges are how the harness steers without taking over.",
 }
 

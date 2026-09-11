@@ -35,7 +35,7 @@ type Stats struct {
 
 // Saves is how many times the harness rescued a call that would
 // otherwise have been a wasted turn or a lost run.
-func (s Stats) Saves() int { return s.Recoveries + s.WatchdogKills + s.Fallbacks }
+func (s Stats) Saves() int { return s.Recoveries + s.WatchdogKills + s.Fallbacks + s.Retries }
 
 // ToolStat is the tally for one tool.
 type ToolStat struct {

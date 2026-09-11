@@ -95,6 +95,21 @@ func TestEveryShapeOfRefusalIsSeenAsOne(t *testing.T) {
 	}
 }
 
+// The "↻ retried 2× · rate limited · waited 1.5s" line in the transcript
+// used to be the only record that the harness had waited and bought a
+// call twice, so /why answered with whatever had happened before it.
+func TestARetryIsSomethingTheHarnessDid(t *testing.T) {
+	got := WhyLast([]session.Event{
+		{Seq: 1, Type: session.TypeNotice, Turn: 1, Output: "retried 2× · rate limited · waited 1.5s"},
+	}, 1)
+	if !strings.HasPrefix(got, string(IvRetry)) {
+		t.Fatalf("a retry was not explained as one:\n%s", got)
+	}
+	if !strings.Contains(got, "rate limit") {
+		t.Fatalf("no explanation:\n%s", got)
+	}
+}
+
 func TestAToolThatSimplyFailedIsNotAnIntervention(t *testing.T) {
 	for _, iv := range Interventions(recorded()) {
 		if strings.Contains(iv.Text, "undefined: foo") {
