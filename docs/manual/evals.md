@@ -73,6 +73,52 @@ the variant name is recorded in the results file so a comparison says what
 it compared. The same names work as `JANETCODE_OFF=script` for a real
 session.
 
+## The task sets, and which one an ablation can use
+
+`evals/` holds four sets, and they are not interchangeable:
+
+| set | where | what it is for |
+|---|---|---|
+| 01–20 | `evals/*.json` | the easy set: one prompt, one or two tool calls |
+| 21–26 | `evals/*.json`, tagged `hard` | harder single prompts |
+| 51–62 | `evals/*.json`, tagged `multistep` | the discriminating set (below) |
+| 31–35 | `evals/large/` | 1M-token corpora, for context behaviour |
+| 41–43 | `evals/session/` | multi-prompt sessions, for what survives across turns |
+
+An ablation is only as good as the headroom in the set it runs on. On
+qwen3.7-flash the easy set passes 60/60 and the hard set 87/90 across
+five harnesses, so no harness change can move either: a feature worth
+nothing and a feature worth a lot both score 100%. That is what the
+`multistep` set (51–62) exists to fix. Each is a single prompt a capable
+model gets right only if it plans, runs something and reads the result
+back:
+
+- 51 a wrong total that is two bugs in two files under the failing test
+- 52 a signature change across a package, three callers and its tests
+- 53 a CLI with six rules, every one of them exercised
+- 54 a data script against a fixture whose edge cases the prompt does
+  not list, then re-run on a second fixture it has never seen
+- 55 a value that appears nowhere in the tree because it is a product,
+  so it has to be traced through a four-layer config loader
+- 56 two failing tests with unrelated causes
+- 57 three packages that depend on each other in order, from nothing
+- 58 a migration judged on a golden file and on a shape the golden does
+  not cover
+- 59 a memoising cache that has to be race-free and compute once per key
+- 60 a contract where the obvious fix for the failing test breaks the
+  passing one
+- 61 a semver library and CLI in node, boundaries on every range form
+- 62 a shell validator with six rules and a third fixture
+
+Every check is offline and deterministic; several append hidden tests the
+model never sees, and several re-run the model's work on an input it was
+never given, so a solution that fits the visible fixture and nothing else
+fails. `max_tool_calls` is 45–60 throughout and the budget is ten
+minutes, so neither the tool limit nor the clock decides a result.
+
+`--eval-only multistep --eval-runs 3` is the run; `docs/benchmarks/multistep/`
+has the calibration and what the ablations measured on it.
+
 ## The two janetcode drivers in harnessbench
 
 `harnessbench` can run janetcode two ways, and they measure different

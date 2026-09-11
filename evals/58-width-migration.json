@@ -1,0 +1,19 @@
+{
+  "name": "58-width-migration",
+  "prompt": "report.py prints a CSV file as a padded table, but its column widths and its column count are hard-coded. Rewrite it so that it works for a CSV with any number of columns and computes each column's width from the file: a column is as wide as its widest cell, counting the header row; cells are padded on the right with spaces; columns are separated by exactly two spaces; and no line has trailing whitespace.\nThe output for data/a.csv must not change. golden/a.txt is exactly what report.py prints for it today and exactly what it must still print afterwards \u2014 check that yourself before you finish. Do not edit golden/a.txt or data/a.csv. Your script will also be run on CSV files you have not seen, with a different number of columns, with empty cells, with a quoted cell containing a comma, and with nothing but a header row.",
+  "files": {
+    "report.py": "#!/usr/bin/env python3\n\"\"\"Print a CSV file as a padded table.\"\"\"\nimport csv\nimport sys\n\nFMT = \"%-8s  %-3s  %-6s\"\n\n\ndef main(path):\n    with open(path, newline=\"\") as f:\n        rows = list(csv.reader(f))\n    for row in rows:\n        print((FMT % (row[0], row[1], row[2])).rstrip())\n\n\nif __name__ == \"__main__\":\n    main(sys.argv[1])\n",
+    "data/a.csv": "name,qty,price\nwidget,3,9.99\ngrommet,12,120.00\nsprocket,7,4.50\n",
+    "golden/a.txt": "name      qty  price\nwidget    3    9.99\ngrommet   12   120.00\nsprocket  7    4.50\n",
+    ".eval/a.txt": "name      qty  price\nwidget    3    9.99\ngrommet   12   120.00\nsprocket  7    4.50\n",
+    ".eval/a.csv": "name,qty,price\nwidget,3,9.99\ngrommet,12,120.00\nsprocket,7,4.50\n"
+  },
+  "check": "set -u\nfail() { echo \"FAIL: $1\"; exit 1; }\ncmp golden/a.txt .eval/a.txt || fail 'golden/a.txt was modified'\ncmp data/a.csv .eval/a.csv || fail 'data/a.csv was modified'\npython3 report.py data/a.csv > .got_a 2>&1 || fail 'report.py failed on a.csv'\ncmp .got_a golden/a.txt || { echo '--- got ---'; cat .got_a; fail 'a.csv output changed'; }\nmkdir -p data\ncat > data/b.csv <<'B_EOF'\nname,qty,price,region\nthingamajig,1,7.00,emea\nnut,1000,12.25,us\nB_EOF\ncat > .want_b <<'WB_EOF'\nname         qty   price  region\nthingamajig  1     7.00   emea\nnut          1000  12.25  us\nWB_EOF\npython3 report.py data/b.csv > .got_b 2>&1 || fail 'report.py failed on b.csv'\ncmp .got_b .want_b || { echo '--- got ---'; cat -A .got_b; echo '--- want ---'; cat -A .want_b; fail 'b.csv output'; }\ncat > data/c.csv <<'C_EOF'\nname,note,qty\na,,1\nlonger-name,\"has, comma\",2\nC_EOF\ncat > .want_c <<'WC_EOF'\nname         note        qty\na                        1\nlonger-name  has, comma  2\nWC_EOF\npython3 report.py data/c.csv > .got_c 2>&1 || fail 'report.py failed on c.csv'\ncmp .got_c .want_c || { echo '--- got ---'; cat -A .got_c; echo '--- want ---'; cat -A .want_c; fail 'c.csv output'; }\ncat > data/d.csv <<'D_EOF'\nonly\nD_EOF\ncat > .want_d <<'WD_EOF'\nonly\nWD_EOF\npython3 report.py data/d.csv > .got_d 2>&1 || fail 'report.py failed on d.csv'\ncmp .got_d .want_d || { echo '--- got ---'; cat -A .got_d; echo '--- want ---'; cat -A .want_d; fail 'd.csv output'; }\nexit 0\n",
+  "timeout": 600,
+  "max_tool_calls": 45,
+  "tags": [
+    "python",
+    "multistep",
+    "refactor"
+  ]
+}

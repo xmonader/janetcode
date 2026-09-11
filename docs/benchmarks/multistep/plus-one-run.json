@@ -1,0 +1,585 @@
+{
+ "model": "openai/qwen/qwen3.7-plus",
+ "variant": "plus",
+ "when": "2026-09-11T20:32:05.323363117+02:00",
+ "runs": 1,
+ "results": [
+  {
+   "name": "51-price-chain-bug",
+   "run": 0,
+   "passed": true,
+   "duration": 44307430648,
+   "model_time": 43645462746,
+   "tool_time": 372894805,
+   "tool_calls": 11,
+   "turns": 7,
+   "usage": {
+    "input_tokens": 7747,
+    "output_tokens": 2975,
+    "cache_read_tokens": 37126,
+    "cache_write_tokens": 0,
+    "cost_usd": 0.008053952
+   },
+   "cost_usd": 0.008053952,
+   "cost_known": true,
+   "compaction": {
+    "count": 0,
+    "summary_usage": {
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 0
+    },
+    "expands": 0
+   },
+   "output": "Two bugs:\n\n1. **`ParseCents` (rates.go)**: The fractional part `\"5\"` is added as 5 cents instead of 50. It needs to be padded to two digits.\n2. **`Tier` (discount.go)**: Uses `>` instead of `>=`, so subtotals of exactly $50 and $100 get no discount.\n\nAll three tests pass and `gofmt` is clean. Here's what was wrong:\n\n**Bug 1 \u2014 `ParseCents` in `rates.go`**: The fractional part `\"5\"` was parsed as 5 cents instead of 50. Fixed by padding single-digit fractions with a trailing zero (and truncating anything beyond 2 digits).\n\n**Bug 2 \u2014 `Tier` in `discount.go`**: Used `>` instead of `>=`, so subtotals of exactly $50.00 and $100.00 got no discount. Changed to `>=` to match the documented tiers (\"from $50\", \"from $100\").",
+   "features": {
+    "compactions": 0,
+    "cycle_rounds": 0,
+    "edits": 2,
+    "edits_since_test": 0,
+    "error_rate": 0,
+    "files_edited": 2,
+    "input_ktokens": 44.873,
+    "max_repeat": 2,
+    "minutes": 0.73367214645,
+    "model_calls": 7,
+    "output_ktokens": 2.975,
+    "reads": 6,
+    "test_failures": 0,
+    "tests": 2,
+    "tool_calls": 11,
+    "tool_errors": 0
+   }
+  },
+  {
+   "name": "52-options-refactor",
+   "run": 0,
+   "passed": true,
+   "duration": 110416183413,
+   "model_time": 109805613531,
+   "tool_time": 321470611,
+   "tool_calls": 15,
+   "turns": 6,
+   "usage": {
+    "input_tokens": 8347,
+    "output_tokens": 7942,
+    "cache_read_tokens": 30646,
+    "cache_write_tokens": 0,
+    "cost_usd": 0.014443872
+   },
+   "cost_usd": 0.014443872,
+   "cost_known": true,
+   "compaction": {
+    "count": 0,
+    "summary_usage": {
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 0
+    },
+    "expands": 0
+   },
+   "output": "\n</think>\n\nNow I understand the full picture. Let me implement the refactor:\n\n1. Create `norm.Options` struct with `Lower`, `Collapse`, `StripPunct` bool fields\n2. Add `norm.Default()` returning `Lower=true, Collapse=true, StripPunct=false`\n3. Refactor `Normalize` to accept options, always trim, apply steps in order: StripPunct \u2192 Collapse \u2192 Lower\n4. Update all callers to pass `norm.Default()` (preserving existing behavior)\n5. Update tests\n\nNow update all callers and tests:\n\nAll done. `go vet ./...` and `go test ./...` both pass.\n\nHere's what was changed:\n\n**`norm/norm.go`** \u2014 Rewrote to add:\n- `Options` struct with exported bool fields `Lower`, `Collapse`, `StripPunct`\n- `Default()` returning `{Lower: true, Collapse: true}` (StripPunct zero-value false)\n- `Normalize(s string, opt Options) string` \u2014 always trims; applies steps in order: StripPunct \u2192 Collapse \u2192 Lower\n- `isASCIIPunct` helper covering all 32 ASCII punctuation bytes\n\n**Callers updated** to pass `norm.Default()` (preserving existing behavior):\n- `main.go`\n- `index/index.go`\n- `report/report.go`\n\n**Tests updated** (kept existing test functions, just added `Default()` argument):\n- `norm/norm_test.go` \u2014 both `TestNormalizeL\n\u2026[trimmed for the repository]",
+   "features": {
+    "compactions": 0,
+    "cycle_rounds": 0,
+    "edits": 5,
+    "edits_since_test": 0,
+    "error_rate": 0,
+    "files_edited": 5,
+    "input_ktokens": 38.993,
+    "max_repeat": 1,
+    "minutes": 1.8354831705499999,
+    "model_calls": 6,
+    "output_ktokens": 7.942,
+    "reads": 7,
+    "test_failures": 0,
+    "tests": 1,
+    "tool_calls": 15,
+    "tool_errors": 0
+   }
+  },
+  {
+   "name": "53-tally-cli",
+   "run": 0,
+   "passed": true,
+   "duration": 29875391514,
+   "model_time": 29251149837,
+   "tool_time": 303782965,
+   "tool_calls": 12,
+   "turns": 5,
+   "usage": {
+    "input_tokens": 7155,
+    "output_tokens": 2031,
+    "cache_read_tokens": 19748,
+    "cache_write_tokens": 0,
+    "cost_usd": 0.006016096
+   },
+   "cost_usd": 0.006016096,
+   "cost_known": true,
+   "compaction": {
+    "count": 0,
+    "summary_usage": {
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 0
+    },
+    "expands": 0
+   },
+   "output": "Let me test it:\n\nLet me test a few more edge cases:\n\nAll tests pass. `tally.py` is ready at the working directory. Here's a summary of what it does:\n\n- **Word definition**: maximal runs of `[A-Za-z0-9_]`, counted lowercased\n- **Default output**: `<count> <word>`, sorted by count descending, then word ascending\n- **`--min N`**: filters words below count N\n- **`--top N`**: limits output to first N lines after filtering/sorting\n- **`--exclude a,b,c`**: drops listed words (case-insensitive), empty items ignored\n- **`-` for stdin**, error message to stderr + exit 2 for missing files, exit 0 otherwise, no output when nothing remains after filtering",
+   "features": {
+    "compactions": 0,
+    "cycle_rounds": 0,
+    "edits": 1,
+    "edits_since_test": 1,
+    "error_rate": 0,
+    "files_edited": 1,
+    "input_ktokens": 26.903,
+    "max_repeat": 1,
+    "minutes": 0.49260010775,
+    "model_calls": 5,
+    "output_ktokens": 2.031,
+    "reads": 0,
+    "test_failures": 0,
+    "tests": 0,
+    "tool_calls": 12,
+    "tool_errors": 0
+   }
+  },
+  {
+   "name": "54-csv-clean",
+   "run": 0,
+   "passed": true,
+   "duration": 31167588741,
+   "model_time": 30993473617,
+   "tool_time": 51934924,
+   "tool_calls": 3,
+   "turns": 4,
+   "usage": {
+    "input_tokens": 6395,
+    "output_tokens": 2172,
+    "cache_read_tokens": 13837,
+    "cache_write_tokens": 0,
+    "cost_usd": 0.005695024000000001
+   },
+   "cost_usd": 0.005695024000000001,
+   "cost_known": true,
+   "compaction": {
+    "count": 0,
+    "summary_usage": {
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 0
+    },
+    "expands": 0
+   },
+   "output": "The output is correct. Let me verify each rule against the input:\n\n| Row | What happened | Why |\n|---|---|---|\n| `3, Alice ,12.5,us` | \u2705 Kept, stripped, `12.50`, `US` | Valid |\n| `1,\"Bob, Jr.\",7,eu` | \u2705 Kept, `7.00`, `EU` | Valid; quoted comma handled |\n| *(blank line)* | \u2705 Dropped | Blank line |\n| `2,Carol,$12.00,us` | \u2705 Dropped | `$12.00` not a valid decimal |\n| `1,Duplicate Bob,99.99,eu` | \u2705 Dropped | Duplicate id=1 |\n| `5,Dave,,us` | \u2705 Dropped | Empty amount |\n| `4,Eve, -3.456 ,ap` | \u2705 Kept, stripped, `-3.46`, `AP` | Valid decimal |\n| `6,Frank,0,us` | \u2705 Kept, `0.00`, `US` | Valid |\n| `7,Grace,N/A,us` | \u2705 Dropped | `N/A` not a valid decimal |\n| `8,Heidi,5` | \u2705 Dropped | Only 3 fields |\n\nRows sorted by id (1, 3, 4, 6). `clean.py` is ready and `clean.csv` has been written.",
+   "features": {
+    "compactions": 0,
+    "cycle_rounds": 0,
+    "edits": 1,
+    "edits_since_test": 1,
+    "error_rate": 0,
+    "files_edited": 1,
+    "input_ktokens": 20.232,
+    "max_repeat": 1,
+    "minutes": 0.51743742425,
+    "model_calls": 4,
+    "output_ktokens": 2.172,
+    "reads": 1,
+    "test_failures": 0,
+    "tests": 0,
+    "tool_calls": 3,
+    "tool_errors": 0
+   }
+  },
+  {
+   "name": "55-config-provenance",
+   "run": 0,
+   "passed": true,
+   "duration": 63282863810,
+   "model_time": 62663395453,
+   "tool_time": 368252987,
+   "tool_calls": 21,
+   "turns": 8,
+   "usage": {
+    "input_tokens": 7278,
+    "output_tokens": 4206,
+    "cache_read_tokens": 39869,
+    "cache_write_tokens": 0,
+    "cost_usd": 0.009534928000000002
+   },
+   "cost_usd": 0.009534928000000002,
+   "cost_known": true,
+   "compaction": {
+    "count": 0,
+    "summary_usage": {
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 0
+    },
+    "expands": 0
+   },
+   "output": "All constraints verified. Here's the explanation:\n\n**Root cause:** The number 4500 came from `profiles/staging.json` setting `\"timeout_scale\": 3`, which multiplied the base timeout of 1500ms (from `profiles/base.json`) \u2192 1500 \u00d7 3 = 4500.\n\n**Fix:** Changed `profiles/base.json` from `\"timeout_ms\": 1500` to `\"timeout_ms\": 1000`, so staging now computes 1000 \u00d7 3 = 3000.\n\n**Verification:**\n| Scenario | Expected | Actual |\n|---|---|---|\n| staging (default) | `timeout_ms=3000` | \u2705 |\n| prod | `timeout_ms=3000` | \u2705 |\n| profile with `timeout_ms=1234` only | `timeout_ms=1234` | \u2705 |\n| profile with `timeout_ms=1000, timeout_scale=2` | `timeout_ms=2000` | \u2705 |\n| `APP_TIMEOUT_MS=9999` on staging | `timeout_ms=9999` | \u2705 |\n| staging region | `eu` | \u2705 |\n| retries everywhere | `3` | \u2705 |\n\n**`ANSWER.txt`:** `profiles/staging.json:timeout_scale`",
+   "features": {
+    "compactions": 0,
+    "cycle_rounds": 0,
+    "edits": 2,
+    "edits_since_test": 2,
+    "error_rate": 0.047619047619047616,
+    "files_edited": 2,
+    "input_ktokens": 47.147,
+    "max_repeat": 1,
+    "minutes": 1.0505280052833332,
+    "model_calls": 8,
+    "output_ktokens": 4.206,
+    "reads": 11,
+    "test_failures": 0,
+    "tests": 0,
+    "tool_calls": 21,
+    "tool_errors": 1
+   }
+  },
+  {
+   "name": "56-two-failures",
+   "run": 0,
+   "passed": true,
+   "duration": 42050878351,
+   "model_time": 41572812363,
+   "tool_time": 208558450,
+   "tool_calls": 9,
+   "turns": 6,
+   "usage": {
+    "input_tokens": 6893,
+    "output_tokens": 2587,
+    "cache_read_tokens": 28689,
+    "cache_write_tokens": 0,
+    "cost_usd": 0.0069454880000000005
+   },
+   "cost_usd": 0.0069454880000000005,
+   "cost_known": true,
+   "compaction": {
+    "count": 0,
+    "summary_usage": {
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 0
+    },
+    "expands": 0
+   },
+   "output": "Two bugs:\n\n1. **`Tax`** truncates instead of rounding half-up (fails `TestTaxRoundsHalfUp`)\n2. **`Coupon`** doesn't normalize case/whitespace (fails `TestCouponIsCaseAndSpaceInsensitive`)\n\nAll 6 tests pass and gofmt is clean. Two unrelated fixes:\n\n1. **`tax.go`** \u2014 `Tax` now rounds half-up: `(cents*bps + 5000) / 10000` instead of truncating with `cents * bps / 10000`.\n2. **`coupon.go`** \u2014 `Coupon` now normalizes input with `strings.ToUpper(strings.TrimSpace(code))` before the map lookup.",
+   "features": {
+    "compactions": 0,
+    "cycle_rounds": 0,
+    "edits": 3,
+    "edits_since_test": 0,
+    "error_rate": 0,
+    "files_edited": 2,
+    "input_ktokens": 35.582,
+    "max_repeat": 1,
+    "minutes": 0.6963848394666666,
+    "model_calls": 6,
+    "output_ktokens": 2.587,
+    "reads": 4,
+    "test_failures": 0,
+    "tests": 1,
+    "tool_calls": 9,
+    "tool_errors": 0
+   }
+  },
+  {
+   "name": "57-expr-layers",
+   "run": 0,
+   "passed": true,
+   "duration": 71921254966,
+   "model_time": 70776901574,
+   "tool_time": 701708816,
+   "tool_calls": 8,
+   "turns": 6,
+   "usage": {
+    "input_tokens": 7703,
+    "output_tokens": 5133,
+    "cache_read_tokens": 27391,
+    "cache_write_tokens": 0,
+    "cost_usd": 0.010476032000000001
+   },
+   "cost_usd": 0.010476032000000001,
+   "cost_known": true,
+   "compaction": {
+    "count": 0,
+    "summary_usage": {
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 0
+    },
+    "expands": 0
+   },
+   "output": "I'll build the integer expression calculator as four components with the specified dependencies.\n\nNow let me verify everything works:\n\nLet me also verify error handling and edge cases:\n\nEverything works correctly:\n\n- **`go vet ./...`** passes cleanly\n- **`go run . '2*(3+4)'`** prints `14` and exits 0\n- All error cases (division by zero, unclosed parens, unopened parens, two numbers in a row, invalid characters, empty input) print to stderr and exit non-zero\n\nThe four components:\n\n1. **`lexer/lexer.go`** \u2014 `Token` struct and `Tokens()` function that tokenizes digits, operators (`+-*/`), and parentheses, dropping whitespace and erroring on anything else.\n\n2. **`parser/parser.go`** \u2014 Recursive descent parser with `NumNode`/`BinOpNode` implementing the `Node` interface. `*`/`/` bind tighter than `+`/`-`, left-associative, with parenthesized grouping. Malformed input returns errors.\n\n3. **`eval/eval.go`** \u2014 `Eval()` walks the AST using Go integer arithmetic, returning an error on division by zero.\n\n4. **`main.go`** \u2014 Wires lexer \u2192 parser \u2192 eval, printing the result to stdout or the error to stderr with non-zero exit.",
+   "features": {
+    "compactions": 0,
+    "cycle_rounds": 0,
+    "edits": 4,
+    "edits_since_test": 0,
+    "error_rate": 0,
+    "files_edited": 4,
+    "input_ktokens": 35.094,
+    "max_repeat": 1,
+    "minutes": 1.1913311632333334,
+    "model_calls": 6,
+    "output_ktokens": 5.133,
+    "reads": 1,
+    "test_failures": 0,
+    "tests": 1,
+    "tool_calls": 8,
+    "tool_errors": 0
+   }
+  },
+  {
+   "name": "58-width-migration",
+   "run": 0,
+   "passed": true,
+   "duration": 55667747546,
+   "model_time": 55295780219,
+   "tool_time": 264022772,
+   "tool_calls": 8,
+   "turns": 7,
+   "usage": {
+    "input_tokens": 6584,
+    "output_tokens": 3896,
+    "cache_read_tokens": 30118,
+    "cache_write_tokens": 0,
+    "cost_usd": 0.008510496
+   },
+   "cost_usd": 0.008510496,
+   "cost_known": true,
+   "compaction": {
+    "count": 0,
+    "summary_usage": {
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 0
+    },
+    "expands": 0
+   },
+   "output": "Output matches `golden/a.txt` exactly. Let me verify the edge cases mentioned in the requirements:\n\nAll tests pass. The rewritten `report.py`:\n\n1. **Dynamically determines column count** from the widest row\n2. **Computes each column's width** from the widest cell across all rows (including the header)\n3. **Pads cells on the right** with spaces to the column width\n4. **Separates columns** with exactly two spaces\n5. **Strips trailing whitespace** from each line via `rstrip()`\n6. **Handles edge cases**: empty cells, quoted cells with commas, header-only files, varying column counts\n\nThe output for `data/a.csv` matches `golden/a.txt` exactly (verified with `diff`).",
+   "features": {
+    "compactions": 0,
+    "cycle_rounds": 0,
+    "edits": 1,
+    "edits_since_test": 0,
+    "error_rate": 0,
+    "files_edited": 1,
+    "input_ktokens": 36.702,
+    "max_repeat": 1,
+    "minutes": 0.92607988945,
+    "model_calls": 7,
+    "output_ktokens": 3.896,
+    "reads": 3,
+    "test_failures": 0,
+    "tests": 1,
+    "tool_calls": 8,
+    "tool_errors": 0
+   }
+  },
+  {
+   "name": "59-memo-race",
+   "run": 0,
+   "passed": true,
+   "duration": 56471509099,
+   "model_time": 51619409156,
+   "tool_time": 2840196329,
+   "tool_calls": 7,
+   "turns": 7,
+   "usage": {
+    "input_tokens": 7746,
+    "output_tokens": 3283,
+    "cache_read_tokens": 35103,
+    "cache_write_tokens": 0,
+    "cost_usd": 0.008329296
+   },
+   "cost_usd": 0.008329296,
+   "cost_known": true,
+   "compaction": {
+    "count": 0,
+    "summary_usage": {
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 0
+    },
+    "expands": 0
+   },
+   "output": "All tests pass with `-race`, `gofmt` is clean. Here's the approach:\n\n**Design:** Per-key locking using an `inflight` map of `entry` structs, each containing a `sync.WaitGroup` and the computed value.\n\n- **`Get(k)`**: Locks `mu`, checks `cache` (fast path), checks `inflight` (another goroutine is computing \u2014 wait on its `WaitGroup`), or inserts a new `entry` and releases the lock to call `compute` outside the lock. After computing, re-acquires the lock to populate `cache`, increment `calls`, and remove from `inflight`, then calls `Done()`.\n- **Different keys compute concurrently** \u2014 `compute` runs with no lock held.\n- **Same key computes exactly once** \u2014 duplicate callers see the `inflight` entry and wait on its `WaitGroup`.\n- **`All`** uses a separate `sync.Mutex` to protect the local `out` map (since `Get` returns without holding `mu`, concurrent writes to `out` would race).",
+   "features": {
+    "compactions": 0,
+    "cycle_rounds": 0,
+    "edits": 1,
+    "edits_since_test": 0,
+    "error_rate": 0,
+    "files_edited": 1,
+    "input_ktokens": 42.849,
+    "max_repeat": 1,
+    "minutes": 0.9076675719666667,
+    "model_calls": 7,
+    "output_ktokens": 3.283,
+    "reads": 2,
+    "test_failures": 0,
+    "tests": 3,
+    "tool_calls": 7,
+    "tool_errors": 0
+   }
+  },
+  {
+   "name": "60-fence-aware-trim",
+   "run": 0,
+   "passed": true,
+   "duration": 27441721341,
+   "model_time": 26996797140,
+   "tool_time": 189771175,
+   "tool_calls": 9,
+   "turns": 7,
+   "usage": {
+    "input_tokens": 7536,
+    "output_tokens": 1610,
+    "cache_read_tokens": 31958,
+    "cache_write_tokens": 0,
+    "cost_usd": 0.006010256
+   },
+   "cost_usd": 0.006010256,
+   "cost_known": true,
+   "compaction": {
+    "count": 0,
+    "summary_usage": {
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 0
+    },
+    "expands": 0
+   },
+   "output": "All tests pass and `gofmt` is clean. Here's what `Clean` now does:\n\n- **Trims trailing spaces/tabs** from each line outside fenced code blocks using `strings.TrimRight(line, \" \\t\")`.\n- **Detects fence lines** by checking if `strings.TrimSpace(line)` starts with ` ``` ` \u2014 this toggles the `inBlock` flag.\n- **Preserves fence lines and block contents byte-for-byte** \u2014 both the opening/closing fence lines and everything between them are copied unchanged.\n- **Unclosed blocks** naturally run to the end since `inBlock` stays `true`.\n- **Leading whitespace** is never touched (only `TrimRight` is used).",
+   "features": {
+    "compactions": 0,
+    "cycle_rounds": 0,
+    "edits": 1,
+    "edits_since_test": 0,
+    "error_rate": 0.2222222222222222,
+    "files_edited": 1,
+    "input_ktokens": 39.494,
+    "max_repeat": 1,
+    "minutes": 0.45311596681666666,
+    "model_calls": 7,
+    "output_ktokens": 1.61,
+    "reads": 5,
+    "test_failures": 0,
+    "tests": 1,
+    "tool_calls": 9,
+    "tool_errors": 2
+   }
+  },
+  {
+   "name": "61-js-semver",
+   "run": 0,
+   "passed": true,
+   "duration": 64579078309,
+   "model_time": 63623071214,
+   "tool_time": 737269930,
+   "tool_calls": 6,
+   "turns": 6,
+   "usage": {
+    "input_tokens": 12341,
+    "output_tokens": 4962,
+    "cache_read_tokens": 33681,
+    "cache_write_tokens": 0,
+    "cost_usd": 0.012119232
+   },
+   "cost_usd": 0.012119232,
+   "cost_known": true,
+   "compaction": {
+    "count": 0,
+    "summary_usage": {
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 0
+    },
+    "expands": 0
+   },
+   "output": "Now let me test the CLI:\n\nAll tests pass. Let me verify error cases produce nothing on stdout:\n\nDone. Created a semver library with CLI:\n\n**semver.js** exports:\n- `compare(a, b)` - compares MAJOR.MINOR.PATCH numerically, returns -1/0/1\n- `satisfies(version, range)` - checks if version matches range (*, ^X.Y.Z, ~X.Y.Z, >=, >, <=, <, or bare version)\n\n**cli.js** provides:\n- `node cli.js compare A B` - prints -1, 0, or 1\n- `node cli.js satisfies V RANGE` - prints true or false\n- Errors go to stderr with non-zero exit, nothing on stdout\n\nAll 26 tests pass, covering numeric comparison (1.10.0 > 1.9.0), all range forms with boundary conditions, whitespace handling, and error cases.",
+   "check_output": "ok",
+   "features": {
+    "compactions": 0,
+    "cycle_rounds": 0,
+    "edits": 3,
+    "edits_since_test": 0,
+    "error_rate": 0,
+    "files_edited": 3,
+    "input_ktokens": 46.022,
+    "max_repeat": 1,
+    "minutes": 1.07269124855,
+    "model_calls": 6,
+    "output_ktokens": 4.962,
+    "reads": 0,
+    "test_failures": 0,
+    "tests": 1,
+    "tool_calls": 6,
+    "tool_errors": 0
+   }
+  },
+  {
+   "name": "62-env-schema-check",
+   "run": 0,
+   "passed": true,
+   "duration": 72882652890,
+   "model_time": 72819155671,
+   "tool_time": 11487486,
+   "tool_calls": 5,
+   "turns": 4,
+   "usage": {
+    "input_tokens": 7541,
+    "output_tokens": 5485,
+    "cache_read_tokens": 14498,
+    "cache_write_tokens": 0,
+    "cost_usd": 0.010377376
+   },
+   "cost_usd": 0.010377376,
+   "cost_known": true,
+   "compaction": {
+    "count": 0,
+    "summary_usage": {
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_tokens": 0,
+     "cache_write_tokens": 0
+    },
+    "expands": 0
+   },
+   "output": "Both test cases produce the expected results:\n\n- **good.env**: No findings, exit 0 \u2713\n- **bad.env**: Correctly identifies `DEBUG=TRUE` (not lowercase bool), `NAME=` (empty str), and unknown keys `EXTRA` and `COLOR`, exit 1 \u2713\n\nThe script handles all six rules:\n1. Schema keys processed in order; missing required keys reported\n2. Type validation (int: `^-?[0-9]+$`, bool: exactly `true`/`false`, str: non-empty)\n3. Unknown env keys reported in first-appearance order\n4. Duplicate keys use last value, reported at most once\n5. Exit 0 if clean, exit 1 if findings\n6. Only findings to stdout",
+   "features": {
+    "compactions": 0,
+    "cycle_rounds": 0,
+    "edits": 1,
+    "edits_since_test": 1,
+    "error_rate": 0,
+    "files_edited": 1,
+    "input_ktokens": 22.039,
+    "max_repeat": 1,
+    "minutes": 1.2138542459666666,
+    "model_calls": 4,
+    "output_ktokens": 5.485,
+    "reads": 3,
+    "test_failures": 0,
+    "tests": 0,
+    "tool_calls": 5,
+    "tool_errors": 0
+   }
+  }
+ ]
+}
