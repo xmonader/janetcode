@@ -3047,3 +3047,40 @@ func TestFailingBangCommandIsMarkedFailed(t *testing.T) {
 		t.Fatalf("failed command not marked as an error")
 	}
 }
+
+// ctrl+o showed sixty lines of a tool result and then said "… (440 more
+// lines, ctrl+o to expand)", naming the key that folds the entry again.
+func TestExpandShowsTheRestAndSaysSoHonestly(t *testing.T) {
+	h := newHarness(t)
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	var body strings.Builder
+	for i := 1; i <= 500; i++ {
+		fmt.Fprintf(&body, "line %d\n", i)
+	}
+	call := agent.ToolCall{ID: "t1", Name: "bash", Input: json.RawMessage(`{"command":"seq 1 500"}`)}
+	h.m.transcript.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
+	h.m.transcript.apply(agent.Event{Kind: agent.EvToolResult, Call: &call, Output: body.String()})
+
+	folded := plain(h.m.transcript.render(renderOpts{width: 100, cwd: h.m.opts.Cwd, cap: 8}))
+	if !strings.Contains(folded, "ctrl+o to expand") {
+		t.Fatalf("folded result offers no way to see more:\n%s", folded)
+	}
+	full := h.m.transcript.render(renderOpts{width: 100, cwd: h.m.opts.Cwd, cap: 8, verbose: true})
+	if !strings.Contains(plain(full), "line 400") {
+		t.Fatalf("expanding stopped short of 400 lines")
+	}
+	if strings.Contains(plain(full), "ctrl+o to expand") {
+		t.Fatalf("expanded result still offers ctrl+o:\n%s", tailOf(plain(full)))
+	}
+	if !strings.Contains(plain(full), "the model received all of it") {
+		t.Fatalf("expanded result does not say what happened to the rest:\n%s", tailOf(plain(full)))
+	}
+}
+
+func tailOf(s string) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(lines) > 6 {
+		lines = lines[len(lines)-6:]
+	}
+	return strings.Join(lines, "\n")
+}

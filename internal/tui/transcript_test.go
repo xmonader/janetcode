@@ -500,7 +500,7 @@ func TestPendingCallIsNotStillStreaming(t *testing.T) {
 // printed a replacement character.
 func TestPreviewTruncationKeepsUTF8(t *testing.T) {
 	preview := "--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n+" + strings.Repeat("é", 60) + "\n"
-	out := plain(renderPreview(preview, 40, 10))
+	out := plain(renderPreview(preview, 40, 10, true))
 	if strings.ContainsRune(out, '�') || !utf8.ValidString(out) {
 		t.Fatalf("truncation corrupted UTF-8: %q", out)
 	}

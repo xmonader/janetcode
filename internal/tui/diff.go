@@ -138,7 +138,7 @@ func (h diffHunk) changePair() (int, int, bool) {
 
 // renderDiff draws the hunks with a gutter, elisions between them and the
 // changed tokens picked out where a single line was replaced.
-func renderDiff(hunks []diffHunk, width, maxLines int) string {
+func renderDiff(hunks []diffHunk, width, maxLines int, expandable bool) string {
 	last := 0
 	for _, h := range hunks {
 		if e := h.newStart + len(h.lines); e > last {
@@ -190,7 +190,7 @@ func renderDiff(hunks []diffHunk, width, maxLines int) string {
 		hidden, out = len(out)-maxLines, out[:maxLines]
 	}
 	if hidden > 0 {
-		out = append(out, styleFaint.Render(fmt.Sprintf("  … (%d more lines, ctrl+o to expand)", hidden)))
+		out = append(out, styleFaint.Render("  "+moreNote(hidden, expandable)))
 	}
 	return strings.Join(out, "\n")
 }
