@@ -2825,3 +2825,427 @@ func TestTypedHostsAreNotedFromEveryUserMessage(t *testing.T) {
 		t.Fatal("a host nobody typed is in the set")
 	}
 }
+
+// A short terminal used to lose the top of a modal: the dialog always drew
+// twelve list rows, and lipgloss.Place centred a box taller than the body,
+// so the title, the search field and the highlighted row scrolled off the
+// screen. The list now shrinks to what the body can hold.
+func TestDialogFitsShortTerminal(t *testing.T) {
+	h := newHarness(t)
+	cfg := &config.Config{Provider: "fake", Model: "m", Providers: map[string]config.Provider{
+		"fake": {Type: "openai", BaseURL: "http://fake", APIKey: "k0"},
+	}}
+	h.withConfig(t, cfg, func(c *config.Config) (llm.Provider, error) { return &listing{}, nil })
+	h.update(tea.WindowSizeMsg{Width: 60, Height: 18})
+	h.keys("/connect")
+	h.enter()
+	if h.m.connect == nil {
+		t.Fatal("dialog not open")
+	}
+	v := plain(h.m.View())
+	if lines := strings.Count(v, "\n") + 1; lines > 18 {
+		t.Fatalf("view is %d lines at height 18:\n%s", lines, v)
+	}
+	if !strings.Contains(v, "Connect to a provider") || !strings.Contains(v, "search providers") {
+		t.Fatalf("title or search field cut off:\n%s", v)
+	}
+	if !strings.Contains(v, "▸ ") {
+		t.Fatalf("highlight not visible:\n%s", v)
+	}
+	// Tall terminals keep the full twelve rows.
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	if got := strings.Count(plain(h.m.View()), "\n"); got < 20 {
+		t.Fatalf("tall view collapsed to %d lines", got)
+	}
+}
+
+func TestFitRows(t *testing.T) {
+	for _, c := range []struct{ height, chrome, want int }{
+		{40, 9, dialogRows}, {18, 9, 9}, {12, 9, minDialogRows}, {4, 9, minDialogRows},
+	} {
+		if got := fitRows(c.height, c.chrome); got != c.want {
+			t.Errorf("fitRows(%d,%d) = %d, want %d", c.height, c.chrome, got, c.want)
+		}
+	}
+}
+
+// typed feeds text the way bubbletea's reader does: every run of
+// characters between spaces arrives as one KeyRunes message, and a space
+// as KeySpace. h.keys sends one rune at a time, which hides the whole
+// class of collisions this models.
+func (h *harness) typed(s string) {
+	flush := func(run []rune) {
+		if len(run) > 0 {
+			h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: run})
+		}
+	}
+	var run []rune
+	for _, r := range s {
+		if r == ' ' {
+			flush(run)
+			run = nil
+			h.update(tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}})
+			continue
+		}
+		run = append(run, r)
+	}
+	flush(run)
+}
+
+// Bubbletea splits typed text at spaces and hands each run over as one
+// KeyRunes message whose String() is the word itself, and bubbles'
+// key.Matches compares nothing else. Typing "move it right" therefore
+// lost the word "right", "up" pulled a history entry into the middle of
+// a sentence, and "home" jumped the cursor to the start of the line.
+func TestTypedWordsAreNotKeyPresses(t *testing.T) {
+	h := newHarness(t)
+	h.m.remember("first prompt")
+	for _, word := range []string{"right", "left", "up", "down", "home", "end", "delete", "esc", "enter", "tab", "insert", "pgup"} {
+		h.m.input.Reset()
+		h.typed("aa " + word + " bb")
+		if got := h.m.input.Value(); got != "aa "+word+" bb" {
+			t.Errorf("typing %q gave %q", "aa "+word+" bb", got)
+		}
+	}
+	// Real key presses still are key presses.
+	h.m.input.Reset()
+	h.update(tea.KeyMsg{Type: tea.KeyUp})
+	if h.m.input.Value() != "first prompt" {
+		t.Fatalf("up no longer browses history: %q", h.m.input.Value())
+	}
+}
+
+// The same collision in the searchable modals: typing "end" in the
+// session or model search used to page the highlight instead.
+func TestTypedWordsInPickerSearch(t *testing.T) {
+	h := newHarness(t)
+	h.m.openPicker(&picker{
+		title: "Pick",
+		rows: []row{{key: "alpha", cells: []string{"alpha"}, name: "alpha"},
+			{key: "friend", cells: []string{"friend"}, name: "friend"}},
+		choose: func(r row, typed string) tea.Cmd { return nil },
+	})
+	h.typed("friend")
+	if got := h.m.picker.field.Value(); got != "friend" {
+		t.Fatalf("picker search took %q", got)
+	}
+	h.typed(" end")
+	if got := h.m.picker.field.Value(); got != "friend end" {
+		t.Fatalf("picker search took %q", got)
+	}
+}
+
+// The prompt offers r to save a rule, and used to print that rule as an
+// absolute path truncated in the middle — "edit_file(/tmp/claude-1000/-h…"
+// said nothing about what would be allowed. Paths are now written the way
+// the rest of the interface writes them.
+func TestSuggestedRuleUsesShortPaths(t *testing.T) {
+	h := newHarness(t)
+	cwd := h.m.opts.Cwd
+	got := h.m.suggestedRule("edit_file", json.RawMessage(`{"path":`+strconv.Quote(filepath.Join(cwd, "main.go"))+`}`))
+	if got != "edit_file(./*)" {
+		t.Fatalf("rule in the working directory = %q", got)
+	}
+	got = h.m.suggestedRule("edit_file", json.RawMessage(`{"path":`+strconv.Quote(filepath.Join(cwd, "internal", "tui", "x.go"))+`}`))
+	if got != "edit_file(internal/tui/*)" {
+		t.Fatalf("rule under the working directory = %q", got)
+	}
+	// A bash rule is a command, not a path, and is left alone.
+	if got := h.m.suggestedRule("bash", json.RawMessage(`{"command":"go test ./..."}`)); got != "bash(go test *)" {
+		t.Fatalf("bash rule = %q", got)
+	}
+}
+
+// The banner used to say "esc cancels" about the permission prompt while
+// /help said esc denies and c cancels the turn.
+func TestBannerMatchesPermissionKeys(t *testing.T) {
+	h := newHarness(t)
+	v := plain(h.m.View())
+	if !strings.Contains(v, "esc denies") || strings.Contains(v, "n deny · esc cancels") {
+		t.Fatalf("banner:\n%s", v)
+	}
+}
+
+// A goal round is machinery, not something the user typed. The whole
+// continuation — objective plus a paragraph telling the model that
+// rounds are a budget and not to announce them — used to be echoed into
+// the transcript as a user message, and the session title was generated
+// from it, so /resume listed sessions called "Work on this goal until it
+// is complete or you are blocked".
+func TestGoalRoundIsOneLine(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "on it")})
+	h.keys("/goal make the tests pass")
+	h.enter()
+	v := plain(h.m.View())
+	if strings.Contains(v, "Rounds are a budget") || strings.Contains(v, "Work on this goal until") {
+		t.Fatalf("continuation prompt echoed to the user:\n%s", v)
+	}
+	if !strings.Contains(v, "goal g1 round 1/") || !strings.Contains(v, "make the tests pass") {
+		t.Fatalf("round not announced:\n%s", v)
+	}
+	if got := h.m.opts.Session.Meta.Title; got != "make the tests pass" {
+		t.Fatalf("session title = %q", got)
+	}
+	// The model still receives the full continuation.
+	if !strings.Contains(h.m.lastUserText, "Rounds are a budget") {
+		t.Fatalf("the model got %q", h.m.lastUserText)
+	}
+}
+
+// Notices and verdicts are composed by the agent, which only knows
+// absolute paths; one file name could wrap the line twice and bury the
+// sentence it belonged to.
+func TestNoticePathsAreShortened(t *testing.T) {
+	h := newHarness(t)
+	cwd := h.m.opts.Cwd
+	h.m.transcript.apply(agent.Event{Kind: agent.EvVerdict,
+		Text: "⚠ self-checked: 1 file(s) edited and tests passed, but " + filepath.Join(cwd, "main_test.go") + " changed in the same turn"})
+	line := h.m.transcript.entries[len(h.m.transcript.entries)-1].text
+	if strings.Contains(line, cwd) {
+		t.Fatalf("absolute path in the verdict: %s", line)
+	}
+	if !strings.Contains(line, "main_test.go changed in the same turn") {
+		t.Fatalf("verdict: %s", line)
+	}
+}
+
+// /stats reported the session as open for 2562047h47m16.854775807s
+// before the first turn: it measured from startedAt, which is the clock
+// for the turn that is running and is the zero time until one does.
+func TestStatsReportsWindowAge(t *testing.T) {
+	h := newHarness(t)
+	h.m.openedAt = time.Now().Add(-90 * time.Second)
+	h.keys("/stats")
+	h.enter()
+	var line string
+	for _, e := range h.m.transcript.entries {
+		if strings.Contains(e.text, "session ") && strings.Contains(e.text, "open ") {
+			line = e.text
+		}
+	}
+	if line == "" {
+		t.Fatalf("no stats line:\n%s", plain(h.m.View()))
+	}
+	if !strings.Contains(line, "open 1m") {
+		t.Fatalf("stats line = %q", line)
+	}
+	if strings.Contains(line, "2562047h") {
+		t.Fatalf("stats measured from the turn clock: %q", line)
+	}
+}
+
+// A group heading printed hard against the last command of the group
+// before it read as that command's second line.
+func TestHelpSeparatesGroups(t *testing.T) {
+	h := newHarness(t)
+	help := h.m.helpText()
+	for _, g := range helpGroups {
+		if !strings.Contains(help, "\n\n"+g.title+"\n") {
+			t.Errorf("group %q has no blank line before it", g.title)
+		}
+	}
+}
+
+// The prompt box grew a line at a time, but the textarea was resized
+// after it had already scrolled: it decided where to scroll with the old
+// height, and nothing ever scrolled it back. A two-line prompt showed
+// only its second line, and the first line of a paste was invisible.
+func TestInputBoxShowsItsFirstLine(t *testing.T) {
+	h := newHarness(t)
+	h.update(tea.WindowSizeMsg{Width: 110, Height: 32})
+	paste := func(text string) {
+		h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(text), Paste: true})
+	}
+	newline := func() { h.update(tea.KeyMsg{Type: tea.KeyCtrlJ}) }
+	h.keys("alpha")
+	newline()
+	h.keys("beta")
+	newline()
+	h.keys("gamma")
+	v := plain(h.m.View())
+	for _, want := range []string{"❯ alpha", "beta", "gamma"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("three-line prompt lost %q:\n%s", want, v)
+		}
+	}
+	h.m.input.Reset()
+	paste("alpha\nbeta\ngamma")
+	v = plain(h.m.View())
+	if !strings.Contains(v, "❯ alpha") {
+		t.Fatalf("first line of a paste not shown:\n%s", v)
+	}
+	// The invariant behind it: the textarea is never resized after it has
+	// already decided where to scroll, because its height never changes.
+	if got, want := h.m.input.Height(), h.m.inputLimit(); got != want {
+		t.Fatalf("textarea height %d, want the box limit %d", got, want)
+	}
+	// A paste longer than the box keeps the tail, where the cursor is.
+	h.m.input.Reset()
+	var lines []string
+	for i := 1; i <= 8; i++ {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+	paste(strings.Join(lines, "\n"))
+	v = plain(h.m.View())
+	if !strings.Contains(v, "line 8") {
+		t.Fatalf("tail of a long prompt not shown:\n%s", v)
+	}
+	if strings.Contains(v, "line 1\n") {
+		t.Fatalf("box did not scroll for a long prompt:\n%s", v)
+	}
+	// The box never grows past its limit.
+	if got := h.m.inputHeight(); got != maxInputLines {
+		t.Fatalf("input height = %d", got)
+	}
+}
+
+// tool.Bash reports a non-zero exit inside the output rather than as an
+// error, so !nosuchcommand was shown with the same green tick as a
+// command that worked.
+func TestFailingBangCommandIsMarkedFailed(t *testing.T) {
+	for _, c := range []struct {
+		out  string
+		code int
+		ok   bool
+	}{
+		{"bash: nope: command not found\n[exit code 127]", 127, true},
+		{"hello", 0, false},
+		{"[exit code 1] no lines matched; for this command that is an answer, not a failure", 0, false},
+	} {
+		code, ok := exitCode(c.out)
+		if code != c.code || ok != c.ok {
+			t.Errorf("exitCode(%q) = %d,%v want %d,%v", c.out, code, ok, c.code, c.ok)
+		}
+	}
+
+	h := newHarness(t)
+	call := agent.ToolCall{ID: "shell-1", Name: "shell", Input: json.RawMessage(`{"command":"nosuchcommand"}`)}
+	h.m.finishShell(shellDoneMsg{call: call, output: "bash: nosuchcommand: command not found\n[exit code 127]", dur: time.Millisecond})
+	if !strings.Contains(h.m.status, "exit code 127") {
+		t.Fatalf("status = %q", h.m.status)
+	}
+	last := h.m.transcript.entries[len(h.m.transcript.entries)-1]
+	if !last.isError {
+		t.Fatalf("failed command not marked as an error")
+	}
+}
+
+// ctrl+o showed sixty lines of a tool result and then said "… (440 more
+// lines, ctrl+o to expand)", naming the key that folds the entry again.
+func TestExpandShowsTheRestAndSaysSoHonestly(t *testing.T) {
+	h := newHarness(t)
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	var body strings.Builder
+	for i := 1; i <= 500; i++ {
+		fmt.Fprintf(&body, "line %d\n", i)
+	}
+	call := agent.ToolCall{ID: "t1", Name: "bash", Input: json.RawMessage(`{"command":"seq 1 500"}`)}
+	h.m.transcript.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
+	h.m.transcript.apply(agent.Event{Kind: agent.EvToolResult, Call: &call, Output: body.String()})
+
+	folded := plain(h.m.transcript.render(renderOpts{width: 100, cwd: h.m.opts.Cwd, cap: 8}))
+	if !strings.Contains(folded, "ctrl+o to expand") {
+		t.Fatalf("folded result offers no way to see more:\n%s", folded)
+	}
+	full := h.m.transcript.render(renderOpts{width: 100, cwd: h.m.opts.Cwd, cap: 8, verbose: true})
+	if !strings.Contains(plain(full), "line 400") {
+		t.Fatalf("expanding stopped short of 400 lines")
+	}
+	if strings.Contains(plain(full), "ctrl+o to expand") {
+		t.Fatalf("expanded result still offers ctrl+o:\n%s", tailOf(plain(full)))
+	}
+	if !strings.Contains(plain(full), "the model received all of it") {
+		t.Fatalf("expanded result does not say what happened to the rest:\n%s", tailOf(plain(full)))
+	}
+}
+
+func tailOf(s string) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(lines) > 6 {
+		lines = lines[len(lines)-6:]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// A provider announces a backoff once — "retrying 1/2 · rate limited ·
+// in 6s" — and the line then stood unchanged for six seconds beside a
+// counter running the other way, which reads as a frozen screen.
+func TestRetryPhaseCountsDown(t *testing.T) {
+	h := newHarness(t)
+	h.m.setPhase("retrying 1/2 · rate limited · in 6s")
+	if h.m.phaseUntil.IsZero() {
+		t.Fatal("no deadline taken from the phase")
+	}
+	first := h.m.phaseText()
+	if !strings.HasPrefix(first, "retrying 1/2 · rate limited · in ") {
+		t.Fatalf("phase = %q", first)
+	}
+	h.m.phaseUntil = time.Now().Add(2 * time.Second)
+	if got := h.m.phaseText(); got != "retrying 1/2 · rate limited · in 2s" {
+		t.Fatalf("phase after two seconds left = %q", got)
+	}
+	// Past the deadline it says now, not a negative number.
+	h.m.phaseUntil = time.Now().Add(-time.Second)
+	if got := h.m.phaseText(); !strings.HasSuffix(got, "in 0s") {
+		t.Fatalf("phase past the deadline = %q", got)
+	}
+	// A phase with no wait in it is left exactly as it came.
+	h.m.setPhase("running bash")
+	if !h.m.phaseUntil.IsZero() || h.m.phaseText() != "running bash" {
+		t.Fatalf("phase = %q until = %v", h.m.phaseText(), h.m.phaseUntil)
+	}
+	// And a stale countdown never survives the next phase.
+	h.m.setPhase("retrying 1/2 · in 30s")
+	h.m.setPhase("thinking")
+	if got := h.m.phaseText(); got != "thinking" {
+		t.Fatalf("phase = %q", got)
+	}
+}
+
+// The prompt's placeholder was one long sentence cut wherever the window
+// ended, so a narrow terminal offered "· / for" where it meant "· / for
+// commands".
+func TestPlaceholderFitsTheWindow(t *testing.T) {
+	h := newHarness(t)
+	for _, w := range []int{120, 100, 80, 60, 48, 30} {
+		h.update(tea.WindowSizeMsg{Width: w, Height: 24})
+		p := h.m.placeholder()
+		if got := lipgloss.Width(p) + 2; got > w-4 {
+			t.Errorf("width %d: placeholder %q takes %d columns", w, p, got)
+		}
+		if strings.HasSuffix(p, "…") {
+			t.Errorf("width %d: placeholder cut mid-phrase: %q", w, p)
+		}
+	}
+	h.update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	if h.m.placeholder() != defaultPlaceholder {
+		t.Fatalf("a wide window lost the full placeholder: %q", h.m.placeholder())
+	}
+}
+
+func TestFitPhrase(t *testing.T) {
+	if got := fitPhrase(20, "a long phrase that will not fit at all", "short"); got != "short" {
+		t.Fatalf("got %q", got)
+	}
+	if got := fitPhrase(40, "fits fine"); got != "fits fine" {
+		t.Fatalf("got %q", got)
+	}
+	// Nothing fits: the shortest is cut, and says so.
+	if got := fitPhrase(6, "aaaaaaaaaaaa", "bbbbbbbbbbbb"); !strings.HasSuffix(got, "…") {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// renderCode cut a long line with truncateLine, which marks the cut
+// itself, and then added a second ellipsis: every clipped line of /diff,
+// /open and /changes ended in "……".
+func TestCodeLinesEndInOneEllipsis(t *testing.T) {
+	long := "/diff <path> shows the hunks · /diff revert <path>:<n> reverts one · /undo reverts a whole turn"
+	out := plain(renderCode(long, 40))
+	if strings.Contains(out, "……") {
+		t.Fatalf("two ellipses: %q", out)
+	}
+	if !strings.HasSuffix(strings.TrimRight(out, " "), "…") {
+		t.Fatalf("no cut mark: %q", out)
+	}
+}

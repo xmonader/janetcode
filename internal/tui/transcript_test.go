@@ -500,7 +500,7 @@ func TestPendingCallIsNotStillStreaming(t *testing.T) {
 // printed a replacement character.
 func TestPreviewTruncationKeepsUTF8(t *testing.T) {
 	preview := "--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n+" + strings.Repeat("é", 60) + "\n"
-	out := plain(renderPreview(preview, 40, 10))
+	out := plain(renderPreview(preview, 40, 10, true))
 	if strings.ContainsRune(out, '�') || !utf8.ValidString(out) {
 		t.Fatalf("truncation corrupted UTF-8: %q", out)
 	}
@@ -747,5 +747,27 @@ func TestResumeReplaysTerminalStatesOnly(t *testing.T) {
 	}
 	if v := plain(tr.render(renderOpts{width: 80})); !strings.Contains(v, "\u2717") {
 		t.Fatalf("the unfinished call is not marked:\n%s", v)
+	}
+}
+
+// A command that redirects into the project carried the whole absolute
+// path, which is the same for every call and ate the width the command
+// itself needed: the prompt read "allow bash seq 1 400 >
+// /tmp/claude-1000/-home-driver-wspace-…" and never reached the file
+// name, which is the one thing worth approving.
+func TestCommandSummaryShortensPaths(t *testing.T) {
+	cwd := "/tmp/claude-1000/-home-driver/scratch/proj"
+	raw := `{"command":"seq 1 400 > ` + cwd + `/numbers.txt"}`
+	got := summarizeInput("bash", raw, 80, cwd)
+	if strings.Contains(got, cwd) {
+		t.Fatalf("absolute path kept: %q", got)
+	}
+	if got != "seq 1 400 > numbers.txt" {
+		t.Fatalf("summary = %q", got)
+	}
+	// Paths elsewhere still shorten to ~ where they can, and a command
+	// with no path in it is untouched.
+	if got := summarizeInput("bash", `{"command":"go test ./..."}`, 80, cwd); got != "go test ./..." {
+		t.Fatalf("summary = %q", got)
 	}
 }

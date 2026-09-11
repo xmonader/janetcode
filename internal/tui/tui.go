@@ -569,6 +569,17 @@ func (m *model) goalCommand(arg string) tea.Cmd {
 	default:
 		id := ag.CreateGoal(arg, 0)
 		m.transcript.info("goal " + id + " active: " + arg)
+		// The objective is what this session is about. Without this the
+		// title was generated from the first message the model saw, which
+		// for a goal is the continuation prompt: sessions came back from
+		// /resume called "Work on this goal until it is complete or you
+		// are blocked".
+		if m.opts.Session != nil && m.opts.Session.Meta.Title == "" {
+			m.titleGen++
+			if err := m.opts.Session.SetTitle(cutWords(arg, 60)); err != nil {
+				m.transcript.errorf("save title: %v", err)
+			}
+		}
 		return m.startGoalRound()
 	}
 }
@@ -581,11 +592,27 @@ func (m *model) startGoalRound() tea.Cmd {
 		m.transcript.info("the goal continues when this turn ends")
 		return nil
 	}
-	cont := m.opts.Agent.GoalContinuation()
+	return m.goalRound()
+}
+
+// goalRound starts the active goal's next round, announcing it as one
+// line naming the goal, the round and the objective.
+func (m *model) goalRound() tea.Cmd {
+	ag := m.opts.Agent
+	var note string
+	if ag.Log != nil {
+		if g := agent.ActiveGoal(ag.Log.Events()); g != nil {
+			note = fmt.Sprintf("%sgoal %s round %d/%d \u00b7 %s", noteGoal, g.ID, g.Rounds+1, g.MaxRounds, g.Objective)
+		}
+	}
+	cont := ag.GoalContinuation()
 	if cont == "" {
 		return nil
 	}
-	return m.submit(cont)
+	if note == "" {
+		note = noteGoal + "goal continuing"
+	}
+	return m.submitAs(cont, note)
 }
 
 func (m *model) agentsCommand() {
@@ -1135,11 +1162,18 @@ type model struct {
 	histIdx      int    // == len(history) when not browsing
 	draft        string // input saved while browsing history
 
-	running        bool
-	cancelling     bool
-	compacting     bool
-	cancel         context.CancelFunc
-	startedAt      time.Time
+	running    bool
+	cancelling bool
+	compacting bool
+	cancel     context.CancelFunc
+	startedAt  time.Time // when the running turn began
+	// phaseUntil is when the thing the phase names is due, so a wait the
+	// provider announced once counts down instead of standing still.
+	phaseUntil time.Time
+	// openedAt is when this window opened. /stats used startedAt, which
+	// is the turn clock: before the first turn it was the zero time and
+	// the session was reported as up for 2562047h47m16.854775807s.
+	openedAt       time.Time
 	phase          string // what the agent is doing right now
 	pending        *permissionMsg
 	denying        bool // the input box is collecting a reason for a denial
@@ -1208,6 +1242,8 @@ func newModel(opts Options) *model {
 			m.branch = "git"
 		}
 	}
+	m.openedAt = time.Now()
+	m.transcript.cwd = opts.Cwd
 	m.clipboard = readClipboardImage
 	if opts.Session != nil {
 		m.histFile = histPath(dirOf(opts.Session), opts.Cwd)
@@ -1273,13 +1309,14 @@ func (m *model) welcome(resumed string) string {
 	sb.WriteString("\n")
 	switch {
 	case m.opts.Agent.AutoApprove:
-		sb.WriteString("auto-approve is on: tools run without asking")
+		sb.WriteString("auto-approve is on: tools run without asking · esc cancels the turn")
 	case m.opts.Agent.AutoEdits:
-		sb.WriteString("edits go through, commands ask (/edits)")
+		sb.WriteString("edits go through, commands ask (/edits) · esc denies")
 	default:
-		sb.WriteString("edits and commands ask first · y allow · a always · n deny")
+		// esc at a prompt denies the one call; c stops the whole turn.
+		sb.WriteString("edits and commands ask first · y allow · a always · n deny · esc denies · c cancels")
 	}
-	sb.WriteString(" · esc cancels · /help\n")
+	sb.WriteString(" · /help\n")
 	sb.WriteString("@file attaches · !cmd runs and shares the output · /undo reverts a bad change")
 	return sb.String()
 }
@@ -1356,6 +1393,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// A word that spells a key name is text, not that key. It is
+		// delivered one character at a time, which is what was typed, so
+		// neither this model nor the textarea can mistake it. Not at a
+		// permission prompt: there a run of characters is still ignored
+		// as a whole rather than answering with its first letter.
+		if typedAsKey(msg) && m.pending == nil {
+			var cmds []tea.Cmd
+			var mm tea.Model = m
+			for _, r := range msg.Runes {
+				var cmd tea.Cmd
+				mm, cmd = mm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}, Paste: msg.Paste})
+				cmds = append(cmds, cmd)
+			}
+			return mm, tea.Batch(cmds...)
+		}
 		if cmd, handled := m.handleKey(msg); handled {
 			return m, cmd
 		}
@@ -1425,7 +1477,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case permissionMsg:
 		m.drainEvents() // the tool entry must exist before the prompt shows
 		m.pending = &msg
-		m.phase = "waiting for your approval"
+		m.setPhase("waiting for your approval")
 		m.term.announce("janetcode", "approval needed: "+msg.call.Name)
 		m.refresh(false)
 		return m, nil
@@ -1437,7 +1489,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case mcpPromptMsg:
 		m.running = false
-		m.phase = ""
+		m.setPhase("")
 		if msg.err != nil {
 			m.transcript.errorf("%s: %v", msg.command, msg.err)
 			m.refresh(false)
@@ -1542,37 +1594,37 @@ func (m *model) applyEvent(ev agent.Event) {
 	m.transcript.apply(ev)
 	switch ev.Kind {
 	case agent.EvThinking:
-		m.phase = "thinking"
+		m.setPhase("thinking")
 	case agent.EvText:
-		m.phase = "writing"
+		m.setPhase("writing")
 	case agent.EvToolStart:
-		m.phase = "preparing " + ev.Call.Name
+		m.setPhase("preparing " + ev.Call.Name)
 	case agent.EvToolInput:
 		// Streamed input: the status says what is being written and how
 		// much, instead of "preparing write_file" for a minute.
 		if e := m.transcript.lastTool(ev.Call); e != nil && e.call.Name != "" {
 			if s := streamingSummary(e.call.Name, e.input.String(), m.opts.Cwd); s != "" && s != "…" {
-				m.phase = e.call.Name + " " + s
+				m.setPhase(e.call.Name + " " + s)
 			}
 		}
 	case agent.EvPhase:
 		// The provider or the loop said what it is waiting on: a retry
 		// countdown, a compaction, a subagent.
-		m.phase = ev.Text
+		m.setPhase(ev.Text)
 	case agent.EvToolRun:
-		m.phase = "running " + ev.Call.Name
+		m.setPhase("running " + ev.Call.Name)
 		if ev.Call.Name == "task" {
-			m.phase = "waiting on subagent"
+			m.setPhase("waiting on subagent")
 		}
 	case agent.EvToolResult:
-		m.phase = "thinking"
+		m.setPhase("thinking")
 		if ev.Call != nil && ev.Call.Name == "goal_status" && !ev.IsError {
 			m.status = strings.TrimSpace(ev.Output)
 		}
 	case agent.EvCompacted:
-		m.phase = "thinking"
+		m.setPhase("thinking")
 	case agent.EvVerdict:
-		m.lastVerdict = ev.Text
+		m.lastVerdict = shortenPaths(m.opts.Cwd, ev.Text)
 	case agent.EvTurnDone:
 		u := ev.Usage
 		m.lastUsage = u
@@ -1589,6 +1641,42 @@ func (m *model) applyEvent(ev agent.Event) {
 		}
 		m.lastTurn = s
 	}
+}
+
+// typedKeyNames are the key names bubbletea gives a key press that a
+// person can also type as a word. bubbles' key.Matches compares only
+// KeyMsg.String(), so a run of typed characters that happens to spell
+// one of these is indistinguishable from the key itself.
+var typedKeyNames = map[string]bool{
+	"up": true, "down": true, "left": true, "right": true,
+	"home": true, "end": true, "insert": true, "delete": true,
+	"pgup": true, "pgdown": true, "tab": true, "enter": true,
+	"esc": true, "backspace": true, "space": true, "runes": true,
+	"f1": true, "f2": true, "f3": true, "f4": true, "f5": true,
+	"f6": true, "f7": true, "f8": true, "f9": true, "f10": true,
+	"f11": true, "f12": true,
+}
+
+// typedAsKey reports whether a run of typed characters would be taken
+// for a key press by anything that switches on KeyMsg.String().
+func typedAsKey(msg tea.KeyMsg) bool {
+	return msg.Type == tea.KeyRunes && !msg.Alt && len(msg.Runes) > 1 &&
+		typedKeyNames[string(msg.Runes)]
+}
+
+// keyName is the name to switch on for one key press. Bubbletea splits
+// typed text into runs of runes between spaces and delivers each run as
+// one KeyRunes message whose String() is the text itself, so the words
+// "right", "left", "up", "down", "home", "end", "enter", "esc" and
+// "delete" used to arrive as those keys: the word disappeared from the
+// prompt, the cursor jumped, or ↑ pulled in a history entry in the
+// middle of a sentence. Typed text of more than one rune is never a key
+// name, so it falls through to the textarea.
+func keyName(msg tea.KeyMsg) string {
+	if msg.Type == tea.KeyRunes && !msg.Alt && len(msg.Runes) > 1 {
+		return ""
+	}
+	return msg.String()
 }
 
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
@@ -1610,7 +1698,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	// Permission prompt takes over the keyboard.
 	if m.pending != nil && m.denying {
 		// Collecting an optional reason: enter sends it, esc denies silently.
-		switch msg.String() {
+		switch keyName(msg) {
 		case "enter":
 			m.answer(agent.Deny, strings.TrimSpace(m.input.Value()))
 			m.input.Reset()
@@ -1629,7 +1717,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return nil, true
 	}
 	if m.pending != nil {
-		switch msg.String() {
+		switch keyName(msg) {
 		case "y", "Y", "enter":
 			m.answer(agent.Allow, "")
 		case "a", "A":
@@ -1640,7 +1728,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			// Ask why so the model can adapt; enter with nothing skips.
 			m.denying = true
 			m.input.Reset()
-			m.phase = "waiting for your reason"
+			m.setPhase("waiting for your reason")
 			m.layout()
 			m.refresh(false)
 		case "esc":
@@ -1660,7 +1748,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		return nil, true
 	}
-	switch msg.String() {
+	switch keyName(msg) {
 	case "ctrl+c":
 		// Three stages: cancel a running turn, else clear typed text, else
 		// quit. A second press while a cancel is pending forces the quit.
@@ -1826,7 +1914,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		// With text in the input these are the textarea's readline keys
 		// (kill line, back/forward a character); they page the transcript
 		// only when there is nothing to edit.
-		if k := msg.String(); k == "pgup" || k == "pgdown" || m.input.Value() == "" {
+		if k := keyName(msg); k == "pgup" || k == "pgdown" || m.input.Value() == "" {
 			return m.scroll(msg), true
 		}
 		return nil, false
@@ -2176,18 +2264,30 @@ func (m *model) answer(d agent.Decision, reason string) {
 	m.pending = nil
 	m.pendingClosedAt = time.Now()
 	m.denying = false
-	m.phase = "thinking"
+	m.setPhase("thinking")
 	m.refresh(false)
 }
 
-func (m *model) submit(text string) tea.Cmd {
+func (m *model) submit(text string) tea.Cmd { return m.submitAs(text, "") }
+
+// submitAs sends text to the model but shows note in its place when the
+// prompt is machinery rather than something the user wrote. A goal round
+// used to appear in the transcript as a user message carrying the whole
+// continuation, housekeeping paragraph included, as though the user had
+// typed "(This is round 1 of at most 8. Rounds are a budget, not a
+// plan...)".
+func (m *model) submitAs(text, note string) tea.Cmd {
 	text = m.inflatePastes(text)
 	if m.opts.Agent.Provider == nil {
 		m.transcript.errorf("not connected to a provider yet: run /connect")
 		m.refresh(false)
 		return nil
 	}
-	m.transcript.user(text)
+	if note != "" {
+		m.transcript.info(note)
+	} else {
+		m.transcript.user(text)
+	}
 	// A host the user just named is a host the user is asking about, so
 	// fetch_url may reach it even on a private network. Only main seeded
 	// this, from the first prompt, which left "look at
@@ -2267,7 +2367,7 @@ func (m *model) finishShell(msg shellDoneMsg) {
 		m.cancel()
 		m.cancel = nil
 	}
-	m.phase = ""
+	m.setPhase("")
 	out, isErr := msg.output, false
 	if msg.err != nil {
 		out, isErr = "Error: "+msg.err.Error(), true
@@ -2275,14 +2375,45 @@ func (m *model) finishShell(msg shellDoneMsg) {
 	if out == "" {
 		out = "(no output)"
 	}
+	// The shell tool reports a non-zero exit in the output, not as an
+	// error, so "!nosuchcommand" used to be shown with the same green
+	// tick as a command that worked.
+	failed := ""
+	if !isErr {
+		if code, ok := exitCode(out); ok {
+			isErr, failed = true, fmt.Sprintf("exit code %d", code)
+		}
+	}
 	m.transcript.apply(agent.Event{Kind: agent.EvToolResult, Call: &msg.call, Output: out, IsError: isErr, Duration: msg.dur})
 	var in struct{ Command string }
 	json.Unmarshal(msg.call.Input, &in)
 	m.opts.Agent.AddContext(fmt.Sprintf("I ran this command myself in %s:\n$ %s\n<output>\n%s\n</output>", m.opts.Cwd, in.Command, strings.TrimRight(out, "\n")))
-	m.status = "ran in " + shortDuration(msg.dur) + " · output shared with the model"
+	m.status = "ran in " + shortDuration(msg.dur)
+	if failed != "" {
+		m.status += " · " + failed
+	}
+	m.status += " · output shared with the model"
 	if len(m.queued) > 0 {
 		m.status += " · sending queued prompt"
 	}
+}
+
+// exitCodeRe matches the note tool.Bash appends for a non-zero exit.
+// The form that ends "not a failure" is grep or diff saying it found
+// nothing, which is an answer and not a red mark.
+var exitCodeRe = regexp.MustCompile(`\[exit code (\d+)\]`)
+
+// exitCode reports the non-zero exit a command's output carries.
+func exitCode(out string) (int, bool) {
+	m := exitCodeRe.FindStringSubmatch(out)
+	if m == nil || strings.Contains(out, "not a failure") {
+		return 0, false
+	}
+	n, err := strconv.Atoi(m[1])
+	if err != nil || n == 0 {
+		return 0, false
+	}
+	return n, true
 }
 
 func (m *model) startTurn(phase string) {
@@ -2293,7 +2424,7 @@ func (m *model) startTurn(phase string) {
 	m.startedAt = time.Now()
 	m.status = ""
 	m.lastVerdict = ""
-	m.phase = phase
+	m.setPhase(phase)
 }
 
 // onOff names a toggle's new state, so every "/x is on" line reads the
@@ -2339,7 +2470,7 @@ func (m *model) cancelTurn() {
 		m.cancel()
 	}
 	m.cancelling = true
-	m.phase = "cancelling"
+	m.setPhase("cancelling")
 	m.status = "cancelling… (ctrl+c again to force quit)"
 }
 
@@ -2354,7 +2485,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	}
 	m.pending = nil
 	m.pendingClosedAt = time.Now()
-	m.phase = ""
+	m.setPhase("")
 	elapsed := shortDuration(time.Since(m.startedAt))
 	m.transcript.finishTurn()
 	switch {
@@ -2396,9 +2527,8 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	m.steering = nil
 	m.term.turnEnded(msg.err == nil, m.status)
 	if msg.err == nil && len(m.queued) == 0 {
-		if cont := m.opts.Agent.GoalContinuation(); cont != "" {
-			m.transcript.info(noteGoal + "goal continuing")
-			return m.submit(cont)
+		if cmd := m.goalRound(); cmd != nil {
+			return cmd
 		}
 	}
 	if len(m.queued) == 0 {
@@ -2500,6 +2630,7 @@ func (m *model) command(text string) tea.Cmd {
 		m.opts.Agent.UndoPath = sess.UndoPath()
 		m.titleGen++ // a title generated for the old conversation must not land here
 		m.transcript = newTranscriptStyled(m.transcript.styleName)
+		m.transcript.cwd = m.opts.Cwd
 		m.transcript.banner(m.welcome(""))
 		m.transcript.info("new session " + sess.Meta.ID)
 		m.lastTurn, m.lastVerdict, m.status = "", "", ""
@@ -2938,8 +3069,11 @@ func (m *model) helpText() string {
 	const col = 22
 	descStyle := lipgloss.NewStyle().Width(width - col - 2)
 	seen := map[string]bool{}
+	// A heading printed hard against the previous group's last command
+	// read as that command's second line: "/lsp  language servers and
+	// the diagnostics they reported" followed by "diagnostics".
 	writeGroup := func(title string, names []string) {
-		sb.WriteString(title + "\n")
+		sb.WriteString("\n" + title + "\n")
 		for _, n := range names {
 			c, ok := byName[n]
 			if !ok {
@@ -2969,14 +3103,13 @@ func (m *model) helpText() string {
 	if len(rest) > 0 {
 		writeGroup("custom commands and skills", rest)
 	}
-	sb.WriteString("custom commands: drop prompt templates in .janetcode/commands/<name>.md (or the config dir); $ARGUMENTS is replaced")
+	sb.WriteString("\ncustom commands: drop prompt templates in .janetcode/commands/<name>.md (or the config dir); $ARGUMENTS is replaced")
 	return sb.String()
 }
 
-// permissionKeys is the keys line of the permission box, in the longest
-// wording that fits on one line. The box has a fixed height in the
-// layout, so a wrapped keys line would run over the input.
-// permissionKeys is the key line of the permission box. expandable says
+// permissionKeys is the key line of the permission box, in the longest
+// wording that fits on one line: the box has a fixed height in the
+// layout, so a wrapped key line would run over the input. expandable says
 // whether there is more of the call to see: without that, the line used to
 // offer ctrl+o even for a two-line diff that was already shown whole.
 func (m *model) permissionKeys(tool, rule string, expandable bool) string {
@@ -3117,17 +3250,22 @@ func (m *model) menuRows() int {
 	return menuRows
 }
 
+// inputLimit is the tallest the prompt box may grow, which is also the
+// height the textarea itself is always given (see layout).
+func (m *model) inputLimit() int {
+	if m.compactMode() {
+		return 3
+	}
+	return maxInputLines
+}
+
 func (m *model) inputHeight() int {
 	n := m.input.LineCount()
 	if n < minInputLines {
 		n = minInputLines
 	}
-	maxLines := maxInputLines
-	if m.compactMode() {
-		maxLines = 3
-	}
-	if n > maxLines {
-		n = maxLines
+	if limit := m.inputLimit(); n > limit {
+		n = limit
 	}
 	return n
 }
@@ -3179,7 +3317,13 @@ func (m *model) layout() {
 	if m.width == 0 {
 		return
 	}
-	m.input.SetHeight(m.inputHeight())
+	// The textarea is always as tall as the box may ever grow, and the
+	// box takes the top of what it draws. Sizing it to the current line
+	// count instead meant the textarea scrolled on the keystroke that
+	// added a line (its height was still the old one when it decided)
+	// and never scrolled back, so a two-line prompt showed only its
+	// second line and the first line of a paste was invisible.
+	m.input.SetHeight(m.inputLimit())
 	vh := m.height - 1 - 1 - m.footerHeight() // header, status
 	if vh < 3 {
 		vh = 3
@@ -3360,13 +3504,50 @@ func tailPath(p string, max int) string {
 	return "…" + string(r)
 }
 
+// waitRe matches the "in 12s" a provider puts at the end of a phase to
+// say how long it is about to sleep.
+var waitRe = regexp.MustCompile(`(.*\bin )([0-9.]+)(m?s)$`)
+
+// setPhase records what the turn is waiting on. A provider that is about
+// to sleep says so once — "retrying 1/2 · rate limited · in 6s" — and
+// that line then sat unchanged for six seconds next to a counter running
+// the other way, which reads as a frozen screen. The deadline is kept so
+// the line can count down to the moment something happens.
+func (m *model) setPhase(text string) {
+	m.phase, m.phaseUntil = text, time.Time{}
+	g := waitRe.FindStringSubmatch(text)
+	if g == nil {
+		return
+	}
+	d, err := time.ParseDuration(g[2] + g[3])
+	if err != nil || d <= 0 {
+		return
+	}
+	m.phase, m.phaseUntil = g[1], time.Now().Add(d)
+}
+
+// phaseText is the phase with its countdown resolved to now.
+func (m *model) phaseText() string {
+	if m.phaseUntil.IsZero() {
+		return m.phase
+	}
+	left := time.Until(m.phaseUntil)
+	if left < 0 {
+		left = 0
+	}
+	if left < time.Minute {
+		return fmt.Sprintf("%s%ds", m.phase, int(left.Round(time.Second)/time.Second))
+	}
+	return m.phase + shortDuration(left.Round(time.Second))
+}
+
 func (m *model) statusView() string {
 	var left string
 	switch {
 	case m.pending != nil:
 		left = styleWarn.Render("● approval needed")
 	case m.running && m.tight():
-		left = m.spinner.View() + " " + styleDim.Render(m.phase)
+		left = m.spinner.View() + " " + styleDim.Render(m.phaseText())
 	case m.running:
 		el := shortDuration(time.Since(m.startedAt))
 		hint := " · esc to cancel"
@@ -3375,7 +3556,7 @@ func (m *model) statusView() string {
 		if len(m.opts.Running.List()) > 0 {
 			hint += " · ctrl+g backgrounds it"
 		}
-		left = m.spinner.View() + " " + styleDim.Render(m.phase+" · "+el+hint)
+		left = m.spinner.View() + " " + styleDim.Render(m.phaseText()+" · "+el+hint)
 	case m.status != "":
 		left = styleDim.Render(m.status)
 	default:
@@ -3462,20 +3643,52 @@ func (m *model) inputBox() lipgloss.Style {
 // placeholder is the hint shown in an empty input box. It names the same
 // states the border colours in styles.go do, and is recomputed every frame
 // so no transition can leave a stale hint behind.
+// fitPhrase picks the longest of several wordings of the same thing that
+// fits the space, rather than cutting the longest one mid-phrase. A
+// narrow window used to offer "· / for" where it meant "· / for
+// commands".
+func fitPhrase(room int, options ...string) string {
+	for _, o := range options {
+		if lipgloss.Width(o) <= room {
+			return o
+		}
+	}
+	if len(options) == 0 {
+		return ""
+	}
+	return truncateLine(options[len(options)-1], room)
+}
+
 func (m *model) placeholder() string {
+	// The box draws "❯ " before the textarea's own width.
+	room := m.input.Width() - 2
 	switch {
 	case m.denying:
-		return "Why? the model reads this · enter sends · esc skips"
+		return fitPhrase(room,
+			"Why? the model reads this · enter sends · esc skips",
+			"Why? enter sends · esc skips",
+			"Why?")
 	case m.opts.Agent.Provider == nil:
-		return "No provider yet · /connect picks one"
+		return fitPhrase(room, "No provider yet · /connect picks one", "/connect")
 	case m.running:
-		return "Type to queue a message for when this turn ends · esc cancels"
+		return fitPhrase(room,
+			"Type to queue a message for when this turn ends · esc cancels",
+			"Type to queue a message · esc cancels",
+			"queue · esc cancels")
 	case m.opts.Agent.PlanMode:
-		return "Plan mode: describe the change · /plan approve runs the plan"
+		return fitPhrase(room,
+			"Plan mode: describe the change · /plan approve runs the plan",
+			"Plan mode · /plan approve runs it",
+			"Plan mode")
 	case m.opts.Agent.ReadOnly:
-		return "Read-only: the model can inspect but change nothing"
+		return fitPhrase(room,
+			"Read-only: the model can inspect but change nothing",
+			"Read-only · nothing is changed",
+			"Read-only")
 	}
-	return defaultPlaceholder
+	return fitPhrase(room, defaultPlaceholder,
+		"Ask for a change or a fix · / for commands",
+		"/ for commands")
 }
 
 func (m *model) footerView() string {
@@ -3519,6 +3732,9 @@ func (m *model) footerView() string {
 	}
 	m.input.Placeholder = m.placeholder()
 	lines := strings.Split(m.input.View(), "\n")
+	if n := m.inputHeight(); n < len(lines) {
+		lines = lines[:n] // the rest is the textarea's blank padding
+	}
 	for i := range lines {
 		if i == 0 {
 			lines[i] = prompt + lines[i]
@@ -3530,6 +3746,19 @@ func (m *model) footerView() string {
 	return strings.Join(parts, "\n")
 }
 
+// suggestedRule is the rule r would save, written the way the rest of
+// the interface writes a path: relative to the working directory, or
+// with the home directory as ~. The rule saved to disk stays absolute;
+// only the prompt is shortened, because an absolute path truncated in
+// the middle told the user nothing about what they were about to allow.
+func (m *model) suggestedRule(name string, input json.RawMessage) string {
+	r := perm.Suggest(name, perm.Subject(name, input))
+	if dir, ok := strings.CutSuffix(r.Pattern, "/*"); ok && filepath.IsAbs(dir) {
+		r.Pattern = relTo(m.opts.Cwd, dir) + "/*"
+	}
+	return r.String()
+}
+
 func (m *model) permissionView() string {
 	c := m.pending.call
 	var sb strings.Builder
@@ -3539,8 +3768,7 @@ func (m *model) permissionView() string {
 	if c.Warning != "" {
 		sb.WriteString("\n" + styleErr.Bold(true).Render("⚠ "+sanitize(c.Warning)))
 	}
-	rule := perm.Suggest(c.Name, perm.Subject(c.Name, c.Input)).String()
-	sb.WriteString("\n" + m.permissionKeys(c.Name, rule, pendingExpandable(c)))
+	sb.WriteString("\n" + m.permissionKeys(c.Name, m.suggestedRule(c.Name, c.Input), pendingExpandable(c)))
 	return stylePermBox.Width(m.width - 2).Render(sb.String())
 }
 
@@ -3746,7 +3974,7 @@ func (m *model) statsCommand() {
 	st := ag.Stats()
 	u := ag.UsageSnapshot()
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "session %s · up %s · %s · %s", m.opts.Session.Label(), shortDuration(time.Since(m.startedAt)), plural(st.Turns, "turn"), plural(st.ModelCalls, "model call"))
+	fmt.Fprintf(&sb, "session %s · open %s · %s · %s", m.opts.Session.Label(), shortDuration(time.Since(m.openedAt)), plural(st.Turns, "turn"), plural(st.ModelCalls, "model call"))
 	if st.ModelErrors > 0 {
 		fmt.Fprintf(&sb, " (%d failed)", st.ModelErrors)
 	}

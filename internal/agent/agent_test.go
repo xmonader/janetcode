@@ -891,3 +891,39 @@ func TestSteerReachesTheRunningTurn(t *testing.T) {
 		t.Fatalf("steer not cleared: %v", a.steer)
 	}
 }
+
+// A note typed with ctrl+s while the model is writing its final answer
+// has no next call to ride with: it waits for the turn after this one.
+// The turn used to end silently, so the user watched what they typed
+// disappear and had no idea it would come back later.
+func TestSteerAfterTheLastCallSaysSo(t *testing.T) {
+	f := &fake{responses: []*llm.Response{text("all done")}}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", AutoApprove: true}
+	var notices []string
+	emit := func(e Event) {
+		if e.Kind == EvText {
+			a.Steer("actually just say DONE")
+		}
+		if e.Kind == EvNotice {
+			notices = append(notices, e.Text)
+		}
+	}
+	if err := a.Run(context.Background(), "go", emit); err != nil {
+		t.Fatal(err)
+	}
+	var said bool
+	for _, n := range notices {
+		if strings.Contains(n, "steering note") && strings.Contains(n, "next message") {
+			said = true
+		}
+	}
+	if !said {
+		t.Fatalf("the turn said nothing about the undelivered note: %q", notices)
+	}
+	// And it really is still queued, so the next turn carries it.
+	a.steerMu.Lock()
+	defer a.steerMu.Unlock()
+	if len(a.steer) != 1 {
+		t.Fatalf("steer = %v", a.steer)
+	}
+}

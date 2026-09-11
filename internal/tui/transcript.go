@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/charmbracelet/x/ansi"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -162,6 +163,9 @@ type transcript struct {
 	renderer  *glamour.TermRenderer
 	rWidth    int
 	styleName string // glamour standard style: "dark" or "light"
+	// cwd shortens the absolute paths the agent writes into notices and
+	// verdicts, the way tool lines already shorten theirs.
+	cwd string
 }
 
 // liveRenderInterval throttles markdown rendering of streaming text.
@@ -258,13 +262,13 @@ func (t *transcript) apply(ev agent.Event) {
 		// The one line that says whether the turn showed its work. It was
 		// dropped here for a long time while headless mode printed it.
 		t.closeOpen()
-		t.add(&entry{kind: entryVerdict, text: ev.Text, isError: ev.IsError})
+		t.add(&entry{kind: entryVerdict, text: shortenPaths(t.cwd, ev.Text), isError: ev.IsError})
 	case agent.EvNotice:
 		t.closeOpen()
 		if isAttachNote(ev.Text) {
-			t.info(noteAttached + ev.Text)
+			t.info(noteAttached + shortenPaths(t.cwd, ev.Text))
 		} else {
-			t.info(noteNotice + ev.Text)
+			t.info(noteNotice + shortenPaths(t.cwd, ev.Text))
 		}
 	}
 }
@@ -629,7 +633,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 				e.livePreview, e.livePreviewFor = o.preview(e.call.Name, []byte(raw)), raw
 			}
 			if e.livePreview != "" {
-				sb.WriteString("\n" + renderPreview(e.livePreview, width, o.lines(12)))
+				sb.WriteString("\n" + renderPreview(e.livePreview, width, o.lines(12), !o.expand(e)))
 			}
 		}
 	}
@@ -639,9 +643,9 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 			previewMax, inputMax = 400, 400
 		}
 		if o.pending.call.Preview != "" {
-			sb.WriteString("\n" + renderPreview(o.pending.call.Preview, width, previewMax))
+			sb.WriteString("\n" + renderPreview(o.pending.call.Preview, width, previewMax, !o.expand(e)))
 		} else if full := prettyInput(e.inputJSON()); full != "" && e.call.Name != "bash" {
-			sb.WriteString("\n" + styleDim.Render(indent(clipTool(full, inputMax), "  ")))
+			sb.WriteString("\n" + styleDim.Render(indent(clipTool(full, inputMax, !o.expand(e)), "  ")))
 		}
 		return sb.String()
 	}
@@ -650,12 +654,12 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		if o.expand(e) {
 			max = 200
 		}
-		sb.WriteString("\n" + renderPreview(e.call.Preview, width, max))
+		sb.WriteString("\n" + renderPreview(e.call.Preview, width, max, !o.expand(e)))
 	}
 	if e.done && e.output != "" {
 		max := o.lines(8)
 		if o.expand(e) {
-			max = 60
+			max = expandedLines
 		}
 		body, diag := splitDiagnostics(strings.TrimRight(e.output, "\n"))
 		out := ""
@@ -666,9 +670,9 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 			out = tailLines(body, max)
 		case lines != nil:
 			// The tool said how its result reads (see tool.Renderer).
-			out = clipTool(strings.Join(lines, "\n"), max)
+			out = clipTool(strings.Join(lines, "\n"), max, !o.expand(e))
 		default:
-			out = clipTool(body, max)
+			out = clipTool(body, max, !o.expand(e))
 		}
 		style := styleFaint
 		if e.isError {
@@ -680,7 +684,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		if diag != "" {
 			// Language-server problems after an edit are never clipped
 			// and never faint: they are the thing to read next.
-			sb.WriteString("\n" + styleErr.Render(indent(lipgloss.NewStyle().Width(width-4).Render(clip(diag, 12)), "  ")))
+			sb.WriteString("\n" + styleErr.Render(indent(lipgloss.NewStyle().Width(width-4).Render(clipNote(diag, 12, false)), "  ")))
 		}
 	}
 	return sb.String()
@@ -869,9 +873,9 @@ func previewLines(preview string) int {
 // renderPreview draws a unified diff with line numbers, elided gaps and
 // word-level highlighting (see diff.go), or shows plain preview text as
 // it is when the preview is not a diff.
-func renderPreview(preview string, width, maxLines int) string {
+func renderPreview(preview string, width, maxLines int, expandable bool) string {
 	if hunks, ok := parseUnifiedDiff(preview); ok {
-		return renderDiff(hunks, width, maxLines)
+		return renderDiff(hunks, width, maxLines, expandable)
 	}
 	var lines []string
 	for _, l := range strings.Split(strings.TrimRight(preview, "\n"), "\n") {
@@ -901,7 +905,7 @@ func renderPreview(preview string, width, maxLines int) string {
 		}
 	}
 	if hidden > 0 {
-		out = append(out, styleFaint.Render(fmt.Sprintf("  … (%d more lines, ctrl+o to expand)", hidden)))
+		out = append(out, styleFaint.Render("  "+moreNote(hidden, expandable)))
 	}
 	return strings.Join(out, "\n")
 }
@@ -925,6 +929,14 @@ func summarizeInput(name, raw string, max int, cwd string) string {
 	for _, k := range []string{"command", "pattern", "path", "url", "description"} {
 		if v, ok := m[k].(string); ok {
 			extra := ""
+			if k == "command" || k == "description" {
+				// A command redirecting into the project carried the whole
+				// absolute path, which is the same for every call and ate
+				// the width the command itself needed: the prompt read
+				// "allow bash seq 1 400 > /tmp/claude-1000/-home-driver-…"
+				// and never reached the file name.
+				v = shortenPaths(cwd, v)
+			}
 			if k == "pattern" {
 				if p, ok := m["path"].(string); ok && p != "" {
 					extra = " in " + relTo(cwd, p)
@@ -940,6 +952,20 @@ func summarizeInput(name, raw string, max int, cwd string) string {
 		}
 	}
 	return truncateLine(raw, max)
+}
+
+// shortenPaths rewrites absolute paths inside a sentence the way tool
+// lines write them. Notices and verdicts are composed by the agent,
+// which only ever knows absolute paths, so a single file name could
+// wrap the line twice and bury the sentence it belonged to.
+func shortenPaths(cwd, s string) string {
+	if cwd != "" {
+		s = strings.ReplaceAll(s, cwd+string(filepath.Separator), "")
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		s = strings.ReplaceAll(s, home+string(filepath.Separator), "~"+string(filepath.Separator))
+	}
+	return s
 }
 
 // relTo shows p relative to cwd when it lies under it, with the home
@@ -1006,13 +1032,18 @@ func truncateLine(s string, max int) string {
 // so hiding two or three is a worse deal than showing them.
 const clipSlack = 4
 
+// expandedLines is how much of a tool result ctrl+o shows. It was sixty,
+// which left four hundred and forty lines of a five-hundred line command
+// behind a key that, pressed again, folds the entry instead.
+const expandedLines = 400
+
 // clipTool clips a tool result to max lines, but only when that hides at
 // least clipSlack of them.
-func clipTool(s string, max int) string {
+func clipTool(s string, max int, expandable bool) string {
 	if len(strings.Split(s, "\n")) < max+clipSlack {
 		return s
 	}
-	return clip(s, max)
+	return clipNote(s, max, expandable)
 }
 
 // tailLines keeps the last max lines of s: what an error ends with is
@@ -1025,12 +1056,24 @@ func tailLines(s string, max int) string {
 	return fmt.Sprintf("… +%d lines\n", len(lines)-max) + strings.Join(lines[len(lines)-max:], "\n")
 }
 
-func clip(s string, lines int) string {
+// moreNote stands for the lines a block does not show. ctrl+o folds an
+// entry that is already expanded, so offering it there named a key that
+// does the opposite of what the line promised.
+func moreNote(n int, expandable bool) string {
+	if expandable {
+		return fmt.Sprintf("… (%d more lines, ctrl+o to expand)", n)
+	}
+	return fmt.Sprintf("… (%d more lines; the model received all of it)", n)
+}
+
+func clip(s string, lines int) string { return clipNote(s, lines, true) }
+
+func clipNote(s string, lines int, expandable bool) string {
 	parts := strings.Split(s, "\n")
 	if len(parts) <= lines {
 		return s
 	}
-	return strings.Join(parts[:lines], "\n") + fmt.Sprintf("\n… (%d more lines, ctrl+o to expand)", len(parts)-lines)
+	return strings.Join(parts[:lines], "\n") + "\n" + moreNote(len(parts)-lines, expandable)
 }
 
 func indent(s, prefix string) string {
@@ -1069,7 +1112,9 @@ func renderCode(text string, width int) string {
 	out := make([]string, 0, len(lines))
 	for _, l := range lines {
 		if width > 6 && lipgloss.Width(l) > width-2 {
-			l = truncateLine(l, width-3) + "…"
+			// truncateLine already marks the cut; adding another ellipsis
+			// here ended every long line in "……".
+			l = truncateLine(l, width-2)
 		}
 		switch {
 		case strings.HasPrefix(l, "+++ ") || strings.HasPrefix(l, "--- "):

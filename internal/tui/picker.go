@@ -27,6 +27,9 @@ type picker struct {
 	field  textinput.Model
 	idx    int
 	idxFor string
+	// winRows is the list budget the last frame fitted, so pgup and
+	// pgdown move by a screenful of the window actually drawn.
+	winRows int
 	// choose is called with the highlighted row, or with a zero row and
 	// the typed text when nothing matches and free text is allowed.
 	choose func(r row, typed string) tea.Cmd
@@ -67,7 +70,7 @@ func (m *model) pickerRows() ([]row, int) {
 // handlePickerKey drives the modal; every key is consumed.
 func (m *model) handlePickerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	p := m.picker
-	switch msg.String() {
+	switch keyName(msg) {
 	case "esc", "ctrl+c":
 		m.closePicker()
 		return nil, true
@@ -75,7 +78,7 @@ func (m *model) handlePickerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		rows, idx := m.pickerRows()
 		if len(rows) > 0 {
 			d := 1
-			if msg.String() == "up" || msg.String() == "ctrl+p" {
+			if keyName(msg) == "up" || keyName(msg) == "ctrl+p" {
 				d = -1
 			}
 			p.idx = (idx + d + len(rows)) % len(rows)
@@ -86,10 +89,10 @@ func (m *model) handlePickerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	case "pgup", "pgdown":
 		rows, idx := m.pickerRows()
 		if len(rows) > 0 {
-			if msg.String() == "pgup" {
-				p.idx = max(idx-dialogRows, 0)
+			if keyName(msg) == "pgup" {
+				p.idx = max(idx-m.dialogStep(p.winRows), 0)
 			} else {
-				p.idx = min(idx+dialogRows, len(rows)-1)
+				p.idx = min(idx+m.dialogStep(p.winRows), len(rows)-1)
 			}
 			p.idxFor = p.field.Value()
 			m.refresh(false)
@@ -135,7 +138,9 @@ func (m *model) pickerView(height int) string {
 	if len(rows) == 0 {
 		add("  " + styleDim.Render("nothing matches"))
 	} else {
-		lines = append(lines, renderRows(rows, idx, inner)...)
+		budget := fitRows(height, len(lines)+5)
+		p.winRows = budget
+		lines = append(lines, renderRows(rows, idx, inner, budget)...)
 	}
 	add("")
 	help := "↑↓ move · enter select · esc close"
