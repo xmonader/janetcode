@@ -39,14 +39,14 @@ func TestHooksDenyRewriteAnnotateAndContinue(t *testing.T) {
 	ap := &seesApprover{}
 	a, root := newAgent(t, f, ap)
 	a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root})
-	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{
 		hook.PreTool: {
 			{Match: "bash", Command: `grep -q 'rm -rf' && { echo "no rm -rf" >&2; exit 2; }; exit 0`},
 			{Match: "write_file", Command: `echo '{"input":{"path":"x","content":"v2"}}'`},
 		},
 		hook.PostTool: {{Match: "write_file", Command: `echo "remember to run gofmt"`}},
 		hook.Stop:     {{Command: `grep -q '"really' || echo '{"continue":"not yet: run the tests"}'`}},
-	}}
+	}}}
 	var notices []string
 	err := a.Run(context.Background(), "go", func(e Event) {
 		if e.Kind == EvNotice {
@@ -90,7 +90,7 @@ func TestStopHookIsBounded(t *testing.T) {
 	}
 	f := &fake{responses: rs}
 	a, root := newAgent(t, f, nil)
-	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{hook.Stop: {{Command: `echo "keep going" >&2; exit 2`}}}}
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{hook.Stop: {{Command: `echo "keep going" >&2; exit 2`}}}}}
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestPreCompactHookNoteLandsInHandoff(t *testing.T) {
 	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Messages: []llm.Message{
 		llm.TextMessage(llm.RoleUser, "first"), llm.TextMessage(llm.RoleAssistant, "ok"),
 	}}
-	a.Hooks = &hook.Runner{Cwd: t.TempDir(), Config: hook.Config{hook.PreCompact: {{Command: `python3 -c 'import sys,json; d=json.load(sys.stdin); print("tokens were", d["tokens"])'`}}}}
+	a.Hooks = &hook.Runner{Cwd: t.TempDir(), Config: hook.Config{Hooks: hook.Hooks{hook.PreCompact: {{Command: `python3 -c 'import sys,json; d=json.load(sys.stdin); print("tokens were", d["tokens"])'`}}}}}
 	if err := a.ForceCompact(context.Background(), nil); err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestPermissionRulesAllowDenyAndAlways(t *testing.T) {
 	a.Rules = perm.Rules{Allow: []perm.Rule{r1}, Deny: []perm.Rule{r2}}
 	var saved []perm.Rule
 	a.SaveRule = func(r perm.Rule) error { saved = append(saved, r); return nil }
-	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{hook.PreTool: {{Match: "write_file", Command: `echo '{"decision":"allow"}'`}}}}
+	a.Hooks = &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{hook.PreTool: {{Match: "write_file", Command: `echo '{"decision":"allow"}'`}}}}}
 	var notices []string
 	if err := a.Run(context.Background(), "go", func(e Event) {
 		if e.Kind == EvNotice {

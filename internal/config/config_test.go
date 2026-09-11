@@ -399,3 +399,30 @@ func TestBadConfigIsTyped(t *testing.T) {
 		t.Fatalf("err = %v, want ErrNoCredentials only", err)
 	}
 }
+
+// hooks.limits is read from the same object as the hooks and validated
+// on load, so a bad figure is an error at start rather than a surprise
+// on the first tool call.
+func TestHookLimitsLoadAndValidate(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.json")
+	body := `{"hooks":{"pre_tool":[{"command":"./check.sh"}],"limits":{"timeout":3,"per_event":5}}}`
+	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := load(p, env(map[string]string{"ANTHROPIC_API_KEY": "k"}), Overrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Hooks.For("pre_tool")) != 1 || cfg.Hooks.Limits.Timeout != 3 || cfg.Hooks.Limits.PerEvent != 5 {
+		t.Fatalf("hooks = %+v", cfg.Hooks)
+	}
+	if d := cfg.Hooks.Limits.WithDefaults(); d.Output == 0 || d.ProjectTimeout == 0 {
+		t.Fatalf("unset limits did not default: %+v", d)
+	}
+	os.WriteFile(p, []byte(`{"hooks":{"limits":{"timeout":-1}}}`), 0o600)
+	_, err = load(p, env(map[string]string{"ANTHROPIC_API_KEY": "k"}), Overrides{})
+	if err == nil || !errors.Is(err, ErrBadConfig) {
+		t.Fatalf("err = %v, want ErrBadConfig", err)
+	}
+}

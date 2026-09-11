@@ -830,7 +830,7 @@ func (m *model) hooksCommand(args []string) {
 	}
 	if len(args) > 0 && args[0] == "trust" {
 		switch {
-		case len(o.Project) == 0:
+		case o.Project.Len() == 0:
 			m.transcript.errorf("no %s in %s", hook.ProjectFile, shortPath(m.opts.Cwd))
 		case o.ProjectTrusted:
 			m.transcript.info("project hooks are already trusted")
@@ -859,7 +859,7 @@ func (m *model) hooksCommand(args []string) {
 		cfg   hook.Config
 	}{{"config file", o.Global}, {hook.ProjectFile, o.Project}} {
 		for _, ev := range hook.Events {
-			for _, h := range src.cfg[ev] {
+			for _, h := range src.cfg.For(ev) {
 				n++
 				match := h.Match
 				if match == "" {
@@ -873,7 +873,7 @@ func (m *model) hooksCommand(args []string) {
 		m.transcript.info("no hooks configured: add them under \"hooks\" in the config file or in " + hook.ProjectFile)
 		return
 	}
-	if len(o.Project) > 0 && !o.ProjectTrusted {
+	if o.Project.Len() > 0 && !o.ProjectTrusted {
 		sb.WriteString(hook.ProjectFile + " is present but not trusted; run /hooks trust to enable it\n")
 	}
 	m.transcript.info(strings.TrimRight(sb.String(), "\n"))

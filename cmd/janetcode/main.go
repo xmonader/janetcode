@@ -421,7 +421,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v (project hooks ignored)\n", err)
 	}
-	hooksTrusted := len(hooksCfg) > 0 && trust.Trusted(hookTrustKey(cwd), hooksHash)
+	hooksTrusted := hooksCfg.Len() > 0 && trust.Trusted(hookTrustKey(cwd), hooksHash)
 	ag.Hooks = &hook.Runner{Config: cfg.Hooks, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[hook] %s\n", s) }}
 	if hooksTrusted {
 		var hookNotes []string
@@ -429,7 +429,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		for _, n := range hookNotes {
 			fmt.Fprintf(os.Stderr, "[hooks] %s\n", n)
 		}
-	} else if len(hooksCfg) > 0 && *promptText != "" {
+	} else if hooksCfg.Len() > 0 && *promptText != "" {
 		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
 	}
 	verifyCfg, verifyHash, err := verify.Load(cwd)
