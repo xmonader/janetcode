@@ -105,8 +105,10 @@ func (o TurnOutcome) Line() string {
 // the common runners print, and anything unrecognised counts as no
 // evidence rather than as evidence.
 
-// ranRe matches a runner reporting that tests actually executed.
-var ranRe = regexp.MustCompile(`(?im)(^ok\s+\S+|PASS|\d+ passed|\d+ tests?,|test result: ok\.|Tests:\s+\d+|OK \(\d+ test|Ran \d+ test|\d+ examples?, \d+ failures)`)
+// ranRe matches a runner reporting that tests actually executed. Every
+// alternative is anchored or carries a count: "pass" on its own, loose in
+// prose, is what a build log says about itself and is not evidence.
+var ranRe = regexp.MustCompile(`(?im)(^ok\s+\S+|^PASS$|\d+ passed|\d+ tests?,|test result: ok\.|Tests:\s+\d+|OK \(\d+ test|Ran \d+ test|\d+ examples?, \d+ failures)`)
 
 // nothingRe matches a runner saying it found nothing to run. A green that
 // collected no tests is the easiest way for a change to look done when
