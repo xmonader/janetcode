@@ -1,0 +1,529 @@
+[
+  {
+    "harness": "hermes-agent",
+    "task": "41-session-go-service",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 89994,
+    "input_tokens": {
+      "value": 256355,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 10114,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 70470,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 56,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Run go vet ./... and go test ./... and fix anything that fails. When everything passes, reply with exactly the name of the timeout environment variable you added and nothing else. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "sDetails(audio_tokens=0, cached_tokens=1846, cache_write_tokens=0, video_tokens=0), cost=0.000460304, is_byok=False, cost_details={'upstream_inference_cost': 0.000460304, 'upstream_inference_prompt_cost': 0.000386504, 'upstream_inference_completions_cost': 7.38e-05})\n18:55:13 - agent.conversation_loop - INFO [20260911_185500_fae76a] - API call #8: model=inception/mercury-2.5 provider=unknown in=11324 out=492 total=11816 latency=1.9s cache=1846/11324 (16%)\n18:55:13 - root - DEBUG [20260911_185500_fae76a] - Token usage: prompt=11,324, completion=492, total=11,816\n18:55:13 - tools.browser_tool - DEBUG [20260911_185500_fae76a] - cleanup_browser called for task_id: 9839efca-78f4-4474-90e5-b33ca17ce59b\n18:55:13 - tools.browser_tool - DEBUG [20260911_185500_fae76a] - Active sessions: []\n18:55:13 - tools.browser_tool - DEBUG [20260911_185500_fae76a] - No active session found for task_id: 9839efca-78f4-4474-90e5-b33ca17ce59b\n18:55:13 - agent.conversation_loop - INFO [20260911_185500_fae76a] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=8/40 budget=8/40 tool_turns=7 last_msg_role=assistant response_len=351 session=20260911_185500_fae76a\n18:55:13 - tools.terminal_tool - INFO [20260911_185500_fae76a] - Shutting down 1 remaining sandbox(es)...\n18:55:13 - tools.terminal_tool - INFO [20260911_185500_fae76a] - Manually cleaned up environment for task: default\n18:55:13 - tools.terminal_tool - INFO [20260911_185500_fae76a] - Cleaned 1 environments",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 14468,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "set": false
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 669,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 7301
+      },
+      {
+        "input_tokens": {
+          "value": 42241,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 5586,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 2227,
+          "set": true
+        },
+        "turns": {
+          "value": 9,
+          "set": true
+        },
+        "wall_time_ms": 13566
+      },
+      {
+        "input_tokens": {
+          "value": 40207,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 7092,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 762,
+          "set": true
+        },
+        "turns": {
+          "value": 10,
+          "set": true
+        },
+        "wall_time_ms": 11981
+      },
+      {
+        "input_tokens": {
+          "value": 68794,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 28635,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1426,
+          "set": true
+        },
+        "turns": {
+          "value": 14,
+          "set": true
+        },
+        "wall_time_ms": 16090
+      },
+      {
+        "input_tokens": {
+          "value": 20660,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 9069,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1416,
+          "set": true
+        },
+        "turns": {
+          "value": 6,
+          "set": true
+        },
+        "wall_time_ms": 17590
+      },
+      {
+        "input_tokens": {
+          "value": 18799,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 8737,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1264,
+          "set": true
+        },
+        "turns": {
+          "value": 6,
+          "set": true
+        },
+        "wall_time_ms": 8508
+      },
+      {
+        "input_tokens": {
+          "value": 51186,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 11351,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 2350,
+          "set": true
+        },
+        "turns": {
+          "value": 8,
+          "set": true
+        },
+        "wall_time_ms": 14956
+      }
+    ]
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "42-session-records",
+    "batch": 1,
+    "passed": false,
+    "reason": "check failed: exit status 1: check: inventory.txt does not reflect the renames (prompt 6)",
+    "wall_time_ms": 64998,
+    "input_tokens": {
+      "value": 311456,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 6910,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 32696,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 43,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Update inventory.txt so it reflects the renames you made in the previous step (the archived ids appear with their new prefix; keep it sorted, one id per line). Then reply with just the number of files you changed in the previous step. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "PromptTokensDetails(audio_tokens=0, cached_tokens=765, cache_write_tokens=0, video_tokens=0), cost=0.00038325, is_byok=False, cost_details={'upstream_inference_cost': 0.00038325, 'upstream_inference_prompt_cost': 0.0003735, 'upstream_inference_completions_cost': 9.75e-06})\n18:54:47 - agent.conversation_loop - INFO [20260911_185439_4da091] - API call #4: model=inception/mercury-2.5 provider=unknown in=10026 out=65 total=10091 latency=1.0s cache=765/10026 (8%)\n18:54:47 - root - DEBUG [20260911_185439_4da091] - Token usage: prompt=10,026, completion=65, total=10,091\n18:54:47 - tools.browser_tool - DEBUG [20260911_185439_4da091] - cleanup_browser called for task_id: 0eef3122-c41c-4c93-8e44-458bf1cf86b0\n18:54:47 - tools.browser_tool - DEBUG [20260911_185439_4da091] - Active sessions: []\n18:54:47 - tools.browser_tool - DEBUG [20260911_185439_4da091] - No active session found for task_id: 0eef3122-c41c-4c93-8e44-458bf1cf86b0\n18:54:47 - agent.conversation_loop - INFO [20260911_185439_4da091] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=4/40 budget=4/40 tool_turns=3 last_msg_role=assistant response_len=3 session=20260911_185439_4da091\n18:54:48 - tools.terminal_tool - INFO [20260911_185439_4da091] - Shutting down 1 remaining sandbox(es)...\n18:54:48 - tools.terminal_tool - INFO [20260911_185439_4da091] - Manually cleaned up environment for task: default\n18:54:48 - tools.terminal_tool - INFO [20260911_185439_4da091] - Cleaned 1 environments",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 24851,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 752,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 326,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 6465
+      },
+      {
+        "input_tokens": {
+          "value": 93463,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 2266,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 601,
+          "set": true
+        },
+        "turns": {
+          "value": 9,
+          "set": true
+        },
+        "wall_time_ms": 12065
+      },
+      {
+        "input_tokens": {
+          "value": 46320,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 2221,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 941,
+          "set": true
+        },
+        "turns": {
+          "value": 7,
+          "set": true
+        },
+        "wall_time_ms": 10237
+      },
+      {
+        "input_tokens": {
+          "value": 43364,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 4525,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 915,
+          "set": true
+        },
+        "turns": {
+          "value": 7,
+          "set": true
+        },
+        "wall_time_ms": 10073
+      },
+      {
+        "input_tokens": {
+          "value": 82171,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 16626,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1842,
+          "set": true
+        },
+        "turns": {
+          "value": 12,
+          "set": true
+        },
+        "wall_time_ms": 15664
+      },
+      {
+        "input_tokens": {
+          "value": 21287,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 6306,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 2285,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 10491
+      }
+    ]
+  },
+  {
+    "harness": "hermes-agent",
+    "task": "43-session-python-ledger",
+    "batch": 1,
+    "passed": false,
+    "reason": "check failed: exit status 1",
+    "wall_time_ms": 76709,
+    "input_tokens": {
+      "value": 241044,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 11470,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 64629,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": false
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 53,
+      "set": true
+    },
+    "cost_usd": {
+      "set": false
+    },
+    "command": "hermes-agent --query Run the tests and fix anything that fails. When they pass, reply with only the name of the CLI option you added and nothing else. --model inception/mercury-2.5 --base_url https://openrouter.ai/api/v1 --api_key *** --max_turns 40 --enabled_toolsets terminal --verbose",
+    "stderr_excerpt": "ails(audio_tokens=0, cached_tokens=1822, cache_write_tokens=0, video_tokens=0), cost=0.000433778, is_byok=False, cost_details={'upstream_inference_cost': 0.000433778, 'upstream_inference_prompt_cost': 0.000340928, 'upstream_inference_completions_cost': 9.285e-05})\n18:55:00 - agent.conversation_loop - INFO [20260911_185442_1d0d1b] - API call #13: model=inception/mercury-2.5 provider=unknown in=10163 out=619 total=10782 latency=2.1s cache=1822/10163 (18%)\n18:55:00 - root - DEBUG [20260911_185442_1d0d1b] - Token usage: prompt=10,163, completion=619, total=10,782\n18:55:00 - tools.browser_tool - DEBUG [20260911_185442_1d0d1b] - cleanup_browser called for task_id: 5307e2c3-edc3-4091-a512-0d38c7183fe7\n18:55:00 - tools.browser_tool - DEBUG [20260911_185442_1d0d1b] - Active sessions: []\n18:55:00 - tools.browser_tool - DEBUG [20260911_185442_1d0d1b] - No active session found for task_id: 5307e2c3-edc3-4091-a512-0d38c7183fe7\n18:55:00 - agent.conversation_loop - INFO [20260911_185442_1d0d1b] - Turn ended: reason=text_response(finish_reason=stop) model=inception/mercury-2.5 api_calls=13/40 budget=13/40 tool_turns=12 last_msg_role=assistant response_len=79 session=20260911_185442_1d0d1b\n18:55:00 - tools.terminal_tool - INFO [20260911_185442_1d0d1b] - Shutting down 1 remaining sandbox(es)...\n18:55:00 - tools.terminal_tool - INFO [20260911_185442_1d0d1b] - Manually cleaned up environment for task: default\n18:55:00 - tools.terminal_tool - INFO [20260911_185442_1d0d1b] - Cleaned 1 environments",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 11747,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 1501,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 637,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 5511
+      },
+      {
+        "input_tokens": {
+          "value": 45215,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 7975,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 2480,
+          "set": true
+        },
+        "turns": {
+          "value": 10,
+          "set": true
+        },
+        "wall_time_ms": 14551
+      },
+      {
+        "input_tokens": {
+          "value": 48816,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 6672,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 2525,
+          "set": true
+        },
+        "turns": {
+          "value": 9,
+          "set": true
+        },
+        "wall_time_ms": 13776
+      },
+      {
+        "input_tokens": {
+          "value": 17802,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 5160,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 516,
+          "set": true
+        },
+        "turns": {
+          "value": 6,
+          "set": true
+        },
+        "wall_time_ms": 8493
+      },
+      {
+        "input_tokens": {
+          "value": 47370,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 24005,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 1745,
+          "set": true
+        },
+        "turns": {
+          "value": 12,
+          "set": true
+        },
+        "wall_time_ms": 14422
+      },
+      {
+        "input_tokens": {
+          "value": 70094,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 19316,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": false
+        },
+        "output_tokens": {
+          "value": 3567,
+          "set": true
+        },
+        "turns": {
+          "value": 13,
+          "set": true
+        },
+        "wall_time_ms": 19953
+      }
+    ]
+  }
+]

@@ -1,0 +1,524 @@
+[
+  {
+    "harness": "pi",
+    "task": "41-session-go-service",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 57510,
+    "input_tokens": {
+      "value": 465293,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 8101,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 278205,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 27,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.02093969,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --session-id e693bbe0-8aa6-47b7-a112-288b273869ae --session-dir /tmp/pi-sessions-4046690805 Run go vet ./... and go test ./... and fix anything that fails. When everything passes, reply with exactly the name of the timeout environment variable you added and nothing else.",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 57644,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1225,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 7142
+      },
+      {
+        "input_tokens": {
+          "value": 52056,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 66576,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 2764,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 11713
+      },
+      {
+        "input_tokens": {
+          "value": 36034,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 15615,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 359,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 5201
+      },
+      {
+        "input_tokens": {
+          "value": 69394,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 41339,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1434,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 9190
+      },
+      {
+        "input_tokens": {
+          "value": 117989,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 62163,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1615,
+          "set": true
+        },
+        "turns": {
+          "value": 6,
+          "set": true
+        },
+        "wall_time_ms": 12132
+      },
+      {
+        "input_tokens": {
+          "value": 96900,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 62480,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 579,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 8535
+      },
+      {
+        "input_tokens": {
+          "value": 35276,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 30032,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 125,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 3594
+      }
+    ]
+  },
+  {
+    "harness": "pi",
+    "task": "42-session-records",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 39027,
+    "input_tokens": {
+      "value": 374651,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 3054,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 145064,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 20,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.016024396,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --session-id a54615ac-0da0-4351-b9c8-901f20867062 --session-dir /tmp/pi-sessions-972201812 Update inventory.txt so it reflects the renames you made in the previous step (the archived ids appear with their new prefix; keep it sorted, one id per line). Then reply with just the number of files you changed in the previous step.",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 119396,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 15324,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 549,
+          "set": true
+        },
+        "turns": {
+          "value": 6,
+          "set": true
+        },
+        "wall_time_ms": 9794
+      },
+      {
+        "input_tokens": {
+          "value": 50818,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 183,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 2972
+      },
+      {
+        "input_tokens": {
+          "value": 61225,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 15584,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 231,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 7172
+      },
+      {
+        "input_tokens": {
+          "value": 57437,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 23918,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 362,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 5824
+      },
+      {
+        "input_tokens": {
+          "value": 53329,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 62282,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 492,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 5744
+      },
+      {
+        "input_tokens": {
+          "value": 32446,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 27956,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1237,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 7518
+      }
+    ]
+  },
+  {
+    "harness": "pi",
+    "task": "43-session-python-ledger",
+    "batch": 1,
+    "passed": true,
+    "wall_time_ms": 41026,
+    "input_tokens": {
+      "value": 354129,
+      "set": true
+    },
+    "output_tokens": {
+      "value": 6939,
+      "set": true
+    },
+    "cache_read_tokens": {
+      "value": 130816,
+      "set": true
+    },
+    "cache_write_tokens": {
+      "set": true
+    },
+    "tool_calls": {
+      "set": false
+    },
+    "turns": {
+      "value": 21,
+      "set": true
+    },
+    "cost_usd": {
+      "value": 0.015729274,
+      "set": true
+    },
+    "command": "pi -p --mode json --provider openrouter --model inception/mercury-2.5 --session-id 1514ef72-e0c8-4f11-93d1-1333a17fffa3 --session-dir /tmp/pi-sessions-1451214102 Run the tests and fix anything that fails. When they pass, reply with only the name of the CLI option you added and nothing else.",
+    "steps": [
+      {
+        "input_tokens": {
+          "value": 73030,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 786,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 6835
+      },
+      {
+        "input_tokens": {
+          "value": 69171,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 15698,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1842,
+          "set": true
+        },
+        "turns": {
+          "value": 4,
+          "set": true
+        },
+        "wall_time_ms": 8896
+      },
+      {
+        "input_tokens": {
+          "value": 68032,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 789,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 4339
+      },
+      {
+        "input_tokens": {
+          "value": 71883,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 51823,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 2066,
+          "set": true
+        },
+        "turns": {
+          "value": 5,
+          "set": true
+        },
+        "wall_time_ms": 10288
+      },
+      {
+        "input_tokens": {
+          "value": 49012,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 31302,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 1114,
+          "set": true
+        },
+        "turns": {
+          "value": 3,
+          "set": true
+        },
+        "wall_time_ms": 6614
+      },
+      {
+        "input_tokens": {
+          "value": 23001,
+          "set": true
+        },
+        "cache_read_tokens": {
+          "value": 31993,
+          "set": true
+        },
+        "cache_write_tokens": {
+          "set": true
+        },
+        "output_tokens": {
+          "value": 342,
+          "set": true
+        },
+        "turns": {
+          "value": 2,
+          "set": true
+        },
+        "wall_time_ms": 4052
+      }
+    ]
+  }
+]
