@@ -10,7 +10,8 @@ import (
 	"time"
 )
 
-// InstructionFiles are read from the working directory, first match wins,
+// InstructionFiles are the names read in each directory from the
+// project root down to the working directory, first match per directory,
 // and appended to the system prompt as project instructions.
 var InstructionFiles = []string{"JANETCODE.md", "AGENTS.md", "CLAUDE.md"}
 
@@ -126,8 +127,8 @@ func writeEnvironment(sb *strings.Builder, cwd string) {
 	if git := gitInfo(cwd); git != "" {
 		sb.WriteString(git)
 	}
-	if name, text := projectInstructions(cwd); text != "" {
-		fmt.Fprintf(sb, "\n# Project instructions (from %s)\n%s\n", name, text)
+	for _, in := range Instructions(cwd) {
+		fmt.Fprintf(sb, "\n# Project instructions (from %s)\n%s\n", in.Name, in.Text)
 	}
 }
 
@@ -161,22 +162,4 @@ func GitBranch(cwd string) (branch string, ok bool) {
 		return ref[:7], true
 	}
 	return ref, true
-}
-
-func projectInstructions(cwd string) (string, string) {
-	for _, name := range InstructionFiles {
-		data, err := os.ReadFile(filepath.Join(cwd, name))
-		if err != nil {
-			continue
-		}
-		text := strings.TrimSpace(string(data))
-		if text == "" {
-			continue
-		}
-		if len(text) > maxInstructionBytes {
-			text = text[:maxInstructionBytes] + "\n... (truncated)"
-		}
-		return name, text
-	}
-	return "", ""
 }

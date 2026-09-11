@@ -82,8 +82,21 @@ disable it.
 
 ### Project instructions
 
-If the working directory contains `JANETCODE.md`, `AGENTS.md` or `CLAUDE.md`
-(first found wins), its contents are added to the system prompt.
+`JANETCODE.md`, `AGENTS.md` or `CLAUDE.md` (first found in a directory
+wins) is read from every directory between the repository root and the
+working directory, farthest first, so what the repository says about
+itself and what a particular package says about itself both reach the
+model, with the most specific one last. Without a repository only the
+working directory is read: there is no boundary to walk up to, and
+walking to the filesystem root would read whatever a home directory
+happens to hold.
+
+A line that is nothing but `@path` pulls another file in where it stands,
+which is how one standard is kept in one place and referred to from
+several. Paths resolve against the importing file's directory, imports are
+followed at most five deep, a file is included once per chain, and a path
+outside the project is skipped with a note saying so. An `@` in the middle
+of a sentence, or inside a fenced block, is prose.
 
 ### Path-scoped rules
 
