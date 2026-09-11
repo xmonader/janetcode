@@ -10,7 +10,10 @@ single-line replacement the changed tokens picked out in inverse video.
 The status line shows what the agent is doing (including what it is
 waiting on: a retry and its countdown, a compaction, a subagent), the
 elapsed time, and a gauge of how full the context window is. The input box
-grows with your text.
+is a reserved height (six lines, three in a short window) so the transcript
+above it does not move as you type; extra lines scroll inside the box. A
+permission prompt uses the reserved row above that box rather than
+replacing it, so the prompt stays put.
 
 ```
 enter            send        ctrl+j / alt+enter   newline
@@ -81,9 +84,12 @@ left margin — the theme's gutter, two columns by default — so the
 top-level lines (the `✓` tool, `·` thought, `❯` prompt) step in from the
 edge and the body indent under them steps in consistently from there. On a
 terminal narrower than 88 columns the gutter collapses to zero, so diffs,
-code and tables keep every column they can get. A dense theme can set its
-gutter to `0` to switch the margin off at every width. The vertical rhythm
-— one blank line between blocks — is unchanged; this is horizontal only.
+code and tables keep every column they can get, and it stays collapsed
+until the terminal is a few columns wider than that (96), so resizing
+around the threshold does not slam the margin on and off. A dense theme
+can set its gutter to `0` to switch the margin off at every width. The
+vertical rhythm — one blank line between blocks — is unchanged; this is
+horizontal only.
 
 ## The terminal takes part
 
@@ -128,7 +134,9 @@ you were typing before `↑`.
 Pasting more than ten lines (or a thousand characters) puts a chip in the
 prompt — `[paste #1 +123 lines]` — instead of the text itself. The chip
 deletes as one unit and is replaced by the full text when you send, so a
-paste that ends in a newline can never send itself.
+paste that ends in a newline can never send itself. A brief notice above
+the input confirms the paste for a few seconds, then that row goes blank
+again; it does not become a line in the transcript.
 
 ```
 @path            attach a file, an image (png/jpg/gif/webp), or a directory listing; tab completes

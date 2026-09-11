@@ -102,6 +102,11 @@ type entry struct {
 	renderCost time.Duration // how long the last render took, for throttling
 	verbose    bool          // rendered with expanded tool output
 	chunks     []mdChunk     // per-paragraph markdown cache
+	// toolBody is the tool entry without the leading icon and without the
+	// trailing elapsed on the first line. Spinner and elapsed are chrome:
+	// they are applied each frame without rebuilding the body.
+	toolBody  string
+	toolStamp string // last content fingerprint; chrome is not in it
 }
 
 // mdChunk caches the rendering of one markdown block.
@@ -473,6 +478,13 @@ func (t *transcript) render(o renderOpts) string {
 			e.renderedAt = now
 			e.renderedN = len(e.text)
 			e.verbose = o.expand(e)
+			if e.kind == entryTool {
+				e.toolStamp = toolStamp(e, o)
+			}
+		} else if e.kind == entryTool && e.running && e.toolBody != "" {
+			// Spinner and elapsed are chrome: splice them onto the cached
+			// body rather than rebuilding the result.
+			e.rendered = applyToolChrome(e.toolBody, toolIcon(e, o), toolElapsed(e))
 		}
 		// The gutter is applied on the way out, not baked into the cached
 		// render, so it costs nothing when it collapses to zero and the
@@ -520,7 +532,8 @@ func (t *transcript) needsRender(e *entry, o renderOpts, now time.Time) bool {
 	}
 	switch e.kind {
 	case entryTool:
-		return true // running: spinner/elapsed changes each frame
+		// Content (input, output, pending preview), not spinner/elapsed.
+		return e.toolStamp != toolStamp(e, o)
 	case entryAssistant, entryThinking:
 		if e.done {
 			return true
@@ -660,8 +673,26 @@ func splitMarkdownBlocks(text string) []string {
 	return blocks
 }
 
-func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
-	var sb strings.Builder
+// toolStamp fingerprints a tool entry's content. Spinner and live elapsed
+// are chrome and are not in it, so a tick does not rebuild the body.
+func toolStamp(e *entry, o renderOpts) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d %d %t %t %t %t %q %s",
+		e.input.Len(), len(e.output), e.running, e.done, e.denied, e.isError, e.dur, e.call.Name)
+	if o.pending != nil && o.pending.call.ID == e.call.ID {
+		fmt.Fprintf(&b, " p%d", len(o.pending.call.Preview))
+		if o.expand(e) {
+			b.WriteByte('x')
+		}
+	}
+	if e.livePreviewFor != "" {
+		b.WriteByte(' ')
+		b.WriteString(e.livePreviewFor)
+	}
+	return b.String()
+}
+
+func toolIcon(e *entry, o renderOpts) string {
 	icon := styleTool.Render("⚙")
 	switch {
 	case e.denied:
@@ -679,6 +710,33 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 	case e.running:
 		icon = styleAccent.Render("▶")
 	}
+	return icon
+}
+
+func toolElapsed(e *entry) string {
+	switch {
+	case e.dur != "":
+		return styleFaint.Render(" " + e.dur)
+	case e.running && !e.started.IsZero():
+		if el := time.Since(e.started); el > time.Second {
+			return styleFaint.Render(" " + shortDuration(el))
+		}
+	}
+	return ""
+}
+
+// applyToolChrome puts the icon and elapsed onto a cached tool body.
+func applyToolChrome(body, icon, elapsed string) string {
+	first, rest, found := strings.Cut(body, "\n")
+	line := icon + " " + first + elapsed
+	if found {
+		return line + "\n" + rest
+	}
+	return line
+}
+
+func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
+	var sb strings.Builder
 	name := styleTool.Bold(true).Render(e.call.Name)
 	summary := summarizeInput(e.call.Name, e.inputJSON(), width-len(e.call.Name)-14, o.cwd)
 	if o.renderer != nil {
@@ -697,15 +755,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 			summary = s
 		}
 	}
-	sb.WriteString(icon + " " + name + " " + styleDim.Render(summary))
-	switch {
-	case e.dur != "":
-		sb.WriteString(styleFaint.Render(" " + e.dur))
-	case e.running && !e.started.IsZero():
-		if el := time.Since(e.started); el > time.Second {
-			sb.WriteString(styleFaint.Render(" " + shortDuration(el)))
-		}
-	}
+	sb.WriteString(name + " " + styleDim.Render(summary))
 	if !e.done && !e.running && !pendingHere && o.preview != nil && (e.call.Name == "edit_file" || e.call.Name == "write_file") {
 		// The arguments are complete but the call has not run: show what
 		// it would do now, while the model is still writing the rest of
@@ -729,7 +779,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		} else if full := prettyInput(e.inputJSON()); full != "" && e.call.Name != "bash" {
 			sb.WriteString("\n" + styleDim.Render(indent(clipTool(full, inputMax, !o.expand(e)), "  ")))
 		}
-		return sb.String()
+		return t.finishTool(e, sb.String(), o)
 	}
 	if e.done && !e.isError && e.call.Preview != "" && !e.denied {
 		max := o.lines(12)
@@ -769,7 +819,12 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 			sb.WriteString("\n" + styleErr.Render(indent(lipgloss.NewStyle().Width(width-4).Render(clipNote(diag, 12, false)), "  ")))
 		}
 	}
-	return sb.String()
+	return t.finishTool(e, sb.String(), o)
+}
+
+func (t *transcript) finishTool(e *entry, body string, o renderOpts) string {
+	e.toolBody = body
+	return applyToolChrome(body, toolIcon(e, o), toolElapsed(e))
 }
 
 // streamingSummary describes a tool call whose input is still arriving:

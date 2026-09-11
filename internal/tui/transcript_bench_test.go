@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,6 +57,57 @@ func TestWrittenOnceEntriesAreRenderedOnce(t *testing.T) {
 	for i, e := range tr.entries {
 		if fixedText(e.kind) && e.renderedAt.Equal(stamps[i]) {
 			t.Fatalf("entry %d kept a render made for another width", i)
+		}
+	}
+}
+
+// TestSpinnerTicksDoNotRerenderToolBody: chrome (spinner, elapsed) on a
+// running tool must not rebuild finished entries or the running tool's
+// cached body. The hitch was needsRender returning true for every tool
+// on every tick, then SetContent re-parsing the whole transcript.
+func TestSpinnerTicksDoNotRerenderToolBody(t *testing.T) {
+	tr := bigTranscript(400)
+	call := agent.ToolCall{ID: "live", Name: "bash", Input: json.RawMessage(`{"command":"sleep 30 && echo done"}`)}
+	live := tr.add(&entry{
+		kind:    entryTool,
+		call:    call,
+		running: true,
+		started: time.Now().Add(-3 * time.Second),
+	})
+	live.input.Write(call.Input)
+
+	first := tr.render(renderOpts{width: 100, cap: 10, spinner: "⠋"})
+	if live.toolBody == "" {
+		t.Fatal("the running tool has no cached body")
+	}
+	if !strings.Contains(plain(first), "⠋") {
+		t.Fatalf("first frame missing spinner:\n%s", plain(first))
+	}
+	stamps := make([]time.Time, len(tr.entries))
+	for i, e := range tr.entries {
+		stamps[i] = e.renderedAt
+	}
+	body := live.toolBody
+
+	second := tr.render(renderOpts{width: 100, cap: 10, spinner: "⠙"})
+	if live.toolBody != body {
+		t.Fatal("a spinner tick rebuilt the running tool's body")
+	}
+	if !strings.Contains(plain(second), "⠙") {
+		t.Fatalf("second frame missing the new spinner:\n%s", plain(second))
+	}
+	if strings.Contains(plain(second), "⠋") {
+		t.Fatal("the old spinner glyph is still in the second frame")
+	}
+	for i, e := range tr.entries {
+		if e == live {
+			if !e.renderedAt.Equal(stamps[i]) {
+				t.Fatal("a spinner tick re-rendered the running tool")
+			}
+			continue
+		}
+		if !e.renderedAt.Equal(stamps[i]) {
+			t.Fatalf("finished entry %d (%v) was re-rendered on a spinner tick", i, e.kind)
 		}
 	}
 }

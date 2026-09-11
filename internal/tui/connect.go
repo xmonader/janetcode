@@ -55,13 +55,27 @@ func (m *model) dialogStep(win int) int {
 
 func fitRows(height, chrome int) int {
 	avail := height - chrome
-	if avail < minDialogRows {
-		return minDialogRows
+	if avail < 1 {
+		return 0
 	}
 	if avail > dialogRows {
 		return dialogRows
 	}
 	return avail
+}
+
+// clipHeight keeps s to at most n lines so a modal never pushes the
+// reserved footer off the terminal. lipgloss.Place centres a box and
+// will emit more rows than height when the box is taller than the body.
+func clipHeight(s string, n int) string {
+	if n <= 0 || s == "" {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	if len(lines) <= n {
+		return s
+	}
+	return strings.Join(lines[:n], "\n")
 }
 
 // row is one selectable line; section groups rows under a heading.
@@ -573,7 +587,7 @@ func (m *model) connectView(height int) string {
 	add("")
 	add(styleFaint.Render(m.dialogHelp()))
 	box := styleDialog.Width(w - 2).Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box)
+	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
 
 func (m *model) dialogTitle() string {

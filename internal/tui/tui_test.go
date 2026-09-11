@@ -1847,8 +1847,7 @@ func TestInputBoxStates(t *testing.T) {
 	h.keys("make n.txt")
 	h.enter()
 	h.pump(func() bool { return h.m.pending != nil })
-	// The permission box takes the footer over, in the same warning colour
-	// the denial box uses.
+	check("permission", styleBoxWarn, "always")
 	if stylePermBox.GetBorderTopForeground() != styleBoxWarn.GetBorderTopForeground() {
 		t.Error("the permission box does not match the warning palette")
 	}
@@ -2484,6 +2483,68 @@ func TestPasteChip(t *testing.T) {
 	}
 }
 
+// TestEphemeralNoticeRow: paste-chip and outside branch-changed occupy
+// the reserved notice row for about three seconds, then leave it blank,
+// and do not append a lasting transcript line. A queued-message notice
+// still wins the row.
+func TestEphemeralNoticeRow(t *testing.T) {
+	h := newHarness(t)
+	nEntries := len(h.m.transcript.entries)
+
+	body := strings.Repeat("a line of a log file\n", 40)
+	h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(body), Paste: true})
+	v := plain(h.m.View())
+	if !strings.Contains(v, "pasted 41 lines as a chip") {
+		t.Fatalf("paste confirmation not in the notice row:\n%s", v)
+	}
+	if len(h.m.transcript.entries) != nEntries {
+		t.Fatalf("paste confirmation added a transcript line: %+v", h.m.transcript.entries[nEntries:])
+	}
+
+	h.m.queued = []string{"do the next thing"}
+	h.m.refresh(false)
+	v = plain(h.m.View())
+	if !strings.Contains(v, "queued 1") {
+		t.Fatalf("queue did not take the notice row:\n%s", v)
+	}
+	if strings.Contains(v, "pasted 41 lines") {
+		t.Fatalf("queue should win over the paste notice:\n%s", v)
+	}
+	h.m.queued = nil
+	h.m.input.Reset()
+
+	h.m.noticeAt = time.Now().Add(-noticeFor - time.Second)
+	h.update(tickMsg(time.Now()))
+	if strings.Contains(plain(h.m.View()), "pasted 41 lines") {
+		t.Fatalf("expired paste notice still on screen:\n%s", plain(h.m.View()))
+	}
+
+	gitDir := filepath.Join(h.m.opts.Cwd, ".git")
+	if err := os.MkdirAll(gitDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/feature\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.m.branch = "main"
+	nEntries = len(h.m.transcript.entries)
+	h.m.running = false
+	h.m.ticks = 9
+	h.update(tickMsg(time.Now()))
+	v = plain(h.m.View())
+	if !strings.Contains(v, "branch changed: main → feature") {
+		t.Fatalf("branch change not in the notice row:\n%s", v)
+	}
+	if len(h.m.transcript.entries) != nEntries {
+		t.Fatalf("branch change added a transcript line: %+v", h.m.transcript.entries[nEntries:])
+	}
+	h.m.noticeAt = time.Now().Add(-noticeFor - time.Second)
+	h.update(tickMsg(time.Now()))
+	if strings.Contains(plain(h.m.View()), "branch changed") {
+		t.Fatalf("expired branch notice still on screen:\n%s", plain(h.m.View()))
+	}
+}
+
 // TestPasteNeverSubmitsItself: a paste ending in a newline must not send
 // the prompt.
 func TestPasteNeverSubmitsItself(t *testing.T) {
@@ -2677,7 +2738,9 @@ func TestShortWindowScalesTheInterface(t *testing.T) {
 }
 
 // TestPromptDoesNotJump: the row above the input is reserved, so a
-// notice arriving or leaving never moves the input box.
+// notice arriving or leaving never moves the input box. The input box
+// itself is reserved at the cap, and a permission prompt (warning
+// included) uses that same footer height.
 func TestPromptDoesNotJump(t *testing.T) {
 	block := make(chan struct{})
 	rs := make([]*llm.Response, 5)
@@ -2712,6 +2775,46 @@ func TestPromptDoesNotJump(t *testing.T) {
 	}
 	close(block)
 	h.pump(func() bool { return !h.m.running })
+
+	// Reserved input height: wrapping inside the cap, a permission
+	// prompt (warning included), and the prompt closing must not move
+	// the ❯ row or the transcript viewport.
+	promptRowAndView := func() (int, int) {
+		h.m.layout()
+		h.m.refresh(false)
+		return promptRow(), h.m.viewport.Height
+	}
+	row, vh := promptRowAndView()
+	if row < 0 {
+		t.Fatalf("no input box after the turn:\n%s", plain(h.m.View()))
+	}
+	h.keys("one")
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlJ})
+	h.keys("two")
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlJ})
+	h.keys("three")
+	if got, hgt := promptRowAndView(); got != row || hgt != vh {
+		t.Fatalf("wrapping inside the cap moved the prompt from %d/%d to %d/%d", row, vh, got, hgt)
+	}
+	h.m.input.Reset()
+	h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "p1", Name: "write_file", Input: json.RawMessage(`{"path":"n.txt","content":"x"}`)}, reply: make(chan verdict, 1)}
+	if got, hgt := promptRowAndView(); got != row || hgt != vh {
+		t.Fatalf("a permission prompt moved the prompt from %d/%d to %d/%d", row, vh, got, hgt)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "allow write_file") {
+		t.Fatalf("permission notice missing:\n%s", v)
+	}
+	h.m.pending.call.Warning = "recursive force delete"
+	if got, hgt := promptRowAndView(); got != row || hgt != vh {
+		t.Fatalf("a permission warning moved the prompt from %d/%d to %d/%d", row, vh, got, hgt)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "⚠ recursive force delete") {
+		t.Fatalf("warning not on the reserved row:\n%s", v)
+	}
+	h.m.pending = nil
+	if got, hgt := promptRowAndView(); got != row || hgt != vh {
+		t.Fatalf("closing the permission prompt moved the prompt from %d/%d to %d/%d", row, vh, got, hgt)
+	}
 }
 
 // TestColourFallbacks: NO_COLOR renders every style plain, and a
@@ -2913,7 +3016,7 @@ func TestDialogFitsShortTerminal(t *testing.T) {
 
 func TestFitRows(t *testing.T) {
 	for _, c := range []struct{ height, chrome, want int }{
-		{40, 9, dialogRows}, {18, 9, 9}, {12, 9, minDialogRows}, {4, 9, minDialogRows},
+		{40, 9, dialogRows}, {18, 9, 9}, {12, 9, 3}, {10, 9, 1}, {4, 9, 0},
 	} {
 		if got := fitRows(c.height, c.chrome); got != c.want {
 			t.Errorf("fitRows(%d,%d) = %d, want %d", c.height, c.chrome, got, c.want)

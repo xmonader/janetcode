@@ -149,7 +149,7 @@ func (m *model) pickerView(height int) string {
 	}
 	add(styleFaint.Render(help))
 	box := styleDialog.Width(w - 2).Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box)
+	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
 
 // openSessionPicker lists the sessions recorded for this directory in a

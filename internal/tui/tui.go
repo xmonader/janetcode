@@ -1256,6 +1256,16 @@ type model struct {
 	connectGen  int
 	quitting    bool
 	branch      string
+	// gutterOff is the hysteresis latch for the transcript margin: it
+	// turns off below gutterCollapseWidth and stays off until the
+	// terminal is at least gutterRestoreWidth, so resizing around 88
+	// does not slam the margin on and off.
+	gutterOff bool
+	// notice is a one-shot line for the reserved row above the input
+	// (paste-chip confirmation, outside branch change). It yields to a
+	// live queue or steering notice and expires after noticeFor.
+	notice   string
+	noticeAt time.Time
 	// term writes the escape sequences that let the terminal take part:
 	// OSC 133 zones, desktop notifications, the window title.
 	term *termIntegration
@@ -1266,6 +1276,9 @@ const (
 	maxInputLines = 6
 
 	defaultPlaceholder = "Ask for a change, a fix, or an explanation… · / for commands"
+
+	// noticeFor is how long a one-shot footer notice stays visible.
+	noticeFor = 3 * time.Second
 )
 
 func newModel(opts Options) *model {
@@ -1590,14 +1603,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Keeps elapsed timers and throttled live markdown moving even when
 		// no event arrives.
 		m.ticks++
+		expired := m.notice != "" && time.Since(m.noticeAt) >= noticeFor
+		if expired {
+			m.notice = ""
+		}
 		if m.ticks%10 == 0 && !m.running {
 			// Someone may have checked out another branch in this tree
 			// (or in the session's worktree) from outside; follow it.
-			if b, ok := prompt.GitBranch(m.opts.Cwd); ok && b != "" && b != m.branch {
-				m.transcript.info(noteNotice + "branch changed: " + m.branch + " → " + b)
-				m.branch = b
-				m.refresh(false)
-			}
+			m.followBranch()
 		}
 		if m.running {
 			m.refresh(false)
@@ -1606,6 +1619,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.transcript.info(noteJob + strings.SplitN(n, "\n", 2)[0])
 				m.opts.Agent.AddHarnessContext("[background job update]\n" + n)
 			}
+			m.refresh(false)
+		} else if expired {
 			m.refresh(false)
 		}
 		return m, tick()
@@ -1724,9 +1739,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	// The footer grows and shrinks with the input box and with the
-	// completion menu; the viewport has to be told, or the view is taller
-	// than the terminal and the transcript scrolls under it.
+	// The footer height is reserved except for the completion menu; the
+	// viewport has to be told when the menu opens or closes, or the view
+	// is taller than the terminal and the transcript scrolls under it.
 	before := m.footerHeight()
 	m.input, cmd = m.input.Update(msg)
 	cmds = append(cmds, cmd)
@@ -1734,7 +1749,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.layout()
 		m.refresh(false)
 	}
-	cmds = append(cmds, m.scroll(msg))
+	// Typed letters must not move the transcript: the viewport's default
+	// keymap treats h/j/k/l/b/f/u/d and space as pager keys, so typing
+	// "/history …" used to scroll (and unpin) one line at a time.
+	if _, isKey := msg.(tea.KeyMsg); !isKey {
+		cmds = append(cmds, m.scroll(msg))
+	}
 	return m, tea.Batch(cmds...)
 }
 
@@ -1851,7 +1871,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		// lines to scroll past. It becomes a chip; submit puts it back.
 		m.input.InsertString(m.storePaste(string(msg.Runes)))
 		m.layout()
-		m.status = fmt.Sprintf("pasted %s as a chip · it is sent in full", plural(strings.Count(string(msg.Runes), "\n")+1, "line"))
+		m.flashNotice(fmt.Sprintf("pasted %s as a chip · it is sent in full", plural(strings.Count(string(msg.Runes), "\n")+1, "line")))
 		// A bracketed paste is one event, not a keystroke: the whole
 		// text arrives at once, which is the moment @path is worth
 		// knowing about.
@@ -3315,6 +3335,10 @@ func (m *model) helpText() string {
 // whether there is more of the call to see: without that, the line used to
 // offer ctrl+o even for a two-line diff that was already shown whole.
 func (m *model) permissionKeys(tool, rule string, expandable bool) string {
+	return m.formatPermissionKeys(tool, rule, expandable, true)
+}
+
+func (m *model) formatPermissionKeys(tool, rule string, expandable, color bool) string {
 	type seg struct{ key, text string }
 	// Box width minus its border and padding, with two columns to spare
 	// so a line measured at the limit never wraps inside the box.
@@ -3323,13 +3347,25 @@ func (m *model) permissionKeys(tool, rule string, expandable bool) string {
 		var sb, plain strings.Builder
 		for i, s := range segs {
 			if i > 0 {
-				sb.WriteString(styleDim.Render(sep))
+				if color {
+					sb.WriteString(styleDim.Render(sep))
+				} else {
+					sb.WriteString(sep)
+				}
 				plain.WriteString(sep)
 			}
-			sb.WriteString(styleKey.Render(s.key) + styleDim.Render(s.text))
+			if color {
+				sb.WriteString(styleKey.Render(s.key) + styleDim.Render(s.text))
+			} else {
+				sb.WriteString(s.key + s.text)
+			}
 			plain.WriteString(s.key + s.text)
 		}
-		return sb.String(), lipgloss.Width(plain.String())
+		out := sb.String()
+		if !color {
+			out = plain.String()
+		}
+		return out, lipgloss.Width(plain.String())
 	}
 	long := []seg{{"y", " allow once"}, {"a", " always for " + tool + " this session"}, {"r", " save rule " + rule}, {"n", " deny (and say why)"}, {"c", " cancel the turn"}}
 	if expandable {
@@ -3478,22 +3514,14 @@ func (m *model) inputLimit() int {
 }
 
 func (m *model) inputHeight() int {
-	n := m.input.LineCount()
-	if n < minInputLines {
-		n = minInputLines
-	}
-	if limit := m.inputLimit(); n > limit {
-		n = limit
-	}
-	return n
+	// Reserved at the cap so wrapping or a permission prompt never
+	// moves the transcript. Extra lines scroll inside the box.
+	return m.inputLimit()
 }
 
 func (m *model) footerHeight() int {
-	if m.pending != nil && !m.denying {
-		return m.permissionBoxHeight()
-	}
 	h := m.inputHeight() + 2 + 1 // border, and the reserved notice row
-	if len(m.completions()) > 0 {
+	if m.pending == nil && !m.denying && len(m.completions()) > 0 {
 		// The menu always claims the same height, however many rows it has
 		// to show: narrowing it as you type used to resize the viewport on
 		// every keystroke, and the transcript flickered above it.
@@ -3510,39 +3538,66 @@ func (m *model) footerNotice() string {
 	switch {
 	case m.denying && m.pending != nil:
 		return "  " + styleWarn.Bold(true).Render("denied "+m.pending.call.Name) + styleDim.Render(" · tell the model why (optional) · enter sends · esc skips")
+	case m.pending != nil:
+		return m.permissionNotice()
 	case len(m.steering) > 0 && len(m.queued) > 0:
 		return fitLine("  "+styleWarn.Render(fmt.Sprintf("steering %d", len(m.steering)))+styleFaint.Render(fmt.Sprintf(" · queued %d · ", len(m.queued)))+styleDim.Render(oneLine(m.queued[len(m.queued)-1])), room)
 	case len(m.steering) > 0:
 		return fitLine("  "+styleWarn.Render("steering ")+styleDim.Render(oneLine(m.steering[len(m.steering)-1])), room)
 	case len(m.queued) > 0:
 		return fitLine("  "+styleFaint.Render(fmt.Sprintf("queued %d · ", len(m.queued)))+styleDim.Render(oneLine(m.queued[len(m.queued)-1]))+styleFaint.Render(" · up takes it back"), room)
+	case m.notice != "" && time.Since(m.noticeAt) < noticeFor:
+		return fitLine("  "+styleDim.Render(m.notice), room)
 	}
 	return ""
+}
+
+// flashNotice puts a one-shot line in the reserved row above the input.
+// Queue, steering and a permission prompt take the row while they apply.
+func (m *model) flashNotice(s string) {
+	m.notice, m.noticeAt = s, time.Now()
+}
+
+// followBranch notices an outside checkout in the reserved row rather
+// than appending a lasting transcript line.
+func (m *model) followBranch() {
+	b, ok := prompt.GitBranch(m.opts.Cwd)
+	if !ok || b == "" || b == m.branch {
+		return
+	}
+	m.flashNotice("branch changed: " + m.branch + " → " + b)
+	m.branch = b
+	m.refresh(false)
 }
 
 // oneLine flattens text for a one-row notice.
 func oneLine(s string) string { return strings.TrimSpace(strings.ReplaceAll(s, "\n", " ")) }
 
-func (m *model) permissionBoxHeight() int {
-	lines := 2 // tool line + keys line
-	if m.pending != nil && m.pending.call.Warning != "" {
-		lines++
-	}
-	return lines + 2 // border
-}
-
 // gutterCollapseWidth is the terminal width below which the transcript
 // gutter collapses to zero. Room to breathe is a luxury a wide terminal
 // can afford; a narrow one needs every column for diffs, code and tables,
-// so the leanness bias wins there.
-const gutterCollapseWidth = 88
+// so the leanness bias wins there. gutterRestoreWidth is several columns
+// above that, so resizing around the threshold does not slam the margin.
+const (
+	gutterCollapseWidth = 88
+	gutterRestoreWidth  = 96
+)
 
 // gutter is the left margin the whole interface shares this frame: the
 // theme's gutter on a wide terminal, zero on a narrow one. It is applied
 // uniformly to the transcript's top-level lines, the header, the status
 // line and the input box, so one margin runs down the left of everything.
 func (m *model) gutter() int {
-	if activeGutter <= 0 || m.width < gutterCollapseWidth {
+	if activeGutter <= 0 {
+		return 0
+	}
+	switch {
+	case m.width < gutterCollapseWidth:
+		m.gutterOff = true
+	case m.width >= gutterRestoreWidth:
+		m.gutterOff = false
+	}
+	if m.gutterOff {
 		return 0
 	}
 	return activeGutter
@@ -3629,16 +3684,24 @@ func (m *model) View() string {
 	if m.quitting {
 		return ""
 	}
-	body := m.viewport.View()
-	switch {
-	case m.picker != nil:
-		body = m.pickerView(m.viewport.Height)
-	case m.connect != nil:
-		body = m.connectView(m.viewport.Height)
+	if m.picker != nil || m.connect != nil {
+		// A modal is the input: give it the body plus the reserved
+		// footer so a short terminal still has room for the highlight.
+		bodyH := m.height - 2 // header, status
+		if bodyH < 3 {
+			bodyH = 3
+		}
+		body := ""
+		if m.picker != nil {
+			body = m.pickerView(bodyH)
+		} else {
+			body = m.connectView(bodyH)
+		}
+		return lipgloss.JoinVertical(lipgloss.Left, m.headerView(), body, m.statusView())
 	}
 	return lipgloss.JoinVertical(lipgloss.Left,
 		m.headerView(),
-		body,
+		m.viewport.View(),
 		m.statusView(),
 		m.footerView(),
 	)
@@ -3883,7 +3946,7 @@ func (m *model) contextGauge() string {
 // comment in styles.go says what each colour means.
 func (m *model) inputBox() lipgloss.Style {
 	switch {
-	case m.denying:
+	case m.denying, m.pending != nil:
 		return styleBoxWarn
 	case m.running:
 		return styleBoxBusy
@@ -3919,6 +3982,8 @@ func (m *model) placeholder() string {
 			"Why? the model reads this · enter sends · esc skips",
 			"Why? enter sends · esc skips",
 			"Why?")
+	case m.pending != nil:
+		return m.formatPermissionKeys(m.pending.call.Name, m.suggestedRule(m.pending.call.Name, m.pending.call.Input), pendingExpandable(m.pending.call), false)
 	case m.opts.Agent.Provider == nil:
 		return fitPhrase(room, "No provider yet · /connect picks one", "/connect")
 	case m.running:
@@ -3943,40 +4008,40 @@ func (m *model) placeholder() string {
 }
 
 func (m *model) footerView() string {
-	if m.pending != nil && !m.denying {
-		return m.permissionView()
-	}
 	// One row above the input is always there, blank when there is
 	// nothing to say. Notices used to push the prompt down as they
 	// arrived and pull it up as they went, so the box moved under the
-	// cursor while typing.
+	// cursor while typing. A permission prompt uses that row and keeps
+	// this box, so the transcript does not move.
 	parts := []string{m.footerNotice()}
 	// The command menu and the @path menu are the same menu: same rows,
 	// same highlight, same footer line, same height whatever is in them.
-	if c, idx := m.menu(); len(c) > 0 {
-		rows := m.menuRows()
-		start := 0
-		if idx >= rows {
-			start = idx - rows + 1
-		}
-		end := min(len(c), start+rows)
-		for i := start; i < end; i++ {
-			cmd := c[i]
-			mark, name, help := "  ", styleKey.Render(cmd.name), styleFaint.Render(cmd.help)
-			if i == idx {
-				mark, name, help = styleAccent.Render("▸ "), styleKey.Bold(true).Render(cmd.name), styleDim.Render(cmd.help)
+	if m.pending == nil && !m.denying {
+		if c, idx := m.menu(); len(c) > 0 {
+			rows := m.menuRows()
+			start := 0
+			if idx >= rows {
+				start = idx - rows + 1
 			}
-			parts = append(parts, fitLine(mark+name+" "+styleDim.Render(cmd.args)+"  "+help, m.width-1-m.gutter()))
+			end := min(len(c), start+rows)
+			for i := start; i < end; i++ {
+				cmd := c[i]
+				mark, name, help := "  ", styleKey.Render(cmd.name), styleFaint.Render(cmd.help)
+				if i == idx {
+					mark, name, help = styleAccent.Render("▸ "), styleKey.Bold(true).Render(cmd.name), styleDim.Render(cmd.help)
+				}
+				parts = append(parts, fitLine(mark+name+" "+styleDim.Render(cmd.args)+"  "+help, m.width-1-m.gutter()))
+			}
+			for i := end - start; i < rows; i++ {
+				parts = append(parts, "")
+			}
+			parts = append(parts, styleFaint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))
 		}
-		for i := end - start; i < rows; i++ {
-			parts = append(parts, "")
-		}
-		parts = append(parts, styleFaint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))
 	}
 	box := m.inputBox()
 	prompt := styleAccent.Render("❯ ")
 	switch {
-	case m.denying:
+	case m.denying, m.pending != nil:
 		prompt = styleWarn.Render("❯ ")
 	case m.running:
 		prompt = styleFaint.Render("❯ ")
@@ -4016,21 +4081,29 @@ func (m *model) suggestedRule(name string, input json.RawMessage) string {
 	return r.String()
 }
 
-func (m *model) permissionView() string {
+// permissionNotice is the reserved row during a permission prompt: the
+// tool, a warning if any, fitted on one line so a warning never grows
+// the footer.
+func (m *model) permissionNotice() string {
+	if m.pending == nil {
+		return ""
+	}
 	c := m.pending.call
-	var sb strings.Builder
-	// Everything in this box came from the model or from the repository;
-	// none of it may carry control characters into the terminal.
-	sb.WriteString(styleWarn.Bold(true).Render("allow ") + styleTool.Bold(true).Render(sanitize(c.Name)) + " " + styleDim.Render(sanitize(summarizeInput(c.Name, string(c.Input), m.width-len(c.Name)-16, m.opts.Cwd))))
+	room := m.width - 4
+	// Everything here came from the model or the repository; none of it
+	// may carry control characters into the terminal.
+	line := styleWarn.Bold(true).Render("allow ") + styleTool.Bold(true).Render(sanitize(c.Name)) + " " + styleDim.Render(sanitize(summarizeInput(c.Name, string(c.Input), m.width-len(c.Name)-16, m.opts.Cwd)))
 	if c.Warning != "" {
-		sb.WriteString("\n" + styleErr.Bold(true).Render("⚠ "+sanitize(c.Warning)))
+		line += styleErr.Bold(true).Render(" · ⚠ " + sanitize(c.Warning))
 	}
-	sb.WriteString("\n" + m.permissionKeys(c.Name, m.suggestedRule(c.Name, c.Input), pendingExpandable(c)))
-	box := stylePermBox.Width(m.width - 2 - m.gutter()).Render(sb.String())
-	if g := m.gutter(); g > 0 {
-		box = indent(box, strings.Repeat(" ", g))
+	return fitLine("  "+line, room)
+}
+
+func (m *model) permissionView() string {
+	if m.pending == nil {
+		return ""
 	}
-	return box
+	return m.permissionNotice() + "\n" + m.permissionKeys(m.pending.call.Name, m.suggestedRule(m.pending.call.Name, m.pending.call.Input), pendingExpandable(m.pending.call))
 }
 
 func shortPath(p string) string {

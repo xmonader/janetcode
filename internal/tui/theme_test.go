@@ -100,6 +100,18 @@ func TestGutterCollapsesUnderThreshold(t *testing.T) {
 	if g := h.m.gutter(); g != 0 {
 		t.Errorf("narrow terminal gutter = %d, want 0 (collapsed)", g)
 	}
+	h.m.width = 88
+	if g := h.m.gutter(); g != 0 {
+		t.Errorf("after collapse, width 88 gutter = %d, want 0 (hysteresis)", g)
+	}
+	h.m.width = 95
+	if g := h.m.gutter(); g != 0 {
+		t.Errorf("after collapse, width 95 gutter = %d, want 0 (still below restore)", g)
+	}
+	h.m.width = gutterRestoreWidth
+	if g := h.m.gutter(); g != 2 {
+		t.Errorf("width %d gutter = %d, want 2 (restored)", gutterRestoreWidth, g)
+	}
 
 	// The transcript indents its top-level lines by the gutter when it is
 	// on, and not when it is off.
