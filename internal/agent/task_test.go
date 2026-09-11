@@ -138,20 +138,20 @@ func TestTaskRestrictsSubagentTools(t *testing.T) {
 	parent := &Agent{Tools: tool.NewRegistry(tool.ReadFile{Root: root}, tool.Grep{Root: root}, tool.Bash{Root: root})}
 	task := &Task{Parent: parent}
 	parent.Tools.Add(task)
-	child, err := task.child([]string{"grep"})
+	child, err := task.child([]string{"grep"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if defs := child.Tools.Defs(); len(defs) != 1 || defs[0].Name != "grep" {
 		t.Fatalf("child tools = %+v", defs)
 	}
-	if _, err := task.child([]string{"bash"}); err == nil || !strings.Contains(err.Error(), "read-only") {
+	if _, err := task.child([]string{"bash"}, nil); err == nil || !strings.Contains(err.Error(), "read-only") {
 		t.Fatalf("mutating tool accepted: %v", err)
 	}
-	if _, err := task.child([]string{"nope"}); err == nil || !strings.Contains(err.Error(), "unknown tool") {
+	if _, err := task.child([]string{"nope"}, nil); err == nil || !strings.Contains(err.Error(), "unknown tool") {
 		t.Fatalf("unknown tool accepted: %v", err)
 	}
-	all, _ := task.child(nil)
+	all, _ := task.child(nil, nil)
 	if defs := all.Tools.Defs(); len(defs) != 2 {
 		t.Fatalf("default child tools = %+v", defs)
 	}
@@ -344,7 +344,7 @@ func TestTaskWithholdsGoalStatus(t *testing.T) {
 	parent := &Agent{Model: "m", Log: &session.Memory{}}
 	task := &Task{Parent: parent}
 	parent.Tools = tool.NewRegistry(tool.ListDir{Root: t.TempDir()}, task, &GoalStatus{Parent: parent})
-	child, err := task.child(nil)
+	child, err := task.child(nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,7 +353,7 @@ func TestTaskWithholdsGoalStatus(t *testing.T) {
 			t.Fatal("subagent can end the parent's goal")
 		}
 	}
-	if _, err := task.child([]string{"goal_status"}); err == nil {
+	if _, err := task.child([]string{"goal_status"}, nil); err == nil {
 		t.Fatal("goal_status accepted in the tools list")
 	}
 }

@@ -312,6 +312,27 @@ tools: read_file, grep, glob
 You are a strict reviewer. Report concrete defects with file:line ...
 ```
 
+`disallowed_tools` is applied after `tools`, so a tool the profile refuses
+cannot be let back in by naming it in the allowlist or by the caller;
+`max_turns` caps the subagent's model calls and `max_minutes` bounds its
+wall time (the parent's turn is held open while it runs, so a subagent
+that will not finish is finished for it, and what it found so far comes
+back as its report). `approval: bubble` changes what happens when an
+editing subagent needs a confirmation: instead of approving its own calls
+inside the throwaway checkout, the prompt is queued to the parent's
+approver — you — saying which subagent is asking.
+
+```markdown
+---
+description: Fixes a failing test in its own checkout
+disallowed_tools: fetch_url, web_search
+max_turns: 20
+max_minutes: 10
+approval: bubble
+---
+Make the failing test pass. Do not weaken the test.
+```
+
 ### Prompt caching
 
 The request prefix is laid out to stay byte-identical between calls, so

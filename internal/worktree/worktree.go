@@ -53,9 +53,20 @@ func Open(ctx context.Context, repo, branch string) (*Tree, error) {
 	path := filepath.Join(common, "janetcode-worktrees", sanitize(branch))
 
 	// A worktree already registered for this path is reused, so running
-	// the same branch twice continues the work instead of failing.
+	// the same branch twice continues the work instead of failing — but
+	// only when git still has it and the checkout is really there. A
+	// registration whose directory has been deleted is stale, and
+	// pinning a session to it would run the whole session against a
+	// directory that is not a checkout of anything.
 	if existing, err := worktreeAt(ctx, repo, path); err == nil && existing {
-		return &Tree{Path: path, Branch: branch, Repo: repo}, nil
+		t := &Tree{Path: path, Branch: branch, Repo: repo}
+		if err := t.Validate(ctx); err == nil {
+			return t, nil
+		}
+		if _, err := git(ctx, repo, "worktree", "prune"); err != nil {
+			return nil, fmt.Errorf("worktree: %s is registered but missing, and it could not be pruned: %w", path, err)
+		}
+		_ = os.RemoveAll(path)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
@@ -69,7 +80,34 @@ func Open(ctx context.Context, repo, branch string) (*Tree, error) {
 	if out, err := git(ctx, repo, args...); err != nil {
 		return nil, fmt.Errorf("worktree: git %s: %w: %s", strings.Join(args, " "), err, out)
 	}
-	return &Tree{Path: path, Branch: branch, Repo: repo, Created: true}, nil
+	t := &Tree{Path: path, Branch: branch, Repo: repo, Created: true}
+	if err := t.Validate(ctx); err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+// Validate checks the checkout against git's own registry before a
+// session is pinned to it: the path must be a directory git lists as a
+// worktree of this repository. Everything the session does — its tools,
+// its map, its language servers — is rooted there, so a path git does
+// not know about is a session working somewhere nobody can merge from.
+func (t *Tree) Validate(ctx context.Context) error {
+	info, err := os.Stat(t.Path)
+	if err != nil {
+		return fmt.Errorf("worktree: %s: %w", t.Path, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("worktree: %s is not a directory", t.Path)
+	}
+	listed, err := worktreeAt(ctx, t.Repo, t.Path)
+	if err != nil {
+		return fmt.Errorf("worktree: git worktree list: %w", err)
+	}
+	if !listed {
+		return fmt.Errorf("worktree: git does not list %s as a worktree of %s", t.Path, t.Repo)
+	}
+	return nil
 }
 
 // Remove deletes the checkout. The branch and its commits stay.
@@ -132,13 +170,23 @@ func worktreeAt(ctx context.Context, repo, path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	want := "worktree " + path
+	want := resolve(path)
 	for _, line := range strings.Split(out, "\n") {
-		if strings.TrimSpace(line) == want {
+		listed, ok := strings.CutPrefix(strings.TrimSpace(line), "worktree ")
+		if ok && resolve(listed) == want {
 			return true, nil
 		}
 	}
 	return false, nil
+}
+
+// resolve is a path as git would print it: cleaned, and with symlinks
+// followed where they can be (macOS reports /private/var for /var).
+func resolve(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return filepath.Clean(r)
+	}
+	return filepath.Clean(p)
 }
 
 func branchExists(ctx context.Context, repo, branch string) bool {

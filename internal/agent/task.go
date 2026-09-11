@@ -193,9 +193,9 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		if werr != nil {
 			return "", werr
 		}
-		kid = &subagent{agent: t.editingChild(wt), wt: wt}
+		kid = &subagent{agent: t.editingChild(wt, profile), wt: wt}
 	} else {
-		ag, cerr := t.child(in.Tools)
+		ag, cerr := t.child(in.Tools, profile)
 		if cerr != nil {
 			return "", cerr
 		}
@@ -237,7 +237,29 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	child, wt := kid.agent, kid.wt
 	start := time.Now()
-	err = child.Run(ctx, in.Prompt, nil)
+	// A profile's time budget bounds the job, not the session: the
+	// parent's turn is held open for as long as the subagent runs, so a
+	// subagent that will not finish has to be finished for it.
+	runCtx := ctx
+	if profile != nil && profile.MaxMinutes > 0 {
+		var cancel context.CancelFunc
+		runCtx, cancel = context.WithTimeout(ctx, time.Duration(profile.MaxMinutes)*time.Minute)
+		defer cancel()
+	}
+	err = child.Run(runCtx, in.Prompt, nil)
+	if err != nil && ctx.Err() == nil && runCtx.Err() != nil {
+		// Out of time rather than cancelled: whatever it found so far is
+		// worth more to the parent than an error with nothing in it.
+		report := lastAssistantText(child.Messages)
+		if strings.TrimSpace(report) == "" {
+			report = "(the subagent ran out of time before reporting anything)"
+		}
+		t.mu.Lock()
+		t.usage.Add(usageSince(kid.seen, child.Usage))
+		kid.seen = child.Usage
+		t.mu.Unlock()
+		return fmt.Sprintf("%s\n\n[subagent %q id=%s stopped after its %d-minute budget; continue it with task continue=%s]", report, in.Description, childID, profile.MaxMinutes, childID), nil
+	}
 	// Usage is cumulative over the subagent's life, so only what this
 	// exchange added is billed to the parent.
 	t.mu.Lock()
@@ -280,15 +302,18 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 // worktree. It runs without an approver: nothing it does reaches the real
 // tree, and the patch is reviewed before it is applied. Deny rules still
 // hold.
-func (t *Task) editingChild(wt *worktree) *Agent {
+func (t *Task) editingChild(wt *worktree, profile *skill.Profile) *Agent {
 	p := t.Parent
 	maxIter := t.MaxIterations
 	if maxIter <= 0 {
 		maxIter = 40
 	}
-	return &Agent{
+	if profile != nil && profile.MaxTurns > 0 {
+		maxIter = profile.MaxTurns
+	}
+	child := &Agent{
 		Provider:      p.Provider,
-		Tools:         tool.NewRegistry(wt.tools()...),
+		Tools:         tool.NewRegistry(allowed(wt.tools(), profile)...),
 		System:        p.System + "\n\nYou are a subagent doing one delegated job for the main agent, in your own checkout of the project. Make the change requested, run the relevant build or tests, and finish with a short report of what you changed and how you verified it. Your edits are returned to the main agent as a patch; do not commit. Do not ask questions; make reasonable assumptions and state them.",
 		Model:         p.Model,
 		MaxTokens:     p.MaxTokens,
@@ -298,12 +323,60 @@ func (t *Task) editingChild(wt *worktree) *Agent {
 		CompactAt:     p.CompactAt,
 		ContextWindow: p.ContextWindow,
 	}
+	// An editing subagent approves its own calls because nothing it does
+	// reaches the real tree and the patch is reviewed before it is
+	// applied. A profile can ask for the other arrangement: the
+	// confirmation is queued to the parent's approver — the user — which
+	// is the difference between a job that stops on a question and one
+	// that quietly answers it for itself.
+	if profile != nil && profile.Bubble() && p.Approver != nil {
+		child.AutoApprove = false
+		child.Approver = bubbled{to: p.Approver, name: profile.Name}
+	}
+	return child
+}
+
+// bubbled sends a subagent's confirmation to the parent's approver,
+// saying which subagent is asking: a prompt that does not say who wants
+// the command is a prompt nobody can answer.
+type bubbled struct {
+	to   Approver
+	name string
+}
+
+func (b bubbled) Approve(ctx context.Context, call ToolCall) (Decision, error) {
+	if call.Intent == "" {
+		call.Intent = "asked for by the " + b.name + " subagent"
+	} else {
+		call.Intent = "[" + b.name + " subagent] " + call.Intent
+	}
+	return b.to.Approve(ctx, call)
+}
+
+// allowed drops the tools a profile refuses. It runs after the
+// allowlist, so a tool a profile denies cannot be let back in by naming
+// it in tools.
+func allowed(ts []tool.Tool, profile *skill.Profile) []tool.Tool {
+	if profile == nil || len(profile.Disallowed) == 0 {
+		return ts
+	}
+	deny := map[string]bool{}
+	for _, n := range profile.Disallowed {
+		deny[strings.ToLower(strings.TrimSpace(n))] = true
+	}
+	out := make([]tool.Tool, 0, len(ts))
+	for _, tl := range ts {
+		if !deny[strings.ToLower(tl.Name())] {
+			out = append(out, tl)
+		}
+	}
+	return out
 }
 
 // child builds the subagent: same provider and model, read-only tools only
 // (or the named subset of them), no approver (a mutating tool would be
 // denied outright).
-func (t *Task) child(only []string) (*Agent, error) {
+func (t *Task) child(only []string, profile *skill.Profile) (*Agent, error) {
 	p := t.Parent
 	var ro []tool.Tool
 	if len(only) > 0 {
@@ -336,6 +409,12 @@ func (t *Task) child(only []string) (*Agent, error) {
 	maxIter := t.MaxIterations
 	if maxIter <= 0 {
 		maxIter = 25
+	}
+	if profile != nil && profile.MaxTurns > 0 {
+		maxIter = profile.MaxTurns
+	}
+	if ro = allowed(ro, profile); len(ro) == 0 {
+		return nil, fmt.Errorf("the %s agent has no tools left once its disallowed_tools are removed", profile.Name)
 	}
 	return &Agent{
 		Provider:      p.Provider,

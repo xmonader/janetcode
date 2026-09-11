@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -17,11 +18,28 @@ type Profile struct {
 	Name        string
 	Description string
 	Tools       []string // empty means every read-only tool
-	Model       string
-	Body        string
-	Path        string
-	Source      string
+	// Disallowed names tools the subagent may not have, applied after
+	// Tools: an allowlist says what a job needs, a denylist says what no
+	// job of this kind may reach, and the second has to win.
+	Disallowed []string
+	Model      string
+	// MaxTurns caps the subagent's model calls; zero means the default
+	// for its kind. MaxMinutes bounds its wall time, so a subagent that
+	// will not finish cannot hold the parent's turn open.
+	MaxTurns   int
+	MaxMinutes int
+	// Approval is how a confirmation the subagent needs is answered:
+	// "bubble" queues it to the parent's approver (the user), anything
+	// else leaves the subagent's own default — auto-approved inside its
+	// throwaway worktree, refused outright for a read-only one.
+	Approval string
+	Body     string
+	Path     string
+	Source   string
 }
+
+// Bubble reports whether the profile sends confirmations to the user.
+func (p Profile) Bubble() bool { return strings.EqualFold(p.Approval, "bubble") }
 
 // LoadProfiles reads every profile visible from cwd; a project profile
 // shadows a global one of the same name.
@@ -62,6 +80,10 @@ func LoadProfiles(cwd, configDir string) []Profile {
 				pr.Description = firstLine(body)
 			}
 			pr.Tools = md.List(meta["tools"])
+			pr.Disallowed = md.List(meta["disallowed_tools"])
+			pr.MaxTurns = atoi(meta["max_turns"])
+			pr.MaxMinutes = atoi(meta["max_minutes"])
+			pr.Approval = strings.ToLower(strings.TrimSpace(meta["approval"]))
 			byName[pr.Name] = pr
 		}
 	}
@@ -71,4 +93,14 @@ func LoadProfiles(cwd, configDir string) []Profile {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
+}
+
+// atoi reads a small positive number from frontmatter; anything else is
+// treated as unset, since a budget nobody can parse is not a budget.
+func atoi(v string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
 }
