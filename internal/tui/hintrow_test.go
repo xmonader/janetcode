@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -180,6 +182,51 @@ func TestTheHintRecordIsWrittenWhenOneFires(t *testing.T) {
 	h2.m.observeBang("go test ./...")
 	if v := plain(h2.m.View()); strings.Contains(v, "/verify set") {
 		t.Fatalf("the hint repeated in a later session:\n%s", v)
+	}
+}
+
+func TestTheFirstSessionInAGoProjectProposesTheCommand(t *testing.T) {
+	h := newHarness(t)
+	if err := os.WriteFile(filepath.Join(h.m.opts.Cwd, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	line := h.m.firstRunLine()
+	if !strings.Contains(line, `/verify set "go test ./..."`) {
+		t.Fatalf("first run in a Go project said %q", line)
+	}
+	if strings.Contains(line, "\n") {
+		t.Fatalf("the first-run note is more than one line:\n%s", line)
+	}
+}
+
+func TestAProjectAlreadySetUpGetsNoFirstRunLine(t *testing.T) {
+	h := newHarness(t)
+	os.WriteFile(filepath.Join(h.m.opts.Cwd, "go.mod"), []byte("module x\n"), 0o644)
+	if err := os.Mkdir(filepath.Join(h.m.opts.Cwd, ".janetcode"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if line := h.m.firstRunLine(); line != "" {
+		t.Fatalf("a project with a .janetcode was treated as new: %q", line)
+	}
+}
+
+func TestAResumedSessionGetsNoFirstRunLine(t *testing.T) {
+	h := newHarness(t)
+	os.WriteFile(filepath.Join(h.m.opts.Cwd, "go.mod"), []byte("module x\n"), 0o644)
+	h.m.opts.Resumed = 4
+	if line := h.m.firstRunLine(); line != "" {
+		t.Fatalf("a resumed session got a first-run line: %q", line)
+	}
+}
+
+func TestTheFirstRunLineWritesNothingIntoTheProject(t *testing.T) {
+	h := newHarness(t)
+	os.WriteFile(filepath.Join(h.m.opts.Cwd, "go.mod"), []byte("module x\n"), 0o644)
+	before, _ := os.ReadDir(h.m.opts.Cwd)
+	h.m.firstRunLine()
+	after, _ := os.ReadDir(h.m.opts.Cwd)
+	if len(before) != len(after) {
+		t.Fatalf("the first run created something: %d → %d entries", len(before), len(after))
 	}
 }
 

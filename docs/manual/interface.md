@@ -739,6 +739,28 @@ asking the wrong party, and paying for the answer — so it costs nothing
 and can be asked as often as it is useful. `/trajectory` still has the raw
 records.
 
+### The first session in a new directory
+
+The first run in a directory janetcode has never seen is the one moment a
+user is willing to be told about setup, and "you can configure a
+verification command" is not worth their attention. So janetcode looks at
+what the directory holds — `go.mod`, `package.json`, `pyproject.toml`,
+`requirements.txt`, `Cargo.toml`, a `Makefile` with a `test` or `check`
+target — and prints one line:
+
+```
+tip · Go project · /verify set "go test ./..." runs it after every change and hands
+      failures back to the model · gopls is not on PATH (go install
+      golang.org/x/tools/gopls@latest) for diagnostics after edits
+```
+
+It runs nothing and writes nothing: proposing a command is not the same as
+running it, and a directory nobody has asked janetcode to manage does not
+get a `.janetcode` written into it. A `package.json` with no test script,
+or a Makefile with no check target, gets no command proposed rather than
+one that will fail the first time it is run. A directory that already has
+a `.janetcode`, or a resumed session, gets nothing.
+
 ### One-time hints
 
 janetcode has features nobody finds. A user who has approved the same

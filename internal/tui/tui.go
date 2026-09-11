@@ -1259,17 +1259,28 @@ func newModel(opts Options) *model {
 	for _, c := range prompt.CustomCommands(opts.Cwd, opts.ConfigDir) {
 		m.custom["/"+c.Name] = c
 	}
+	var firstRun string
 	if opts.Resumed > 0 {
 		m.transcript.banner(m.welcome(resumedLine(opts.Session.Meta.ID, opts.Resumed)))
 		m.transcript.loadHistory(opts.Agent.Messages)
 	} else {
 		m.transcript.banner(m.welcome(""))
+		// The first session in a directory janetcode has not seen gets
+		// one specific line rather than a generic tip.
+		if firstRun = m.firstRunLine(); firstRun != "" {
+			m.transcript.tip(firstRun)
+		}
 	}
 	// The hints that are about the session's starting conditions — an
 	// untrusted .mcp.json, a model nothing can price, a resumed session
 	// whose history was already summarised — are evaluated here, once,
 	// while the facts are in front of the user.
 	m.hints = opts.Hints
+	if firstRun != "" && strings.Contains(firstRun, "/verify set") {
+		// Already proposed, above; the rule that would propose it again
+		// three turns from now is spent here.
+		m.hints.MarkShown("verify-gate")
+	}
 	m.hintState.Untrusted = opts.Untrusted
 	m.hintState.UnpricedModel = opts.UnpricedModel
 	m.hintState.ResumedAfterCompaction = opts.Resumed > 0 && resumedAfterCompaction(opts.Session)

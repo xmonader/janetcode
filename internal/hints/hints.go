@@ -159,6 +159,17 @@ func (e *Engine) Eval(s *State) string {
 	return ""
 }
 
+// MarkShown spends a rule without saying anything, for a caller that
+// has already said it some other way. The first-run line proposes the
+// verification command, so the rule that would propose it again is
+// spent there rather than left to repeat it three turns later.
+func (e *Engine) MarkShown(id string) {
+	if e == nil || id == "" {
+		return
+	}
+	e.fire(id)
+}
+
 func (e *Engine) fire(id string) {
 	if e.shown == nil {
 		e.shown = map[string]bool{}

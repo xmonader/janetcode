@@ -1,11 +1,15 @@
 package tui
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/hints"
+	"github.com/xmonader/janetcode/internal/project"
 )
 
 // The terminal's side of the hint engine: it watches what it is already
@@ -72,6 +76,38 @@ func (m *model) refreshHintState() {
 // It is replaced by the usage counter in a later change; until then
 // nothing is known, which is the safe answer.
 func (m *model) featureUsed(string) bool { return false }
+
+// firstRunLine is what a directory janetcode has never seen before gets
+// instead of a generic tip: one line naming what the project looks like,
+// the verification command ready to paste, and the language server if it
+// is not installed. Nothing is run and nothing is written — proposing a
+// command is not the same as running it, and a directory nobody has
+// asked janetcode to manage does not get a .janetcode written into it.
+func (m *model) firstRunLine() string {
+	if m.opts.Cwd == "" || m.opts.Resumed > 0 {
+		return ""
+	}
+	// A .janetcode directory means this project has been set up already,
+	// whatever is in it.
+	if _, err := os.Stat(filepath.Join(m.opts.Cwd, ".janetcode")); err == nil {
+		return ""
+	}
+	if m.opts.Verify != nil && len(m.opts.Verify.Config.Commands) > 0 {
+		return ""
+	}
+	p, ok := project.Detect(m.opts.Cwd)
+	if !ok {
+		return ""
+	}
+	return p.Line(onPath)
+}
+
+// onPath reports whether a binary is reachable. It is the one exec-ish
+// call on the startup path and it does no more than walk PATH.
+func onPath(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
+}
 
 // hintsCommand is /hints on|off.
 func (m *model) hintsCommand(args []string) {
