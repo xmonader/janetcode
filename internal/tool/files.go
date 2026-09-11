@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -312,6 +313,10 @@ type editPlan struct {
 	// in the input verifies, so the answer says what it actually hit —
 	// otherwise a miscounted line is a silent wrong edit.
 	removed []string
+	// notes records any rung of the matching ladder below an exact match
+	// that a replacement needed, so the model is told its quoted text was
+	// not what the file holds.
+	notes []string
 }
 
 // oneEdit is a single replacement, located either by the text it replaces
@@ -368,7 +373,7 @@ func (e oneEdit) resolve(lines []string) (oneEdit, error) {
 // apply performs one replacement on content, reporting how many times the
 // text was found. The errors name the edit's position when there are
 // several, so the model can tell which of them did not fit.
-func (e oneEdit) apply(content, display string, index, total int) (string, int, error) {
+func (e oneEdit) apply(content, display string, index, total int) (string, int, string, error) {
 	where := ""
 	if total > 1 {
 		where = fmt.Sprintf("edit %d of %d: ", index+1, total)
@@ -376,22 +381,47 @@ func (e oneEdit) apply(content, display string, index, total int) (string, int, 
 	if e.Old == "" {
 		// A replacement with no location at all is the common shape of
 		// this mistake; saying so beats naming the field that is empty.
-		return "", 0, fmt.Errorf("%sthis edit says what to write but not where: give old_string (the exact text to replace) or from_line and to_line", where)
+		return "", 0, "", fmt.Errorf("%sthis edit says what to write but not where: give old_string (the exact text to replace) or from_line and to_line", where)
 	}
 	if e.Old == e.New {
-		return "", 0, fmt.Errorf("%sold_string and new_string are identical", where)
+		return "", 0, "", fmt.Errorf("%sold_string and new_string are identical", where)
 	}
-	n := strings.Count(content, e.Old)
-	switch {
-	case n == 0:
-		return "", 0, fmt.Errorf("%sold_string not found in %s", where, display)
-	case n > 1 && !e.ReplaceAll:
-		return "", 0, fmt.Errorf("%sold_string matches %d times in %s; make it unique or set replace_all", where, n, display)
+	if n := strings.Count(content, e.Old); n > 0 {
+		switch {
+		case n > 1 && !e.ReplaceAll:
+			return "", 0, "", fmt.Errorf("%sold_string matches %d times in %s; make it unique or set replace_all", where, n, display)
+		case e.ReplaceAll:
+			return strings.ReplaceAll(content, e.Old, e.New), n, "", nil
+		}
+		return strings.Replace(content, e.Old, e.New, 1), n, "", nil
 	}
-	if e.ReplaceAll {
-		return strings.ReplaceAll(content, e.Old, e.New), n, nil
+	// Exact matching missed. Each rung below is more forgiving than the
+	// last and the first one that finds the text wins, so the outcome does
+	// not depend on how far down the ladder the search happened to get.
+	for _, rung := range []struct {
+		find func(string, string) [][2]int
+		note string
+	}{
+		{matchFolded, "matched after folding equivalent characters (dashes, quotes, spaces): old_string did not match the file byte for byte"},
+		{matchLines, "matched ignoring trailing whitespace on each line: old_string did not match the file byte for byte"},
+	} {
+		spans := dropOverlaps(rung.find(content, e.Old))
+		if len(spans) == 0 {
+			continue
+		}
+		if len(spans) > 1 && !e.ReplaceAll {
+			return "", 0, "", fmt.Errorf("%sold_string matches %d times in %s (%s); make it unique or set replace_all", where, len(spans), display, rung.note)
+		}
+		if !e.ReplaceAll {
+			spans = spans[:1]
+		}
+		return replaceSpans(content, spans, e.New), len(spans), where + rung.note, nil
 	}
-	return strings.Replace(content, e.Old, e.New, 1), n, nil
+	msg := fmt.Sprintf("%sold_string not found in %s", where, display)
+	if nm := nearMiss(content, e.Old, display); nm != "" {
+		msg += ".\n" + nm
+	}
+	return "", 0, "", errors.New(msg)
 }
 
 // checkSeen resolves the edit's path and asks Seen whether the file is
@@ -481,14 +511,18 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 		return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: after, replacements: n, removed: removed}, nil
 	}
 	content, total := before, 0
+	var notes []string
 	for i, e := range edits {
-		updated, n, err := e.apply(content, in.Path, i, len(edits))
+		updated, n, note, err := e.apply(content, in.Path, i, len(edits))
 		if err != nil {
 			return nil, err
 		}
+		if note != "" {
+			notes = append(notes, note)
+		}
 		content, total = updated, total+n
 	}
-	return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: content, replacements: total}, nil
+	return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: content, replacements: total, notes: notes}, nil
 }
 
 // repairEdits fixes the two ways models malform the edits argument, both
@@ -729,6 +763,9 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	out := fmt.Sprintf("Edited %s (%s, +%d -%d lines)", pl.display, plural(pl.replacements, "replacement"), added, removed)
 	for _, r := range pl.removed {
 		out += "\nreplaced " + r
+	}
+	for _, n := range pl.notes {
+		out += "\n[" + n + "]"
 	}
 	if first, last, ok := changed(pl.before, pl.after); ok {
 		if w := window(pl.after, first, last); w != "" {

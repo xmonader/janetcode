@@ -229,6 +229,25 @@ model can read a skill with the `skill` tool. You can run one yourself as
 lists what is installed. Skills are re-read from disk every turn, so
 editing one takes effect immediately.
 
+### When an edit's quoted text nearly matches
+
+`edit_file` locates a change by quoting the text it replaces, and a model
+quoting text it read a moment ago still gets it wrong in ways that have
+nothing to do with the code: an em dash where the file has a hyphen, a
+curly quote for a straight one, a non-breaking space inside an indent, a
+trailing space the file does not have. After an exact match misses, the
+search runs again over a folded view of both sides (the dash, quote and
+space variants each stand for one character), and then again ignoring
+trailing whitespace on every line. Leading whitespace is never relaxed —
+in Python and YAML it is the program — and an ambiguous match on a rung
+is refused exactly as an ambiguous exact match is. When a rung below
+exact matching was needed, the result says so, so you can see the file
+did not hold what the model thought it held.
+
+When nothing matches at all, the failure shows the closest region of the
+file as a diff against what was asked for, so the next attempt is aimed
+at the text that is actually there instead of guessing again.
+
 ### Files that are not what you read
 
 Before a write or an edit lands, janetcode checks that the file is still
