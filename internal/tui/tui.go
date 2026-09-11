@@ -3531,6 +3531,23 @@ func (m *model) permissionBoxHeight() int {
 	return lines + 2 // border
 }
 
+// gutterCollapseWidth is the terminal width below which the transcript
+// gutter collapses to zero. Room to breathe is a luxury a wide terminal
+// can afford; a narrow one needs every column for diffs, code and tables,
+// so the leanness bias wins there.
+const gutterCollapseWidth = 88
+
+// gutter is the left margin the whole interface shares this frame: the
+// theme's gutter on a wide terminal, zero on a narrow one. It is applied
+// uniformly to the transcript's top-level lines, the header, the status
+// line and the input box, so one margin runs down the left of everything.
+func (m *model) gutter() int {
+	if activeGutter <= 0 || m.width < gutterCollapseWidth {
+		return 0
+	}
+	return activeGutter
+}
+
 func (m *model) layout() {
 	if m.width == 0 {
 		return
@@ -3554,7 +3571,9 @@ func (m *model) layout() {
 		m.viewport.Width = m.width
 		m.viewport.Height = vh
 	}
-	m.input.SetWidth(m.width - 4)
+	// The input box is inset by the gutter and drawn two columns narrower
+	// than the terminal (its border), so the textarea gets what is left.
+	m.input.SetWidth(m.width - 4 - m.gutter())
 }
 
 // refresh re-renders the transcript into the viewport, keeping it at the
@@ -3566,6 +3585,7 @@ func (m *model) refresh(resized bool) {
 	content := m.transcript.render(renderOpts{
 		cwd:      m.opts.Cwd,
 		width:    m.width,
+		gutter:   m.gutter(),
 		resized:  resized,
 		pending:  m.pending,
 		spinner:  m.spinner.View(),
@@ -3629,7 +3649,14 @@ func (m *model) View() string {
 // all fit the session title goes first, then the branch, then the path is
 // shortened — nothing is ever cut mid-glyph or allowed to wrap.
 func (m *model) headerView() string {
-	left := styleHeaderHi.Render(" ◆ janetcode ") + styleHeader.Render(m.headerModel())
+	// The shared left gutter indents the header's content by the same
+	// margin the transcript and input box use. It goes into `left`, so the
+	// header's own width arithmetic (which measures left) absorbs it.
+	lead := ""
+	if g := m.gutter(); g > 0 {
+		lead = styleHeader.Render(strings.Repeat(" ", g))
+	}
+	left := lead + styleHeaderHi.Render(" ◆ janetcode ") + styleHeader.Render(m.headerModel())
 	title := ""
 	if m.opts.Session != nil && m.opts.Session.Meta.Title != "" {
 		title = " · " + truncateLine(m.opts.Session.Meta.Title, max(12, m.width/3))
@@ -3805,11 +3832,17 @@ func (m *model) statusView() string {
 	if avail := m.width - lipgloss.Width(right) - 3; lipgloss.Width(left) > avail {
 		left = fitLine(left, avail)
 	}
-	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 2
+	// The status line shares the gutter: its left margin is the gutter, or
+	// the single space it has always had when the gutter has collapsed.
+	lead := m.gutter()
+	if lead < 1 {
+		lead = 1
+	}
+	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right) - lead - 1
 	if gap < 1 {
 		gap = 1
 	}
-	return fitLine(" "+left+strings.Repeat(" ", gap)+right+" ", m.width)
+	return fitLine(strings.Repeat(" ", lead)+left+strings.Repeat(" ", gap)+right+" ", m.width)
 }
 
 // contextGauge shows how full the context window is relative to the
@@ -3933,7 +3966,7 @@ func (m *model) footerView() string {
 			if i == idx {
 				mark, name, help = styleAccent.Render("▸ "), styleKey.Bold(true).Render(cmd.name), styleDim.Render(cmd.help)
 			}
-			parts = append(parts, fitLine(mark+name+" "+styleDim.Render(cmd.args)+"  "+help, m.width-1))
+			parts = append(parts, fitLine(mark+name+" "+styleDim.Render(cmd.args)+"  "+help, m.width-1-m.gutter()))
 		}
 		for i := end - start; i < rows; i++ {
 			parts = append(parts, "")
@@ -3960,8 +3993,14 @@ func (m *model) footerView() string {
 			lines[i] = "  " + lines[i]
 		}
 	}
-	parts = append(parts, box.Width(m.width-2).Render(strings.Join(lines, "\n")))
-	return strings.Join(parts, "\n")
+	parts = append(parts, box.Width(m.width-2-m.gutter()).Render(strings.Join(lines, "\n")))
+	out := strings.Join(parts, "\n")
+	// The whole footer — the notice row, the menu and the input box —
+	// shares the gutter with the transcript and header above it.
+	if g := m.gutter(); g > 0 {
+		out = indent(out, strings.Repeat(" ", g))
+	}
+	return out
 }
 
 // suggestedRule is the rule r would save, written the way the rest of
@@ -3987,7 +4026,11 @@ func (m *model) permissionView() string {
 		sb.WriteString("\n" + styleErr.Bold(true).Render("⚠ "+sanitize(c.Warning)))
 	}
 	sb.WriteString("\n" + m.permissionKeys(c.Name, m.suggestedRule(c.Name, c.Input), pendingExpandable(c)))
-	return stylePermBox.Width(m.width - 2).Render(sb.String())
+	box := stylePermBox.Width(m.width - 2 - m.gutter()).Render(sb.String())
+	if g := m.gutter(); g > 0 {
+		box = indent(box, strings.Repeat(" ", g))
+	}
+	return box
 }
 
 func shortPath(p string) string {

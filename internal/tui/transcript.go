@@ -112,7 +112,13 @@ type mdChunk struct {
 
 // renderOpts carries per-frame state into rendering.
 type renderOpts struct {
-	width   int
+	width int
+	// gutter is the left margin every top-level line steps in from, so the
+	// existing 2-column body indent steps in consistently from it. The
+	// effective content width is width-gutter; entries are rendered to that
+	// and then indented, so the body indent and diffs stay relative to the
+	// gutter, not the terminal edge.
+	gutter  int
 	resized bool
 	pending *permissionMsg
 	spinner string // current spinner frame for running tools
@@ -417,6 +423,22 @@ func (t *transcript) render(o renderOpts) string {
 	if width < 20 {
 		width = 20
 	}
+	// The gutter narrows the content and indents it: everything an entry
+	// renders is sized to width-gutter, so its own inner indents and diff
+	// gutters stay relative to the margin rather than overrunning it. A
+	// gutter that would leave less than the 20-column floor is dropped.
+	g := o.gutter
+	if g < 0 {
+		g = 0
+	}
+	if g > 0 && width-g >= 20 {
+		width -= g
+	} else {
+		g = 0
+	}
+	// From here on the entries are rendered at the narrowed width; o.width
+	// carries it so needsRender's width comparison and renderEntry agree.
+	o.width = width
 	if t.renderer == nil || t.rWidth != width {
 		r, err := glamour.NewTermRenderer(glamour.WithStyles(markdownStyle(t.styleName == "dark")), glamour.WithWordWrap(width-2))
 		if err == nil {
@@ -452,10 +474,18 @@ func (t *transcript) render(o renderOpts) string {
 			e.renderedN = len(e.text)
 			e.verbose = o.expand(e)
 		}
+		// The gutter is applied on the way out, not baked into the cached
+		// render, so it costs nothing when it collapses to zero and the
+		// per-entry cache survives a width-preserving toggle. Indenting adds
+		// no newlines, so the line map is unchanged.
+		out := e.rendered
+		if g > 0 {
+			out = indent(out, strings.Repeat(" ", g))
+		}
 		e.lineFrom = line
-		line += strings.Count(e.rendered, "\n")
+		line += strings.Count(out, "\n")
 		e.lineTo = line
-		sb.WriteString(e.rendered)
+		sb.WriteString(out)
 		sb.WriteByte('\n')
 		line++
 	}

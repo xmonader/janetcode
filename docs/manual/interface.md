@@ -74,6 +74,17 @@ Switching never re-asks the terminal for its background, so no keystroke is
 lost; selecting a single-mode theme (a dark-only one, say) pins the light
 or dark assumption to that theme.
 
+### Room to breathe: the gutter
+
+The transcript, the header, the status line and the input box share one
+left margin — the theme's gutter, two columns by default — so the
+top-level lines (the `✓` tool, `·` thought, `❯` prompt) step in from the
+edge and the body indent under them steps in consistently from there. On a
+terminal narrower than 88 columns the gutter collapses to zero, so diffs,
+code and tables keep every column they can get. A dense theme can set its
+gutter to `0` to switch the margin off at every width. The vertical rhythm
+— one blank line between blocks — is unchanged; this is horizontal only.
+
 ## The terminal takes part
 
 janetcode tells the terminal what is happening, so the terminal can help:
