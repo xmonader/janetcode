@@ -1,10 +1,12 @@
 package tool
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -235,15 +237,46 @@ func (j *Jobs) KillAll() {
 	}
 }
 
-// Output returns the last n lines of a job's output (all when n <= 0).
+// maxOutputTail bounds how much of a job's log is read to answer for it.
+// Nothing above asks for more than a hundred lines, and a background
+// server or a verbose build writes a log with no bound on it at all.
+const maxOutputTail = 1 << 20
+
+// Output returns the last n lines of a job's output (all when n <= 0, up
+// to the last maxOutputTail bytes of the log).
+//
+// Only the tail is read. Finished() asks every job that ended for its last
+// twenty lines at each turn boundary, so reading the whole file to keep
+// twenty lines of it made a chatty job — a dev server, a test loop, a
+// watcher logging all session — cost its entire log in memory, twice
+// over, at a moment that has nothing to do with it.
 func (j *Jobs) Output(id, n int) (string, error) {
 	job := j.find(id)
 	if job == nil {
 		return "", fmt.Errorf("no job %d", id)
 	}
-	data, err := os.ReadFile(job.OutPath)
+	f, err := os.Open(job.OutPath)
 	if err != nil {
 		return "", err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return "", err
+	}
+	start, size := int64(0), st.Size()
+	if size > maxOutputTail {
+		start = size - maxOutputTail
+	}
+	data := make([]byte, size-start)
+	if _, err := f.ReadAt(data, start); err != nil && err != io.EOF {
+		return "", err
+	}
+	if start > 0 {
+		// The read began mid-line; drop the fragment.
+		if i := bytes.IndexByte(data, '\n'); i >= 0 {
+			data = data[i+1:]
+		}
 	}
 	s := strings.TrimRight(string(data), "\n")
 	if n > 0 {

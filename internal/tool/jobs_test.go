@@ -77,3 +77,51 @@ func TestJobsKillStopsTheProcessGroup(t *testing.T) {
 		}
 	}
 }
+
+// A background job's log has no ceiling: a dev server or a watcher writes
+// to it for the whole session, and Finished asks every job that ended for
+// its tail at each turn boundary. Answering that must not cost the whole
+// file in memory.
+func TestJobsOutputReadsOnlyTheTail(t *testing.T) {
+	dir := t.TempDir()
+	jobs := &Jobs{Dir: dir}
+	// A log comfortably larger than the tail window.
+	path := dir + "/big.log"
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := strings.Repeat("x", 99) + "\n"
+	for i := 0; i < (maxOutputTail/len(line))+500; i++ {
+		if _, err := f.WriteString(line); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.WriteString("the last line\n")
+	f.Close()
+	st, _ := os.Stat(path)
+	if st.Size() <= maxOutputTail {
+		t.Fatalf("the fixture log is only %d bytes", st.Size())
+	}
+
+	jobs.jobs = append(jobs.jobs, &Job{ID: 1, OutPath: path, Done: true, done: make(chan struct{})})
+	out, err := jobs.Output(1, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(out, "\n")
+	if len(lines) != 3 || lines[2] != "the last line" {
+		t.Fatalf("tail = %q", out)
+	}
+	// Asking for everything is still bounded by the window.
+	all, err := jobs.Output(1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if int64(len(all)) > maxOutputTail {
+		t.Fatalf("read %d bytes of a %d-byte log", len(all), st.Size())
+	}
+	if !strings.HasSuffix(all, "the last line") {
+		t.Fatal("the end of the log was not what came back")
+	}
+}
