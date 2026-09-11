@@ -360,7 +360,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		mem.Embed = func(ctx context.Context, texts []string) ([][]float32, error) { return em.Embed(ctx, model, texts) }
 	}
 	pool := newProviderPool(cfg, prov)
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, models: pool.For}
+	typed := &tool.URLSet{}
+	typed.Note(initial)
+	typed.Note(*promptText)
+	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, models: pool.For, typed: typed}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return err
@@ -1123,6 +1126,9 @@ type agentDeps struct {
 	readOnly bool
 	// autoEdits starts the session with file edits auto-accepted.
 	autoEdits bool
+	// typed holds the hosts the user named themselves. fetch_url reaches a
+	// private-network address only for a host that is in here.
+	typed *tool.URLSet
 }
 
 // builtAgent is one session's agent and the pieces the caller still owns:
@@ -1166,7 +1172,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 			tool.EditFile{Root: d.cwd, Seen: seen, NoLines: envOff()["lineedit"]},
 			tool.Bash{Root: d.cwd, Cache: &tool.ShellCache{}, Jobs: jobs},
 			tool.JobTool{Jobs: jobs},
-			tool.FetchURL{},
+			tool.FetchURL{Typed: d.typed},
 			tool.WebSearch{Config: d.cfg.Search},
 			expand,
 			task,

@@ -522,6 +522,29 @@ that a small model fails some of the time; 35 live runs with 3 failures
 were not enough to beat the baseline, so more failing runs are needed
 before the critic earns its place.
 
+### What fetch_url will not do
+
+A fetch is approved for one URL, so it stays on that URL. A redirect to a
+different host, or a redirect from https down to http, is handed back to
+the model instead of followed — the permission was for the host that was
+asked about, and a redirect is another host's chance to be fetched under
+it. A same-host redirect is followed as usual.
+
+A GitHub blob URL is rewritten to `raw.githubusercontent.com` before the
+permission check, so the host approved, and any rule saved, is the host
+actually contacted — and what comes back is the file rather than the
+several hundred kilobytes of page around it.
+
+A Content-Type is the server's claim; the bytes are not. A body whose
+leading bytes are a PNG, a PDF, a zip, gzip or an ELF binary is named and
+not read, whatever it was served as.
+
+A URL pointing at the local machine or network — loopback, a private
+range, a link-local address (on a cloud instance, the credentials
+endpoint), `localhost`, `*.local`, `*.internal` — is fetched only when the
+user named that host themselves in their own message. The agent reaching
+one on its own initiative is reading something nobody offered it.
+
 ### Browsing
 
 janetcode has no browser tool of its own and does not need one: it speaks

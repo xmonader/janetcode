@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	tools "github.com/xmonader/janetcode/internal/tool"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -187,7 +188,11 @@ func Subject(tool string, input json.RawMessage) string {
 		}
 		return "."
 	case "fetch_url":
-		return str("url")
+		// The rewrite that turns a GitHub blob page into the raw file
+		// happens before the check, so the host approved, and any rule
+		// saved, is the host actually contacted.
+		out, _ := tools.NormalizeURL(str("url"))
+		return out
 	}
 	for _, k := range []string{"path", "command", "url", "query", "name"} {
 		if v := str(k); v != "" {
