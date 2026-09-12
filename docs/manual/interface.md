@@ -32,9 +32,10 @@ whether bash is sandboxed or the workspace is remote, what the agent is
 doing (including what it is waiting on: a retry and its countdown, a
 compaction, a subagent), the elapsed time, and a gauge of how full the
 context window is. While the model is thinking — not running a tool, not
-waiting on you — that wait is a seeded present-participle ("Moonwalking…",
-"Pondering…", "Reticulating…") that rotates every couple of seconds,
-the same idea as Claude Code's spinner texts; `--web` uses the same list.
+waiting on you — that wait is a seeded flavor line that rotates every
+couple of seconds: Claude Code present-participles ("Moonwalking…",
+"Pondering…") mixed with Qwen Code loading phrases ("Reticulating splines…",
+"Don't panic…", "Constructing additional pylons…"); `--web` uses the same list.
 Tool names and retry countdowns stay literal. Mode changes land here, not in the transcript. The input box
 is a reserved height (six lines, three in a short window) so the transcript
 above it does not move as you type; extra lines scroll inside the box. A

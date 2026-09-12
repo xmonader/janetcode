@@ -1,15 +1,16 @@
-// Package flavor supplies the whimsical present-participle verbs shown
-// on the status line while the model is thinking — the same idea as
-// Claude Code's spinner texts. Tool, retry and wait phases are left
-// alone; only the idle "thinking" wait is dressed up.
+// Package flavor supplies the whimsical texts shown on the status line
+// while the model is thinking. The pool is Claude Code's present-participle
+// verbs mixed with Qwen Code's sentence-style loading phrases. Tool, retry
+// and wait phases are left alone; only the idle "thinking" wait is dressed up.
 package flavor
 
 import (
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
-// Interval is how long one verb stays on screen before the next.
+// Interval is how long one phrase stays on screen before the next.
 const Interval = 2500 * time.Millisecond
 
 // verbs are seeded in the binary. They rotate; they are not generated.
@@ -53,7 +54,63 @@ var verbs = []string{
 // first pick so consecutive turns do not all open on the same word;
 // elapsed time walks the list.
 func Verb(at, started time.Time) string {
-	n := len(verbs)
+	return pick(verbs, at, started)
+}
+
+// Phrase picks from the mixed pool: Claude verbs and Qwen loading lines.
+func Phrase(at, started time.Time) string {
+	n := len(verbs) + len(witty)
+	if n == 0 {
+		return dress("Thinking")
+	}
+	if started.IsZero() {
+		started = at
+	}
+	off := int(started.UnixNano()/int64(time.Millisecond)) % n
+	if off < 0 {
+		off = 0
+	}
+	step := int(at.Sub(started) / Interval)
+	if step < 0 {
+		step = 0
+	}
+	i := (off + step) % n
+	if i < len(verbs) {
+		return dress(verbs[i])
+	}
+	return dress(witty[i-len(verbs)])
+}
+
+// ForPhase leaves a specific wait (a tool, a retry, a compaction) as it
+// is, and dresses only the idle "thinking" wait.
+func ForPhase(phase string, at, started time.Time) string {
+	if phase != "thinking" {
+		return phase
+	}
+	return Phrase(at, started)
+}
+
+// Known reports whether s is one of the seeded verbs or witty lines,
+// with or without the trailing ellipsis the status line adds.
+func Known(s string) bool {
+	s = strings.TrimSpace(s)
+	key := trimEllipsis(s)
+	for _, v := range verbs {
+		if v == key {
+			return true
+		}
+	}
+	for _, p := range witty {
+		p = strings.TrimSpace(p)
+		if s == p || s == dress(p) || key == trimEllipsis(p) {
+			return true
+		}
+	}
+	return false
+}
+
+func pick(list []string, at, started time.Time) string {
+	n := len(list)
 	if n == 0 {
 		return "Thinking"
 	}
@@ -68,31 +125,30 @@ func Verb(at, started time.Time) string {
 	if step < 0 {
 		step = 0
 	}
-	return verbs[(off+step)%n]
+	return list[(off+step)%n]
 }
 
-// ForPhase leaves a specific wait (a tool, a retry, a compaction) as it
-// is, and dresses only the idle "thinking" wait.
-func ForPhase(phase string, at, started time.Time) string {
-	if phase != "thinking" {
-		return phase
+func dress(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "Thinking…"
 	}
-	return Verb(at, started) + "…"
-}
-
-// Known reports whether s is one of the seeded verbs, with or without
-// the trailing ellipsis the status line adds.
-func Known(s string) bool {
-	s = trimEllipsis(s)
-	for _, v := range verbs {
-		if v == s {
-			return true
-		}
+	if strings.HasSuffix(s, "…") {
+		return s
 	}
-	return false
+	if strings.HasSuffix(s, "...") {
+		return strings.TrimSuffix(s, "...") + "…"
+	}
+	r, _ := utf8.DecodeLastRuneInString(s)
+	switch r {
+	case '.', '!', '?', ')':
+		return s
+	}
+	return s + "…"
 }
 
 func trimEllipsis(s string) string {
+	s = strings.TrimSpace(s)
 	s = strings.TrimSuffix(s, "…")
 	return strings.TrimSuffix(s, "...")
 }
