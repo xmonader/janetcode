@@ -659,24 +659,6 @@ func (m *model) goalRound() tea.Cmd {
 }
 
 func (m *model) agentsCommand() {
-	task := m.taskTool()
-	if task == nil {
-		ag := m.opts.Agent
-		if ag == nil || ag.Tools == nil {
-			m.transcript.info("no tools")
-			return
-		}
-		if _, ok := ag.Tools.Get("task"); !ok {
-			m.transcript.info("no task tool")
-			return
-		}
-		m.transcript.info("task tool is not continuable")
-		return
-	}
-	if len(task.Children()) == 0 {
-		m.transcript.info("no subagents yet; task continue=<id> reuses one")
-		return
-	}
 	m.openOverlay(overlayAgents)
 }
 

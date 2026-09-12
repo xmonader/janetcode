@@ -71,7 +71,8 @@ func (m *model) agentsOverlayView(height int) string {
 		kids = t.Children()
 	}
 	if len(kids) == 0 {
-		add("  " + styleDim.Render("no subagents"))
+		add(styleDim.Render("no subagents yet"))
+		add(styleFaint.Render("the model starts one with the task tool · task continue=<id> reuses it"))
 	} else {
 		for _, k := range kids {
 			state, stateStyle := "done", styleOK

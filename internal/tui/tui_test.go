@@ -1411,11 +1411,21 @@ func TestAgentsCommandEmpty(t *testing.T) {
 	h := newHarness(t)
 	attachTask(h)
 	runAgents(h)
-	if h.m.overlay != "" {
-		t.Fatal("empty /agents should not open an overlay")
+	if h.m.overlay != overlayAgents {
+		t.Fatal("empty /agents should still open the overlay")
 	}
-	if v := plain(h.m.View()); !strings.Contains(v, "no subagents yet") {
-		t.Fatalf("empty state:\n%s", v)
+	v := plain(h.m.View())
+	if !strings.Contains(v, "Subagents") || !strings.Contains(v, "no subagents yet") {
+		t.Fatalf("empty overlay:\n%s", v)
+	}
+	for _, e := range h.m.transcript.entries {
+		if e.kind == entryInfo && strings.Contains(e.text, "no subagents") {
+			t.Fatalf("empty state dumped into the transcript: %q", e.text)
+		}
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if h.m.overlay != "" {
+		t.Fatal("esc should close the empty overlay")
 	}
 }
 

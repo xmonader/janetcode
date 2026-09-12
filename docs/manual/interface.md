@@ -514,10 +514,11 @@ A subagent that finished is not gone: `/agents` opens a live overlay of
 the continuable subagents this session started with the `task` tool —
 each child's id, whether it is running or done, and what it last did.
 The listing is not appended to the conversation; esc closes it and
-restores the prompt. With none yet, `/agents` says so in one line. When
-one has found something and the answer it wrote back is not the whole
-of it, carry on by asking ("tell task-2 to also check …") or with
-`task continue=<id>`, rather than starting again from an empty context.
+restores the prompt. With none yet, the same overlay says so rather
+than a one-line notice. When one has found something and the answer it
+wrote back is not the whole of it, carry on by asking ("tell task-2 to
+also check …") or with `task continue=<id>`, rather than starting again
+from an empty context.
 
 ### Prompt caching
 
