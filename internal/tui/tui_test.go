@@ -1393,6 +1393,154 @@ func TestStatsCommand(t *testing.T) {
 	}
 }
 
+func attachTask(h *harness) *agent.Task {
+	h.t.Helper()
+	task := &agent.Task{Parent: h.m.opts.Agent}
+	h.m.opts.Agent.Tools.Add(tool.ReadFile{Root: h.m.opts.Cwd})
+	h.m.opts.Agent.Tools.Add(task)
+	return task
+}
+
+func runAgents(h *harness) {
+	h.t.Helper()
+	h.keys("/agents")
+	h.enter()
+}
+
+func TestAgentsCommandEmpty(t *testing.T) {
+	h := newHarness(t)
+	attachTask(h)
+	runAgents(h)
+	if h.m.overlay != "" {
+		t.Fatal("empty /agents should not open an overlay")
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "no subagents yet") {
+		t.Fatalf("empty state:\n%s", v)
+	}
+}
+
+func TestAgentsOverlayOpenEscAndNoDump(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Agent.Provider = &scripted{responses: []*llm.Response{
+		{Message: llm.TextMessage(llm.RoleAssistant, "found the parser"), StopReason: llm.StopEndTurn},
+	}}
+	task := attachTask(h)
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"explore the parser","prompt":"look at the parser"}`)); err != nil {
+		t.Fatal(err)
+	}
+	kids := task.Children()
+	if len(kids) != 1 || kids[0].ID == "" || kids[0].Description != "explore the parser" {
+		t.Fatalf("children = %+v", kids)
+	}
+	id := kids[0].ID
+	runAgents(h)
+	if h.m.overlay != overlayAgents {
+		t.Fatalf("overlay = %q, want %s", h.m.overlay, overlayAgents)
+	}
+	v := plain(h.m.View())
+	for _, want := range []string{"Subagents", id, "explore the parser", "done", "esc closes"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("missing %q in overlay:\n%s", want, v)
+		}
+	}
+	for _, e := range h.m.transcript.entries {
+		if e.kind == entryInfo && strings.Contains(e.text, id) {
+			t.Fatalf("listing dumped into the transcript: %q", e.text)
+		}
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if h.m.overlay != "" {
+		t.Fatal("esc should close the overlay")
+	}
+	h.keys("still here")
+	if h.m.input.Value() != "still here" {
+		t.Fatalf("prompt not usable after esc: %q", h.m.input.Value())
+	}
+	if v := plain(h.m.View()); strings.Contains(v, "esc closes") {
+		t.Fatalf("overlay still drawn after esc:\n%s", v)
+	}
+	for _, e := range h.m.transcript.entries {
+		if e.kind == entryInfo && strings.Contains(e.text, id) {
+			t.Fatalf("listing lingered in the transcript: %q", e.text)
+		}
+	}
+}
+
+// gateProvider holds Stream until release is closed, so a test can open
+// /agents while the child is still running.
+type gateProvider struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (g *gateProvider) Name() string { return "fake" }
+func (g *gateProvider) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	g.once.Do(func() { close(g.started) })
+	select {
+	case <-g.release:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "surveyed"), StopReason: llm.StopEndTurn}, nil
+}
+
+func TestAgentsOverlayLiveUpdate(t *testing.T) {
+	h := newHarness(t)
+	gate := &gateProvider{started: make(chan struct{}), release: make(chan struct{})}
+	h.m.opts.Agent.Provider = gate
+	task := attachTask(h)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	errc := make(chan error, 1)
+	go func() {
+		_, err := task.Run(ctx, json.RawMessage(`{"description":"survey tests","prompt":"find the tests"}`))
+		errc <- err
+	}()
+	select {
+	case <-gate.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("child did not start")
+	}
+	kids := task.Children()
+	if len(kids) != 1 || kids[0].Done {
+		t.Fatalf("want one running child, got %+v", kids)
+	}
+	runAgents(h)
+	if h.m.overlay != overlayAgents {
+		t.Fatal("overlay should open on a running child")
+	}
+	v := plain(h.m.View())
+	for _, want := range []string{kids[0].ID, "survey tests", "running"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("missing %q while running:\n%s", want, v)
+		}
+	}
+	if last := kids[0].Last; last != "" && !strings.Contains(v, last) {
+		t.Fatalf("missing last action %q:\n%s", last, v)
+	}
+	close(gate.release)
+	select {
+	case err := <-errc:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("child did not finish")
+	}
+	h.update(tickMsg(time.Now()))
+	v = plain(h.m.View())
+	if !strings.Contains(v, "done") {
+		t.Fatalf("overlay did not pick up done:\n%s", v)
+	}
+	if strings.Contains(v, "running") {
+		t.Fatalf("still shows running after done:\n%s", v)
+	}
+	if h.m.overlay != overlayAgents {
+		t.Fatal("overlay should stay open across the live update")
+	}
+}
+
 func TestJobsCommandAndIdleNotice(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
 	h.keys("/jobs")

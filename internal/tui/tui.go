@@ -659,42 +659,25 @@ func (m *model) goalRound() tea.Cmd {
 }
 
 func (m *model) agentsCommand() {
-	ag := m.opts.Agent
-	if ag == nil || ag.Tools == nil {
-		m.transcript.info("no tools")
-		return
-	}
-	t, ok := ag.Tools.Get("task")
-	if !ok {
-		m.transcript.info("no task tool")
-		return
-	}
-	task, ok := t.(*agent.Task)
-	if !ok {
+	task := m.taskTool()
+	if task == nil {
+		ag := m.opts.Agent
+		if ag == nil || ag.Tools == nil {
+			m.transcript.info("no tools")
+			return
+		}
+		if _, ok := ag.Tools.Get("task"); !ok {
+			m.transcript.info("no task tool")
+			return
+		}
 		m.transcript.info("task tool is not continuable")
 		return
 	}
-	kids := task.Children()
-	if len(kids) == 0 {
+	if len(task.Children()) == 0 {
 		m.transcript.info("no subagents yet; task continue=<id> reuses one")
 		return
 	}
-	var sb strings.Builder
-	for _, k := range kids {
-		state := "done"
-		if !k.Done {
-			state = "running"
-		}
-		fmt.Fprintf(&sb, "%s  %-7s  %s  %s\n", k.ID, state, shortDuration(time.Since(k.Started)), k.Description)
-		if !k.Done && k.Last != "" {
-			fmt.Fprintf(&sb, "    now: %s\n", k.Last)
-		}
-		if k.Usage.InputTokens+k.Usage.OutputTokens > 0 {
-			fmt.Fprintf(&sb, "    tokens in=%s out=%s\n", shortTokens(k.Usage.InputTokens), shortTokens(k.Usage.OutputTokens))
-		}
-	}
-	sb.WriteString("steer one by asking for it: \"tell task-2 to also check …\" · task continue=<id> reuses it")
-	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+	m.openOverlay(overlayAgents)
 }
 
 // pinCommand adds a pin or lists them.
@@ -1123,7 +1106,7 @@ var commands = []command{
 	{name: "/why", args: "[n]", help: "explain the last thing the harness did on its own, in plain words; n goes further back"},
 	{name: "/feedback", args: "up|down [note]", help: "rate the last assistant message (not sent to the model)"},
 	{name: "/goal", args: "[objective|pause|resume|done]", help: "set a goal and start on it now; the model keeps going round after round until it is complete or blocked"},
-	{name: "/agents", args: "", help: "list continuable subagents started with the task tool"},
+	{name: "/agents", args: "", help: "live overlay of continuable subagents started with the task tool"},
 	{name: "/readonly", args: "", help: "toggle read-only mode (no edits or commands)"},
 	{name: "/memory", args: "", help: "what janetcode remembers about this project"},
 	{name: "/skills", args: "", help: "skill files available to the model"},
@@ -1268,6 +1251,7 @@ type model struct {
 	lastFindAt  int                      // line of the last hit, so repeats advance past it
 	picker      *picker                  // open searchable list
 	connect     *connect                 // open provider/model dialog
+	overlay     string                   // live panel over the transcript (overlayAgents); empty is closed
 	connectGen  int
 	quitting    bool
 	branch      string
@@ -1627,7 +1611,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// (or in the session's worktree) from outside; follow it.
 			m.followBranch()
 		}
-		if m.running {
+		if m.running || m.overlay != "" {
 			m.refresh(false)
 		} else if notes := m.opts.Jobs.Finished(); len(notes) > 0 {
 			for _, n := range notes {
@@ -1875,6 +1859,9 @@ func keyName(msg tea.KeyMsg) string {
 }
 
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if m.overlay != "" {
+		return m.handleOverlayKey(msg)
+	}
 	if m.picker != nil {
 		return m.handlePickerKey(msg)
 	}
@@ -2230,7 +2217,7 @@ func (m *model) recall(i int) string {
 // completions lists slash commands matching the input, or files matching
 // the @path being typed at its end.
 func (m *model) completions() []command {
-	if m.connect != nil || m.picker != nil {
+	if m.connect != nil || m.picker != nil || m.overlay != "" {
 		return nil
 	}
 	m.compArgs = false
@@ -3472,27 +3459,23 @@ func (m *model) liveWork() string {
 			parts = append(parts, fmt.Sprintf("goal %s round %d/%d (/goal pause)", g.ID, g.Rounds, g.MaxRounds))
 		}
 	}
-	if ag := m.opts.Agent; ag != nil && ag.Tools != nil {
-		if t, ok := ag.Tools.Get("task"); ok {
-			if task, ok := t.(*agent.Task); ok {
-				kids := task.Children()
-				running := 0
-				var last agent.ChildInfo
-				for _, k := range kids {
-					if !k.Done {
-						running++
-						last = k
-					}
-				}
-				switch {
-				case running > 0 && last.Description != "" && last.Last != "":
-					parts = append(parts, plural(running, "subagent")+": "+last.Description+" · "+last.Last+" (/agents)")
-				case running > 0:
-					parts = append(parts, plural(running, "subagent")+" running (/agents)")
-				case len(kids) > 0:
-					parts = append(parts, plural(len(kids), "subagent")+" (/agents)")
-				}
+	if task := m.taskTool(); task != nil {
+		kids := task.Children()
+		running := 0
+		var last agent.ChildInfo
+		for _, k := range kids {
+			if !k.Done {
+				running++
+				last = k
 			}
+		}
+		switch {
+		case running > 0 && last.Description != "" && last.Last != "":
+			parts = append(parts, plural(running, "subagent")+": "+last.Description+" · "+last.Last+" (/agents)")
+		case running > 0:
+			parts = append(parts, plural(running, "subagent")+" running (/agents)")
+		case len(kids) > 0:
+			parts = append(parts, plural(len(kids), "subagent")+" (/agents)")
 		}
 	}
 	return strings.Join(parts, " · ")
@@ -3713,7 +3696,7 @@ func (m *model) View() string {
 	if m.quitting {
 		return ""
 	}
-	if m.picker != nil || m.connect != nil {
+	if m.picker != nil || m.connect != nil || m.overlay != "" {
 		// A modal is the input: give it the body plus the reserved
 		// footer so a short terminal still has room for the highlight.
 		bodyH := m.height - 2 // header, status
@@ -3721,10 +3704,13 @@ func (m *model) View() string {
 			bodyH = 3
 		}
 		body := ""
-		if m.picker != nil {
+		switch {
+		case m.picker != nil:
 			body = m.pickerView(bodyH)
-		} else {
+		case m.connect != nil:
 			body = m.connectView(bodyH)
+		default:
+			body = m.overlayView(bodyH)
 		}
 		return lipgloss.JoinVertical(lipgloss.Left, m.headerView(), body, m.statusView())
 	}
