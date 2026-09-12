@@ -102,12 +102,12 @@ func childInfoLocked(id string, c *subagent) ChildInfo {
 // ChildStep is one line of a subagent's own conversation, for a UI that
 // shows what it did rather than only that it is running.
 type ChildStep struct {
-	Kind    string // prompt, think, text, tool, now
-	Name    string // tool name
-	Text    string // prompt, thought, answer, or tool input summary
-	Result  string // tool output, when Kind is tool and it has finished
-	OK      bool
-	Pending bool
+	Kind    string `json:"kind"` // prompt, think, text, tool, now
+	Name    string `json:"name,omitempty"`
+	Text    string `json:"text,omitempty"`
+	Result  string `json:"result,omitempty"`
+	OK      bool   `json:"ok"`
+	Pending bool   `json:"pending,omitempty"`
 }
 
 // ChildLog is a live snapshot of one subagent, including a copy of its

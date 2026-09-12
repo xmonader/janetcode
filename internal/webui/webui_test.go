@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -110,7 +112,7 @@ func TestWorkspaceIsStructured(t *testing.T) {
 	body, _ := io.ReadAll(page.Body)
 	page.Body.Close()
 	html := string(body)
-	for _, want := range []string{"New session", "Plan", "Changed files", "Background jobs", "Subagents", "Trajectory", "id=\"sessions\"", "id=\"composer\"", "id=\"mode-chip\"", "id=\"questions\"", "id=\"mode-auto\"", "id=\"trajectory\"", "work-tabs", "new-session"} {
+	for _, want := range []string{"New session", "Plan", "Changed files", "Background jobs", "Subagents", "PTC", "Trajectory", "id=\"sessions\"", "id=\"composer\"", "id=\"mode-chip\"", "id=\"questions\"", "id=\"mode-auto\"", "id=\"trajectory\"", "work-tabs", "new-session"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("page missing %q", want)
 		}
@@ -485,5 +487,160 @@ func TestWebStatusDressesThinking(t *testing.T) {
 	s.phase = "running bash"
 	if got := s.statusLocked().Phase; got != "running bash" {
 		t.Fatalf("tool phase was dressed: %q", got)
+	}
+}
+
+type exploreProv struct{}
+
+func (exploreProv) Name() string { return "fake" }
+func (exploreProv) Stream(_ context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	if emit == nil {
+		emit = func(llm.Event) {}
+	}
+	last := req.Messages[len(req.Messages)-1]
+	if last.Role == llm.RoleUser && len(last.ToolUses()) == 0 && last.Blocks[0].Type != llm.BlockToolResult {
+		r := &llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "c1", Name: "read_file", Input: json.RawMessage(`{"path":"a.txt"}`)},
+		}}, StopReason: llm.StopToolUse}
+		return r, nil
+	}
+	text := ""
+	if len(last.Blocks) > 0 {
+		text = last.Blocks[0].Text
+	}
+	return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "REPORT: a.txt says "+strings.TrimSpace(text)), StopReason: llm.StopEndTurn}, nil
+}
+
+func TestAgentTranscriptAPI(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := session.New(t.TempDir(), root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ag := &agent.Agent{Provider: exploreProv{}, Model: "m", System: "sys", AutoApprove: true, Log: sess}
+	task := &agent.Task{Parent: ag, Root: root}
+	ag.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+	ts := httptest.NewServer(Handler(Options{Agent: ag, Session: sess, Cwd: root, Version: "test"}))
+	defer ts.Close()
+	out, err := task.Run(context.Background(), json.RawMessage(`{"description":"one","prompt":"explore one"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "REPORT: a.txt says") {
+		t.Fatalf("child report = %q", out)
+	}
+	ids := task.ChildIDs()
+	if len(ids) != 1 {
+		t.Fatalf("children = %v", ids)
+	}
+	res, err := http.Get(ts.URL + "/api/agent?id=" + ids[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatalf("status %d", res.StatusCode)
+	}
+	raw, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(raw), ids[0]) || !strings.Contains(string(raw), "a.txt") {
+		t.Fatalf("agent api missing child transcript: %s", raw)
+	}
+	ws, err := http.Get(ts.URL + "/api/workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.Body.Close()
+	var snap workspace
+	if err := json.NewDecoder(ws.Body).Decode(&snap); err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.Agents) != 1 || snap.Agents[0].ID != ids[0] {
+		t.Fatalf("workspace agents = %+v", snap.Agents)
+	}
+}
+
+func TestJobLogAPI(t *testing.T) {
+	root := t.TempDir()
+	sess, err := session.New(t.TempDir(), root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs := &tool.Jobs{Dir: t.TempDir()}
+	ag := &agent.Agent{Model: "m", Log: sess, Tools: tool.NewRegistry()}
+	ts := httptest.NewServer(Handler(Options{Agent: ag, Session: sess, Jobs: jobs, Cwd: root, Version: "test"}))
+	defer ts.Close()
+	job, err := jobs.Start(root, "echo hello-from-job")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := jobs.Wait(ctx, job.ID); err != nil {
+		t.Fatal(err)
+	}
+	res, err := http.Get(ts.URL + "/api/job?id=" + strconv.Itoa(job.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	raw, _ := io.ReadAll(res.Body)
+	if res.StatusCode != 200 || !strings.Contains(string(raw), "hello-from-job") {
+		t.Fatalf("job api = %d %s", res.StatusCode, raw)
+	}
+}
+
+func TestPTCRunAPI(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("hello-from-ptc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := session.New(t.TempDir(), root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ag := &agent.Agent{Model: "m", Log: sess, AutoApprove: true}
+	rc := &agent.RunCode{Parent: ag}
+	ag.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, rc)
+	ts := httptest.NewServer(Handler(Options{Agent: ag, Session: sess, Cwd: root, Version: "test"}))
+	defer ts.Close()
+	out, err := rc.Run(context.Background(), json.RawMessage(`{"description":"read it","code":[{"name":"read_file","input":{"path":"a.txt"}}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "hello-from-ptc") {
+		t.Fatalf("run_code = %q", out)
+	}
+	list, err := http.Get(ts.URL + "/api/ptc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer list.Body.Close()
+	raw, _ := io.ReadAll(list.Body)
+	if !strings.Contains(string(raw), "run_code") {
+		t.Fatalf("ptc list = %s", raw)
+	}
+	detail, err := http.Get(ts.URL + "/api/ptc?n=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer detail.Body.Close()
+	body, _ := io.ReadAll(detail.Body)
+	if detail.StatusCode != 200 || !strings.Contains(string(body), "read_file") || !strings.Contains(string(body), "hello-from-ptc") {
+		t.Fatalf("ptc detail = %d %s", detail.StatusCode, body)
+	}
+}
+
+func TestColorTokensUnchanged(t *testing.T) {
+	css, err := staticFS.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tok := range []string{"--blue: #4176e6;", "--bg: #ffffff;", "--sidebar: #f9fafb;"} {
+		if !bytes.Contains(css, []byte(tok)) {
+			t.Errorf("stylesheet lost %q", tok)
+		}
 	}
 }

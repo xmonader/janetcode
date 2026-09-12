@@ -945,6 +945,12 @@ button:disabled { cursor: default; opacity: 0.55; }
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 #undo-btn:hover { border-color: var(--bad); color: var(--bad); background: var(--bad-soft); }
+#jobs li[data-job],
+#agents li[data-agent],
+#ptc li[data-ptc] { cursor: pointer; }
+#jobs li[data-job]:hover,
+#agents li[data-agent]:hover,
+#ptc li[data-ptc]:hover { background: var(--surface-2); }
 #agents .agent { font-size: 0.82rem; }
 #agents .a-id { font-family: var(--mono); font-size: 0.72rem; color: var(--faint); }
 #agents .agent.running .a-id { color: var(--blue); }

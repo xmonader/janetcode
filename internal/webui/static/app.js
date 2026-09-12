@@ -492,15 +492,23 @@
       document.getElementById("undo-btn").hidden = !ws.can_undo;
       const jobsEl = document.getElementById("jobs");
       if (ws.jobs && ws.jobs.length) {
-        jobsEl.innerHTML = ws.jobs.map((j) => `<li>${esc(j.summary || j.command)}</li>`).join("");
+        jobsEl.innerHTML = ws.jobs.map((j) => `<li data-job="${j.id}" title="Open log">${esc(j.summary || j.command)}</li>`).join("");
       } else jobsEl.innerHTML = `<li class="quiet">No jobs running</li>`;
       const agentsEl = document.getElementById("agents");
       if (ws.agents && ws.agents.length) {
         agentsEl.innerHTML = ws.agents.map((a) =>
-          `<li class="agent ${a.done ? "done" : "running"}"><span class="a-id">${esc(a.id)}</span> ${esc(a.desc || "")}` +
+          `<li class="agent ${a.done ? "done" : "running"}" data-agent="${esc(a.id)}" title="Open transcript"><span class="a-id">${esc(a.id)}</span> ${esc(a.desc || "")}` +
           (!a.done && a.last ? `<span class="a-last">${esc(a.last)}</span>` : "") + `</li>`
         ).join("");
       } else agentsEl.innerHTML = `<li class="quiet">No subagents yet</li>`;
+      const ptcEl = document.getElementById("ptc");
+      if (ptcEl) {
+        if (ws.ptc && ws.ptc.length) {
+          ptcEl.innerHTML = ws.ptc.map((p) =>
+            `<li data-ptc="${p.n}" title="Open run">${esc(p.tool)} ${p.n} · ${esc(p.summary || "")}</li>`
+          ).join("");
+        } else ptcEl.innerHTML = `<li class="quiet">No scripts this session</li>`;
+      }
       document.getElementById("ctx-line").textContent = ws.ctx_label ? "Context " + ws.ctx_label + " (" + ws.ctx_pct + "%)" : "Context —";
       document.getElementById("cost-line").textContent = ws.cost ? "Spend " + ws.cost : "";
       document.getElementById("mode-yolo").classList.toggle("on", !!ws.yolo);
@@ -551,10 +559,32 @@
     const li = ev.target.closest("li[data-seq]");
     if (!li) return;
     const data = await (await fetch("/api/change?n=" + li.dataset.seq)).json();
-    document.getElementById("viewer-path").textContent = data.path || "";
-    document.getElementById("viewer-diff").innerHTML = diffHTML(data.diff || "");
-    document.getElementById("viewer").hidden = false;
+    showDetail(data.path || "", data.diff || "", true);
   });
+  document.getElementById("jobs").addEventListener("click", async (ev) => {
+    const li = ev.target.closest("li[data-job]");
+    if (!li) return;
+    const data = await (await fetch("/api/job?id=" + li.dataset.job)).json();
+    showDetail("job " + data.id + " · " + (data.command || ""), data.output || "(no output)", false);
+  });
+  document.getElementById("agents").addEventListener("click", async (ev) => {
+    const li = ev.target.closest("li[data-agent]");
+    if (!li) return;
+    const data = await (await fetch("/api/agent?id=" + encodeURIComponent(li.dataset.agent))).json();
+    showDetail(data.id + " · " + (data.desc || ""), data.text || "", false);
+  });
+  document.getElementById("ptc").addEventListener("click", async (ev) => {
+    const li = ev.target.closest("li[data-ptc]");
+    if (!li) return;
+    const data = await (await fetch("/api/ptc?n=" + li.dataset.ptc)).json();
+    showDetail((data.tool || "ptc") + " " + data.n, data.text || "", false);
+  });
+  function showDetail(title, text, asDiff) {
+    document.getElementById("viewer-path").textContent = title;
+    const el = document.getElementById("viewer-diff");
+    el.innerHTML = asDiff ? diffHTML(text) : esc(text);
+    document.getElementById("viewer").hidden = false;
+  }
   document.getElementById("viewer-close").addEventListener("click", () => {
     document.getElementById("viewer").hidden = true;
   });

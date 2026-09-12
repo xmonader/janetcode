@@ -7,7 +7,9 @@ Part of the [janetcode manual](README.md); the [README](../../README.md) has the
 session chrome DeepSeek Harness uses: a collapsible left rail (brand, a
 capsule **New session**, the session list), a conversation column with a
 centered transcript and a floating composer card, and a tabbed right panel
-(Plan, Changed files, Background jobs, Subagents, This session). Chat and
+(Plan, Changed files, Background jobs, Subagents, PTC, This session).
+Click a subagent, job or PTC run to open its transcript, log tail or
+script in the page. Chat and
 Trajectory switch in the header the way DeepSeek Harness does: Chat is the
 conversation, Trajectory is the session event ledger (turns, tools,
 compaction, the critic) with a timing strip and a record inspector.

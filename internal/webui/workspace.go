@@ -35,6 +35,7 @@ type workspace struct {
 	ReadOnly  bool        `json:"readonly"`
 	Mode      string      `json:"mode"`
 	Terminals []termItem  `json:"terminals,omitempty"`
+	Ptc       []ptcItem   `json:"ptc,omitempty"`
 }
 
 type termItem struct {
@@ -183,6 +184,11 @@ func (s *server) workspace() workspace {
 	if terms := termsOf(ag); terms != nil {
 		for _, x := range terms.List() {
 			ws.Terminals = append(ws.Terminals, termItem{ID: x.ID, Last: x.Last, Done: x.Done})
+		}
+	}
+	if ag.Log != nil {
+		for _, run := range agent.FoldPTC(ag.Log.Events()) {
+			ws.Ptc = append(ws.Ptc, ptcSummary(run))
 		}
 	}
 	if usd, ok := ag.UsageSnapshot().Cost(ag.Price); ok {
