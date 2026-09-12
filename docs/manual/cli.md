@@ -18,6 +18,8 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--effort` | reasoning effort where the provider supports it |
 | `--theme <name>` | colour theme for this run: `auto`, `dark`, `light`, or a builtin or user theme name. Overrides the config for this run only; `--inspect themes` lists them |
 | `--yolo` | run mutating tools without asking |
+| `--auto` | auto mode: in-workspace file edits and known-safe reads run without asking; other commands still ask. `/auto` toggles it; shift+tab cycles ask → plan → auto → yolo |
+| `--sandbox` | wrap local bash in docker (or sandbox-exec on macOS). File tools stay on the workspace host. Off by default; `/sandbox` toggles it |
 | `--auto-edits` | auto-accept file edits; commands still ask. `/edits` toggles the same thing mid-session |
 | `--readonly` | read, search and answer, but change nothing |
 | `--continue` (or `-c`), `--resume <id>` (or `-r`) | carry on the last session here, or a named one |

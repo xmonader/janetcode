@@ -123,6 +123,24 @@ func TestInjectorAttachesOncePerWindow(t *testing.T) {
 	}
 }
 
+func TestPathGatedSkillAttachesOnce(t *testing.T) {
+	s := Skill{Name: "sql", Description: "SQL", Body: "use goose", ModelInvocable: true, Paths: []string{"*.sql", "db/**"}}
+	if !s.Matches("db/migrations/001.sql") || !s.Matches("foo.sql") {
+		t.Fatal("should match sql paths")
+	}
+	if s.Matches("main.go") {
+		t.Fatal("matched a go file")
+	}
+	in := &Injector{Skills: func() []Skill { return []Skill{s} }}
+	got := in.ForPaths([]string{"db/schema.sql"})
+	if len(got) != 1 || !strings.Contains(got[0], "use goose") || !strings.Contains(got[0], "[skill: sql") {
+		t.Fatalf("first attach = %v", got)
+	}
+	if got := in.ForPaths([]string{"db/schema.sql"}); len(got) != 0 {
+		t.Fatalf("reattached: %v", got)
+	}
+}
+
 func TestToolReadsSkillByName(t *testing.T) {
 	tl := &Tool{Skills: func() []Skill { return []Skill{{Name: "deploy", Body: "steps", Path: "p", ModelInvocable: true}} }}
 	out, err := tl.Run(context.Background(), json.RawMessage(`{"name":"Deploy"}`))

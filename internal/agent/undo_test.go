@@ -331,6 +331,36 @@ func TestAutoEditsLetsEditsThroughAndCommandsAsk(t *testing.T) {
 	}
 }
 
+// AUTO lets in-workspace edits and known-safe reads through, and still
+// asks for a mutating command. Guard still wins for a command that
+// leaves the workspace.
+func TestAutoModeLetsEditsAndSafeReadsThrough(t *testing.T) {
+	var asked []string
+	deny := ApproverFunc(func(_ context.Context, c ToolCall) (Decision, error) {
+		asked = append(asked, c.Name)
+		return Deny, nil
+	})
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"x","content":"new"}`),
+		toolCall("t2", "bash", `{"command":"ls"}`),
+		toolCall("t3", "bash", `{"command":"echo hi"}`),
+		toolCall("t4", "bash", `{"command":"rm x"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, deny)
+	a.AutoMode = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root}, tool.Bash{Root: root})
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "x")); err != nil {
+		t.Fatal("write_file should have gone through without asking")
+	}
+	if len(asked) != 1 || asked[0] != "bash" {
+		t.Fatalf("approver asked for %v, want just the mutating bash", asked)
+	}
+}
+
 // A file whose state before the turn could not be read is recorded as a
 // failed capture: an undo says so and leaves the file alone, rather than
 // writing an empty copy over it and reporting a restore.

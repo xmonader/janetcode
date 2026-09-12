@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -680,8 +681,8 @@ func (m *model) agentsCommand(args []string) {
 	}
 }
 
-// cycleMode is shift+tab: ask → plan → yolo → ask. /edits and /readonly
-// stay explicit commands so they are not stolen by the cycle.
+// cycleMode is shift+tab: ask → plan → auto → yolo → ask. /edits and
+// /readonly stay explicit commands so they are not stolen by the cycle.
 func (m *model) cycleMode() {
 	ag := m.opts.Agent
 	if ag == nil {
@@ -691,15 +692,175 @@ func (m *model) cycleMode() {
 	case ag.PlanMode:
 		ag.SetPlanMode(false)
 		ag.ReadOnly = false
+		ag.AutoApprove = false
+		ag.AutoMode = true
+		m.transcript.info("auto · in-workspace edits and known-safe reads run; other commands ask · shift+tab cycles ask → plan → auto → yolo")
+	case ag.AutoMode:
+		ag.AutoMode = false
 		ag.AutoApprove = true
-		m.transcript.info("yolo · tools run without asking · shift+tab cycles ask → plan → yolo")
+		m.transcript.info("yolo · tools run without asking · shift+tab cycles ask → plan → auto → yolo")
 	case ag.AutoApprove:
 		ag.AutoApprove = false
-		m.transcript.info("ask · edits and commands ask first · shift+tab cycles ask → plan → yolo")
+		ag.AutoMode = false
+		m.transcript.info("ask · edits and commands ask first · shift+tab cycles ask → plan → auto → yolo")
 	default:
 		ag.AutoApprove = false
+		ag.AutoMode = false
 		ag.SetPlanMode(true)
-		m.transcript.info("plan mode · the model reads and searches but changes nothing · shift+tab cycles ask → plan → yolo")
+		m.transcript.info("plan mode · the model reads and searches but changes nothing · shift+tab cycles ask → plan → auto → yolo")
+	}
+	m.refresh(false)
+}
+
+func (m *model) sandboxCommand(arg string) {
+	ag := m.opts.Agent
+	if ag == nil || ag.Sandbox == nil {
+		m.transcript.errorf("this session has no sandbox")
+		m.refresh(false)
+		return
+	}
+	sb := ag.Sandbox
+	switch arg {
+	case "", "status":
+		m.transcript.info(sb.Status())
+	case "on":
+		if err := sb.Enable(); err != nil {
+			m.transcript.errorf("sandbox: %v", err)
+		} else {
+			m.transcript.info(sb.Status() + " · file tools stay on the workspace host")
+		}
+	case "off":
+		sb.Disable()
+		m.transcript.info(sb.Status())
+	default:
+		sb.SetImage(arg)
+		if !sb.Enabled() {
+			if err := sb.Enable(); err != nil {
+				m.transcript.errorf("sandbox: %v", err)
+				m.refresh(false)
+				return
+			}
+		}
+		m.transcript.info(sb.Status())
+	}
+	m.refresh(false)
+}
+
+func (m *model) reviewCommand(arg string) tea.Cmd {
+	task := m.taskTool()
+	if task == nil {
+		m.transcript.errorf("no task tool in this session")
+		m.refresh(false)
+		return nil
+	}
+	diff, err := gitReviewDiff(m.opts.Cwd)
+	if err != nil {
+		m.transcript.errorf("review: %v", err)
+		m.refresh(false)
+		return nil
+	}
+	if strings.TrimSpace(diff) == "" && arg == "" {
+		m.transcript.info("nothing to review (working tree clean)")
+		m.refresh(false)
+		return nil
+	}
+	focus := arg
+	if focus == "" {
+		focus = "the current uncommitted changes"
+	}
+	briefs := []struct{ desc, agent, extra string }{
+		{"review bugs", "explore", "Look for correctness bugs, logic errors, race conditions and missed edge cases. Report findings with file:line."},
+		{"review tests", "general", "Look for missing tests, weak assertions and regressions. Report findings with file:line."},
+	}
+	m.openOverlay(overlayAgents)
+	send := m.send
+	for _, b := range briefs {
+		prompt := b.extra + "\n\nReview " + focus + ".\n\n" + diff
+		payload, merr := json.Marshal(map[string]string{
+			"description": b.desc,
+			"prompt":      prompt,
+			"agent":       b.agent,
+		})
+		if merr != nil {
+			m.transcript.errorf("review: %v", merr)
+			continue
+		}
+		desc := b.desc
+		go func() {
+			_, runErr := task.Run(context.Background(), payload)
+			send(teammateDoneMsg{desc: desc, err: runErr})
+		}()
+	}
+	m.transcript.info("started review · two subagents · /agents watches them")
+	m.refresh(false)
+	return nil
+}
+
+func gitReviewDiff(cwd string) (string, error) {
+	status, _ := exec.Command("git", "-C", cwd, "status", "--short").CombinedOutput()
+	diff, err := exec.Command("git", "-C", cwd, "diff", "HEAD").CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("not a git repository")
+	}
+	out := strings.TrimSpace(string(status))
+	if d := strings.TrimSpace(string(diff)); d != "" {
+		if out != "" {
+			out += "\n\n"
+		}
+		out += d
+	}
+	const max = 32 * 1024
+	if len(out) > max {
+		out = out[:max] + "\n… (diff truncated)"
+	}
+	return out, nil
+}
+
+func (m *model) loopCommand(arg string) {
+	ag := m.opts.Agent
+	if ag == nil || ag.Cron == nil {
+		m.transcript.errorf("no scheduler in this session")
+		m.refresh(false)
+		return
+	}
+	cron := ag.Cron
+	switch {
+	case arg == "" || arg == "list":
+		jobs := cron.List()
+		if len(jobs) == 0 {
+			m.transcript.info("no loops · /loop 5m <prompt> arms one for this session")
+			m.refresh(false)
+			return
+		}
+		var b strings.Builder
+		for _, j := range jobs {
+			fmt.Fprintf(&b, "%s every %s next %s · %s\n", j.ID, j.Every, j.Next.Format("15:04:05"), j.Prompt)
+		}
+		m.transcript.info(strings.TrimRight(b.String(), "\n"))
+	case arg == "off":
+		n := cron.CancelAll()
+		m.transcript.info(fmt.Sprintf("cancelled %s", plural(n, "loop")))
+	case strings.HasPrefix(arg, "cancel "):
+		id := strings.TrimSpace(strings.TrimPrefix(arg, "cancel "))
+		if !cron.Cancel(id) {
+			m.transcript.errorf("no loop %s", id)
+		} else {
+			m.transcript.info("cancelled " + id)
+		}
+	default:
+		every := 5 * time.Minute
+		prompt := arg
+		if f, rest, ok := strings.Cut(arg, " "); ok {
+			if d, err := agent.ParseEvery(f); err == nil {
+				every, prompt = d, strings.TrimSpace(rest)
+			}
+		}
+		id, err := cron.Add(every, prompt)
+		if err != nil {
+			m.transcript.errorf("loop: %v", err)
+		} else {
+			m.transcript.info(fmt.Sprintf("loop %s every %s · dies when this session ends", id, every))
+		}
 	}
 	m.refresh(false)
 }
@@ -1135,6 +1296,10 @@ type teammateDoneMsg struct {
 	err  error
 }
 
+type cronFireMsg struct {
+	id, prompt string
+}
+
 // eventQueue coalesces agent events so that one slow render never throttles
 // the model stream: the agent goroutine appends without blocking and the UI
 // drains everything that accumulated on its next wake-up.
@@ -1250,7 +1415,11 @@ var commands = []command{
 	{name: "/remember", args: "<fact>", help: "add a fact to the project memory"},
 	{name: "/forget", args: "<n>", help: "remove memory entry n"},
 	{name: "/yolo", args: "", help: "toggle auto-approve for tools"},
+	{name: "/auto", args: "", help: "toggle auto mode: in-workspace edits and known-safe reads run, other commands ask"},
 	{name: "/edits", args: "", help: "toggle auto-accept edits: file changes go through, commands still ask"},
+	{name: "/sandbox", args: "[on|off|image]", help: "wrap local bash in docker (or sandbox-exec on macOS); off by default"},
+	{name: "/review", args: "[focus]", help: "fan out two subagents over the current diff (bugs and tests)"},
+	{name: "/loop", args: "[duration] [prompt|off|cancel id]", help: "session-scoped repeating prompt; dies on quit"},
 	{name: "/settle", args: "", help: "mark this session done with (or active again); settled sessions list last in /resume"},
 	{name: "/connect", args: "", help: "connect to a provider (preset or custom API) and pick a model"},
 	{name: "/model", args: "[name]", help: "pick a model from a list, or set one by name"},
@@ -1623,6 +1792,8 @@ func (m *model) welcome(resumed string) string {
 	switch {
 	case m.opts.Agent.AutoApprove:
 		sb.WriteString("auto-approve is on: tools run without asking · esc cancels the turn")
+	case m.opts.Agent.AutoMode:
+		sb.WriteString("auto mode: in-workspace edits and known-safe reads run · other commands ask")
 	case m.opts.Agent.AutoEdits:
 		sb.WriteString("edits go through, commands ask (/edits) · esc denies")
 	default:
@@ -1674,6 +1845,12 @@ func (m *model) startMCP() {
 }
 
 func (m *model) Init() tea.Cmd {
+	if ag := m.opts.Agent; ag != nil && ag.Cron != nil {
+		send := m.send
+		ag.Cron.OnFire = func(id, prompt string) {
+			send(cronFireMsg{id: id, prompt: prompt})
+		}
+	}
 	for _, n := range m.opts.Notes {
 		m.transcript.info(n)
 	}
@@ -1811,6 +1988,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.refresh(false)
 		return m, nil
+
+	case cronFireMsg:
+		if m.running {
+			m.transcript.info("loop " + msg.id + " skipped · a turn is running")
+			m.refresh(false)
+			return m, nil
+		}
+		m.transcript.info("loop " + msg.id)
+		return m, m.submitAs(msg.prompt, "loop "+msg.id+" · "+msg.prompt)
 
 	case verifyDoneMsg:
 		m.finishVerify(msg)
@@ -3026,10 +3212,26 @@ func (m *model) command(text string) tea.Cmd {
 	case "/yolo":
 		m.opts.Agent.AutoApprove = !m.opts.Agent.AutoApprove
 		if m.opts.Agent.AutoApprove {
+			m.opts.Agent.AutoMode = false
 			m.transcript.info("auto-approve on · tools run without asking")
 		} else {
 			m.transcript.info("auto-approve off · edits and commands ask first")
 		}
+	case "/auto":
+		m.opts.Agent.AutoMode = !m.opts.Agent.AutoMode
+		if m.opts.Agent.AutoMode {
+			m.opts.Agent.AutoApprove = false
+			m.opts.Agent.SetPlanMode(false)
+			m.transcript.info("auto mode on · in-workspace edits and known-safe reads run, other commands ask")
+		} else {
+			m.transcript.info("auto mode off · edits and commands ask first")
+		}
+	case "/sandbox":
+		m.sandboxCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/review":
+		return m.reviewCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/loop":
+		m.loopCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/edits":
 		m.opts.Agent.AutoEdits = !m.opts.Agent.AutoEdits
 		if m.opts.Agent.AutoEdits {
@@ -3460,7 +3662,7 @@ func (m *model) helpText() string {
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends · ctrl+s hands it to the running turn instead · up takes the last queued one back · esc cancels and gives them all back\n")
 	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
-	sb.WriteString("  shift+tab cycles ask → plan → yolo · ctrl+t opens the team overlay (/agents)\n")
+	sb.WriteString("  shift+tab cycles ask → plan → auto → yolo · ctrl+t opens the team overlay (/agents)\n")
 	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · r save a rule so matching calls never ask again · n deny (then type why, or enter to skip) · esc deny · c cancel the whole turn\n")
 	all := m.allCommands()
 	byName := map[string]command{}
@@ -3668,9 +3870,9 @@ var helpGroups = []struct {
 	title string
 	names []string
 }{
-	{"everyday", []string{"/help", "/connect", "/model", "/yolo", "/edits", "/undo", "/redo", "/compact", "/clear", "/resume", "/settle", "/quit"}},
-	{"reviewing the work", []string{"/open", "/diff", "/changes", "/blame", "/find", "/verbose", "/export", "/usage", "/stats", "/context"}},
-	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/team", "/jobs", "/ssh", "/docker"}},
+	{"everyday", []string{"/help", "/connect", "/model", "/yolo", "/auto", "/edits", "/undo", "/redo", "/compact", "/clear", "/resume", "/settle", "/quit"}},
+	{"reviewing the work", []string{"/open", "/diff", "/changes", "/blame", "/find", "/verbose", "/export", "/usage", "/stats", "/context", "/review"}},
+	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/team", "/jobs", "/ssh", "/docker", "/sandbox", "/loop"}},
 	{"the project", []string{"/memory", "/remember", "/forget", "/skills", "/verify", "/permissions", "/hooks", "/mcp", "/lsp"}},
 	{"diagnostics", []string{"/why", "/inspect", "/trajectory", "/reload", "/hints"}},
 }
@@ -3938,6 +4140,8 @@ func (m *model) headerView() string {
 		prefix = "READ-ONLY · "
 	case m.opts.Agent.AutoApprove:
 		prefix = "YOLO · "
+	case m.opts.Agent.AutoMode:
+		prefix = "AUTO · "
 	case m.opts.Agent.AutoEdits:
 		prefix = "EDITS · "
 	}
@@ -4202,6 +4406,11 @@ func (m *model) placeholder() string {
 			"Plan mode: describe the change · /plan approve runs the plan",
 			"Plan mode · /plan approve runs it",
 			"Plan mode")
+	case m.opts.Agent.AutoMode:
+		return fitPhrase(room,
+			"Auto: in-workspace edits and known-safe reads run · other commands ask",
+			"Auto · edits and known-safe reads run",
+			"Auto")
 	case m.opts.Agent.ReadOnly:
 		return fitPhrase(room,
 			"Read-only: the model can inspect but change nothing",

@@ -40,10 +40,12 @@ type Job struct {
 // remembers their state until the session ends.
 type Jobs struct {
 	// Dir holds output files; empty means the OS temp directory.
-	Dir  string
-	mu   sync.Mutex
-	jobs []*Job
-	next int
+	Dir string
+	// Sandbox, when enabled, wraps local commands the same way Bash does.
+	Sandbox *Sandbox
+	mu      sync.Mutex
+	jobs    []*Job
+	next    int
 }
 
 // Start launches the command in its own process group with output going
@@ -73,19 +75,11 @@ func (j *Jobs) StartOn(ws *Workspace, root, command string) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	var cmd *exec.Cmd
-	if ws != nil && !ws.Local() {
-		cmd, err = ws.Host().Command(context.Background(), command)
-		if err != nil {
-			out.Close()
-			os.Remove(out.Name())
-			return nil, err
-		}
-	} else {
-		cmd = ShellCommand(context.Background(), command) // never cancelled; Kill uses the process group
-		cmd.Dir = root
-		cmd.Env = scrubEnv(os.Environ())
-		setProcessGroup(cmd)
+	cmd, err := localShell(context.Background(), ws, j.Sandbox, root, command)
+	if err != nil {
+		out.Close()
+		os.Remove(out.Name())
+		return nil, err
 	}
 	pr, pw, err := os.Pipe()
 	if err != nil {

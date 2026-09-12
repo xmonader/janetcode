@@ -35,7 +35,11 @@ var commandSpecs = []cmdSpec{
 	{Name: "/clear", Args: "", Help: "start a new session", Idle: true},
 	{Name: "/compact", Args: "", Help: "summarise the conversation to free context", Idle: true},
 	{Name: "/yolo", Args: "", Help: "toggle auto-approve for tools"},
+	{Name: "/auto", Args: "", Help: "toggle auto mode: in-workspace edits and known-safe reads run, other commands ask"},
 	{Name: "/edits", Args: "", Help: "toggle auto-accept edits: file changes go through, commands still ask"},
+	{Name: "/sandbox", Args: "[on|off|image]", Help: "wrap local bash in docker; off by default"},
+	{Name: "/review", Args: "[focus]", Help: "fan out two subagents over the current diff"},
+	{Name: "/loop", Args: "[duration] [prompt|off]", Help: "session-scoped repeating prompt; dies on quit"},
 	{Name: "/readonly", Args: "", Help: "toggle read-only mode (no edits or commands)"},
 	{Name: "/plan", Args: "[request|approve|off]", Help: "plan mode: the model explores and writes a plan; approve executes it"},
 	{Name: "/verbose", Args: "", Help: "toggle expanded tool output"},
@@ -100,7 +104,23 @@ func (s *server) runCommand(text string) error {
 		return s.startNewSession()
 	case "/yolo":
 		ag.AutoApprove = !ag.AutoApprove
+		if ag.AutoApprove {
+			ag.AutoMode = false
+		}
 		s.noteOnOff("auto-approve", ag.AutoApprove, "every tool runs without asking")
+	case "/auto":
+		ag.AutoMode = !ag.AutoMode
+		if ag.AutoMode {
+			ag.AutoApprove = false
+			ag.SetPlanMode(false)
+		}
+		s.noteOnOff("auto mode", ag.AutoMode, "in-workspace edits and known-safe reads run, other commands ask")
+	case "/sandbox":
+		s.sandbox(arg)
+	case "/review":
+		s.review(arg)
+	case "/loop":
+		s.loop(arg)
 	case "/edits":
 		ag.AutoEdits = !ag.AutoEdits
 		s.noteOnOff("auto-accept edits", ag.AutoEdits, "file changes go through, commands still ask")
@@ -480,6 +500,149 @@ func (s *server) team(arg string) {
 		}
 		s.notice("teammate finished · " + desc + " · /agents to read it")
 	}()
+}
+
+func (s *server) sandbox(arg string) {
+	ag := s.opts.Agent
+	if ag == nil || ag.Sandbox == nil {
+		s.errf("this session has no sandbox")
+		return
+	}
+	sb := ag.Sandbox
+	switch arg {
+	case "", "status":
+		s.notice(sb.Status())
+	case "on":
+		if err := sb.Enable(); err != nil {
+			s.errf("sandbox: %v", err)
+			return
+		}
+		s.notice(sb.Status())
+	case "off":
+		sb.Disable()
+		s.notice(sb.Status())
+	default:
+		sb.SetImage(arg)
+		if !sb.Enabled() {
+			if err := sb.Enable(); err != nil {
+				s.errf("sandbox: %v", err)
+				return
+			}
+		}
+		s.notice(sb.Status())
+	}
+}
+
+func (s *server) review(arg string) {
+	task := s.taskTool()
+	if task == nil {
+		s.notice("no task tool")
+		return
+	}
+	diff, err := gitReviewDiff(s.opts.Cwd)
+	if err != nil {
+		s.errf("review: %v", err)
+		return
+	}
+	if strings.TrimSpace(diff) == "" && arg == "" {
+		s.notice("nothing to review (working tree clean)")
+		return
+	}
+	focus := arg
+	if focus == "" {
+		focus = "the current uncommitted changes"
+	}
+	type brief struct{ desc, agent, extra string }
+	for _, b := range []brief{
+		{"review bugs", "explore", "Look for correctness bugs, logic errors, race conditions and missed edge cases. Report findings with file:line."},
+		{"review tests", "general", "Look for missing tests, weak assertions and regressions. Report findings with file:line."},
+	} {
+		payload, merr := json.Marshal(map[string]string{
+			"description": b.desc,
+			"prompt":      b.extra + "\n\nReview " + focus + ".\n\n" + diff,
+			"agent":       b.agent,
+		})
+		if merr != nil {
+			s.errf("review: %v", merr)
+			continue
+		}
+		desc := b.desc
+		go func() {
+			_, runErr := task.Run(context.Background(), payload)
+			if runErr != nil {
+				s.errf("review %s: %v", desc, runErr)
+				return
+			}
+			s.notice("review finished · " + desc + " · /agents to read it")
+		}()
+	}
+	s.notice("started review · two subagents · /agents watches them")
+}
+
+func gitReviewDiff(cwd string) (string, error) {
+	status, _ := exec.Command("git", "-C", cwd, "status", "--short").CombinedOutput()
+	diff, err := exec.Command("git", "-C", cwd, "diff", "HEAD").CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("not a git repository")
+	}
+	out := strings.TrimSpace(string(status))
+	if d := strings.TrimSpace(string(diff)); d != "" {
+		if out != "" {
+			out += "\n\n"
+		}
+		out += d
+	}
+	const max = 32 * 1024
+	if len(out) > max {
+		out = out[:max] + "\n… (diff truncated)"
+	}
+	return out, nil
+}
+
+func (s *server) loop(arg string) {
+	ag := s.opts.Agent
+	if ag == nil || ag.Cron == nil {
+		s.errf("no scheduler in this session")
+		return
+	}
+	cron := ag.Cron
+	switch {
+	case arg == "" || arg == "list":
+		jobs := cron.List()
+		if len(jobs) == 0 {
+			s.notice("no loops · /loop 5m <prompt> arms one for this session")
+			return
+		}
+		var b strings.Builder
+		for _, j := range jobs {
+			fmt.Fprintf(&b, "%s every %s next %s · %s\n", j.ID, j.Every, j.Next.Format("15:04:05"), j.Prompt)
+		}
+		s.sheet("loop", strings.TrimRight(b.String(), "\n"))
+	case arg == "off":
+		n := cron.CancelAll()
+		s.notice(fmt.Sprintf("cancelled %d loops", n))
+	case strings.HasPrefix(arg, "cancel "):
+		id := strings.TrimSpace(strings.TrimPrefix(arg, "cancel "))
+		if !cron.Cancel(id) {
+			s.errf("no loop %s", id)
+			return
+		}
+		s.notice("cancelled " + id)
+	default:
+		every := 5 * time.Minute
+		prompt := arg
+		if f, rest, ok := strings.Cut(arg, " "); ok {
+			if d, err := agent.ParseEvery(f); err == nil {
+				every, prompt = d, strings.TrimSpace(rest)
+			}
+		}
+		id, err := cron.Add(every, prompt)
+		if err != nil {
+			s.errf("loop: %v", err)
+			return
+		}
+		s.notice(fmt.Sprintf("loop %s every %s · dies when this session ends", id, every))
+	}
 }
 
 func (s *server) retarget(kind, arg string, dial func(string) (tool.Host, error)) {
@@ -1029,6 +1192,9 @@ func (s *server) permissionsText() string {
 	var sb strings.Builder
 	if ag.AutoApprove {
 		sb.WriteString("YOLO · every tool runs without asking\n")
+	}
+	if ag.AutoMode {
+		sb.WriteString("AUTO · in-workspace edits and known-safe reads run, other commands ask\n")
 	}
 	if ag.AutoEdits {
 		sb.WriteString("auto-edits · file changes go through, commands still ask\n")

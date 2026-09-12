@@ -61,3 +61,26 @@ func TestClassify(t *testing.T) {
 		}
 	}
 }
+
+func TestSafeRead(t *testing.T) {
+	yes := []string{
+		"ls", "ls -la src", "pwd", "echo hi", "cat README.md", "head -n 20 a.go",
+		"git status", "git diff", "git log -1", "git branch -a", "rg TODO",
+		"ls | head", `sh -c "ls"`, "find . -name '*.go'", "env",
+	}
+	no := []string{
+		"", "rm a.txt", "echo hi > a.txt", "sudo ls", "git commit -am x",
+		"git branch -d old", "git push", "find . -delete", "chmod 777 x",
+		"npm install", "go test ./...",
+	}
+	for _, c := range yes {
+		if !SafeRead(c) {
+			t.Errorf("%q should be safe", c)
+		}
+	}
+	for _, c := range no {
+		if SafeRead(c) {
+			t.Errorf("%q should not be safe", c)
+		}
+	}
+}

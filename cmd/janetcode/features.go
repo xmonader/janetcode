@@ -42,6 +42,8 @@ var flagWhen = map[string]string{
 	"model":                "one run on a different model without changing the config",
 	"effort":               "an Anthropic model and a task worth more or less thinking",
 	"yolo":                 "a sandbox, a container, or work you have already decided to trust",
+	"auto":                 "you trust in-workspace edits and read-only commands but still want to see the rest",
+	"sandbox":              "you want bash isolated in docker without retargeting file tools",
 	"readonly":             "you want answers about a repository with no chance of it being changed",
 	"c":                    "carry on where the last session in this directory left off",
 	"r":                    "reopen one session by id",

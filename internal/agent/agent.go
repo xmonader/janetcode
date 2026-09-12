@@ -167,6 +167,13 @@ type Agent struct {
 	// edit_file go through, commands still ask. The natural mode for a
 	// refactor, where every edit would be approved anyway.
 	AutoEdits bool
+	// AutoMode skips the Approver for in-workspace file edits and for
+	// shell commands that only read (see tool.SafeRead). Ordinary bash
+	// and other mutating tools still ask. Distinct from AutoApprove
+	// (everything) and AutoEdits (file tools only). Guard still forces
+	// an ask for commands that leave the workspace or touch janetcode's
+	// own settings.
+	AutoMode bool
 	// Rules are persistent permission rules consulted before the Approver:
 	// a deny refuses the call outright, an allow skips the prompt.
 	Rules perm.Rules
@@ -269,6 +276,16 @@ type Agent struct {
 	// before the next model call, so instructions can be added to a
 	// session without being added to every request of it.
 	PathRules func(paths []string) []string
+	// PathSkills is the same hook for skill files that name `paths:` in
+	// their frontmatter.
+	PathSkills func(paths []string) []string
+	// Sandbox, when set, is the optional wrapper around local bash.
+	Sandbox *tool.Sandbox
+	// Cron is the session-scoped scheduler; jobs die when the session ends.
+	Cron *Cron
+	// Forked is true when this agent is a fork of a parent conversation
+	// and must not spawn another fork.
+	Forked bool
 	// Prepare, when set, may add blocks to a user turn before it is sent
 	// (skills attach themselves this way). The returned note, if any, is
 	// emitted as a notice.
@@ -1123,8 +1140,9 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	case hookAllowed:
 		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by a hook", "; ")
 	}
-	autoEdit := a.AutoEdits && editTool(u.Name)
-	if t.Mutating() && (mustAsk || !a.AutoApprove && !autoEdit && !a.allowed[u.Name] && verdict != perm.Allowed && !hookAllowed) {
+	autoEdit := (a.AutoEdits || a.AutoMode) && editTool(u.Name)
+	autoSafe := a.AutoMode && a.autoAllows(*u)
+	if t.Mutating() && (mustAsk || !a.AutoApprove && !autoEdit && !autoSafe && !a.allowed[u.Name] && verdict != perm.Allowed && !hookAllowed) {
 		if a.Approver == nil {
 			return nil, "Permission denied: no approver configured for mutating tools.", nil
 		}
@@ -1426,3 +1444,19 @@ func retryLine(r llm.Retry) string {
 // editTool reports the tools AutoEdits covers: the ones that change files
 // through the harness, never the shell.
 func editTool(name string) bool { return name == "write_file" || name == "edit_file" }
+
+// autoAllows is the AUTO-mode fast path for a mutating tool that is not
+// a file edit: known-safe read-only shell. File edits are handled by
+// autoEdit. Guard/mustAsk still wins above this.
+func (a *Agent) autoAllows(u llm.Block) bool {
+	if u.Name != "bash" {
+		return false
+	}
+	var in struct {
+		Command string `json:"command"`
+	}
+	if json.Unmarshal(u.Input, &in) != nil {
+		return false
+	}
+	return tool.SafeRead(in.Command)
+}

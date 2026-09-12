@@ -39,6 +39,8 @@ type Task struct {
 	children map[string]*subagent
 	order    []string // insertion order, for eviction
 	nextID   int
+	life     context.Context
+	stop     context.CancelFunc
 }
 
 // maxChildren bounds how many subagents stay continuable. Each holds its
@@ -59,6 +61,7 @@ type subagent struct {
 	// last is the most recent thing the child was seen doing, kept so a
 	// UI can answer "what is it up to" without waiting for the report.
 	last string
+	fork bool
 }
 
 // ChildInfo is a live snapshot of one subagent for status lines, /agents
@@ -70,6 +73,7 @@ type ChildInfo struct {
 	Done        bool      `json:"done"`
 	Last        string    `json:"last"`
 	Editing     bool      `json:"editing"`
+	Fork        bool      `json:"fork"`
 	Usage       llm.Usage `json:"usage"`
 }
 
@@ -91,7 +95,7 @@ func (t *Task) Children() []ChildInfo {
 func childInfoLocked(id string, c *subagent) ChildInfo {
 	return ChildInfo{
 		ID: id, Description: c.desc, Started: c.started, Done: c.done,
-		Last: c.last, Editing: c.wt != nil, Usage: c.agent.Usage,
+		Last: c.last, Editing: c.wt != nil, Fork: c.fork, Usage: c.agent.Usage,
 	}
 }
 
@@ -177,7 +181,7 @@ func (c ChildLog) Steps() []ChildStep {
 
 func (*Task) Name() string { return "task" }
 func (t *Task) Description() string {
-	d := "Delegate a self-contained job to a subagent that has its own context window: exploring an unfamiliar area of the codebase, tracing how something works, or gathering facts across many files. By default it can read, list, glob, grep and fetch URLs but cannot edit files or run commands; with edit: true it works in an isolated git worktree and returns its changes as a patch for you to apply. Give it a complete brief with what to find and what to report back; it returns only its final report. Call several in one turn to work in parallel. Pass tools to restrict it to a few named tools when the job is narrow (fewer schemas, cheaper and more focused)."
+	d := "Delegate a self-contained job to a subagent that has its own context window: exploring an unfamiliar area of the codebase, tracing how something works, or gathering facts across many files. By default it can read, list, glob, grep and fetch URLs but cannot edit files or run commands; with edit: true it works in an isolated git worktree and returns its changes as a patch for you to apply. With fork: true it inherits this conversation's history, the same tools (except it cannot fork again), and runs in the background; continue it by id. Give it a complete brief with what to find and what to report back; it returns only its final report. Call several in one turn to work in parallel. Pass tools to restrict it to a few named tools when the job is narrow (fewer schemas, cheaper and more focused)."
 	if ps := t.profiles(); len(ps) > 0 {
 		var names []string
 		for _, p := range ps {
@@ -204,7 +208,8 @@ func (*Task) Schema() json.RawMessage {
 "agent":{"type":"string","description":"Optional: name of a subagent profile. explore and general are built in (read-only); others come from .janetcode/agents/<name>.md"},
 "edit":{"type":"boolean","description":"Optional: let the subagent edit files and run commands in an isolated git worktree of the project. Its changes come back as a patch (also saved to a file) for you to review and apply with git apply; the real tree is untouched."},
 "model":{"type":"string","description":"Optional: run the job on this model instead of the session's, by name (e.g. glm-5). Use a cheaper or faster model for wide reading, or a stronger one for a job that has to be right."},
-"continue":{"type":"string","description":"Optional: id of a previous subagent to send another prompt. Omit prompt to list ids."}},
+"continue":{"type":"string","description":"Optional: id of a previous subagent to send another prompt. Omit prompt to list ids."},
+"fork":{"type":"boolean","description":"Optional: inherit this conversation's history and tools, run in the background, and return an id immediately. Cannot nest, and cannot be combined with edit."}},
 "required":["description","prompt"],"additionalProperties":false}`)
 }
 
@@ -219,6 +224,11 @@ func (t *Task) ChildIDs() []string {
 // parent session ends.
 func (t *Task) Close(ctx context.Context) {
 	t.mu.Lock()
+	if t.stop != nil {
+		t.stop()
+		t.stop = nil
+		t.life = nil
+	}
 	kids := t.children
 	t.children, t.order = nil, nil
 	t.mu.Unlock()
@@ -227,6 +237,15 @@ func (t *Task) Close(ctx context.Context) {
 			c.wt.remove(ctx)
 		}
 	}
+}
+
+func (t *Task) sessionCtx() context.Context {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.life == nil {
+		t.life, t.stop = context.WithCancel(context.Background())
+	}
+	return t.life
 }
 
 // remember registers a continuable subagent, evicting the oldest (and its
@@ -267,6 +286,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		Edit        bool     `json:"edit"`
 		Model       string   `json:"model"`
 		Continue    string   `json:"continue"`
+		Fork        bool     `json:"fork"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", fmt.Errorf("bad input: %w", err)
@@ -276,6 +296,15 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	if t.Parent == nil {
 		return "", fmt.Errorf("task tool has no parent agent")
+	}
+	if in.Fork && in.Continue != "" {
+		in.Fork = false
+	}
+	if in.Fork && in.Edit {
+		return "", fmt.Errorf("fork cannot be combined with edit: a fork inherits the session, an editing subagent uses a worktree")
+	}
+	if in.Fork && t.Parent.Forked {
+		return "", fmt.Errorf("a fork cannot spawn another fork")
 	}
 	var profile *skill.Profile
 	if in.Agent != "" {
@@ -317,11 +346,25 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if in.Continue != "" {
 		t.mu.Lock()
 		kid = t.children[in.Continue]
+		running := kid != nil && !kid.done
+		last := ""
+		if kid != nil {
+			last = kid.last
+		}
 		t.mu.Unlock()
 		if kid == nil {
 			return "", fmt.Errorf("no subagent %q (it may have been retired; start a new one)", in.Continue)
 		}
+		if running {
+			return fmt.Sprintf("subagent %s is still running (%s); wait or watch with /agents", in.Continue, last), nil
+		}
 		childID = in.Continue
+	} else if in.Fork {
+		ag, ferr := t.forkChild()
+		if ferr != nil {
+			return "", ferr
+		}
+		kid = &subagent{agent: ag, fork: true}
 	} else if in.Edit {
 		if t.Root == "" {
 			return "", fmt.Errorf("editing subagents are not available: no project root")
@@ -393,6 +436,28 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		case EvPhase:
 			kid.last = ev.Text
 		}
+	}
+	if kid.fork && in.Continue == "" {
+		// A fork must outlive this tool call: the parent turn continues
+		// and the child is watched with /agents. The session context is
+		// cancelled from Close, so quitting the TUI stops it.
+		bg := t.sessionCtx()
+		var cancel context.CancelFunc
+		if profile != nil && profile.MaxMinutes > 0 {
+			bg, cancel = context.WithTimeout(bg, time.Duration(profile.MaxMinutes)*time.Minute)
+		}
+		go func() {
+			if cancel != nil {
+				defer cancel()
+			}
+			_ = child.Run(bg, in.Prompt, emit)
+			t.mu.Lock()
+			kid.done = true
+			t.usage.Add(usageSince(kid.seen, child.Usage))
+			kid.seen = child.Usage
+			t.mu.Unlock()
+		}()
+		return fmt.Sprintf("started fork %q id=%s in the background; watch with /agents, continue with task continue=%s", in.Description, childID, childID), nil
 	}
 	err = child.Run(runCtx, in.Prompt, emit)
 	t.mu.Lock()
@@ -592,6 +657,80 @@ func (t *Task) child(only []string, profile *skill.Profile) (*Agent, error) {
 		Rules: perm.Rules{Deny: p.Rules.Deny},
 		Debug: p.Debug,
 	}, nil
+}
+
+// forkChild builds a subagent that inherits the parent's conversation
+// and tools (except task, ask, and goal_status). Approvals bubble to
+// the user unless the parent is already auto-approving.
+func (t *Task) forkChild() (*Agent, error) {
+	p := t.Parent
+	var ts []tool.Tool
+	for _, d := range p.Tools.Defs() {
+		if d.Name == t.Name() {
+			continue
+		}
+		tl, ok := p.Tools.Get(d.Name)
+		if !ok {
+			continue
+		}
+		if _, isGoal := tl.(*GoalStatus); isGoal {
+			continue
+		}
+		if _, isAsk := tl.(*AskTool); isAsk {
+			continue
+		}
+		ts = append(ts, tl)
+	}
+	if len(ts) == 0 {
+		return nil, fmt.Errorf("a fork has no tools left")
+	}
+	maxIter := t.MaxIterations
+	if maxIter <= 0 {
+		maxIter = 50
+	}
+	child := &Agent{
+		Provider:      p.Provider,
+		Tools:         tool.NewRegistry(ts...),
+		System:        p.System + "\n\nYou are a fork of the parent conversation and inherited its history. Complete the brief. You cannot spawn another fork.",
+		Model:         p.Model,
+		MaxTokens:     p.MaxTokens,
+		MaxIterations: maxIter,
+		Messages:      copyMessages(p.Messages),
+		AutoApprove:   p.AutoApprove,
+		AutoEdits:     p.AutoEdits,
+		AutoMode:      p.AutoMode,
+		ReadOnly:      p.ReadOnly,
+		PlanMode:      p.PlanMode,
+		Rules:         p.Rules,
+		CompactAt:     p.CompactAt,
+		ContextWindow: p.ContextWindow,
+		Archive:       p.Archive,
+		Debug:         p.Debug,
+		Forked:        true,
+	}
+	if !p.AutoApprove && p.Approver != nil {
+		child.Approver = bubbled{to: p.Approver, name: "fork"}
+	}
+	return child, nil
+}
+
+func copyMessages(in []llm.Message) []llm.Message {
+	out := make([]llm.Message, len(in))
+	for i, m := range in {
+		out[i] = m
+		if m.Blocks == nil {
+			continue
+		}
+		blocks := make([]llm.Block, len(m.Blocks))
+		for j, b := range m.Blocks {
+			blocks[j] = b
+			if b.Input != nil {
+				blocks[j].Input = append(json.RawMessage(nil), b.Input...)
+			}
+		}
+		out[i].Blocks = blocks
+	}
+	return out
 }
 
 // usageSince is the usage added between two cumulative snapshots.

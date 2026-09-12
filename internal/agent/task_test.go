@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
@@ -521,4 +522,93 @@ func TestSubagentInheritsDenyRulesButNotAllow(t *testing.T) {
 	if v, _ := task.editingChild(wt, nil).Rules.Decide("read_file", "secret.txt"); v != perm.Denied {
 		t.Fatalf("an editing subagent decided the denied path %q", v)
 	}
+}
+
+func TestForkInheritsHistoryAndRunsInBackground(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha"), 0o644)
+	done := make(chan struct{})
+	defer close(done)
+	parent := &Agent{Provider: &blockUntil{ch: done}, Model: "m", System: "sys", AutoApprove: true,
+		Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "earlier work")}}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+	start := time.Now()
+	out, err := task.Run(context.Background(), json.RawMessage(`{"description":"forked","prompt":"carry on","fork":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(start) > time.Second {
+		t.Fatal("fork blocked the parent")
+	}
+	if !strings.Contains(out, "started fork") || !strings.Contains(out, "task-1") {
+		t.Fatalf("out = %q", out)
+	}
+	ids := task.ChildIDs()
+	if len(ids) != 1 {
+		t.Fatalf("ids = %v", ids)
+	}
+	log, ok := task.ChildLog(ids[0])
+	if !ok || !log.Fork || log.Editing {
+		t.Fatalf("child = %+v ok=%v", log.ChildInfo, ok)
+	}
+	found := false
+	for _, m := range log.Messages {
+		if strings.Contains(m.Text(), "earlier work") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("fork lost parent history: %+v", log.Messages)
+	}
+	child := task.children[ids[0]].agent
+	if !child.Forked {
+		t.Fatal("child is not marked forked")
+	}
+	for _, d := range child.Tools.Defs() {
+		if d.Name == "task" {
+			t.Fatal("fork kept the task tool")
+		}
+	}
+	nested := &Task{Parent: child}
+	if _, err := nested.Run(context.Background(), json.RawMessage(`{"description":"nested","prompt":"no","fork":true}`)); err == nil {
+		t.Fatal("nested fork should fail")
+	}
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"go","fork":true,"edit":true}`)); err == nil {
+		t.Fatal("fork+edit should fail")
+	}
+}
+
+func TestContinueRunningForkReportsBusy(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha"), 0o644)
+	block := make(chan struct{})
+	defer close(block)
+	parent := &Agent{Provider: &blockUntil{ch: block}, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+	out, err := task.Run(context.Background(), json.RawMessage(`{"description":"slow","prompt":"explore","fork":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := task.ChildIDs()[0]
+	busy, err := task.Run(context.Background(), json.RawMessage(`{"description":"slow","prompt":"again","continue":"`+id+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(busy, "still running") {
+		t.Fatalf("continue of a live fork = %q (started %q)", busy, out)
+	}
+}
+
+type blockUntil struct{ ch chan struct{} }
+
+func (b *blockUntil) Name() string { return "fake" }
+func (b *blockUntil) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	select {
+	case <-b.ch:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn}, nil
 }

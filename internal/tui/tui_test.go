@@ -437,14 +437,14 @@ func TestCustomSlashCommand(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "reviewed"), StopReason: llm.StopEndTurn})
 	dir := filepath.Join(h.m.opts.Cwd, ".janetcode", "commands")
 	os.MkdirAll(dir, 0o755)
-	os.WriteFile(filepath.Join(dir, "review.md"), []byte("# Careful review\nReview $ARGUMENTS for bugs."), 0o644)
+	os.WriteFile(filepath.Join(dir, "audit.md"), []byte("# Careful review\nReview $ARGUMENTS for bugs."), 0o644)
 	// Commands load at construction; rebuild the model against the same dir.
 	h.m.custom = map[string]prompt.Custom{}
 	for _, c := range prompt.CustomCommands(h.m.opts.Cwd, "") {
 		h.m.custom["/"+c.Name] = c
 	}
-	h.keys("/rev")
-	if v := plain(h.m.View()); !strings.Contains(v, "/review") || !strings.Contains(v, "Careful review") {
+	h.keys("/aud")
+	if v := plain(h.m.View()); !strings.Contains(v, "/audit") || !strings.Contains(v, "Careful review") {
 		t.Fatalf("completion missing:\n%s", v)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyTab})
@@ -456,7 +456,7 @@ func TestCustomSlashCommand(t *testing.T) {
 	}
 	h.keys("/help")
 	h.enter()
-	if v := plain(h.m.View()); !strings.Contains(v, "/review") {
+	if v := plain(h.m.View()); !strings.Contains(v, "/audit") {
 		t.Fatalf("help lacks custom command:\n%s", v)
 	}
 }
@@ -2662,7 +2662,7 @@ func TestUserVisibleStringStyle(t *testing.T) {
 	// Acronyms and the header's mode prefixes are the only capitals.
 	allowed := map[string]bool{
 		"MCP": true, "API": true, "URL": true, "HEAD": true, "JSON": true,
-		"YOLO": true, "EDITS": true, "PLAN": true, "READ-ONLY": true, "OK": true,
+		"YOLO": true, "AUTO": true, "EDITS": true, "PLAN": true, "READ-ONLY": true, "OK": true,
 	}
 	caps := regexp.MustCompile(`\b[A-Z][A-Z-]+\b`)
 	check := func(what, s string) {
@@ -3794,12 +3794,16 @@ func TestModeCycleShiftTab(t *testing.T) {
 		t.Fatalf("ask→plan: plan=%v view:\n%s", h.m.opts.Agent.PlanMode, plain(h.m.View()))
 	}
 	h.update(shiftTab)
-	if h.m.opts.Agent.PlanMode || !h.m.opts.Agent.AutoApprove || !strings.Contains(plain(h.m.View()), "YOLO ·") {
-		t.Fatalf("plan→yolo: plan=%v yolo=%v view:\n%s", h.m.opts.Agent.PlanMode, h.m.opts.Agent.AutoApprove, plain(h.m.View()))
+	if h.m.opts.Agent.PlanMode || h.m.opts.Agent.AutoApprove || !h.m.opts.Agent.AutoMode || !strings.Contains(plain(h.m.View()), "AUTO ·") {
+		t.Fatalf("plan→auto: plan=%v auto=%v yolo=%v view:\n%s", h.m.opts.Agent.PlanMode, h.m.opts.Agent.AutoMode, h.m.opts.Agent.AutoApprove, plain(h.m.View()))
 	}
 	h.update(shiftTab)
-	if h.m.opts.Agent.PlanMode || h.m.opts.Agent.AutoApprove {
-		t.Fatalf("yolo→ask: plan=%v yolo=%v", h.m.opts.Agent.PlanMode, h.m.opts.Agent.AutoApprove)
+	if h.m.opts.Agent.AutoMode || !h.m.opts.Agent.AutoApprove || !strings.Contains(plain(h.m.View()), "YOLO ·") {
+		t.Fatalf("auto→yolo: auto=%v yolo=%v view:\n%s", h.m.opts.Agent.AutoMode, h.m.opts.Agent.AutoApprove, plain(h.m.View()))
+	}
+	h.update(shiftTab)
+	if h.m.opts.Agent.PlanMode || h.m.opts.Agent.AutoApprove || h.m.opts.Agent.AutoMode {
+		t.Fatalf("yolo→ask: plan=%v yolo=%v auto=%v", h.m.opts.Agent.PlanMode, h.m.opts.Agent.AutoApprove, h.m.opts.Agent.AutoMode)
 	}
 }
 

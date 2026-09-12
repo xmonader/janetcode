@@ -39,7 +39,7 @@ ctrl+o           expand the last turn's output   ctrl+l   redraw
                  /verbose does every turn)
 pgup / pgdn      scroll (mouse wheel works)
 ctrl+c           cancel the turn; when idle, press twice to quit
-shift+tab        cycle ask → plan → yolo (approvals, plan-first, auto-approve)
+shift+tab        cycle ask → plan → auto → yolo (approvals, plan-first, safe-auto, auto-approve)
 ctrl+t           open the team overlay of continuable subagents (/agents)
 ```
 
@@ -157,9 +157,12 @@ again; it does not become a line in the transcript.
 ctrl+g           move the command running in the foreground to the background, as a job
 ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, pngpaste on macOS)
 !command         run a shell command here; its output is shown and shared with the model
-/help      /quit      /clear (new session)     /yolo (toggle auto-approve)   /edits (edits go through, commands ask)
+/help      /quit      /clear (new session)     /yolo (toggle auto-approve)   /auto (edits and known-safe reads)   /edits (edits go through, commands ask)
 /plan <request> (plan mode: explore, write a plan; /plan approve executes it)
 /readonly  (toggle read-only: the model can inspect but change nothing)
+/sandbox [on|off|image]  (wrap local bash in docker; file tools stay here)
+/review [focus]  (two subagents read the current diff: bugs and tests)
+/loop [duration] [prompt|off]  (repeat a prompt this session; dies on quit)
 /team [brief]  (same overlay as /agents; with a brief, start a general teammate now)
 /ssh [user@host[:/path]|off]  (file tools and bash on a remote host; off returns here)
 /docker [container[:/path]|off]  (the same, in a running container)
@@ -292,7 +295,8 @@ the project, `skills/` under the config directory for all projects;
 reference files next to `SKILL.md`; they are listed with absolute paths
 when the skill is attached so the model can read or run them. Optional
 frontmatter gives `name`, `description`, comma-separated `keywords` (or
-`tags`), `disable-model-invocation: true` (only you can invoke it) and
+`tags`), `paths` (globs; the skill is attached when a tool touches a
+matching file, the same way project rules work), `disable-model-invocation: true` (only you can invoke it) and
 `user-invocable: false` (only the model can):
 
 ```markdown
@@ -1008,10 +1012,21 @@ plan under `## Plan` (files, order, verification, risks). Ask questions or
 request changes to the plan as normal messages; `/plan approve` leaves the
 mode and tells the model to execute the plan step by step, verifying each
 step. Every step is a normal turn, so `/undo` walks it back. `/plan off`
-leaves without executing. `shift+tab` cycles the three session modes
+leaves without executing. `shift+tab` cycles the four session modes
 without typing a command: **ask** (edits and commands ask first) →
-**plan** → **yolo** (`/yolo`, tools run without asking) → ask. `/edits`
-and `/readonly` stay their own toggles.
+**plan** → **auto** (`/auto`, in-workspace edits and known-safe reads
+run; other commands still ask) → **yolo** (`/yolo`, tools run without
+asking) → ask. `/edits` and `/readonly` stay their own toggles.
+
+`/sandbox on` wraps local bash in docker (or `sandbox-exec` on macOS).
+File tools, `/ssh` and `/docker` are unchanged: only the shell is
+isolated, and it is off by default. `/review` starts two read-only
+subagents over `git diff HEAD` (bugs and tests). `/loop 5m <prompt>`
+repeats that prompt for this session only; the timers die when you quit.
+
+A `task` with `fork: true` inherits this conversation's history and
+tools, runs in the background, and can be continued by id. It cannot
+spawn another fork, and cannot be combined with `edit: true`.
 
 `/readonly` (or `--readonly` on the command line) is the same restriction
 without the plan: useful for reviews and for letting the model answer

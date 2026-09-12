@@ -21,6 +21,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/md"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -41,6 +42,9 @@ type Skill struct {
 	// ModelInvocable allows automatic attachment and the skill tool
 	// (default true; frontmatter disable-model-invocation: true turns it off).
 	ModelInvocable bool
+	// Paths are globs that attach the skill when a tool touches a matching
+	// file, the same way project rules work. Empty means text-match only.
+	Paths []string
 }
 
 // maxFiles bounds the supporting files listed per skill.
@@ -108,7 +112,8 @@ func readDir(dir, source string) []Skill {
 		}
 		s := Skill{Name: name, Description: strings.TrimSpace(meta["description"]), Body: body, Path: p, Source: source, Dir: sdir,
 			UserInvocable:  !isTrue(meta["disable-user-invocation"]) && meta["user-invocable"] != "false",
-			ModelInvocable: !isTrue(meta["disable-model-invocation"])}
+			ModelInvocable: !isTrue(meta["disable-model-invocation"]),
+			Paths:          md.List(meta["paths"])}
 		for _, k := range md.List(meta["keywords"]) {
 			s.Keywords = append(s.Keywords, strings.ToLower(k))
 		}
@@ -382,6 +387,71 @@ func (in *Injector) Prepare(blocks []llm.Block) ([]llm.Block, []string) {
 		names = append(names, s.Name)
 	}
 	return blocks, names
+}
+
+// Matches reports whether a path a tool touched brings this skill in.
+// A glob without a slash is matched against the base name too, so
+// "*.sql" covers db/migrations/001.sql.
+func (s Skill) Matches(path string) bool {
+	if len(s.Paths) == 0 {
+		return false
+	}
+	path = strings.TrimPrefix(filepath.ToSlash(strings.TrimSpace(path)), "./")
+	if path == "" {
+		return false
+	}
+	base := path
+	if i := strings.LastIndexByte(path, '/'); i >= 0 {
+		base = path[i+1:]
+	}
+	for _, g := range s.Paths {
+		g = strings.TrimPrefix(filepath.ToSlash(strings.TrimSpace(g)), "./")
+		if g == "" {
+			continue
+		}
+		if perm.Match(g, path) {
+			return true
+		}
+		if !strings.Contains(g, "/") && perm.Match(g, base) {
+			return true
+		}
+	}
+	return false
+}
+
+// ForPaths returns the text of every path-gated skill these paths bring
+// in that has not been sent yet this session.
+func (in *Injector) ForPaths(paths []string) []string {
+	if in == nil || in.Skills == nil || len(paths) == 0 {
+		return nil
+	}
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	if in.last == nil {
+		in.last = map[string]int{}
+	}
+	var out []string
+	for _, s := range in.Skills() {
+		if !s.ModelInvocable || len(s.Paths) == 0 {
+			continue
+		}
+		if t, ok := in.last[s.Name]; ok && in.turn-t < freshTurns {
+			continue
+		}
+		hit := false
+		for _, p := range paths {
+			if s.Matches(p) {
+				hit = true
+				break
+			}
+		}
+		if !hit {
+			continue
+		}
+		in.last[s.Name] = in.turn
+		out = append(out, fmt.Sprintf("[skill: %s — applies to %s]\n%s", s.Name, strings.Join(s.Paths, ", "), s.Block().Text))
+	}
+	return out
 }
 
 // Tool lets the model read a skill by name.

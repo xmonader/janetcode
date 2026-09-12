@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -28,6 +27,9 @@ type Bash struct {
 	// to a background job while it runs instead of being waited out or
 	// killed. See Running.Promote.
 	Running *Running
+	// Sandbox, when enabled, wraps local commands in docker or sandbox-exec.
+	// Shared with Jobs so background starts take the same wrapping.
+	Sandbox *Sandbox
 }
 
 func (Bash) Name() string { return "bash" }
@@ -71,7 +73,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		return fmt.Sprintf("Started background job %d (pid %d): %s\nOutput is collected in %s. You will be told when it finishes; the job tool shows output, waits, or kills it.", job.ID, job.Pid, in.Command, job.OutPath), nil
 	}
 	cacheKey := t.Cache.key(root, in.Command)
-	if t.WS == nil || t.WS.Local() {
+	if (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
 		if out, age, ok := t.Cache.get(cacheKey); ok {
 			return out + fmt.Sprintf("\n[cached: this exact command ran %s ago on an identical tree and nothing has changed since; append '%s' to force a rerun]", age.Round(time.Second), noCacheMarker), nil
 		}
@@ -102,18 +104,9 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		}
 	}()
 
-	var cmd *exec.Cmd
-	if t.WS != nil && !t.WS.Local() {
-		var err error
-		cmd, err = t.WS.Host().Command(runCtx, in.Command)
-		if err != nil {
-			return "", err
-		}
-	} else {
-		cmd = ShellCommand(runCtx, in.Command)
-		cmd.Dir = root
-		cmd.Env = scrubEnv(os.Environ())
-		setProcessGroup(cmd)
+	cmd, err := localShell(runCtx, t.WS, t.Sandbox, root, in.Command)
+	if err != nil {
+		return "", err
 	}
 	cmd.WaitDelay = 2 * time.Second
 	out := &swapBuffer{}
@@ -132,7 +125,6 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	fg := t.Running.add(in.Command, cmd, out)
 	defer t.Running.remove(fg)
 
-	var err error
 	select {
 	case err = <-wait:
 		// The command finished on its own. Anyone waiting on a promotion
@@ -188,7 +180,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		result += exitNote(in.Command, exit)
 	}
 	result = Truncate(result)
-	if t.WS == nil || t.WS.Local() {
+	if (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
 		t.Cache.put(cacheKey, result)
 	}
 	return result, nil

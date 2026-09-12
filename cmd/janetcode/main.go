@@ -177,6 +177,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		model        = fs.String("model", "", "model id (default claude-opus-5 for anthropic)")
 		effort       = fs.String("effort", "", "anthropic effort: low, medium, high, xhigh, max")
 		yolo         = fs.Bool("yolo", false, "auto-approve every tool call")
+		autoMode     = fs.Bool("auto", false, "auto mode: in-workspace edits and known-safe reads run; other commands ask (/auto toggles it)")
+		sandboxOn    = fs.Bool("sandbox", false, "wrap local bash in docker (or sandbox-exec on macOS); file tools stay on the host")
 		readonly     = fs.Bool("readonly", false, "read-only: no edits or commands, the model can only inspect")
 		continueC    = fs.Bool("c", false, "short for -continue")
 		resumeR      = fs.String("r", "", "short for -resume <id>")
@@ -443,7 +445,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	typed := &tool.URLSet{}
 	typed.Note(initial)
 	typed.Note(*promptText)
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}}
+	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, autoMode: *autoMode, sandboxOn: *sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return err
@@ -1308,6 +1310,11 @@ type agentDeps struct {
 	readOnly bool
 	// autoEdits starts the session with file edits auto-accepted.
 	autoEdits bool
+	// autoMode starts the session in AUTO: in-workspace edits and
+	// known-safe reads skip the approver.
+	autoMode bool
+	// sandboxOn wraps local bash in docker/sandbox-exec from the start.
+	sandboxOn bool
 	// promptOverride replaces or extends the system prompt, for an A/B
 	// of the prompt itself.
 	promptOverride prompt.Override
@@ -1339,6 +1346,9 @@ type builtAgent struct {
 // close releases what the agent held. It is the caller's job, since the
 // pieces outlive any single turn.
 func (b builtAgent) close() {
+	if b.agent != nil && b.agent.Cron != nil {
+		b.agent.Cron.Close()
+	}
 	b.task.Close(context.Background())
 	b.diag.Close()
 }
@@ -1354,6 +1364,16 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	mem := d.mem
 	seen := &tool.Seen{}
 	ws := tool.NewLocal(d.cwd)
+	sb := &tool.Sandbox{}
+	if d.sandboxOn {
+		if err := sb.Enable(); err != nil {
+			return builtAgent{}, fmt.Errorf("--sandbox: %w", err)
+		}
+	}
+	if jobs != nil {
+		jobs.Sandbox = sb
+	}
+	cron := agent.NewCron()
 	expand := &agent.ExpandOutput{Archive: archive}
 	ag := &agent.Agent{
 		Provider: d.prov,
@@ -1364,7 +1384,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 			tool.ReadFile{Root: d.cwd, WS: ws, Seen: seen},
 			tool.WriteFile{Root: d.cwd, WS: ws, Seen: seen},
 			tool.EditFile{Root: d.cwd, WS: ws, Seen: seen, NoLines: envOff()["lineedit"]},
-			tool.Bash{Root: d.cwd, WS: ws, Cache: &tool.ShellCache{}, Jobs: jobs, Running: d.running},
+			tool.Bash{Root: d.cwd, WS: ws, Cache: &tool.ShellCache{}, Jobs: jobs, Running: d.running, Sandbox: sb},
 			tool.JobTool{Jobs: jobs},
 			tool.FetchURL{Typed: d.typed},
 			tool.WebSearch{Config: d.cfg.Search},
@@ -1377,6 +1397,9 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		MaxIterations: d.cfg.MaxIterations,
 		AutoApprove:   d.cfg.AutoApprove,
 		AutoEdits:     d.autoEdits,
+		AutoMode:      d.autoMode,
+		Sandbox:       sb,
+		Cron:          cron,
 		ReadOnly:      d.readOnly,
 		CompactAt:     d.cfg.CompactAt,
 		Messages:      history,
@@ -1399,13 +1422,16 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		ag.Tools.Add(&agent.Script{Parent: ag, Root: d.cwd})
 	}
 	skills := func() []skill.Skill { return skill.Load(d.cwd, cfgDir) }
+	skillInj := &skill.Injector{Skills: skills}
 	// Path-scoped rules: nothing is sent until a call touches a path a
 	// rule names, and then once for the session.
 	ruleSet := func() []rules.Rule { return rules.Load(d.cwd, cfgDir) }
 	injector := &rules.Injector{Rules: ruleSet}
 	ag.PathRules = injector.For
+	ag.PathSkills = skillInj.ForPaths
 	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(d.cwd, cfgDir) }
 	ag.Tools.Add(&skill.Tool{Skills: skills})
+	ag.Tools.Add(&agent.CronTool{Cron: cron})
 	ag.Tools.Add(&memory.Tool{Store: mem})
 	diag := lsp.New(d.cwd, d.cfg.LSP)
 	if diag.Enabled() {
@@ -1447,7 +1473,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	if ag.Predictor, err = agent.LoadPredictor(filepath.Join(cfgDir, "critic.json")); err != nil {
 		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
 	}
-	ag.Prepare = chainPrep(skill.TurnPrep(&skill.Injector{Skills: skills}, mem), repomap.TurnPrep(repo, 0))
+	ag.Prepare = chainPrep(skill.TurnPrep(skillInj, mem), repomap.TurnPrep(repo, 0))
 	ag.Tools.Intent = d.cfg.IntentEnabled()
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow})
 	ag.UndoPath = sess.UndoPath()

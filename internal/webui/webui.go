@@ -242,8 +242,25 @@ func newServer(opts Options) *server {
 	}
 	if opts.Agent != nil {
 		opts.Agent.Approver = s
+		if opts.Agent.Cron != nil {
+			opts.Agent.Cron.OnFire = func(id, prompt string) {
+				s.cronFire(id, prompt)
+			}
+		}
 	}
 	return s
+}
+
+func (s *server) cronFire(id, prompt string) {
+	s.mu.Lock()
+	running := s.running
+	s.mu.Unlock()
+	if running {
+		s.notice("loop " + id + " skipped · a turn is running")
+		return
+	}
+	s.notice("loop " + id)
+	s.startTurn(prompt)
 }
 
 func (s *server) handler() http.Handler {

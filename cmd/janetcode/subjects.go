@@ -799,6 +799,8 @@ func permissionsReport(a *agent.Agent, cfg *config.Config) string {
 		b.WriteString("read-only: nothing that changes files or runs commands is offered\n")
 	case a.AutoApprove:
 		b.WriteString("auto-approve is ON: mutating tools run without asking\n")
+	case a.AutoMode:
+		b.WriteString("auto mode: in-workspace edits and known-safe reads run; other commands ask\n")
 	default:
 		b.WriteString("edits and commands ask first\n")
 	}

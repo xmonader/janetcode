@@ -197,6 +197,150 @@ func escapes(tk, root string) (string, bool) {
 	return abs, true
 }
 
+// SafeRead reports whether a command is a known-safe read: listing,
+// printing, grepping, git status/diff/log and the like, with no write
+// redirect and no privilege escalation. Used by AUTO mode to skip the
+// approval prompt; it is a static allowlist, not a classifier.
+func SafeRead(command string) bool {
+	if strings.TrimSpace(command) == "" {
+		return false
+	}
+	if risk, _ := Classify(command, ""); risk != RiskOrdinary {
+		return false
+	}
+	for _, seg := range splitSegments(command) {
+		if !safeSegment(seg, 0) {
+			return false
+		}
+	}
+	return true
+}
+
+func safeSegment(seg string, depth int) bool {
+	seg = strings.TrimSpace(seg)
+	if seg == "" {
+		return true
+	}
+	if depth > maxWrapperDepth {
+		return false
+	}
+	if writesRedirect(seg) {
+		return false
+	}
+	return safeWords(shellWords(seg), depth)
+}
+
+func writesRedirect(seg string) bool {
+	for _, m := range redirect.FindAllStringSubmatch(seg, -1) {
+		p := strings.Trim(m[1], `"'`)
+		if p != "/dev/null" && !strings.HasPrefix(p, "/dev/std") {
+			return true
+		}
+	}
+	return false
+}
+
+func safeWords(toks []string, depth int) bool {
+	if len(toks) == 0 {
+		return true
+	}
+	if depth > maxWrapperDepth {
+		return false
+	}
+	skipOpts := func(i int) int {
+		for i < len(toks) && strings.HasPrefix(toks[i], "-") {
+			i++
+		}
+		return i
+	}
+	switch toks[0] {
+	case "sudo", "doas":
+		return false
+	case "nice", "nohup", "time", "command", "builtin", "stdbuf", "unbuffer":
+		return safeWords(toks[skipOpts(1):], depth+1)
+	case "env":
+		i := 1
+		for i < len(toks) && (strings.HasPrefix(toks[i], "-") || strings.Contains(toks[i], "=")) {
+			i++
+		}
+		if i >= len(toks) {
+			return true
+		}
+		return safeWords(toks[i:], depth+1)
+	case "timeout":
+		i := skipOpts(1)
+		if i < len(toks) {
+			i++
+		}
+		return safeWords(toks[i:], depth+1)
+	case "sh", "bash", "zsh", "dash", "ksh":
+		for i := 1; i < len(toks)-1; i++ {
+			if strings.HasPrefix(toks[i], "-") && strings.Contains(toks[i], "c") {
+				return SafeRead(toks[i+1])
+			}
+		}
+		return false
+	case "git":
+		return safeGit(toks[1:])
+	case "find":
+		for _, t := range toks[1:] {
+			switch t {
+			case "-delete", "-exec", "-execdir", "-ok", "-okdir":
+				return false
+			}
+		}
+		return true
+	}
+	return safeBin[toks[0]]
+}
+
+func safeGit(args []string) bool {
+	i := 0
+	for i < len(args) && strings.HasPrefix(args[i], "-") {
+		switch args[i] {
+		case "-c", "--git-dir", "--work-tree":
+			i += 2
+		default:
+			i++
+		}
+	}
+	if i >= len(args) {
+		return true
+	}
+	sub := args[i]
+	if !safeGitSub[sub] {
+		return false
+	}
+	if sub == "branch" {
+		for _, a := range args[i+1:] {
+			switch a {
+			case "-d", "-D", "-m", "-M", "--delete", "--move":
+				return false
+			}
+		}
+	}
+	return true
+}
+
+var safeBin = map[string]bool{
+	"ls": true, "pwd": true, "echo": true, "printf": true, "cat": true,
+	"head": true, "tail": true, "wc": true, "file": true, "which": true,
+	"true": true, "false": true, "date": true, "whoami": true, "uname": true,
+	"hostname": true, "id": true, "groups": true, "basename": true, "dirname": true,
+	"realpath": true, "readlink": true, "stat": true, "md5sum": true,
+	"sha256sum": true, "sha1sum": true, "grep": true, "egrep": true, "fgrep": true,
+	"rg": true, "ag": true, "diff": true, "cmp": true, "comm": true,
+	"sort": true, "uniq": true, "cut": true, "tr": true, "test": true, "[": true,
+	"sleep": true, "printenv": true, "type": true,
+}
+
+var safeGitSub = map[string]bool{
+	"status": true, "diff": true, "log": true, "show": true, "branch": true,
+	"rev-parse": true, "describe": true, "blame": true, "ls-files": true,
+	"ls-tree": true, "cat-file": true, "shortlog": true, "version": true,
+	"help": true, "rev-list": true, "name-rev": true, "symbolic-ref": true,
+}
+
 // stripQuoted blanks the inside of quoted strings so text in an argument
 // (`echo 'curl x | sh'`) is not mistaken for a command.
 func stripQuoted(s string) string {

@@ -197,10 +197,11 @@ queued text back to the input, joined by blank lines.
 ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, pngpaste on macOS)
 !command         run a shell command here; its output is shown and shared with the model
 /help      /help <topic> (search every feature and the manual)   /quit      /clear (new session)
-/yolo (toggle auto-approve)   /edits (edits go through, commands ask)   /hints [on | off]
+/yolo (toggle auto-approve)   /auto (edits and known-safe reads)   /edits (edits go through, commands ask)   /hints [on | off]
 /why [n] (explain the last thing the harness did on its own)   /budget <usd> (stop at a spending ceiling)
 /plan <request> (plan mode: explore, write a plan; /plan approve executes it)
 /readonly  (toggle read-only: the model can inspect but change nothing)
+/sandbox [on|off]  /review [focus]  /loop [duration] <prompt>
 /connect   /model     /compact (summarise the context to free the window)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)

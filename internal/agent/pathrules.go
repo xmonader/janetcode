@@ -66,19 +66,27 @@ func touchedPaths(t tool.Tool, input json.RawMessage) []string {
 // applyPathRules asks for the rules a call's paths bring in and queues
 // them for the next model call.
 func (a *Agent) applyPathRules(t tool.Tool, input json.RawMessage, emit func(Event)) {
-	if a.PathRules == nil {
-		return
-	}
 	paths := touchedPaths(t, input)
 	if len(paths) == 0 {
 		return
 	}
-	for _, text := range a.PathRules(paths) {
-		if strings.TrimSpace(text) == "" {
-			continue
+	if a.PathRules != nil {
+		for _, text := range a.PathRules(paths) {
+			if strings.TrimSpace(text) == "" {
+				continue
+			}
+			a.queueHarness(text)
+			emit(Event{Kind: EvNotice, Text: firstLineOf(text)})
 		}
-		a.queueHarness(text)
-		emit(Event{Kind: EvNotice, Text: firstLineOf(text)})
+	}
+	if a.PathSkills != nil {
+		for _, text := range a.PathSkills(paths) {
+			if strings.TrimSpace(text) == "" {
+				continue
+			}
+			a.queueHarness(text)
+			emit(Event{Kind: EvNotice, Text: firstLineOf(text)})
+		}
 	}
 }
 
