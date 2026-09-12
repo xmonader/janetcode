@@ -101,8 +101,11 @@ type Options struct {
 	// nil: nothing is configured yet.
 	Connect bool
 	Cwd     string
-	Resumed int // messages loaded from a resumed session
-	Version string
+	// Workspace is the shared host the file and shell tools use. /ssh
+	// and /docker retarget it in place. Nil keeps tools on Cwd.
+	Workspace *tool.Workspace
+	Resumed   int // messages loaded from a resumed session
+	Version   string
 	// Theme is "auto"/"" (detect), "dark", "light", or the name of a
 	// builtin or user theme.
 	Theme string
@@ -677,6 +680,107 @@ func (m *model) agentsCommand(args []string) {
 	}
 }
 
+// cycleMode is shift+tab: ask → plan → yolo → ask. /edits and /readonly
+// stay explicit commands so they are not stolen by the cycle.
+func (m *model) cycleMode() {
+	ag := m.opts.Agent
+	if ag == nil {
+		return
+	}
+	switch {
+	case ag.PlanMode:
+		ag.SetPlanMode(false)
+		ag.ReadOnly = false
+		ag.AutoApprove = true
+		m.transcript.info("yolo · tools run without asking · shift+tab cycles ask → plan → yolo")
+	case ag.AutoApprove:
+		ag.AutoApprove = false
+		m.transcript.info("ask · edits and commands ask first · shift+tab cycles ask → plan → yolo")
+	default:
+		ag.AutoApprove = false
+		ag.SetPlanMode(true)
+		m.transcript.info("plan mode · the model reads and searches but changes nothing · shift+tab cycles ask → plan → yolo")
+	}
+	m.refresh(false)
+}
+
+func (m *model) teamCommand(arg string) tea.Cmd {
+	if arg == "" {
+		m.agentsCommand(nil)
+		return nil
+	}
+	task := m.taskTool()
+	if task == nil {
+		m.transcript.errorf("no task tool in this session")
+		m.refresh(false)
+		return nil
+	}
+	desc := arg
+	if i := strings.IndexAny(desc, "\n"); i >= 0 {
+		desc = desc[:i]
+	}
+	desc = strings.TrimSpace(desc)
+	if len([]rune(desc)) > 60 {
+		desc = string([]rune(desc)[:60])
+	}
+	payload, err := json.Marshal(map[string]string{
+		"description": desc,
+		"prompt":      arg,
+		"agent":       "general",
+	})
+	if err != nil {
+		m.transcript.errorf("team: %v", err)
+		m.refresh(false)
+		return nil
+	}
+	m.openOverlay(overlayAgents)
+	send := m.send
+	go func() {
+		_, runErr := task.Run(context.Background(), payload)
+		send(teammateDoneMsg{desc: desc, err: runErr})
+	}()
+	m.transcript.info("started teammate · " + desc + " · /agents watches it")
+	m.refresh(false)
+	return nil
+}
+
+func (m *model) sshCommand(arg string) {
+	m.retargetWorkspace("ssh", arg, tool.DialSSH)
+}
+
+func (m *model) dockerCommand(arg string) {
+	m.retargetWorkspace("docker", arg, tool.DialDocker)
+}
+
+func (m *model) retargetWorkspace(kind, arg string, dial func(string) (tool.Host, error)) {
+	ws := m.opts.Workspace
+	if ws == nil {
+		m.transcript.errorf("this session has no retargetable workspace")
+		m.refresh(false)
+		return
+	}
+	switch arg {
+	case "", "status":
+		m.transcript.info("workspace " + ws.Label())
+		m.refresh(false)
+		return
+	case "off", "local":
+		ws.Set(tool.LocalHost(m.opts.Cwd))
+		m.transcript.info("workspace local · " + m.opts.Cwd)
+		m.refresh(false)
+		return
+	}
+	h, err := dial(arg)
+	if err != nil {
+		m.transcript.errorf("%s: %v", kind, err)
+		m.refresh(false)
+		return
+	}
+	ws.Set(h)
+	m.transcript.info("workspace " + h.Label() + " · file tools and bash run there; /" + kind + " off returns here")
+	m.refresh(false)
+}
+
 // pinCommand adds a pin or lists them.
 func (m *model) pinCommand(arg string) {
 	ag := m.opts.Agent
@@ -1026,6 +1130,11 @@ type shellDoneMsg struct {
 	dur    time.Duration
 }
 
+type teammateDoneMsg struct {
+	desc string
+	err  error
+}
+
 // eventQueue coalesces agent events so that one slow render never throttles
 // the model stream: the agent goroutine appends without blocking and the UI
 // drains everything that accumulated on its next wake-up.
@@ -1131,6 +1240,9 @@ var commands = []command{
 	{name: "/feedback", args: "up|down [note]", help: "rate the last assistant message (not sent to the model)"},
 	{name: "/goal", args: "[objective|pause|resume|done]", help: "set a goal and start on it now; the model keeps going round after round until it is complete or blocked"},
 	{name: "/agents", args: "[id]", help: "live overlay of continuable subagents; enter (or /agents <id>) opens one child's transcript"},
+	{name: "/team", args: "[brief]", help: "same overlay as /agents; with a brief, start a general teammate now"},
+	{name: "/ssh", args: "[user@host[:/path]|off]", help: "run file tools and bash on a remote host over ssh; off returns here"},
+	{name: "/docker", args: "[container[:/path]|off]", help: "run file tools and bash in a docker container; off returns here"},
 	{name: "/readonly", args: "", help: "toggle read-only mode (no edits or commands)"},
 	{name: "/memory", args: "", help: "what janetcode remembers about this project"},
 	{name: "/skills", args: "", help: "skill files available to the model"},
@@ -1157,7 +1269,7 @@ var commands = []command{
 // /budget is here for a different reason from the rest: the ceiling is
 // read by the turn that is running, so writing it from the key handler
 // while a turn is in flight would be a data race on the agent.
-var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget"}
+var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/ssh", "/docker"}
 
 // argCompleters lists the commands whose argument can be enumerated.
 var argCompleters = map[string]func(m *model, partial string) []command{
@@ -1691,6 +1803,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.term.announce("janetcode", "a question for you")
 		return m, nil
 
+	case teammateDoneMsg:
+		if msg.err != nil {
+			m.transcript.errorf("teammate %s: %v", msg.desc, msg.err)
+		} else {
+			m.transcript.info("teammate finished · " + msg.desc + " · /agents to read it")
+		}
+		m.refresh(false)
+		return m, nil
+
 	case verifyDoneMsg:
 		m.finishVerify(msg)
 		m.refresh(false)
@@ -2093,6 +2214,15 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return nil, true
 	case "ctrl+l":
 		return tea.ClearScreen, true
+	case "shift+tab":
+		m.noteUse("shift+tab")
+		m.cycleMode()
+		return nil, true
+	case "ctrl+t":
+		m.noteUse("ctrl+t")
+		m.agentsCommand(nil)
+		m.refresh(false)
+		return nil, true
 	case "ctrl+v":
 		// Text paste arrives through the terminal on its own; ctrl+v grabs an
 		// image from the clipboard and attaches it as an @mention.
@@ -2939,6 +3069,12 @@ func (m *model) command(text string) tea.Cmd {
 		return m.goalCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/agents":
 		m.agentsCommand(fields[1:])
+	case "/team":
+		return m.teamCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/ssh":
+		m.sshCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/docker":
+		m.dockerCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/theme":
 		if cmd := m.themeCommand(fields[1:]); cmd != nil {
 			return cmd
@@ -3324,6 +3460,7 @@ func (m *model) helpText() string {
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends · ctrl+s hands it to the running turn instead · up takes the last queued one back · esc cancels and gives them all back\n")
 	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
+	sb.WriteString("  shift+tab cycles ask → plan → yolo · ctrl+t opens the team overlay (/agents)\n")
 	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · r save a rule so matching calls never ask again · n deny (then type why, or enter to skip) · esc deny · c cancel the whole turn\n")
 	all := m.allCommands()
 	byName := map[string]command{}
@@ -3533,7 +3670,7 @@ var helpGroups = []struct {
 }{
 	{"everyday", []string{"/help", "/connect", "/model", "/yolo", "/edits", "/undo", "/redo", "/compact", "/clear", "/resume", "/settle", "/quit"}},
 	{"reviewing the work", []string{"/open", "/diff", "/changes", "/blame", "/find", "/verbose", "/export", "/usage", "/stats", "/context"}},
-	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/jobs"}},
+	{"steering the session", []string{"/plan", "/readonly", "/goal", "/todos", "/pin", "/unpin", "/fork", "/title", "/history", "/feedback", "/agents", "/team", "/jobs", "/ssh", "/docker"}},
 	{"the project", []string{"/memory", "/remember", "/forget", "/skills", "/verify", "/permissions", "/hooks", "/mcp", "/lsp"}},
 	{"diagnostics", []string{"/why", "/inspect", "/trajectory", "/reload", "/hints"}},
 }
@@ -3819,7 +3956,11 @@ func (m *model) headerView() string {
 		if room < minPath {
 			return "", false
 		}
-		p := fitPath(shortPath(m.opts.Cwd), room)
+		cwd := m.opts.Cwd
+		if m.opts.Workspace != nil {
+			cwd = m.opts.Workspace.Label()
+		}
+		p := fitPath(shortPath(cwd), room)
 		gap := m.width - fixed - lipgloss.Width(p) + 1
 		if gap < 1 {
 			return "", false

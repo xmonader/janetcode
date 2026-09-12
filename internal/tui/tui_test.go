@@ -1417,11 +1417,11 @@ func TestAgentsCommandEmpty(t *testing.T) {
 		t.Fatal("empty /agents should still open the overlay")
 	}
 	v := plain(h.m.View())
-	if !strings.Contains(v, "Subagents") || !strings.Contains(v, "no subagents yet") {
+	if !strings.Contains(v, "Team") || !strings.Contains(v, "no teammates yet") {
 		t.Fatalf("empty overlay:\n%s", v)
 	}
 	for _, e := range h.m.transcript.entries {
-		if e.kind == entryInfo && strings.Contains(e.text, "no subagents") {
+		if e.kind == entryInfo && strings.Contains(e.text, "no teammates") {
 			t.Fatalf("empty state dumped into the transcript: %q", e.text)
 		}
 	}
@@ -1468,7 +1468,7 @@ func TestAgentsOverlayOpenEscAndNoDump(t *testing.T) {
 		t.Fatal("esc from the transcript should return to the list")
 	}
 	v = plain(h.m.View())
-	if !strings.Contains(v, "Subagents") || !strings.Contains(v, id) {
+	if !strings.Contains(v, "Team") || !strings.Contains(v, id) {
 		t.Fatalf("list after esc:\n%s", v)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -3780,5 +3780,100 @@ func TestCodeLinesEndInOneEllipsis(t *testing.T) {
 	}
 	if !strings.HasSuffix(strings.TrimRight(out, " "), "…") {
 		t.Fatalf("no cut mark: %q", out)
+	}
+}
+
+func TestModeCycleShiftTab(t *testing.T) {
+	h := newHarness(t)
+	shiftTab := tea.KeyMsg{Type: tea.KeyShiftTab}
+	if h.m.opts.Agent.PlanMode || h.m.opts.Agent.AutoApprove {
+		t.Fatal("should start in ask")
+	}
+	h.update(shiftTab)
+	if !h.m.opts.Agent.PlanMode || !strings.Contains(plain(h.m.View()), "PLAN ·") {
+		t.Fatalf("ask→plan: plan=%v view:\n%s", h.m.opts.Agent.PlanMode, plain(h.m.View()))
+	}
+	h.update(shiftTab)
+	if h.m.opts.Agent.PlanMode || !h.m.opts.Agent.AutoApprove || !strings.Contains(plain(h.m.View()), "YOLO ·") {
+		t.Fatalf("plan→yolo: plan=%v yolo=%v view:\n%s", h.m.opts.Agent.PlanMode, h.m.opts.Agent.AutoApprove, plain(h.m.View()))
+	}
+	h.update(shiftTab)
+	if h.m.opts.Agent.PlanMode || h.m.opts.Agent.AutoApprove {
+		t.Fatalf("yolo→ask: plan=%v yolo=%v", h.m.opts.Agent.PlanMode, h.m.opts.Agent.AutoApprove)
+	}
+}
+
+func TestShiftTabInAskDoesNotCycleMode(t *testing.T) {
+	h := newHarness(t)
+	qs := []agent.Question{
+		{Prompt: "One?", Options: []agent.AskOption{{Label: "A"}}},
+		{Prompt: "Two?", Options: []agent.AskOption{{Label: "B"}}},
+	}
+	errc := make(chan error, 1)
+	go func() {
+		_, err := h.m.opts.Agent.Asker.Ask(context.Background(), qs)
+		errc <- err
+	}()
+	h.pump(func() bool { return h.m.asking != nil })
+	h.update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	if h.m.opts.Agent.PlanMode || h.m.opts.Agent.AutoApprove {
+		t.Fatal("shift+tab in the ask overlay must not cycle the session mode")
+	}
+	if h.m.asking == nil || h.m.asking.tab != 1 {
+		t.Fatalf("should move to the previous/next tab, tab=%d", h.m.asking.tab)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	select {
+	case <-errc:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ask did not finish")
+	}
+}
+
+func TestCtrlTOpensTeamOverlay(t *testing.T) {
+	h := newHarness(t)
+	attachTask(h)
+	h.update(tea.KeyMsg{Type: tea.KeyCtrlT})
+	if h.m.overlay != overlayAgents {
+		t.Fatalf("overlay = %q, want %s", h.m.overlay, overlayAgents)
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "Team") {
+		t.Fatalf("view:\n%s", v)
+	}
+}
+
+func TestTeamCommandSpawnsGeneral(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Agent.Provider = &scripted{responses: []*llm.Response{
+		{Message: llm.TextMessage(llm.RoleAssistant, "looked around"), StopReason: llm.StopEndTurn},
+	}}
+	attachTask(h)
+	h.keys("/team map the parser")
+	h.enter()
+	if h.m.overlay != overlayAgents {
+		t.Fatalf("overlay = %q", h.m.overlay)
+	}
+	h.pump(func() bool {
+		kids := h.m.taskTool().Children()
+		return len(kids) == 1 && kids[0].Done
+	})
+	kids := h.m.taskTool().Children()
+	if kids[0].Description != "map the parser" {
+		t.Fatalf("desc = %q", kids[0].Description)
+	}
+}
+
+func TestSSHCommandStatusAndOff(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Workspace = tool.NewLocal(h.m.opts.Cwd)
+	h.keys("/ssh")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "workspace") {
+		t.Fatalf("status:\n%s", v)
+	}
+	h.keys("/ssh off")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "workspace local") {
+		t.Fatalf("off:\n%s", v)
 	}
 }

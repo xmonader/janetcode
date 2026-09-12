@@ -3,7 +3,7 @@ package skill
 // Builtins are subagent profiles that ship with janetcode. They are
 // selectable with task agent=<name> without a file in .janetcode/agents.
 func Builtins() []Profile {
-	return []Profile{exploreProfile}
+	return []Profile{exploreProfile, generalProfile}
 }
 
 var exploreProfile = Profile{
@@ -13,6 +13,15 @@ var exploreProfile = Profile{
 	Body: `You are a read-only explore subagent. Your job is to look through the codebase and report what you find: relevant paths with line numbers, how something is wired, and anything surprising.
 
 You cannot edit files, write files, or run shell commands. Use read, list, glob, grep and any other read-only tools you have. Do not ask questions; make reasonable assumptions and state them. Return a complete, self-contained report.`,
+}
+
+var generalProfile = Profile{
+	Name:        "general",
+	Description: "general-purpose teammate: investigates and reports; cannot edit or run commands",
+	Source:      "builtin",
+	Body: `You are a teammate of the main agent. Do the job in the brief completely and report back.
+
+You cannot edit files, write files, or run shell commands unless you were started with edit:true. Use the tools you have. Do not ask questions; make reasonable assumptions and state them. Return a complete, self-contained report.`,
 }
 
 // MergeProfiles returns base then overlay, with overlay winning on the

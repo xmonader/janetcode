@@ -49,6 +49,12 @@ type Jobs struct {
 // Start launches the command in its own process group with output going
 // to a file, and returns immediately.
 func (j *Jobs) Start(root, command string) (*Job, error) {
+	return j.StartOn(nil, root, command)
+}
+
+// StartOn is Start on a workspace: a remote host runs the command through
+// ssh or docker exec, as a local process the job can still kill.
+func (j *Jobs) StartOn(ws *Workspace, root, command string) (*Job, error) {
 	if j == nil {
 		return nil, errors.New("background jobs are not available")
 	}
@@ -67,10 +73,20 @@ func (j *Jobs) Start(root, command string) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := ShellCommand(context.Background(), command) // never cancelled; Kill uses the process group
-	cmd.Dir = root
-	cmd.Env = scrubEnv(os.Environ())
-	setProcessGroup(cmd)
+	var cmd *exec.Cmd
+	if ws != nil && !ws.Local() {
+		cmd, err = ws.Host().Command(context.Background(), command)
+		if err != nil {
+			out.Close()
+			os.Remove(out.Name())
+			return nil, err
+		}
+	} else {
+		cmd = ShellCommand(context.Background(), command) // never cancelled; Kill uses the process group
+		cmd.Dir = root
+		cmd.Env = scrubEnv(os.Environ())
+		setProcessGroup(cmd)
+	}
 	pr, pw, err := os.Pipe()
 	if err != nil {
 		out.Close()

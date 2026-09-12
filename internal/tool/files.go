@@ -17,6 +17,9 @@ import (
 // ReadFile reads a file with optional line window.
 type ReadFile struct {
 	Root string
+	// WS, when set, is the shared workspace so /ssh retargets this tool
+	// in place. Root is the fallback tests and worktrees still set.
+	WS *Workspace
 	// Seen, when set, records what was read for later conflict checks.
 	Seen *Seen
 }
@@ -44,14 +47,14 @@ func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	if err := decode(input, &in); err != nil {
 		return "", err
 	}
-	p, err := resolvePath(t.Root, in.Path)
+	p, err := resolveOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return "", err
 	}
-	if st, serr := os.Stat(p); serr == nil && st.IsDir() {
+	if st, serr := statOf(t.WS, p); serr == nil && st.IsDir() {
 		return "", fmt.Errorf("%s is a directory; list_dir shows what is in it and glob finds files by pattern", in.Path)
 	}
-	data, err := os.ReadFile(p)
+	data, err := readFileOf(t.WS, p)
 	if err != nil {
 		return "", err
 	}
@@ -114,6 +117,7 @@ func isBinary(b []byte) bool {
 // WriteFile creates or overwrites a file.
 type WriteFile struct {
 	Root string
+	WS   *Workspace
 	// Seen, when set, refuses to overwrite a file that changed since the
 	// agent last read or wrote it.
 	Seen *Seen
@@ -139,17 +143,17 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 	if err := decode(input, &in); err != nil {
 		return "", err
 	}
-	p, err := resolvePath(t.Root, in.Path)
+	p, err := resolveOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	if err := mkdirAllOf(t.WS, filepath.Dir(p), 0o755); err != nil {
 		return "", err
 	}
-	if err := t.Seen.Check(p, in.Path, "write"); err != nil {
+	if err := t.Seen.CheckAt(t.WS, p, in.Path, "write"); err != nil {
 		return "", err
 	}
-	old, readErr := os.ReadFile(p)
+	old, readErr := readFileOf(t.WS, p)
 	existed := readErr == nil
 	// A file keeps the shape it had: its byte-order mark, its line endings
 	// and its charset. Otherwise the first write to a Windows or Latin-1
@@ -159,15 +163,16 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 		oldText, shape = decodeText(old)
 	}
 	data := encodeText(in.Content, shape)
-	if err := atomicWrite(p, data); err != nil {
+	if err := writeFileOf(t.WS, p, data); err != nil {
 		return "", err
 	}
 	t.Seen.Record(p, data)
+	root := rootOf(t.Root, t.WS)
 	if !existed {
-		return fmt.Sprintf("Created %s (%s)", displayPath(t.Root, in.Path), plural(countLines(in.Content), "line")), nil
+		return fmt.Sprintf("Created %s (%s)", displayPath(root, in.Path), plural(countLines(in.Content), "line")), nil
 	}
 	added, removed := diff.Stats(oldText, in.Content)
-	out := fmt.Sprintf("Overwrote %s (+%d -%d lines)", displayPath(t.Root, in.Path), added, removed)
+	out := fmt.Sprintf("Overwrote %s (+%d -%d lines)", displayPath(root, in.Path), added, removed)
 	if note := shape.Note(); note != "" {
 		out += "\n[" + note + "]"
 	}
@@ -184,14 +189,14 @@ func plural(n int, unit string) string {
 // Guard implements Guard: a write to one of janetcode's own control
 // surfaces asks, whatever the permission mode.
 func (t WriteFile) Guard(input json.RawMessage) (bool, string) {
-	return guardSelfModify(t.Root, input)
+	return guardSelfModify(rootOf(t.Root, t.WS), input)
 }
 
 // Preview implements Previewer: a diff against the existing file, or the
 // head of a new file.
 // Touches reports the file the write will replace or create.
 func (t WriteFile) Touches(input json.RawMessage) ([]string, error) {
-	return touchedPath(t.Root, input)
+	return touchedPathOn(t.WS, t.Root, input)
 }
 
 func (t WriteFile) Preview(_ context.Context, input json.RawMessage) (string, error) {
@@ -202,11 +207,11 @@ func (t WriteFile) Preview(_ context.Context, input json.RawMessage) (string, er
 	if err := decode(input, &in); err != nil {
 		return "", err
 	}
-	p, err := resolvePath(t.Root, in.Path)
+	p, err := resolveOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return "", err
 	}
-	old, err := os.ReadFile(p)
+	old, err := readFileOf(t.WS, p)
 	if err != nil {
 		return diff.Unified(in.Path, "", in.Content, 0), nil
 	}
@@ -236,6 +241,10 @@ func countLines(s string) int {
 // leaves a truncated file. Preserves the mode of an existing file.
 // touchedPath resolves the "path" field of a file tool's input.
 func touchedPath(root string, input json.RawMessage) ([]string, error) {
+	return touchedPathOn(nil, root, input)
+}
+
+func touchedPathOn(ws *Workspace, root string, input json.RawMessage) ([]string, error) {
 	var in struct {
 		Path string `json:"path"`
 	}
@@ -244,7 +253,7 @@ func touchedPath(root string, input json.RawMessage) ([]string, error) {
 	if err := json.Unmarshal(input, &in); err != nil {
 		return nil, err
 	}
-	p, err := resolvePath(root, in.Path)
+	p, err := resolveOn(ws, root, in.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -290,6 +299,7 @@ func atomicWrite(p string, data []byte) error {
 // EditFile replaces an exact substring in a file.
 type EditFile struct {
 	Root string
+	WS   *Workspace
 	// Seen, when set, refuses to edit a file that changed since the agent
 	// last read or wrote it.
 	Seen *Seen
@@ -475,11 +485,11 @@ func (t EditFile) checkSeen(input json.RawMessage) error {
 	if json.Unmarshal(input, &in) != nil || strings.TrimSpace(in.Path) == "" {
 		return nil // the plan will report what is wrong with the input
 	}
-	p, err := resolvePath(t.Root, in.Path)
+	p, err := resolveOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return nil
 	}
-	return t.Seen.Check(p, displayPath(t.Root, in.Path), "edit")
+	return t.Seen.CheckAt(t.WS, p, displayPath(rootOf(t.Root, t.WS), in.Path), "edit")
 }
 
 func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
@@ -521,16 +531,16 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 		// the string edits shifted it? Refusing is clearer than choosing.
 		return nil, fmt.Errorf("every edit in one call must locate itself the same way: %d of %d give a line range", lines, len(edits))
 	}
-	p, err := resolvePath(t.Root, in.Path)
+	p, err := resolveOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(p)
+	data, err := readFileOf(t.WS, p)
 	if err != nil {
 		return nil, err
 	}
 	if isBinary(data) {
-		return nil, &ErrPriorRead{Path: displayPath(t.Root, in.Path), Verb: "edit", Cause: CauseBinary}
+		return nil, &ErrPriorRead{Path: displayPath(rootOf(t.Root, t.WS), in.Path), Verb: "edit", Cause: CauseBinary}
 	}
 	before, shape := decodeText(data)
 	if lines > 0 {
@@ -553,7 +563,7 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: after, replacements: n, removed: removed, shape: shape}, nil
+		return &editPlan{path: p, display: displayPath(rootOf(t.Root, t.WS), in.Path), before: before, after: after, replacements: n, removed: removed, shape: shape}, nil
 	}
 	content, total := before, 0
 	var notes []string
@@ -567,7 +577,7 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 		}
 		content, total = updated, total+n
 	}
-	return &editPlan{path: p, display: displayPath(t.Root, in.Path), before: before, after: content, replacements: total, notes: notes, shape: shape}, nil
+	return &editPlan{path: p, display: displayPath(rootOf(t.Root, t.WS), in.Path), before: before, after: content, replacements: total, notes: notes, shape: shape}, nil
 }
 
 // repairEdits fixes the two ways models malform the edits argument, both
@@ -801,7 +811,7 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 		return "", err
 	}
 	data := encodeText(pl.after, pl.shape)
-	if err := atomicWrite(pl.path, data); err != nil {
+	if err := writeFileOf(t.WS, pl.path, data); err != nil {
 		return "", err
 	}
 	t.Seen.Record(pl.path, data)
@@ -827,13 +837,13 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 // Guard implements Guard: an edit to one of janetcode's own control
 // surfaces asks, whatever the permission mode.
 func (t EditFile) Guard(input json.RawMessage) (bool, string) {
-	return guardSelfModify(t.Root, input)
+	return guardSelfModify(rootOf(t.Root, t.WS), input)
 }
 
 // Preview implements Previewer with a unified diff of the edit.
 // Touches reports the file the edit will rewrite.
 func (t EditFile) Touches(input json.RawMessage) ([]string, error) {
-	return touchedPath(t.Root, input)
+	return touchedPathOn(t.WS, t.Root, input)
 }
 
 func (t EditFile) Preview(_ context.Context, input json.RawMessage) (string, error) {
@@ -845,7 +855,10 @@ func (t EditFile) Preview(_ context.Context, input json.RawMessage) (string, err
 }
 
 // ListDir lists a directory.
-type ListDir struct{ Root string }
+type ListDir struct {
+	Root string
+	WS   *Workspace
+}
 
 func (ListDir) Name() string { return "list_dir" }
 func (ListDir) Description() string {
@@ -870,11 +883,11 @@ func (t ListDir) Run(_ context.Context, input json.RawMessage) (string, error) {
 	if in.Path == "" {
 		in.Path = "."
 	}
-	p, err := resolvePath(t.Root, in.Path)
+	p, err := resolveOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return "", err
 	}
-	entries, err := os.ReadDir(p)
+	entries, err := readDirOf(t.WS, p)
 	if err != nil {
 		return "", err
 	}

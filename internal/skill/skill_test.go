@@ -163,8 +163,29 @@ func TestBuiltinExploreNeedsNoFile(t *testing.T) {
 	}
 	user := []Profile{{Name: "explore", Description: "project", Body: "override", Source: "project"}}
 	merged := MergeProfiles(Builtins(), user)
-	if len(merged) != 1 || merged[0].Source != "project" || merged[0].Body != "override" {
+	var got *Profile
+	for i := range merged {
+		if merged[i].Name == "explore" {
+			got = &merged[i]
+			break
+		}
+	}
+	if got == nil || got.Source != "project" || got.Body != "override" {
 		t.Fatalf("overlay should win: %+v", merged)
+	}
+}
+
+func TestBuiltinGeneralNeedsNoFile(t *testing.T) {
+	ps := MergeProfiles(Builtins(), nil)
+	var general *Profile
+	for i := range ps {
+		if ps[i].Name == "general" {
+			general = &ps[i]
+			break
+		}
+	}
+	if general == nil || general.Source != "builtin" || general.Body == "" {
+		t.Fatalf("builtin general missing: %+v", ps)
 	}
 }
 

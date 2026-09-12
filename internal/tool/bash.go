@@ -15,6 +15,7 @@ import (
 // Bash runs a shell command in the working directory.
 type Bash struct {
 	Root string
+	WS   *Workspace
 	// DefaultTimeout applies when the model gives none. Zero means 2 minutes.
 	DefaultTimeout time.Duration
 	// MaxTimeout caps what the model may request. Zero means 10 minutes.
@@ -54,23 +55,26 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if strings.TrimSpace(in.Command) == "" {
 		return "", fmt.Errorf("command is empty")
 	}
-	if risk, why := Classify(in.Command, t.Root); risk == RiskCatastrophic {
+	root := rootOf(t.Root, t.WS)
+	if risk, why := Classify(in.Command, root); risk == RiskCatastrophic {
 		return "", fmt.Errorf("refused: this command %s. janetcode never runs it, not even with auto-approve; do not retry it in another form", why)
 	}
 	if in.Background {
 		if t.Jobs == nil {
 			return "", fmt.Errorf("background jobs are not available in this session; run the command in the foreground with a timeout")
 		}
-		job, err := t.Jobs.Start(t.Root, in.Command)
+		job, err := t.Jobs.StartOn(t.WS, root, in.Command)
 		if err != nil {
 			return "", err
 		}
 		t.Cache.invalidate()
 		return fmt.Sprintf("Started background job %d (pid %d): %s\nOutput is collected in %s. You will be told when it finishes; the job tool shows output, waits, or kills it.", job.ID, job.Pid, in.Command, job.OutPath), nil
 	}
-	cacheKey := t.Cache.key(t.Root, in.Command)
-	if out, age, ok := t.Cache.get(cacheKey); ok {
-		return out + fmt.Sprintf("\n[cached: this exact command ran %s ago on an identical tree and nothing has changed since; append '%s' to force a rerun]", age.Round(time.Second), noCacheMarker), nil
+	cacheKey := t.Cache.key(root, in.Command)
+	if t.WS == nil || t.WS.Local() {
+		if out, age, ok := t.Cache.get(cacheKey); ok {
+			return out + fmt.Sprintf("\n[cached: this exact command ran %s ago on an identical tree and nothing has changed since; append '%s' to force a rerun]", age.Round(time.Second), noCacheMarker), nil
+		}
 	}
 	def, max := t.DefaultTimeout, t.MaxTimeout
 	if def == 0 {
@@ -98,10 +102,19 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		}
 	}()
 
-	cmd := ShellCommand(runCtx, in.Command)
-	cmd.Dir = t.Root
-	cmd.Env = scrubEnv(os.Environ())
-	setProcessGroup(cmd)
+	var cmd *exec.Cmd
+	if t.WS != nil && !t.WS.Local() {
+		var err error
+		cmd, err = t.WS.Host().Command(runCtx, in.Command)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		cmd = ShellCommand(runCtx, in.Command)
+		cmd.Dir = root
+		cmd.Env = scrubEnv(os.Environ())
+		setProcessGroup(cmd)
+	}
 	cmd.WaitDelay = 2 * time.Second
 	out := &swapBuffer{}
 	cmd.Stdout = out
@@ -175,7 +188,9 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		result += exitNote(in.Command, exit)
 	}
 	result = Truncate(result)
-	t.Cache.put(cacheKey, result)
+	if t.WS == nil || t.WS.Local() {
+		t.Cache.put(cacheKey, result)
+	}
 	return result, nil
 }
 
@@ -209,10 +224,11 @@ func (t Bash) Guard(input json.RawMessage) (bool, string) {
 	if json.Unmarshal(input, &in) != nil {
 		return false, ""
 	}
-	if risk, why := Classify(in.Command, t.Root); risk == RiskEscapes {
+	root := rootOf(t.Root, t.WS)
+	if risk, why := Classify(in.Command, root); risk == RiskEscapes {
 		return true, why
 	}
-	if what := selfModifyingCommand(in.Command, t.Root); what != "" {
+	if what := selfModifyingCommand(in.Command, root); what != "" {
 		return true, what + ", which decides what janetcode may do without asking"
 	}
 	return false, ""
@@ -227,10 +243,11 @@ func (t Bash) Warn(input json.RawMessage) string {
 		return ""
 	}
 	var notes []string
-	if risk, why := Classify(in.Command, t.Root); risk != RiskOrdinary {
+	root := rootOf(t.Root, t.WS)
+	if risk, why := Classify(in.Command, root); risk != RiskOrdinary {
 		notes = append(notes, why)
 	}
-	if what := selfModifyingCommand(in.Command, t.Root); what != "" {
+	if what := selfModifyingCommand(in.Command, root); what != "" {
 		notes = append(notes, what)
 	}
 	for _, d := range dangerPatterns {

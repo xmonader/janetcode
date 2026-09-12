@@ -39,6 +39,8 @@ ctrl+o           expand the last turn's output   ctrl+l   redraw
                  /verbose does every turn)
 pgup / pgdn      scroll (mouse wheel works)
 ctrl+c           cancel the turn; when idle, press twice to quit
+shift+tab        cycle ask → plan → yolo (approvals, plan-first, auto-approve)
+ctrl+t           open the team overlay of continuable subagents (/agents)
 ```
 
 ## Colour and themes
@@ -158,6 +160,9 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /help      /quit      /clear (new session)     /yolo (toggle auto-approve)   /edits (edits go through, commands ask)
 /plan <request> (plan mode: explore, write a plan; /plan approve executes it)
 /readonly  (toggle read-only: the model can inspect but change nothing)
+/team [brief]  (same overlay as /agents; with a brief, start a general teammate now)
+/ssh [user@host[:/path]|off]  (file tools and bash on a remote host; off returns here)
+/docker [container[:/path]|off]  (the same, in a running container)
 /connect   /model     /compact (summarise the context to free the window)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost, what the harness had to recover)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
@@ -513,6 +518,11 @@ approval: bubble
 ---
 Make the failing test pass. Do not weaken the test.
 ```
+
+`/team` with no argument is the same overlay as `/agents`. `/team <brief>`
+starts a built-in `general` teammate immediately (read-only, like `task`
+without `edit:true`) and opens the overlay so you can watch it. `ctrl+t`
+opens the overlay from the keyboard.
 
 A subagent that finished is not gone: `/agents` opens a live overlay of
 the continuable subagents this session started with the `task` tool.
@@ -998,7 +1008,10 @@ plan under `## Plan` (files, order, verification, risks). Ask questions or
 request changes to the plan as normal messages; `/plan approve` leaves the
 mode and tells the model to execute the plan step by step, verifying each
 step. Every step is a normal turn, so `/undo` walks it back. `/plan off`
-leaves without executing.
+leaves without executing. `shift+tab` cycles the three session modes
+without typing a command: **ask** (edits and commands ask first) →
+**plan** → **yolo** (`/yolo`, tools run without asking) → ask. `/edits`
+and `/readonly` stay their own toggles.
 
 `/readonly` (or `--readonly` on the command line) is the same restriction
 without the plan: useful for reviews and for letting the model answer
@@ -1024,8 +1037,21 @@ The chosen label (and any Other text) is what the model receives.
 
 `task` with `agent: explore` runs a built-in read-only subagent: it can
 read, list, glob and grep, but cannot edit files or run commands, and
-it needs no profile file in `.janetcode/agents`. Other names still load
-from those files.
+it needs no profile file in `.janetcode/agents`. `agent: general` is the
+same kind of built-in teammate for a job that is not specifically
+exploration. Other names still load from those files.
+
+### Remote workspace
+
+`/ssh user@host` (or `user@host:/path`) retargets the file tools and
+`bash` onto that machine. One shared workspace pointer is swapped, so
+every tool sees the new root without rebuilding the agent. `/ssh off`
+returns to this directory. `/docker <container>` (or
+`container:/path`) does the same through `docker exec`. The session,
+memory, snapshots, language servers and `/undo` stay on the local
+project; only what the model reads, writes and runs moves. `ssh` uses
+`BatchMode` so it will not prompt for a password: keys or an ssh-agent
+have to already work.
 
 ### Rating an answer
 

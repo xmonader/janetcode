@@ -46,6 +46,8 @@ type Options struct {
 	Jobs      *tool.Jobs
 	Features  *feature.Catalog
 	ConfigDir string
+	// Workspace is the shared host file tools use; /ssh and /docker retarget it.
+	Workspace *tool.Workspace
 
 	// Typed collects hosts the user names in their own messages so
 	// fetch_url may reach them; @path attachments are expanded with it.

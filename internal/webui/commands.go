@@ -3,6 +3,7 @@ package webui
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 type cmdSpec struct {
@@ -62,6 +64,9 @@ var commandSpecs = []cmdSpec{
 	{Name: "/why", Args: "[n]", Help: "explain the last thing the harness did on its own"},
 	{Name: "/trajectory", Args: "[n|grep words]", Help: "the session's event ledger"},
 	{Name: "/agents", Args: "[id]", Help: "subagents; /agents <id> shows that child's transcript"},
+	{Name: "/team", Args: "[brief]", Help: "same as /agents; with a brief, start a general teammate"},
+	{Name: "/ssh", Args: "[user@host[:/path]|off]", Help: "run file tools and bash over ssh; off returns here", Idle: true},
+	{Name: "/docker", Args: "[container[:/path]|off]", Help: "run file tools and bash in a container; off returns here", Idle: true},
 	{Name: "/reload", Args: "", Help: "rebuild the memory and skill prompt indexes"},
 	{Name: "/inspect", Args: "[subject]", Help: "look at any part of the session"},
 	{Name: "/permissions", Args: "", Help: "permission rules in effect"},
@@ -226,6 +231,12 @@ func (s *server) runCommand(text string) error {
 		s.trajectory(arg)
 	case "/agents":
 		s.agents(arg)
+	case "/team":
+		s.team(arg)
+	case "/ssh":
+		s.retarget("ssh", arg, tool.DialSSH)
+	case "/docker":
+		s.retarget("docker", arg, tool.DialDocker)
 	case "/reload":
 		ag.RefreshExtra()
 		s.notice("memory and skill indexes will be rebuilt for the next call (one cache miss); they also refresh at compaction")
@@ -434,6 +445,65 @@ func (s *server) trajectory(arg string) {
 			shortDuration(time.Duration(e.DurationMs)*time.Millisecond), session.ClassifyWith(hidden, e))
 	}
 	s.sheet("trajectory", strings.TrimRight(sb.String(), "\n"))
+}
+
+func (s *server) team(arg string) {
+	if arg == "" {
+		s.agents("")
+		return
+	}
+	task := s.taskTool()
+	if task == nil {
+		s.notice("no task tool")
+		return
+	}
+	desc := arg
+	if i := strings.IndexAny(desc, "\n"); i >= 0 {
+		desc = desc[:i]
+	}
+	desc = strings.TrimSpace(desc)
+	payload, err := json.Marshal(map[string]string{
+		"description": desc,
+		"prompt":      arg,
+		"agent":       "general",
+	})
+	if err != nil {
+		s.errf("team: %v", err)
+		return
+	}
+	s.notice("started teammate · " + desc)
+	go func() {
+		_, runErr := task.Run(context.Background(), payload)
+		if runErr != nil {
+			s.errf("teammate %s: %v", desc, runErr)
+			return
+		}
+		s.notice("teammate finished · " + desc + " · /agents to read it")
+	}()
+}
+
+func (s *server) retarget(kind, arg string, dial func(string) (tool.Host, error)) {
+	ws := s.opts.Workspace
+	if ws == nil {
+		s.errf("this session has no retargetable workspace")
+		return
+	}
+	switch arg {
+	case "", "status":
+		s.notice("workspace " + ws.Label())
+		return
+	case "off", "local":
+		ws.Set(tool.LocalHost(s.opts.Cwd))
+		s.notice("workspace local · " + s.opts.Cwd)
+		return
+	}
+	h, err := dial(arg)
+	if err != nil {
+		s.errf("%s: %v", kind, err)
+		return
+	}
+	ws.Set(h)
+	s.notice("workspace " + h.Label() + " · file tools and bash run there")
 }
 
 func (s *server) agents(id string) {

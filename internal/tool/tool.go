@@ -230,6 +230,13 @@ func displayPath(root, p string) string {
 }
 
 func resolvePath(root, p string) (string, error) {
+	return confinePath(root, p, true)
+}
+
+// confinePath makes p absolute relative to root and rejects escapes
+// outside root. evalSymlinks is the local-filesystem check; a remote
+// host skips it so a path is not resolved against this machine.
+func confinePath(root, p string, evalSymlinks bool) (string, error) {
 	if strings.TrimSpace(p) == "" {
 		return "", fmt.Errorf("path is empty")
 	}
@@ -241,6 +248,9 @@ func resolvePath(root, p string) (string, error) {
 	rel, err := filepath.Rel(root, abs)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("path %q is outside the working directory", p)
+	}
+	if !evalSymlinks {
+		return abs, nil
 	}
 	// Resolve symlinks on the deepest existing ancestor.
 	if real, err := filepath.EvalSymlinks(abs); err == nil {

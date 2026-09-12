@@ -234,7 +234,8 @@ Features, each a section of the interface page:
 - [Editing subagents in a worktree](docs/manual/interface.md#editing-subagents-in-a-worktree) — `task` with `edit: true` works in an isolated worktree and returns a patch
 - [A whole session in a worktree](docs/manual/interface.md#a-whole-session-in-a-worktree) — `--worktree <branch>` keeps the session off your checkout
 - [Sending a job to another model](docs/manual/interface.md#sending-a-job-to-another-model) — `task` takes a `model`, for cheaper or faster subagents
-- [Custom agents](docs/manual/interface.md#custom-agents) — named subagent profiles in `.janetcode/agents/`
+- [Custom agents](docs/manual/interface.md#custom-agents) — named subagent profiles in `.janetcode/agents/`; `/team` and `ctrl+t` for the live overlay
+- [Remote workspace](docs/manual/interface.md#remote-workspace) — `/ssh` and `/docker` retarget file tools and bash without rebuilding the agent
 - [Prompt caching](docs/manual/interface.md#prompt-caching) — a byte-stable request prefix so every provider's cache hits
 - [Asking for a shape](docs/manual/interface.md#asking-for-a-shape) — replies constrained to JSON where they are parsed rather than read
 - [File viewer and hunk review](docs/manual/interface.md#file-viewer-and-hunk-review) — `/open path:line` and `/diff`, with per-hunk revert

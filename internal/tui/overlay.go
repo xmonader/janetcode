@@ -227,13 +227,13 @@ func (m *model) agentsListView(height int) string {
 	inner := w - 4
 	var lines []string
 	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
-	add(styleKey.Render("Subagents"))
-	add(styleDim.Render("this session · live · enter opens the transcript"))
+	add(styleKey.Render("Team"))
+	add(styleDim.Render("this session · live · enter opens the transcript · ctrl+t"))
 	add("")
 	kids := m.overlayKids()
 	if len(kids) == 0 {
-		add(styleDim.Render("no subagents yet"))
-		add(styleFaint.Render("the model starts one with the task tool · task continue=<id> reuses it"))
+		add(styleDim.Render("no teammates yet"))
+		add(styleFaint.Render("the model starts one with the task tool · /team <brief> starts a general teammate now"))
 	} else {
 		if m.overlayIdx >= len(kids) {
 			m.overlayIdx = len(kids) - 1
@@ -267,7 +267,7 @@ func (m *model) agentsListView(height int) string {
 			add("")
 		}
 	}
-	add(styleFaint.Render(`↑↓ choose · enter open · esc close · /agents <id> jumps`))
+	add(styleFaint.Render(`↑↓ choose · enter open · esc close · /team <brief> starts one · /agents <id> jumps`))
 	box := styleDialog.Width(w - 2).Render(strings.Join(lines, "\n"))
 	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }

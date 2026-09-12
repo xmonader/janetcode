@@ -2,11 +2,12 @@ package tool
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -20,7 +21,10 @@ var skipDirs = map[string]bool{
 }
 
 // Glob finds files matching a glob pattern.
-type Glob struct{ Root string }
+type Glob struct {
+	Root string
+	WS   *Workspace
+}
 
 func (Glob) Name() string { return "glob" }
 func (Glob) Description() string {
@@ -47,7 +51,7 @@ func (t Glob) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if in.Path == "" {
 		in.Path = "."
 	}
-	dir, err := resolvePath(t.Root, in.Path)
+	dir, err := resolveOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return "", err
 	}
@@ -60,7 +64,7 @@ func (t Glob) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		mod  int64
 	}
 	var hits []hit
-	err = walk(ctx, dir, func(rel string, d fs.DirEntry) error {
+	err = walkOn(t.WS, ctx, dir, func(rel string, d fs.DirEntry) error {
 		if d.IsDir() || !re.MatchString(rel) {
 			return nil
 		}
@@ -98,7 +102,11 @@ func (t Glob) Run(ctx context.Context, input json.RawMessage) (string, error) {
 // walk visits every entry under dir, skipping skipDirs, calling fn with the
 // slash-separated path relative to dir.
 func walk(ctx context.Context, dir string, fn func(rel string, d fs.DirEntry) error) error {
-	return filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+	return walkOn(nil, ctx, dir, fn)
+}
+
+func walkOn(ws *Workspace, ctx context.Context, dir string, fn func(rel string, d fs.DirEntry) error) error {
+	return walkDirOf(ws, dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if d != nil && d.IsDir() {
 				return fs.SkipDir
@@ -176,7 +184,10 @@ func globToRegexp(pattern string) (*regexp.Regexp, error) {
 }
 
 // Grep searches file contents with a regular expression.
-type Grep struct{ Root string }
+type Grep struct {
+	Root string
+	WS   *Workspace
+}
 
 func (Grep) Name() string { return "grep" }
 func (Grep) Description() string {
@@ -232,18 +243,18 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if in.Path == "" {
 		in.Path = "."
 	}
-	target, err := resolvePath(t.Root, in.Path)
+	target, err := resolveOn(t.WS, t.Root, in.Path)
 	if err != nil {
 		return "", err
 	}
-	st, err := os.Stat(target)
+	st, err := statOf(t.WS, target)
 	if err != nil {
 		return "", err
 	}
 	var sb strings.Builder
 	count := 0
 	grepFile := func(display, full string) error {
-		f, err := os.Open(full)
+		f, err := openOf(t.WS, full)
 		if err != nil {
 			return nil
 		}
@@ -253,10 +264,7 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		if isBinary(head[:n]) {
 			return nil
 		}
-		if _, err := f.Seek(0, 0); err != nil {
-			return nil
-		}
-		sc := bufio.NewScanner(f)
+		sc := bufio.NewScanner(io.MultiReader(bytes.NewReader(head[:n]), f))
 		sc.Buffer(make([]byte, 1024*1024), 1024*1024)
 		ln := 0
 		for sc.Scan() {
@@ -279,7 +287,7 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if !st.IsDir() {
 		err = grepFile(in.Path, target)
 	} else {
-		err = walk(ctx, target, func(rel string, d fs.DirEntry) error {
+		err = walkOn(t.WS, ctx, target, func(rel string, d fs.DirEntry) error {
 			if d.IsDir() || (fileRe != nil && !fileRe.MatchString(rel)) {
 				return nil
 			}

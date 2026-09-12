@@ -698,12 +698,14 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			Version: version, Addr: *webAddr,
 			Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
 			Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For,
+			Workspace: built.ws,
 		})
 	}
 	return tui.Run(tui.Options{
 		Notes: cfg.Notes,
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: cfgDir,
-		Memory: mem, AutoMemory: cfg.AutoMemory(),
+		Workspace: built.ws,
+		Memory:    mem, AutoMemory: cfg.AutoMemory(),
 		Config: cfg, ConfigPath: cfgPath, Build: buildProvider, Connect: needsConnect,
 		Resumed: len(history), Version: version, Theme: cfg.Theme, Themes: cfg.ThemeSet,
 		InitialPrompt: initial,
@@ -1331,6 +1333,7 @@ type builtAgent struct {
 	// which of them this session has already sent.
 	rules        func() []rules.Rule
 	ruleInjector *rules.Injector
+	ws           *tool.Workspace
 }
 
 // close releases what the agent held. It is the caller's job, since the
@@ -1350,6 +1353,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	archive := agent.NewArchive(session.ArchiveDir(d.sessDir, d.cwd))
 	mem := d.mem
 	seen := &tool.Seen{}
+	ws := tool.NewLocal(d.cwd)
 	expand := &agent.ExpandOutput{Archive: archive}
 	ag := &agent.Agent{
 		Provider: d.prov,
@@ -1357,10 +1361,10 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		Log:      sess,
 		Price:    d.cfg.PriceFor(d.cfg.Model),
 		Tools: tool.NewRegistry(
-			tool.ReadFile{Root: d.cwd, Seen: seen},
-			tool.WriteFile{Root: d.cwd, Seen: seen},
-			tool.EditFile{Root: d.cwd, Seen: seen, NoLines: envOff()["lineedit"]},
-			tool.Bash{Root: d.cwd, Cache: &tool.ShellCache{}, Jobs: jobs, Running: d.running},
+			tool.ReadFile{Root: d.cwd, WS: ws, Seen: seen},
+			tool.WriteFile{Root: d.cwd, WS: ws, Seen: seen},
+			tool.EditFile{Root: d.cwd, WS: ws, Seen: seen, NoLines: envOff()["lineedit"]},
+			tool.Bash{Root: d.cwd, WS: ws, Cache: &tool.ShellCache{}, Jobs: jobs, Running: d.running},
 			tool.JobTool{Jobs: jobs},
 			tool.FetchURL{Typed: d.typed},
 			tool.WebSearch{Config: d.cfg.Search},
@@ -1426,9 +1430,9 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	// defers them behind tool_search, where they stay reachable for the
 	// case that measurement does not cover: a large unfamiliar repository.
 	search := []tool.Tool{
-		tool.ListDir{Root: d.cwd},
-		tool.Glob{Root: d.cwd},
-		tool.Grep{Root: d.cwd},
+		tool.ListDir{Root: d.cwd, WS: ws},
+		tool.Glob{Root: d.cwd, WS: ws},
+		tool.Grep{Root: d.cwd, WS: ws},
 		repomap.Tool{Cache: repo},
 	}
 	for _, t := range search {
@@ -1454,5 +1458,5 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
 
-	return builtAgent{agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector}, nil
+	return builtAgent{agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector, ws: ws}, nil
 }
