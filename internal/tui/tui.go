@@ -658,8 +658,21 @@ func (m *model) goalRound() tea.Cmd {
 	return m.submitAs(cont, note)
 }
 
-func (m *model) agentsCommand() {
+func (m *model) agentsCommand(args []string) {
 	m.openOverlay(overlayAgents)
+	kids := m.overlayKids()
+	switch {
+	case len(args) > 0:
+		m.overlayChild = args[0]
+		for i, k := range kids {
+			if k.ID == args[0] {
+				m.overlayIdx = i
+				break
+			}
+		}
+	case len(kids) == 1:
+		m.overlayChild = kids[0].ID
+	}
 }
 
 // pinCommand adds a pin or lists them.
@@ -1088,7 +1101,7 @@ var commands = []command{
 	{name: "/why", args: "[n]", help: "explain the last thing the harness did on its own, in plain words; n goes further back"},
 	{name: "/feedback", args: "up|down [note]", help: "rate the last assistant message (not sent to the model)"},
 	{name: "/goal", args: "[objective|pause|resume|done]", help: "set a goal and start on it now; the model keeps going round after round until it is complete or blocked"},
-	{name: "/agents", args: "", help: "live overlay of continuable subagents started with the task tool"},
+	{name: "/agents", args: "[id]", help: "live overlay of continuable subagents; enter (or /agents <id>) opens one child's transcript"},
 	{name: "/readonly", args: "", help: "toggle read-only mode (no edits or commands)"},
 	{name: "/memory", args: "", help: "what janetcode remembers about this project"},
 	{name: "/skills", args: "", help: "skill files available to the model"},
@@ -1126,6 +1139,7 @@ var argCompleters = map[string]func(m *model, partial string) []command{
 	"/undo":   (*model).completeUndo,
 	"/open":   (*model).completeFile,
 	"/diff":   (*model).completeFile,
+	"/agents": (*model).completeAgents,
 }
 
 func init() {
@@ -1209,34 +1223,38 @@ type model struct {
 	// openedAt is when this window opened. /stats used startedAt, which
 	// is the turn clock: before the first turn it was the zero time and
 	// the session was reported as up for 2562047h47m16.854775807s.
-	openedAt    time.Time
-	phase       string // what the agent is doing right now
-	pending     *permissionMsg
-	denying     bool // the input box is collecting a reason for a denial
-	status      string
-	lastTurn    string                   // usage summary of the last turn
-	lastVerdict string                   // the last turn's verdict line
-	ticks       int                      // tick count, for slow periodic checks
-	lastUsage   llm.Usage                // the last turn's usage
-	hints       *hints.Engine            // event-driven one-time hints; nil disables them
-	hintState   hints.State              // what the hint rules are allowed to look at
-	bangSeen    map[string]int           // !commands the user ran, by command line
-	denials     map[string]int           // refusals by the rule shape they would have saved
-	queued      []string                 // prompts typed while a turn was running
-	steering    []string                 // notes handed to the running turn (ctrl+s)
-	custom      map[string]prompt.Custom // user-defined slash commands
-	clipboard   func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
-	compIdx     int                      // highlighted row of the completion menu
-	compArgs    bool                     // the menu is offering arguments, not commands
-	compFor     string                   // input value the highlight belongs to
-	lastFind    string                   // last /find query, for repeats
-	lastFindAt  int                      // line of the last hit, so repeats advance past it
-	picker      *picker                  // open searchable list
-	connect     *connect                 // open provider/model dialog
-	overlay     string                   // live panel over the transcript (overlayAgents); empty is closed
-	connectGen  int
-	quitting    bool
-	branch      string
+	openedAt      time.Time
+	phase         string // what the agent is doing right now
+	pending       *permissionMsg
+	denying       bool // the input box is collecting a reason for a denial
+	status        string
+	lastTurn      string                   // usage summary of the last turn
+	lastVerdict   string                   // the last turn's verdict line
+	ticks         int                      // tick count, for slow periodic checks
+	lastUsage     llm.Usage                // the last turn's usage
+	hints         *hints.Engine            // event-driven one-time hints; nil disables them
+	hintState     hints.State              // what the hint rules are allowed to look at
+	bangSeen      map[string]int           // !commands the user ran, by command line
+	denials       map[string]int           // refusals by the rule shape they would have saved
+	queued        []string                 // prompts typed while a turn was running
+	steering      []string                 // notes handed to the running turn (ctrl+s)
+	custom        map[string]prompt.Custom // user-defined slash commands
+	clipboard     func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
+	compIdx       int                      // highlighted row of the completion menu
+	compArgs      bool                     // the menu is offering arguments, not commands
+	compFor       string                   // input value the highlight belongs to
+	lastFind      string                   // last /find query, for repeats
+	lastFindAt    int                      // line of the last hit, so repeats advance past it
+	picker        *picker                  // open searchable list
+	connect       *connect                 // open provider/model dialog
+	overlay       string                   // live panel over the transcript (overlayAgents); empty is closed
+	overlayIdx    int                      // highlighted child in the /agents list
+	overlayChild  string                   // id whose transcript is open; empty is the list
+	overlayScroll int                      // line offset in the child transcript
+	overlayFollow bool                     // keep the child transcript pinned to the tail
+	connectGen    int
+	quitting      bool
+	branch        string
 	// gutterOff is the hysteresis latch for the transcript margin: it
 	// turns off below gutterCollapseWidth and stays off until the
 	// terminal is at least gutterRestoreWidth, so resizing around 88
@@ -2876,7 +2894,7 @@ func (m *model) command(text string) tea.Cmd {
 	case "/goal":
 		return m.goalCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/agents":
-		m.agentsCommand()
+		m.agentsCommand(fields[1:])
 	case "/theme":
 		if cmd := m.themeCommand(fields[1:]); cmd != nil {
 			return cmd
@@ -4566,6 +4584,22 @@ func fuzzyCommand(name, query string) bool {
 // the sessions here, the models configured, what is remembered, the
 // changes this session made, the files in the tree — tab offers it rather
 // than making the user go and look it up.
+
+func (m *model) completeAgents(partial string) []command {
+	p := strings.ToLower(partial)
+	var out []command
+	for _, k := range m.overlayKids() {
+		if p != "" && !strings.Contains(strings.ToLower(k.ID+" "+k.Description), p) {
+			continue
+		}
+		help := k.Description
+		if !k.Done && k.Last != "" {
+			help = k.Last
+		}
+		out = append(out, command{name: k.ID, help: help})
+	}
+	return out
+}
 
 func (m *model) completeSession(partial string) []command {
 	if m.opts.Session == nil {

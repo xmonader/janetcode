@@ -83,10 +83,94 @@ func (t *Task) Children() []ChildInfo {
 		if c == nil {
 			continue
 		}
-		out = append(out, ChildInfo{
-			ID: id, Description: c.desc, Started: c.started, Done: c.done,
-			Last: c.last, Editing: c.wt != nil, Usage: c.agent.Usage,
-		})
+		out = append(out, childInfoLocked(id, c))
+	}
+	return out
+}
+
+func childInfoLocked(id string, c *subagent) ChildInfo {
+	return ChildInfo{
+		ID: id, Description: c.desc, Started: c.started, Done: c.done,
+		Last: c.last, Editing: c.wt != nil, Usage: c.agent.Usage,
+	}
+}
+
+// ChildStep is one line of a subagent's own conversation, for a UI that
+// shows what it did rather than only that it is running.
+type ChildStep struct {
+	Kind    string // prompt, think, text, tool, now
+	Name    string // tool name
+	Text    string // prompt, thought, answer, or tool input summary
+	Result  string // tool output, when Kind is tool and it has finished
+	OK      bool
+	Pending bool
+}
+
+// ChildLog is a live snapshot of one subagent, including a copy of its
+// messages so a UI can render the transcript without holding the lock.
+type ChildLog struct {
+	ChildInfo
+	Messages []llm.Message
+}
+
+// ChildLog returns one continuable subagent and a copy of its transcript.
+func (t *Task) ChildLog(id string) (ChildLog, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	c := t.children[id]
+	if c == nil {
+		return ChildLog{}, false
+	}
+	msgs := c.agent.Messages
+	cp := make([]llm.Message, len(msgs))
+	copy(cp, msgs)
+	return ChildLog{ChildInfo: childInfoLocked(id, c), Messages: cp}, true
+}
+
+// Steps walks the child's messages into display order: the brief, each
+// thought and answer, each tool call with its result, and what it is
+// doing now if it has not finished.
+func (c ChildLog) Steps() []ChildStep {
+	results := map[string]llm.Block{}
+	for _, msg := range c.Messages {
+		for _, b := range msg.Blocks {
+			if b.Type == llm.BlockToolResult {
+				results[b.ToolUseID] = b
+			}
+		}
+	}
+	var out []ChildStep
+	for _, msg := range c.Messages {
+		switch msg.Role {
+		case llm.RoleUser:
+			if t := strings.TrimSpace(msg.Text()); t != "" {
+				out = append(out, ChildStep{Kind: "prompt", Text: t})
+			}
+		case llm.RoleAssistant:
+			for _, b := range msg.Blocks {
+				switch b.Type {
+				case llm.BlockThinking:
+					if t := strings.TrimSpace(b.Text); t != "" {
+						out = append(out, ChildStep{Kind: "think", Text: t})
+					}
+				case llm.BlockText:
+					if t := strings.TrimSpace(b.Text); t != "" {
+						out = append(out, ChildStep{Kind: "text", Text: t})
+					}
+				case llm.BlockToolUse:
+					st := ChildStep{Kind: "tool", Name: b.Name, Text: briefInput(string(b.Input)), Pending: true}
+					if res, ok := results[b.ID]; ok {
+						st.Pending = false
+						st.OK = !res.IsError
+						st.Result = res.Text
+					}
+					out = append(out, st)
+				}
+			}
+		}
+	}
+	if !c.Done && c.Last != "" {
+		out = append(out, ChildStep{Kind: "now", Text: c.Last})
 	}
 	return out
 }

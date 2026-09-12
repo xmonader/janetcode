@@ -61,7 +61,7 @@ var commandSpecs = []cmdSpec{
 	{Name: "/goal", Args: "[objective|pause|resume|done]", Help: "loop on an objective until it is complete or blocked"},
 	{Name: "/why", Args: "[n]", Help: "explain the last thing the harness did on its own"},
 	{Name: "/trajectory", Args: "[n|grep words]", Help: "the session's event ledger"},
-	{Name: "/agents", Args: "", Help: "subagents that can be continued"},
+	{Name: "/agents", Args: "[id]", Help: "subagents; /agents <id> shows that child's transcript"},
 	{Name: "/reload", Args: "", Help: "rebuild the memory and skill prompt indexes"},
 	{Name: "/inspect", Args: "[subject]", Help: "look at any part of the session"},
 	{Name: "/permissions", Args: "", Help: "permission rules in effect"},
@@ -225,7 +225,7 @@ func (s *server) runCommand(text string) error {
 	case "/trajectory":
 		s.trajectory(arg)
 	case "/agents":
-		s.agents()
+		s.agents(arg)
 	case "/reload":
 		ag.RefreshExtra()
 		s.notice("memory and skill indexes will be rebuilt for the next call (one cache miss); they also refresh at compaction")
@@ -436,10 +436,19 @@ func (s *server) trajectory(arg string) {
 	s.sheet("trajectory", strings.TrimRight(sb.String(), "\n"))
 }
 
-func (s *server) agents() {
+func (s *server) agents(id string) {
 	task := s.taskTool()
 	if task == nil {
 		s.notice("no task tool")
+		return
+	}
+	if id != "" {
+		log, ok := task.ChildLog(id)
+		if !ok {
+			s.notice("no subagent " + id)
+			return
+		}
+		s.sheet(id, formatChildLog(log))
 		return
 	}
 	kids := task.Children()
@@ -461,8 +470,55 @@ func (s *server) agents() {
 			fmt.Fprintf(&sb, "    tokens in=%d out=%d\n", k.Usage.InputTokens, k.Usage.OutputTokens)
 		}
 	}
-	sb.WriteString("\nsteer one by asking for it: \"tell task-2 to also check …\" · task continue=<id> reuses it")
+	sb.WriteString("\n/agents <id> shows that child's transcript · steer one by asking: \"tell task-2 to also check …\"")
 	s.sheet("subagents", strings.TrimRight(sb.String(), "\n"))
+}
+
+func formatChildLog(log agent.ChildLog) string {
+	var sb strings.Builder
+	state := "done"
+	if !log.Done {
+		state = "running"
+	}
+	fmt.Fprintf(&sb, "%s  %s  %s\n", log.ID, state, log.Description)
+	if !log.Done && log.Last != "" {
+		fmt.Fprintf(&sb, "now: %s\n", log.Last)
+	}
+	sb.WriteString("\n")
+	for _, st := range log.Steps() {
+		switch st.Kind {
+		case "prompt":
+			fmt.Fprintf(&sb, "❯ %s\n\n", st.Text)
+		case "think":
+			first, _, _ := strings.Cut(st.Text, "\n")
+			fmt.Fprintf(&sb, "· %s\n", first)
+		case "text":
+			fmt.Fprintf(&sb, "%s\n\n", st.Text)
+		case "tool":
+			mark := "…"
+			if !st.Pending && st.OK {
+				mark = "✓"
+			} else if !st.Pending {
+				mark = "✗"
+			}
+			fmt.Fprintf(&sb, "%s %s %s\n", mark, st.Name, st.Text)
+			if !st.Pending && st.Result != "" {
+				body := st.Result
+				if n := strings.Count(body, "\n"); n > 16 {
+					lines := strings.Split(body, "\n")
+					body = strings.Join(lines[:8], "\n") + fmt.Sprintf("\n… %d more lines\n", n-12) + strings.Join(lines[len(lines)-4:], "\n")
+				}
+				sb.WriteString(body)
+				if !strings.HasSuffix(body, "\n") {
+					sb.WriteByte('\n')
+				}
+				sb.WriteByte('\n')
+			}
+		case "now":
+			fmt.Fprintf(&sb, "now: %s\n", st.Text)
+		}
+	}
+	return strings.TrimRight(sb.String(), "\n")
 }
 func (s *server) help(topic string) {
 	if topic != "" && s.opts.Features != nil {

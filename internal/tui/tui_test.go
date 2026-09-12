@@ -1447,10 +1447,13 @@ func TestAgentsOverlayOpenEscAndNoDump(t *testing.T) {
 	if h.m.overlay != overlayAgents {
 		t.Fatalf("overlay = %q, want %s", h.m.overlay, overlayAgents)
 	}
+	if h.m.overlayChild != id {
+		t.Fatalf("one child should open its transcript, overlayChild = %q", h.m.overlayChild)
+	}
 	v := plain(h.m.View())
-	for _, want := range []string{"Subagents", id, "explore the parser", "done", "esc closes"} {
+	for _, want := range []string{id, "explore the parser", "look at the parser", "found the parser", "esc back"} {
 		if !strings.Contains(v, want) {
-			t.Fatalf("missing %q in overlay:\n%s", want, v)
+			t.Fatalf("missing %q in child transcript:\n%s", want, v)
 		}
 	}
 	for _, e := range h.m.transcript.entries {
@@ -1459,14 +1462,22 @@ func TestAgentsOverlayOpenEscAndNoDump(t *testing.T) {
 		}
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if h.m.overlay == "" || h.m.overlayChild != "" {
+		t.Fatal("esc from the transcript should return to the list")
+	}
+	v = plain(h.m.View())
+	if !strings.Contains(v, "Subagents") || !strings.Contains(v, id) {
+		t.Fatalf("list after esc:\n%s", v)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
 	if h.m.overlay != "" {
-		t.Fatal("esc should close the overlay")
+		t.Fatal("esc on the list should close the overlay")
 	}
 	h.keys("still here")
 	if h.m.input.Value() != "still here" {
 		t.Fatalf("prompt not usable after esc: %q", h.m.input.Value())
 	}
-	if v := plain(h.m.View()); strings.Contains(v, "esc closes") {
+	if v := plain(h.m.View()); strings.Contains(v, "esc back") {
 		t.Fatalf("overlay still drawn after esc:\n%s", v)
 	}
 	for _, e := range h.m.transcript.entries {
@@ -1517,8 +1528,8 @@ func TestAgentsOverlayLiveUpdate(t *testing.T) {
 		t.Fatalf("want one running child, got %+v", kids)
 	}
 	runAgents(h)
-	if h.m.overlay != overlayAgents {
-		t.Fatal("overlay should open on a running child")
+	if h.m.overlay != overlayAgents || h.m.overlayChild != kids[0].ID {
+		t.Fatalf("should open the running child's transcript, overlay=%q child=%q", h.m.overlay, h.m.overlayChild)
 	}
 	v := plain(h.m.View())
 	for _, want := range []string{kids[0].ID, "survey tests", "running"} {
@@ -1543,11 +1554,47 @@ func TestAgentsOverlayLiveUpdate(t *testing.T) {
 	if !strings.Contains(v, "done") {
 		t.Fatalf("overlay did not pick up done:\n%s", v)
 	}
+	if !strings.Contains(v, "surveyed") {
+		t.Fatalf("transcript did not pick up the child's answer:\n%s", v)
+	}
 	if strings.Contains(v, "running") {
 		t.Fatalf("still shows running after done:\n%s", v)
 	}
-	if h.m.overlay != overlayAgents {
-		t.Fatal("overlay should stay open across the live update")
+	if h.m.overlay != overlayAgents || h.m.overlayChild != kids[0].ID {
+		t.Fatal("detail view should stay open across the live update")
+	}
+}
+
+func TestAgentsOverlayDetailShowsToolCall(t *testing.T) {
+	h := newHarness(t)
+	os.WriteFile(filepath.Join(h.m.opts.Cwd, "a.txt"), []byte("alpha from disk"), 0o644)
+	h.m.opts.Agent.Provider = &scripted{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "c1", Name: "read_file", Input: json.RawMessage(`{"path":"a.txt"}`)},
+		}}, StopReason: llm.StopToolUse},
+		{Message: llm.TextMessage(llm.RoleAssistant, "REPORT: a.txt says alpha from disk"), StopReason: llm.StopEndTurn},
+	}}
+	task := attachTask(h)
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"read a.txt","prompt":"what does a.txt say"}`)); err != nil {
+		t.Fatal(err)
+	}
+	runAgents(h)
+	v := plain(h.m.View())
+	for _, want := range []string{"what does a.txt say", "read_file", "a.txt", "alpha from disk", "REPORT:"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("missing %q in child transcript:\n%s", want, v)
+		}
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if h.m.overlayChild != "" {
+		t.Fatal("esc should leave the transcript")
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEnter})
+	if h.m.overlayChild == "" {
+		t.Fatal("enter on the list should reopen the transcript")
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "read_file") {
+		t.Fatalf("reopened transcript:\n%s", v)
 	}
 }
 

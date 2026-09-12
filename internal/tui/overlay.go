@@ -12,7 +12,7 @@ import (
 )
 
 // overlayAgents is the live subagent panel. Unlike the picker it is not
-// a snapshot: each View re-reads Task.Children().
+// a snapshot: each View re-reads Task.Children() / ChildLog.
 const overlayAgents = "agents"
 
 func (m *model) taskTool() *agent.Task {
@@ -33,54 +33,126 @@ func (m *model) taskTool() *agent.Task {
 
 func (m *model) openOverlay(kind string) {
 	m.overlay = kind
+	m.overlayIdx = 0
+	m.overlayChild = ""
+	m.overlayScroll = 0
+	m.overlayFollow = true
 	m.input.Blur()
 }
 
 func (m *model) closeOverlay() {
 	m.overlay = ""
+	m.overlayChild = ""
 	m.input.Focus()
 	m.refresh(false)
 }
 
+func (m *model) overlayKids() []agent.ChildInfo {
+	if t := m.taskTool(); t != nil {
+		return t.Children()
+	}
+	return nil
+}
+
 func (m *model) handleOverlayKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if m.overlayChild != "" {
+		return m.handleAgentDetailKey(msg), true
+	}
+	kids := m.overlayKids()
+	if m.overlayIdx >= len(kids) {
+		m.overlayIdx = max(len(kids)-1, 0)
+	}
 	switch keyName(msg) {
 	case "esc", "ctrl+c":
 		m.closeOverlay()
+	case "up", "ctrl+p":
+		if len(kids) > 0 {
+			m.overlayIdx = (m.overlayIdx - 1 + len(kids)) % len(kids)
+			m.refresh(false)
+		}
+	case "down", "ctrl+n":
+		if len(kids) > 0 {
+			m.overlayIdx = (m.overlayIdx + 1) % len(kids)
+			m.refresh(false)
+		}
+	case "enter":
+		if len(kids) > 0 {
+			m.overlayChild = kids[m.overlayIdx].ID
+			m.overlayScroll = 0
+			m.overlayFollow = true
+			m.refresh(false)
+		}
 	}
 	return nil, true
+}
+
+func (m *model) handleAgentDetailKey(msg tea.KeyMsg) tea.Cmd {
+	viewH := max(m.height-6, 4)
+	switch keyName(msg) {
+	case "esc":
+		m.overlayChild = ""
+		m.overlayFollow = true
+		m.refresh(false)
+	case "ctrl+c":
+		m.closeOverlay()
+	case "up", "ctrl+p":
+		m.overlayFollow = false
+		if m.overlayScroll > 0 {
+			m.overlayScroll--
+		}
+		m.refresh(false)
+	case "down", "ctrl+n":
+		m.overlayScroll++
+		m.refresh(false)
+	case "pgup":
+		m.overlayFollow = false
+		m.overlayScroll = max(m.overlayScroll-viewH, 0)
+		m.refresh(false)
+	case "pgdown":
+		m.overlayScroll += viewH
+		m.refresh(false)
+	}
+	return nil
 }
 
 func (m *model) overlayView(height int) string {
 	switch m.overlay {
 	case overlayAgents:
-		return m.agentsOverlayView(height)
+		if m.overlayChild != "" {
+			return m.agentDetailView(height)
+		}
+		return m.agentsListView(height)
 	}
 	return ""
 }
 
-func (m *model) agentsOverlayView(height int) string {
+func (m *model) agentsListView(height int) string {
 	w := min(dialogWidth, m.width-4)
 	inner := w - 4
 	var lines []string
 	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
 	add(styleKey.Render("Subagents"))
-	add(styleDim.Render("this session · live · esc closes"))
+	add(styleDim.Render("this session · live · enter opens the transcript"))
 	add("")
-	var kids []agent.ChildInfo
-	if t := m.taskTool(); t != nil {
-		kids = t.Children()
-	}
+	kids := m.overlayKids()
 	if len(kids) == 0 {
 		add(styleDim.Render("no subagents yet"))
 		add(styleFaint.Render("the model starts one with the task tool · task continue=<id> reuses it"))
 	} else {
-		for _, k := range kids {
+		if m.overlayIdx >= len(kids) {
+			m.overlayIdx = len(kids) - 1
+		}
+		for i, k := range kids {
 			state, stateStyle := "done", styleOK
 			if !k.Done {
 				state, stateStyle = "running", styleWarn
 			}
 			age := shortDuration(time.Since(k.Started))
-			add(fmt.Sprintf("%s  %s  %s  %s",
+			mark := "  "
+			if i == m.overlayIdx {
+				mark = styleAccent.Render("▸ ")
+			}
+			add(mark + fmt.Sprintf("%s  %s  %s  %s",
 				styleKey.Render(k.ID),
 				stateStyle.Render(fmt.Sprintf("%-7s", state)),
 				styleFaint.Render(age),
@@ -99,7 +171,125 @@ func (m *model) agentsOverlayView(height int) string {
 			add("")
 		}
 	}
-	add(styleFaint.Render(`esc close · steer one by asking: "tell task-2 to also check …"`))
+	add(styleFaint.Render(`↑↓ choose · enter open · esc close · /agents <id> jumps`))
 	box := styleDialog.Width(w - 2).Render(strings.Join(lines, "\n"))
 	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
+}
+
+func (m *model) agentDetailView(height int) string {
+	task := m.taskTool()
+	if task == nil {
+		m.overlayChild = ""
+		return m.agentsListView(height)
+	}
+	log, ok := task.ChildLog(m.overlayChild)
+	if !ok {
+		m.overlayChild = ""
+		return m.agentsListView(height)
+	}
+	w := max(m.width-2, 20)
+	state, stateStyle := "done", styleOK
+	if !log.Done {
+		state, stateStyle = "running", styleWarn
+	}
+	head := fmt.Sprintf("%s  %s  %s  %s",
+		styleKey.Render(log.ID),
+		stateStyle.Render(state),
+		styleFaint.Render(shortDuration(time.Since(log.Started))),
+		log.Description)
+	help := styleFaint.Render("esc back to the list · ↑↓ / pgup pgdn scroll · ctrl+c close")
+	body := m.renderChildSteps(log, w)
+	viewH := height - 3
+	if viewH < 1 {
+		viewH = 1
+	}
+	maxScroll := max(len(body)-viewH, 0)
+	if m.overlayFollow {
+		m.overlayScroll = maxScroll
+	}
+	if m.overlayScroll > maxScroll {
+		m.overlayScroll = maxScroll
+		m.overlayFollow = true
+	}
+	if m.overlayScroll < 0 {
+		m.overlayScroll = 0
+	}
+	end := min(len(body), m.overlayScroll+viewH)
+	shown := body[m.overlayScroll:end]
+	for len(shown) < viewH {
+		shown = append(shown, "")
+	}
+	parts := []string{truncateLine(head, w), help, ""}
+	parts = append(parts, shown...)
+	return clipHeight(strings.Join(parts, "\n"), height)
+}
+
+func (m *model) renderChildSteps(log agent.ChildLog, width int) []string {
+	var lines []string
+	add := func(s string) { lines = append(lines, truncateLine(s, width)) }
+	wrap := func(s string) {
+		for _, raw := range strings.Split(s, "\n") {
+			add(raw)
+		}
+	}
+	if len(log.Steps()) == 0 {
+		if log.Last != "" {
+			add(styleDim.Render("now: " + log.Last))
+		} else {
+			add(styleDim.Render("waiting for the first model call"))
+		}
+		return lines
+	}
+	for _, st := range log.Steps() {
+		switch st.Kind {
+		case "prompt":
+			add(styleUser.Render("❯ ") + st.Text)
+		case "think":
+			first, _, _ := strings.Cut(st.Text, "\n")
+			add(styleFaint.Render("· " + first))
+		case "text":
+			wrap(st.Text)
+			lines = append(lines, "")
+		case "tool":
+			mark := styleFaint.Render("…")
+			switch {
+			case st.Pending:
+				mark = styleWarn.Render("…")
+			case st.OK:
+				mark = styleOK.Render("✓")
+			default:
+				mark = styleErr.Render("✗")
+			}
+			add(mark + " " + styleTool.Render(st.Name) + " " + styleDim.Render(st.Text))
+			if !st.Pending && st.Result != "" {
+				lines = append(lines, clipBody(st.Result, width, 8, 4)...)
+			}
+			lines = append(lines, "")
+		case "now":
+			add(styleWarn.Render("now: ") + st.Text)
+		}
+	}
+	return lines
+}
+
+// clipBody keeps the head and tail of a tool result so a failed build
+// still shows the error, not only the compiler preamble.
+func clipBody(s string, width, head, tail int) []string {
+	raw := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(raw) == 0 {
+		return nil
+	}
+	take := func(lines []string) []string {
+		out := make([]string, len(lines))
+		for i, l := range lines {
+			out[i] = truncateLine("  "+l, width)
+		}
+		return out
+	}
+	if len(raw) <= head+tail+1 {
+		return take(raw)
+	}
+	out := take(raw[:head])
+	out = append(out, styleFaint.Render(fmt.Sprintf("  … %d more lines", len(raw)-head-tail)))
+	return append(out, take(raw[len(raw)-tail:])...)
 }

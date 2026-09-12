@@ -511,14 +511,17 @@ Make the failing test pass. Do not weaken the test.
 ```
 
 A subagent that finished is not gone: `/agents` opens a live overlay of
-the continuable subagents this session started with the `task` tool —
-each child's id, whether it is running or done, and what it last did.
-The listing is not appended to the conversation; esc closes it and
-restores the prompt. With none yet, the same overlay says so rather
-than a one-line notice. When one has found something and the answer it
-wrote back is not the whole of it, carry on by asking ("tell task-2 to
-also check …") or with `task continue=<id>`, rather than starting again
-from an empty context.
+the continuable subagents this session started with the `task` tool.
+Each row is the child's id, whether it is running or done, and what it
+last did. Enter (or `/agents <id>`) opens that child's own transcript:
+the brief it was given, every tool call with its output, thoughts, and
+the answer it has written so far, following the tail while it still
+runs. Esc goes back to the list; esc on the list restores the prompt.
+With only one child, `/agents` opens the transcript directly. With none
+yet, the overlay says so rather than a one-line notice. When one has
+found something and the answer it wrote back is not the whole of it,
+carry on by asking ("tell task-2 to also check …") or with
+`task continue=<id>`, rather than starting again from an empty context.
 
 ### Prompt caching
 

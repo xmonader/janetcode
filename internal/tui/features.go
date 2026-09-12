@@ -47,7 +47,7 @@ var commandWhen = map[string]string{
 	"/trajectory":  "you want the raw record of the session: every turn, step, tool call and compaction",
 	"/feedback":    "you want to mark an answer good or bad for later review; it is not sent to the model",
 	"/goal":        "a job that will take many turns and you would rather not press enter for each one",
-	"/agents":      "a subagent is running or has finished and you want to watch it in a live overlay, or carry on the conversation with it",
+	"/agents":      "a subagent is running or has finished and you want to watch its transcript, tool calls and output live",
 	"/readonly":    "you want answers about the code with no chance of it being changed",
 	"/memory":      "you want to see, or correct, what janetcode has learned about this project",
 	"/skills":      "you want to know which skill files the model can reach from here",

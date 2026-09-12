@@ -122,6 +122,19 @@ func TestTaskContinueSeesHistory(t *testing.T) {
 	if len(kid.agent.Messages) < 4 {
 		t.Fatalf("continue lost history: %d messages", len(kid.agent.Messages))
 	}
+	log, ok := task.ChildLog(ids[0])
+	if !ok || log.ID != ids[0] || !log.Done {
+		t.Fatalf("ChildLog = %+v ok=%v", log, ok)
+	}
+	steps := log.Steps()
+	var kinds []string
+	for _, st := range steps {
+		kinds = append(kinds, st.Kind)
+	}
+	joined := strings.Join(kinds, ",")
+	if !strings.Contains(joined, "prompt") || !strings.Contains(joined, "tool") || !strings.Contains(joined, "text") {
+		t.Fatalf("steps = %v", steps)
+	}
 }
 
 func TestTaskRejectsBadInput(t *testing.T) {
