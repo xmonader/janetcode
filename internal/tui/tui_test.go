@@ -1602,9 +1602,13 @@ func TestJobsCommandAndIdleNotice(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
 	h.keys("/jobs")
 	h.enter()
+	if h.m.overlay != overlayJobs {
+		t.Fatal("empty /jobs should open the overlay")
+	}
 	if v := plain(h.m.View()); !strings.Contains(v, "no background jobs") {
 		t.Fatalf("view:\n%s", v)
 	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
 	jobs := &tool.Jobs{Dir: t.TempDir()}
 	h.m.opts.Jobs = jobs
 	if _, err := jobs.Start(h.m.opts.Cwd, "echo hi; exit 4"); err != nil {
@@ -1624,13 +1628,58 @@ func TestJobsCommandAndIdleNotice(t *testing.T) {
 	}
 	h.keys("/jobs")
 	h.enter()
-	if v := plain(h.m.View()); !strings.Contains(v, "job 1 finished with exit 4") || !strings.Contains(v, "output:") {
-		t.Fatalf("view:\n%s", v)
+	if h.m.overlay != overlayJobs || h.m.overlayChild != "1" {
+		t.Fatalf("one job should open its log, overlay=%q child=%q", h.m.overlay, h.m.overlayChild)
 	}
+	v := plain(h.m.View())
+	if !strings.Contains(v, "echo hi") || !strings.Contains(v, "hi") {
+		t.Fatalf("job log:\n%s", v)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if h.m.overlayChild != "" {
+		t.Fatal("esc should return to the list")
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	if v := plain(h.m.View()); !strings.Contains(v, "already finished") {
+		t.Fatalf("kill finished:\n%s", v)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
 	h.keys("/jobs kill 1")
 	h.enter()
 	if v := plain(h.m.View()); !strings.Contains(v, "already finished") {
-		t.Fatalf("view:\n%s", v)
+		t.Fatalf("typed kill:\n%s", v)
+	}
+}
+
+func TestStickyPlanShowsProgress(t *testing.T) {
+	h := newHarness(t)
+	if v := plain(h.m.View()); strings.Contains(v, "plan  ") && strings.Contains(v, "done") {
+		t.Fatalf("empty plan should not draw a strip:\n%s", v)
+	}
+	h.m.opts.Agent.WriteTodos([]agent.Todo{
+		{Text: "explore the parser", Status: agent.TodoDone},
+		{Text: "write the parser", Status: agent.TodoDoing},
+		{Text: "add tests", Status: agent.TodoPending},
+	})
+	h.m.refresh(false)
+	v := plain(h.m.View())
+	for _, want := range []string{"plan", "1 of 3 done", "[>]", "write the parser", "[x]", "explore the parser", "[ ]", "add tests"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("missing %q in sticky plan:\n%s", want, v)
+		}
+	}
+	h.m.opts.Agent.WriteTodos([]agent.Todo{
+		{Text: "explore the parser", Status: agent.TodoDone},
+		{Text: "write the parser", Status: agent.TodoDone},
+		{Text: "add tests", Status: agent.TodoDoing},
+	})
+	h.m.refresh(false)
+	v = plain(h.m.View())
+	if !strings.Contains(v, "2 of 3 done") || !strings.Contains(v, "add tests") {
+		t.Fatalf("plan did not update:\n%s", v)
+	}
+	if strings.Contains(v, "write the parser") && !strings.Contains(v, "[x]") {
+		t.Fatalf("completed step lost its mark:\n%s", v)
 	}
 }
 

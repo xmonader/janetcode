@@ -832,12 +832,16 @@ func (m *model) searchSessions(query string) {
 	m.transcript.info(sb.String())
 }
 
-// jobsCommand lists background jobs or kills one.
+// jobsCommand opens the live jobs overlay, or kills one by number.
 func (m *model) jobsCommand(args []string) {
 	if len(args) == 2 && args[0] == "kill" {
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
 			m.transcript.errorf("usage: /jobs kill <n>")
+			return
+		}
+		if m.opts.Jobs == nil {
+			m.transcript.errorf("background jobs are not available")
 			return
 		}
 		if err := m.opts.Jobs.Kill(n); err != nil {
@@ -847,17 +851,22 @@ func (m *model) jobsCommand(args []string) {
 		m.transcript.info(fmt.Sprintf("killed job %d", n))
 		return
 	}
-	jobs := m.opts.Jobs.List()
-	if len(jobs) == 0 {
-		m.transcript.info("no background jobs; the model starts one with bash background:true (a dev server, a long build)")
-		return
+	m.openOverlay(overlayJobs)
+	jobs := m.overlayJobList()
+	switch {
+	case len(args) == 1:
+		m.overlayChild = args[0]
+		if n, err := strconv.Atoi(args[0]); err == nil {
+			for i, j := range jobs {
+				if j.ID == n {
+					m.overlayIdx = i
+					break
+				}
+			}
+		}
+	case len(jobs) == 1:
+		m.overlayChild = strconv.Itoa(jobs[0].ID)
 	}
-	var sb strings.Builder
-	for _, j := range jobs {
-		sb.WriteString(j.Summary() + "\n  output: " + j.OutPath + "\n")
-	}
-	sb.WriteString("/jobs kill <n> stops one; all jobs stop when janetcode exits")
-	m.transcript.info(sb.String())
 }
 
 // lspCommand shows language-server status and known problems.
@@ -1089,9 +1098,9 @@ var commands = []command{
 	{name: "/permissions", args: "[allow|deny <rule>|trust]", help: "permission rules; add one, or trust the project's .janetcode/permissions.json"},
 	{name: "/verify", args: "[set <cmd>|mutate <test cmd>|clear|trust]", help: "run the project's checks now; set adds one to .janetcode/verify.json; mutate requires tests to catch mutations of changed lines"},
 	{name: "/lsp", args: "", help: "language servers and the diagnostics they reported"},
-	{name: "/jobs", args: "[kill <n>]", help: "background commands started with bash background:true"},
+	{name: "/jobs", args: "[id|kill <n>]", help: "live overlay of background jobs; enter (or /jobs <n>) tails the log, k kills"},
 	{name: "/context", args: "", help: "what fills the context window: prompt, tools, messages, largest tool results"},
-	{name: "/todos", args: "", help: "the plan the model is working from"},
+	{name: "/todos", args: "", help: "the sticky plan strip: what is done, in progress, and left"},
 	{name: "/inspect", args: "[subject]", help: "look at any part of the session: context, events, archive, retrieval, config, tools, lsp, mcp, jobs, repomap… (no subject lists them)"},
 	{name: "/reload", args: "", help: "rebuild the memory and skill indexes in the prompt now instead of at compaction"},
 	{name: "/pin", args: "[note or @file]", help: "keep a note in the system prompt for the whole session; alone lists pins"},
@@ -1140,6 +1149,7 @@ var argCompleters = map[string]func(m *model, partial string) []command{
 	"/open":   (*model).completeFile,
 	"/diff":   (*model).completeFile,
 	"/agents": (*model).completeAgents,
+	"/jobs":   (*model).completeJobs,
 }
 
 func init() {
@@ -1252,6 +1262,8 @@ type model struct {
 	overlayChild  string                   // id whose transcript is open; empty is the list
 	overlayScroll int                      // line offset in the child transcript
 	overlayFollow bool                     // keep the child transcript pinned to the tail
+	overlayNote   string                   // kill/error line inside a jobs overlay
+	planH         int                      // last reserved plan-strip height, so a rewrite relayouts
 	connectGen    int
 	quitting      bool
 	branch        string
@@ -3626,7 +3638,7 @@ func (m *model) layout() {
 	// and never scrolled back, so a two-line prompt showed only its
 	// second line and the first line of a paste was invisible.
 	m.input.SetHeight(m.inputLimit())
-	vh := m.height - 1 - 1 - m.footerHeight() // header, status
+	vh := m.height - 1 - 1 - m.footerHeight() - m.planHeight() // header, status, sticky plan
 	if vh < 3 {
 		vh = 3
 	}
@@ -3648,6 +3660,10 @@ func (m *model) layout() {
 func (m *model) refresh(resized bool) {
 	if !m.ready {
 		return
+	}
+	if h := m.planHeight(); h != m.planH {
+		m.planH = h
+		m.layout()
 	}
 	content := m.transcript.render(renderOpts{
 		cwd:      m.opts.Cwd,
@@ -3714,12 +3730,12 @@ func (m *model) View() string {
 		}
 		return lipgloss.JoinVertical(lipgloss.Left, m.headerView(), body, m.statusView())
 	}
-	return lipgloss.JoinVertical(lipgloss.Left,
-		m.headerView(),
-		m.viewport.View(),
-		m.statusView(),
-		m.footerView(),
-	)
+	parts := []string{m.headerView()}
+	if p := m.planView(); p != "" {
+		parts = append(parts, p)
+	}
+	parts = append(parts, m.viewport.View(), m.statusView(), m.footerView())
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 // headerView is the one-line header: the name and model on the left, the
@@ -4584,6 +4600,22 @@ func fuzzyCommand(name, query string) bool {
 // the sessions here, the models configured, what is remembered, the
 // changes this session made, the files in the tree — tab offers it rather
 // than making the user go and look it up.
+
+func (m *model) completeJobs(partial string) []command {
+	p := strings.ToLower(partial)
+	var out []command
+	if p == "" || strings.HasPrefix("kill", p) {
+		out = append(out, command{name: "kill", help: "stop a running job by id"})
+	}
+	for _, j := range m.overlayJobList() {
+		id := strconv.Itoa(j.ID)
+		if p != "" && !strings.Contains(strings.ToLower(id+" "+j.Command), p) {
+			continue
+		}
+		out = append(out, command{name: id, help: j.Summary()})
+	}
+	return out
+}
 
 func (m *model) completeAgents(partial string) []command {
 	p := strings.ToLower(partial)

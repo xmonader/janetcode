@@ -399,9 +399,10 @@ process group, output to a log file) and returns a job id at once, so a
 dev server or a long build does not block the turn. When the job ends,
 the model is told before its next call and you see `⚙ job 1 finished with
 exit 0` in the transcript, with the last lines of output. The `job` tool
-lists jobs, shows output, waits with a timeout, or kills one; `/jobs` and
-`/jobs kill <n>` do the same for you. Every job is stopped when janetcode
-exits.
+lists jobs, shows output, waits with a timeout, or kills one. `/jobs`
+opens a live overlay of them (empty if none); enter (or `/jobs <n>`)
+tails the log, `k` kills the highlighted job, esc closes. `/jobs kill
+<n>` still works typed. Every job is stopped when janetcode exits.
 
 A command already running in the foreground can be moved to the
 background instead of being waited out or killed: press `ctrl+g`. It keeps
@@ -1003,9 +1004,12 @@ mutating call the model tries anyway fails with a message rather than
 asking you.
 
 A long task the model is working through keeps a plan of its own, in the
-`todo` tool rather than in prose. `/todos` shows it: what is done, what
-is in progress and what is left, so a turn that has been running for
-minutes can be read without interrupting it.
+`todo` tool rather than in prose. While that plan exists it stays under
+the header as a sticky strip: a tally, the step in progress, and what
+is next, rewritten on the frame that marks a step off. A short window
+collapses it to one line; a very short one hides it so the transcript
+keeps the rows. `/todos` still dumps a snapshot into the conversation
+if you want one there.
 
 ### Rating an answer
 

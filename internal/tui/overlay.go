@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -9,11 +10,15 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
-// overlayAgents is the live subagent panel. Unlike the picker it is not
-// a snapshot: each View re-reads Task.Children() / ChildLog.
-const overlayAgents = "agents"
+// overlayAgents / overlayJobs are live panels. Unlike the picker they
+// are not snapshots: each View re-reads Task.Children() / Jobs.List().
+const (
+	overlayAgents = "agents"
+	overlayJobs   = "jobs"
+)
 
 func (m *model) taskTool() *agent.Task {
 	ag := m.opts.Agent
@@ -37,6 +42,7 @@ func (m *model) openOverlay(kind string) {
 	m.overlayChild = ""
 	m.overlayScroll = 0
 	m.overlayFollow = true
+	m.overlayNote = ""
 	m.input.Blur()
 }
 
@@ -55,6 +61,9 @@ func (m *model) overlayKids() []agent.ChildInfo {
 }
 
 func (m *model) handleOverlayKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if m.overlay == overlayJobs {
+		return m.handleJobsKey(msg), true
+	}
 	if m.overlayChild != "" {
 		return m.handleAgentDetailKey(msg), true
 	}
@@ -122,6 +131,11 @@ func (m *model) overlayView(height int) string {
 			return m.agentDetailView(height)
 		}
 		return m.agentsListView(height)
+	case overlayJobs:
+		if m.overlayChild != "" {
+			return m.jobDetailView(height)
+		}
+		return m.jobsListView(height)
 	}
 	return ""
 }
@@ -292,4 +306,194 @@ func clipBody(s string, width, head, tail int) []string {
 	out := take(raw[:head])
 	out = append(out, styleFaint.Render(fmt.Sprintf("  … %d more lines", len(raw)-head-tail)))
 	return append(out, take(raw[len(raw)-tail:])...)
+}
+
+func (m *model) overlayJobList() []tool.Job {
+	if m.opts.Jobs == nil {
+		return nil
+	}
+	return m.opts.Jobs.List()
+}
+
+func (m *model) handleJobsKey(msg tea.KeyMsg) tea.Cmd {
+	if m.overlayChild != "" {
+		return m.handleJobDetailKey(msg)
+	}
+	jobs := m.overlayJobList()
+	if m.overlayIdx >= len(jobs) {
+		m.overlayIdx = max(len(jobs)-1, 0)
+	}
+	switch keyName(msg) {
+	case "esc", "ctrl+c":
+		m.closeOverlay()
+	case "up", "ctrl+p":
+		if len(jobs) > 0 {
+			m.overlayIdx = (m.overlayIdx - 1 + len(jobs)) % len(jobs)
+			m.refresh(false)
+		}
+	case "down", "ctrl+n":
+		if len(jobs) > 0 {
+			m.overlayIdx = (m.overlayIdx + 1) % len(jobs)
+			m.refresh(false)
+		}
+	case "enter":
+		if len(jobs) > 0 {
+			m.overlayChild = strconv.Itoa(jobs[m.overlayIdx].ID)
+			m.overlayScroll = 0
+			m.overlayFollow = true
+			m.refresh(false)
+		}
+	case "k":
+		if len(jobs) > 0 {
+			m.killOverlayJob(jobs[m.overlayIdx].ID)
+		}
+	}
+	return nil
+}
+
+func (m *model) handleJobDetailKey(msg tea.KeyMsg) tea.Cmd {
+	viewH := max(m.height-6, 4)
+	switch keyName(msg) {
+	case "esc":
+		m.overlayChild = ""
+		m.overlayFollow = true
+		m.refresh(false)
+	case "ctrl+c":
+		m.closeOverlay()
+	case "up", "ctrl+p":
+		m.overlayFollow = false
+		if m.overlayScroll > 0 {
+			m.overlayScroll--
+		}
+		m.refresh(false)
+	case "down", "ctrl+n":
+		m.overlayScroll++
+		m.refresh(false)
+	case "pgup":
+		m.overlayFollow = false
+		m.overlayScroll = max(m.overlayScroll-viewH, 0)
+		m.refresh(false)
+	case "pgdown":
+		m.overlayScroll += viewH
+		m.refresh(false)
+	case "k":
+		if id, err := strconv.Atoi(m.overlayChild); err == nil {
+			m.killOverlayJob(id)
+		}
+	}
+	return nil
+}
+
+func (m *model) killOverlayJob(id int) {
+	if m.opts.Jobs == nil {
+		m.overlayNote = "no jobs"
+		m.refresh(false)
+		return
+	}
+	if err := m.opts.Jobs.Kill(id); err != nil {
+		m.overlayNote = err.Error()
+	} else {
+		m.overlayNote = fmt.Sprintf("killed job %d", id)
+	}
+	m.refresh(false)
+}
+
+func (m *model) jobsListView(height int) string {
+	w := min(dialogWidth, m.width-4)
+	inner := w - 4
+	var lines []string
+	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
+	add(styleKey.Render("Jobs"))
+	add(styleDim.Render("this session · live · enter tails the log"))
+	if m.overlayNote != "" {
+		add(styleWarn.Render(m.overlayNote))
+	}
+	add("")
+	jobs := m.overlayJobList()
+	if len(jobs) == 0 {
+		add(styleDim.Render("no background jobs"))
+		add(styleFaint.Render("the model starts one with bash background:true (a dev server, a long build)"))
+	} else {
+		if m.overlayIdx >= len(jobs) {
+			m.overlayIdx = len(jobs) - 1
+		}
+		for i, j := range jobs {
+			state, stateStyle := "done", styleOK
+			if !j.Done {
+				state, stateStyle = "running", styleWarn
+			}
+			mark := "  "
+			if i == m.overlayIdx {
+				mark = styleAccent.Render("▸ ")
+			}
+			add(mark + fmt.Sprintf("%s  %s  %s",
+				styleKey.Render(fmt.Sprintf("job %d", j.ID)),
+				stateStyle.Render(fmt.Sprintf("%-7s", state)),
+				j.Command))
+			add("    " + styleFaint.Render(j.Summary()))
+			add("")
+		}
+	}
+	add(styleFaint.Render("↑↓ choose · enter open · k kill · esc close"))
+	box := styleDialog.Width(w - 2).Render(strings.Join(lines, "\n"))
+	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
+}
+
+func (m *model) jobDetailView(height int) string {
+	id, err := strconv.Atoi(m.overlayChild)
+	if err != nil || m.opts.Jobs == nil {
+		m.overlayChild = ""
+		return m.jobsListView(height)
+	}
+	job, ok := m.opts.Jobs.Get(id)
+	if !ok {
+		m.overlayChild = ""
+		return m.jobsListView(height)
+	}
+	w := max(m.width-2, 20)
+	state, stateStyle := "done", styleOK
+	if !job.Done {
+		state, stateStyle = "running", styleWarn
+	}
+	head := fmt.Sprintf("%s  %s  %s",
+		styleKey.Render(fmt.Sprintf("job %d", job.ID)),
+		stateStyle.Render(state),
+		job.Command)
+	help := styleFaint.Render("esc back · ↑↓ / pgup pgdn scroll · k kill · ctrl+c close")
+	if m.overlayNote != "" {
+		help = styleWarn.Render(m.overlayNote) + " · " + help
+	}
+	out, _ := m.opts.Jobs.Output(id, 0)
+	var body []string
+	if strings.TrimSpace(out) == "" {
+		body = []string{styleDim.Render("no output yet")}
+	} else {
+		body = strings.Split(strings.TrimRight(out, "\n"), "\n")
+		for i, l := range body {
+			body[i] = truncateLine(l, w)
+		}
+	}
+	viewH := height - 3
+	if viewH < 1 {
+		viewH = 1
+	}
+	maxScroll := max(len(body)-viewH, 0)
+	if m.overlayFollow {
+		m.overlayScroll = maxScroll
+	}
+	if m.overlayScroll > maxScroll {
+		m.overlayScroll = maxScroll
+		m.overlayFollow = true
+	}
+	if m.overlayScroll < 0 {
+		m.overlayScroll = 0
+	}
+	end := min(len(body), m.overlayScroll+viewH)
+	shown := body[m.overlayScroll:end]
+	for len(shown) < viewH {
+		shown = append(shown, "")
+	}
+	parts := []string{truncateLine(head, w), help, ""}
+	parts = append(parts, shown...)
+	return clipHeight(strings.Join(parts, "\n"), height)
 }
