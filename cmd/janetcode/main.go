@@ -697,6 +697,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
 			Version: version, Addr: *webAddr,
 			Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
+			Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For,
 		})
 	}
 	return tui.Run(tui.Options{

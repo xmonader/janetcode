@@ -52,6 +52,43 @@ type subagent struct {
 	agent *Agent
 	wt    *worktree
 	seen  llm.Usage
+
+	desc    string
+	started time.Time
+	done    bool
+	// last is the most recent thing the child was seen doing, kept so a
+	// UI can answer "what is it up to" without waiting for the report.
+	last string
+}
+
+// ChildInfo is a live snapshot of one subagent for status lines, /agents
+// and the web workspace panel.
+type ChildInfo struct {
+	ID          string    `json:"id"`
+	Description string    `json:"description"`
+	Started     time.Time `json:"started"`
+	Done        bool      `json:"done"`
+	Last        string    `json:"last"`
+	Editing     bool      `json:"editing"`
+	Usage       llm.Usage `json:"usage"`
+}
+
+// Children lists subagents started from this parent, oldest first.
+func (t *Task) Children() []ChildInfo {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := make([]ChildInfo, 0, len(t.order))
+	for _, id := range t.order {
+		c := t.children[id]
+		if c == nil {
+			continue
+		}
+		out = append(out, ChildInfo{
+			ID: id, Description: c.desc, Started: c.started, Done: c.done,
+			Last: c.last, Editing: c.wt != nil, Usage: c.agent.Usage,
+		})
+	}
+	return out
 }
 
 func (*Task) Name() string { return "task" }
@@ -254,7 +291,28 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		runCtx, cancel = context.WithTimeout(ctx, time.Duration(profile.MaxMinutes)*time.Minute)
 		defer cancel()
 	}
-	err = child.Run(runCtx, in.Prompt, nil)
+	t.mu.Lock()
+	kid.desc = in.Description
+	kid.started = start
+	kid.done = false
+	kid.last = "starting"
+	t.mu.Unlock()
+	emit := func(ev Event) {
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		switch ev.Kind {
+		case EvToolRun:
+			if ev.Call != nil {
+				kid.last = ev.Call.Name + " " + briefInput(string(ev.Call.Input))
+			}
+		case EvPhase:
+			kid.last = ev.Text
+		}
+	}
+	err = child.Run(runCtx, in.Prompt, emit)
+	t.mu.Lock()
+	kid.done = true
+	t.mu.Unlock()
 	if err != nil && ctx.Err() == nil && runCtx.Err() != nil {
 		// Out of time rather than cancelled: whatever it found so far is
 		// worth more to the parent than an error with nothing in it.
@@ -446,6 +504,29 @@ func (t *Task) child(only []string, profile *skill.Profile) (*Agent, error) {
 }
 
 // usageSince is the usage added between two cumulative snapshots.
+// briefInput is the one-line summary of a child tool call for the live
+// activity readout.
+func briefInput(raw string) string {
+	var m map[string]any
+	if json.Unmarshal([]byte(raw), &m) != nil {
+		return truncRunes(raw, 60)
+	}
+	for _, k := range []string{"command", "pattern", "path", "url", "description", "query"} {
+		if v, ok := m[k].(string); ok {
+			return truncRunes(v, 60)
+		}
+	}
+	return truncRunes(raw, 60)
+}
+
+func truncRunes(s string, max int) string {
+	r := []rune(strings.TrimSpace(strings.ReplaceAll(s, "\n", " ")))
+	if len(r) <= max {
+		return string(r)
+	}
+	return string(r[:max-1]) + "…"
+}
+
 func usageSince(before, now llm.Usage) llm.Usage {
 	return llm.Usage{
 		InputTokens:      now.InputTokens - before.InputTokens,

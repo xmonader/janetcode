@@ -18,11 +18,13 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -44,6 +46,14 @@ type Options struct {
 	Jobs      *tool.Jobs
 	Features  *feature.Catalog
 	ConfigDir string
+
+	// Typed collects hosts the user names in their own messages so
+	// fetch_url may reach them; @path attachments are expanded with it.
+	Typed      *tool.URLSet
+	Config     *config.Config
+	ConfigPath string
+	// Models switches the session onto another model's provider.
+	Models func(string) (llm.Provider, string, error)
 }
 
 const defaultAddr = "127.0.0.1:8787"
@@ -241,12 +251,13 @@ func (s *server) handler() http.Handler {
 		panic(err)
 	}
 	file := http.FileServer(http.FS(static))
-	mux.Handle("/static/", http.StripPrefix("/static/", file))
+	mux.Handle("/static/", http.StripPrefix("/static/", cacheOff(file)))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
+		w.Header().Set("Cache-Control", "no-cache")
 		http.ServeFileFS(w, r, static, "index.html")
 	})
 	mux.HandleFunc("/events", s.events)
@@ -260,6 +271,12 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("/api/inspect", s.inspectAPI)
 	mux.HandleFunc("/api/sessions", s.sessionsAPI)
 	mux.HandleFunc("/api/panel", s.panelAPI)
+	mux.HandleFunc("/api/workspace", s.workspaceAPI)
+	mux.HandleFunc("/api/change", s.changeAPI)
+	mux.HandleFunc("/api/new", s.newChat)
+	mux.HandleFunc("/api/load", s.loadSession)
+	mux.HandleFunc("/api/upload", s.upload)
+	mux.HandleFunc("/api/complete", s.completeAPI)
 	return mux
 }
 
@@ -353,7 +370,23 @@ func (s *server) events(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// completeAPI lists @path completions for the composer, the same source
+// the TUI's tab completion uses.
+func (s *server) completeAPI(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, prompt.CompletePath(s.opts.Cwd, r.URL.Query().Get("q")))
+}
+
 func ptr[T any](v T) *T { return &v }
+
+// cacheOff forces revalidation of the embedded assets. The embed FS has no
+// modtimes, so without this browsers heuristically cache app.js/app.css and
+// keep showing a stale UI after an upgrade.
+func cacheOff(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		h.ServeHTTP(w, r)
+	})
+}
 
 func (s *server) emit(e envelope) {
 	s.mu.Lock()
@@ -434,9 +467,22 @@ func (s *server) startTurn(text string) {
 
 	s.upsert(&entry{Kind: "user", Text: text})
 	s.emitStatus()
+	if s.opts.Typed != nil {
+		s.opts.Typed.Note(text)
+	}
+	blocks := []llm.Block{{Type: llm.BlockText, Text: text}}
+	expanded, atts := prompt.ExpandMentions(s.opts.Cwd, text)
+	if len(atts) > 0 {
+		names := make([]string, len(atts))
+		for i, a := range atts {
+			names[i] = a.Path
+		}
+		s.upsert(&entry{Kind: "notice", Text: "attached " + strings.Join(names, " · ")})
+		blocks = append([]llm.Block{{Type: llm.BlockText, Text: expanded}}, prompt.ImageBlocks(atts)...)
+	}
 	ag := s.opts.Agent
 	go func() {
-		err := ag.Run(ctx, text, s.apply)
+		err := ag.RunBlocks(ctx, blocks, s.apply)
 		s.finish(err)
 	}()
 }
@@ -469,6 +515,16 @@ func (s *server) finish(err error) {
 		s.mu.Lock()
 		s.queued = queued[1:]
 		s.mu.Unlock()
+		return
+	}
+	// An active goal keeps the session going after the turn, the way
+	// /goal works in the TUI, until the model marks it complete or
+	// blocked (or the round cap ends it).
+	if err == nil && s.opts.Agent != nil {
+		if cont := s.opts.Agent.GoalContinuation(); cont != "" {
+			s.notice("◉ goal round: " + cont)
+			s.startTurn(cont)
+		}
 	}
 }
 

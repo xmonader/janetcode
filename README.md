@@ -71,8 +71,7 @@ A prompt given as an argument starts the session with it:
 janetcode "explain how requests flow through this service"
 ```
 
-The same session in a browser, on loopback, with the same permission
-prompt:
+The same session in a browser, on loopback:
 
 ```sh
 janetcode --web

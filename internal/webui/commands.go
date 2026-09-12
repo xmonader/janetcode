@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
 )
 
@@ -28,6 +30,7 @@ type cmdSpec struct {
 
 var commandSpecs = []cmdSpec{
 	{Name: "/help", Args: "[topic]", Help: "keys and commands, or search the catalogue and the manual"},
+	{Name: "/clear", Args: "", Help: "start a new session", Idle: true},
 	{Name: "/compact", Args: "", Help: "summarise the conversation to free context", Idle: true},
 	{Name: "/yolo", Args: "", Help: "toggle auto-approve for tools"},
 	{Name: "/edits", Args: "", Help: "toggle auto-accept edits: file changes go through, commands still ask"},
@@ -52,6 +55,14 @@ var commandSpecs = []cmdSpec{
 	{Name: "/pin", Args: "[note or @file]", Help: "keep a note in the system prompt"},
 	{Name: "/unpin", Args: "<n>", Help: "remove a pin"},
 	{Name: "/title", Args: "<text>", Help: "name this session"},
+	{Name: "/model", Args: "[name]", Help: "show the current model, or switch to another (any configured provider)"},
+	{Name: "/fork", Args: "[title]", Help: "branch this conversation into a new session and continue there", Idle: true},
+	{Name: "/settle", Args: "", Help: "mark this session done so it lists after active ones"},
+	{Name: "/goal", Args: "[objective|pause|resume|done]", Help: "loop on an objective until it is complete or blocked"},
+	{Name: "/why", Args: "[n]", Help: "explain the last thing the harness did on its own"},
+	{Name: "/trajectory", Args: "[n|grep words]", Help: "the session's event ledger"},
+	{Name: "/agents", Args: "", Help: "subagents that can be continued"},
+	{Name: "/reload", Args: "", Help: "rebuild the memory and skill prompt indexes"},
 	{Name: "/inspect", Args: "[subject]", Help: "look at any part of the session"},
 	{Name: "/permissions", Args: "", Help: "permission rules in effect"},
 	{Name: "/export", Args: "[file.md]", Help: "write this session as a Markdown transcript"},
@@ -80,6 +91,8 @@ func (s *server) runCommand(text string) error {
 	switch name {
 	case "/help":
 		s.help(arg)
+	case "/clear", "/new":
+		return s.startNewSession()
 	case "/yolo":
 		ag.AutoApprove = !ag.AutoApprove
 		s.noteOnOff("auto-approve", ag.AutoApprove, "every tool runs without asking")
@@ -170,6 +183,52 @@ func (s *server) runCommand(text string) error {
 		s.emit(envelope{Type: "hello", Hello: ptr(s.hello())})
 	case "/inspect":
 		s.inspect(arg)
+	case "/model":
+		s.model(arg)
+	case "/fork":
+		if err := s.fork(arg); err != nil {
+			s.errf("fork: %v", err)
+			return nil
+		}
+	case "/settle":
+		if s.opts.Session == nil {
+			s.errf("no session to settle")
+			return nil
+		}
+		settled := !s.opts.Session.Meta.Settled
+		if err := s.opts.Session.SetSettled(settled); err != nil {
+			s.errf("settle: %v", err)
+			return nil
+		}
+		if settled {
+			s.notice("session settled: it lists after the active ones in the sidebar until something happens in it")
+		} else {
+			s.notice("session active again")
+		}
+	case "/goal":
+		s.goal(arg)
+	case "/why":
+		n := 1
+		if arg != "" {
+			v, err := strconv.Atoi(arg)
+			if err != nil || v < 1 {
+				s.errf("usage: /why [n] · n counts back from the most recent")
+				return nil
+			}
+			n = v
+		}
+		if s.opts.Session == nil {
+			s.errf("no session")
+			return nil
+		}
+		s.sheet("why", agent.WhyLast(s.opts.Session.Events(), n))
+	case "/trajectory":
+		s.trajectory(arg)
+	case "/agents":
+		s.agents()
+	case "/reload":
+		ag.RefreshExtra()
+		s.notice("memory and skill indexes will be rebuilt for the next call (one cache miss); they also refresh at compaction")
 	case "/permissions":
 		s.sheet("permissions", s.permissionsText())
 	case "/export":
@@ -183,18 +242,240 @@ func (s *server) runCommand(text string) error {
 	return nil
 }
 
+func (s *server) model(arg string) {
+	ag := s.opts.Agent
+	if arg == "" {
+		s.notice("model: " + ag.Model + " (" + s.opts.Provider + ") · /model <name> switches, across providers when the name routes elsewhere")
+		return
+	}
+	cfg := s.opts.Config
+	if cfg != nil && s.opts.Models != nil {
+		// The name may belong to a provider other than the one in use;
+		// follow it rather than sending it to the wrong endpoint.
+		if name, ok := cfg.RouteFor(arg); ok && name != cfg.Provider {
+			prov, _, err := s.opts.Models(arg)
+			if err != nil {
+				s.errf("%v", err)
+				return
+			}
+			ag.Provider = prov
+			cfg.Provider = name
+			s.opts.Provider = name
+			s.notice("switched to provider " + name + " for " + arg)
+		}
+	}
+	ag.Model = arg
+	if cfg != nil {
+		ag.Price = cfg.PriceFor(arg)
+		ag.ContextWindow = cfg.MetaFor(arg).ContextWindow
+		cfg.Model = arg
+		if s.opts.ConfigPath != "" {
+			if err := config.Update(s.opts.ConfigPath, cfg.Provider, cfg.Active(), arg); err != nil {
+				s.errf("saving config: %v", err)
+			}
+		}
+	}
+	s.notice("model set to " + arg + " on " + s.opts.Provider)
+	s.emit(envelope{Type: "hello", Hello: ptr(s.hello())})
+}
+
+// fork branches the conversation: the fork continues here, the original
+// stays untouched on disk.
+func (s *server) fork(title string) error {
+	if s.opts.Session == nil {
+		return fmt.Errorf("no session to fork")
+	}
+	s.mu.Lock()
+	running := s.running
+	s.mu.Unlock()
+	if running {
+		return fmt.Errorf("wait for the current turn to finish before forking")
+	}
+	ns, err := session.Fork(filepath.Dir(s.opts.Session.Path()), s.opts.Session, title)
+	if err != nil {
+		return err
+	}
+	old := s.opts.Session.Label()
+	s.opts.Session = ns
+	ag := s.opts.Agent
+	ag.SetLog(ns)
+	ag.UndoPath = ns.UndoPath()
+	ag.SaveUndo()
+	s.notice(fmt.Sprintf("forked %s → %s · this session continues from the fork, the original is unchanged", old, ns.Meta.ID))
+	s.emit(envelope{Type: "hello", Hello: ptr(s.hello())})
+	return nil
+}
+
+func (s *server) goal(arg string) {
+	ag := s.opts.Agent
+	if s.opts.Session == nil {
+		s.errf("no session")
+		return
+	}
+	ev := s.opts.Session.Events()
+	switch arg {
+	case "", "list":
+		gs := agent.FoldGoals(ev)
+		if len(gs) == 0 {
+			s.notice("no goals: /goal <objective> starts one")
+			return
+		}
+		var sb strings.Builder
+		for _, g := range gs {
+			fmt.Fprintf(&sb, "%s  %-8s  %d/%d  %s\n", g.ID, g.Phase, g.Rounds, g.MaxRounds, g.Objective)
+			if g.Reason != "" {
+				fmt.Fprintf(&sb, "    %s\n", g.Reason)
+			}
+		}
+		s.sheet("goals", strings.TrimRight(sb.String(), "\n"))
+	case "pause", "resume", "done":
+		g := agent.ActiveGoal(ev)
+		if arg == "resume" {
+			g = agent.LastGoal(ev, agent.GoalPaused)
+		}
+		if g == nil {
+			g = agent.LastGoal(ev, "")
+		}
+		if g == nil {
+			s.errf("no goal")
+			return
+		}
+		phase := agent.GoalPaused
+		if arg == "resume" {
+			phase = agent.GoalActive
+		}
+		if arg == "done" {
+			phase = agent.GoalComplete
+		}
+		ag.SetGoalPhase(g.ID, phase, "")
+		s.notice("goal " + g.ID + " " + string(phase))
+		if phase == agent.GoalActive {
+			s.goalRound()
+		}
+	default:
+		id := ag.CreateGoal(arg, 0)
+		s.notice("goal " + id + " active: " + arg)
+		if s.opts.Session.Meta.Title == "" {
+			_ = s.opts.Session.SetTitle(truncate(arg, 60))
+		}
+		s.goalRound()
+	}
+}
+
+// goalRound starts the active goal's next round when idle.
+func (s *server) goalRound() {
+	s.mu.Lock()
+	running := s.running
+	s.mu.Unlock()
+	if running {
+		s.notice("the goal continues when this turn ends")
+		return
+	}
+	cont := s.opts.Agent.GoalContinuation()
+	if cont == "" {
+		return
+	}
+	s.startTurn(cont)
+}
+
+func (s *server) trajectory(arg string) {
+	if s.opts.Session == nil {
+		s.errf("no session")
+		return
+	}
+	ev := s.opts.Session.Events()
+	if strings.HasPrefix(arg, "grep ") {
+		q := strings.TrimSpace(strings.TrimPrefix(arg, "grep "))
+		hits := session.QueryEvents(ev, session.QueryFilter{Text: q})
+		if len(hits) == 0 {
+			s.notice("no events matching " + q)
+			return
+		}
+		var sb strings.Builder
+		for _, h := range hits {
+			fmt.Fprintf(&sb, "#%d %s %s %s\n  %s\n", h.Event.Seq, h.Kind, h.Event.Type, h.Event.Name, h.Snippet)
+		}
+		s.sheet("trajectory · "+q, strings.TrimRight(sb.String(), "\n"))
+		return
+	}
+	if n, err := strconv.Atoi(arg); err == nil && arg != "" {
+		for _, e := range ev {
+			if e.Seq != n {
+				continue
+			}
+			var sb strings.Builder
+			fmt.Fprintf(&sb, "seq %d  %s  turn %d step %d  %s\n", e.Seq, e.Type, e.Turn, e.Step, session.Classify(ev, e))
+			if e.DurationMs > 0 {
+				fmt.Fprintf(&sb, "duration %s\n", shortDuration(time.Duration(e.DurationMs)*time.Millisecond))
+			}
+			if e.Usage != nil {
+				fmt.Fprintf(&sb, "usage in=%d cache=%d out=%d\n", e.Usage.InputTokens, e.Usage.CacheReadTokens, e.Usage.OutputTokens)
+			}
+			body := e.Output
+			if body == "" && e.Message != nil {
+				body = e.Message.Text()
+			}
+			sb.WriteString(truncate(body, 4000))
+			s.sheet(fmt.Sprintf("event %d", n), sb.String())
+			return
+		}
+		s.errf("no event seq %d", n)
+		return
+	}
+	if len(ev) == 0 {
+		s.notice("no trajectory events yet: no turn has run")
+		return
+	}
+	hidden := session.Shadowed(ev)
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "seq  turn/step  type                 name        dur    surface\n")
+	for _, e := range ev {
+		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %7s %s\n", e.Seq, e.Turn, e.Step, e.Type, truncate(e.Name, 11),
+			shortDuration(time.Duration(e.DurationMs)*time.Millisecond), session.ClassifyWith(hidden, e))
+	}
+	s.sheet("trajectory", strings.TrimRight(sb.String(), "\n"))
+}
+
+func (s *server) agents() {
+	task := s.taskTool()
+	if task == nil {
+		s.notice("no task tool")
+		return
+	}
+	kids := task.Children()
+	if len(kids) == 0 {
+		s.notice("no subagents yet; task continue=<id> reuses one")
+		return
+	}
+	var sb strings.Builder
+	for _, k := range kids {
+		state := "done"
+		if !k.Done {
+			state = "running"
+		}
+		fmt.Fprintf(&sb, "%s  %-7s  %s\n", k.ID, state, k.Description)
+		if !k.Done && k.Last != "" {
+			fmt.Fprintf(&sb, "    now: %s\n", k.Last)
+		}
+		if k.Usage.InputTokens+k.Usage.OutputTokens > 0 {
+			fmt.Fprintf(&sb, "    tokens in=%d out=%d\n", k.Usage.InputTokens, k.Usage.OutputTokens)
+		}
+	}
+	sb.WriteString("\nsteer one by asking for it: \"tell task-2 to also check …\" · task continue=<id> reuses it")
+	s.sheet("subagents", strings.TrimRight(sb.String(), "\n"))
+}
 func (s *server) help(topic string) {
 	if topic != "" && s.opts.Features != nil {
 		s.sheet("help · "+topic, feature.Answer(s.opts.Features, topic, ""))
 		return
 	}
 	var sb strings.Builder
-	sb.WriteString("enter sends · shift+enter newline · esc cancels · ctrl+s steers a running turn\n")
-	sb.WriteString("y/a/r/n/c at a permission prompt · ] toggles the side panel · / opens the command list\n\n")
+	sb.WriteString("Write a request and press Send. Shift+Enter starts a new line.\n")
+	sb.WriteString("When a tool wants to change something, use the buttons (or Y / N).\n")
+	sb.WriteString("Ctrl+K searches every command. A few you may want:\n\n")
 	for _, c := range commandSpecs {
 		fmt.Fprintf(&sb, "%-14s %-18s %s\n", c.Name, c.Args, c.Help)
 	}
-	sb.WriteString("\n!command runs a shell command here and shares the output with the model")
 	s.sheet("help", sb.String())
 }
 

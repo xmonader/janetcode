@@ -3,47 +3,136 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0d0d0d">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234a9eff'/%3E%3Ctext x='16' y='23' font-family='sans-serif' font-size='20' font-weight='bold' text-anchor='middle' fill='%230d0d0d'%3Ej%3C/text%3E%3C/svg%3E">
+<script>document.documentElement.dataset.theme = localStorage.getItem("janetcode-theme") || "dark";</script>
 <title>janetcode</title>
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-<header id="header">
-  <div class="left">
-    <span class="mark">◆</span>
-    <span id="brand">janetcode</span>
-    <span id="title" class="title"></span>
-    <span id="model" class="dim"></span>
-    <span id="modes"></span>
-  </div>
-  <div class="right">
-    <span id="cost" class="dim"></span>
-    <span id="cwd" class="dim"></span>
-    <span id="gauge" title="context window">ctx <i></i></span>
-    <button type="button" id="panel-btn" title="side panel (])">panel</button>
-  </div>
-</header>
-<div id="workspace">
-  <main id="log" aria-live="polite"></main>
-  <aside id="drawer" hidden>
-    <nav id="tabs"></nav>
-    <pre id="drawer-body"></pre>
+  <div class="shell">
+  <aside class="nav">
+    <div class="nav-head">
+      <span id="wordmark">janetcode</span>
+      <button type="button" id="new-chat">New</button>
+    </div>
+    <p id="cwd" class="nav-cwd"></p>
+    <p class="nav-label">Sessions</p>
+    <ul id="sessions"></ul>
   </aside>
-</div>
-<footer>
-  <div id="notice" class="notice" hidden></div>
-  <div id="perm" class="perm" hidden>
-    <div id="perm-line"></div>
-    <pre id="perm-preview" hidden></pre>
-    <div id="perm-keys" class="keys"></div>
+
+  <div class="col">
+    <header class="top">
+      <span id="title" class="session-title"></span>
+      <span id="model" class="path"></span>
+      <span id="conn" class="conn" title="Live connection">Live</span>
+      <button type="button" id="preview-toggle" class="icon-btn" title="Web preview" aria-label="Web preview">⧉</button>
+      <button type="button" id="theme-toggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme"></button>
+    </header>
+    <section class="thread" id="thread">
+      <div id="empty" class="empty">
+        <p id="empty-lead">What should we change?</p>
+        <p class="empty-sub">Describe the work below. Edits and commands will ask before they run.</p>
+        <div class="chips">
+          <button type="button" class="chip" data-q="Explain how this project is structured">Explain this project</button>
+          <button type="button" class="chip" data-q="Find a bug and fix it">Find and fix a bug</button>
+          <button type="button" class="chip" data-q="Add tests for the most important untested code">Add missing tests</button>
+          <button type="button" class="chip" data-q="Refactor the ugliest function you can find">Refactor something ugly</button>
+        </div>
+      </div>
+      <div id="log"></div>
+    </section>
+    <div class="bottom">
+      <div id="ask" class="ask" hidden>
+        <p id="ask-line"></p>
+        <pre id="ask-preview" hidden></pre>
+        <div class="ask-actions">
+          <button type="button" class="primary" data-d="allow">Allow once</button>
+          <button type="button" data-d="session">Always this session</button>
+          <button type="button" data-d="always">Remember this rule</button>
+          <button type="button" data-d="deny">Deny</button>
+          <button type="button" class="ghost" data-d="cancel">Stop</button>
+        </div>
+      </div>
+      <p id="status" class="status"></p>
+      <form id="composer">
+        <div id="ac" class="ac" hidden></div>
+        <textarea id="input" rows="1" placeholder="What should we do next?"></textarea>
+        <div class="composer-bar">
+          <button type="button" id="search-btn" title="Commands (Ctrl+K)">Commands</button>
+          <span class="spacer"></span>
+          <span class="hint">Enter to send · Shift+Enter newline · Esc stops</span>
+          <button type="submit" id="send">Send</button>
+        </div>
+      </form>
+    </div>
   </div>
-  <div id="menu" class="menu" hidden></div>
-  <div id="status" class="status">ready</div>
-  <form id="composer" autocomplete="off">
-    <label class="prompt" for="input">❯</label>
-    <textarea id="input" rows="1" placeholder="Ask for a change, a fix, or an explanation… · / for commands"></textarea>
-    <button type="submit" id="send">send</button>
-  </form>
-</footer>
+
+  <aside class="preview" id="preview" hidden>
+    <div class="pv-bar">
+      <input id="pv-url" type="url" placeholder="http://localhost:3000" autocomplete="off" spellcheck="false">
+      <button type="button" id="pv-refresh" class="icon-btn" title="Reload">↻</button>
+      <button type="button" id="pv-width" class="icon-btn" title="Toggle 390px width">▤</button>
+      <button type="button" id="pv-ext" class="icon-btn" title="Open in new tab">↗</button>
+      <button type="button" id="pv-close" class="icon-btn" title="Close preview">×</button>
+    </div>
+    <div class="pv-stage" id="pv-stage">
+      <div class="pv-empty" id="pv-empty">Enter a URL above to preview a running app.</div>
+      <iframe id="pv-frame" title="Web preview" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" hidden></iframe>
+    </div>
+  </aside>
+
+  <aside class="work">
+    <section>
+      <h2>Plan</h2>
+      <ul id="todos"><li class="quiet">Nothing on the list yet</li></ul>
+    </section>
+    <section>
+      <h2>Changed files</h2>
+      <div class="file-actions">
+        <button type="button" id="undo-btn" hidden>Undo last turn</button>
+      </div>
+      <ul id="files"><li class="quiet">No files changed</li></ul>
+    </section>
+    <section id="jobs-sec" hidden>
+      <h2>Background jobs</h2>
+      <ul id="jobs"></ul>
+    </section>
+    <section id="agents-sec" hidden>
+      <h2>Subagents</h2>
+      <ul id="agents"></ul>
+    </section>
+    <section class="spend">
+      <h2>This session</h2>
+      <p id="ctx-line">Context —</p>
+      <p id="cost-line"></p>
+      <div class="switches">
+        <button type="button" data-cmd="/edits" id="mode-edits">Allow edits</button>
+        <button type="button" data-cmd="/yolo" id="mode-yolo">Allow all tools</button>
+        <button type="button" data-cmd="/plan" id="mode-plan">Plan first</button>
+        <button type="button" data-cmd="/readonly" id="mode-ro">Read only</button>
+      </div>
+      <div class="switches">
+        <button type="button" id="notif-btn" title="Notify when a turn finishes while the tab is in the background">Notifications off</button>
+      </div>
+    </section>
+  </aside>
+  </div>
+
+  <div id="viewer" class="viewer" hidden>
+    <div class="viewer-card">
+      <header>
+        <strong id="viewer-path"></strong>
+        <button type="button" id="viewer-close">Close</button>
+      </header>
+      <pre id="viewer-diff" class="diff"></pre>
+    </div>
+  </div>
+
+  <div id="palette" class="palette" hidden>
+    <input id="palette-q" type="search" placeholder="Search commands" autocomplete="off">
+    <div id="palette-list"></div>
+  </div>
 <script src="/static/app.js"></script>
 </body>
 </html>

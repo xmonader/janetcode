@@ -80,66 +80,40 @@ func testServer(t *testing.T, responses ...*llm.Response) *httptest.Server {
 	return httptest.NewServer(h)
 }
 
-func TestCommandsAndPanelsAreSurfaced(t *testing.T) {
+func TestWorkspaceIsStructured(t *testing.T) {
 	ts := testServer(t)
 	defer ts.Close()
-	res, err := http.Get(ts.URL + "/api/commands")
+	res, err := http.Get(ts.URL + "/api/workspace")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer res.Body.Close()
-	var cmds []cmdSpec
-	if err := json.NewDecoder(res.Body).Decode(&cmds); err != nil {
+	var ws workspace
+	if err := json.NewDecoder(res.Body).Decode(&ws); err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]bool{"/help": true, "/context": true, "/stats": true, "/todos": true, "/inspect": true, "/memory": true, "/yolo": true}
-	for _, c := range cmds {
-		delete(want, c.Name)
+	if ws.Todos == nil {
+		ws.Todos = []todoItem{}
 	}
-	if len(want) > 0 {
-		t.Fatalf("command list missing %v", want)
-	}
-
-	body, _ := json.Marshal(map[string]string{"text": "/help"})
-	pr, err := http.Post(ts.URL+"/api/prompt", "application/json", bytes.NewReader(body))
+	page, err := http.Get(ts.URL + "/")
 	if err != nil {
 		t.Fatal(err)
 	}
-	pr.Body.Close()
-	st, err := http.Get(ts.URL + "/api/state")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Body.Close()
-	var snap struct {
-		Entries []entry `json:"entries"`
-	}
-	if err := json.NewDecoder(st.Body).Decode(&snap); err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, e := range snap.Entries {
-		if e.Kind == "sheet" && strings.Contains(e.Text, "/compact") && strings.Contains(e.Text, "/inspect") {
-			found = true
+	body, _ := io.ReadAll(page.Body)
+	page.Body.Close()
+	html := string(body)
+	for _, want := range []string{"New", "Plan", "Changed files", "id=\"sessions\"", "id=\"composer\""} {
+		if !strings.Contains(html, want) {
+			t.Errorf("page missing %q", want)
 		}
 	}
-	if !found {
-		t.Fatalf("/help did not dump the command sheet: %+v", snap.Entries)
-	}
-
-	pres, err := http.Get(ts.URL + "/api/panel?name=context")
+	nr, err := http.Post(ts.URL+"/api/new", "application/json", strings.NewReader("{}"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pres.Body.Close()
-	var panel struct {
-		Body string `json:"body"`
-	}
-	if err := json.NewDecoder(pres.Body).Decode(&panel); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(panel.Body, "tokens") {
-		t.Fatalf("context panel: %q", panel.Body)
+	nr.Body.Close()
+	if nr.StatusCode != 200 {
+		t.Fatalf("new chat %d", nr.StatusCode)
 	}
 }
 

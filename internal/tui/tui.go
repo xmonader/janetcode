@@ -674,12 +674,27 @@ func (m *model) agentsCommand() {
 		m.transcript.info("task tool is not continuable")
 		return
 	}
-	ids := task.ChildIDs()
-	if len(ids) == 0 {
+	kids := task.Children()
+	if len(kids) == 0 {
 		m.transcript.info("no subagents yet; task continue=<id> reuses one")
 		return
 	}
-	m.transcript.info("subagents: " + strings.Join(ids, ", "))
+	var sb strings.Builder
+	for _, k := range kids {
+		state := "done"
+		if !k.Done {
+			state = "running"
+		}
+		fmt.Fprintf(&sb, "%s  %-7s  %s  %s\n", k.ID, state, shortDuration(time.Since(k.Started)), k.Description)
+		if !k.Done && k.Last != "" {
+			fmt.Fprintf(&sb, "    now: %s\n", k.Last)
+		}
+		if k.Usage.InputTokens+k.Usage.OutputTokens > 0 {
+			fmt.Fprintf(&sb, "    tokens in=%s out=%s\n", shortTokens(k.Usage.InputTokens), shortTokens(k.Usage.OutputTokens))
+		}
+	}
+	sb.WriteString("steer one by asking for it: \"tell task-2 to also check …\" · task continue=<id> reuses it")
+	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 }
 
 // pinCommand adds a pin or lists them.
@@ -3460,8 +3475,22 @@ func (m *model) liveWork() string {
 	if ag := m.opts.Agent; ag != nil && ag.Tools != nil {
 		if t, ok := ag.Tools.Get("task"); ok {
 			if task, ok := t.(*agent.Task); ok {
-				if n := len(task.ChildIDs()); n > 0 {
-					parts = append(parts, plural(n, "subagent")+" (/agents)")
+				kids := task.Children()
+				running := 0
+				var last agent.ChildInfo
+				for _, k := range kids {
+					if !k.Done {
+						running++
+						last = k
+					}
+				}
+				switch {
+				case running > 0 && last.Description != "" && last.Last != "":
+					parts = append(parts, plural(running, "subagent")+": "+last.Description+" · "+last.Last+" (/agents)")
+				case running > 0:
+					parts = append(parts, plural(running, "subagent")+" running (/agents)")
+				case len(kids) > 0:
+					parts = append(parts, plural(len(kids), "subagent")+" (/agents)")
 				}
 			}
 		}
