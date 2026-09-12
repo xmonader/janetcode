@@ -3756,6 +3756,28 @@ func TestThinkingPhaseShowsFlavor(t *testing.T) {
 	}
 }
 
+func TestTurnStartShowsFlavorInTranscript(t *testing.T) {
+	h := newHarness(t)
+	h.m.startTurn("thinking")
+	if n := len(h.m.transcript.entries); n == 0 {
+		t.Fatal("turn start should plant a thinking row")
+	}
+	e := h.m.transcript.entries[len(h.m.transcript.entries)-1]
+	if e.kind != entryThinking || e.done {
+		t.Fatalf("placeholder = kind %v done %v", e.kind, e.done)
+	}
+	got := thinkingView(e.text, false, 0, e.started)
+	if !flavor.Known(strings.TrimPrefix(got, "· ")) {
+		t.Fatalf("transcript thinking = %q", got)
+	}
+	h.m.transcript.closeOpen()
+	for _, x := range h.m.transcript.entries {
+		if x.kind == entryThinking {
+			t.Fatal("empty thinking placeholder must not remain after closeOpen")
+		}
+	}
+}
+
 // The prompt's placeholder was one long sentence cut wherever the window
 // ended, so a narrow terminal offered "· / for" where it meant "· / for
 // commands".

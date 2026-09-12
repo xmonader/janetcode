@@ -36,6 +36,7 @@
   let palIdx = 0;
   let palItems = [];
   let lastReply = "";
+  let lastFlavor = "";
 
   function esc(s) {
     return String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -126,8 +127,13 @@
       if (e.done) lastReply = (e.text || "").slice(0, 200);
     } else if (e.kind === "thinking") {
       n.className = "turn thought";
-      const lines = (e.text || "").trim().split("\n");
-      n.innerHTML = `<span class="lbl">Thinking</span>${esc(e.done ? (lines[0] || "").slice(0, 160) : lines.slice(-2).join(" "))}`;
+      const raw = (e.text || "").trim();
+      if (!raw && !e.done) {
+        n.innerHTML = `<span class="lbl">${esc(lastFlavor || "Thinking")}</span>`;
+      } else {
+        const lines = raw.split("\n");
+        n.innerHTML = `<span class="lbl">${e.done ? "Thought" : "Thinking"}</span>${esc(e.done ? (lines[0] || "").slice(0, 160) : lines.slice(-2).join(" "))}`;
+      }
     } else if (e.kind === "tool") {
       n.className = "turn";
       const st = e.denied ? "Declined" : e.error ? "Failed" : e.done ? "Done" : e.running ? "Running" : "Queued";
@@ -185,8 +191,19 @@
     statusEl.textContent = bits.join(" · ");
     statusEl.classList.toggle("busy", !!st.running);
     if (st.mode) setModeChip(st.mode);
+    if (st.phase) lastFlavor = st.phase;
+    relabelThinking();
     refreshWorkspace();
     if (currentView === "trajectory") refreshTrajectory();
+  }
+
+  function relabelThinking() {
+    if (!lastFlavor) return;
+    latest.forEach((e, id) => {
+      if (e.kind !== "thinking" || e.done || (e.text || "").trim()) return;
+      const n = nodes.get(id);
+      if (n) n.innerHTML = `<span class="lbl">${esc(lastFlavor)}</span>`;
+    });
   }
 
   function setModeChip(mode) {

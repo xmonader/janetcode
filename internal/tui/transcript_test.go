@@ -13,6 +13,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -135,15 +136,19 @@ func TestSummarizeInput(t *testing.T) {
 }
 
 func TestThinkingView(t *testing.T) {
-	if got := thinkingView("", false, 0); got != "· thinking" {
-		t.Fatalf("empty: %q", got)
+	got := thinkingView("", false, 0, time.Unix(1_700_000_000, 0))
+	if !strings.HasPrefix(got, "· ") || !flavor.Known(strings.TrimPrefix(got, "· ")) {
+		t.Fatalf("empty live: %q", got)
+	}
+	if got := thinkingView("", true, 0, time.Time{}); got != "· thinking" {
+		t.Fatalf("empty done: %q", got)
 	}
 	long := strings.Repeat("line\n", 20) + "last"
-	got := thinkingView(long, false, 0)
+	got = thinkingView(long, false, 0, time.Time{})
 	if !strings.HasPrefix(got, "· thinking… (19 earlier lines)") || !strings.HasSuffix(got, "last") || strings.Count(got, "\n") != 2 {
 		t.Fatalf("streaming tail: %q", got)
 	}
-	if got := thinkingView("plan first\nthen do", true, 0); got != "· thought: plan first (2 lines)" {
+	if got := thinkingView("plan first\nthen do", true, 0, time.Time{}); got != "· thought: plan first (2 lines)" {
 		t.Fatalf("done: %q", got)
 	}
 }
@@ -341,7 +346,7 @@ func TestThinkingViewCapsAtThreeLines(t *testing.T) {
 		lines = append(lines, fmt.Sprintf("step %d", i))
 	}
 	text := strings.Join(lines, "\n")
-	live := thinkingView(text, false, 0)
+	live := thinkingView(text, false, 0, time.Time{})
 	if n := len(strings.Split(live, "\n")); n != 3 {
 		t.Fatalf("streaming thought is %d lines, want 3:\n%s", n, live)
 	}
@@ -351,7 +356,7 @@ func TestThinkingViewCapsAtThreeLines(t *testing.T) {
 	if !strings.Contains(live, "10 earlier lines") {
 		t.Errorf("streaming thought does not say what it hid:\n%s", live)
 	}
-	folded := thinkingView(text, true, 0)
+	folded := thinkingView(text, true, 0, time.Time{})
 	if n := len(strings.Split(folded, "\n")); n != 1 {
 		t.Fatalf("folded thought is %d lines, want 1:\n%s", n, folded)
 	}
@@ -359,7 +364,7 @@ func TestThinkingViewCapsAtThreeLines(t *testing.T) {
 		t.Errorf("folded thought = %q", folded)
 	}
 	// Short thoughts are shown whole.
-	if got := thinkingView("only one", false, 0); got != "· only one" {
+	if got := thinkingView("only one", false, 0, time.Time{}); got != "· only one" {
 		t.Errorf("short thought = %q", got)
 	}
 }
@@ -688,13 +693,13 @@ func TestFinishedCallFlashesAndThoughtSaysHowLong(t *testing.T) {
 
 	th := &entry{kind: entryThinking, text: "a\nb", done: true,
 		started: time.Now().Add(-12300 * time.Millisecond), ended: time.Now()}
-	if got := thinkingView(th.text, true, th.thoughtFor()); !strings.Contains(got, "thought for 12.3s") {
+	if got := thinkingView(th.text, true, th.thoughtFor(), th.started); !strings.Contains(got, "thought for 12.3s") {
 		t.Fatalf("thought header = %q", got)
 	}
 	// A resumed conversation has no timings, and a thought too short to
 	// have been waited for says nothing about how long it took.
 	for _, d := range []time.Duration{0, 40 * time.Millisecond} {
-		if got := thinkingView("a", true, d); !strings.HasPrefix(got, "· thought: ") {
+		if got := thinkingView("a", true, d, time.Time{}); !strings.HasPrefix(got, "· thought: ") {
 			t.Fatalf("thought after %s = %q", d, got)
 		}
 	}

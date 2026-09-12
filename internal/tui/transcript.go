@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -352,6 +353,10 @@ func (t *transcript) dropOpen() {
 func (t *transcript) closeOpen() {
 	for i := len(t.entries) - 1; i >= 0; i-- {
 		e := t.entries[i]
+		if e.kind == entryThinking && !e.done && strings.TrimSpace(e.text) == "" {
+			t.entries = append(t.entries[:i], t.entries[i+1:]...)
+			continue
+		}
 		if e.kind == entryAssistant || e.kind == entryThinking {
 			if !e.done {
 				e.done = true
@@ -587,7 +592,7 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 		if o.expand(e) && e.done {
 			return styleFaint.Render(wrap("· thought: " + strings.TrimSpace(e.text)))
 		}
-		return styleFaint.Render(wrap(thinkingView(e.text, e.done, e.thoughtFor())))
+		return styleFaint.Render(wrap(thinkingView(e.text, e.done, e.thoughtFor(), e.started)))
 	case entryAssistant:
 		return t.renderMarkdown(e, width)
 	case entryTool:
@@ -940,10 +945,13 @@ func splitDiagnostics(out string) (body, diag string) {
 // it to a single line once the model moves on, so it never swamps the
 // transcript. The streaming view is capped at three lines so the fold
 // costs the transcript two lines rather than seven.
-func thinkingView(text string, done bool, took time.Duration) string {
+func thinkingView(text string, done bool, took time.Duration, started time.Time) string {
 	txt := strings.TrimSpace(text)
 	if txt == "" {
-		return "· thinking"
+		if done {
+			return "· thinking"
+		}
+		return "· " + flavor.ForPhase("thinking", time.Now(), started)
 	}
 	lines := strings.Split(txt, "\n")
 	if done {

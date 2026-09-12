@@ -2988,6 +2988,9 @@ func (m *model) startTurn(phase string) {
 	m.status = ""
 	m.lastVerdict = ""
 	m.setPhase(phase)
+	if phase == "thinking" {
+		m.transcript.apply(agent.Event{Kind: agent.EvThinking})
+	}
 }
 
 // onOff names a toggle's new state, so every "/x is on" line reads the

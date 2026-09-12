@@ -507,6 +507,7 @@ func (s *server) startTurn(text string) {
 	s.mu.Unlock()
 
 	s.upsert(&entry{Kind: "user", Text: text})
+	s.add(&entry{Kind: "thinking"})
 	s.emitStatus()
 	if s.opts.Typed != nil {
 		s.opts.Typed.Note(text)
@@ -970,6 +971,10 @@ func (s *server) closeOpen() {
 	defer s.mu.Unlock()
 	for i := len(s.entries) - 1; i >= 0; i-- {
 		e := s.entries[i]
+		if e.Kind == "thinking" && !e.Done && strings.TrimSpace(e.Text) == "" {
+			s.entries = append(s.entries[:i], s.entries[i+1:]...)
+			continue
+		}
 		if e.Kind == "assistant" || e.Kind == "thinking" {
 			if !e.Done {
 				e.Done = true
