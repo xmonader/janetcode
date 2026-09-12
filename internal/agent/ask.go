@@ -23,18 +23,18 @@ const (
 
 // Question is a structured prompt for the human, not a free-text box.
 type Question struct {
-	ID      string
-	Prompt  string
-	Detail  string
-	Options []AskOption
-	Intent  string // IntentPlanReview or empty
-	Approve string // option label that means yes, when Intent is plan-review
+	ID      string      `json:"id,omitempty"`
+	Prompt  string      `json:"prompt"`
+	Detail  string      `json:"detail,omitempty"`
+	Options []AskOption `json:"options"`
+	Intent  string      `json:"intent,omitempty"` // IntentPlanReview or empty
+	Approve string      `json:"approve,omitempty"`
 }
 
 // Answer is the chosen option label and optional free-text (Other, or a reason).
 type Answer struct {
-	Label  string
-	Reason string
+	Label  string `json:"label"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // Asker asks the user one or more labeled questions and blocks until they

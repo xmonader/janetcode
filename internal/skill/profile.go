@@ -12,8 +12,8 @@ import (
 // Profile is a custom subagent definition: a markdown file whose body is
 // the subagent's extra system prompt and whose frontmatter names it and
 // optionally restricts its tools or picks a model. Files live in
-// .janetcode/agents/<name>.md, agents/ under the config directory, and
-// .claude/agents for compatibility.
+// .janetcode/agents/<name>.md, .agents/agents/<name>.md or .agents/<name>.md,
+// agents/ under the config directory, and .claude/agents for compatibility.
 type Profile struct {
 	Name        string
 	Description string
@@ -51,39 +51,15 @@ func LoadProfiles(cwd, configDir string) []Profile {
 		locs = append(locs, loc{filepath.Join(configDir, "agents"), "global"})
 	}
 	if cwd != "" {
-		locs = append(locs, loc{filepath.Join(cwd, ".claude", "agents"), "claude"}, loc{filepath.Join(cwd, ".janetcode", "agents"), "project"})
+		locs = append(locs,
+			loc{filepath.Join(cwd, ".claude", "agents"), "claude"},
+			loc{filepath.Join(cwd, ".agents"), "agents"},
+			loc{filepath.Join(cwd, ".agents", "agents"), "agents"},
+			loc{filepath.Join(cwd, ".janetcode", "agents"), "project"},
+		)
 	}
 	for _, l := range locs {
-		entries, err := os.ReadDir(l.dir)
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-				continue
-			}
-			p := filepath.Join(l.dir, e.Name())
-			data, err := os.ReadFile(p)
-			if err != nil {
-				continue
-			}
-			meta, body := md.Parse(string(data))
-			body = strings.TrimSpace(body)
-			if body == "" {
-				continue
-			}
-			pr := Profile{Name: strings.TrimSuffix(e.Name(), ".md"), Description: strings.TrimSpace(meta["description"]), Model: strings.TrimSpace(meta["model"]), Body: body, Path: p, Source: l.source}
-			if n := strings.TrimSpace(meta["name"]); n != "" {
-				pr.Name = n
-			}
-			if pr.Description == "" {
-				pr.Description = firstLine(body)
-			}
-			pr.Tools = md.List(meta["tools"])
-			pr.Disallowed = md.List(meta["disallowed_tools"])
-			pr.MaxTurns = atoi(meta["max_turns"])
-			pr.MaxMinutes = atoi(meta["max_minutes"])
-			pr.Approval = strings.ToLower(strings.TrimSpace(meta["approval"]))
+		for _, pr := range readProfileDir(l.dir, l.source) {
 			byName[pr.Name] = pr
 		}
 	}
@@ -103,4 +79,41 @@ func atoi(v string) int {
 		return 0
 	}
 	return n
+}
+
+func readProfileDir(dir, source string) []Profile {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []Profile
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") || strings.EqualFold(e.Name(), "README.md") {
+			continue
+		}
+		p := filepath.Join(dir, e.Name())
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		meta, body := md.Parse(string(data))
+		body = strings.TrimSpace(body)
+		if body == "" {
+			continue
+		}
+		pr := Profile{Name: strings.TrimSuffix(e.Name(), ".md"), Description: strings.TrimSpace(meta["description"]), Model: strings.TrimSpace(meta["model"]), Body: body, Path: p, Source: source}
+		if n := strings.TrimSpace(meta["name"]); n != "" {
+			pr.Name = n
+		}
+		if pr.Description == "" {
+			pr.Description = firstLine(body)
+		}
+		pr.Tools = md.List(meta["tools"])
+		pr.Disallowed = md.List(meta["disallowed_tools"])
+		pr.MaxTurns = atoi(meta["max_turns"])
+		pr.MaxMinutes = atoi(meta["max_minutes"])
+		pr.Approval = strings.ToLower(strings.TrimSpace(meta["approval"]))
+		out = append(out, pr)
+	}
+	return out
 }

@@ -152,6 +152,41 @@ func TestToolReadsSkillByName(t *testing.T) {
 	}
 }
 
+func TestAgentsDirSkillsAndProfiles(t *testing.T) {
+	cwd, cfg := t.TempDir(), t.TempDir()
+	write(t, filepath.Join(cfg, "skills", "shared", "SKILL.md"), "---\ndescription: global shared\n---\nglobal body\n")
+	write(t, filepath.Join(cwd, ".agents", "skills", "shared", "SKILL.md"), "---\ndescription: agents shared\n---\nagents body\n")
+	write(t, filepath.Join(cwd, ".agents", "skills", "review", "SKILL.md"), "---\ndescription: review from agents\n---\nreview steps\n")
+	write(t, filepath.Join(cwd, ".janetcode", "skills", "shared.md"), "---\ndescription: janetcode shared\n---\njanetcode body\n")
+	skills := Load(cwd, cfg)
+	by := map[string]Skill{}
+	for _, s := range skills {
+		by[s.Name] = s
+	}
+	if s := by["review"]; s.Source != "agents" || s.Body != "review steps" {
+		t.Fatalf("review = %+v", s)
+	}
+	if s := by["shared"]; s.Source != "project" || s.Body != "janetcode body" {
+		t.Fatalf(".janetcode should shadow .agents: %+v", s)
+	}
+
+	write(t, filepath.Join(cfg, "agents", "scout.md"), "---\ndescription: global scout\n---\nglobal scout\n")
+	write(t, filepath.Join(cwd, ".agents", "scout.md"), "---\ndescription: agents scout\n---\nagents scout body\n")
+	write(t, filepath.Join(cwd, ".agents", "agents", "mapper.md"), "---\ndescription: nested mapper\n---\nmapper body\n")
+	write(t, filepath.Join(cwd, ".janetcode", "agents", "scout.md"), "---\ndescription: janetcode scout\n---\njanetcode scout\n")
+	ps := LoadProfiles(cwd, cfg)
+	byP := map[string]Profile{}
+	for _, p := range ps {
+		byP[p.Name] = p
+	}
+	if p := byP["mapper"]; p.Source != "agents" || p.Body != "mapper body" {
+		t.Fatalf("mapper = %+v", p)
+	}
+	if p := byP["scout"]; p.Source != "project" || p.Body != "janetcode scout" {
+		t.Fatalf(".janetcode agents should shadow .agents: %+v", p)
+	}
+}
+
 func TestLoadProfiles(t *testing.T) {
 	cwd, cfg := t.TempDir(), t.TempDir()
 	write(t, filepath.Join(cfg, "agents", "reviewer.md"), "---\ndescription: Reviews code\ntools: read_file, grep\nmodel: cheap-model\n---\nYou review code.\n")

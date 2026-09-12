@@ -7,6 +7,15 @@
   const ask = document.getElementById("ask");
   const askLine = document.getElementById("ask-line");
   const askPreview = document.getElementById("ask-preview");
+  const questionsEl = document.getElementById("questions");
+  const qPrompt = document.getElementById("q-prompt");
+  const qDetail = document.getElementById("q-detail");
+  const qOpts = document.getElementById("q-opts");
+  const qOther = document.getElementById("q-other");
+  const qOtherText = document.getElementById("q-other-text");
+  let pendingQs = [];
+  let qIdx = 0;
+  let qAnswers = [];
   const palette = document.getElementById("palette");
   const paletteQ = document.getElementById("palette-q");
   const paletteList = document.getElementById("palette-list");
@@ -153,6 +162,7 @@
   function applyHello(h) {
     if (!h) return;
     document.getElementById("model").textContent = [h.provider, h.model].filter(Boolean).join(" · ");
+    setModeChip(h.mode);
     document.getElementById("cwd").textContent = h.cwd || "";
     if (h.title) curTitle = h.title;
     document.getElementById("title").textContent = curTitle || "New conversation";
@@ -174,7 +184,16 @@
     if (st.queued) bits.push(st.queued + " waiting");
     statusEl.textContent = bits.join(" · ");
     statusEl.classList.toggle("busy", !!st.running);
+    if (st.mode) setModeChip(st.mode);
     refreshWorkspace();
+  }
+
+  function setModeChip(mode) {
+    const chip = document.getElementById("mode-chip");
+    if (!chip) return;
+    const m = mode || "ask";
+    chip.textContent = m;
+    chip.dataset.mode = m;
   }
 
   function showAsk(p) {
@@ -186,12 +205,66 @@
     if (p.preview) askPreview.innerHTML = diffHTML(p.preview);
   }
 
+  function showQuestions(qs) {
+    pendingQs = Array.isArray(qs) && qs.length ? qs : [];
+    qIdx = 0;
+    qAnswers = [];
+    questionsEl.hidden = pendingQs.length === 0;
+    if (!pendingQs.length) {
+      qOpts.innerHTML = "";
+      qOther.hidden = true;
+      return;
+    }
+    renderQuestion();
+  }
+
+  function renderQuestion() {
+    const q = pendingQs[qIdx];
+    if (!q) return;
+    qPrompt.textContent = q.prompt || "Choose";
+    qDetail.hidden = !q.detail;
+    qDetail.textContent = q.detail || "";
+    const opts = (q.options || []).concat([{ label: "Other", description: "type your own answer" }]);
+    qOpts.innerHTML = opts.map((o) =>
+      `<button type="button" data-label="${esc(o.label)}">${esc(o.label)}</button>`
+    ).join("");
+    qOther.hidden = true;
+    qOtherText.value = "";
+  }
+
+  qOpts.addEventListener("click", async (ev) => {
+    const b = ev.target.closest("button[data-label]");
+    if (!b) return;
+    if (b.dataset.label === "Other") {
+      qOther.hidden = false;
+      qOtherText.focus();
+      return;
+    }
+    await pickAnswer(b.dataset.label, "");
+  });
+  qOther.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    await pickAnswer("Other", qOtherText.value.trim());
+  });
+
+  async function pickAnswer(label, reason) {
+    qAnswers.push({ label, reason });
+    qIdx++;
+    if (qIdx < pendingQs.length) {
+      renderQuestion();
+      return;
+    }
+    await post("/api/question", { answers: qAnswers });
+    showQuestions([]);
+  }
+
   function handle(msg) {
     switch (msg.type) {
       case "hello": applyHello(msg.hello); break;
       case "entry": if (msg.entry) render(msg.entry); break;
       case "status": applyStatus(msg.status); break;
       case "permission": showAsk(msg.permission); break;
+      case "question": showQuestions(msg.questions); break;
       case "reset":
         log.innerHTML = "";
         nodes.clear();
@@ -399,25 +472,25 @@
         `<li data-seq="${f.seq}"><span>${esc(f.path)}</span> <span class="add">+${f.add}</span> <span class="del">−${f.del}</span></li>`
       ).join("");
       document.getElementById("undo-btn").hidden = !ws.can_undo;
-      const jobsSec = document.getElementById("jobs-sec");
+      const jobsEl = document.getElementById("jobs");
       if (ws.jobs && ws.jobs.length) {
-        jobsSec.hidden = false;
-        document.getElementById("jobs").innerHTML = ws.jobs.map((j) => `<li>${esc(j.summary || j.command)}</li>`).join("");
-      } else jobsSec.hidden = true;
-      const agentsSec = document.getElementById("agents-sec");
+        jobsEl.innerHTML = ws.jobs.map((j) => `<li>${esc(j.summary || j.command)}</li>`).join("");
+      } else jobsEl.innerHTML = `<li class="quiet">No jobs running</li>`;
+      const agentsEl = document.getElementById("agents");
       if (ws.agents && ws.agents.length) {
-        agentsSec.hidden = false;
-        document.getElementById("agents").innerHTML = ws.agents.map((a) =>
+        agentsEl.innerHTML = ws.agents.map((a) =>
           `<li class="agent ${a.done ? "done" : "running"}"><span class="a-id">${esc(a.id)}</span> ${esc(a.desc || "")}` +
           (!a.done && a.last ? `<span class="a-last">${esc(a.last)}</span>` : "") + `</li>`
         ).join("");
-      } else agentsSec.hidden = true;
+      } else agentsEl.innerHTML = `<li class="quiet">No subagents yet</li>`;
       document.getElementById("ctx-line").textContent = ws.ctx_label ? "Context " + ws.ctx_label + " (" + ws.ctx_pct + "%)" : "Context —";
       document.getElementById("cost-line").textContent = ws.cost ? "Spend " + ws.cost : "";
       document.getElementById("mode-yolo").classList.toggle("on", !!ws.yolo);
+      document.getElementById("mode-auto").classList.toggle("on", !!ws.auto);
       document.getElementById("mode-edits").classList.toggle("on", !!ws.edits);
       document.getElementById("mode-plan").classList.toggle("on", !!ws.plan);
       document.getElementById("mode-ro").classList.toggle("on", !!ws.readonly);
+      setModeChip(ws.mode);
     } catch (_) {}
   }
 

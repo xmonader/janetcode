@@ -7,21 +7,26 @@ Part of the [janetcode manual](README.md); the [README](../../README.md) has the
 terminal: past sessions and **New** on the left, the conversation in the
 middle, and the live work on the right — the current plan, files this
 session changed (click one to see the diff, **Undo last turn** to revert),
-background jobs, context and spend. Allow-edits / allow-all / plan-first
-live there too. You write at the bottom; when a tool wants to change
-something, Allow once / Always this session / Remember / Deny are buttons.
-Ctrl+K still searches slash commands. The server binds loopback unless you
-tell it otherwise — anyone who can reach the port can approve commands in
-that directory.
+background jobs, continuable subagents, context and spend. The header
+shows the session mode (ask, PLAN, AUTO, YOLO, EDITS, READ-ONLY).
+Allow-edits / auto / allow-all / plan-first / read-only live there too.
+You write at the bottom; when a tool wants to change something, Allow
+once / Always this session / Remember / Deny are buttons. When the model
+asks a labeled question, the options (and Other) are answered on the
+page. Ctrl+K still searches slash commands. The server binds loopback
+unless you tell it otherwise — anyone who can reach the port can approve
+commands in that directory.
 
 The transcript streams the model's markdown as it arrives, shows each tool
 call on one line with what it did and how long it took, and renders every
 edit as a diff with line numbers: three lines of context around each
 change, "… N unchanged lines" where a gap was skipped, and for a
 single-line replacement the changed tokens picked out in inverse video.
-The status line shows what the agent is doing (including what it is
-waiting on: a retry and its countdown, a compaction, a subagent), the
-elapsed time, and a gauge of how full the context window is. The input box
+The status line shows the session mode (ask, PLAN, AUTO, YOLO, EDITS),
+whether bash is sandboxed or the workspace is remote, what the agent is
+doing (including what it is waiting on: a retry and its countdown, a
+compaction, a subagent), the elapsed time, and a gauge of how full the
+context window is. Mode changes land here, not in the transcript. The input box
 is a reserved height (six lines, three in a short window) so the transcript
 above it does not move as you type; extra lines scroll inside the box. A
 permission prompt uses the reserved row above that box rather than
@@ -290,8 +295,10 @@ words and retries a few minutes later.
 
 A skill is a markdown file with instructions for one kind of task
 (`.janetcode/skills/<name>/SKILL.md` or `.janetcode/skills/<name>.md` in
-the project, `skills/` under the config directory for all projects;
-`.claude/skills` is read too). A directory skill can ship scripts and
+the project, `.agents/skills` the same way, `skills/` under the config
+directory for all projects; `.claude/skills` is read too). A project
+skill shadows a `.agents` skill of the same name, which shadows a global
+one. A directory skill can ship scripts and
 reference files next to `SKILL.md`; they are listed with absolute paths
 when the skill is attached so the model can read or run them. Optional
 frontmatter gives `name`, `description`, comma-separated `keywords` (or
@@ -487,8 +494,9 @@ reachable.
 
 ### Custom agents
 
-`.janetcode/agents/<name>.md` (or `agents/` under the config directory,
-or `.claude/agents`) defines a subagent the model can pick with
+`.janetcode/agents/<name>.md` (or `.agents/<name>.md`,
+`.agents/agents/<name>.md`, `agents/` under the config directory, or
+`.claude/agents`) defines a subagent the model can pick with
 `task {"agent": "<name>", ...}`: the body is added to the subagent's system
 prompt, and the frontmatter may set `description`, a `tools` list
 (read-only tools only) and a `model`. The `task` tool's description lists
@@ -756,6 +764,18 @@ print("\n".join(hits))
 
 The file bodies that went through that loop never entered the context.
 
+`run_code` is the same idea without Python: `code` is a JSON array of
+`{name, input}` steps, each dispatched through the real tool pipeline
+(approvals, guards, the event log). Nested `run_code`, `execute_code`,
+`workflow`, `task` and `ask` are refused. `workflow` is a short
+orchestration script: a JSON array of `{description, prompt, agent?}`
+steps, each of which starts a real `task` child and returns the reports.
+
+The model also has a persistent `terminal` tool: `action=open` starts a
+shell that keeps cwd and environment across `send`s, `read` returns
+recent output, and `close` / `signal` stop it. One-shot `bash` still
+ends with EOF and is the right tool for a single command.
+
 Measured over three fan-out tasks × five runs each, with Sonnet 4.5, and
 compared against the same tasks with the tool switched off: **cost per
 solved task x0.88 [0.75, 0.99]** — about a tenth cheaper — with the pass
@@ -1016,7 +1036,9 @@ leaves without executing. `shift+tab` cycles the four session modes
 without typing a command: **ask** (edits and commands ask first) →
 **plan** → **auto** (`/auto`, in-workspace edits and known-safe reads
 run; other commands still ask) → **yolo** (`/yolo`, tools run without
-asking) → ask. `/edits` and `/readonly` stay their own toggles.
+asking) → ask. The current mode stays on the status line (and as a
+header prefix); cycling it does not print into the transcript. `/edits`
+and `/readonly` stay their own toggles.
 
 `/sandbox on` wraps local bash in docker (or `sandbox-exec` on macOS).
 File tools, `/ssh` and `/docker` are unchanged: only the shell is

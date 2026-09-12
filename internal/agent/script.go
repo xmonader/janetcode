@@ -46,7 +46,7 @@ const (
 // scriptSkip are the tools a script may not call. Nesting a script inside
 // a script buys nothing and makes the accounting recursive, and a subagent
 // launched from a script would have no way to report to the user.
-var scriptSkip = map[string]bool{"execute_code": true, "task": true}
+var scriptSkip = map[string]bool{"execute_code": true, "run_code": true, "workflow": true, "task": true}
 
 // Script runs a Python program that can call the session's tools.
 type Script struct {

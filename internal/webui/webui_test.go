@@ -65,6 +65,12 @@ func (s *scripted) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 
 func testServer(t *testing.T, responses ...*llm.Response) *httptest.Server {
 	t.Helper()
+	ts, _ := testApp(t, responses...)
+	return ts
+}
+
+func testApp(t *testing.T, responses ...*llm.Response) (*httptest.Server, *agent.Agent) {
+	t.Helper()
 	root := t.TempDir()
 	sess, err := session.New(t.TempDir(), root, "fake", "m")
 	if err != nil {
@@ -77,7 +83,7 @@ func testServer(t *testing.T, responses ...*llm.Response) *httptest.Server {
 		Log:      sess,
 	}
 	h := Handler(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"})
-	return httptest.NewServer(h)
+	return httptest.NewServer(h), ag
 }
 
 func TestWorkspaceIsStructured(t *testing.T) {
@@ -102,7 +108,7 @@ func TestWorkspaceIsStructured(t *testing.T) {
 	body, _ := io.ReadAll(page.Body)
 	page.Body.Close()
 	html := string(body)
-	for _, want := range []string{"New", "Plan", "Changed files", "id=\"sessions\"", "id=\"composer\""} {
+	for _, want := range []string{"New", "Plan", "Changed files", "Background jobs", "Subagents", "id=\"sessions\"", "id=\"composer\"", "id=\"mode-chip\"", "id=\"questions\"", "id=\"mode-auto\""} {
 		if !strings.Contains(html, want) {
 			t.Errorf("page missing %q", want)
 		}
@@ -289,5 +295,120 @@ func TestPermissionRoundTrip(t *testing.T) {
 	}
 	if !sawWrite {
 		t.Fatalf("state missing the write: %+v", snap.Entries)
+	}
+}
+
+func TestWorkspaceExposesSessionChrome(t *testing.T) {
+	ts, ag := testApp(t)
+	defer ts.Close()
+	ag.AutoMode = true
+	ag.WriteTodos([]agent.Todo{{Text: "ship it", Status: agent.TodoDoing}})
+	res, err := http.Get(ts.URL + "/api/workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var ws workspace
+	if err := json.NewDecoder(res.Body).Decode(&ws); err != nil {
+		t.Fatal(err)
+	}
+	if ws.Mode != "AUTO" {
+		t.Fatalf("mode = %q", ws.Mode)
+	}
+	if len(ws.Todos) != 1 || ws.Todos[0].Text != "ship it" || ws.Todos[0].Status != agent.TodoDoing {
+		t.Fatalf("todos = %+v", ws.Todos)
+	}
+	if ws.Jobs == nil {
+		ws.Jobs = []jobItem{}
+	}
+	if ws.Agents == nil {
+		ws.Agents = []agentItem{}
+	}
+	hello, err := http.Get(ts.URL + "/api/state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hello.Body.Close()
+	raw, err := io.ReadAll(hello.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var snap struct {
+		Hello struct {
+			Mode string `json:"mode"`
+		} `json:"hello"`
+	}
+	if err := json.Unmarshal(raw, &snap); err != nil {
+		t.Fatal(err)
+	}
+	if snap.Hello.Mode != "AUTO" {
+		t.Fatalf("hello.mode = %q", snap.Hello.Mode)
+	}
+	if !bytes.Contains(raw, []byte(`"questions"`)) {
+		t.Fatalf("state missing questions key: %s", raw)
+	}
+}
+
+func TestAskQuestionRoundTrip(t *testing.T) {
+	ts, ag := testApp(t)
+	defer ts.Close()
+	if ag.Asker == nil {
+		t.Fatal("web handler must install an Asker")
+	}
+	got := make(chan []agent.Answer, 1)
+	errc := make(chan error, 1)
+	go func() {
+		ans, err := ag.Asker.Ask(context.Background(), []agent.Question{{
+			Prompt:  "Which approach?",
+			Options: []agent.AskOption{{Label: "A", Description: "first"}, {Label: "B"}},
+		}})
+		if err != nil {
+			errc <- err
+			return
+		}
+		got <- ans
+	}()
+	var qs []agent.Question
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		res, err := http.Get(ts.URL + "/api/state")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var snap struct {
+			Questions []agent.Question `json:"questions"`
+		}
+		if err := json.NewDecoder(res.Body).Decode(&snap); err != nil {
+			res.Body.Close()
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if len(snap.Questions) > 0 {
+			qs = snap.Questions
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if len(qs) != 1 || qs[0].Prompt != "Which approach?" {
+		t.Fatalf("questions on /api/state = %+v", qs)
+	}
+	body, _ := json.Marshal(map[string]any{"answers": []agent.Answer{{Label: "A"}}})
+	pr, err := http.Post(ts.URL+"/api/question", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr.Body.Close()
+	if pr.StatusCode != 200 {
+		t.Fatalf("question %d", pr.StatusCode)
+	}
+	select {
+	case ans := <-got:
+		if len(ans) != 1 || ans[0].Label != "A" {
+			t.Fatalf("answers = %+v", ans)
+		}
+	case err := <-errc:
+		t.Fatal(err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("Ask did not return after /api/question")
 	}
 }

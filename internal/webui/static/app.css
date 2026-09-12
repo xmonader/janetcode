@@ -232,6 +232,24 @@ button:disabled { cursor: default; opacity: 0.55; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.mode-chip {
+  flex: none;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  border: 1px solid var(--blue-soft-border);
+}
+.mode-chip[data-mode="ask"] { text-transform: none; letter-spacing: 0; }
+.mode-chip[data-mode="YOLO"] { background: var(--bad-soft); color: var(--bad); border-color: var(--bad-border); }
+.mode-chip[data-mode="AUTO"],
+.mode-chip[data-mode="EDITS"] { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); }
+.mode-chip[data-mode="PLAN"] { background: var(--warn-soft); color: var(--warn); border-color: var(--warn-border); }
+.mode-chip[data-mode="READ-ONLY"] { background: var(--surface-2); color: var(--mute); border-color: var(--line-strong); }
 .path { color: var(--mute); font-size: 0.78rem; margin-left: auto; font-family: var(--mono); white-space: nowrap; }
 .conn {
   display: inline-flex;
@@ -832,6 +850,28 @@ button:disabled { cursor: default; opacity: 0.55; }
 .ask-actions .primary:hover { background: var(--blue-deep); }
 .ask-actions .ghost { border-color: transparent; color: var(--mute); }
 .ask-actions .ghost:hover { color: var(--bad); background: var(--bad-soft); }
+.q-other {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+.q-other input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0.42rem 0.7rem;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.q-other button {
+  background: var(--blue);
+  color: var(--on-accent);
+  border: 0;
+  border-radius: 8px;
+  padding: 0.42rem 0.8rem;
+  font-weight: 600;
+}
 
 #composer {
   background: var(--surface);

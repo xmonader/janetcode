@@ -24,6 +24,7 @@
   <div class="col">
     <header class="top">
       <span id="title" class="session-title"></span>
+      <span id="mode-chip" class="mode-chip">ask</span>
       <span id="model" class="path"></span>
       <span id="conn" class="conn" title="Live connection">Live</span>
       <button type="button" id="preview-toggle" class="icon-btn" title="Web preview" aria-label="Web preview">⧉</button>
@@ -53,6 +54,15 @@
           <button type="button" data-d="deny">Deny</button>
           <button type="button" class="ghost" data-d="cancel">Stop</button>
         </div>
+      </div>
+      <div id="questions" class="ask" hidden>
+        <p id="q-prompt"></p>
+        <p id="q-detail" class="empty-sub" hidden></p>
+        <div id="q-opts" class="ask-actions"></div>
+        <form id="q-other" class="q-other" hidden>
+          <input id="q-other-text" type="text" placeholder="Other" autocomplete="off">
+          <button type="submit">Send</button>
+        </form>
       </div>
       <p id="status" class="status"></p>
       <form id="composer">
@@ -94,13 +104,13 @@
       </div>
       <ul id="files"><li class="quiet">No files changed</li></ul>
     </section>
-    <section id="jobs-sec" hidden>
+    <section id="jobs-sec">
       <h2>Background jobs</h2>
-      <ul id="jobs"></ul>
+      <ul id="jobs"><li class="quiet">No jobs running</li></ul>
     </section>
-    <section id="agents-sec" hidden>
+    <section id="agents-sec">
       <h2>Subagents</h2>
-      <ul id="agents"></ul>
+      <ul id="agents"><li class="quiet">No subagents yet</li></ul>
     </section>
     <section class="spend">
       <h2>This session</h2>
@@ -108,6 +118,7 @@
       <p id="cost-line"></p>
       <div class="switches">
         <button type="button" data-cmd="/edits" id="mode-edits">Allow edits</button>
+        <button type="button" data-cmd="/auto" id="mode-auto">Auto</button>
         <button type="button" data-cmd="/yolo" id="mode-yolo">Allow all tools</button>
         <button type="button" data-cmd="/plan" id="mode-plan">Plan first</button>
         <button type="button" data-cmd="/readonly" id="mode-ro">Read only</button>

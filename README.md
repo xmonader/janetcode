@@ -134,6 +134,9 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `symbols` | Ask the language server where a name is defined, who uses it, its type, what a file declares | no |
 | `expand_output` | Read back tool output and conversation that compaction archived, by search or by line | no |
 | `execute_code` | Run a Python script that calls these tools, so a chain of calls costs one turn and their output stays out of the context | yes, shows the code |
+| `run_code` | Run a JSON list of real tool calls in this session in one turn (approvals and guards still apply) | yes |
+| `workflow` | Start real `task` children from a short script and return their reports | no |
+| `terminal` | Persistent shell session: cwd and environment survive across sends | yes |
 | `todo` | Keep the plan for a multi-step task and mark steps off; triggered by a countable rule (three or more distinct steps) after [a subjective one was never reached for](docs/benchmarks/harnesses/session/README.md) | no |
 | `ask` | Put one or more labeled questions in front of you as tabs; Other is free text | no |
 | `inspect` | Look at the session's own state: context, archive, verdicts, config, servers | no |

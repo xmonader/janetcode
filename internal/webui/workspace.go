@@ -14,24 +14,33 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 type workspace struct {
-	Todos    []todoItem  `json:"todos"`
-	Files    []fileItem  `json:"files"`
-	Jobs     []jobItem   `json:"jobs"`
-	Agents   []agentItem `json:"agents"`
-	Memory   []memItem   `json:"memory"`
-	CanUndo  bool        `json:"can_undo"`
-	CanRedo  bool        `json:"can_redo"`
-	Cost     string      `json:"cost"`
-	CtxPct   int         `json:"ctx_pct"`
-	CtxLabel string      `json:"ctx_label"`
-	Yolo     bool        `json:"yolo"`
-	Auto     bool        `json:"auto"`
-	Edits    bool        `json:"edits"`
-	Plan     bool        `json:"plan"`
-	ReadOnly bool        `json:"readonly"`
+	Todos     []todoItem  `json:"todos"`
+	Files     []fileItem  `json:"files"`
+	Jobs      []jobItem   `json:"jobs"`
+	Agents    []agentItem `json:"agents"`
+	Memory    []memItem   `json:"memory"`
+	CanUndo   bool        `json:"can_undo"`
+	CanRedo   bool        `json:"can_redo"`
+	Cost      string      `json:"cost"`
+	CtxPct    int         `json:"ctx_pct"`
+	CtxLabel  string      `json:"ctx_label"`
+	Yolo      bool        `json:"yolo"`
+	Auto      bool        `json:"auto"`
+	Edits     bool        `json:"edits"`
+	Plan      bool        `json:"plan"`
+	ReadOnly  bool        `json:"readonly"`
+	Mode      string      `json:"mode"`
+	Terminals []termItem  `json:"terminals,omitempty"`
+}
+
+type termItem struct {
+	ID   int    `json:"id"`
+	Last string `json:"last"`
+	Done bool   `json:"done"`
 }
 
 type todoItem struct {
@@ -60,6 +69,43 @@ type agentItem struct {
 	Done bool   `json:"done"`
 	Last string `json:"last"`
 	Edit bool   `json:"edit"`
+}
+
+func sessionMode(ag *agent.Agent) string {
+	if ag == nil {
+		return "ask"
+	}
+	switch {
+	case ag.PlanMode:
+		return "PLAN"
+	case ag.ReadOnly:
+		return "READ-ONLY"
+	case ag.AutoApprove:
+		return "YOLO"
+	case ag.AutoMode:
+		return "AUTO"
+	case ag.AutoEdits:
+		return "EDITS"
+	default:
+		return "ask"
+	}
+}
+
+func termsOf(ag *agent.Agent) *tool.Terms {
+	if ag == nil || ag.Tools == nil {
+		return nil
+	}
+	tl, ok := ag.Tools.Get("terminal")
+	if !ok {
+		return nil
+	}
+	switch t := tl.(type) {
+	case tool.TermTool:
+		return t.Terms
+	case *tool.TermTool:
+		return t.Terms
+	}
+	return nil
 }
 
 func (s *server) taskTool() *agent.Task {
@@ -133,6 +179,12 @@ func (s *server) workspace() workspace {
 	ws.Edits = ag.AutoEdits
 	ws.Plan = ag.PlanMode
 	ws.ReadOnly = ag.ReadOnly
+	ws.Mode = sessionMode(ag)
+	if terms := termsOf(ag); terms != nil {
+		for _, x := range terms.List() {
+			ws.Terminals = append(ws.Terminals, termItem{ID: x.ID, Last: x.Last, Done: x.Done})
+		}
+	}
 	if usd, ok := ag.UsageSnapshot().Cost(ag.Price); ok {
 		ws.Cost = llm.FormatUSD(usd)
 	}

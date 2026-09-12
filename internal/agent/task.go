@@ -589,6 +589,17 @@ func allowed(ts []tool.Tool, profile *skill.Profile) []tool.Tool {
 	return out
 }
 
+// parentOnlyTool reports tools that stay on the main session even when they
+// are not mutating: they write the parent's logs, ask the user, or spawn
+// more children through the parent's task tool.
+func parentOnlyTool(tl tool.Tool) bool {
+	switch tl.(type) {
+	case *GoalStatus, *AskTool, *Workflow:
+		return true
+	}
+	return false
+}
+
 // child builds the subagent: same provider and model, read-only tools only
 // (or the named subset of them), no approver (a mutating tool would be
 // denied outright).
@@ -604,25 +615,15 @@ func (t *Task) child(only []string, profile *skill.Profile) (*Agent, error) {
 			if tl.Mutating() || name == t.Name() {
 				return nil, fmt.Errorf("tool %q cannot be given to a subagent (read-only tools only)", name)
 			}
-			if _, isGoal := tl.(*GoalStatus); isGoal {
-				return nil, fmt.Errorf("tool %q cannot be given to a subagent: it would end the main session's goal", name)
-			}
-			if _, isAsk := tl.(*AskTool); isAsk {
-				return nil, fmt.Errorf("tool %q cannot be given to a subagent: only the main session asks the user", name)
+			if parentOnlyTool(tl) {
+				return nil, fmt.Errorf("tool %q cannot be given to a subagent", name)
 			}
 			ro = append(ro, tl)
 		}
 	} else {
 		for _, d := range p.Tools.Defs() {
 			tl, ok := p.Tools.Get(d.Name)
-			if !ok || tl.Mutating() || d.Name == t.Name() {
-				continue
-			}
-			// goal_status is read-only but writes the parent's goal log.
-			if _, isGoal := tl.(*GoalStatus); isGoal {
-				continue
-			}
-			if _, isAsk := tl.(*AskTool); isAsk {
+			if !ok || tl.Mutating() || d.Name == t.Name() || parentOnlyTool(tl) {
 				continue
 			}
 			ro = append(ro, tl)
@@ -660,8 +661,8 @@ func (t *Task) child(only []string, profile *skill.Profile) (*Agent, error) {
 }
 
 // forkChild builds a subagent that inherits the parent's conversation
-// and tools (except task, ask, and goal_status). Approvals bubble to
-// the user unless the parent is already auto-approving.
+// and tools (except task, ask, goal_status, and workflow). Approvals
+// bubble to the user unless the parent is already auto-approving.
 func (t *Task) forkChild() (*Agent, error) {
 	p := t.Parent
 	var ts []tool.Tool
@@ -673,10 +674,7 @@ func (t *Task) forkChild() (*Agent, error) {
 		if !ok {
 			continue
 		}
-		if _, isGoal := tl.(*GoalStatus); isGoal {
-			continue
-		}
-		if _, isAsk := tl.(*AskTool); isAsk {
+		if parentOnlyTool(tl) {
 			continue
 		}
 		ts = append(ts, tl)

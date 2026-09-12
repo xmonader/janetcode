@@ -156,8 +156,14 @@ type server struct {
 	cancel  context.CancelFunc
 	queued  []string
 	pending *permReq
+	asking  *askReq
 	status  string
 	verbose bool
+}
+
+type askReq struct {
+	questions []agent.Question
+	reply     chan []agent.Answer
 }
 
 type permReq struct {
@@ -171,14 +177,15 @@ type verdict struct {
 }
 
 type envelope struct {
-	Seq    int            `json:"seq"`
-	Type   string         `json:"type"`
-	Entry  *entry         `json:"entry,omitempty"`
-	Status *statusPayload `json:"status,omitempty"`
-	Perm   *permPayload   `json:"permission,omitempty"`
-	Hello  *helloPayload  `json:"hello,omitempty"`
-	Notice string         `json:"notice,omitempty"`
-	Error  string         `json:"error,omitempty"`
+	Seq       int              `json:"seq"`
+	Type      string           `json:"type"`
+	Entry     *entry           `json:"entry,omitempty"`
+	Status    *statusPayload   `json:"status,omitempty"`
+	Perm      *permPayload     `json:"permission,omitempty"`
+	Hello     *helloPayload    `json:"hello,omitempty"`
+	Notice    string           `json:"notice,omitempty"`
+	Error     string           `json:"error,omitempty"`
+	Questions []agent.Question `json:"questions,omitempty"`
 }
 
 type helloPayload struct {
@@ -189,9 +196,11 @@ type helloPayload struct {
 	Title    string `json:"title"`
 	Version  string `json:"version"`
 	Yolo     bool   `json:"yolo"`
+	Auto     bool   `json:"auto"`
 	Edits    bool   `json:"edits"`
 	Plan     bool   `json:"plan"`
 	ReadOnly bool   `json:"readonly"`
+	Mode     string `json:"mode"`
 }
 
 type statusPayload struct {
@@ -201,9 +210,11 @@ type statusPayload struct {
 	CtxPct   int    `json:"ctx_pct"`
 	Queued   int    `json:"queued"`
 	Yolo     bool   `json:"yolo"`
+	Auto     bool   `json:"auto"`
 	Edits    bool   `json:"edits"`
 	Plan     bool   `json:"plan"`
 	ReadOnly bool   `json:"readonly"`
+	Mode     string `json:"mode"`
 	Verbose  bool   `json:"verbose"`
 	Status   string `json:"status,omitempty"`
 	Cost     string `json:"cost,omitempty"`
@@ -242,6 +253,7 @@ func newServer(opts Options) *server {
 	}
 	if opts.Agent != nil {
 		opts.Agent.Approver = s
+		opts.Agent.Asker = s
 		if opts.Agent.Cron != nil {
 			opts.Agent.Cron.OnFire = func(id, prompt string) {
 				s.cronFire(id, prompt)
@@ -285,6 +297,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("/api/steer", s.steer)
 	mux.HandleFunc("/api/cancel", s.doCancel)
 	mux.HandleFunc("/api/permission", s.permission)
+	mux.HandleFunc("/api/question", s.questionAPI)
 	mux.HandleFunc("/api/command", s.command)
 	mux.HandleFunc("/api/commands", s.commandsAPI)
 	mux.HandleFunc("/api/inspect", s.inspectAPI)
@@ -308,9 +321,11 @@ func (s *server) hello() helloPayload {
 	if s.opts.Agent != nil {
 		h.Model = s.opts.Agent.Model
 		h.Yolo = s.opts.Agent.AutoApprove
+		h.Auto = s.opts.Agent.AutoMode
 		h.Edits = s.opts.Agent.AutoEdits
 		h.Plan = s.opts.Agent.PlanMode
 		h.ReadOnly = s.opts.Agent.ReadOnly
+		h.Mode = sessionMode(s.opts.Agent)
 	}
 	if s.opts.Session != nil {
 		h.Session = s.opts.Session.Meta.ID
@@ -319,7 +334,7 @@ func (s *server) hello() helloPayload {
 	return h
 }
 
-func (s *server) snapshot() (helloPayload, []*entry, *permPayload, statusPayload) {
+func (s *server) snapshot() (helloPayload, []*entry, *permPayload, []agent.Question, statusPayload) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ents := append([]*entry(nil), s.entries...)
@@ -328,15 +343,20 @@ func (s *server) snapshot() (helloPayload, []*entry, *permPayload, statusPayload
 		pp := s.permOf(s.pending.call)
 		p = &pp
 	}
-	return s.hello(), ents, p, s.statusLocked()
+	var qs []agent.Question
+	if s.asking != nil {
+		qs = s.asking.questions
+	}
+	return s.hello(), ents, p, qs, s.statusLocked()
 }
 
 func (s *server) state(w http.ResponseWriter, r *http.Request) {
-	hello, ents, p, st := s.snapshot()
+	hello, ents, p, qs, st := s.snapshot()
 	writeJSON(w, map[string]any{
 		"hello":      hello,
 		"entries":    ents,
 		"permission": p,
+		"questions":  qs,
 		"status":     st,
 	})
 }
@@ -592,8 +612,16 @@ func (s *server) doCancel(w http.ResponseWriter, r *http.Request) {
 		}
 		s.pending = nil
 	}
+	if s.asking != nil {
+		select {
+		case s.asking.reply <- nil:
+		default:
+		}
+		s.asking = nil
+	}
 	s.mu.Unlock()
 	s.emit(envelope{Type: "permission"}) // clear
+	s.emit(envelope{Type: "question"})
 	writeJSON(w, map[string]string{"ok": "1"})
 }
 
@@ -706,6 +734,57 @@ func (s *server) runShell(cmdline string) {
 		s.opts.Agent.AddContext("I ran `" + cmdline + "`:\n" + out)
 		s.finish(nil)
 	}()
+}
+
+func (s *server) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer, error) {
+	reply := make(chan []agent.Answer, 1)
+	s.mu.Lock()
+	s.asking = &askReq{questions: qs, reply: reply}
+	s.phase = "waiting for your answer"
+	s.mu.Unlock()
+	s.emit(envelope{Type: "question", Questions: qs})
+	s.emitStatus()
+	select {
+	case ans := <-reply:
+		return ans, nil
+	case <-ctx.Done():
+		s.mu.Lock()
+		if s.asking != nil && s.asking.reply == reply {
+			s.asking = nil
+		}
+		s.mu.Unlock()
+		s.emit(envelope{Type: "question"})
+		return nil, ctx.Err()
+	}
+}
+
+func (s *server) questionAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Answers []agent.Answer `json:"answers"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	req := s.asking
+	s.asking = nil
+	s.mu.Unlock()
+	if req == nil {
+		http.Error(w, "no question pending", http.StatusConflict)
+		return
+	}
+	select {
+	case req.reply <- body.Answers:
+	default:
+	}
+	s.emit(envelope{Type: "question"})
+	s.emitStatus()
+	writeJSON(w, map[string]string{"ok": "1"})
 }
 
 func (s *server) Approve(ctx context.Context, call agent.ToolCall) (agent.Decision, error) {
@@ -928,9 +1007,11 @@ func (s *server) statusLocked() statusPayload {
 	}
 	if s.opts.Agent != nil {
 		st.Yolo = s.opts.Agent.AutoApprove
+		st.Auto = s.opts.Agent.AutoMode
 		st.Edits = s.opts.Agent.AutoEdits
 		st.Plan = s.opts.Agent.PlanMode
 		st.ReadOnly = s.opts.Agent.ReadOnly
+		st.Mode = sessionMode(s.opts.Agent)
 		st.Verbose = s.verbose
 		if usd, ok := s.opts.Agent.UsageSnapshot().Cost(s.opts.Agent.Price); ok {
 			st.Cost = llm.FormatUSD(usd)

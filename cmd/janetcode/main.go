@@ -1341,6 +1341,7 @@ type builtAgent struct {
 	rules        func() []rules.Rule
 	ruleInjector *rules.Injector
 	ws           *tool.Workspace
+	terms        *tool.Terms
 }
 
 // close releases what the agent held. It is the caller's job, since the
@@ -1348,6 +1349,9 @@ type builtAgent struct {
 func (b builtAgent) close() {
 	if b.agent != nil && b.agent.Cron != nil {
 		b.agent.Cron.Close()
+	}
+	if b.terms != nil {
+		b.terms.CloseAll()
 	}
 	b.task.Close(context.Background())
 	b.diag.Close()
@@ -1374,6 +1378,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		jobs.Sandbox = sb
 	}
 	cron := agent.NewCron()
+	terms := &tool.Terms{}
 	expand := &agent.ExpandOutput{Archive: archive}
 	ag := &agent.Agent{
 		Provider: d.prov,
@@ -1386,6 +1391,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 			tool.EditFile{Root: d.cwd, WS: ws, Seen: seen, NoLines: envOff()["lineedit"]},
 			tool.Bash{Root: d.cwd, WS: ws, Cache: &tool.ShellCache{}, Jobs: jobs, Running: d.running, Sandbox: sb},
 			tool.JobTool{Jobs: jobs},
+			tool.TermTool{Terms: terms, Root: d.cwd, WS: ws},
 			tool.FetchURL{Typed: d.typed},
 			tool.WebSearch{Config: d.cfg.Search},
 			expand,
@@ -1421,6 +1427,8 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	if off := envOff(); !off["script"] {
 		ag.Tools.Add(&agent.Script{Parent: ag, Root: d.cwd})
 	}
+	ag.Tools.Add(&agent.RunCode{Parent: ag})
+	ag.Tools.Add(&agent.Workflow{Parent: ag})
 	skills := func() []skill.Skill { return skill.Load(d.cwd, cfgDir) }
 	skillInj := &skill.Injector{Skills: skills}
 	// Path-scoped rules: nothing is sent until a call touches a path a
@@ -1484,5 +1492,5 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
 
-	return builtAgent{agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector, ws: ws}, nil
+	return builtAgent{agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector, ws: ws, terms: terms}, nil
 }

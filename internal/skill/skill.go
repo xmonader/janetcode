@@ -3,7 +3,7 @@
 // optional YAML-ish frontmatter (name, description, keywords). Project
 // skills live in .janetcode/skills/<name>/SKILL.md or
 // .janetcode/skills/<name>.md, global ones under the config directory,
-// and .claude/skills is read too so existing skill sets work unchanged.
+// .agents/skills and .claude/skills so existing skill sets work unchanged.
 package skill
 
 import (
@@ -32,7 +32,7 @@ type Skill struct {
 	Keywords    []string
 	Body        string
 	Path        string
-	Source      string // "project", "global" or "claude"
+	Source      string // "project", "agents", "global" or "claude"
 	// Files are the supporting files of a directory skill (scripts,
 	// references), relative to Dir; the model reads or runs them by path.
 	Dir   string
@@ -66,7 +66,11 @@ func Load(cwd, configDir string) []Skill {
 		locs = append(locs, loc{filepath.Join(configDir, "skills"), "global"})
 	}
 	if cwd != "" {
-		locs = append(locs, loc{filepath.Join(cwd, ".claude", "skills"), "claude"}, loc{filepath.Join(cwd, ".janetcode", "skills"), "project"})
+		locs = append(locs,
+			loc{filepath.Join(cwd, ".claude", "skills"), "claude"},
+			loc{filepath.Join(cwd, ".agents", "skills"), "agents"},
+			loc{filepath.Join(cwd, ".janetcode", "skills"), "project"},
+		)
 	}
 	for _, l := range locs {
 		for _, s := range readDir(l.dir, l.source) {
