@@ -20,6 +20,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
+	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
@@ -1001,7 +1002,7 @@ func (s *server) dropOpen() {
 func (s *server) statusLocked() statusPayload {
 	st := statusPayload{
 		Running: s.running,
-		Phase:   s.phase,
+		Phase:   flavor.ForPhase(s.phase, time.Now(), s.started),
 		Queued:  len(s.queued),
 		Status:  s.status,
 	}

@@ -27,6 +27,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/mcp/mcptest"
@@ -3730,8 +3731,28 @@ func TestRetryPhaseCountsDown(t *testing.T) {
 	// And a stale countdown never survives the next phase.
 	h.m.setPhase("retrying 1/2 · in 30s")
 	h.m.setPhase("thinking")
-	if got := h.m.phaseText(); got != "thinking" {
+	if !h.m.phaseUntil.IsZero() {
+		t.Fatal("countdown survived a thinking phase")
+	}
+	if got := h.m.phaseText(); strings.Contains(got, "retrying") {
 		t.Fatalf("phase = %q", got)
+	}
+}
+
+func TestThinkingPhaseShowsFlavor(t *testing.T) {
+	h := newHarness(t)
+	h.m.startedAt = time.Unix(1_700_000_000, 0)
+	h.m.setPhase("thinking")
+	got := h.m.phaseText()
+	if got == "thinking" || got == "" {
+		t.Fatalf("thinking was not dressed: %q", got)
+	}
+	if !flavor.Known(got) {
+		t.Fatalf("phase %q is not a seeded flavor verb", got)
+	}
+	h.m.setPhase("running bash")
+	if got := h.m.phaseText(); got != "running bash" {
+		t.Fatalf("tool phase was dressed: %q", got)
 	}
 }
 

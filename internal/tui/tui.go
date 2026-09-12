@@ -26,6 +26,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
+	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/inspect"
@@ -4247,7 +4248,7 @@ func (m *model) setPhase(text string) {
 // phaseText is the phase with its countdown resolved to now.
 func (m *model) phaseText() string {
 	if m.phaseUntil.IsZero() {
-		return m.phase
+		return flavor.ForPhase(m.phase, time.Now(), m.startedAt)
 	}
 	left := time.Until(m.phaseUntil)
 	if left < 0 {

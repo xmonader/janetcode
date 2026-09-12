@@ -161,6 +161,10 @@ var harnessFeatures = []feature.Feature{
 		What:   "counts of which features you have used are kept in the config directory and never leave the machine",
 		When:   "you want to know what janetcode records about you: this, and nothing sent anywhere",
 		Topics: []string{"telemetry", "privacy", "tracking", "analytics", "usage"}},
+	{Name: "flavor status", Kind: feature.KindBehave, Invoke: "(while the model is thinking)", Manual: "interface",
+		What:   "the status line cycles through seeded present-participle verbs while waiting on the model",
+		When:   "the spinner would otherwise sit on the word thinking",
+		Topics: []string{"spinner", "thinking", "flavor", "status", "fun", "moonwalking"}},
 }
 
 // buildCatalog assembles the catalogue for this build. It reads tables

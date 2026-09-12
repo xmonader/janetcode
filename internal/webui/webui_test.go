@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -410,5 +411,20 @@ func TestAskQuestionRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("Ask did not return after /api/question")
+	}
+}
+
+func TestWebStatusDressesThinking(t *testing.T) {
+	s := newServer(Options{})
+	s.running = true
+	s.phase = "thinking"
+	s.started = time.Unix(1_700_000_000, 0)
+	st := s.statusLocked()
+	if !flavor.Known(st.Phase) {
+		t.Fatalf("thinking phase = %q", st.Phase)
+	}
+	s.phase = "running bash"
+	if got := s.statusLocked().Phase; got != "running bash" {
+		t.Fatalf("tool phase was dressed: %q", got)
 	}
 }
