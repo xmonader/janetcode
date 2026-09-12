@@ -11,14 +11,24 @@
 </head>
 <body>
   <div class="shell">
-  <aside class="nav">
-    <div class="nav-head">
-      <span id="wordmark">janetcode</span>
-      <button type="button" id="new-chat">New</button>
+  <aside class="nav" id="nav">
+    <div class="logo-row">
+      <span class="brand">
+        <span class="brand-mark" aria-hidden="true">j</span>
+        <span id="wordmark" class="brand-name">janetcode</span>
+      </span>
+      <button type="button" id="nav-toggle" class="icon-btn" title="Collapse sidebar" aria-label="Collapse sidebar">☰</button>
     </div>
+    <button type="button" id="new-chat" class="new-session">
+      <span class="new-plus" aria-hidden="true">+</span>
+      <span class="new-session-label">New session</span>
+    </button>
     <p id="cwd" class="nav-cwd"></p>
     <p class="nav-label">Sessions</p>
     <ul id="sessions"></ul>
+    <div class="nav-foot">
+      <button type="button" id="theme-toggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme"></button>
+    </div>
   </aside>
 
   <div class="col">
@@ -28,20 +38,22 @@
       <span id="model" class="path"></span>
       <span id="conn" class="conn" title="Live connection">Live</span>
       <button type="button" id="preview-toggle" class="icon-btn" title="Web preview" aria-label="Web preview">⧉</button>
-      <button type="button" id="theme-toggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme"></button>
+      <button type="button" id="work-toggle" class="icon-btn" title="Session panel" aria-label="Session panel">▤</button>
     </header>
     <section class="thread" id="thread">
-      <div id="empty" class="empty">
-        <p id="empty-lead">What should we change?</p>
-        <p class="empty-sub">Describe the work below. Edits and commands will ask before they run.</p>
-        <div class="chips">
-          <button type="button" class="chip" data-q="Explain how this project is structured">Explain this project</button>
-          <button type="button" class="chip" data-q="Find a bug and fix it">Find and fix a bug</button>
-          <button type="button" class="chip" data-q="Add tests for the most important untested code">Add missing tests</button>
-          <button type="button" class="chip" data-q="Refactor the ugliest function you can find">Refactor something ugly</button>
+      <div class="column">
+        <div id="empty" class="empty">
+          <p id="empty-lead">What should we change?</p>
+          <p class="empty-sub">Describe the work below. Edits and commands will ask before they run.</p>
+          <div class="chips">
+            <button type="button" class="chip" data-q="Explain how this project is structured">Explain this project</button>
+            <button type="button" class="chip" data-q="Find a bug and fix it">Find and fix a bug</button>
+            <button type="button" class="chip" data-q="Add tests for the most important untested code">Add missing tests</button>
+            <button type="button" class="chip" data-q="Refactor the ugliest function you can find">Refactor something ugly</button>
+          </div>
         </div>
+        <div id="log"></div>
       </div>
-      <div id="log"></div>
     </section>
     <div class="bottom">
       <div id="ask" class="ask" hidden>
@@ -72,7 +84,7 @@
           <button type="button" id="search-btn" title="Commands (Ctrl+K)">Commands</button>
           <span class="spacer"></span>
           <span class="hint">Enter to send · Shift+Enter newline · Esc stops</span>
-          <button type="submit" id="send">Send</button>
+          <button type="submit" id="send" aria-label="Send">Send</button>
         </div>
       </form>
     </div>
@@ -92,27 +104,34 @@
     </div>
   </aside>
 
-  <aside class="work">
-    <section>
+  <aside class="work" id="work">
+    <div class="work-tabs" role="tablist">
+      <button type="button" role="tab" data-pane="plan" class="on">Plan</button>
+      <button type="button" role="tab" data-pane="files">Changed files</button>
+      <button type="button" role="tab" data-pane="jobs">Background jobs</button>
+      <button type="button" role="tab" data-pane="agents">Subagents</button>
+      <button type="button" role="tab" data-pane="session">This session</button>
+    </div>
+    <section class="work-pane" data-pane="plan">
       <h2>Plan</h2>
       <ul id="todos"><li class="quiet">Nothing on the list yet</li></ul>
     </section>
-    <section>
+    <section class="work-pane" data-pane="files" hidden>
       <h2>Changed files</h2>
       <div class="file-actions">
         <button type="button" id="undo-btn" hidden>Undo last turn</button>
       </div>
       <ul id="files"><li class="quiet">No files changed</li></ul>
     </section>
-    <section id="jobs-sec">
+    <section class="work-pane" id="jobs-sec" data-pane="jobs" hidden>
       <h2>Background jobs</h2>
       <ul id="jobs"><li class="quiet">No jobs running</li></ul>
     </section>
-    <section id="agents-sec">
+    <section class="work-pane" id="agents-sec" data-pane="agents" hidden>
       <h2>Subagents</h2>
       <ul id="agents"><li class="quiet">No subagents yet</li></ul>
     </section>
-    <section class="spend">
+    <section class="work-pane spend" data-pane="session" hidden>
       <h2>This session</h2>
       <p id="ctx-line">Context —</p>
       <p id="cost-line"></p>

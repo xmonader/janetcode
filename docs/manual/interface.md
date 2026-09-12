@@ -3,14 +3,14 @@
 Part of the [janetcode manual](README.md); the [README](../../README.md) has the short version.
 
 `janetcode --web` opens the session in a browser at
-`http://127.0.0.1:8787` (or `--web-addr`). The page is three panes, not a
-terminal: past sessions and **New** on the left, the conversation in the
-middle, and the live work on the right — the current plan, files this
-session changed (click one to see the diff, **Undo last turn** to revert),
-background jobs, continuable subagents, context and spend. The header
+`http://127.0.0.1:8787` (or `--web-addr`). The page is the same three-column
+session chrome DeepSeek Harness uses: a collapsible left rail (brand, a
+capsule **New session**, the session list), a conversation column with a
+centered transcript and a floating composer card, and a tabbed right panel
+(Plan, Changed files, Background jobs, Subagents, This session). The header
 shows the session mode (ask, PLAN, AUTO, YOLO, EDITS, READ-ONLY).
-Allow-edits / auto / allow-all / plan-first / read-only live there too.
-You write at the bottom; when a tool wants to change something, Allow
+Allow-edits / auto / allow-all / plan-first / read-only live on the Session
+tab. You write in the composer; when a tool wants to change something, Allow
 once / Always this session / Remember / Deny are buttons. When the model
 asks a labeled question, the options (and Other) are answered on the
 page. Ctrl+K still searches slash commands. The server binds loopback

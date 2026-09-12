@@ -560,6 +560,7 @@
     showAsk(st.permission);
     refreshWorkspace();
   }).catch(() => {});
+  const shell = document.querySelector(".shell");
   const themeBtn = document.getElementById("theme-toggle");
   function drawTheme() { themeBtn.textContent = document.documentElement.dataset.theme === "dark" ? "☀" : "☾"; }
   themeBtn.addEventListener("click", () => {
@@ -578,7 +579,24 @@
     input.focus();
   });
 
-  const shell = document.querySelector(".shell");
+  const navToggle = document.getElementById("nav-toggle");
+  const workToggle = document.getElementById("work-toggle");
+  function setCollapsed(cls, on) {
+    shell.classList.toggle(cls, on);
+    localStorage.setItem("janetcode-" + cls, on ? "1" : "");
+  }
+  navToggle.addEventListener("click", () => setCollapsed("nav-collapsed", !shell.classList.contains("nav-collapsed")));
+  workToggle.addEventListener("click", () => setCollapsed("work-collapsed", !shell.classList.contains("work-collapsed")));
+  if (localStorage.getItem("janetcode-nav-collapsed") === "1") shell.classList.add("nav-collapsed");
+  if (localStorage.getItem("janetcode-work-collapsed") === "1") shell.classList.add("work-collapsed");
+  document.querySelector(".work-tabs").addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-pane]");
+    if (!btn) return;
+    const pane = btn.dataset.pane;
+    document.querySelectorAll(".work-tabs [data-pane]").forEach((b) => b.classList.toggle("on", b === btn));
+    document.querySelectorAll(".work-pane").forEach((p) => { p.hidden = p.dataset.pane !== pane; });
+  });
+
   const pvPane = document.getElementById("preview");
   const pvToggle = document.getElementById("preview-toggle");
   const pvUrl = document.getElementById("pv-url");

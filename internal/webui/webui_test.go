@@ -109,7 +109,7 @@ func TestWorkspaceIsStructured(t *testing.T) {
 	body, _ := io.ReadAll(page.Body)
 	page.Body.Close()
 	html := string(body)
-	for _, want := range []string{"New", "Plan", "Changed files", "Background jobs", "Subagents", "id=\"sessions\"", "id=\"composer\"", "id=\"mode-chip\"", "id=\"questions\"", "id=\"mode-auto\""} {
+	for _, want := range []string{"New session", "Plan", "Changed files", "Background jobs", "Subagents", "id=\"sessions\"", "id=\"composer\"", "id=\"mode-chip\"", "id=\"questions\"", "id=\"mode-auto\"", "work-tabs", "new-session"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("page missing %q", want)
 		}
