@@ -345,17 +345,17 @@ func (m *model) planCommand(arg string) tea.Cmd {
 			return nil
 		}
 		ag.SetPlanMode(false)
-		m.transcript.info("plan approved · leaving plan mode; each step is undoable with /undo")
+		m.status = "plan approved · executing · /undo reverts a step"
 		return m.submit("The plan is approved. Execute it now, step by step, in the order written. Verify each step (build, tests) before starting the next, and stop to report if a step fails or the plan turns out to be wrong.")
 	case "off", "cancel", "exit":
 		ag.SetPlanMode(false)
-		m.transcript.info("left plan mode without executing")
+		m.noteMode()
 		m.refresh(false)
 		return nil
 	}
 	if !ag.PlanMode {
 		ag.SetPlanMode(true)
-		m.transcript.info("plan mode on · the model reads and searches but changes nothing; /plan approve executes the plan, /plan off leaves")
+		m.noteMode()
 	}
 	if arg == "" {
 		m.refresh(false)
@@ -695,21 +695,18 @@ func (m *model) cycleMode() {
 		ag.ReadOnly = false
 		ag.AutoApprove = false
 		ag.AutoMode = true
-		m.transcript.info("auto · in-workspace edits and known-safe reads run; other commands ask · shift+tab cycles ask → plan → auto → yolo")
 	case ag.AutoMode:
 		ag.AutoMode = false
 		ag.AutoApprove = true
-		m.transcript.info("yolo · tools run without asking · shift+tab cycles ask → plan → auto → yolo")
 	case ag.AutoApprove:
 		ag.AutoApprove = false
 		ag.AutoMode = false
-		m.transcript.info("ask · edits and commands ask first · shift+tab cycles ask → plan → auto → yolo")
 	default:
 		ag.AutoApprove = false
 		ag.AutoMode = false
 		ag.SetPlanMode(true)
-		m.transcript.info("plan mode · the model reads and searches but changes nothing · shift+tab cycles ask → plan → auto → yolo")
 	}
+	m.noteMode()
 	m.refresh(false)
 }
 
@@ -723,16 +720,16 @@ func (m *model) sandboxCommand(arg string) {
 	sb := ag.Sandbox
 	switch arg {
 	case "", "status":
-		m.transcript.info(sb.Status())
+		m.status = sb.Status()
 	case "on":
 		if err := sb.Enable(); err != nil {
 			m.transcript.errorf("sandbox: %v", err)
 		} else {
-			m.transcript.info(sb.Status() + " · file tools stay on the workspace host")
+			m.status = sb.Status()
 		}
 	case "off":
 		sb.Disable()
-		m.transcript.info(sb.Status())
+		m.status = sb.Status()
 	default:
 		sb.SetImage(arg)
 		if !sb.Enabled() {
@@ -742,7 +739,7 @@ func (m *model) sandboxCommand(arg string) {
 				return
 			}
 		}
-		m.transcript.info(sb.Status())
+		m.status = sb.Status()
 	}
 	m.refresh(false)
 }
@@ -923,12 +920,12 @@ func (m *model) retargetWorkspace(kind, arg string, dial func(string) (tool.Host
 	}
 	switch arg {
 	case "", "status":
-		m.transcript.info("workspace " + ws.Label())
+		m.status = "workspace " + ws.Label()
 		m.refresh(false)
 		return
 	case "off", "local":
 		ws.Set(tool.LocalHost(m.opts.Cwd))
-		m.transcript.info("workspace local · " + m.opts.Cwd)
+		m.status = "workspace local · " + m.opts.Cwd
 		m.refresh(false)
 		return
 	}
@@ -939,7 +936,7 @@ func (m *model) retargetWorkspace(kind, arg string, dial func(string) (tool.Host
 		return
 	}
 	ws.Set(h)
-	m.transcript.info("workspace " + h.Label() + " · file tools and bash run there; /" + kind + " off returns here")
+	m.status = "workspace " + h.Label() + " · file tools and bash run there"
 	m.refresh(false)
 }
 
@@ -3217,19 +3214,15 @@ func (m *model) command(text string) tea.Cmd {
 		m.opts.Agent.AutoApprove = !m.opts.Agent.AutoApprove
 		if m.opts.Agent.AutoApprove {
 			m.opts.Agent.AutoMode = false
-			m.transcript.info("auto-approve on · tools run without asking")
-		} else {
-			m.transcript.info("auto-approve off · edits and commands ask first")
 		}
+		m.noteMode()
 	case "/auto":
 		m.opts.Agent.AutoMode = !m.opts.Agent.AutoMode
 		if m.opts.Agent.AutoMode {
 			m.opts.Agent.AutoApprove = false
 			m.opts.Agent.SetPlanMode(false)
-			m.transcript.info("auto mode on · in-workspace edits and known-safe reads run, other commands ask")
-		} else {
-			m.transcript.info("auto mode off · edits and commands ask first")
 		}
+		m.noteMode()
 	case "/sandbox":
 		m.sandboxCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/review":
@@ -3238,11 +3231,7 @@ func (m *model) command(text string) tea.Cmd {
 		m.loopCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/edits":
 		m.opts.Agent.AutoEdits = !m.opts.Agent.AutoEdits
-		if m.opts.Agent.AutoEdits {
-			m.transcript.info("auto-accept edits on · file changes go through, commands still ask")
-		} else {
-			m.transcript.info("auto-accept edits off · edits ask first")
-		}
+		m.noteMode()
 	case "/settle":
 		if m.opts.Session == nil {
 			m.transcript.errorf("no session to settle")
@@ -3258,11 +3247,7 @@ func (m *model) command(text string) tea.Cmd {
 		}
 	case "/readonly":
 		m.opts.Agent.ReadOnly = !m.opts.Agent.ReadOnly
-		if m.opts.Agent.ReadOnly {
-			m.transcript.info("read-only on · the model can inspect but not change anything")
-		} else {
-			m.transcript.info("read-only off")
-		}
+		m.noteMode()
 	case "/plan":
 		return m.planCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/why":
@@ -4263,6 +4248,72 @@ func (m *model) phaseText() string {
 	return m.phase + shortDuration(left.Round(time.Second))
 }
 
+// statusMode is the compact label for the current permission mode, shown
+// on the status line so a shift+tab does not have to dump a paragraph
+// into the transcript.
+func (m *model) statusMode() string {
+	ag := m.opts.Agent
+	if ag == nil {
+		return "ask"
+	}
+	switch {
+	case ag.PlanMode:
+		return "PLAN"
+	case ag.ReadOnly:
+		return "READ-ONLY"
+	case ag.AutoApprove:
+		return "YOLO"
+	case ag.AutoMode:
+		return "AUTO"
+	case ag.AutoEdits:
+		return "EDITS"
+	default:
+		return "ask"
+	}
+}
+
+func (m *model) statusModeHint() string {
+	switch m.statusMode() {
+	case "PLAN":
+		return "reads only · writes a plan · /plan approve runs it"
+	case "READ-ONLY":
+		return "inspect only"
+	case "YOLO":
+		return "tools run without asking"
+	case "AUTO":
+		return "edits and known-safe reads run · other commands ask"
+	case "EDITS":
+		return "file changes go through · commands ask"
+	default:
+		return "edits and commands ask first"
+	}
+}
+
+// noteMode puts the mode explanation on the status line instead of in
+// the transcript. The mode token itself is always drawn by statusState.
+func (m *model) noteMode() {
+	m.status = m.statusModeHint()
+}
+
+// statusState is the persistent left-hand chrome: mode, sandbox, remote
+// workspace. It stays on every frame so toggling those does not have to
+// print into the conversation.
+func (m *model) statusState() string {
+	mode := m.statusMode()
+	st := styleFaint
+	if mode != "ask" {
+		st = styleKey
+	}
+	s := st.Render(mode)
+	if ag := m.opts.Agent; ag != nil && ag.Sandbox != nil && ag.Sandbox.Enabled() {
+		s += styleFaint.Render(" · sandbox")
+	}
+	if ws := m.opts.Workspace; ws != nil && !ws.Local() {
+		s += styleFaint.Render(" · " + ws.Kind())
+	}
+	return s + styleFaint.Render(" · ")
+}
+
 func (m *model) statusView() string {
 	var left string
 	switch {
@@ -4284,6 +4335,7 @@ func (m *model) statusView() string {
 	default:
 		left = styleFaint.Render("ready")
 	}
+	left = m.statusState() + left
 	if live := m.liveWork(); live != "" {
 		left += styleWarn.Render(" · " + live)
 	}

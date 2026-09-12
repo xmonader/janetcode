@@ -3832,21 +3832,27 @@ func TestModeCycleShiftTab(t *testing.T) {
 	if h.m.opts.Agent.PlanMode || h.m.opts.Agent.AutoApprove {
 		t.Fatal("should start in ask")
 	}
-	h.update(shiftTab)
-	if !h.m.opts.Agent.PlanMode || !strings.Contains(plain(h.m.View()), "PLAN ·") {
-		t.Fatalf("ask→plan: plan=%v view:\n%s", h.m.opts.Agent.PlanMode, plain(h.m.View()))
+	if st := plain(h.m.statusView()); !strings.Contains(st, "ask") {
+		t.Fatalf("idle status missing ask:\n%s", st)
 	}
 	h.update(shiftTab)
-	if h.m.opts.Agent.PlanMode || h.m.opts.Agent.AutoApprove || !h.m.opts.Agent.AutoMode || !strings.Contains(plain(h.m.View()), "AUTO ·") {
-		t.Fatalf("plan→auto: plan=%v auto=%v yolo=%v view:\n%s", h.m.opts.Agent.PlanMode, h.m.opts.Agent.AutoMode, h.m.opts.Agent.AutoApprove, plain(h.m.View()))
+	if !h.m.opts.Agent.PlanMode || !strings.Contains(plain(h.m.statusView()), "PLAN") {
+		t.Fatalf("ask→plan: plan=%v status:\n%s", h.m.opts.Agent.PlanMode, plain(h.m.statusView()))
 	}
 	h.update(shiftTab)
-	if h.m.opts.Agent.AutoMode || !h.m.opts.Agent.AutoApprove || !strings.Contains(plain(h.m.View()), "YOLO ·") {
-		t.Fatalf("auto→yolo: auto=%v yolo=%v view:\n%s", h.m.opts.Agent.AutoMode, h.m.opts.Agent.AutoApprove, plain(h.m.View()))
+	if h.m.opts.Agent.PlanMode || h.m.opts.Agent.AutoApprove || !h.m.opts.Agent.AutoMode || !strings.Contains(plain(h.m.statusView()), "AUTO") {
+		t.Fatalf("plan→auto: plan=%v auto=%v yolo=%v status:\n%s", h.m.opts.Agent.PlanMode, h.m.opts.Agent.AutoMode, h.m.opts.Agent.AutoApprove, plain(h.m.statusView()))
+	}
+	h.update(shiftTab)
+	if h.m.opts.Agent.AutoMode || !h.m.opts.Agent.AutoApprove || !strings.Contains(plain(h.m.statusView()), "YOLO") {
+		t.Fatalf("auto→yolo: auto=%v yolo=%v status:\n%s", h.m.opts.Agent.AutoMode, h.m.opts.Agent.AutoApprove, plain(h.m.statusView()))
 	}
 	h.update(shiftTab)
 	if h.m.opts.Agent.PlanMode || h.m.opts.Agent.AutoApprove || h.m.opts.Agent.AutoMode {
 		t.Fatalf("yolo→ask: plan=%v yolo=%v auto=%v", h.m.opts.Agent.PlanMode, h.m.opts.Agent.AutoApprove, h.m.opts.Agent.AutoMode)
+	}
+	if v := plain(h.m.View()); strings.Contains(v, "shift+tab cycles") {
+		t.Fatalf("mode change dumped into the transcript:\n%s", v)
 	}
 }
 
