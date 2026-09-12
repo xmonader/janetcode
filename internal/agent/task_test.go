@@ -137,6 +137,35 @@ func TestTaskContinueSeesHistory(t *testing.T) {
 	}
 }
 
+func TestExploreAgentIsBuiltInReadOnly(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha"), 0o644)
+	parent := &Agent{Provider: &scriptedByPrompt{}, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent} // no Profiles: explore must still exist
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, tool.WriteFile{Root: root}, tool.EditFile{Root: root}, tool.Bash{Root: root}, tool.Grep{Root: root}, task)
+	out, err := task.Run(context.Background(), json.RawMessage(`{"description":"map","prompt":"explore the tree","agent":"explore"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "REPORT:") {
+		t.Fatalf("out = %s", out)
+	}
+	ids := task.ChildIDs()
+	if len(ids) != 1 {
+		t.Fatalf("ids = %v", ids)
+	}
+	kid := task.children[ids[0]]
+	for _, d := range kid.agent.Tools.Defs() {
+		switch d.Name {
+		case "write_file", "edit_file", "bash", "task":
+			t.Fatalf("explore child has mutating tool %s", d.Name)
+		}
+	}
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"y","agent":"no-such-agent"}`)); err == nil || !strings.Contains(err.Error(), "no custom agent") {
+		t.Fatalf("unknown agent: %v", err)
+	}
+}
+
 func TestTaskRejectsBadInput(t *testing.T) {
 	task := &Task{Parent: &Agent{Tools: tool.NewRegistry()}}
 	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"x","prompt":"  "}`)); err == nil {

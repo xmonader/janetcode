@@ -38,7 +38,7 @@ var commandWhen = map[string]string{
 	"/lsp":         "an edit compiled in your head but the language server disagrees",
 	"/jobs":        "a long command is running in the background and you want to watch its log or kill it",
 	"/context":     "the gauge is filling and you want to know what is filling it before you compact",
-	"/todos":       "a long task is running and you want the sticky plan strip, or a snapshot of it in the conversation",
+	"/todos":       "a long task is running and you want every step of the plan in a live overlay",
 	"/inspect":     "something surprising happened and you want the state that produced it",
 	"/reload":      "you just edited a skill, a rule or a memory entry and want the model to see it this turn",
 	"/pin":         "a constraint the model keeps forgetting; a pin survives compaction",

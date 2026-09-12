@@ -1387,6 +1387,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	task.Parent = ag
 	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
 	ag.Tools.Add(&agent.TodoTool{Parent: ag})
+	ag.Tools.Add(&agent.AskTool{Parent: ag})
 	// JANETCODE_OFF is the ablation switch a session has: the eval runner
 	// takes -eval-off, and a real session takes the same names here, so a
 	// behaviour can be turned off without a rebuild.

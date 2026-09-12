@@ -153,8 +153,10 @@ type Agent struct {
 	Provider llm.Provider
 	Tools    *tool.Registry
 	Approver Approver
-	System   string
-	Model    string
+	// Asker, when set, answers labeled questions from the ask tool.
+	Asker  Asker
+	System string
+	Model  string
 	// MaxTokens per model call. Zero lets the provider choose.
 	MaxTokens int
 	// MaxIterations caps model calls per user turn. Zero means 50.

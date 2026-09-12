@@ -26,7 +26,7 @@ func (m *model) planTodos() []agent.Todo {
 }
 
 func (m *model) planHeight() int {
-	if m.picker != nil || m.connect != nil || m.overlay != "" {
+	if m.picker != nil || m.connect != nil || m.overlay != "" || m.asking != nil {
 		return 0
 	}
 	return len(m.planLines())

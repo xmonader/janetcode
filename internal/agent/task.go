@@ -189,10 +189,11 @@ func (t *Task) Description() string {
 }
 
 func (t *Task) profiles() []skill.Profile {
-	if t.Profiles == nil {
-		return nil
+	var user []skill.Profile
+	if t.Profiles != nil {
+		user = t.Profiles()
 	}
-	return t.Profiles()
+	return skill.MergeProfiles(skill.Builtins(), user)
 }
 func (*Task) Mutating() bool { return false }
 func (*Task) Schema() json.RawMessage {
@@ -200,7 +201,7 @@ func (*Task) Schema() json.RawMessage {
 "description":{"type":"string","description":"Short label for what the subagent is doing (shown to the user)"},
 "prompt":{"type":"string","description":"The full brief: goal, where to look, and exactly what to report"},
 "tools":{"type":"array","items":{"type":"string"},"description":"Optional: only these read-only tools are given to the subagent, e.g. [\"grep\",\"read_file\"]"},
-"agent":{"type":"string","description":"Optional: name of a custom agent definition to run the job as"},
+"agent":{"type":"string","description":"Optional: name of a subagent profile. explore is built in (read-only); others come from .janetcode/agents/<name>.md"},
 "edit":{"type":"boolean","description":"Optional: let the subagent edit files and run commands in an isolated git worktree of the project. Its changes come back as a patch (also saved to a file) for you to review and apply with git apply; the real tree is untouched."},
 "model":{"type":"string","description":"Optional: run the job on this model instead of the session's, by name (e.g. glm-5). Use a cheaper or faster model for wide reading, or a stronger one for a job that has to be right."},
 "continue":{"type":"string","description":"Optional: id of a previous subagent to send another prompt. Omit prompt to list ids."}},
@@ -541,6 +542,9 @@ func (t *Task) child(only []string, profile *skill.Profile) (*Agent, error) {
 			if _, isGoal := tl.(*GoalStatus); isGoal {
 				return nil, fmt.Errorf("tool %q cannot be given to a subagent: it would end the main session's goal", name)
 			}
+			if _, isAsk := tl.(*AskTool); isAsk {
+				return nil, fmt.Errorf("tool %q cannot be given to a subagent: only the main session asks the user", name)
+			}
 			ro = append(ro, tl)
 		}
 	} else {
@@ -551,6 +555,9 @@ func (t *Task) child(only []string, profile *skill.Profile) (*Agent, error) {
 			}
 			// goal_status is read-only but writes the parent's goal log.
 			if _, isGoal := tl.(*GoalStatus); isGoal {
+				continue
+			}
+			if _, isAsk := tl.(*AskTool); isAsk {
 				continue
 			}
 			ro = append(ro, tl)

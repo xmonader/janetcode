@@ -130,14 +130,15 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `fetch_url` | Fetch a web page or API response as text | yes |
 | `repo_map` | Rank files for a query, or a symbol's blast radius (definers and users) | no |
 | `web_search` | Search the web (DuckDuckGo, or Brave Search with a key) for titles, URLs and snippets | yes |
-| `task` | Delegate a job to a subagent with its own context, optionally on another model; several run in parallel | no |
+| `task` | Delegate a job to a subagent with its own context, optionally on another model; `agent: explore` is a built-in read-only explorer; several run in parallel | no |
 | `symbols` | Ask the language server where a name is defined, who uses it, its type, what a file declares | no |
 | `expand_output` | Read back tool output and conversation that compaction archived, by search or by line | no |
 | `execute_code` | Run a Python script that calls these tools, so a chain of calls costs one turn and their output stays out of the context | yes, shows the code |
 | `todo` | Keep the plan for a multi-step task and mark steps off; triggered by a countable rule (three or more distinct steps) after [a subjective one was never reached for](docs/benchmarks/harnesses/session/README.md) | no |
+| `ask` | Put one or more labeled questions in front of you as tabs; Other is free text | no |
 | `inspect` | Look at the session's own state: context, archive, verdicts, config, servers | no |
 | `diagnostics` | Compile and type errors from the language server, for a file or the project | no |
-| `job` | List, read, wait on or kill a background job | no |
+| `job` | List, read, wait on, kill, or write stdin to a background job | no |
 | `memory` | Remember a fact about the project, or search what is remembered | no |
 | `skill` | Load a skill's instructions on demand | no |
 | `goal_status` | Mark the session goal complete or blocked | no |

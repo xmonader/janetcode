@@ -30,6 +30,10 @@ type Job struct {
 	notified bool
 	cmd      *exec.Cmd
 	done     chan struct{}
+	// stdin is the write end of the pipe attached to the process.
+	// Background jobs get one so a later Write can drive them; a
+	// one-shot bash call still uses EOF (cmd.Stdin = nil).
+	stdin io.WriteCloser
 }
 
 // Jobs runs commands detached from the tool call that started them and
@@ -67,13 +71,24 @@ func (j *Jobs) Start(root, command string) (*Job, error) {
 	cmd.Dir = root
 	cmd.Env = scrubEnv(os.Environ())
 	setProcessGroup(cmd)
-	cmd.Stdout, cmd.Stderr, cmd.Stdin = out, out, nil
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		out.Close()
+		os.Remove(out.Name())
+		return nil, err
+	}
+	// *os.File stdin is handed to the child directly. io.Pipe would make
+	// Wait hang on a copy goroutine until we closed the write end.
+	cmd.Stdout, cmd.Stderr, cmd.Stdin = out, out, pr
 	if err := cmd.Start(); err != nil {
+		pw.Close()
+		pr.Close()
 		out.Close()
 		os.Remove(out.Name())
 		return nil, fmt.Errorf("start: %w", err)
 	}
-	job := &Job{ID: id, Command: command, Pid: cmd.Process.Pid, Started: time.Now(), OutPath: out.Name(), cmd: cmd, done: make(chan struct{})}
+	pr.Close() // parent copy; the child holds the read end
+	job := &Job{ID: id, Command: command, Pid: cmd.Process.Pid, Started: time.Now(), OutPath: out.Name(), cmd: cmd, done: make(chan struct{}), stdin: pw}
 	j.mu.Lock()
 	j.jobs = append(j.jobs, job)
 	j.mu.Unlock()
@@ -81,6 +96,10 @@ func (j *Jobs) Start(root, command string) (*Job, error) {
 		err := cmd.Wait()
 		out.Close()
 		j.mu.Lock()
+		if job.stdin != nil {
+			_ = job.stdin.Close()
+			job.stdin = nil
+		}
 		job.Done, job.Ended = true, time.Now()
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
@@ -230,10 +249,41 @@ func (j *Jobs) Kill(id int) error {
 	if job.Done || processDone(job.cmd) {
 		return fmt.Errorf("job %d already finished", id)
 	}
+	if job.stdin != nil {
+		_ = job.stdin.Close()
+		job.stdin = nil
+	}
 	if job.cmd.Cancel != nil {
 		return job.cmd.Cancel()
 	}
 	return job.cmd.Process.Kill()
+}
+
+// Write sends a line to a running job's stdin. A missing trailing newline
+// is added so a typed line is a line. One-shot bash calls still get EOF
+// on stdin; only background jobs have a pipe.
+func (j *Jobs) Write(id int, data string) error {
+	if strings.TrimSpace(data) == "" {
+		return fmt.Errorf("nothing to write")
+	}
+	if !strings.HasSuffix(data, "\n") {
+		data += "\n"
+	}
+	job := j.find(id)
+	if job == nil {
+		return fmt.Errorf("no job %d", id)
+	}
+	j.mu.Lock()
+	w, done := job.stdin, job.Done || processDone(job.cmd)
+	j.mu.Unlock()
+	if done {
+		return fmt.Errorf("job %d already finished", id)
+	}
+	if w == nil {
+		return fmt.Errorf("job %d does not accept stdin", id)
+	}
+	_, err := io.WriteString(w, data)
+	return err
 }
 
 // KillAll stops every running job, for shutdown.
@@ -341,15 +391,16 @@ type JobTool struct{ Jobs *Jobs }
 
 func (JobTool) Name() string { return "job" }
 func (JobTool) Description() string {
-	return "Manage background jobs started with bash background:true. list shows them; output returns the last lines of a job's output; wait blocks until a job finishes (up to timeout_ms); kill stops one. You are told automatically when a job finishes."
+	return "Manage background jobs started with bash background:true. list shows them; output returns the last lines of a job's output; wait blocks until a job finishes (up to timeout_ms); kill stops one; stdin writes a line to a running job (interactive programs). You are told automatically when a job finishes."
 }
 func (JobTool) Mutating() bool { return false }
 func (JobTool) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{
-"action":{"type":"string","enum":["list","output","wait","kill"]},
+"action":{"type":"string","enum":["list","output","wait","kill","stdin"]},
 "id":{"type":"integer","description":"Job id (from the bash result or list)"},
 "lines":{"type":"integer","description":"For output: how many trailing lines (default 100)"},
-"timeout_ms":{"type":"integer","description":"For wait: how long to wait (default 120000, max 600000)"}},
+"timeout_ms":{"type":"integer","description":"For wait: how long to wait (default 120000, max 600000)"},
+"text":{"type":"string","description":"For stdin: the line to write to the running job"}},
 "required":["action"],"additionalProperties":false}`)
 }
 
@@ -359,6 +410,7 @@ func (t JobTool) Run(ctx context.Context, input json.RawMessage) (string, error)
 		ID        int    `json:"id"`
 		Lines     int    `json:"lines"`
 		TimeoutMS int    `json:"timeout_ms"`
+		Text      string `json:"text"`
 	}
 	if err := decode(input, &in); err != nil {
 		return "", err
@@ -409,6 +461,11 @@ func (t JobTool) Run(ctx context.Context, input json.RawMessage) (string, error)
 			return "", err
 		}
 		return fmt.Sprintf("job %d killed", in.ID), nil
+	case "stdin":
+		if err := t.Jobs.Write(in.ID, in.Text); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("wrote to job %d stdin", in.ID), nil
 	}
 	return "", fmt.Errorf("unknown action %q", in.Action)
 }

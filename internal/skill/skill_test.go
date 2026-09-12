@@ -149,6 +149,25 @@ func TestLoadProfiles(t *testing.T) {
 	}
 }
 
+func TestBuiltinExploreNeedsNoFile(t *testing.T) {
+	ps := MergeProfiles(Builtins(), nil)
+	var explore *Profile
+	for i := range ps {
+		if ps[i].Name == "explore" {
+			explore = &ps[i]
+			break
+		}
+	}
+	if explore == nil || explore.Source != "builtin" || explore.Body == "" {
+		t.Fatalf("builtin explore missing: %+v", ps)
+	}
+	user := []Profile{{Name: "explore", Description: "project", Body: "override", Source: "project"}}
+	merged := MergeProfiles(Builtins(), user)
+	if len(merged) != 1 || merged[0].Source != "project" || merged[0].Body != "override" {
+		t.Fatalf("overlay should win: %+v", merged)
+	}
+}
+
 func TestTurnPrepAttachesSkillsAndMemory(t *testing.T) {
 	mem := memory.Open(t.TempDir(), t.TempDir())
 	mem.Put(memory.Entry{Name: "goose", Description: "Database migrations use goose", Body: "goose up from db/"})

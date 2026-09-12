@@ -48,6 +48,42 @@ func TestJobsStartWaitOutputAndFinished(t *testing.T) {
 	}
 }
 
+func TestJobsWriteStdinAfterStart(t *testing.T) {
+	jobs := &Jobs{Dir: t.TempDir()}
+	job, err := jobs.Start(t.TempDir(), `sh -c 'read line; printf "got %s\n" "$line"'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := jobs.Write(job.ID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	j, err := jobs.Wait(ctx, job.ID)
+	if err != nil || !j.Done {
+		t.Fatalf("wait: %+v err=%v", j, err)
+	}
+	out, err := jobs.Output(job.ID, 0)
+	if err != nil || !strings.Contains(out, "got hello") {
+		t.Fatalf("output = %q err=%v", out, err)
+	}
+	res, err := JobTool{Jobs: jobs}.Run(context.Background(), json.RawMessage(`{"action":"stdin","id":1,"text":"late"}`))
+	if err == nil || !strings.Contains(err.Error(), "already finished") {
+		t.Fatalf("stdin after exit: %q %v", res, err)
+	}
+}
+
+func TestForegroundBashStillGetsEOF(t *testing.T) {
+	b := Bash{Root: t.TempDir()}
+	out, err := b.Run(context.Background(), json.RawMessage(`{"command":"cat"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(out) != "" && out != "(no output)" {
+		t.Fatalf("foreground cat should see EOF, got %q", out)
+	}
+}
+
 func TestJobsKillStopsTheProcessGroup(t *testing.T) {
 	jobs := &Jobs{Dir: t.TempDir()}
 	job, err := jobs.Start(t.TempDir(), "sleep 30 & sleep 30; echo never")

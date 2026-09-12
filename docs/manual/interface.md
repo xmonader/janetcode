@@ -399,10 +399,13 @@ process group, output to a log file) and returns a job id at once, so a
 dev server or a long build does not block the turn. When the job ends,
 the model is told before its next call and you see `⚙ job 1 finished with
 exit 0` in the transcript, with the last lines of output. The `job` tool
-lists jobs, shows output, waits with a timeout, or kills one. `/jobs`
-opens a live overlay of them (empty if none); enter (or `/jobs <n>`)
-tails the log, `k` kills the highlighted job, esc closes. `/jobs kill
-<n>` still works typed. Every job is stopped when janetcode exits.
+lists jobs, shows output, waits with a timeout, kills one, or writes a
+line to a running job's stdin (`job` action `stdin`). `/jobs` opens a
+live overlay of them (empty if none); enter (or `/jobs <n>`) tails the
+log, `k` kills the highlighted job, esc closes. `/jobs kill <n>` and
+`/jobs stdin <n> <text>` still work typed. A one-shot `bash` call still
+gets EOF on stdin; only a background job has a pipe. Every job is
+stopped when janetcode exits.
 
 A command already running in the foreground can be moved to the
 background instead of being waited out or killed: press `ctrl+g`. It keeps
@@ -1008,8 +1011,21 @@ A long task the model is working through keeps a plan of its own, in the
 the header as a sticky strip: a tally, the step in progress, and what
 is next, rewritten on the frame that marks a step off. A short window
 collapses it to one line; a very short one hides it so the transcript
-keeps the rows. `/todos` still dumps a snapshot into the conversation
-if you want one there.
+keeps the rows. `/todos` opens a live overlay of every step and its
+status (pending, in_progress, completed); it re-reads when the model
+rewrites the plan, and esc closes it. With none yet the overlay says
+so rather than a one-line dump.
+
+The model can ask you a labeled question with the `ask` tool when a
+choice would change what it does next. Several questions in one call
+are tabs: left/right or tab switches without dismissing the prompt,
+1–9 or enter picks an option, and Other lets you type something else.
+The chosen label (and any Other text) is what the model receives.
+
+`task` with `agent: explore` runs a built-in read-only subagent: it can
+read, list, glob and grep, but cannot edit files or run commands, and
+it needs no profile file in `.janetcode/agents`. Other names still load
+from those files.
 
 ### Rating an answer
 

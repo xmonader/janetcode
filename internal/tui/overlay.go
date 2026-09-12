@@ -18,6 +18,7 @@ import (
 const (
 	overlayAgents = "agents"
 	overlayJobs   = "jobs"
+	overlayTodos  = "todos"
 )
 
 func (m *model) taskTool() *agent.Task {
@@ -63,6 +64,9 @@ func (m *model) overlayKids() []agent.ChildInfo {
 func (m *model) handleOverlayKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	if m.overlay == overlayJobs {
 		return m.handleJobsKey(msg), true
+	}
+	if m.overlay == overlayTodos {
+		return m.handleTodosKey(msg), true
 	}
 	if m.overlayChild != "" {
 		return m.handleAgentDetailKey(msg), true
@@ -136,8 +140,86 @@ func (m *model) overlayView(height int) string {
 			return m.jobDetailView(height)
 		}
 		return m.jobsListView(height)
+	case overlayTodos:
+		return m.todosOverlayView(height)
 	}
 	return ""
+}
+
+func (m *model) handleTodosKey(msg tea.KeyMsg) tea.Cmd {
+	viewH := max(m.height-6, 4)
+	switch keyName(msg) {
+	case "esc", "ctrl+c":
+		m.closeOverlay()
+	case "up", "ctrl+p":
+		if m.overlayScroll > 0 {
+			m.overlayScroll--
+		}
+		m.refresh(false)
+	case "down", "ctrl+n":
+		m.overlayScroll++
+		m.refresh(false)
+	case "pgup":
+		m.overlayScroll = max(m.overlayScroll-viewH, 0)
+		m.refresh(false)
+	case "pgdown":
+		m.overlayScroll += viewH
+		m.refresh(false)
+	}
+	return nil
+}
+
+func (m *model) todosOverlayView(height int) string {
+	w := min(dialogWidth, m.width-4)
+	inner := w - 4
+	var lines []string
+	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
+	add(styleKey.Render("Plan"))
+	add(styleDim.Render("this session · live · esc closes"))
+	add("")
+	todos := m.planTodos()
+	if len(todos) == 0 {
+		add(styleDim.Render("no plan has been written"))
+		add(styleFaint.Render("the model starts one with the todo tool when a task has several steps"))
+	} else {
+		done := 0
+		for _, t := range todos {
+			if t.Done() {
+				done++
+			}
+		}
+		add(styleKey.Render(fmt.Sprintf("%d of %d done", done, len(todos))))
+		add("")
+		for _, t := range todos {
+			mark, st := "[ ]", styleDim
+			status := "pending"
+			switch t.Status {
+			case agent.TodoDone:
+				mark, st, status = "[x]", styleOK, "completed"
+			case agent.TodoDoing:
+				mark, st, status = "[>]", styleWarn, "in_progress"
+			}
+			line := st.Render(mark) + " " + t.Text + "  " + styleFaint.Render(status)
+			if len(t.BlockedBy) > 0 && !t.Done() {
+				line += styleFaint.Render("  after " + strings.Join(t.BlockedBy, "; "))
+			}
+			add(line)
+		}
+	}
+	add("")
+	add(styleFaint.Render("esc close · the sticky strip under the header stays while a plan exists"))
+	viewH := height
+	maxScroll := max(len(lines)-viewH, 0)
+	if m.overlayScroll > maxScroll {
+		m.overlayScroll = maxScroll
+	}
+	if m.overlayScroll < 0 {
+		m.overlayScroll = 0
+	}
+	end := min(len(lines), m.overlayScroll+viewH)
+	shown := lines[m.overlayScroll:end]
+	box := styleDialog.Width(w - 2).Render(strings.Join(shown, "\n"))
+	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
 
 func (m *model) agentsListView(height int) string {

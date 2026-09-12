@@ -27,15 +27,18 @@ func TestFoldGoalsAndStatus(t *testing.T) {
 
 func TestAskerPlanReview(t *testing.T) {
 	var got Question
-	ask := AskFunc(func(_ context.Context, q Question) (Answer, error) {
-		got = q
-		return Answer{Label: q.Approve}, nil
+	ask := AskFunc(func(_ context.Context, qs []Question) ([]Answer, error) {
+		if len(qs) != 1 {
+			t.Fatalf("qs = %d", len(qs))
+		}
+		got = qs[0]
+		return []Answer{{Label: qs[0].Approve}}, nil
 	})
-	ans, err := ask.Ask(context.Background(), Question{
+	ans, err := ask.Ask(context.Background(), []Question{{
 		Prompt: "Execute this plan?", Detail: "## Plan\n1. do it", Intent: IntentPlanReview,
 		Approve: "Approve", Options: []AskOption{{Label: "Approve"}, {Label: "Keep planning"}},
-	})
-	if err != nil || ans.Label != "Approve" || got.Intent != IntentPlanReview {
+	}})
+	if err != nil || len(ans) != 1 || ans[0].Label != "Approve" || got.Intent != IntentPlanReview {
 		t.Fatalf("ans=%+v got=%+v err=%v", ans, got, err)
 	}
 }

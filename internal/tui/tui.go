@@ -124,7 +124,9 @@ func Run(opts Options) error {
 	m.send = p.Send
 	m.queue.send = p.Send
 	m.approver.send = p.Send
+	m.asker.send = p.Send
 	opts.Agent.Approver = m.approver
+	opts.Agent.Asker = m.asker
 	_, err := p.Run()
 	return err
 }
@@ -834,6 +836,24 @@ func (m *model) searchSessions(query string) {
 
 // jobsCommand opens the live jobs overlay, or kills one by number.
 func (m *model) jobsCommand(args []string) {
+	if len(args) >= 2 && args[0] == "stdin" {
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			m.transcript.errorf("usage: /jobs stdin <n> <text>")
+			return
+		}
+		if m.opts.Jobs == nil {
+			m.transcript.errorf("background jobs are not available")
+			return
+		}
+		text := strings.Join(args[2:], " ")
+		if err := m.opts.Jobs.Write(n, text); err != nil {
+			m.transcript.errorf("%v", err)
+			return
+		}
+		m.transcript.info(fmt.Sprintf("wrote to job %d", n))
+		return
+	}
 	if len(args) == 2 && args[0] == "kill" {
 		n, err := strconv.Atoi(args[1])
 		if err != nil {
@@ -1098,9 +1118,9 @@ var commands = []command{
 	{name: "/permissions", args: "[allow|deny <rule>|trust]", help: "permission rules; add one, or trust the project's .janetcode/permissions.json"},
 	{name: "/verify", args: "[set <cmd>|mutate <test cmd>|clear|trust]", help: "run the project's checks now; set adds one to .janetcode/verify.json; mutate requires tests to catch mutations of changed lines"},
 	{name: "/lsp", args: "", help: "language servers and the diagnostics they reported"},
-	{name: "/jobs", args: "[id|kill <n>]", help: "live overlay of background jobs; enter (or /jobs <n>) tails the log, k kills"},
+	{name: "/jobs", args: "[id|kill <n>|stdin <n> <text>]", help: "live overlay of background jobs; enter tails the log, k kills, stdin writes a line to a running job"},
 	{name: "/context", args: "", help: "what fills the context window: prompt, tools, messages, largest tool results"},
-	{name: "/todos", args: "", help: "the sticky plan strip: what is done, in progress, and left"},
+	{name: "/todos", args: "", help: "live overlay of the plan: every step and its status; esc closes"},
 	{name: "/inspect", args: "[subject]", help: "look at any part of the session: context, events, archive, retrieval, config, tools, lsp, mcp, jobs, repomap… (no subject lists them)"},
 	{name: "/reload", args: "", help: "rebuild the memory and skill indexes in the prompt now instead of at compaction"},
 	{name: "/pin", args: "[note or @file]", help: "keep a note in the system prompt for the whole session; alone lists pins"},
@@ -1185,6 +1205,8 @@ type model struct {
 	// pendingClosedAt is when the last permission prompt closed.
 	pendingClosedAt time.Time
 	approver        *tuiApprover
+	asker           *tuiAsker
+	asking          *askState
 	// send delivers messages from background goroutines into the loop.
 	send func(tea.Msg)
 	// titleGen invalidates generated titles once the user set one.
@@ -1326,6 +1348,7 @@ func newModel(opts Options) *model {
 		bgDark:     bgDark,
 		pinned:     true,
 		approver:   &tuiApprover{},
+		asker:      &tuiAsker{},
 		transcript: newTranscriptStyled(style),
 		queue:      &eventQueue{},
 		input:      ta,
@@ -1662,6 +1685,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refresh(false)
 		return m, nil
 
+	case askMsg:
+		m.drainEvents()
+		m.openAsk(msg)
+		m.term.announce("janetcode", "a question for you")
+		return m, nil
+
 	case verifyDoneMsg:
 		m.finishVerify(msg)
 		m.refresh(false)
@@ -1871,6 +1900,9 @@ func keyName(msg tea.KeyMsg) string {
 }
 
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if m.asking != nil {
+		return m.handleAskKey(msg)
+	}
 	if m.overlay != "" {
 		return m.handleOverlayKey(msg)
 	}
@@ -2229,7 +2261,7 @@ func (m *model) recall(i int) string {
 // completions lists slash commands matching the input, or files matching
 // the @path being typed at its end.
 func (m *model) completions() []command {
-	if m.connect != nil || m.picker != nil || m.overlay != "" {
+	if m.connect != nil || m.picker != nil || m.overlay != "" || m.asking != nil {
 		return nil
 	}
 	m.compArgs = false
@@ -2978,7 +3010,7 @@ func (m *model) command(text string) tea.Cmd {
 	case "/context", "/ctx":
 		m.contextCommand()
 	case "/todos", "/todo":
-		m.transcript.info(agent.RenderTodos(m.opts.Agent.Todos()))
+		m.openOverlay(overlayTodos)
 	case "/inspect", "/i":
 		m.inspectCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/pin":
@@ -3712,7 +3744,7 @@ func (m *model) View() string {
 	if m.quitting {
 		return ""
 	}
-	if m.picker != nil || m.connect != nil || m.overlay != "" {
+	if m.picker != nil || m.connect != nil || m.overlay != "" || m.asking != nil {
 		// A modal is the input: give it the body plus the reserved
 		// footer so a short terminal still has room for the highlight.
 		bodyH := m.height - 2 // header, status
@@ -3721,6 +3753,8 @@ func (m *model) View() string {
 		}
 		body := ""
 		switch {
+		case m.asking != nil:
+			body = m.askView(bodyH)
 		case m.picker != nil:
 			body = m.pickerView(bodyH)
 		case m.connect != nil:

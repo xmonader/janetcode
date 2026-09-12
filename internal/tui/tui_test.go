@@ -96,7 +96,9 @@ func newHarness(t *testing.T, responses ...*llm.Response) *harness {
 	m.send = func(msg tea.Msg) { h.msgs <- msg }
 	m.queue.send = m.send
 	m.approver.send = m.send
+	m.asker.send = m.send
 	ag.Approver = m.approver
+	ag.Asker = m.asker
 	h.update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	return h
 }
@@ -1680,6 +1682,128 @@ func TestStickyPlanShowsProgress(t *testing.T) {
 	}
 	if strings.Contains(v, "write the parser") && !strings.Contains(v, "[x]") {
 		t.Fatalf("completed step lost its mark:\n%s", v)
+	}
+}
+
+func TestTodosOverlayOpenLiveAndEsc(t *testing.T) {
+	h := newHarness(t)
+	h.keys("/todos")
+	h.enter()
+	if h.m.overlay != overlayTodos {
+		t.Fatal("empty /todos should open the overlay")
+	}
+	if v := plain(h.m.View()); !strings.Contains(v, "no plan has been written") {
+		t.Fatalf("empty overlay:\n%s", v)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if h.m.overlay != "" {
+		t.Fatal("esc should close the empty overlay")
+	}
+	h.m.opts.Agent.WriteTodos([]agent.Todo{
+		{Text: "explore the parser", Status: agent.TodoDone},
+		{Text: "write the parser", Status: agent.TodoDoing},
+		{Text: "add tests", Status: agent.TodoPending},
+	})
+	h.keys("/todos")
+	h.enter()
+	v := plain(h.m.View())
+	for _, want := range []string{"explore the parser", "completed", "write the parser", "in_progress", "add tests", "pending"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("missing %q:\n%s", want, v)
+		}
+	}
+	h.m.opts.Agent.WriteTodos([]agent.Todo{
+		{Text: "explore the parser", Status: agent.TodoDone},
+		{Text: "write the parser", Status: agent.TodoDone},
+		{Text: "add tests", Status: agent.TodoDoing},
+	})
+	h.update(tickMsg(time.Now()))
+	v = plain(h.m.View())
+	if !strings.Contains(v, "add tests") || !strings.Contains(v, "in_progress") {
+		t.Fatalf("live update:\n%s", v)
+	}
+	if strings.Count(v, "completed") < 2 {
+		t.Fatalf("expected two completed steps:\n%s", v)
+	}
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if h.m.overlay != "" {
+		t.Fatal("esc should restore the prompt")
+	}
+	h.keys("still here")
+	if h.m.input.Value() != "still here" {
+		t.Fatalf("prompt not usable: %q", h.m.input.Value())
+	}
+}
+
+func TestAskTabsTwoQuestionsAndOther(t *testing.T) {
+	h := newHarness(t)
+	qs := []agent.Question{
+		{Prompt: "Goal of the refactor?", Options: []agent.AskOption{{Label: "Performance"}, {Label: "Readability"}}},
+		{Prompt: "How far?", Options: []agent.AskOption{{Label: "This function"}, {Label: "The package"}}},
+	}
+	errc := make(chan error, 1)
+	var got []agent.Answer
+	go func() {
+		var err error
+		got, err = h.m.opts.Agent.Asker.Ask(context.Background(), qs)
+		errc <- err
+	}()
+	h.pump(func() bool { return h.m.asking != nil })
+	v := plain(h.m.View())
+	for _, want := range []string{"Goal of the refactor?", "How far?", "Performance", "Readability"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("missing %q in tabs:\n%s", want, v)
+		}
+	}
+	h.enter() // Performance
+	if h.m.asking == nil || h.m.asking.tab != 1 {
+		t.Fatal("should switch to the unanswered tab")
+	}
+	h.enter() // This function
+	select {
+	case err := <-errc:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("ask did not finish")
+	}
+	if len(got) != 2 || got[0].Label != "Performance" || got[1].Label != "This function" {
+		t.Fatalf("answers = %+v", got)
+	}
+	if h.m.asking != nil {
+		t.Fatal("ask overlay should close")
+	}
+
+	qs = []agent.Question{
+		{Prompt: "Name?", Options: []agent.AskOption{{Label: "Alpha"}, {Label: "Beta"}}},
+	}
+	got = nil
+	errc = make(chan error, 1)
+	go func() {
+		var err error
+		got, err = h.m.opts.Agent.Asker.Ask(context.Background(), qs)
+		errc <- err
+	}()
+	h.pump(func() bool { return h.m.asking != nil })
+	h.update(tea.KeyMsg{Type: tea.KeyDown})
+	h.update(tea.KeyMsg{Type: tea.KeyDown}) // Other
+	h.enter()
+	if h.m.asking == nil || !h.m.asking.othering {
+		t.Fatal("Other should collect typed text")
+	}
+	h.keys("gamma")
+	h.enter()
+	select {
+	case err := <-errc:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Other did not finish")
+	}
+	if len(got) != 1 || got[0].Label != agent.OtherLabel || got[0].Reason != "gamma" {
+		t.Fatalf("Other = %+v", got)
 	}
 }
 
