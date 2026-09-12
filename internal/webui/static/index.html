@@ -34,6 +34,10 @@
   <div class="col">
     <header class="top">
       <span id="title" class="session-title"></span>
+      <nav class="view-ring" id="view-ring" role="tablist">
+        <button type="button" data-view="chat" class="on">Chat</button>
+        <button type="button" data-view="trajectory">Trajectory</button>
+      </nav>
       <span id="mode-chip" class="mode-chip">ask</span>
       <span id="model" class="path"></span>
       <span id="conn" class="conn" title="Live connection">Live</span>
@@ -41,7 +45,7 @@
       <button type="button" id="work-toggle" class="icon-btn" title="Session panel" aria-label="Session panel">▤</button>
     </header>
     <section class="thread" id="thread">
-      <div class="column">
+      <div class="column" id="chat-view">
         <div id="empty" class="empty">
           <p id="empty-lead">What should we change?</p>
           <p class="empty-sub">Describe the work below. Edits and commands will ask before they run.</p>
@@ -53,6 +57,19 @@
           </div>
         </div>
         <div id="log"></div>
+      </div>
+      <div id="trajectory" class="trajectory" hidden>
+        <div id="traj-overview" class="traj-overview" hidden></div>
+        <div id="traj-ledger" class="traj-ledger">
+          <p class="quiet">No trajectory events yet</p>
+        </div>
+        <aside id="traj-inspect" class="traj-inspect" hidden>
+          <header>
+            <strong id="traj-inspect-title"></strong>
+            <button type="button" id="traj-inspect-close">Close</button>
+          </header>
+          <pre id="traj-inspect-body"></pre>
+        </aside>
       </div>
     </section>
     <div class="bottom">

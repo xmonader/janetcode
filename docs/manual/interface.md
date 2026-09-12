@@ -7,8 +7,11 @@ Part of the [janetcode manual](README.md); the [README](../../README.md) has the
 session chrome DeepSeek Harness uses: a collapsible left rail (brand, a
 capsule **New session**, the session list), a conversation column with a
 centered transcript and a floating composer card, and a tabbed right panel
-(Plan, Changed files, Background jobs, Subagents, This session). The header
-shows the session mode (ask, PLAN, AUTO, YOLO, EDITS, READ-ONLY).
+(Plan, Changed files, Background jobs, Subagents, This session). Chat and
+Trajectory switch in the header the way DeepSeek Harness does: Chat is the
+conversation, Trajectory is the session event ledger (turns, tools,
+compaction, the critic) with a timing strip and a record inspector.
+The header also shows the session mode (ask, PLAN, AUTO, YOLO, EDITS, READ-ONLY).
 Allow-edits / auto / allow-all / plan-first / read-only live on the Session
 tab. You write in the composer; when a tool wants to change something, Allow
 once / Always this session / Remember / Deny are buttons. When the model

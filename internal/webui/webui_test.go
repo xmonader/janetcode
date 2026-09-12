@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -109,7 +110,7 @@ func TestWorkspaceIsStructured(t *testing.T) {
 	body, _ := io.ReadAll(page.Body)
 	page.Body.Close()
 	html := string(body)
-	for _, want := range []string{"New session", "Plan", "Changed files", "Background jobs", "Subagents", "id=\"sessions\"", "id=\"composer\"", "id=\"mode-chip\"", "id=\"questions\"", "id=\"mode-auto\"", "work-tabs", "new-session"} {
+	for _, want := range []string{"New session", "Plan", "Changed files", "Background jobs", "Subagents", "Trajectory", "id=\"sessions\"", "id=\"composer\"", "id=\"mode-chip\"", "id=\"questions\"", "id=\"mode-auto\"", "id=\"trajectory\"", "work-tabs", "new-session"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("page missing %q", want)
 		}
@@ -411,6 +412,64 @@ func TestAskQuestionRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("Ask did not return after /api/question")
+	}
+}
+
+func TestTrajectoryLedgerFromSessionEvents(t *testing.T) {
+	ts, ag := testApp(t)
+	defer ts.Close()
+	if _, err := ag.Log.Append(session.Event{
+		Type: session.TypeUserMessage, Turn: 1, Surface: true,
+		Message: &llm.Message{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockText, Text: "look at main.go"}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ag.Log.Append(session.Event{
+		Type: session.TypeToolCall, Turn: 1, Step: 1, Name: "read_file",
+		Arguments: `{"path":"main.go"}`, DurationMs: 12,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := http.Get(ts.URL + "/api/trajectory")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var body struct {
+		Events []trajRow `json:"events"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Events) < 2 {
+		t.Fatalf("events = %+v", body.Events)
+	}
+	var sawUser, sawTool bool
+	for _, e := range body.Events {
+		if e.Kind == "user" && strings.Contains(e.Preview, "main.go") {
+			sawUser = true
+		}
+		if e.Kind == "tool" && e.Name == "read_file" && e.DurMs == 12 {
+			sawTool = true
+		}
+	}
+	if !sawUser || !sawTool {
+		t.Fatalf("ledger missing user or tool: %+v", body.Events)
+	}
+	detail, err := http.Get(ts.URL + "/api/trajectory?n=" + strconv.Itoa(body.Events[0].Seq))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer detail.Body.Close()
+	if detail.StatusCode != 200 {
+		t.Fatalf("detail %d", detail.StatusCode)
+	}
+	var one map[string]any
+	if err := json.NewDecoder(detail.Body).Decode(&one); err != nil {
+		t.Fatal(err)
+	}
+	if one["seq"] == nil || one["type"] == nil {
+		t.Fatalf("detail = %v", one)
 	}
 }
 

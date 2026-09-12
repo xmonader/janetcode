@@ -305,6 +305,7 @@ func (s *server) handler() http.Handler {
 	mux.HandleFunc("/api/sessions", s.sessionsAPI)
 	mux.HandleFunc("/api/panel", s.panelAPI)
 	mux.HandleFunc("/api/workspace", s.workspaceAPI)
+	mux.HandleFunc("/api/trajectory", s.trajectoryAPI)
 	mux.HandleFunc("/api/change", s.changeAPI)
 	mux.HandleFunc("/api/new", s.newChat)
 	mux.HandleFunc("/api/load", s.loadSession)

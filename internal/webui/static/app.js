@@ -186,6 +186,7 @@
     statusEl.classList.toggle("busy", !!st.running);
     if (st.mode) setModeChip(st.mode);
     refreshWorkspace();
+    if (currentView === "trajectory") refreshTrajectory();
   }
 
   function setModeChip(mode) {
@@ -577,6 +578,83 @@
     input.value = chip.dataset.q || "";
     resize();
     input.focus();
+  });
+
+  let currentView = "chat";
+  const chatView = document.getElementById("chat-view");
+  const trajView = document.getElementById("trajectory");
+  const trajLedger = document.getElementById("traj-ledger");
+  const trajOverview = document.getElementById("traj-overview");
+  const trajInspect = document.getElementById("traj-inspect");
+  document.getElementById("view-ring").addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-view]");
+    if (!btn) return;
+    currentView = btn.dataset.view;
+    document.querySelectorAll("#view-ring [data-view]").forEach((b) => b.classList.toggle("on", b === btn));
+    chatView.hidden = currentView !== "chat";
+    trajView.hidden = currentView !== "trajectory";
+    if (currentView === "trajectory") refreshTrajectory();
+  });
+  async function refreshTrajectory() {
+    try {
+      const data = await (await fetch("/api/trajectory")).json();
+      const rows = data.events || [];
+      if (!rows.length) {
+        trajLedger.innerHTML = `<p class="quiet">No trajectory events yet</p>`;
+        trajOverview.hidden = true;
+        return;
+      }
+      const timed = rows.filter((r) => r.dur_ms > 0);
+      if (timed.length) {
+        const total = timed.reduce((s, r) => s + r.dur_ms, 0) || 1;
+        trajOverview.hidden = false;
+        trajOverview.innerHTML = timed.map((r) =>
+          `<span data-kind="${esc(r.kind)}" style="flex:${Math.max(r.dur_ms, 1)}" title="#${r.seq} ${esc(r.type)} ${esc(r.dur || "")}"></span>`
+        ).join("");
+        trajOverview.style.setProperty("--total", String(total));
+      } else trajOverview.hidden = true;
+      const groups = [];
+      for (const r of rows) {
+        const t = r.turn || 0;
+        if (!groups.length || groups[groups.length - 1].turn !== t) groups.push({ turn: t, rows: [] });
+        groups[groups.length - 1].rows.push(r);
+      }
+      trajLedger.innerHTML = groups.map((g) =>
+        `<div class="traj-group"><h3>${g.turn ? "Turn " + g.turn : "Before turns"}</h3>` +
+        g.rows.map((r) =>
+          `<div class="traj-row" data-seq="${r.seq}"><span class="seq">#${r.seq}</span>` +
+          `<span class="kind kind-${esc(r.kind)}">${esc(r.kind)}</span>` +
+          `<span class="type">${esc(r.type)}</span>` +
+          `<span class="preview">${esc(r.preview || r.name || "")}</span>` +
+          `<span class="dur">${esc(r.dur || "")}</span>` +
+          `<span class="surface">${esc(r.surface || "")}</span></div>`
+        ).join("") + `</div>`
+      ).join("");
+    } catch (_) {}
+  }
+  trajLedger.addEventListener("click", async (ev) => {
+    const row = ev.target.closest(".traj-row[data-seq]");
+    if (!row) return;
+    trajLedger.querySelectorAll(".traj-row.on").forEach((n) => n.classList.remove("on"));
+    row.classList.add("on");
+    try {
+      const d = await (await fetch("/api/trajectory?n=" + row.dataset.seq)).json();
+      document.getElementById("traj-inspect-title").textContent = "#" + d.seq + " " + (d.type || "");
+      const bits = [];
+      if (d.turn) bits.push("turn " + d.turn + (d.step ? "/" + d.step : ""));
+      if (d.surface) bits.push(d.surface);
+      if (d.dur) bits.push(d.dur);
+      if (d.intent) bits.push("intent " + d.intent);
+      if (d.usage) bits.push("in " + d.usage.in + " cache " + d.usage.cache + " out " + d.usage.out);
+      if (d.arguments) bits.push("args " + d.arguments);
+      if (d.preview) bits.push(d.preview);
+      document.getElementById("traj-inspect-body").textContent = bits.join("\n");
+      trajInspect.hidden = false;
+    } catch (_) {}
+  });
+  document.getElementById("traj-inspect-close").addEventListener("click", () => {
+    trajInspect.hidden = true;
+    trajLedger.querySelectorAll(".traj-row.on").forEach((n) => n.classList.remove("on"));
   });
 
   const navToggle = document.getElementById("nav-toggle");

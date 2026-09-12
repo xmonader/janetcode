@@ -165,6 +165,10 @@ var harnessFeatures = []feature.Feature{
 		What:   "the status line cycles through seeded present-participle verbs while waiting on the model",
 		When:   "the spinner would otherwise sit on the word thinking",
 		Topics: []string{"spinner", "thinking", "flavor", "status", "fun", "moonwalking"}},
+	{Name: "web trajectory", Kind: feature.KindBehave, Invoke: "Trajectory (web)", Manual: "interface",
+		What:   "the --web conversation header switches Chat and Trajectory, the session event ledger with a timing strip and a record inspector",
+		When:   "you want the raw turn/tool/compaction record without leaving the browser",
+		Topics: []string{"trajectory", "ledger", "timeline", "web", "inspect"}},
 }
 
 // buildCatalog assembles the catalogue for this build. It reads tables
