@@ -253,17 +253,59 @@ func referencesFor(ctx context.Context, in Input, rel string, d def) (refs int, 
 		}
 	}
 	if in.RepoIndex != nil {
+		seen := map[string]bool{}
 		if radius, ok := in.RepoIndex.BlastRadius(d.Name, false); ok {
-			seen := map[string]bool{}
 			total := 0.0
 			for _, u := range radius.Referencers {
+				if u.Path == rel {
+					continue // counted exactly below
+				}
 				total += u.Weight
 				seen[u.Path] = true
 			}
-			return int(math.Round(total)), sortedKeys(seen), true
+			refs = int(math.Round(total))
 		}
+		// The repository map links files to each other, so a symbol used
+		// only inside the file that defines it read as unused — the case
+		// that most needs reviewing looked the safest. Those uses are
+		// counted from the planned content itself.
+		if n := sameFileUses(in.New, d.Name, d.Line); n > 0 {
+			refs += n
+			seen[rel] = true
+		}
+		return refs, sortedKeys(seen), true
 	}
 	return 0, nil, false
+}
+
+// sameFileUses counts whole-word occurrences of name in content outside
+// its definition line.
+func sameFileUses(content, name string, defLine int) int {
+	if name == "" {
+		return 0
+	}
+	n := 0
+	for i, line := range strings.Split(content, "\n") {
+		if i+1 == defLine {
+			continue
+		}
+		for rest := line; ; {
+			at := strings.Index(rest, name)
+			if at < 0 {
+				break
+			}
+			end := at + len(name)
+			if (at == 0 || !isIdent(rest[at-1])) && (end == len(rest) || !isIdent(rest[end])) {
+				n++
+			}
+			rest = rest[end:]
+		}
+	}
+	return n
+}
+
+func isIdent(b byte) bool {
+	return b == '_' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
 }
 
 // intersecting returns the defs (in source order) whose approximated

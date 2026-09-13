@@ -219,3 +219,10 @@ func TestImpactLineEmptyWithNoSymbols(t *testing.T) {
 		t.Fatalf("Line() = %q, want empty with no changed symbols", i.Line())
 	}
 }
+
+func TestSameFileUsesCountsUnexportedCallers(t *testing.T) {
+	src := "package p\n\nfunc Parse(n int) int {\n\treturn helper(n)\n}\n\nfunc helper(n int) int { return n }\n\nvar helpers = 1\n"
+	if got := sameFileUses(src, "helper", 7); got != 1 {
+		t.Fatalf("uses = %d, want 1 (the call, not the definition or helpers)", got)
+	}
+}
