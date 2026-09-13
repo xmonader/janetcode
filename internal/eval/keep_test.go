@@ -10,7 +10,10 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/snapshot"
 )
 
@@ -423,5 +426,96 @@ func TestPrepareWorktreeMissingBase(t *testing.T) {
 		t.Fatal("want an error for a base commit that does not exist")
 	} else if !strings.Contains(err.Error(), "is not in this repository") || !strings.Contains(err.Error(), "--self-contained") {
 		t.Fatalf("error = %v, want it to name the fix", err)
+	}
+}
+
+// TestKeepNotAGitRepo is the regression test for the third QA finding:
+// Keep needs a git repository for every path it takes (the check
+// command's default source, the base commit, the diff), so a Root that
+// is not one must fail with one clear message up front — not the
+// misleading "no check command" (when neither --check nor --base was
+// given either) and not a raw `git` fatal error surfacing from --base's
+// own git command.
+func TestKeepNotAGitRepo(t *testing.T) {
+	root := t.TempDir() // deliberately not a git repository
+	sess, err := session.New(t.TempDir(), root, "anthropic", "test-model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := llm.TextMessage(llm.RoleUser, "do something")
+	if _, err := sess.Append(session.Event{Type: session.TypeUserMessage, Turn: 1, Surface: true, Message: &msg}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, _, err = Keep(KeepOptions{Root: root, Session: sess, Check: "true"})
+	if err == nil || !strings.Contains(err.Error(), "not a git repository") {
+		t.Fatalf("Keep with a check command but no git repo: err = %v, want \"not a git repository\"", err)
+	}
+
+	// With no --check either, the missing-repository message must win
+	// over "no check command": the repository is the more fundamental
+	// problem, and naming the check command would not fix it.
+	_, _, _, err = Keep(KeepOptions{Root: root, Session: sess})
+	if err == nil || !strings.Contains(err.Error(), "not a git repository") || strings.Contains(err.Error(), "no check command") {
+		t.Fatalf("Keep with neither check nor git repo: err = %v, want only \"not a git repository\"", err)
+	}
+
+	// --base in a non-git directory must give that same friendly
+	// message, not resolveRev's raw `git rev-parse ... fatal:` output.
+	_, _, _, err = Keep(KeepOptions{Root: root, Session: sess, Check: "true", Base: "HEAD"})
+	if err == nil || !strings.Contains(err.Error(), "not a git repository") || strings.Contains(err.Error(), "fatal:") {
+		t.Fatalf("Keep --base in a non-git dir: err = %v, want the friendly message, not a raw git fatal", err)
+	}
+}
+
+// TestKeptPromptExcludesInjectedContext is the regression test for the
+// second QA bug: skill.TurnPrep appended recalled-memory (and skill)
+// blocks, and repomap.TurnPrep appended the repo-map block, to the user
+// turn without Synthetic: true — so eval.Keep's userPrompts (which only
+// keeps non-synthetic text, see messageText) picked them up and baked
+// memory entries and the repo map into the committed task file. This
+// drives the real TurnPrep hooks, the same way agent.RunBlocks does, and
+// checks that a kept prompt is exactly the text the user typed.
+func TestKeptPromptExcludesInjectedContext(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"a.go": "package m\n\nfunc A() {}\n",
+		"b.go": "package m\n\nfunc B() { A() }\n",
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	mem := memory.Open(t.TempDir(), t.TempDir())
+	mem.Put(memory.Entry{Name: "goose", Description: "Database migrations use goose", Body: "goose up from db/"})
+	skillInj := &skill.Injector{Skills: func() []skill.Skill {
+		return []skill.Skill{{Name: "sql-migrations", Description: "Write database schema migrations", Body: "steps", ModelInvocable: true}}
+	}}
+	repoCache := &repomap.Cache{Root: root}
+
+	const typed = "add a database schema migration for users"
+	blocks := []llm.Block{{Type: llm.BlockText, Text: typed}}
+	blocks, note := skill.TurnPrep(skillInj, mem)(blocks)
+	if note == "" {
+		t.Fatalf("test setup: skill.TurnPrep attached nothing")
+	}
+	blocks, note = repomap.TurnPrep(repoCache, 0)(blocks)
+	if note == "" {
+		t.Fatalf("test setup: repomap.TurnPrep attached nothing")
+	}
+	// Sanity check that this test actually exercises the bug: several
+	// blocks of injected context, beyond the one the user typed.
+	if len(blocks) < 3 {
+		t.Fatalf("test setup only produced %d blocks: %+v", len(blocks), blocks)
+	}
+
+	msg := llm.Message{Role: llm.RoleUser, Blocks: blocks}
+	events := []session.Event{{Type: session.TypeUserMessage, Turn: 1, Message: &msg}}
+
+	got := userPrompts(events)
+	if len(got) != 1 || got[0] != typed {
+		t.Fatalf("userPrompts = %v, want [%q]", got, typed)
 	}
 }

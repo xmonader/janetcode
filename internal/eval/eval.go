@@ -61,17 +61,35 @@ type Task struct {
 	dir string `json:"-"`
 }
 
-// RepoPath is Repo resolved against the task's source directory.
+// RepoPath is Repo resolved against the task's source directory, always
+// as an absolute path (see resolvePath).
 func (t Task) RepoPath() string { return t.resolvePath(t.Repo) }
 
-// PatchPath is Patch resolved against the task's source directory.
+// PatchPath is Patch resolved against the task's source directory, always
+// as an absolute path (see resolvePath).
 func (t Task) PatchPath() string { return t.resolvePath(t.Patch) }
 
+// resolvePath joins p onto the task's source directory when p is
+// relative, then makes the result absolute. Absolute is not optional
+// here: callers hand this straight to `git -C <workdir> apply <path>`,
+// and -C changes git's working directory before it opens path, so a
+// path left relative to the process's cwd (or to a relative t.dir) is
+// silently wrong the moment the caller's cwd differs from where the task
+// was loaded from. filepath.Abs resolves against the process cwd, which
+// is fine: by the time a task is loaded, Load has already made t.dir
+// absolute, so a relative Repo/Patch only reaches Abs already joined
+// onto that absolute dir.
 func (t Task) resolvePath(p string) string {
-	if p == "" || filepath.IsAbs(p) {
+	if p == "" {
 		return p
 	}
-	return filepath.Join(t.dir, p)
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(t.dir, p)
+	}
+	if abs, err := filepath.Abs(p); err == nil {
+		return abs
+	}
+	return p
 }
 
 // Load reads one JSON file or every *.json in a directory, sorted by name.
@@ -111,6 +129,13 @@ func Load(path string) ([]Task, error) {
 		}
 		seen[t.Name] = true
 		t.dir = filepath.Dir(f)
+		// f, and so t.dir, is relative when path was (e.g. the exact
+		// ".janetcode/evals" /eval keep prints); make it absolute now so
+		// RepoPath/PatchPath stay correct even if the caller's cwd
+		// changes before it uses them (see resolvePath).
+		if abs, aerr := filepath.Abs(t.dir); aerr == nil {
+			t.dir = abs
+		}
 		expandLarge(&t)
 		tasks = append(tasks, t)
 	}

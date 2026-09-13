@@ -80,6 +80,20 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 	if len(prompts) == 0 {
 		return "", Task{}, nil, fmt.Errorf("no user prompts found in this session")
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Every path below reads the repository: the check command's default
+	// source (verify.json lives in the tree), the base commit, and the
+	// diff. Say so up front, in one place, rather than letting a
+	// non-git Root surface as a misleading "no check command" (when
+	// neither --check nor --base was given) or a raw `git` fatal error
+	// (when --base was).
+	if !isGitRepo(ctx, opts.Root) {
+		return "", Task{}, nil, fmt.Errorf("not a git repository: /eval keep needs one (%s)", opts.Root)
+	}
+
 	check := strings.TrimSpace(opts.Check)
 	if check == "" {
 		cfg, _, verr := verify.Load(opts.Root)
@@ -91,9 +105,6 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 	if check == "" {
 		return "", Task{}, nil, fmt.Errorf("no check command: pass --check <command>, or add commands to %s", verify.ProjectFile)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	start := sess.Meta.Start
 	base := strings.TrimSpace(opts.Base)
@@ -282,6 +293,17 @@ func messageText(m *llm.Message) string {
 		}
 	}
 	return sb.String()
+}
+
+// isGitRepo reports whether dir is inside a git working tree. Keep calls
+// it once, up front, so a Root that is not a repository fails with one
+// clear message instead of a misleading "no check command" or a raw
+// `git` fatal error surfacing from whichever git command happened to run
+// first (resolveRev for --base, gitDiff/emptyTreeDiff otherwise).
+func isGitRepo(ctx context.Context, dir string) bool {
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--is-inside-work-tree")
+	cmd.Dir = dir
+	return cmd.Run() == nil
 }
 
 func gitDiff(ctx context.Context, dir, head, snap string) ([]byte, error) {

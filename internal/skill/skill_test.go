@@ -254,6 +254,20 @@ func TestTurnPrepAttachesSkillsAndMemory(t *testing.T) {
 	if len(blocks) != 3 || !strings.HasPrefix(blocks[1].Text, "<skill name=\"sql-migrations\"") || !strings.HasPrefix(blocks[2].Text, "<memory name=\"goose\"") {
 		t.Fatalf("blocks = %+v", blocks)
 	}
+	// The injected skill and memory blocks must be marked Synthetic: the
+	// model still needs to see them (they stay in blocks, sent as part
+	// of the user turn), but they are harness context, not something the
+	// user typed, so eval.Keep and the session-replay UI must be able to
+	// tell them apart from the real prompt (blocks[0]).
+	if blocks[0].Synthetic {
+		t.Fatalf("the user's own text was marked Synthetic: %+v", blocks[0])
+	}
+	if !blocks[1].Synthetic {
+		t.Fatalf("skill block not marked Synthetic: %+v", blocks[1])
+	}
+	if !blocks[2].Synthetic {
+		t.Fatalf("memory block not marked Synthetic: %+v", blocks[2])
+	}
 	if note != "skills attached: sql-migrations · memory recalled: goose" {
 		t.Fatalf("note = %q", note)
 	}

@@ -167,6 +167,16 @@ func TestToolAndTurnPrepAndCache(t *testing.T) {
 	if len(blocks) != 2 || !strings.HasPrefix(blocks[1].Text, "[repository map:") || !strings.Contains(note, "repository map attached: 6 files, 2 pulled up") {
 		t.Fatalf("prep blocks=%d note=%q", len(blocks), note)
 	}
+	// The injected map is harness context, not something the user typed:
+	// it must be marked Synthetic (still sent to the model, but excluded
+	// from eval.Keep's kept prompts and the session-replay UI) while the
+	// user's own text (blocks[0]) is left alone.
+	if blocks[0].Synthetic {
+		t.Fatalf("the user's own text was marked Synthetic: %+v", blocks[0])
+	}
+	if !blocks[1].Synthetic {
+		t.Fatalf("repo map block not marked Synthetic: %+v", blocks[1])
+	}
 	if b, n := prep([]llm.Block{{Type: llm.BlockImage}}); len(b) != 1 || n != "" {
 		t.Fatal("image-only turn got a map")
 	}

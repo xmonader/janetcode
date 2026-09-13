@@ -282,3 +282,77 @@ func TestLoadAcceptsPromptsWithoutPrompt(t *testing.T) {
 		t.Fatalf("steps = %v", got)
 	}
 }
+
+// TestLoadRelativeDirResolvesPatchAbsolute is the regression test for the
+// bug QA found: `janetcode --eval .janetcode/evals` failed with
+// "git apply: can't open patch" because Task.Patch was resolved against
+// t.dir (itself left relative, as ".janetcode/evals" is) and handed to
+// `git -C <workdir> apply <patch>` — -C changes git's working directory
+// before it opens patch, so a relative patch path is read relative to
+// the fresh work dir instead of the directory the task was loaded from.
+// Load must make Task.dir (and so RepoPath/PatchPath) absolute so a
+// relative directory argument keeps working regardless of the caller's
+// cwd. This chdirs into a temp parent and Loads via a relative path, the
+// exact shape /eval keep prints.
+func TestLoadRelativeDirResolvesPatchAbsolute(t *testing.T) {
+	// Build a patch (the whole tree of a one-commit repo, diffed from
+	// the empty tree) the same way Keep does for a task with no Base.
+	repo := t.TempDir()
+	runGit(t, repo, "init", "-q")
+	if err := os.WriteFile(filepath.Join(repo, "hello.txt"), []byte("hello world\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, repo, "add", "-A")
+	runGit(t, repo, "commit", "-q", "-m", "init")
+	head := runGit(t, repo, "rev-parse", "HEAD")
+	patch, err := emptyTreeDiff(context.Background(), repo, head)
+	if err != nil {
+		t.Fatalf("emptyTreeDiff: %v", err)
+	}
+
+	parent := t.TempDir()
+	evalsDir := filepath.Join(parent, ".janetcode", "evals")
+	if err := os.MkdirAll(evalsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(evalsDir, "fixtest.patch"), patch, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeTask(t, evalsDir, "fixtest.json", Task{Name: "fixtest", Prompt: "n/a", Check: "true", Patch: "fixtest.patch"})
+
+	// A temp parent directory chosen by MkdirTemp/TempDir can itself be a
+	// symlink (e.g. /tmp on macOS); resolve it so the path we chdir into
+	// matches what Getwd (and so Abs) reports back.
+	resolvedParent, err := filepath.EvalSymlinks(parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Chdir(resolvedParent)
+
+	tasks, err := Load(".janetcode/evals")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("tasks = %d, want 1", len(tasks))
+	}
+	task := tasks[0]
+	if !filepath.IsAbs(task.PatchPath()) {
+		t.Fatalf("PatchPath() = %q, want an absolute path", task.PatchPath())
+	}
+
+	dir, cleanup, err := prepareWorkDir(context.Background(), task)
+	if err != nil {
+		t.Fatalf("prepareWorkDir: %v", err)
+	}
+	defer cleanup()
+
+	got, err := os.ReadFile(filepath.Join(dir, "hello.txt"))
+	if err != nil {
+		t.Fatalf("hello.txt: %v", err)
+	}
+	if string(got) != "hello world\n" {
+		t.Fatalf("hello.txt = %q", got)
+	}
+}

@@ -53,7 +53,7 @@ func TurnPrep(c *Cache, budget int) func([]llm.Block) ([]llm.Block, string) {
 		if hits > 0 {
 			note += fmt.Sprintf(", %d pulled up by the request", hits)
 		}
-		return append(blocks, llm.Block{Type: llm.BlockText, Text: m}), note
+		return append(blocks, llm.Block{Type: llm.BlockText, Text: m, Synthetic: true}), note
 	}
 }
 

@@ -379,7 +379,9 @@ func (in *Injector) Prepare(blocks []llm.Block) ([]llm.Block, []string) {
 			continue
 		}
 		in.last[s.Name] = in.turn
-		blocks = append(blocks, s.Block())
+		b := s.Block()
+		b.Synthetic = true
+		blocks = append(blocks, b)
 		names = append(names, s.Name)
 	}
 	return blocks, names
@@ -515,7 +517,7 @@ func TurnPrep(in *Injector, mem *memory.Store) func([]llm.Block) ([]llm.Block, s
 					break
 				}
 				size += len(r)
-				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: r})
+				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: r, Synthetic: true})
 				used = append(used, e)
 			}
 			if len(used) > 0 {
