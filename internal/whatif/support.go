@@ -1,6 +1,7 @@
 package whatif
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/xmonader/janetcode/internal/eval"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/llm/replay"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/session"
@@ -92,7 +94,11 @@ func resolveSession(arg string) (path, dir, id string, err error) {
 	if derr != nil {
 		return "", "", "", derr
 	}
-	return filepath.Join(d, arg+".jsonl"), d, arg, nil
+	p := filepath.Join(d, arg+".jsonl")
+	if _, statErr := os.Stat(p); statErr != nil {
+		return "", "", "", fmt.Errorf("no session %q (janetcode --sessions lists them)", arg)
+	}
+	return p, d, arg, nil
 }
 
 // buildAgent wires the what-if agent: the real (not read-only) tool set
@@ -180,7 +186,11 @@ func foldUsage(events []session.Event) llm.Usage {
 // own implementation detail, not a decision comparable across two runs
 // the way an ordinary call is (cmd/janetcode/replay.go's recordedCalls
 // excludes them from its own comparison for the same reason).
-func toolCallSeq(events []session.Event, minTurn int) []CallInfo {
+//
+// root is the directory the run worked in, so a call's target can be
+// written relative to it: the original ran in the user's checkout and the
+// what-if in a worktree, and an absolute path would differ for no reason.
+func toolCallSeq(events []session.Event, minTurn int, root string) []CallInfo {
 	var out []CallInfo
 	for _, e := range events {
 		if e.Type != session.TypeToolCall || e.Turn < minTurn {
@@ -189,24 +199,35 @@ func toolCallSeq(events []session.Event, minTurn int) []CallInfo {
 		if strings.HasPrefix(e.CallID, "script-") || strings.HasPrefix(e.CallID, "runcode-") {
 			continue
 		}
-		out = append(out, CallInfo{Turn: e.Turn, Name: e.Name, Arguments: e.Arguments})
+		out = append(out, CallInfo{Turn: e.Turn, Name: e.Name, Target: callTarget(e.Name, e.Arguments, root), Arguments: e.Arguments})
 	}
 	return out
 }
 
-// firstDivergence walks orig and now, each already filtered to calls at
-// or after FromTurn (see toolCallSeq), and finds the first index where
-// they differ: by name, by arguments, or because one list ran out while
-// the other kept going. Arguments is compared as the raw JSON text the
-// call was recorded with — stricter than necessary (whitespace, key
-// order can differ without the call meaning anything different) but
-// honest: it says exactly what was compared, and here a false positive
-// costs far less than quietly treating two different calls as the same.
-func firstDivergence(orig, now []CallInfo) *Divergence {
-	n := len(orig)
-	if len(now) > n {
-		n = len(now)
+// callTarget is what a call acts on, the way a permission rule sees it
+// (perm.Subject: the path of a file tool, the command of bash, the URL of
+// a fetch), with root made relative and whitespace collapsed.
+func callTarget(name, args, root string) string {
+	t := perm.Subject(name, json.RawMessage(args))
+	if root != "" {
+		if rel, err := filepath.Rel(root, t); err == nil && filepath.IsAbs(t) && !strings.HasPrefix(rel, "..") {
+			t = rel
+		}
+		t = strings.ReplaceAll(t, root+string(filepath.Separator), "")
 	}
+	return strings.Join(strings.Fields(t), " ")
+}
+
+// firstDivergence finds the first index where orig and now, each already
+// filtered to calls at or after FromTurn, stop doing the same thing: a
+// different tool, a different target (file, command, URL), or one run
+// making a call the other did not. Two calls on the same target that only
+// phrase their arguments differently — an edit written as a line range in
+// one run and as an edits list in the other — are the same action; they
+// are counted in argDiffs instead, so a formatting difference no longer
+// hides the decision that actually changed.
+func firstDivergence(orig, now []CallInfo) (d *Divergence, argDiffs int) {
+	n := max(len(orig), len(now))
 	for i := 0; i < n; i++ {
 		var o, w *CallInfo
 		if i < len(orig) {
@@ -217,18 +238,22 @@ func firstDivergence(orig, now []CallInfo) *Divergence {
 			c := now[i]
 			w = &c
 		}
-		if o == nil || w == nil || o.Name != w.Name || o.Arguments != w.Arguments {
-			turn := 0
-			switch {
-			case o != nil:
-				turn = o.Turn
-			case w != nil:
-				turn = w.Turn
+		if o != nil && w != nil && o.Name == w.Name && o.Target == w.Target {
+			if o.Arguments != w.Arguments {
+				argDiffs++
 			}
-			return &Divergence{Turn: turn, Index: i, Original: o, Now: w}
+			continue
 		}
+		turn := 0
+		switch {
+		case o != nil:
+			turn = o.Turn
+		case w != nil:
+			turn = w.Turn
+		}
+		return &Divergence{Turn: turn, Index: i, Original: o, Now: w}, argDiffs
 	}
-	return nil
+	return nil, argDiffs
 }
 
 // foldVerdicts is agent.FoldOutcome for each of turnNums, in order.

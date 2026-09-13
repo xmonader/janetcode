@@ -30,6 +30,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm/replay"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/verify"
 )
 
@@ -110,8 +111,11 @@ type FileStat struct {
 // CallInfo is one tool call, named and with its raw arguments, for
 // Divergence.
 type CallInfo struct {
-	Turn      int    `json:"turn"`
-	Name      string `json:"name"`
+	Turn int    `json:"turn"`
+	Name string `json:"name"`
+	// Target is what the call acts on (see callTarget); two calls with
+	// the same name and target are the same action.
+	Target    string `json:"target"`
 	Arguments string `json:"arguments"`
 }
 
@@ -156,6 +160,9 @@ type Report struct {
 	PromptOverridden bool     `json:"prompt_overridden"`
 
 	Divergence *Divergence `json:"divergence,omitempty"`
+	// ArgumentDiffs counts calls before the divergence that did the same
+	// thing to the same target but phrased their arguments differently.
+	ArgumentDiffs int `json:"argument_diffs,omitempty"`
 
 	Original Summary `json:"original"`
 	Now      Summary `json:"now"`
@@ -196,12 +203,15 @@ func (r Report) Text() string {
 	}
 	b.WriteString("\n")
 	if r.Divergence == nil {
-		b.WriteString("no divergence: the same tool calls, in the same order, from turn " + fmt.Sprint(r.FromTurn) + " on\n")
+		b.WriteString("no divergence: the same actions on the same targets, in the same order, from turn " + fmt.Sprint(r.FromTurn) + " on\n")
 	} else {
 		d := r.Divergence
 		fmt.Fprintf(&b, "first divergence: turn %d, call #%d\n", d.Turn, d.Index+1)
 		fmt.Fprintf(&b, "  original: %s\n", callLine(d.Original))
 		fmt.Fprintf(&b, "  now:      %s\n", callLine(d.Now))
+	}
+	if r.ArgumentDiffs > 0 {
+		fmt.Fprintf(&b, "(%d earlier call(s) did the same thing with differently phrased arguments)\n", r.ArgumentDiffs)
 	}
 	b.WriteString("\nper-turn verdicts:\n")
 	writeVerdicts(&b, "original", r.Original.Turns)
@@ -239,7 +249,10 @@ func callLine(c *CallInfo) string {
 	if c == nil {
 		return "(no call here)"
 	}
-	return fmt.Sprintf("turn %d: %s(%s)", c.Turn, c.Name, strings.TrimSpace(c.Arguments))
+	if c.Target != "" {
+		return fmt.Sprintf("turn %d: %s %s", c.Turn, c.Name, textfmt.Clip(c.Target, 100))
+	}
+	return fmt.Sprintf("turn %d: %s(%s)", c.Turn, c.Name, textfmt.Clip(strings.TrimSpace(c.Arguments), 100))
 }
 
 func writeVerdicts(b *strings.Builder, label string, turns []TurnVerdict) {
@@ -398,10 +411,11 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 	nowCost := replayedCost + liveCost
 	nowCostKnown := replayedKnown && liveKnown
 
-	origCalls := toolCallSeq(origEvents, 1)
-	nowCalls := toolCallSeq(nowEvents, 1)
-	origLiveCalls := toolCallSeq(origEvents, n)
-	nowLiveCalls := toolCallSeq(nowEvents, n)
+	origCalls := toolCallSeq(origEvents, 1, root)
+	nowCalls := toolCallSeq(nowEvents, 1, workDir)
+	origLiveCalls := toolCallSeq(origEvents, n, root)
+	nowLiveCalls := toolCallSeq(nowEvents, n, workDir)
+	divergence, argDiffs := firstDivergence(origLiveCalls, nowLiveCalls)
 
 	origTurnNums := make([]int, total)
 	for i := range origTurnNums {
@@ -441,7 +455,8 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 		Off:              opts.Off,
 		Deny:             opts.Deny,
 		PromptOverridden: strings.TrimSpace(opts.Prompt) != "",
-		Divergence:       firstDivergence(origLiveCalls, nowLiveCalls),
+		Divergence:       divergence,
+		ArgumentDiffs:    argDiffs,
 		Original: Summary{
 			Turns:     foldVerdicts(origEvents, origTurnNums),
 			Files:     origFiles,

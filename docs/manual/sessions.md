@@ -128,8 +128,11 @@ prints where).
 
 At the end it prints a comparison between the session as it actually
 happened and as it happened with the change applied: where the two first
-diverge (the first tool call, at or after `--from-turn`, whose name or
-arguments differ, with both calls shown), a verdict per turn on each side
+diverge (the first tool call, at or after `--from-turn`, that uses a
+different tool or acts on a different target — file, command, URL — or
+that only one side made, with both shown; calls that did the same thing
+with differently phrased arguments are counted, not reported as the
+divergence), a verdict per turn on each side
 (see [what a turn actually demonstrated](interface.md#what-a-turn-actually-demonstrated)), which files each
 side touched and by how many lines, a run of the project's own
 [verify commands](evals.md) in the resulting worktree, and tool calls,
