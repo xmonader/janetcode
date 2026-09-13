@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // prunedPrefix marks a tool result that was replaced by its placeholder.
@@ -43,7 +45,7 @@ func placeholder(name string, input json.RawMessage, text, archiveID string) str
 		}
 		out = fmt.Sprintf("bash %s → exit %s", quoteTrunc(str("command"), 80), exit)
 		if last != "" {
-			out += "; last line: " + trunc(last, 120)
+			out += "; last line: " + textfmt.Clip(strings.TrimSpace(last), 120)
 		}
 	case "read_file":
 		out = fmt.Sprintf("read_file %s: %d lines were shown", str("path"), len(lines))
@@ -58,7 +60,7 @@ func placeholder(name string, input json.RawMessage, text, archiveID string) str
 		if len(lines) > 0 {
 			first = lines[0]
 		}
-		out = name + ": " + trunc(first, 120)
+		out = name + ": " + textfmt.Clip(strings.TrimSpace(first), 120)
 	}
 	if archiveID != "" {
 		out += fmt.Sprintf(` (full output: expand_output {"id":%q})`, archiveID)
@@ -76,14 +78,8 @@ func nonEmptyLines(s string) []string {
 	return out
 }
 
-func quoteTrunc(s string, n int) string { return fmt.Sprintf("%q", trunc(s, n)) }
-
-func trunc(s string, n int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= n {
-		return s
-	}
-	return s[:n-1] + "…"
+func quoteTrunc(s string, n int) string {
+	return fmt.Sprintf("%q", textfmt.Clip(strings.TrimSpace(s), n))
 }
 
 func orDot(s string) string {

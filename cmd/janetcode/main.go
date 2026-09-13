@@ -2,11 +2,7 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -17,7 +13,6 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -27,27 +22,18 @@ import (
 	"github.com/xmonader/janetcode/internal/acp"
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
-	"github.com/xmonader/janetcode/internal/eval"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
-	"github.com/xmonader/janetcode/internal/llm/anthropic"
-	"github.com/xmonader/janetcode/internal/llm/openai"
-	"github.com/xmonader/janetcode/internal/llm/replay"
-	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/rates"
-	"github.com/xmonader/janetcode/internal/repomap"
-	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
-	"github.com/xmonader/janetcode/internal/skill"
-	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 	_ "github.com/xmonader/janetcode/internal/treesitter" // registers the grammar parser when built with -tags treesitter
 	"github.com/xmonader/janetcode/internal/tui"
@@ -217,7 +203,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		themeFlag    = fs.String("theme", "", "colour theme for this run: auto, dark, light, or the name of a builtin or user theme (--inspect themes lists them)")
 		web          = fs.Bool("web", false, "serve the session in a browser instead of the terminal")
 		webAddr      = fs.String("web-addr", "127.0.0.1:8787", "listen address for --web. Loopback by default; anyone who can reach the port can approve commands in this directory")
+		bg           = fs.Bool("bg", false, "run the prompt in the background, print the session id, and return; reopen with --resume <id>")
+		addDir       stringList
 	)
+	fs.Var(&addDir, "add-dir", "additional local directory file tools may read and edit (repeatable)")
 	// The flag set is published so the catalogue tests can walk exactly
 	// the flags this program declares. Declaring them in a helper instead
 	// would mean renaming forty-odd locals whose names (version, model,
@@ -276,6 +265,12 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	if *web && *promptText != "" {
 		return fmt.Errorf("%w: --web is a session, not a one-shot; drop -p", headless.ErrBadInput)
+	}
+	if *bg && *web {
+		return fmt.Errorf("%w: --bg and --web cannot be combined", headless.ErrBadInput)
+	}
+	if *bg && *acpMode {
+		return fmt.Errorf("%w: --bg and --acp cannot be combined", headless.ErrBadInput)
 	}
 
 	if *evalTrain != "" {
@@ -427,6 +422,16 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			return fmt.Errorf("create session: %w", err)
 		}
 	}
+	if *bg {
+		prompt := strings.TrimSpace(*promptText)
+		if prompt == "" {
+			prompt = initial
+		}
+		if prompt == "" {
+			return fmt.Errorf("%w: --bg needs a prompt (-p or an argument)", headless.ErrBadInput)
+		}
+		return launchBackground(sess, prompt, addDir)
+	}
 
 	cfgPath, _ := config.Path()
 	cfgDir := filepath.Dir(cfgPath)
@@ -445,7 +450,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	typed := &tool.URLSet{}
 	typed.Note(initial)
 	typed.Note(*promptText)
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, autoMode: *autoMode, sandboxOn: *sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}}
+	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, autoMode: *autoMode, sandboxOn: *sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: addDir}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return err
@@ -472,7 +477,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v (project hooks ignored)\n", err)
 	}
-	hooksTrusted := hooksCfg.Len() > 0 && trust.Trusted(hookTrustKey(cwd), hooksHash)
+	hooksTrusted := hooksCfg.Len() > 0 && trust.Trusted(mcp.HooksTrustKey(cwd), hooksHash)
 	ag.Hooks = &hook.Runner{Config: cfg.Hooks, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[hook] %s\n", s) }}
 	if hooksTrusted {
 		var hookNotes []string
@@ -488,7 +493,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		fmt.Fprintf(os.Stderr, "warning: %v (project verification ignored)\n", err)
 	}
 	verifyDefined := len(verifyCfg.Commands) > 0 || verifyCfg.Mutate != ""
-	verifyTrusted := verifyDefined && trust.Trusted(cwd+"#verify", verifyHash)
+	verifyTrusted := verifyDefined && trust.Trusted(mcp.VerifyTrustKey(cwd), verifyHash)
 	if verifyTrusted {
 		ag.Verify = &verify.Runner{Config: verifyCfg, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[verify] %s\n", s) }}
 	} else if verifyDefined && *promptText != "" {
@@ -499,7 +504,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v (project permissions ignored)\n", err)
 	}
-	permTrusted := len(projRules.Allow) > 0 && trust.Trusted(cwd+"#permissions", permHash)
+	permTrusted := len(projRules.Allow) > 0 && trust.Trusted(mcp.PermissionsTrustKey(cwd), permHash)
 	if permTrusted {
 		rules = perm.Merge(rules, projRules)
 	} else {
@@ -701,6 +706,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
 			Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For,
 			Workspace: built.ws,
+			Doctor: func(w io.Writer) error {
+				return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme})
+			},
 		})
 	}
 	return tui.Run(tui.Options{
@@ -735,7 +743,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Running:       deps.running,
 		Typed:         typed,
 		AutoTitle:     true,
-		Verify:        &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: trust},
+		Doctor: func(w io.Writer) error {
+			return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme})
+		},
+		Verify: &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: trust},
 		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: trust,
 			Save: func(kind string, r perm.Rule) error { return config.AddPermission(cfgPath, kind, r) }},
 	})
@@ -787,710 +798,4 @@ func printSessions() error {
 	}
 	fmt.Println("\nresume with: janetcode --resume <id>   (or --continue for the newest)")
 	return nil
-}
-
-// buildProvider constructs the backend selected by cfg.Provider.
-// providerPool builds one backend per configured provider and keeps it,
-// so a session can send work to more than one model without rebuilding a
-// client for every call.
-type providerPool struct {
-	cfg *config.Config
-	mu  sync.Mutex
-	by  map[string]llm.Provider
-}
-
-func newProviderPool(cfg *config.Config, active llm.Provider) *providerPool {
-	p := &providerPool{cfg: cfg, by: map[string]llm.Provider{}}
-	if active != nil && cfg != nil && cfg.Provider != "" {
-		p.by[cfg.Provider] = active
-	}
-	return p
-}
-
-// For resolves a model name to the backend that serves it. The name is
-// returned as well, so the caller records what actually ran.
-func (p *providerPool) For(model string) (llm.Provider, string, error) {
-	if p == nil || p.cfg == nil {
-		return nil, "", fmt.Errorf("no providers are configured")
-	}
-	name, ok := p.cfg.RouteFor(model)
-	if !ok {
-		return nil, "", fmt.Errorf("no configured provider serves %q; add one with /connect, or route it in the config", model)
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if prov, ok := p.by[name]; ok {
-		return prov, model, nil
-	}
-	// Build the named provider by copying the config with it selected.
-	sub := *p.cfg
-	sub.Provider = name
-	prov, err := buildProvider(&sub)
-	if err != nil {
-		return nil, "", fmt.Errorf("%s (for model %s): %w", name, model, err)
-	}
-	p.by[name] = prov
-	return prov, model, nil
-}
-
-func buildProvider(cfg *config.Config) (llm.Provider, error) {
-	p := cfg.Active()
-	switch p.Type {
-	case "anthropic":
-		return anthropic.New(anthropic.Config{
-			APIKeys:      p.Keys(),
-			BaseURL:      p.BaseURL,
-			Thinking:     cfg.ThinkingEnabled(),
-			HideThinking: !cfg.ThinkingShown(),
-			Effort:       cfg.Effort,
-			Limits:       cfg.StreamLimits(),
-		})
-	case "openai":
-		return openai.New(openai.Config{
-			APIKeys: p.Keys(),
-			BaseURL: p.BaseURL,
-			Name:    cfg.Provider,
-			Limits:  cfg.StreamLimits(),
-		})
-	}
-	return nil, fmt.Errorf("%w: provider %q has unknown type %q", config.ErrBadConfig, cfg.Provider, p.Type)
-}
-
-// promptRecord is what goes in the results file about the prompt: which
-// file replaced the base, what was appended, and a digest of the base as
-// it was read, so an experiment stays traceable after the file changes.
-func promptRecord(o prompt.Override) *eval.PromptRecord {
-	if o.Base == "" && o.Append == "" {
-		return nil
-	}
-	r := &eval.PromptRecord{BaseFile: o.BaseFile, Append: o.Append}
-	if o.Base != "" {
-		sum := sha256.Sum256([]byte(o.Base))
-		r.SHA256 = hex.EncodeToString(sum[:])
-	}
-	return r
-}
-
-type evalOptions struct {
-	path, only, jsonOut string
-	jobs, runs          int
-	keep                bool
-	timeout             time.Duration
-	maxTurns            int
-	noToolLimit         bool
-	compactAt           int
-	facts               int
-	factsBlind          bool
-	compare, off, label string
-	// prompt records a replaced or extended system prompt, so an A/B of
-	// the prompt itself can be told apart in the results file.
-	prompt prompt.Override
-}
-
-// runEval runs the eval tasks with fresh, minimal agents (core tools, no
-// hooks, memory or MCP) so results reflect the model and the prompts.
-func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalOptions) error {
-	tasks, err := eval.Load(o.path)
-	if err != nil {
-		return err
-	}
-	if o.only != "" {
-		tasks = eval.Filter(tasks, strings.Split(o.only, ","))
-		if len(tasks) == 0 {
-			return fmt.Errorf("no tasks match %q", o.only)
-		}
-	}
-	off := map[string]bool{}
-	for _, f := range strings.Split(o.off, ",") {
-		if f = strings.TrimSpace(f); f != "" {
-			if !agent.KnownSwitch(f) {
-				return fmt.Errorf("--eval-off: unknown behaviour %q (%s)", f, strings.Join(agent.Switches(), ", "))
-			}
-			off[f] = true
-		}
-	}
-	variant := o.label
-	if variant == "" && len(off) > 0 {
-		variant = "off:" + o.off
-	}
-	var baseline *eval.File
-	if o.compare != "" {
-		f, err := eval.ReadFile(o.compare)
-		if err != nil {
-			return err
-		}
-		baseline = &f
-	}
-	runs := max(o.runs, 1)
-	fmt.Fprintf(os.Stderr, "running %d eval tasks × %d with %s/%s (%d at a time)", len(tasks), runs, cfg.Provider, cfg.Model, o.jobs)
-	if variant != "" {
-		fmt.Fprintf(os.Stderr, " · variant %s", variant)
-	}
-	fmt.Fprintln(os.Stderr)
-	maxIter := cfg.MaxIterations
-	if o.maxTurns > 0 {
-		maxIter = o.maxTurns
-	}
-	compactAt := cfg.CompactAt
-	if o.compactAt > 0 {
-		compactAt = o.compactAt
-		fmt.Fprintf(os.Stderr, "compacting at ~%d tokens\n", compactAt)
-	}
-	// Archived tool outputs live beside the work directories, so the eval
-	// agent has the same expand_output round-trip the real one does.
-	archiveDir, err := os.MkdirTemp("", "janetcode-eval-archive-")
-	if err != nil {
-		return err
-	}
-	if !o.keep {
-		defer os.RemoveAll(archiveDir)
-	}
-	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, Timeout: o.timeout, IgnoreToolLimit: o.noToolLimit, Facts: o.facts, FactsBlind: o.factsBlind, NewAgent: func(root string) (*agent.Agent, error) {
-		repo := &repomap.Cache{Root: root}
-		var prep func([]llm.Block) ([]llm.Block, string)
-		if !off["repomap"] {
-			prep = repomap.TurnPrep(repo, 0)
-		}
-		archive := agent.NewArchive(filepath.Join(archiveDir, filepath.Base(root)))
-		expand := &agent.ExpandOutput{Archive: archive}
-		// The eval agent carries the tools a real session does, minus the
-		// ones that need a terminal or the network. A benchmark run
-		// against a smaller agent measures something nobody uses.
-		ag := &agent.Agent{
-			Provider:      llm.ForTaskOr(prov),
-			Off:           off,
-			Prepare:       prep,
-			PlanCheck:     repo.CheckPlan,
-			Log:           &session.Memory{},
-			Archive:       archive,
-			Price:         cfg.PriceFor(cfg.Model),
-			Tools:         evalTools(root, repo, expand, off),
-			System:        prompt.SystemWith(root, o.prompt),
-			Model:         cfg.Model,
-			MaxTokens:     cfg.MaxTokens,
-			MaxIterations: maxIter,
-			CompactAt:     compactAt,
-		}
-		expand.Log = ag.LogEvent // the archive's lookups go on the same trail
-		if !off["todo"] {
-			ag.Tools.Add(&agent.TodoTool{Parent: ag})
-		}
-		if !off["script"] {
-			ag.Tools.Add(&agent.Script{Parent: ag, Root: root})
-		}
-		// The eval agent follows the product default, so a measurement is
-		// of what users actually run; --eval-off intent forces it off.
-		ag.Tools.Intent = cfg.IntentEnabled() && !off["intent"]
-		if !off["oversized"] {
-		}
-		evalToolsOnce.Do(func() { evalToolNames = ag.Tools.Names() })
-		return ag, nil
-	}}
-	results := r.Run(ctx, tasks)
-	passed := eval.Report(os.Stdout, results)
-	// Which tools the model actually reached for. A tool that is never
-	// called is not a feature however well it works, and only a set of
-	// runs can say so.
-	eval.WriteToolUse(os.Stdout, eval.Summarize(results), evalToolNames)
-	if baseline != nil {
-		label := baseline.Variant
-		if label == "" {
-			label = o.compare
-		}
-		fmt.Fprintf(os.Stdout, "\ncompared with %s (%s):\n", label, baseline.When.Format("2006-01-02 15:04"))
-		if o.runs < 3 || baseline.Runs < 3 {
-			fmt.Fprintln(os.Stdout, "note: fewer than 3 runs per task on one side; this set swings 21% between identical runs, so read the intervals, not the point estimates.")
-		}
-		eval.WriteComparison(os.Stdout, eval.Compare(baseline.Results, results))
-	}
-	if o.jsonOut != "" {
-		if err := eval.WriteFile(o.jsonOut, eval.File{Model: cfg.Provider + "/" + cfg.Model, Variant: variant, Results: results, Prompt: promptRecord(o.prompt)}); err != nil {
-			return err
-		}
-		fmt.Fprintln(os.Stderr, "wrote", o.jsonOut)
-	}
-	if passed < len(results) {
-		return fmt.Errorf("%d of %d eval tasks failed", len(results)-passed, len(results))
-	}
-	return nil
-}
-
-// trainCritic fits the trajectory predictor to the pass/fail outcomes in
-// eval result files and saves it where the agent loads it from.
-func trainCritic(paths []string, out string, w io.Writer) error {
-	var samples []agent.Sample
-	files := 0
-	for _, p := range paths {
-		if p = strings.TrimSpace(p); p == "" {
-			continue
-		}
-		var list []string
-		if st, err := os.Stat(p); err != nil {
-			return err
-		} else if st.IsDir() {
-			list, _ = filepath.Glob(filepath.Join(p, "*.json"))
-		} else {
-			list = []string{p}
-		}
-		for _, f := range list {
-			ef, err := eval.ReadFile(f)
-			if err != nil {
-				return err
-			}
-			files++
-			for _, r := range ef.Results {
-				if len(r.Features) > 0 {
-					samples = append(samples, agent.Sample{Features: r.Features, Passed: r.Passed})
-				}
-			}
-		}
-	}
-	if len(samples) == 0 {
-		return fmt.Errorf("no runs with trajectory features in %d result file(s); results written before features were recorded cannot be used", files)
-	}
-	p, err := agent.Train(samples)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(w, "trajectory critic trained on %d runs (%d passed, %d failed) from %d file(s)\n", p.Samples, p.Positives, p.Negatives, files)
-	fmt.Fprintf(w, "cross-validated accuracy %.0f%% (always guessing the majority: %.0f%%)\n", p.Accuracy*100, p.Baseline*100)
-	if p.Accuracy <= p.Baseline {
-		fmt.Fprintf(w, "not saved: the critic is no better than guessing; more failing runs are needed before it can help\n")
-		return nil
-	}
-	if err := p.Save(out); err != nil {
-		return err
-	}
-	fmt.Fprintf(w, "saved to %s\n", out)
-	return nil
-}
-
-// chainPrep runs turn-preparation hooks in order, joining their notes.
-func chainPrep(hooks ...func([]llm.Block) ([]llm.Block, string)) func([]llm.Block) ([]llm.Block, string) {
-	return func(blocks []llm.Block) ([]llm.Block, string) {
-		var notes []string
-		for _, h := range hooks {
-			if h == nil {
-				continue
-			}
-			var note string
-			blocks, note = h(blocks)
-			if note != "" {
-				notes = append(notes, note)
-			}
-		}
-		return blocks, strings.Join(notes, " · ")
-	}
-}
-
-// diagnoseNote turns language-server diagnostics for a just-edited file
-// into the note appended to the tool result.
-// recordedCalls is the tool calls a session made, in order, read straight
-// from its log.
-func recordedCalls(path string) ([]string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	var out []string
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 1024*1024), 64*1024*1024)
-	for sc.Scan() {
-		var e session.Event
-		if json.Unmarshal(sc.Bytes(), &e) != nil {
-			continue
-		}
-		if e.Type == session.TypeToolCall && !strings.HasPrefix(e.CallID, "script-") {
-			out = append(out, e.Name)
-		}
-	}
-	return out, sc.Err()
-}
-
-// runReplay re-runs a recorded session with the model's part read from
-// disk. Every bug fixed in this project's history that changed how a
-// response is turned into tool calls would have shown up here as a
-// different call sequence, for free and without a key.
-func runReplay(path string) error {
-	rp, err := replay.Load(path)
-	if err != nil {
-		return err
-	}
-	want, err := recordedCalls(path)
-	if err != nil {
-		return err
-	}
-	root, err := os.MkdirTemp("", "janetcode-replay-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(root)
-
-	var got []string
-	ag := &agent.Agent{
-		Provider:    rp,
-		Log:         &session.Memory{},
-		AutoApprove: true,
-		ReadOnly:    true, // a replay must not touch the machine
-		Tools: tool.NewRegistry(
-			tool.ReadFile{Root: root}, tool.ListDir{Root: root},
-			tool.Glob{Root: root}, tool.Grep{Root: root},
-		),
-		System:        prompt.System(root),
-		MaxIterations: 200,
-	}
-	ctx := context.Background()
-	prompts := rp.Prompts()
-	fmt.Fprintf(os.Stdout, "replaying %s: %d prompt(s), %d recorded model call(s)\n", filepath.Base(path), len(prompts), rp.Remaining())
-	for _, p := range prompts {
-		if rp.Remaining() == 0 {
-			break
-		}
-		err := ag.Run(ctx, p, func(e agent.Event) {
-			if e.Kind == agent.EvToolRun && e.Call != nil {
-				got = append(got, e.Call.Name)
-			}
-		})
-		if err != nil && !errors.Is(err, agent.ErrMaxIterations) {
-			fmt.Fprintf(os.Stdout, "  turn ended early: %v\n", err)
-			break
-		}
-	}
-	fmt.Fprintf(os.Stdout, "\nrecorded: %s\nnow:      %s\n", strings.Join(want, " "), strings.Join(got, " "))
-	if strings.Join(want, " ") == strings.Join(got, " ") {
-		fmt.Fprintln(os.Stdout, "\nthe same calls in the same order: no behaviour change")
-		return nil
-	}
-	fmt.Fprintln(os.Stdout, "\nthe call sequence changed. That is a regression unless it was intended.")
-	return nil
-}
-
-// reportEval prints a saved results file, and the paired comparison
-// against a second one when given.
-func reportEval(path, base string) error {
-	f, err := eval.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	label := f.Variant
-	if label == "" {
-		label = filepath.Base(path)
-	}
-	fmt.Fprintf(os.Stdout, "%s — %d result(s), %s\n\n", label, len(f.Results), f.Model)
-	eval.Report(os.Stdout, f.Results)
-	eval.WriteToolUse(os.Stdout, eval.Summarize(f.Results), nil)
-	if base == "" {
-		return nil
-	}
-	b, err := eval.ReadFile(base)
-	if err != nil {
-		return err
-	}
-	blabel := b.Variant
-	if blabel == "" {
-		blabel = filepath.Base(base)
-	}
-	fmt.Fprintf(os.Stdout, "\ncompared with %s (%s):\n", blabel, b.When.Format("2006-01-02 15:04"))
-	eval.WriteComparison(os.Stdout, eval.Compare(b.Results, f.Results))
-	return nil
-}
-
-// evalToolNames is what the eval agent was given, so the adoption report
-// can name the tools nothing ever called.
-var (
-	evalToolNames []string
-	evalToolsOnce sync.Once
-)
-
-// evalTools is the eval agent's registry. --eval-off extratools strips it
-// to the four tools a session actually leans on — read, write, edit and a
-// shell — so that the cost of a wide tool surface can be measured rather
-// than assumed: every schema is in the prefix of every request, and every
-// tool is one more thing to choose between each turn.
-func evalTools(root string, repo *repomap.Cache, expand *agent.ExpandOutput, off map[string]bool) *tool.Registry {
-	core := []tool.Tool{
-		tool.ReadFile{Root: root},
-		tool.WriteFile{Root: root},
-		tool.EditFile{Root: root, NoLines: off["lineedit"]},
-		tool.Bash{Root: root, Cache: &tool.ShellCache{}},
-	}
-	if off["extratools"] {
-		return tool.NewRegistry(core...)
-	}
-	return tool.NewRegistry(append(core,
-		tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root},
-		repomap.Tool{Cache: repo},
-		expand,
-	)...)
-}
-
-// envOff reads JANETCODE_OFF, a comma-separated list of behaviours to
-// disable for this session.
-func envOff() map[string]bool {
-	out := map[string]bool{}
-	for _, n := range strings.Split(os.Getenv("JANETCODE_OFF"), ",") {
-		if n = strings.TrimSpace(n); n != "" {
-			out[n] = true
-		}
-	}
-	return out
-}
-
-func diagnoseNote(m *lsp.Manager) func(context.Context, string) string {
-	return func(ctx context.Context, path string) string {
-		if m.ServerFor(path) == "" {
-			return ""
-		}
-		lines, ok, err := m.Diagnose(ctx, path)
-		switch {
-		case err != nil:
-			return "[diagnostics unavailable: " + err.Error() + "]"
-		case !ok && len(lines) == 0:
-			return ""
-		case len(lines) == 0:
-			return "[diagnostics: no problems (" + m.ServerFor(path) + ")]"
-		}
-		if len(lines) > 40 {
-			lines = append(lines[:40], fmt.Sprintf("… %d more; use the diagnostics tool", len(lines)-40))
-		}
-		return "[diagnostics]\n" + strings.Join(lines, "\n")
-	}
-}
-
-// hookTrustKey keeps hook approvals apart from MCP approvals in the same
-// trust store.
-func hookTrustKey(cwd string) string { return cwd + "#hooks" }
-
-// authorizeMCP runs the OAuth flow for a remote server from the command
-// line, printing the URL in case no browser can be opened.
-func authorizeMCP(name string, global, project map[string]mcp.ServerConfig, tokens *mcp.TokenStore) error {
-	cfg, ok := global[name]
-	if !ok {
-		cfg, ok = project[name]
-	}
-	if !ok {
-		return fmt.Errorf("no MCP server named %q in the config or %s", name, mcp.ProjectFile)
-	}
-	if cfg.URL == "" {
-		return fmt.Errorf("mcp %s runs locally; only remote servers use OAuth", name)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-	_, err := mcp.Authorize(ctx, mcp.AuthOptions{
-		ServerURL: cfg.URL, Store: tokens,
-		ClientID: cfg.ClientID, ClientSecret: os.ExpandEnv(cfg.ClientSecret), Scope: cfg.Scope,
-		OpenURL: mcp.OpenBrowser,
-		Notify:  func(s string) { fmt.Fprintln(os.Stderr, "[mcp auth] "+s) },
-	})
-	if err != nil {
-		return fmt.Errorf("mcp auth %s: %w", name, err)
-	}
-	fmt.Printf("mcp %s: authorized; token stored in %s\n", name, tokens.Path)
-	return nil
-}
-
-// agentDeps is what every agent in this process shares: the provider, the
-// configuration, the project directory and the process-wide stores. One
-// agent is built per session, so an ACP editor opening a second thread
-// gets its own history, log and undo state over the same wiring rather
-// than a second copy of the wiring.
-type agentDeps struct {
-	prov    llm.Provider
-	cfg     *config.Config
-	cwd     string
-	cfgDir  string
-	sessDir string
-	mem     *memory.Store
-	jobs    *tool.Jobs
-	// models resolves a model name to the backend serving it, so a job
-	// can be handed to a different model than the session's.
-	models   func(string) (llm.Provider, string, error)
-	version  string
-	readOnly bool
-	// autoEdits starts the session with file edits auto-accepted.
-	autoEdits bool
-	// autoMode starts the session in AUTO: in-workspace edits and
-	// known-safe reads skip the approver.
-	autoMode bool
-	// sandboxOn wraps local bash in docker/sandbox-exec from the start.
-	sandboxOn bool
-	// promptOverride replaces or extends the system prompt, for an A/B
-	// of the prompt itself.
-	promptOverride prompt.Override
-	// typed holds the hosts the user named themselves. fetch_url reaches a
-	// private-network address only for a host that is in here.
-	typed *tool.URLSet
-	// running is the registry of foreground commands that can be moved to
-	// the background while they run.
-	running *tool.Running
-}
-
-// builtAgent is one session's agent and the pieces the caller still owns:
-// the subagent tool (its worktrees outlive a turn), the language-server
-// manager and the repository map.
-type builtAgent struct {
-	agent   *agent.Agent
-	task    *agent.Task
-	diag    *lsp.Manager
-	repo    *repomap.Cache
-	archive *agent.Archive
-	skills  func() []skill.Skill
-	// rules lists the project's path-scoped rules; ruleInjector says
-	// which of them this session has already sent.
-	rules        func() []rules.Rule
-	ruleInjector *rules.Injector
-	ws           *tool.Workspace
-	terms        *tool.Terms
-}
-
-// close releases what the agent held. It is the caller's job, since the
-// pieces outlive any single turn.
-func (b builtAgent) close() {
-	if b.agent != nil && b.agent.Cron != nil {
-		b.agent.Cron.Close()
-	}
-	if b.terms != nil {
-		b.terms.CloseAll()
-	}
-	b.task.Close(context.Background())
-	b.diag.Close()
-}
-
-// buildAgent wires one agent for a session: tools rooted at the project,
-// the system prompt, skills and memory, diagnostics, the repository map
-// and the trajectory critic.
-func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (builtAgent, error) {
-	task := &agent.Task{Root: d.cwd, Models: d.models}
-	jobs := d.jobs
-	cfgDir := d.cfgDir
-	archive := agent.NewArchive(session.ArchiveDir(d.sessDir, d.cwd))
-	mem := d.mem
-	seen := &tool.Seen{}
-	ws := tool.NewLocal(d.cwd)
-	sb := &tool.Sandbox{}
-	if d.sandboxOn {
-		if err := sb.Enable(); err != nil {
-			return builtAgent{}, fmt.Errorf("--sandbox: %w", err)
-		}
-	}
-	if jobs != nil {
-		jobs.Sandbox = sb
-	}
-	cron := agent.NewCron()
-	terms := &tool.Terms{}
-	expand := &agent.ExpandOutput{Archive: archive}
-	ag := &agent.Agent{
-		Provider: d.prov,
-		Archive:  archive,
-		Log:      sess,
-		Price:    d.cfg.PriceFor(d.cfg.Model),
-		Tools: tool.NewRegistry(
-			tool.ReadFile{Root: d.cwd, WS: ws, Seen: seen},
-			tool.WriteFile{Root: d.cwd, WS: ws, Seen: seen},
-			tool.EditFile{Root: d.cwd, WS: ws, Seen: seen, NoLines: envOff()["lineedit"]},
-			tool.Bash{Root: d.cwd, WS: ws, Cache: &tool.ShellCache{}, Jobs: jobs, Running: d.running, Sandbox: sb},
-			tool.JobTool{Jobs: jobs},
-			tool.TermTool{Terms: terms, Root: d.cwd, WS: ws},
-			tool.FetchURL{Typed: d.typed},
-			tool.WebSearch{Config: d.cfg.Search},
-			expand,
-			task,
-		),
-		System:        prompt.SystemWith(d.cwd, d.promptOverride),
-		Model:         d.cfg.Model,
-		MaxTokens:     d.cfg.MaxTokens,
-		MaxIterations: d.cfg.MaxIterations,
-		AutoApprove:   d.cfg.AutoApprove,
-		AutoEdits:     d.autoEdits,
-		AutoMode:      d.autoMode,
-		Sandbox:       sb,
-		Cron:          cron,
-		ReadOnly:      d.readOnly,
-		CompactAt:     d.cfg.CompactAt,
-		Messages:      history,
-		Pins:          sess.Meta.Pins,
-		Jobs:          jobs,
-		ContextWindow: d.cfg.MetaFor(d.cfg.Model).ContextWindow,
-		Fallbacks:     d.cfg.FallbackModels,
-		Route:         d.models,
-	}
-	expand.Log = ag.LogEvent // the archive's lookups go on the same trail
-	ag.RestoreFromLog()      // plan mode and the turn counter of a resumed session
-	task.Parent = ag
-	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
-	ag.Tools.Add(&agent.TodoTool{Parent: ag})
-	ag.Tools.Add(&agent.AskTool{Parent: ag})
-	// JANETCODE_OFF is the ablation switch a session has: the eval runner
-	// takes -eval-off, and a real session takes the same names here, so a
-	// behaviour can be turned off without a rebuild.
-	if off := envOff(); !off["script"] {
-		ag.Tools.Add(&agent.Script{Parent: ag, Root: d.cwd})
-	}
-	ag.Tools.Add(&agent.RunCode{Parent: ag})
-	ag.Tools.Add(&agent.Workflow{Parent: ag})
-	skills := func() []skill.Skill { return skill.Load(d.cwd, cfgDir) }
-	skillInj := &skill.Injector{Skills: skills}
-	// Path-scoped rules: nothing is sent until a call touches a path a
-	// rule names, and then once for the session.
-	ruleSet := func() []rules.Rule { return rules.Load(d.cwd, cfgDir) }
-	injector := &rules.Injector{Rules: ruleSet}
-	ag.PathRules = injector.For
-	ag.PathSkills = skillInj.ForPaths
-	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(d.cwd, cfgDir) }
-	ag.Tools.Add(&skill.Tool{Skills: skills})
-	ag.Tools.Add(&agent.CronTool{Cron: cron})
-	ag.Tools.Add(&memory.Tool{Store: mem})
-	diag := lsp.New(d.cwd, d.cfg.LSP)
-	if diag.Enabled() {
-		ag.Tools.Add(lsp.Tool{M: diag})
-		ag.Tools.Add(lsp.SymbolTool{M: diag})
-		ag.Diagnose = diagnoseNote(diag)
-	}
-	// The indexes are the part of the system prompt that grows with use
-	// rather than with the code, so their share of the window is what is
-	// capped, not a flat number of bytes: 8 KB is a twenty-fifth of a 200k
-	// window and a sixteenth of a 32k one. Both fall back to the flat
-	// ceiling when the window is unknown.
-	indexBudget := memory.BudgetFor(ag.ContextWindow)
-	ag.SystemExtra = func() string {
-		return mem.IndexWithin(indexBudget) + skill.IndexWithin(skills(), indexBudget)
-	}
-	repo := &repomap.Cache{Root: d.cwd}
-	// The search tools. On a measured fan-out set, offering these
-	// alongside bash cost 23% more context (x1.23 [1.10, 1.44]) for the
-	// same pass rate, because the model takes many small steps instead of
-	// writing one pipeline — see docs/benchmarks/toolsurface. lean_tools
-	// defers them behind tool_search, where they stay reachable for the
-	// case that measurement does not cover: a large unfamiliar repository.
-	search := []tool.Tool{
-		tool.ListDir{Root: d.cwd, WS: ws},
-		tool.Glob{Root: d.cwd, WS: ws},
-		tool.Grep{Root: d.cwd, WS: ws},
-		repomap.Tool{Cache: repo},
-	}
-	for _, t := range search {
-		if d.cfg.LeanTools() {
-			ag.Tools.AddDeferred(t)
-		} else {
-			ag.Tools.Add(t)
-		}
-	}
-	ag.PlanCheck = repo.CheckPlan
-	var err error
-	if ag.Predictor, err = agent.LoadPredictor(filepath.Join(cfgDir, "critic.json")); err != nil {
-		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
-	}
-	ag.Prepare = chainPrep(skill.TurnPrep(skillInj, mem), repomap.TurnPrep(repo, 0))
-	ag.Tools.Intent = d.cfg.IntentEnabled()
-	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow})
-	ag.UndoPath = sess.UndoPath()
-	if snaps, serr := snapshot.Open(d.cwd); serr == nil {
-		ag.Snapshots = snaps
-	}
-	if err := ag.LoadUndo(); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
-	}
-
-	return builtAgent{agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector, ws: ws, terms: terms}, nil
 }

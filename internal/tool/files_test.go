@@ -36,6 +36,35 @@ func TestReadFileWindow(t *testing.T) {
 	}
 }
 
+func TestExtraDirAllowsRead(t *testing.T) {
+	root := t.TempDir()
+	extra := t.TempDir()
+	if err := os.WriteFile(filepath.Join(extra, "x.txt"), []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ws := NewLocal(root)
+	if err := ws.AddDir(extra); err != nil {
+		t.Fatal(err)
+	}
+	r := ReadFile{Root: root, WS: ws}
+	out, err := r.Run(context.Background(), raw(`{"path":`+mustJSON(filepath.Join(extra, "x.txt"))+`}`))
+	if err != nil || !strings.Contains(out, "hello") {
+		t.Fatalf("extra read: %v %q", err, out)
+	}
+	if _, err := r.Run(context.Background(), raw(`{"path":"/etc/passwd"}`)); err == nil || !strings.Contains(err.Error(), "outside") {
+		t.Fatalf("outside extra: %v", err)
+	}
+	bare := ReadFile{Root: root}
+	if _, err := bare.Run(context.Background(), raw(`{"path":`+mustJSON(filepath.Join(extra, "x.txt"))+`}`)); err == nil || !strings.Contains(err.Error(), "outside") {
+		t.Fatalf("no extra dirs: %v", err)
+	}
+}
+
+func mustJSON(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+
 func TestPathEscapeRejected(t *testing.T) {
 	root := t.TempDir()
 	r := ReadFile{Root: root}

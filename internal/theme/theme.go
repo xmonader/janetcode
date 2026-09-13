@@ -169,6 +169,35 @@ func (s *Set) All() []Theme {
 }
 
 // Get returns the theme by name.
+// Sorted returns the themes in the order a user scans them: the default
+// first, then the other builtins, then user themes, each alphabetical.
+func (s *Set) Sorted() []Theme {
+	all := s.All()
+	sort.SliceStable(all, func(i, j int) bool {
+		a, b := all[i], all[j]
+		if (a.Name == DefaultName) != (b.Name == DefaultName) {
+			return a.Name == DefaultName
+		}
+		if a.Builtin != b.Builtin {
+			return a.Builtin
+		}
+		return a.Name < b.Name
+	})
+	return all
+}
+
+// Mode is "adapts" for a theme that follows the terminal background,
+// otherwise "dark" or "light".
+func (t Theme) Mode() string {
+	switch {
+	case t.Adaptive():
+		return "adapts"
+	case t.Dark:
+		return "dark"
+	}
+	return "light"
+}
+
 func (s *Set) Get(name string) (Theme, bool) {
 	if s == nil {
 		return Theme{}, false

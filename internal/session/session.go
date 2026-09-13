@@ -4,6 +4,7 @@ package session
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -18,7 +19,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Meta is the first line of a session file.
@@ -37,6 +40,17 @@ type Meta struct {
 	// Settled marks a session the user is done with; it lists after the
 	// active ones. Any new event clears it.
 	Settled bool `json:"settled,omitempty"`
+	// Loops are armed /loop jobs restored on resume of this session.
+	Loops []LoopSpec `json:"loops,omitempty"`
+	// ExtraDirs are additional local roots file tools may read and edit.
+	ExtraDirs []string `json:"extra_dirs,omitempty"`
+}
+
+// LoopSpec is one persisted session loop (/loop).
+type LoopSpec struct {
+	ID     string `json:"id"`
+	Every  string `json:"every"`
+	Prompt string `json:"prompt"`
 }
 
 type line struct {
@@ -282,7 +296,7 @@ func List(dir, cwd string) ([]Info, error) {
 		for _, m := range msgs {
 			if m.Role == llm.RoleUser {
 				if t := strings.TrimSpace(m.Text()); t != "" && !Synthetic(t) {
-					info.Preview = firstLine(t, 60)
+					info.Preview = textfmt.FirstLine(t, 60)
 					break
 				}
 			}
@@ -293,7 +307,7 @@ func List(dir, cwd string) ([]Info, error) {
 			for _, m := range msgs {
 				if m.Role == llm.RoleUser {
 					if t := strings.TrimSpace(m.Text()); t != "" {
-						info.Preview = firstLine(t, 60)
+						info.Preview = textfmt.FirstLine(t, 60)
 						break
 					}
 				}
@@ -324,14 +338,13 @@ func (s *Session) SetSettled(v bool) error {
 	return s.rewrite()
 }
 
-func firstLine(s string, max int) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		s = s[:i]
-	}
-	if len(s) > max {
-		s = s[:max-1] + "…"
-	}
-	return s
+// ToggleSettled flips Settled and returns the new value.
+func (s *Session) ToggleSettled() (bool, error) {
+	s.mu.Lock()
+	v := !s.Meta.Settled
+	s.Meta.Settled = v
+	s.mu.Unlock()
+	return v, s.rewrite()
 }
 
 // UndoPath is where the session's undo checkpoints live.
@@ -435,6 +448,20 @@ func (s *Session) SetTitle(title string) error {
 	return s.rewriteLocked()
 }
 
+// StayArg is the /fork stay form: copy the conversation but keep this
+// session live. Plain /fork switches into the copy. One command, two
+// destinations.
+func StayArg(arg string) (stay bool, title string) {
+	arg = strings.TrimSpace(arg)
+	if arg == "stay" {
+		return true, ""
+	}
+	if rest, ok := strings.CutPrefix(arg, "stay "); ok {
+		return true, strings.TrimSpace(rest)
+	}
+	return false, arg
+}
+
 // Fork starts a new session holding a copy of this one's messages, so a
 // conversation can branch: try one approach here, another in the fork.
 func Fork(dir string, from *Session, title string) (*Session, error) {
@@ -511,7 +538,7 @@ func AutoTitle(msgs []llm.Message) string {
 		if t == "" || Synthetic(t) {
 			continue
 		}
-		words := strings.Fields(firstLine(t, 200))
+		words := strings.Fields(textfmt.FirstLine(t, 200))
 		if len(words) > 8 {
 			words = words[:8]
 		}
@@ -660,6 +687,66 @@ func (s *Session) SavePins(pins []string) error {
 	return s.rewriteLocked()
 }
 
+// SetLoops stores armed session loops and rewrites the metadata line.
+func (s *Session) SetLoops(loops []LoopSpec) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Meta.Loops = append([]LoopSpec(nil), loops...)
+	return s.rewriteLocked()
+}
+
+// SetExtraDirs stores additional file-tool roots and rewrites metadata.
+func (s *Session) SetExtraDirs(dirs []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Meta.ExtraDirs = append([]string(nil), dirs...)
+	return s.rewriteLocked()
+}
+
+// EnsureWritten creates the session file if the first event has not
+// landed yet, so a background child can --resume it.
+func (s *Session) EnsureWritten() error {
+	return s.rewrite()
+}
+
+// PIDPath is the sidecar a background child writes its pid into.
+func (s *Session) PIDPath() string {
+	return strings.TrimSuffix(s.path, ".jsonl") + ".pid"
+}
+
+// WritePID records a live background process for this session.
+func (s *Session) WritePID(pid int) error {
+	if pid <= 0 {
+		return fmt.Errorf("invalid pid %d", pid)
+	}
+	if err := s.EnsureWritten(); err != nil {
+		return err
+	}
+	return os.WriteFile(s.PIDPath(), []byte(fmt.Sprintf("%d\n", pid)), 0o600)
+}
+
+// ClearPID removes the background pid sidecar.
+func (s *Session) ClearPID() error {
+	err := os.Remove(s.PIDPath())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
+}
+
+// PID returns the recorded background pid, if the sidecar exists.
+func (s *Session) PID() (int, bool) {
+	b, err := os.ReadFile(s.PIDPath())
+	if err != nil {
+		return 0, false
+	}
+	var pid int
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(b)), "%d", &pid); err != nil || pid <= 0 {
+		return 0, false
+	}
+	return pid, true
+}
+
 // rewrite replaces the file with the metadata line followed by every event
 // held in memory. Only metadata changes need it; events are appended.
 func (s *Session) rewrite() error {
@@ -671,34 +758,20 @@ func (s *Session) rewrite() error {
 // rewriteLocked is rewrite for a caller already holding s.mu.
 func (s *Session) rewriteLocked() error {
 	s.unwritten = false
-	tmp := s.path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
-	if err != nil {
-		return err
-	}
-	w := bufio.NewWriter(f)
+	var buf bytes.Buffer
+	w := bufio.NewWriter(&buf)
 	if err := writeLine(w, line{Type: "meta", Meta: &s.Meta}); err != nil {
-		f.Close()
 		return err
 	}
 	for i := range s.ev {
 		if err := writeLine(w, eventLine{Type: "event", Event: s.ev[i]}); err != nil {
-			f.Close()
 			return err
 		}
 	}
 	if err := w.Flush(); err != nil {
-		f.Close()
 		return err
 	}
-	if err := f.Sync(); err != nil {
-		f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp, s.path)
+	return fsutil.WriteFileAtomic(s.path, buf.Bytes(), 0o600)
 }
 
 func writeLine(w *bufio.Writer, v any) error {

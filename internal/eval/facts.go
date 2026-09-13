@@ -12,6 +12,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -124,16 +125,16 @@ func MineFacts(events []session.Event, max int) []Probe {
 				continue
 			}
 			if m := reExit.FindStringSubmatch(e.Output); m != nil {
-				out = append(out, Probe{Question: fmt.Sprintf("Earlier in this session the command `%s` was run. What exit code did it return? Reply with just the number.", firstLine(in.Command)), Want: m[1]})
+				out = append(out, Probe{Question: fmt.Sprintf("Earlier in this session the command `%s` was run. What exit code did it return? Reply with just the number.", textfmt.FirstLine(in.Command, 0)), Want: m[1]})
 			}
 			if last := lastOutputLine(e.Output); len(last) >= 12 {
-				out = append(out, Probe{Question: fmt.Sprintf("Earlier in this session the command `%s` was run. Quote, exactly, the last line of its output (ignoring the exit-code marker).", firstLine(in.Command)), Want: last})
+				out = append(out, Probe{Question: fmt.Sprintf("Earlier in this session the command `%s` was run. Quote, exactly, the last line of its output (ignoring the exit-code marker).", textfmt.FirstLine(in.Command, 0)), Want: last})
 			}
 			// The line a failure was reported on, asked for by what it says
 			// rather than by where it was.
 			if bad := errorLine(e.Output); bad != "" {
 				out = append(out, Probe{
-					Question: fmt.Sprintf("Earlier in this session the command `%s` reported a problem. Quote, exactly, the line of its output that says what went wrong.", firstLine(in.Command)),
+					Question: fmt.Sprintf("Earlier in this session the command `%s` reported a problem. Quote, exactly, the line of its output that says what went wrong.", textfmt.FirstLine(in.Command, 0)),
 					Want:     bad,
 				})
 			}

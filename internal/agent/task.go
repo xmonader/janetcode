@@ -278,16 +278,7 @@ func (t *Task) Usage() llm.Usage {
 }
 
 func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
-	var in struct {
-		Description string   `json:"description"`
-		Prompt      string   `json:"prompt"`
-		Tools       []string `json:"tools"`
-		Agent       string   `json:"agent"`
-		Edit        bool     `json:"edit"`
-		Model       string   `json:"model"`
-		Continue    string   `json:"continue"`
-		Fork        bool     `json:"fork"`
-	}
+	var in TaskInput
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", fmt.Errorf("bad input: %w", err)
 	}

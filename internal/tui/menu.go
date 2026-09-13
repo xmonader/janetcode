@@ -1,0 +1,228 @@
+package tui
+
+import (
+	"sort"
+	"strings"
+
+	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/skill"
+)
+
+// remember adds a submitted prompt to the up/down history and to the
+// file that outlives the process. A "!" command keeps its flag so
+// recalling it restores the shell prompt rather than asking the model.
+func (m *model) remember(text string) {
+	e := histEntry{Text: text}
+	if strings.HasPrefix(text, "!") {
+		e = histEntry{Text: strings.TrimPrefix(text, "!"), Bash: true}
+	}
+	if e.Text == "" {
+		return
+	}
+	if n := len(m.history); n == 0 || m.history[n-1] != e {
+		m.history = append(m.history, e)
+		if m.histFile != "" {
+			if err := appendPromptHistory(m.histFile, e, len(m.history)); err == nil && len(m.history) > histCap {
+				m.history = m.history[len(m.history)-histCap:]
+				rewritePromptHistory(m.histFile, m.history)
+			}
+		}
+	}
+	m.histIdx = len(m.history)
+	m.draft = ""
+}
+
+// recall renders one history entry back into the input's own language.
+func (m *model) recall(i int) string {
+	e := m.history[i]
+	if e.Bash {
+		return "!" + e.Text
+	}
+	return e.Text
+}
+
+// completions lists slash commands matching the input, or files matching
+// the @path being typed at its end.
+func (m *model) completions() []command {
+	if m.connect != nil || m.picker != nil || m.overlay != "" || m.asking != nil {
+		return nil
+	}
+	m.compArgs = false
+	v := m.input.Value()
+	if strings.HasPrefix(v, "/") && !strings.ContainsAny(v, " \n") {
+		var exact, fuzzy []command
+		for _, c := range m.allCommands() {
+			switch {
+			case strings.HasPrefix(c.name, v):
+				exact = append(exact, c)
+			case fuzzyCommand(c.name, v):
+				fuzzy = append(fuzzy, c)
+			}
+		}
+		return append(exact, fuzzy...)
+	}
+	if name, arg, ok := strings.Cut(v, " "); ok && strings.HasPrefix(name, "/") && !strings.Contains(arg, "\n") {
+		if c, found := lookup(name); found && c.argsFor != nil {
+			// An argument menu offers; it never takes enter, so a typed
+			// argument still runs the command the moment you send it.
+			m.compArgs = true
+			return c.argsFor(m, strings.TrimLeft(arg, " "))
+		}
+	}
+	if word, ok := mentionAtEnd(v); ok {
+		var out []command
+		for _, p := range prompt.CompletePath(m.opts.Cwd, word) {
+			help := "file"
+			if strings.HasSuffix(p, "/") {
+				help = "directory"
+			}
+			out = append(out, command{name: "@" + p, help: help})
+		}
+		return out
+	}
+	return nil
+}
+
+// allCommands is the built-in table followed by the user's custom commands
+// and the prompts MCP servers offer.
+func (m *model) allCommands() []command {
+	out := append([]command(nil), commands...)
+	names := make([]string, 0, len(m.custom))
+	for n := range m.custom {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		c := m.custom[n]
+		out = append(out, command{name: n, args: "[args]", help: sanitize(c.Help) + " · " + shortPath(c.Path)})
+	}
+	for _, sk := range skill.Load(m.opts.Cwd, m.opts.ConfigDir) {
+		if sk.UserInvocable && m.custom["/"+sk.Name].Name == "" {
+			out = append(out, command{name: "/" + sanitize(sk.Name), args: "[args]", help: sanitize(sk.Description) + " · skill"})
+		}
+	}
+	if m.opts.MCP != nil && m.opts.MCP.Manager != nil {
+		for _, st := range m.opts.MCP.Manager.Status() {
+			for _, p := range st.Prompts {
+				args := make([]string, 0, len(p.Arguments))
+				for _, a := range p.Arguments {
+					if a.Required {
+						args = append(args, "<"+a.Name+">")
+					} else {
+						args = append(args, "["+a.Name+"]")
+					}
+				}
+				help := sanitize(strings.TrimSpace(p.Description))
+				if help == "" {
+					help = "prompt from " + st.Name
+				}
+				out = append(out, command{name: "/" + mcp.ToolName(st.Name, p.Name), args: strings.Join(args, " "), help: help + " · MCP " + st.Name})
+			}
+		}
+	}
+	return out
+}
+
+// mentionAtEnd returns the partial path of an @mention that ends the input.
+func mentionAtEnd(v string) (string, bool) {
+	i := strings.LastIndexAny(v, " \n\t")
+	word := v[i+1:]
+	if !strings.HasPrefix(word, "@") {
+		return "", false
+	}
+	return word[1:], true
+}
+
+const menuRows = 8
+
+// menu returns the completion rows and the highlighted index, resetting
+// the highlight whenever the input changed since it was set.
+func (m *model) menu() ([]command, int) {
+	c := m.completions()
+	if len(c) == 0 {
+		return nil, 0
+	}
+	if v := m.input.Value(); v != m.compFor {
+		m.compFor, m.compIdx = v, 0
+	}
+	if m.compIdx >= len(c) {
+		m.compIdx = len(c) - 1
+	}
+	return c, m.compIdx
+}
+
+// moveMenu shifts the highlight; it reports whether a menu was open.
+func (m *model) moveMenu(delta int) bool {
+	c, idx := m.menu()
+	if len(c) == 0 {
+		return false
+	}
+	m.compIdx = (idx + delta + len(c)) % len(c)
+	m.compFor = m.input.Value()
+	m.layout()
+	m.refresh(false)
+	return true
+}
+
+// complete applies the highlighted completion to the input. For paths with
+// several matches and no explicit choice it extends to the common prefix so
+// repeated tabs narrow the list.
+func (m *model) complete() bool {
+	c, idx := m.menu()
+	if len(c) == 0 {
+		return false
+	}
+	// One rule for both menus: with the highlight where it started and
+	// several matches, extend to what they all share so a second tab
+	// narrows the list; otherwise take the highlighted row.
+	v := m.input.Value()
+	i := strings.LastIndexAny(v, " \n\t")
+	name := c[idx].name
+	if idx == 0 && len(c) > 1 {
+		for _, o := range c[1:] {
+			name = commonPrefix(name, o.name)
+		}
+		if name == v[i+1:] { // nothing to extend: take the highlighted one
+			name = c[idx].name
+		}
+	}
+	if !strings.HasSuffix(name, "/") && (len(c) == 1 || name == c[idx].name) {
+		name += " "
+	}
+	m.input.SetValue(v[:i+1] + name)
+	m.input.CursorEnd()
+	m.compFor, m.compIdx = m.input.Value(), 0
+	return true
+}
+
+func commonPrefix(a, b string) string {
+	n := min(len(a), len(b))
+	i := 0
+	for i < n && a[i] == b[i] {
+		i++
+	}
+	return a[:i]
+}
+
+// fuzzyCommand matches a command name against what has been typed so far
+// as a subsequence, so "/mcpa" finds /mcp__auth and "/rsm" finds /resume.
+// The query is split on "/" first: the separator in a namespaced command
+// is part of its shape, not a letter to match.
+func fuzzyCommand(name, query string) bool {
+	n := strings.ToLower(strings.TrimPrefix(name, "/"))
+	for _, part := range strings.Split(strings.ToLower(strings.TrimPrefix(query, "/")), "/") {
+		if part == "" {
+			continue
+		}
+		i := 0
+		for _, r := range part {
+			j := strings.IndexRune(n[i:], r)
+			if j < 0 {
+				return false
+			}
+			i += j + 1
+		}
+	}
+	return query != "/"
+}

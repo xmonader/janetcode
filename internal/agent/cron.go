@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -15,8 +16,9 @@ import (
 const maxCron = 16
 
 // Cron is a session-scoped scheduler: /loop and the cron tool add jobs
-// that fire a prompt on an interval. Nothing is persisted; Close (session
-// quit) cancels every timer.
+// that fire a prompt on an interval. Armed jobs are persisted on the
+// session record (OnChange) and restored on resume. Close (process quit)
+// cancels timers without wiping the saved list.
 type Cron struct {
 	mu     sync.Mutex
 	jobs   map[string]*cronJob
@@ -25,6 +27,9 @@ type Cron struct {
 	// OnFire is called from the timer goroutine with the job id and prompt.
 	// The TUI starts a turn; if a turn is already running the tick is skipped.
 	OnFire func(id, prompt string)
+	// OnChange is called after Add/Cancel/CancelAll with the armed set, so
+	// the session file can keep it. Close does not fire it.
+	OnChange func([]session.LoopSpec)
 }
 
 type cronJob struct {
@@ -64,14 +69,15 @@ func (c *Cron) Add(every time.Duration, prompt string) (string, error) {
 		return "", fmt.Errorf("prompt must not be empty")
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.closed {
+		c.mu.Unlock()
 		return "", fmt.Errorf("scheduler has stopped")
 	}
 	if c.jobs == nil {
 		c.jobs = map[string]*cronJob{}
 	}
 	if len(c.jobs) >= maxCron {
+		c.mu.Unlock()
 		return "", fmt.Errorf("at most %d loops in one session", maxCron)
 	}
 	c.nextID++
@@ -79,6 +85,8 @@ func (c *Cron) Add(every time.Duration, prompt string) (string, error) {
 	e := &cronJob{ID: id, Every: every, Prompt: prompt, Next: time.Now().Add(every)}
 	e.timer = time.AfterFunc(every, func() { c.tick(id) })
 	c.jobs[id] = e
+	c.mu.Unlock()
+	c.fireChange()
 	return id, nil
 }
 
@@ -107,15 +115,17 @@ func (c *Cron) Cancel(id string) bool {
 		return false
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	e := c.jobs[id]
 	if e == nil {
+		c.mu.Unlock()
 		return false
 	}
 	if e.timer != nil {
 		e.timer.Stop()
 	}
 	delete(c.jobs, id)
+	c.mu.Unlock()
+	c.fireChange()
 	return true
 }
 
@@ -125,7 +135,6 @@ func (c *Cron) CancelAll() int {
 		return 0
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	n := len(c.jobs)
 	for _, e := range c.jobs {
 		if e.timer != nil {
@@ -133,7 +142,73 @@ func (c *Cron) CancelAll() int {
 		}
 	}
 	c.jobs = map[string]*cronJob{}
+	c.mu.Unlock()
+	c.fireChange()
 	return n
+}
+
+// Restore arms jobs from a session record without firing OnChange.
+func (c *Cron) Restore(specs []session.LoopSpec) error {
+	if c == nil {
+		return fmt.Errorf("no scheduler in this session")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return fmt.Errorf("scheduler has stopped")
+	}
+	if c.jobs == nil {
+		c.jobs = map[string]*cronJob{}
+	}
+	for _, spec := range specs {
+		every, err := ParseEvery(spec.Every)
+		if err != nil {
+			return err
+		}
+		prompt := strings.TrimSpace(spec.Prompt)
+		if prompt == "" {
+			continue
+		}
+		id := strings.TrimSpace(spec.ID)
+		if id == "" {
+			c.nextID++
+			id = fmt.Sprintf("loop-%d", c.nextID)
+		} else if n, ok := loopIndex(id); ok && n > c.nextID {
+			c.nextID = n
+		}
+		if c.jobs[id] != nil {
+			continue
+		}
+		e := &cronJob{ID: id, Every: every, Prompt: prompt, Next: time.Now().Add(every)}
+		e.timer = time.AfterFunc(every, func() { c.tick(id) })
+		c.jobs[id] = e
+	}
+	return nil
+}
+
+func loopIndex(id string) (int, bool) {
+	var n int
+	if _, err := fmt.Sscanf(id, "loop-%d", &n); err != nil || n <= 0 {
+		return 0, false
+	}
+	return n, true
+}
+
+func (c *Cron) fireChange() {
+	if c == nil || c.OnChange == nil {
+		return
+	}
+	c.OnChange(c.Specs())
+}
+
+// Specs is the persistable snapshot of armed jobs.
+func (c *Cron) Specs() []session.LoopSpec {
+	jobs := c.List()
+	out := make([]session.LoopSpec, 0, len(jobs))
+	for _, j := range jobs {
+		out = append(out, session.LoopSpec{ID: j.ID, Every: j.Every.String(), Prompt: j.Prompt})
+	}
+	return out
 }
 
 // Close cancels every job. Further Add calls fail.
@@ -199,7 +274,7 @@ type CronTool struct {
 
 func (*CronTool) Name() string { return "cron" }
 func (*CronTool) Description() string {
-	return "Schedule a prompt to run on an interval for this session only (dies when the session ends). action=add needs every (30s, 5m, 1h) and prompt; action=list; action=cancel needs id. Not a persistent cron: nothing is written to disk."
+	return "Schedule a prompt to run on an interval for this session. Jobs are saved on the session and restored on resume; they stop when cancelled or when this process exits. action=add needs every (30s, 5m, 1h) and prompt; action=list; action=cancel needs id."
 }
 func (*CronTool) Mutating() bool { return false }
 func (*CronTool) Schema() json.RawMessage {

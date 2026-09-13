@@ -11,8 +11,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,9 +22,9 @@ import (
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
-	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -57,6 +55,8 @@ type Options struct {
 	ConfigPath string
 	// Models switches the session onto another model's provider.
 	Models func(string) (llm.Provider, string, error)
+	// Doctor is the same checkup janetcode --doctor prints.
+	Doctor func(io.Writer) error
 }
 
 const defaultAddr = "127.0.0.1:8787"
@@ -162,21 +162,6 @@ type server struct {
 	verbose bool
 }
 
-type askReq struct {
-	questions []agent.Question
-	reply     chan []agent.Answer
-}
-
-type permReq struct {
-	call  agent.ToolCall
-	reply chan verdict
-}
-
-type verdict struct {
-	d      agent.Decision
-	reason string
-}
-
 type envelope struct {
 	Seq       int              `json:"seq"`
 	Type      string           `json:"type"`
@@ -229,22 +214,6 @@ type permPayload struct {
 	Warning    string `json:"warning,omitempty"`
 	Rule       string `json:"rule,omitempty"`
 	Expandable bool   `json:"expandable,omitempty"`
-}
-
-type entry struct {
-	ID      string `json:"id"`
-	Kind    string `json:"kind"`
-	Text    string `json:"text,omitempty"`
-	Name    string `json:"name,omitempty"`
-	Summary string `json:"summary,omitempty"`
-	Output  string `json:"output,omitempty"`
-	Preview string `json:"preview,omitempty"`
-	Dur     string `json:"dur,omitempty"`
-	Error   bool   `json:"error,omitempty"`
-	Denied  bool   `json:"denied,omitempty"`
-	Done    bool   `json:"done,omitempty"`
-	Running bool   `json:"running,omitempty"`
-	CallID  string `json:"call_id,omitempty"`
 }
 
 func newServer(opts Options) *server {
@@ -546,9 +515,9 @@ func (s *server) finish(err error) {
 	s.mu.Unlock()
 	switch {
 	case err == nil:
-		s.statusSet("done in " + shortDuration(elapsed))
+		s.statusSet("done in " + textfmt.Duration(elapsed))
 	case err == context.Canceled:
-		s.upsert(&entry{Kind: "error", Text: "cancelled after " + shortDuration(elapsed), Error: true})
+		s.upsert(&entry{Kind: "error", Text: "cancelled after " + textfmt.Duration(elapsed), Error: true})
 		s.statusSet("cancelled")
 	default:
 		s.upsert(&entry{Kind: "error", Text: err.Error(), Error: true})
@@ -598,90 +567,7 @@ func (s *server) steer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.opts.Agent.Steer(text)
-	s.emit(envelope{Type: "notice", Notice: "steering: " + oneLine(text)})
-	writeJSON(w, map[string]string{"ok": "1"})
-}
-
-func (s *server) doCancel(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST only", http.StatusMethodNotAllowed)
-		return
-	}
-	s.mu.Lock()
-	if s.cancel != nil {
-		s.cancel()
-	}
-	if s.pending != nil {
-		select {
-		case s.pending.reply <- verdict{d: agent.Deny, reason: "the user cancelled the turn"}:
-		default:
-		}
-		s.pending = nil
-	}
-	if s.asking != nil {
-		select {
-		case s.asking.reply <- nil:
-		default:
-		}
-		s.asking = nil
-	}
-	s.mu.Unlock()
-	s.emit(envelope{Type: "permission"}) // clear
-	s.emit(envelope{Type: "question"})
-	writeJSON(w, map[string]string{"ok": "1"})
-}
-
-func (s *server) permission(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST only", http.StatusMethodNotAllowed)
-		return
-	}
-	var body struct {
-		Decision string `json:"decision"`
-		Reason   string `json:"reason"`
-	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
-		http.Error(w, "bad json", http.StatusBadRequest)
-		return
-	}
-	var d agent.Decision
-	switch body.Decision {
-	case "allow":
-		d = agent.Allow
-	case "session":
-		d = agent.AllowSession
-	case "always":
-		d = agent.AllowAlways
-	case "deny":
-		d = agent.Deny
-	case "cancel":
-		d = agent.Deny
-	default:
-		http.Error(w, "unknown decision", http.StatusBadRequest)
-		return
-	}
-	s.mu.Lock()
-	p := s.pending
-	s.pending = nil
-	s.mu.Unlock()
-	if p == nil {
-		http.Error(w, "nothing to answer", http.StatusConflict)
-		return
-	}
-	reason := body.Reason
-	if body.Decision == "cancel" {
-		reason = "the user cancelled the turn"
-		s.mu.Lock()
-		if s.cancel != nil {
-			s.cancel()
-		}
-		s.mu.Unlock()
-	}
-	select {
-	case p.reply <- verdict{d: d, reason: reason}:
-	default:
-	}
-	s.emit(envelope{Type: "permission"})
+	s.emit(envelope{Type: "notice", Notice: "steering: " + textfmt.OneLine(text)})
 	writeJSON(w, map[string]string{"ok": "1"})
 }
 
@@ -742,272 +628,6 @@ func (s *server) runShell(cmdline string) {
 	}()
 }
 
-func (s *server) Ask(ctx context.Context, qs []agent.Question) ([]agent.Answer, error) {
-	reply := make(chan []agent.Answer, 1)
-	s.mu.Lock()
-	s.asking = &askReq{questions: qs, reply: reply}
-	s.phase = "waiting for your answer"
-	s.mu.Unlock()
-	s.emit(envelope{Type: "question", Questions: qs})
-	s.emitStatus()
-	select {
-	case ans := <-reply:
-		return ans, nil
-	case <-ctx.Done():
-		s.mu.Lock()
-		if s.asking != nil && s.asking.reply == reply {
-			s.asking = nil
-		}
-		s.mu.Unlock()
-		s.emit(envelope{Type: "question"})
-		return nil, ctx.Err()
-	}
-}
-
-func (s *server) questionAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "POST only", http.StatusMethodNotAllowed)
-		return
-	}
-	var body struct {
-		Answers []agent.Answer `json:"answers"`
-	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
-		http.Error(w, "bad json", http.StatusBadRequest)
-		return
-	}
-	s.mu.Lock()
-	req := s.asking
-	s.asking = nil
-	s.mu.Unlock()
-	if req == nil {
-		http.Error(w, "no question pending", http.StatusConflict)
-		return
-	}
-	select {
-	case req.reply <- body.Answers:
-	default:
-	}
-	s.emit(envelope{Type: "question"})
-	s.emitStatus()
-	writeJSON(w, map[string]string{"ok": "1"})
-}
-
-func (s *server) Approve(ctx context.Context, call agent.ToolCall) (agent.Decision, error) {
-	d, _, err := s.ApproveWithReason(ctx, call)
-	return d, err
-}
-
-func (s *server) ApproveWithReason(ctx context.Context, call agent.ToolCall) (agent.Decision, string, error) {
-	reply := make(chan verdict, 1)
-	s.mu.Lock()
-	s.pending = &permReq{call: call, reply: reply}
-	s.phase = "waiting for your approval"
-	s.mu.Unlock()
-	p := s.permOf(call)
-	s.emit(envelope{Type: "permission", Perm: &p})
-	s.emitStatus()
-	select {
-	case v := <-reply:
-		return v.d, v.reason, nil
-	case <-ctx.Done():
-		s.mu.Lock()
-		if s.pending != nil && s.pending.reply == reply {
-			s.pending = nil
-		}
-		s.mu.Unlock()
-		s.emit(envelope{Type: "permission"})
-		return agent.Deny, "", ctx.Err()
-	}
-}
-
-func (s *server) permOf(c agent.ToolCall) permPayload {
-	rule := perm.Suggest(c.Name, perm.Subject(c.Name, c.Input)).String()
-	return permPayload{
-		ID:      c.ID,
-		Name:    c.Name,
-		Summary: summarizeInput(c.Name, string(c.Input), 80, s.opts.Cwd),
-		Preview: c.Preview,
-		Warning: c.Warning,
-		Rule:    rule,
-	}
-}
-
-func (s *server) apply(ev agent.Event) {
-	switch ev.Kind {
-	case agent.EvText:
-		e := s.last("assistant")
-		if e == nil {
-			e = s.add(&entry{Kind: "assistant"})
-		}
-		e.Text += ev.Text
-		s.push(e)
-	case agent.EvThinking:
-		e := s.last("thinking")
-		if e == nil {
-			e = s.add(&entry{Kind: "thinking"})
-		}
-		e.Text += ev.Text
-		s.push(e)
-	case agent.EvToolStart:
-		s.closeOpen()
-		s.add(&entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID, Summary: summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, s.opts.Cwd)})
-	case agent.EvToolInput:
-		if e := s.findTool(ev.Call); e != nil {
-			e.Summary = summarizeInput(e.Name, e.Summary, 80, s.opts.Cwd)
-		}
-	case agent.EvToolRun:
-		e := s.findTool(ev.Call)
-		if e == nil {
-			e = s.add(&entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID})
-		}
-		e.Name = ev.Call.Name
-		e.CallID = ev.Call.ID
-		e.Running = true
-		e.Summary = summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, s.opts.Cwd)
-		if ev.Call.Preview != "" {
-			e.Preview = ev.Call.Preview
-		}
-		s.push(e)
-		s.mu.Lock()
-		s.phase = e.Name + " " + e.Summary
-		s.mu.Unlock()
-		s.emitStatus()
-	case agent.EvToolResult:
-		e := s.findTool(ev.Call)
-		if e == nil {
-			e = s.add(&entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID})
-		}
-		e.Running = false
-		e.Done = true
-		e.Output = ev.Output
-		e.Error = ev.IsError
-		e.Denied = ev.Denied
-		if ev.Duration > 0 {
-			e.Dur = shortDuration(ev.Duration)
-		}
-		if ev.Call != nil && ev.Call.Preview != "" {
-			e.Preview = ev.Call.Preview
-		}
-		s.push(e)
-	case agent.EvTextBlockDone:
-		s.closeOpen()
-	case agent.EvTurnDone:
-		s.closeOpen()
-	case agent.EvDiscard:
-		s.dropOpen()
-	case agent.EvVerdict:
-		s.closeOpen()
-		s.add(&entry{Kind: "verdict", Text: ev.Text, Error: ev.IsError})
-	case agent.EvRetry:
-		s.closeOpen()
-		s.add(&entry{Kind: "notice", Text: "↻ " + ev.Text})
-	case agent.EvNotice:
-		s.closeOpen()
-		s.add(&entry{Kind: "notice", Text: ev.Text})
-	case agent.EvPhase:
-		s.mu.Lock()
-		s.phase = ev.Text
-		s.mu.Unlock()
-		s.emitStatus()
-	case agent.EvCompacted:
-		s.closeOpen()
-		s.add(&entry{Kind: "notice", Text: "⇣ " + ev.Text})
-	}
-}
-
-func (s *server) last(kind string) *entry {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if n := len(s.entries); n > 0 {
-		if e := s.entries[n-1]; e.Kind == kind && !e.Done {
-			return e
-		}
-	}
-	return nil
-}
-
-func (s *server) add(e *entry) *entry {
-	s.mu.Lock()
-	s.nextID++
-	e.ID = "e" + strconv.Itoa(s.nextID)
-	s.entries = append(s.entries, e)
-	s.mu.Unlock()
-	s.push(e)
-	return e
-}
-
-func (s *server) upsert(e *entry) *entry {
-	if e.ID == "" {
-		return s.add(e)
-	}
-	s.push(e)
-	return e
-}
-
-func (s *server) push(e *entry) {
-	cp := *e
-	s.emit(envelope{Type: "entry", Entry: &cp})
-}
-
-func (s *server) findTool(call *agent.ToolCall) *entry {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if call == nil {
-		for i := len(s.entries) - 1; i >= 0; i-- {
-			if e := s.entries[i]; e.Kind == "tool" && !e.Done {
-				return e
-			}
-		}
-		return nil
-	}
-	for i := len(s.entries) - 1; i >= 0; i-- {
-		if e := s.entries[i]; e.Kind == "tool" && e.CallID == call.ID {
-			return e
-		}
-	}
-	return nil
-}
-
-func (s *server) closeOpen() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for i := len(s.entries) - 1; i >= 0; i-- {
-		e := s.entries[i]
-		if e.Kind == "thinking" && !e.Done && strings.TrimSpace(e.Text) == "" {
-			s.entries = append(s.entries[:i], s.entries[i+1:]...)
-			continue
-		}
-		if e.Kind == "assistant" || e.Kind == "thinking" {
-			if !e.Done {
-				e.Done = true
-				cp := *e
-				s.mu.Unlock()
-				s.push(&cp)
-				s.mu.Lock()
-			}
-			continue
-		}
-		if e.Kind == "tool" {
-			continue
-		}
-		break
-	}
-}
-
-func (s *server) dropOpen() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for len(s.entries) > 0 {
-		e := s.entries[len(s.entries)-1]
-		if (e.Kind == "assistant" || e.Kind == "thinking") && !e.Done {
-			s.entries = s.entries[:len(s.entries)-1]
-			continue
-		}
-		return
-	}
-}
-
 func (s *server) statusLocked() statusPayload {
 	st := statusPayload{
 		Running: s.running,
@@ -1038,7 +658,7 @@ func (s *server) statusLocked() statusPayload {
 		}
 	}
 	if s.running && !s.started.IsZero() {
-		st.Elapsed = shortDuration(time.Since(s.started))
+		st.Elapsed = textfmt.Duration(time.Since(s.started))
 	}
 	return st
 }
@@ -1069,55 +689,18 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-func oneLine(s string) string {
-	return strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
-}
-
-func shortDuration(d time.Duration) string {
-	switch {
-	case d < time.Millisecond:
-		return "<1ms"
-	case d < time.Second:
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	case d < time.Minute:
-		return fmt.Sprintf("%.1fs", d.Seconds())
-	default:
-		return d.Round(time.Second).String()
-	}
-}
-
 func summarizeInput(name, raw string, max int, cwd string) string {
 	var m map[string]any
 	if json.Unmarshal([]byte(raw), &m) != nil {
-		return truncate(raw, max)
+		return textfmt.Clip(raw, max)
 	}
 	for _, k := range []string{"command", "pattern", "path", "url", "description"} {
 		if v, ok := m[k].(string); ok {
 			if k == "path" {
-				v = relTo(cwd, v)
+				v = textfmt.RelTo(cwd, v)
 			}
-			return truncate(v, max)
+			return textfmt.Clip(v, max)
 		}
 	}
-	return truncate(raw, max)
-}
-
-func relTo(cwd, p string) string {
-	if cwd == "" || !filepath.IsAbs(p) {
-		return p
-	}
-	if r, err := filepath.Rel(cwd, p); err == nil && !strings.HasPrefix(r, "..") {
-		return r
-	}
-	return p
-}
-
-func truncate(s string, max int) string {
-	if max < 1 || len(s) <= max {
-		return s
-	}
-	if max < 2 {
-		return s[:max]
-	}
-	return s[:max-1] + "…"
+	return textfmt.Clip(raw, max)
 }

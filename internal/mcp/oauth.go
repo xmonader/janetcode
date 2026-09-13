@@ -19,6 +19,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/fsutil"
 )
 
 // ErrAuthRequired is returned when a remote server answers 401 and no
@@ -84,11 +86,7 @@ func (s *TokenStore) save(all map[string]Token) error {
 	if err := os.MkdirAll(filepath.Dir(s.Path), 0o700); err != nil {
 		return err
 	}
-	tmp := s.Path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, s.Path)
+	return fsutil.WriteFileAtomic(s.Path, data, 0o600)
 }
 
 // Get returns the token stored for a server URL.

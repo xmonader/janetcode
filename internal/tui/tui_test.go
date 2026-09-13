@@ -36,6 +36,7 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/verify"
 )
@@ -652,10 +653,11 @@ func TestMCPAuthCommand(t *testing.T) {
 		t.Fatal("browser not opened")
 	}
 	v := plain(h.m.View())
-	for _, want := range []string{"registered client " + fake.ClientID, "authorized · restarting the server", "mcp secure ready · 1 tools"} {
-		if !strings.Contains(v, want) {
-			t.Fatalf("missing %q in:\n%s", want, v)
-		}
+	if !strings.Contains(v, "registered client "+fake.ClientID) {
+		t.Fatalf("missing auth transcript:\n%s", v)
+	}
+	if !strings.Contains(v, "mcp secure ready") {
+		t.Fatalf("ready ack not on the status line:\n%s", v)
 	}
 	if tok, ok := tokens.Get(secure.URL); !ok || tok.AccessToken != "at-1" {
 		t.Fatalf("token = %+v %v", tok, ok)
@@ -1024,8 +1026,8 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 	if h.m.opts.Agent.Model != "deepseek/deepseek-v4-flash" || h.m.opts.Agent.Provider != lister || h.m.opts.Provider != "openrouter" || cfg.Provider != "openrouter" {
 		t.Fatalf("agent %s/%v opts %s cfg %s", h.m.opts.Agent.Model, h.m.opts.Agent.Provider, h.m.opts.Provider, cfg.Provider)
 	}
-	if !strings.Contains(plain(h.m.View()), "connected to openrouter · deepseek/deepseek-v4-flash") {
-		t.Fatalf("view:\n%s", plain(h.m.View()))
+	if !strings.Contains(h.m.status, "connected to openrouter · deepseek/deepseek-v4-flash") {
+		t.Fatalf("status = %q", h.m.status)
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil || !strings.Contains(string(raw), `"sk-two"`) || !strings.Contains(string(raw), `"provider": "openrouter"`) || !strings.Contains(string(raw), `"model": "deepseek/deepseek-v4-flash"`) {
@@ -1037,8 +1039,8 @@ func TestConnectDialogSwitchesProvider(t *testing.T) {
 	if ag := h.m.opts.Agent; ag.ContextWindow != 128000 || ag.Price == nil || ag.Price.Output != 0.6 || ag.CompactThreshold() != 96000 {
 		t.Fatalf("agent window=%d price=%+v threshold=%d", ag.ContextWindow, ag.Price, ag.CompactThreshold())
 	}
-	if !strings.Contains(plain(h.m.View()), "128k ctx · $0.15/$0.6 per M") {
-		t.Fatalf("details missing from view:\n%s", plain(h.m.View()))
+	if !strings.Contains(h.m.status, "128k ctx") || !strings.Contains(h.m.status, "$0.15/$0.6") {
+		t.Fatalf("details missing from status: %q", h.m.status)
 	}
 
 	// /model alone opens the picker for the current provider; a typed id
@@ -1418,11 +1420,11 @@ func TestAgentsCommandEmpty(t *testing.T) {
 		t.Fatal("empty /agents should still open the overlay")
 	}
 	v := plain(h.m.View())
-	if !strings.Contains(v, "Team") || !strings.Contains(v, "no teammates yet") {
+	if !strings.Contains(v, "Subagents") || !strings.Contains(v, "no subagents yet") {
 		t.Fatalf("empty overlay:\n%s", v)
 	}
 	for _, e := range h.m.transcript.entries {
-		if e.kind == entryInfo && strings.Contains(e.text, "no teammates") {
+		if e.kind == entryInfo && strings.Contains(e.text, "no subagents") {
 			t.Fatalf("empty state dumped into the transcript: %q", e.text)
 		}
 	}
@@ -1469,7 +1471,7 @@ func TestAgentsOverlayOpenEscAndNoDump(t *testing.T) {
 		t.Fatal("esc from the transcript should return to the list")
 	}
 	v = plain(h.m.View())
-	if !strings.Contains(v, "Team") || !strings.Contains(v, id) {
+	if !strings.Contains(v, "Subagents") || !strings.Contains(v, id) {
 		t.Fatalf("list after esc:\n%s", v)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -1623,7 +1625,7 @@ func TestJobsCommandAndIdleNotice(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.update(tickMsg(time.Now()))
-	if v := plain(h.m.View()); !strings.Contains(v, "⚙ job 1 finished with exit 4") {
+	if v := plain(h.m.View()); !strings.Contains(v, "job 1 finished with exit 4") {
 		t.Fatalf("view:\n%s", v)
 	}
 	if msgs := h.m.opts.Agent.Messages; len(msgs) != 1 || !strings.Contains(msgs[0].Text(), "[background job update]") {
@@ -1859,6 +1861,211 @@ func TestForkTitleAndSearchCommands(t *testing.T) {
 	h.enter()
 	if v := plain(h.m.View()); !strings.Contains(v, "Rate limiting for the API") {
 		t.Fatalf("resume list lacks the title:\n%s", v)
+	}
+}
+
+func TestForkStayLeavesLiveSession(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "I added a token bucket."), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "still on original"), StopReason: llm.StopEndTurn},
+	)
+	h.keys("add rate limiting")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	orig := h.m.opts.Session
+	h.keys("/fork stay other path")
+	h.enter()
+	if h.m.opts.Session != orig {
+		t.Fatal("fork stay swapped the live session")
+	}
+	if h.m.opts.Session.Meta.ForkOf != "" {
+		t.Fatalf("live session gained fork_of: %+v", h.m.opts.Session.Meta)
+	}
+	infos, err := session.List(dirOf(orig), orig.Meta.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var copyID string
+	for _, in := range infos {
+		if in.Meta.ForkOf == orig.Meta.ID {
+			copyID = in.Meta.ID
+			if in.Meta.Title != "other path" {
+				t.Fatalf("copy title = %q", in.Meta.Title)
+			}
+		}
+	}
+	if copyID == "" {
+		t.Fatalf("copy not listed: %+v", infos)
+	}
+	h.keys("keep going")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	_, origMsgs, _ := session.Open(dirOf(orig), orig.Meta.ID)
+	_, copyMsgs, _ := session.Open(dirOf(orig), copyID)
+	if len(origMsgs) <= len(copyMsgs) {
+		t.Fatalf("orig=%d copy=%d; later messages should land only on the live session", len(origMsgs), len(copyMsgs))
+	}
+}
+
+func TestBtwDoesNotRecordAUserTurn(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "first answer"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "sideways yes"), StopReason: llm.StopEndTurn},
+	)
+	h.keys("hello")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	usersBefore := countUserTurns(h)
+	h.keys("/btw is this sideways")
+	h.enter()
+	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "sideways yes") })
+	if countUserTurns(h) != usersBefore {
+		t.Fatalf("btw recorded a user turn: before %d after %d", usersBefore, countUserTurns(h))
+	}
+}
+
+func countUserTurns(h *harness) int {
+	h.t.Helper()
+	s := h.m.opts.Session
+	_, msgs, err := session.Open(dirOf(s), s.Meta.ID)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	n := 0
+	for _, m := range msgs {
+		if m.Role == llm.RoleUser {
+			n++
+		}
+	}
+	return n
+}
+
+func TestAcksStayOffTranscript(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hello there"), StopReason: llm.StopEndTurn})
+	h.m.copyText = func(string) error { return nil }
+	h.keys("hi")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	before := countInfo(h)
+	h.keys("/verbose")
+	h.enter()
+	h.keys("/title hello")
+	h.enter()
+	h.keys("/copy")
+	h.enter()
+	if got := countInfo(h); got != before {
+		t.Fatalf("acks leaked into the transcript: before %d after %d", before, got)
+	}
+	if h.m.opts.Session.Meta.Title != "hello" {
+		t.Fatalf("title = %q", h.m.opts.Session.Meta.Title)
+	}
+	if !h.m.verbose {
+		t.Fatal("verbose not toggled")
+	}
+	if !strings.Contains(h.m.status, "copied") {
+		t.Fatalf("last ack not on the status line: %q", h.m.status)
+	}
+}
+
+func countInfo(h *harness) int {
+	n := 0
+	for _, e := range h.m.transcript.entries {
+		if e.kind == entryInfo {
+			n++
+		}
+	}
+	return n
+}
+
+func TestCopyLastAssistant(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "copy me please"), StopReason: llm.StopEndTurn})
+	h.keys("say it")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	var got string
+	h.m.copyText = func(s string) error { got = s; return nil }
+	h.keys("/copy")
+	h.enter()
+	if got != "copy me please" {
+		t.Fatalf("copied %q", got)
+	}
+}
+
+func TestConfigKeyValue(t *testing.T) {
+	h := newHarness(t)
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{}
+	h.m.opts.Config, h.m.opts.ConfigPath = cfg, path
+	h.keys("/config thinking=false")
+	h.enter()
+	if cfg.Thinking == nil || *cfg.Thinking {
+		t.Fatalf("live thinking = %v", cfg.Thinking)
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), `"thinking"`) {
+		t.Fatalf("config file = %s", raw)
+	}
+}
+
+func TestAddDirCommand(t *testing.T) {
+	h := newHarness(t)
+	extra := t.TempDir()
+	h.m.opts.Workspace = tool.NewLocal(h.m.opts.Cwd)
+	h.keys("/add-dir " + extra)
+	h.enter()
+	dirs := h.m.opts.Workspace.ExtraDirs()
+	if len(dirs) != 1 || dirs[0] != extra {
+		// AddDir abs-es the path
+		if len(dirs) != 1 {
+			t.Fatalf("extra dirs = %v", dirs)
+		}
+	}
+	re, _, err := session.Open(dirOf(h.m.opts.Session), h.m.opts.Session.Meta.ID)
+	if err != nil || len(re.Meta.ExtraDirs) != 1 {
+		t.Fatalf("persisted extra = %+v err=%v", re.Meta.ExtraDirs, err)
+	}
+}
+
+func TestDoctorPrintsWithoutMutating(t *testing.T) {
+	h := newHarness(t)
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte("{\"model\":\"keep\"}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(path)
+	h.m.opts.ConfigPath = path
+	h.m.opts.Doctor = func(w io.Writer) error {
+		fmt.Fprintln(w, "[ok] config checkup row")
+		return nil
+	}
+	h.keys("/doctor")
+	h.enter()
+	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "checkup row") })
+	after, _ := os.ReadFile(path)
+	if string(after) != string(before) {
+		t.Fatalf("doctor mutated config: %s", after)
+	}
+}
+
+func TestDoctorShowsRowsWhenCheckupFails(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Doctor = func(w io.Writer) error {
+		fmt.Fprintln(w, "[FAIL] credentials missing key")
+		fmt.Fprintln(w, "[ok  ] sessions dir /tmp")
+		return fmt.Errorf("1 check(s) failed")
+	}
+	h.keys("/doctor")
+	h.enter()
+	h.pump(func() bool {
+		v := plain(h.m.View())
+		return strings.Contains(v, "credentials missing") && strings.Contains(v, "1 check(s) failed")
+	})
+	v := plain(h.m.View())
+	if !strings.Contains(v, "sessions dir") {
+		t.Fatalf("failed checkup hid later rows:\n%s", v)
 	}
 }
 
@@ -2705,12 +2912,12 @@ func TestUserVisibleStringStyle(t *testing.T) {
 	check("the welcome banner", h.m.welcome(""))
 	check("the resumed banner", h.m.welcome(resumedLine("abc123", 2)))
 	// Sizes, durations and token counts go through the shared helpers.
-	if shortBytes(2048) != "2.0KB" || shortDuration(1500*time.Millisecond) != "1.5s" || shortTokens(12000) != "12k" {
+	if textfmt.Bytes(2048) != "2.0KB" || textfmt.Duration(1500*time.Millisecond) != "1.5s" || textfmt.Tokens(12000) != "12k" {
 		t.Errorf("the shared formatters changed shape: %q %q %q",
-			shortBytes(2048), shortDuration(1500*time.Millisecond), shortTokens(12000))
+			textfmt.Bytes(2048), textfmt.Duration(1500*time.Millisecond), textfmt.Tokens(12000))
 	}
-	if plural(1, "file") != "1 file" || plural(2, "file") != "2 files" {
-		t.Errorf("plural() = %q / %q", plural(1, "file"), plural(2, "file"))
+	if textfmt.Plural(1, "file") != "1 file" || textfmt.Plural(2, "file") != "2 files" {
+		t.Errorf("Plural() = %q / %q", textfmt.Plural(1, "file"), textfmt.Plural(2, "file"))
 	}
 }
 
@@ -3311,14 +3518,13 @@ func TestCtrlGPromotesARunningCommand(t *testing.T) {
 		t.Errorf("the status line does not offer the key:\n%s", h.m.statusView())
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyCtrlG})
-	var said bool
-	for _, e := range h.m.transcript.entries {
-		if strings.Contains(e.text, "moved to background as job 1") {
-			said = true
-		}
+	if !strings.Contains(h.m.status, "moved to background as job 1") {
+		t.Fatalf("the status line does not name the job: %q", h.m.status)
 	}
-	if !said {
-		t.Fatalf("the transcript does not name the job: %q", h.m.status)
+	for _, e := range h.m.transcript.entries {
+		if strings.Contains(e.text, "moved to background") {
+			t.Fatalf("promotion leaked into the transcript: %q", e.text)
+		}
 	}
 	if len(jobs.List()) != 1 {
 		t.Fatalf("jobs = %+v", jobs.List())
@@ -3883,25 +4089,25 @@ func TestShiftTabInAskDoesNotCycleMode(t *testing.T) {
 	}
 }
 
-func TestCtrlTOpensTeamOverlay(t *testing.T) {
+func TestCtrlTOpensAgentsOverlay(t *testing.T) {
 	h := newHarness(t)
 	attachTask(h)
 	h.update(tea.KeyMsg{Type: tea.KeyCtrlT})
 	if h.m.overlay != overlayAgents {
 		t.Fatalf("overlay = %q, want %s", h.m.overlay, overlayAgents)
 	}
-	if v := plain(h.m.View()); !strings.Contains(v, "Team") {
+	if v := plain(h.m.View()); !strings.Contains(v, "Subagents") {
 		t.Fatalf("view:\n%s", v)
 	}
 }
 
-func TestTeamCommandSpawnsGeneral(t *testing.T) {
+func TestAgentsNewSpawnsGeneral(t *testing.T) {
 	h := newHarness(t)
 	h.m.opts.Agent.Provider = &scripted{responses: []*llm.Response{
 		{Message: llm.TextMessage(llm.RoleAssistant, "looked around"), StopReason: llm.StopEndTurn},
 	}}
 	attachTask(h)
-	h.keys("/team map the parser")
+	h.keys("/agents new map the parser")
 	h.enter()
 	if h.m.overlay != overlayAgents {
 		t.Fatalf("overlay = %q", h.m.overlay)

@@ -16,6 +16,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -234,6 +235,13 @@ func (s *Script) interpreter() (string, error) {
 	return "", errors.New("execute_code needs Python 3 on the PATH and there is none; use ordinary tool calls")
 }
 
+// Available reports whether there is a Python to run scripts with. Where
+// there is not, the session offers run_code in its place.
+func (s *Script) Available() bool {
+	_, err := s.interpreter()
+	return err == nil
+}
+
 func (s *Script) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Code string `json:"code"`
@@ -330,7 +338,7 @@ func (s *Script) report(stdout, stderr string, runErr error, calls int, ctxErr e
 		b.WriteString("(the script printed nothing)")
 	}
 	nl(&b)
-	fmt.Fprintf(&b, "[%s]", plural(calls, "tool call"))
+	fmt.Fprintf(&b, "[%s]", textfmt.Plural(calls, "tool call"))
 	return b.String()
 }
 
@@ -703,7 +711,7 @@ func RenderScripts(events []session.Event) string {
 		case r.result == "":
 			state = "still running"
 		}
-		fmt.Fprintf(&b, "script %d (%s, %s):\n", i+1, state, plural(len(r.calls), "tool call"))
+		fmt.Fprintf(&b, "script %d (%s, %s):\n", i+1, state, textfmt.Plural(len(r.calls), "tool call"))
 		for _, line := range strings.Split(strings.TrimRight(r.code, "\n"), "\n") {
 			b.WriteString("  | " + line + "\n")
 		}

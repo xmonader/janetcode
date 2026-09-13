@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -21,7 +22,7 @@ type RunCode struct{ Parent *Agent }
 
 func (*RunCode) Name() string { return "run_code" }
 func (*RunCode) Description() string {
-	return "Run a short program of tool calls in this session in one turn. code is a JSON array of {name, input} steps; each step is a real tool call (approvals, guards, the event log). Use it to chain several calls with the results of earlier steps available as later output. Do not use it to skip permission. Nested run_code, workflow, task and ask are refused."
+	return "Run a fixed list of tool calls in this session in one turn and get every result back together. code is a JSON array of {name, input} steps; each step is a real tool call (approvals, guards, the event log), run in order, stopping at the first failure. Inputs are fixed up front: a step cannot read an earlier step's result. Do not use it to skip permission. Nested run_code, workflow, task and ask are refused."
 }
 func (*RunCode) Mutating() bool { return true }
 func (*RunCode) Schema() json.RawMessage {
@@ -68,7 +69,7 @@ func (t *RunCode) Run(ctx context.Context, input json.RawMessage) (string, error
 			return strings.TrimRight(b.String(), "\n"), nil
 		}
 	}
-	fmt.Fprintf(&b, "\n[%s]", plural(len(steps), "tool call"))
+	fmt.Fprintf(&b, "\n[%s]", textfmt.Plural(len(steps), "tool call"))
 	return strings.TrimRight(b.String(), "\n"), nil
 }
 
@@ -78,28 +79,13 @@ type runStep struct {
 }
 
 func parseRunCode(raw json.RawMessage) ([]runStep, error) {
-	raw = json.RawMessage(strings.TrimSpace(string(raw)))
-	if len(raw) == 0 {
-		return nil, fmt.Errorf("code is empty")
-	}
-	if raw[0] == '"' {
-		var s string
-		if err := json.Unmarshal(raw, &s); err != nil {
-			return nil, fmt.Errorf("bad code: %w", err)
-		}
-		s = strings.TrimSpace(s)
-		if s == "" {
-			return nil, fmt.Errorf("code is empty")
-		}
-		raw = json.RawMessage(s)
-	}
 	var steps []struct {
 		Name  string          `json:"name"`
 		Tool  string          `json:"tool"`
 		Input json.RawMessage `json:"input"`
 	}
-	if err := json.Unmarshal(raw, &steps); err != nil {
-		return nil, fmt.Errorf("code must be a JSON array of {name, input}: %w", err)
+	if err := decodeSteps(raw, "code", "{name, input}", &steps); err != nil {
+		return nil, err
 	}
 	out := make([]runStep, 0, len(steps))
 	for i, s := range steps {

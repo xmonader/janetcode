@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // The harness intervenes. It summarises a conversation that got long,
@@ -97,7 +98,7 @@ func Interventions(events []session.Event) []Intervention {
 				continue
 			}
 			iv.Kind = IvRefused
-			iv.Text = strings.TrimSpace(firstLineOf(e.Output))
+			iv.Text = strings.TrimSpace(textfmt.FirstLine(e.Output, 70))
 			if e.Name != "" {
 				iv.Text = e.Name + ": " + iv.Text
 			}
@@ -242,7 +243,7 @@ func WhyLast(events []session.Event, n int) string {
 		n = 1
 	}
 	if n > len(ivs) {
-		return fmt.Sprintf("only %s in this session; /why %d is the oldest", plural(len(ivs), "harness intervention"), len(ivs))
+		return fmt.Sprintf("only %s in this session; /why %d is the oldest", textfmt.Plural(len(ivs), "harness intervention"), len(ivs))
 	}
 	iv := ivs[len(ivs)-n]
 	out := iv.Why()

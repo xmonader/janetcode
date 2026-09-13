@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // The /connect dialog had the only searchable list in the interface;
@@ -174,7 +175,7 @@ func (m *model) openSessionPicker() tea.Cmd {
 		}
 		rows = append(rows, row{
 			key:   in.Meta.ID + " " + label,
-			cells: []string{in.Meta.ID, shortAge(time.Since(in.Updated)), plural(in.Messages, "msg"), label},
+			cells: []string{in.Meta.ID, textfmt.Age(time.Since(in.Updated)), textfmt.Plural(in.Messages, "msg"), label},
 			tag:   mark,
 			name:  in.Meta.ID,
 		})

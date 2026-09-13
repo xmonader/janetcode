@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/eval"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 func main() {
@@ -338,7 +339,7 @@ func prepareOpenclaw(cfg runConfig, tasks []eval.Task) ([]eval.BenchTaskResult, 
 	cmd.Env = openclawEnv(os.Environ())
 	if out, err := cmd.CombinedOutput(); err != nil {
 		excerpt := strings.TrimSpace(string(out))
-		return eval.UnavailableResults("openclaw", "openclaw config patch failed: "+firstLine(excerpt), "openclaw config patch", excerpt, tasks),
+		return eval.UnavailableResults("openclaw", "openclaw config patch failed: "+textfmt.FirstLine(strings.TrimSpace(excerpt), 0), "openclaw config patch", excerpt, tasks),
 			fmt.Sprintf("Configuring openclaw failed:\n\n```\n%s\n```\n", excerpt), false
 	}
 	return nil, "", true
@@ -419,14 +420,6 @@ func mark(ok, unavail bool) string {
 		return "PASS"
 	}
 	return "FAIL"
-}
-
-func firstLine(s string) string {
-	s = strings.TrimSpace(s)
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return s[:i]
-	}
-	return s
 }
 
 func redact(s, key string) string {

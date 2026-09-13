@@ -13,6 +13,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // File is the on-disk shape of a results file: the run's identity plus
@@ -567,12 +568,12 @@ func WriteComparison(w io.Writer, c Comparison) {
 	if c.Base.Passed > 0 && c.Current.Passed > 0 {
 		ratio := float64(c.Current.ContextPerSolved) / math.Max(float64(c.Base.ContextPerSolved), 1)
 		fmt.Fprintf(w, "context per solved task %s → %s (×%.2f) · compactions %d → %d%s\n",
-			shortTokens(c.Base.ContextPerSolved), shortTokens(c.Current.ContextPerSolved), ratio, c.Base.Compactions, c.Current.Compactions,
+			textfmt.Tokens(c.Base.ContextPerSolved), textfmt.Tokens(c.Current.ContextPerSolved), ratio, c.Base.Compactions, c.Current.Compactions,
 			ratioNote(c.ContextRatio, c.ContextRatioLo, c.ContextRatioHi, c.Paired))
 	}
 	if c.Paired && c.OutputRatio > 0 {
 		fmt.Fprintf(w, "output tokens %s → %s · generation is most of a turn's latency%s\n",
-			shortTokens(c.Base.Usage.OutputTokens), shortTokens(c.Current.Usage.OutputTokens),
+			textfmt.Tokens(c.Base.Usage.OutputTokens), textfmt.Tokens(c.Current.Usage.OutputTokens),
 			ratioNote(c.OutputRatio, c.OutputRatioLo, c.OutputRatioHi, true))
 	}
 	if c.Paired && !c.CostSignificant() && !c.ContextSignificant() {
@@ -632,15 +633,15 @@ func summaryLine(s Summary) string {
 	fresh := ""
 	if c := s.Context; c > 0 {
 		f := freshTokens(s.Usage)
-		fresh = fmt.Sprintf(" · %s of it fresh (%.0f%%)", shortTokens(f), 100*float64(f)/float64(c))
+		fresh = fmt.Sprintf(" · %s of it fresh (%.0f%%)", textfmt.Tokens(f), 100*float64(f)/float64(c))
 	}
-	ctx := fmt.Sprintf("context %s (in %s · cache %s · out %s)", shortTokens(s.Context), shortTokens(s.Usage.InputTokens), shortTokens(s.Usage.CacheReadTokens), shortTokens(s.Usage.OutputTokens))
+	ctx := fmt.Sprintf("context %s (in %s · cache %s · out %s)", textfmt.Tokens(s.Context), textfmt.Tokens(s.Usage.InputTokens), textfmt.Tokens(s.Usage.CacheReadTokens), textfmt.Tokens(s.Usage.OutputTokens))
 	if s.Passed > 0 {
-		ctx += fmt.Sprintf(" · %s per solved", shortTokens(s.ContextPerSolved))
+		ctx += fmt.Sprintf(" · %s per solved", textfmt.Tokens(s.ContextPerSolved))
 	}
 	ctx += fresh
 	if s.Compactions > 0 {
-		ctx += fmt.Sprintf(" · %d compaction(s), summaries %s in / %s out, %d expand(s)", s.Compactions, shortTokens(contextTokens(s.SummaryUsage)), shortTokens(s.SummaryUsage.OutputTokens), s.Expands)
+		ctx += fmt.Sprintf(" · %d compaction(s), summaries %s in / %s out, %d expand(s)", s.Compactions, textfmt.Tokens(contextTokens(s.SummaryUsage)), textfmt.Tokens(s.SummaryUsage.OutputTokens), s.Expands)
 	}
 	if saves := s.Recoveries + s.WatchdogKills + s.ModelFallbacks; saves > 0 {
 		// What the harness had to rescue for these runs to get this far.

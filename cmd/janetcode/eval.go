@@ -1,0 +1,291 @@
+package main
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/eval"
+	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/repomap"
+	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/tool"
+)
+
+// promptRecord is what goes in the results file about the prompt: which
+// file replaced the base, what was appended, and a digest of the base as
+// it was read, so an experiment stays traceable after the file changes.
+func promptRecord(o prompt.Override) *eval.PromptRecord {
+	if o.Base == "" && o.Append == "" {
+		return nil
+	}
+	r := &eval.PromptRecord{BaseFile: o.BaseFile, Append: o.Append}
+	if o.Base != "" {
+		sum := sha256.Sum256([]byte(o.Base))
+		r.SHA256 = hex.EncodeToString(sum[:])
+	}
+	return r
+}
+
+type evalOptions struct {
+	path, only, jsonOut string
+	jobs, runs          int
+	keep                bool
+	timeout             time.Duration
+	maxTurns            int
+	noToolLimit         bool
+	compactAt           int
+	facts               int
+	factsBlind          bool
+	compare, off, label string
+	// prompt records a replaced or extended system prompt, so an A/B of
+	// the prompt itself can be told apart in the results file.
+	prompt prompt.Override
+}
+
+// runEval runs the eval tasks with fresh, minimal agents (core tools, no
+// hooks, memory or MCP) so results reflect the model and the prompts.
+func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalOptions) error {
+	tasks, err := eval.Load(o.path)
+	if err != nil {
+		return err
+	}
+	if o.only != "" {
+		tasks = eval.Filter(tasks, strings.Split(o.only, ","))
+		if len(tasks) == 0 {
+			return fmt.Errorf("no tasks match %q", o.only)
+		}
+	}
+	off := map[string]bool{}
+	for _, f := range strings.Split(o.off, ",") {
+		if f = strings.TrimSpace(f); f != "" {
+			if !agent.KnownSwitch(f) {
+				return fmt.Errorf("--eval-off: unknown behaviour %q (%s)", f, strings.Join(agent.Switches(), ", "))
+			}
+			off[f] = true
+		}
+	}
+	variant := o.label
+	if variant == "" && len(off) > 0 {
+		variant = "off:" + o.off
+	}
+	var baseline *eval.File
+	if o.compare != "" {
+		f, err := eval.ReadFile(o.compare)
+		if err != nil {
+			return err
+		}
+		baseline = &f
+	}
+	runs := max(o.runs, 1)
+	fmt.Fprintf(os.Stderr, "running %d eval tasks × %d with %s/%s (%d at a time)", len(tasks), runs, cfg.Provider, cfg.Model, o.jobs)
+	if variant != "" {
+		fmt.Fprintf(os.Stderr, " · variant %s", variant)
+	}
+	fmt.Fprintln(os.Stderr)
+	maxIter := cfg.MaxIterations
+	if o.maxTurns > 0 {
+		maxIter = o.maxTurns
+	}
+	compactAt := cfg.CompactAt
+	if o.compactAt > 0 {
+		compactAt = o.compactAt
+		fmt.Fprintf(os.Stderr, "compacting at ~%d tokens\n", compactAt)
+	}
+	// Archived tool outputs live beside the work directories, so the eval
+	// agent has the same expand_output round-trip the real one does.
+	archiveDir, err := os.MkdirTemp("", "janetcode-eval-archive-")
+	if err != nil {
+		return err
+	}
+	if !o.keep {
+		defer os.RemoveAll(archiveDir)
+	}
+	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, Timeout: o.timeout, IgnoreToolLimit: o.noToolLimit, Facts: o.facts, FactsBlind: o.factsBlind, NewAgent: func(root string) (*agent.Agent, error) {
+		repo := &repomap.Cache{Root: root}
+		var prep func([]llm.Block) ([]llm.Block, string)
+		if !off["repomap"] {
+			prep = repomap.TurnPrep(repo, 0)
+		}
+		archive := agent.NewArchive(filepath.Join(archiveDir, filepath.Base(root)))
+		expand := &agent.ExpandOutput{Archive: archive}
+		// The eval agent carries the tools a real session does, minus the
+		// ones that need a terminal or the network. A benchmark run
+		// against a smaller agent measures something nobody uses.
+		ag := &agent.Agent{
+			Provider:      llm.ForTaskOr(prov),
+			Off:           off,
+			Prepare:       prep,
+			PlanCheck:     repo.CheckPlan,
+			Log:           &session.Memory{},
+			Archive:       archive,
+			Price:         cfg.PriceFor(cfg.Model),
+			Tools:         evalTools(root, repo, expand, off),
+			System:        prompt.SystemWith(root, o.prompt),
+			Model:         cfg.Model,
+			MaxTokens:     cfg.MaxTokens,
+			MaxIterations: maxIter,
+			CompactAt:     compactAt,
+		}
+		expand.Log = ag.LogEvent // the archive's lookups go on the same trail
+		if !off["todo"] {
+			ag.Tools.Add(&agent.TodoTool{Parent: ag})
+		}
+		if !off["script"] {
+			ag.Tools.Add(&agent.Script{Parent: ag, Root: root})
+		}
+		// The eval agent follows the product default, so a measurement is
+		// of what users actually run; --eval-off intent forces it off.
+		ag.Tools.Intent = cfg.IntentEnabled() && !off["intent"]
+		if !off["oversized"] {
+		}
+		evalToolsOnce.Do(func() { evalToolNames = ag.Tools.Names() })
+		return ag, nil
+	}}
+	results := r.Run(ctx, tasks)
+	passed := eval.Report(os.Stdout, results)
+	// Which tools the model actually reached for. A tool that is never
+	// called is not a feature however well it works, and only a set of
+	// runs can say so.
+	eval.WriteToolUse(os.Stdout, eval.Summarize(results), evalToolNames)
+	if baseline != nil {
+		label := baseline.Variant
+		if label == "" {
+			label = o.compare
+		}
+		fmt.Fprintf(os.Stdout, "\ncompared with %s (%s):\n", label, baseline.When.Format("2006-01-02 15:04"))
+		if o.runs < 3 || baseline.Runs < 3 {
+			fmt.Fprintln(os.Stdout, "note: fewer than 3 runs per task on one side; this set swings 21% between identical runs, so read the intervals, not the point estimates.")
+		}
+		eval.WriteComparison(os.Stdout, eval.Compare(baseline.Results, results))
+	}
+	if o.jsonOut != "" {
+		if err := eval.WriteFile(o.jsonOut, eval.File{Model: cfg.Provider + "/" + cfg.Model, Variant: variant, Results: results, Prompt: promptRecord(o.prompt)}); err != nil {
+			return err
+		}
+		fmt.Fprintln(os.Stderr, "wrote", o.jsonOut)
+	}
+	if passed < len(results) {
+		return fmt.Errorf("%d of %d eval tasks failed", len(results)-passed, len(results))
+	}
+	return nil
+}
+
+// reportEval prints a saved results file, and the paired comparison
+// against a second one when given.
+func reportEval(path, base string) error {
+	f, err := eval.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	label := f.Variant
+	if label == "" {
+		label = filepath.Base(path)
+	}
+	fmt.Fprintf(os.Stdout, "%s — %d result(s), %s\n\n", label, len(f.Results), f.Model)
+	eval.Report(os.Stdout, f.Results)
+	eval.WriteToolUse(os.Stdout, eval.Summarize(f.Results), nil)
+	if base == "" {
+		return nil
+	}
+	b, err := eval.ReadFile(base)
+	if err != nil {
+		return err
+	}
+	blabel := b.Variant
+	if blabel == "" {
+		blabel = filepath.Base(base)
+	}
+	fmt.Fprintf(os.Stdout, "\ncompared with %s (%s):\n", blabel, b.When.Format("2006-01-02 15:04"))
+	eval.WriteComparison(os.Stdout, eval.Compare(b.Results, f.Results))
+	return nil
+}
+
+// evalToolNames is what the eval agent was given, so the adoption report
+// can name the tools nothing ever called.
+var (
+	evalToolNames []string
+	evalToolsOnce sync.Once
+)
+
+// evalTools is the eval agent's registry. --eval-off extratools strips it
+// to the four tools a session actually leans on — read, write, edit and a
+// shell — so that the cost of a wide tool surface can be measured rather
+// than assumed: every schema is in the prefix of every request, and every
+// tool is one more thing to choose between each turn.
+func evalTools(root string, repo *repomap.Cache, expand *agent.ExpandOutput, off map[string]bool) *tool.Registry {
+	core := []tool.Tool{
+		tool.ReadFile{Root: root},
+		tool.WriteFile{Root: root},
+		tool.EditFile{Root: root, NoLines: off["lineedit"]},
+		tool.Bash{Root: root, Cache: &tool.ShellCache{}},
+	}
+	if off["extratools"] {
+		return tool.NewRegistry(core...)
+	}
+	return tool.NewRegistry(append(core,
+		tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root},
+		repomap.Tool{Cache: repo},
+		expand,
+	)...)
+}
+
+// trainCritic fits the trajectory predictor to the pass/fail outcomes in
+// eval result files and saves it where the agent loads it from.
+func trainCritic(paths []string, out string, w io.Writer) error {
+	var samples []agent.Sample
+	files := 0
+	for _, p := range paths {
+		if p = strings.TrimSpace(p); p == "" {
+			continue
+		}
+		var list []string
+		if st, err := os.Stat(p); err != nil {
+			return err
+		} else if st.IsDir() {
+			list, _ = filepath.Glob(filepath.Join(p, "*.json"))
+		} else {
+			list = []string{p}
+		}
+		for _, f := range list {
+			ef, err := eval.ReadFile(f)
+			if err != nil {
+				return err
+			}
+			files++
+			for _, r := range ef.Results {
+				if len(r.Features) > 0 {
+					samples = append(samples, agent.Sample{Features: r.Features, Passed: r.Passed})
+				}
+			}
+		}
+	}
+	if len(samples) == 0 {
+		return fmt.Errorf("no runs with trajectory features in %d result file(s); results written before features were recorded cannot be used", files)
+	}
+	p, err := agent.Train(samples)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "trajectory critic trained on %d runs (%d passed, %d failed) from %d file(s)\n", p.Samples, p.Positives, p.Negatives, files)
+	fmt.Fprintf(w, "cross-validated accuracy %.0f%% (always guessing the majority: %.0f%%)\n", p.Accuracy*100, p.Baseline*100)
+	if p.Accuracy <= p.Baseline {
+		fmt.Fprintf(w, "not saved: the critic is no better than guessing; more failing runs are needed before it can help\n")
+		return nil
+	}
+	if err := p.Save(out); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "saved to %s\n", out)
+	return nil
+}

@@ -1,12 +1,14 @@
 package skill
 
 import (
-	"github.com/xmonader/janetcode/internal/md"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/md"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Profile is a custom subagent definition: a markdown file whose body is
@@ -106,7 +108,7 @@ func readProfileDir(dir, source string) []Profile {
 			pr.Name = n
 		}
 		if pr.Description == "" {
-			pr.Description = firstLine(body)
+			pr.Description = textfmt.HeadingLine(body, 120)
 		}
 		pr.Tools = md.List(meta["tools"])
 		pr.Disallowed = md.List(meta["disallowed_tools"])

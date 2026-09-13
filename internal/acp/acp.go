@@ -17,6 +17,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Options configures the server.
@@ -455,7 +456,7 @@ func inputSubject(raw json.RawMessage) string {
 	}
 	for _, k := range []string{"path", "command", "pattern", "query", "url", "description"} {
 		if v, ok := in[k].(string); ok && strings.TrimSpace(v) != "" {
-			return firstLine(v, 80)
+			return textfmt.FirstLine(v, 80)
 		}
 	}
 	return ""
@@ -469,16 +470,6 @@ func inputPath(raw json.RawMessage) string {
 		return ""
 	}
 	return in.Path
-}
-
-func firstLine(s string, max int) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		s = s[:i]
-	}
-	if len(s) > max {
-		s = s[:max-1] + "…"
-	}
-	return s
 }
 
 // toBlocks converts the editor's prompt content into agent blocks.

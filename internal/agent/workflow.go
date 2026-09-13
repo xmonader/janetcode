@@ -30,13 +30,9 @@ func (t *Workflow) Run(ctx context.Context, input json.RawMessage) (string, erro
 	if t.Parent == nil || t.Parent.Tools == nil {
 		return "", fmt.Errorf("workflow has no parent agent")
 	}
-	raw, ok := t.Parent.Tools.Get("task")
-	if !ok {
+	task := t.Parent.TaskTool()
+	if task == nil {
 		return "", fmt.Errorf("no task tool in this session")
-	}
-	task, ok := raw.(*Task)
-	if !ok {
-		return "", fmt.Errorf("task tool has the wrong type")
 	}
 	var in struct {
 		Script      json.RawMessage `json:"script"`
@@ -60,11 +56,7 @@ func (t *Workflow) Run(ctx context.Context, input json.RawMessage) (string, erro
 		fmt.Fprintf(&b, "# %s\n", d)
 	}
 	for i, st := range steps {
-		payload, err := json.Marshal(st)
-		if err != nil {
-			return "", err
-		}
-		out, err := task.Run(ctx, payload)
+		out, err := task.Start(ctx, TaskInput{Description: st.Description, Prompt: st.Prompt, Agent: st.Agent})
 		if err != nil {
 			fmt.Fprintf(&b, "## step %d %s\nerror: %s\n", i+1, st.Description, err.Error())
 			return strings.TrimRight(b.String(), "\n"), nil
@@ -81,24 +73,9 @@ type wfStep struct {
 }
 
 func parseWorkflow(raw json.RawMessage) ([]wfStep, error) {
-	raw = json.RawMessage(strings.TrimSpace(string(raw)))
-	if len(raw) == 0 {
-		return nil, fmt.Errorf("script is empty")
-	}
-	if raw[0] == '"' {
-		var s string
-		if err := json.Unmarshal(raw, &s); err != nil {
-			return nil, fmt.Errorf("bad script: %w", err)
-		}
-		s = strings.TrimSpace(s)
-		if s == "" {
-			return nil, fmt.Errorf("script is empty")
-		}
-		raw = json.RawMessage(s)
-	}
 	var steps []wfStep
-	if err := json.Unmarshal(raw, &steps); err != nil {
-		return nil, fmt.Errorf("script must be a JSON array of {description, prompt}: %w", err)
+	if err := decodeSteps(raw, "script", "{description, prompt}", &steps); err != nil {
+		return nil, err
 	}
 	for i := range steps {
 		if strings.TrimSpace(steps[i].Prompt) == "" {
@@ -112,3 +89,24 @@ func parseWorkflow(raw json.RawMessage) ([]wfStep, error) {
 }
 
 var _ tool.Tool = (*Workflow)(nil)
+
+// decodeSteps reads a tool's JSON array of steps into v. Models often send
+// the array as a string holding the JSON, so a string is unwrapped first.
+// field names the input field and shape the step, for the error.
+func decodeSteps(raw json.RawMessage, field, shape string, v any) error {
+	raw = json.RawMessage(strings.TrimSpace(string(raw)))
+	if len(raw) > 0 && raw[0] == '"' {
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return fmt.Errorf("bad %s: %w", field, err)
+		}
+		raw = json.RawMessage(strings.TrimSpace(s))
+	}
+	if len(raw) == 0 {
+		return fmt.Errorf("%s is empty", field)
+	}
+	if err := json.Unmarshal(raw, v); err != nil {
+		return fmt.Errorf("%s must be a JSON array of %s: %w", field, shape, err)
+	}
+	return nil
+}

@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/diff"
+	"github.com/xmonader/janetcode/internal/fsutil"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // ReadFile reads a file with optional line window.
@@ -169,7 +171,7 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 	t.Seen.Record(p, data)
 	root := rootOf(t.Root, t.WS)
 	if !existed {
-		return fmt.Sprintf("Created %s (%s)", displayPath(root, in.Path), plural(countLines(in.Content), "line")), nil
+		return fmt.Sprintf("Created %s (%s)", displayPath(root, in.Path), textfmt.Plural(countLines(in.Content), "line")), nil
 	}
 	added, removed := diff.Stats(oldText, in.Content)
 	out := fmt.Sprintf("Overwrote %s (+%d -%d lines)", displayPath(root, in.Path), added, removed)
@@ -177,13 +179,6 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 		out += "\n[" + note + "]"
 	}
 	return out, nil
-}
-
-func plural(n int, unit string) string {
-	if n == 1 {
-		return "1 " + unit
-	}
-	return fmt.Sprintf("%d %ss", n, unit)
 }
 
 // Guard implements Guard: a write to one of janetcode's own control
@@ -269,31 +264,7 @@ func atomicWrite(p string, data []byte) error {
 	if st, err := os.Stat(p); err == nil {
 		mode = st.Mode().Perm()
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(p), "."+filepath.Base(p)+".tmp-*")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	cleanup := func() { _ = os.Remove(tmpName) }
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		cleanup()
-		return err
-	}
-	if err := tmp.Chmod(mode); err != nil {
-		tmp.Close()
-		cleanup()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		cleanup()
-		return err
-	}
-	if err := os.Rename(tmpName, p); err != nil {
-		cleanup()
-		return err
-	}
-	return nil
+	return fsutil.WriteFileAtomic(p, data, mode)
 }
 
 // EditFile replaces an exact substring in a file.
@@ -816,7 +787,7 @@ func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	}
 	t.Seen.Record(pl.path, data)
 	added, removed := diff.Stats(pl.before, pl.after)
-	out := fmt.Sprintf("Edited %s (%s, +%d -%d lines)", pl.display, plural(pl.replacements, "replacement"), added, removed)
+	out := fmt.Sprintf("Edited %s (%s, +%d -%d lines)", pl.display, textfmt.Plural(pl.replacements, "replacement"), added, removed)
 	for _, r := range pl.removed {
 		out += "\nreplaced " + r
 	}

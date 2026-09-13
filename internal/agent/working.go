@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // WorkingMemory is the typed record that replaces the prose handoff note
@@ -346,7 +347,7 @@ func (w *WorkingMemory) Render() string {
 	if len(w.Edited) > 0 {
 		b.WriteString("\nFiles edited (content hash now; re-read before editing if the hash changed):\n")
 		for _, f := range w.Edited {
-			fmt.Fprintf(&b, "- %s  %s  %s\n", f.Path, plural(f.Edits, "edit"), f.Hash)
+			fmt.Fprintf(&b, "- %s  %s  %s\n", f.Path, textfmt.Plural(f.Edits, "edit"), f.Hash)
 		}
 	}
 	if len(w.Read) > 0 {
@@ -400,10 +401,3 @@ func (w *WorkingMemory) Render() string {
 // plausibly and wrongly. The note must say what it is (a summary) and
 // where the originals are (the archive, one expand_output call away).
 const faultDiscipline = "This record is a summary; the exact text of earlier tool outputs is in the archive. When you need an exact value from before the compaction — a path, an error message, a command's output, a line of code — fetch it with expand_output (or re-read the file) rather than reconstructing it from memory, and say when you could not find it."
-
-func plural(n int, word string) string {
-	if n == 1 {
-		return "1 " + word
-	}
-	return fmt.Sprintf("%d %ss", n, word)
-}

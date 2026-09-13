@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
@@ -179,11 +180,7 @@ func Refresh(ctx context.Context, cfgDir string) (*Table, error) {
 	if err := os.MkdirAll(cfgDir, 0o700); err != nil {
 		return nil, err
 	}
-	tmp := CachePath(cfgDir) + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return nil, err
-	}
-	if err := os.Rename(tmp, CachePath(cfgDir)); err != nil {
+	if err := fsutil.WriteFileAtomic(CachePath(cfgDir), data, 0o600); err != nil {
 		return nil, err
 	}
 	t.FetchedAt = time.Now()

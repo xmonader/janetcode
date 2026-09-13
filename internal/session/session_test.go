@@ -140,6 +140,17 @@ func TestSavePinsSurvivesOpen(t *testing.T) {
 	}
 }
 
+func TestStayArg(t *testing.T) {
+	stay, title := StayArg("stay other path")
+	if !stay || title != "other path" {
+		t.Fatalf("stay title = %v %q", stay, title)
+	}
+	stay, title = StayArg("redis variant")
+	if stay || title != "redis variant" {
+		t.Fatalf("plain = %v %q", stay, title)
+	}
+}
+
 func TestForkTitleAndSearch(t *testing.T) {
 	dir := t.TempDir()
 	s, err := New(dir, "/work", "p", "m")
@@ -254,6 +265,67 @@ func TestSettledSessionsListLast(t *testing.T) {
 	infos, _ = List(dir, "/w")
 	if infos[0].Meta.ID != b.Meta.ID || infos[0].Meta.Settled {
 		t.Fatalf("revived session should lead: %+v", infos)
+	}
+}
+
+func TestToggleSettled(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := New(dir, "/w", "p", "m")
+	v, err := s.ToggleSettled()
+	if err != nil || !v || !s.Meta.Settled {
+		t.Fatalf("v=%v settled=%v err=%v", v, s.Meta.Settled, err)
+	}
+	v, err = s.ToggleSettled()
+	if err != nil || v || s.Meta.Settled {
+		t.Fatalf("second toggle: v=%v settled=%v err=%v", v, s.Meta.Settled, err)
+	}
+}
+
+func TestLoopsAndExtraDirsRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir, "/w", "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetLoops([]LoopSpec{{ID: "loop-1", Every: "5m0s", Prompt: "ping"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetExtraDirs([]string{"/tmp/extra"}); err != nil {
+		t.Fatal(err)
+	}
+	re, _, err := Open(dir, s.Meta.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(re.Meta.Loops) != 1 || re.Meta.Loops[0].Prompt != "ping" {
+		t.Fatalf("loops = %+v", re.Meta.Loops)
+	}
+	if len(re.Meta.ExtraDirs) != 1 || re.Meta.ExtraDirs[0] != "/tmp/extra" {
+		t.Fatalf("extra = %+v", re.Meta.ExtraDirs)
+	}
+}
+
+func TestPIDSidecar(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir, "/w", "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.PID(); ok {
+		t.Fatal("empty session should have no pid")
+	}
+	if err := s.WritePID(4242); err != nil {
+		t.Fatal(err)
+	}
+	pid, ok := s.PID()
+	if !ok || pid != 4242 {
+		t.Fatalf("pid = %d %v", pid, ok)
+	}
+	if err := s.ClearPID(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.PID(); ok {
+		t.Fatal("pid survived clear")
 	}
 }
 

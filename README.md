@@ -134,7 +134,7 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 | `symbols` | Ask the language server where a name is defined, who uses it, its type, what a file declares | no |
 | `expand_output` | Read back tool output and conversation that compaction archived, by search or by line | no |
 | `execute_code` | Run a Python script that calls these tools, so a chain of calls costs one turn and their output stays out of the context | yes, shows the code |
-| `run_code` | Run a JSON list of real tool calls in this session in one turn (approvals and guards still apply) | yes |
+| `run_code` | Where no Python is available (or `JANETCODE_OFF=script`), stands in for `execute_code`: a fixed JSON list of real tool calls in one turn (approvals and guards still apply) | yes |
 | `workflow` | Start real `task` children from a short script and return their reports | no |
 | `terminal` | Persistent shell session: cwd and environment survive across sends | yes |
 | `todo` | Keep the plan for a multi-step task and mark steps off; triggered by a countable rule (three or more distinct steps) after [a subjective one was never reached for](docs/benchmarks/harnesses/session/README.md) | no |
@@ -238,7 +238,7 @@ Features, each a section of the interface page:
 - [Editing subagents in a worktree](docs/manual/interface.md#editing-subagents-in-a-worktree) — `task` with `edit: true` works in an isolated worktree and returns a patch
 - [A whole session in a worktree](docs/manual/interface.md#a-whole-session-in-a-worktree) — `--worktree <branch>` keeps the session off your checkout
 - [Sending a job to another model](docs/manual/interface.md#sending-a-job-to-another-model) — `task` takes a `model`, for cheaper or faster subagents
-- [Custom agents](docs/manual/interface.md#custom-agents) — named subagent profiles in `.janetcode/agents/`; `/team` and `ctrl+t` for the live overlay
+- [Custom agents](docs/manual/interface.md#custom-agents) — named subagent profiles in `.janetcode/agents/`; `/agents` and `ctrl+t` for the live overlay, `/agents new <brief>` to start one
 - [Remote workspace](docs/manual/interface.md#remote-workspace) — `/ssh` and `/docker` retarget file tools and bash without rebuilding the agent
 - [Prompt caching](docs/manual/interface.md#prompt-caching) — a byte-stable request prefix so every provider's cache hits
 - [Asking for a shape](docs/manual/interface.md#asking-for-a-shape) — replies constrained to JSON where they are parsed rather than read

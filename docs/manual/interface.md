@@ -36,7 +36,9 @@ waiting on you — that wait is a seeded flavor line that rotates every
 couple of seconds: Claude Code present-participles ("Moonwalking…",
 "Pondering…") mixed with Qwen Code loading phrases ("Reticulating splines…",
 "Don't panic…", "Constructing additional pylons…"); `--web` uses the same list.
-Tool names and retry countdowns stay literal. Mode changes land here, not in the transcript. The input box
+Tool names and retry countdowns stay literal. Mode changes, toggles and
+one-line acknowledgements (titled, forked, copied, sandbox, a loop armed)
+land here, not in the transcript. The input box
 is a reserved height (six lines, three in a short window) so the transcript
 above it does not move as you type; extra lines scroll inside the box. A
 permission prompt uses the reserved row above that box rather than
@@ -55,7 +57,7 @@ ctrl+o           expand the last turn's output   ctrl+l   redraw
 pgup / pgdn      scroll (mouse wheel works)
 ctrl+c           cancel the turn; when idle, press twice to quit
 shift+tab        cycle ask → plan → auto → yolo (approvals, plan-first, safe-auto, auto-approve)
-ctrl+t           open the team overlay of continuable subagents (/agents)
+ctrl+t           open the overlay of continuable subagents (/agents)
 ```
 
 ## Colour and themes
@@ -90,6 +92,16 @@ description):
 | `mono` | adapts | near colourless; greys plus the terminal's own red/green/blue |
 | `gruvbox` | dark | warm retro amber and olive |
 | `nord` | dark | cool arctic blues |
+| `catppuccin-mocha` | dark | pastel blues and mauves on cocoa |
+| `catppuccin-latte` | light | the same pastels on warm paper |
+| `dracula` | dark | cyan, pink and purple |
+| `tokyo-night` | dark | storm-blue and neon at midnight |
+| `one-dark` | dark | atom one dark chalk pastels |
+| `rose-pine` | dark | dusty rose and pine at dusk |
+| `everforest` | dark | moss and bark, low-glare greens |
+| `kanagawa` | dark | ink, gold and wave-blue |
+| `monokai` | dark | hot pink, lime and tangerine |
+| `github-light` | light | github's blue links on white paper |
 
 Every builtin clears a contrast ratio of about 3.5:1 for body text against
 the background it assumes (borders may sit lower); a test holds each one to
@@ -177,8 +189,13 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /readonly  (toggle read-only: the model can inspect but change nothing)
 /sandbox [on|off|image]  (wrap local bash in docker; file tools stay here)
 /review [focus]  (two subagents read the current diff: bugs and tests)
-/loop [duration] [prompt|off]  (repeat a prompt this session; dies on quit)
-/team [brief]  (same overlay as /agents; with a brief, start a general teammate now)
+/loop [duration] [prompt|off]  (repeat a prompt this session; restored on resume)
+/agents [id|new <brief>|fork <brief>]  (overlay of subagents; new starts a general one, fork inherits this conversation)
+/add-dir <path>  (grant file tools another local directory)
+/btw <question>  (side question; not stored as a user turn)
+/copy            (copy the last assistant reply)
+/config [key=value]  (set a catalogued config key)
+/doctor          (checkup; reports facts, changes nothing)
 /ssh [user@host[:/path]|off]  (file tools and bash on a remote host; off returns here)
 /docker [container[:/path]|off]  (the same, in a running container)
 /connect   /model     /compact (summarise the context to free the window)
@@ -186,7 +203,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
 /undo [preview]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
 /budget [usd | off] (stop the session once it has spent that much; alone reports it)
-/fork [title]  /title <text>  /history <words> (search every saved session)
+/fork [stay] [title]  /title <text>  /history <words> (search every saved session)
 /open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)
 /context   (what fills the window)   /pin <note or @file>   /unpin <n>
 /export [file.md] (write the conversation as a Markdown transcript)
@@ -541,9 +558,10 @@ approval: bubble
 Make the failing test pass. Do not weaken the test.
 ```
 
-`/team` with no argument is the same overlay as `/agents`. `/team <brief>`
-starts a built-in `general` teammate immediately (read-only, like `task`
-without `edit:true`) and opens the overlay so you can watch it. `ctrl+t`
+`/agents new <brief>` starts a built-in `general` subagent immediately
+(read-only, like `task` without `edit:true`) and opens the overlay so you
+can watch it; `/agents fork <brief>` starts a `task` fork that inherits
+this conversation. `ctrl+t`
 opens the overlay from the keyboard.
 
 A subagent that finished is not gone: `/agents` opens a live overlay of
@@ -774,7 +792,9 @@ print("\n".join(hits))
 
 The file bodies that went through that loop never entered the context.
 
-`run_code` is the same idea without Python: `code` is a JSON array of
+`run_code` is the same idea without Python, and a session offers it only
+where `execute_code` cannot run (no Python on the PATH, or
+`JANETCODE_OFF=script`): `code` is a JSON array of
 `{name, input}` steps, each dispatched through the real tool pipeline
 (approvals, guards, the event log). Nested `run_code`, `execute_code`,
 `workflow`, `task` and `ask` are refused. `workflow` is a short
@@ -1054,7 +1074,14 @@ and `/readonly` stay their own toggles.
 File tools, `/ssh` and `/docker` are unchanged: only the shell is
 isolated, and it is off by default. `/review` starts two read-only
 subagents over `git diff HEAD` (bugs and tests). `/loop 5m <prompt>`
-repeats that prompt for this session only; the timers die when you quit.
+repeats that prompt for this session; the timers are written on the
+session record and restored on `-c`/`-r` of that session (`/loop off`
+cancels them). `/fork [title]` copies the conversation and continues in
+the copy; `/fork stay [title]` lists the copy and stays here. `/add-dir <path>` grants file tools
+another local root for this session. `/btw` asks a side question that is
+not stored as a user turn; `/copy` copies the last reply; `/config key=value`
+sets a catalogued setting; `/doctor` prints the same checkup as
+`janetcode --doctor` without changing files.
 
 A `task` with `fork: true` inherits this conversation's history and
 tools, runs in the background, and can be continued by id. It cannot
@@ -1085,7 +1112,7 @@ The chosen label (and any Other text) is what the model receives.
 `task` with `agent: explore` runs a built-in read-only subagent: it can
 read, list, glob and grep, but cannot edit files or run commands, and
 it needs no profile file in `.janetcode/agents`. `agent: general` is the
-same kind of built-in teammate for a job that is not specifically
+same kind of built-in subagent for a job that is not specifically
 exploration. Other names still load from those files.
 
 ### Remote workspace

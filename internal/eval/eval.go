@@ -22,6 +22,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Task is one eval case, stored as JSON.
@@ -307,7 +308,7 @@ func (r *Runner) Run(ctx context.Context, tasks []Task) []Result {
 				}
 				r.logf("%s %s (%s, %d tool calls, %s)", mark(res.Passed), label, res.Duration.Round(100*time.Millisecond), res.ToolCalls, costString(res))
 				if !res.Passed {
-					r.logf("    %s", firstLine(res.Reason))
+					r.logf("    %s", textfmt.FirstLine(res.Reason, 0))
 				}
 			}(i*runs+run, run, t)
 		}
@@ -482,16 +483,16 @@ func Report(w io.Writer, results []Result) (passed int) {
 				cost += r.CostUSD
 				known = known && r.CostKnown
 				if !r.Passed {
-					reasons = append(reasons, firstLine(r.Reason))
+					reasons = append(reasons, textfmt.FirstLine(r.Reason, 0))
 				}
 			}
 			costStr := "?"
 			if known {
 				costStr = llm.FormatUSDPrecise(cost)
 			}
-			fmt.Fprintf(w, "%d/%-3d %-28s %8s %6d %10s\n", tr.Passed, tr.Runs, trunc(tr.Name, 28), (dur / time.Duration(tr.Runs)).Round(100*time.Millisecond), tools, costStr)
+			fmt.Fprintf(w, "%d/%-3d %-28s %8s %6d %10s\n", tr.Passed, tr.Runs, textfmt.Clip(tr.Name, 28), (dur / time.Duration(tr.Runs)).Round(100*time.Millisecond), tools, costStr)
 			for _, why := range reasons {
-				fmt.Fprintf(w, "      %s\n", trunc(why, 100))
+				fmt.Fprintf(w, "      %s\n", textfmt.Clip(why, 100))
 			}
 		}
 		fmt.Fprintf(w, "\n%s\n", summaryLine(s))
@@ -499,9 +500,9 @@ func Report(w io.Writer, results []Result) (passed int) {
 	}
 	fmt.Fprintf(w, "%-4s %-28s %8s %6s %8s %4s %10s\n", "", "task", "time", "tools", "context", "cmp", "cost")
 	for _, r := range results {
-		fmt.Fprintf(w, "%-4s %-28s %8s %6d %8s %4d %10s\n", mark(r.Passed), trunc(r.Name, 28), r.Duration.Round(100*time.Millisecond), r.ToolCalls, shortTokens(contextTokens(r.Usage)), r.Compaction.Count, costString(r))
+		fmt.Fprintf(w, "%-4s %-28s %8s %6d %8s %4d %10s\n", mark(r.Passed), textfmt.Clip(r.Name, 28), r.Duration.Round(100*time.Millisecond), r.ToolCalls, textfmt.Tokens(contextTokens(r.Usage)), r.Compaction.Count, costString(r))
 		if !r.Passed {
-			fmt.Fprintf(w, "     %s\n", trunc(firstLine(r.Reason), 100))
+			fmt.Fprintf(w, "     %s\n", textfmt.Clip(textfmt.FirstLine(r.Reason, 0), 100))
 		}
 	}
 	fmt.Fprintf(w, "\n%s\n", summaryLine(s))
@@ -542,18 +543,6 @@ func freshTokens(u llm.Usage) int {
 	return u.InputTokens + u.CacheWriteTokens
 }
 
-func shortTokens(n int) string {
-	switch {
-	case n >= 1_000_000:
-		return fmt.Sprintf("%.1fM", float64(n)/1e6)
-	case n >= 10_000:
-		return fmt.Sprintf("%dk", n/1000)
-	case n >= 1000:
-		return fmt.Sprintf("%.1fk", float64(n)/1000)
-	}
-	return fmt.Sprint(n)
-}
-
 func mark(ok bool) string {
 	if ok {
 		return "PASS"
@@ -566,21 +555,6 @@ func costString(r Result) string {
 		return "?"
 	}
 	return llm.FormatUSDPrecise(r.CostUSD)
-}
-
-func firstLine(s string) string {
-	s = strings.TrimSpace(s)
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return s[:i]
-	}
-	return s
-}
-
-func trunc(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n-1] + "…"
 }
 
 func sanitize(s string) string {

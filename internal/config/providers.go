@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 )
@@ -218,33 +219,10 @@ func UpdateKey(path, key string, value any) error {
 // writePrivate atomically replaces path with data, readable by the owner
 // only.
 func writePrivate(path string, data []byte) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".config-*.json")
-	if err != nil {
-		return err
-	}
-	name := tmp.Name()
-	cleanup := func(err error) error {
-		tmp.Close()
-		os.Remove(name)
-		return err
-	}
-	if err := tmp.Chmod(0o600); err != nil {
-		return cleanup(err)
-	}
-	if _, err := tmp.Write(data); err != nil {
-		return cleanup(err)
-	}
-	if err := tmp.Close(); err != nil {
-		return cleanup(err)
-	}
-	if err := os.Rename(name, path); err != nil {
-		return cleanup(err)
-	}
-	return nil
+	return fsutil.WriteFileAtomic(path, data, 0o600)
 }
 
 // AddPermission appends a rule under "permissions" in the config file,

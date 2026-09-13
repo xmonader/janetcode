@@ -1,0 +1,70 @@
+package tui
+
+import (
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
+)
+
+// pasteImage saves the clipboard image to a file and inserts @path.
+func (m *model) pasteImage() {
+	data, err := m.clipboard()
+	if err != nil {
+		m.status = err.Error()
+		m.refresh(false)
+		return
+	}
+	path, err := saveClipboardImage(data)
+	if err != nil {
+		m.status = "could not save the image: " + err.Error()
+		m.refresh(false)
+		return
+	}
+	v := m.input.Value()
+	if v != "" && !strings.HasSuffix(v, " ") && !strings.HasSuffix(v, "\n") {
+		m.input.InsertString(" ")
+	}
+	m.input.InsertString("@" + path + " ")
+	m.layout()
+	m.status = fmt.Sprintf("attached clipboard image (%s) · send when ready", textfmt.Bytes(int64(len(data))))
+	m.refresh(false)
+}
+
+// A paste of any size arrives as one bracketed-paste key event. Over ten
+// lines or a thousand characters it is kept aside and shown as a chip,
+// so the prompt stays readable and a paste that ends in a newline cannot
+// send itself.
+const (
+	pasteChipLines = 10
+	pasteChipChars = 1000
+)
+
+var pasteMarkerRe = regexp.MustCompile(`\[paste #(\d+) \+\d+ lines?\]`)
+
+// bigPaste reports whether a paste is large enough to be worth a chip.
+func bigPaste(s string) bool {
+	return strings.Count(s, "\n") >= pasteChipLines || len(s) > pasteChipChars
+}
+
+// storePaste keeps the text and returns the chip that stands for it.
+func (m *model) storePaste(text string) string {
+	m.pastes = append(m.pastes, text)
+	return fmt.Sprintf("[paste #%d +%s]", len(m.pastes), textfmt.Plural(strings.Count(text, "\n")+1, "line"))
+}
+
+// inflatePastes puts the pasted text back in place of every chip.
+func (m *model) inflatePastes(text string) string {
+	if len(m.pastes) == 0 {
+		return text
+	}
+	return pasteMarkerRe.ReplaceAllStringFunc(text, func(s string) string {
+		n, err := strconv.Atoi(pasteMarkerRe.FindStringSubmatch(s)[1])
+		if err != nil || n < 1 || n > len(m.pastes) {
+			return s
+		}
+		return m.pastes[n-1]
+	})
+}

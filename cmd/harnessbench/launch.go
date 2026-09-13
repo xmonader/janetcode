@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/eval"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -221,7 +222,7 @@ func runOne(ctx context.Context, cfg runConfig, harness string, batchN int, t ev
 
 	mu.Lock()
 	fmt.Fprintf(logW, "task %s passed=%v wall=%s in=%s cache=%s out=%s reason=%s\n",
-		t.Name, res.Passed, res.WallTime, res.InputTokens, res.CacheReadTokens, res.OutputTokens, firstLine(res.Reason))
+		t.Name, res.Passed, res.WallTime, res.InputTokens, res.CacheReadTokens, res.OutputTokens, textfmt.FirstLine(strings.TrimSpace(res.Reason), 0))
 	mu.Unlock()
 	return res
 }

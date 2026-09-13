@@ -2,12 +2,17 @@ package agent
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 )
+
+// maxPinFile caps how much of a /pin @path file lands in the system prompt.
+const maxPinFile = 16 * 1024
 
 // systemPrompt is the full system text sent with a request: the base
 // prompt, the dynamic extra (memory and skill indexes), pins and modes.
@@ -156,6 +161,25 @@ func (a *Agent) Context() ContextReport {
 	}
 	r.Total = a.EstimateTokens()
 	return r
+}
+
+// PinText resolves what /pin should store: arg unchanged, or for an
+// unquoted @path argument the file's content as of now, capped and
+// prefixed so the pin reads as a snapshot rather than a live reference.
+func PinText(cwd, arg string) (string, error) {
+	if !strings.HasPrefix(arg, "@") || strings.ContainsAny(arg, " \t") {
+		return arg, nil
+	}
+	rel := strings.TrimPrefix(arg, "@")
+	data, err := os.ReadFile(filepath.Join(cwd, rel))
+	if err != nil {
+		return "", err
+	}
+	body := string(data)
+	if len(body) > maxPinFile {
+		body = body[:maxPinFile] + "\n… (truncated)"
+	}
+	return "File " + rel + " as of pinning:\n" + body, nil
 }
 
 // Pin keeps a note in the system prompt for the rest of the session.

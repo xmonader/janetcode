@@ -1,0 +1,303 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/lsp"
+	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/repomap"
+	"github.com/xmonader/janetcode/internal/rules"
+	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/skill"
+	"github.com/xmonader/janetcode/internal/snapshot"
+	"github.com/xmonader/janetcode/internal/tool"
+)
+
+// chainPrep runs turn-preparation hooks in order, joining their notes.
+func chainPrep(hooks ...func([]llm.Block) ([]llm.Block, string)) func([]llm.Block) ([]llm.Block, string) {
+	return func(blocks []llm.Block) ([]llm.Block, string) {
+		var notes []string
+		for _, h := range hooks {
+			if h == nil {
+				continue
+			}
+			var note string
+			blocks, note = h(blocks)
+			if note != "" {
+				notes = append(notes, note)
+			}
+		}
+		return blocks, strings.Join(notes, " · ")
+	}
+}
+
+// envOff reads JANETCODE_OFF, a comma-separated list of behaviours to
+// disable for this session.
+func envOff() map[string]bool {
+	out := map[string]bool{}
+	for _, n := range strings.Split(os.Getenv("JANETCODE_OFF"), ",") {
+		if n = strings.TrimSpace(n); n != "" {
+			out[n] = true
+		}
+	}
+	return out
+}
+
+func diagnoseNote(m *lsp.Manager) func(context.Context, string) string {
+	return func(ctx context.Context, path string) string {
+		if m.ServerFor(path) == "" {
+			return ""
+		}
+		lines, ok, err := m.Diagnose(ctx, path)
+		switch {
+		case err != nil:
+			return "[diagnostics unavailable: " + err.Error() + "]"
+		case !ok && len(lines) == 0:
+			return ""
+		case len(lines) == 0:
+			return "[diagnostics: no problems (" + m.ServerFor(path) + ")]"
+		}
+		if len(lines) > 40 {
+			lines = append(lines[:40], fmt.Sprintf("… %d more; use the diagnostics tool", len(lines)-40))
+		}
+		return "[diagnostics]\n" + strings.Join(lines, "\n")
+	}
+}
+
+// agentDeps is what every agent in this process shares: the provider, the
+// configuration, the project directory and the process-wide stores. One
+// agent is built per session, so an ACP editor opening a second thread
+// gets its own history, log and undo state over the same wiring rather
+// than a second copy of the wiring.
+type agentDeps struct {
+	prov    llm.Provider
+	cfg     *config.Config
+	cwd     string
+	cfgDir  string
+	sessDir string
+	mem     *memory.Store
+	jobs    *tool.Jobs
+	// models resolves a model name to the backend serving it, so a job
+	// can be handed to a different model than the session's.
+	models   func(string) (llm.Provider, string, error)
+	version  string
+	readOnly bool
+	// autoEdits starts the session with file edits auto-accepted.
+	autoEdits bool
+	// autoMode starts the session in AUTO: in-workspace edits and
+	// known-safe reads skip the approver.
+	autoMode bool
+	// sandboxOn wraps local bash in docker/sandbox-exec from the start.
+	sandboxOn bool
+	// promptOverride replaces or extends the system prompt, for an A/B
+	// of the prompt itself.
+	promptOverride prompt.Override
+	// typed holds the hosts the user named themselves. fetch_url reaches a
+	// private-network address only for a host that is in here.
+	typed *tool.URLSet
+	// running is the registry of foreground commands that can be moved to
+	// the background while they run.
+	running *tool.Running
+	// extraDirs are additional local roots file tools may use (--add-dir).
+	extraDirs []string
+}
+
+// builtAgent is one session's agent and the pieces the caller still owns:
+// the subagent tool (its worktrees outlive a turn), the language-server
+// manager and the repository map.
+type builtAgent struct {
+	agent   *agent.Agent
+	task    *agent.Task
+	diag    *lsp.Manager
+	repo    *repomap.Cache
+	archive *agent.Archive
+	skills  func() []skill.Skill
+	// rules lists the project's path-scoped rules; ruleInjector says
+	// which of them this session has already sent.
+	rules        func() []rules.Rule
+	ruleInjector *rules.Injector
+	ws           *tool.Workspace
+	terms        *tool.Terms
+}
+
+// close releases what the agent held. It is the caller's job, since the
+// pieces outlive any single turn.
+func (b builtAgent) close() {
+	if b.agent != nil && b.agent.Cron != nil {
+		b.agent.Cron.Close()
+	}
+	if b.terms != nil {
+		b.terms.CloseAll()
+	}
+	b.task.Close(context.Background())
+	b.diag.Close()
+}
+
+// buildAgent wires one agent for a session: tools rooted at the project,
+// the system prompt, skills and memory, diagnostics, the repository map
+// and the trajectory critic.
+func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (builtAgent, error) {
+	task := &agent.Task{Root: d.cwd, Models: d.models}
+	jobs := d.jobs
+	cfgDir := d.cfgDir
+	archive := agent.NewArchive(session.ArchiveDir(d.sessDir, d.cwd))
+	mem := d.mem
+	seen := &tool.Seen{}
+	ws := tool.NewLocal(d.cwd)
+	sb := &tool.Sandbox{}
+	if d.sandboxOn {
+		if err := sb.Enable(); err != nil {
+			return builtAgent{}, fmt.Errorf("--sandbox: %w", err)
+		}
+	}
+	if jobs != nil {
+		jobs.Sandbox = sb
+	}
+	cron := agent.NewCron()
+	if len(sess.Meta.Loops) > 0 {
+		if err := cron.Restore(sess.Meta.Loops); err != nil {
+			return builtAgent{}, fmt.Errorf("restore loops: %w", err)
+		}
+	}
+	cron.OnChange = func(specs []session.LoopSpec) {
+		_ = sess.SetLoops(specs)
+	}
+	for _, d := range sess.Meta.ExtraDirs {
+		_ = ws.AddDir(d)
+	}
+	for _, d := range d.extraDirs {
+		if err := ws.AddDir(d); err != nil {
+			return builtAgent{}, fmt.Errorf("--add-dir %s: %w", d, err)
+		}
+	}
+	if extras := ws.ExtraDirs(); len(extras) > 0 {
+		_ = sess.SetExtraDirs(extras)
+	}
+	terms := &tool.Terms{}
+	expand := &agent.ExpandOutput{Archive: archive}
+	ag := &agent.Agent{
+		Provider: d.prov,
+		Archive:  archive,
+		Log:      sess,
+		Price:    d.cfg.PriceFor(d.cfg.Model),
+		Tools: tool.NewRegistry(
+			tool.ReadFile{Root: d.cwd, WS: ws, Seen: seen},
+			tool.WriteFile{Root: d.cwd, WS: ws, Seen: seen},
+			tool.EditFile{Root: d.cwd, WS: ws, Seen: seen, NoLines: envOff()["lineedit"]},
+			tool.Bash{Root: d.cwd, WS: ws, Cache: &tool.ShellCache{}, Jobs: jobs, Running: d.running, Sandbox: sb},
+			tool.JobTool{Jobs: jobs},
+			tool.TermTool{Terms: terms, Root: d.cwd, WS: ws},
+			tool.FetchURL{Typed: d.typed},
+			tool.WebSearch{Config: d.cfg.Search},
+			expand,
+			task,
+		),
+		System:        prompt.SystemWith(d.cwd, d.promptOverride),
+		Model:         d.cfg.Model,
+		MaxTokens:     d.cfg.MaxTokens,
+		MaxIterations: d.cfg.MaxIterations,
+		AutoApprove:   d.cfg.AutoApprove,
+		AutoEdits:     d.autoEdits,
+		AutoMode:      d.autoMode,
+		Sandbox:       sb,
+		Cron:          cron,
+		ReadOnly:      d.readOnly,
+		CompactAt:     d.cfg.CompactAt,
+		Messages:      history,
+		Pins:          sess.Meta.Pins,
+		Jobs:          jobs,
+		ContextWindow: d.cfg.MetaFor(d.cfg.Model).ContextWindow,
+		Fallbacks:     d.cfg.FallbackModels,
+		Route:         d.models,
+	}
+	expand.Log = ag.LogEvent // the archive's lookups go on the same trail
+	ag.RestoreFromLog()      // plan mode and the turn counter of a resumed session
+	task.Parent = ag
+	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
+	ag.Tools.Add(&agent.TodoTool{Parent: ag})
+	ag.Tools.Add(&agent.AskTool{Parent: ag})
+	// JANETCODE_OFF is the ablation switch a session has: the eval runner
+	// takes -eval-off, and a real session takes the same names here, so a
+	// behaviour can be turned off without a rebuild.
+	// execute_code and run_code are one feature: run_code is the
+	// Python-less form, offered only where execute_code cannot run, so the
+	// model is never asked to choose between two ways to batch tool calls.
+	if script := (&agent.Script{Parent: ag, Root: d.cwd}); !envOff()["script"] && script.Available() {
+		ag.Tools.Add(script)
+	} else {
+		ag.Tools.Add(&agent.RunCode{Parent: ag})
+	}
+	ag.Tools.Add(&agent.Workflow{Parent: ag})
+	skills := func() []skill.Skill { return skill.Load(d.cwd, cfgDir) }
+	skillInj := &skill.Injector{Skills: skills}
+	// Path-scoped rules: nothing is sent until a call touches a path a
+	// rule names, and then once for the session.
+	ruleSet := func() []rules.Rule { return rules.Load(d.cwd, cfgDir) }
+	injector := &rules.Injector{Rules: ruleSet}
+	ag.PathRules = injector.For
+	ag.PathSkills = skillInj.ForPaths
+	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(d.cwd, cfgDir) }
+	ag.Tools.Add(&skill.Tool{Skills: skills})
+	ag.Tools.Add(&agent.CronTool{Cron: cron})
+	ag.Tools.Add(&memory.Tool{Store: mem})
+	diag := lsp.New(d.cwd, d.cfg.LSP)
+	if diag.Enabled() {
+		ag.Tools.Add(lsp.Tool{M: diag})
+		ag.Tools.Add(lsp.SymbolTool{M: diag})
+		ag.Diagnose = diagnoseNote(diag)
+	}
+	// The indexes are the part of the system prompt that grows with use
+	// rather than with the code, so their share of the window is what is
+	// capped, not a flat number of bytes: 8 KB is a twenty-fifth of a 200k
+	// window and a sixteenth of a 32k one. Both fall back to the flat
+	// ceiling when the window is unknown.
+	indexBudget := memory.BudgetFor(ag.ContextWindow)
+	ag.SystemExtra = func() string {
+		return mem.IndexWithin(indexBudget) + skill.IndexWithin(skills(), indexBudget)
+	}
+	repo := &repomap.Cache{Root: d.cwd}
+	// The search tools. On a measured fan-out set, offering these
+	// alongside bash cost 23% more context (x1.23 [1.10, 1.44]) for the
+	// same pass rate, because the model takes many small steps instead of
+	// writing one pipeline — see docs/benchmarks/toolsurface. lean_tools
+	// defers them behind tool_search, where they stay reachable for the
+	// case that measurement does not cover: a large unfamiliar repository.
+	search := []tool.Tool{
+		tool.ListDir{Root: d.cwd, WS: ws},
+		tool.Glob{Root: d.cwd, WS: ws},
+		tool.Grep{Root: d.cwd, WS: ws},
+		repomap.Tool{Cache: repo},
+	}
+	for _, t := range search {
+		if d.cfg.LeanTools() {
+			ag.Tools.AddDeferred(t)
+		} else {
+			ag.Tools.Add(t)
+		}
+	}
+	ag.PlanCheck = repo.CheckPlan
+	var err error
+	if ag.Predictor, err = agent.LoadPredictor(filepath.Join(cfgDir, "critic.json")); err != nil {
+		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
+	}
+	ag.Prepare = chainPrep(skill.TurnPrep(skillInj, mem), repomap.TurnPrep(repo, 0))
+	ag.Tools.Intent = d.cfg.IntentEnabled()
+	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow})
+	ag.UndoPath = sess.UndoPath()
+	if snaps, serr := snapshot.Open(d.cwd); serr == nil {
+		ag.Snapshots = snaps
+	}
+	if err := ag.LoadUndo(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+	}
+
+	return builtAgent{agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector, ws: ws, terms: terms}, nil
+}

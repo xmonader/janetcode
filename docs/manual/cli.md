@@ -22,7 +22,9 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--sandbox` | wrap local bash in docker (or sandbox-exec on macOS). File tools stay on the workspace host. Off by default; `/sandbox` toggles it |
 | `--auto-edits` | auto-accept file edits; commands still ask. `/edits` toggles the same thing mid-session |
 | `--readonly` | read, search and answer, but change nothing |
-| `--continue` (or `-c`), `--resume <id>` (or `-r`) | carry on the last session here, or a named one |
+| `--continue` (or `-c`), `--resume <id>` (or `-r`) | carry on the last session here, or a named one (including one started with `--bg`) |
+| `--bg` | run the prompt in the background, print the session id, and return; reopen with `--resume` |
+| `--add-dir <path>` | extra local directory file tools may read and edit this session (repeatable) |
 | `--replay <session>` | re-run a saved session against the current code, with the model's replies read from the recording instead of bought: it reports the tool calls it makes now against the ones recorded, and needs no API key |
 | `--sessions` | list the sessions recorded for this directory |
 | `--worktree <branch>` | run the session in a git worktree on that branch |

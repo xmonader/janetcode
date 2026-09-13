@@ -7,8 +7,10 @@
 // respawn workers. Killing only the process janetcode started leaves the
 // real one reparented to init, still holding the port, the index or —
 // for rust-analyzer and clangd — a gigabyte of memory, for as long as the
-// machine is up. internal/tool already does this for shell commands; this
-// is the same approach, shared by the MCP and LSP transports.
+// machine is up. internal/tool uses this too, for shell commands, where
+// cancellation should hard-kill the whole group immediately rather than
+// wait through the terminate-then-grace-then-kill sequence Stop gives the
+// MCP and LSP transports — see KillOnCancel.
 package procgroup
 
 import (
@@ -22,6 +24,21 @@ func Set(cmd *exec.Cmd) {
 		return
 	}
 	setProcessGroup(cmd)
+}
+
+// KillOnCancel puts cmd in its own process group and installs a Cancel
+// hook that hard-kills the whole group as soon as the command's context is
+// done — no terminate-then-grace step. That is what a shell command
+// needs: a cancelled or timed-out command must stop immediately, along
+// with anything it spawned, not be given time to clean up.
+func KillOnCancel(cmd *exec.Cmd) {
+	if cmd == nil {
+		return
+	}
+	Set(cmd)
+	cmd.Cancel = func() error {
+		return killGroup(cmd)
+	}
 }
 
 // Stop ends the whole group: a termination signal first, so a server that

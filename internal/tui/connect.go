@@ -15,6 +15,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // The connect dialog is a modal drawn over the transcript with its own
@@ -282,7 +283,7 @@ func (m *model) applyModelMeta(modelID string) {
 func modelDetails(mi llm.ModelInfo) string {
 	var parts []string
 	if mi.ContextWindow > 0 {
-		parts = append(parts, shortTokens(mi.ContextWindow)+" ctx")
+		parts = append(parts, textfmt.Tokens(mi.ContextWindow)+" ctx")
 	}
 	if mi.Price != nil && (mi.Price.Input > 0 || mi.Price.Output > 0) {
 		parts = append(parts, fmt.Sprintf("$%s/$%s per M", trimFloat(mi.Price.Input), trimFloat(mi.Price.Output)))
@@ -535,7 +536,7 @@ func (m *model) closeConnect(note string) {
 	m.connect = nil
 	m.input.Focus()
 	if note != "" {
-		m.transcript.info(note)
+		m.note(note)
 	}
 	m.refresh(false)
 }
@@ -577,9 +578,9 @@ func (m *model) connectView(height int) string {
 		have := len(c.prov.Keys())
 		switch {
 		case n > 0:
-			add(styleDim.Render(fmt.Sprintf("%s entered · several keys are rotated when one is rate limited", plural(n, "key"))))
+			add(styleDim.Render(fmt.Sprintf("%s entered · several keys are rotated when one is rate limited", textfmt.Plural(n, "key"))))
 		case have > 0:
-			add(styleDim.Render(fmt.Sprintf("%s already configured · enter keeps them, or paste new ones", plural(have, "key"))))
+			add(styleDim.Render(fmt.Sprintf("%s already configured · enter keeps them, or paste new ones", textfmt.Plural(have, "key"))))
 		default:
 			add(styleDim.Render("Keys are hidden while typing and stored in " + shortPath(m.opts.ConfigPath)))
 		}

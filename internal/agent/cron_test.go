@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 func TestParseEvery(t *testing.T) {
@@ -86,4 +88,46 @@ func TestCronTool(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.Close()
+}
+
+func TestCronRestoreAndPersist(t *testing.T) {
+	dir := t.TempDir()
+	s, err := session.New(dir, "/w", "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := NewCron()
+	c.OnChange = func(specs []session.LoopSpec) { _ = s.SetLoops(specs) }
+	id, err := c.Add(time.Hour, "ping")
+	if err != nil {
+		t.Fatal(err)
+	}
+	re, _, err := session.Open(dir, s.Meta.ID)
+	if err != nil || len(re.Meta.Loops) != 1 || re.Meta.Loops[0].ID != id {
+		t.Fatalf("saved = %+v err=%v", re.Meta.Loops, err)
+	}
+	c2 := NewCron()
+	if err := c2.Restore(re.Meta.Loops); err != nil {
+		t.Fatal(err)
+	}
+	got := c2.List()
+	if len(got) != 1 || got[0].Prompt != "ping" {
+		t.Fatalf("restored = %+v", got)
+	}
+	c.Cancel(id)
+	re, _, _ = session.Open(dir, s.Meta.ID)
+	if len(re.Meta.Loops) != 0 {
+		t.Fatalf("cancel should persist empty, got %+v", re.Meta.Loops)
+	}
+	other, _ := session.New(dir, "/w", "p", "m")
+	c3 := NewCron()
+	if err := c3.Restore(other.Meta.Loops); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(c3.List()); n != 0 {
+		t.Fatalf("other session inherited loops: %d", n)
+	}
+	c.Close()
+	c2.Close()
+	c3.Close()
 }

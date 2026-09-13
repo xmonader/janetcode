@@ -10,14 +10,21 @@ few words (a headless run uses the first prompt instead), and `/title
 <text>` renames one. `/fork [title]` branches the conversation: a new
 session starts with a copy of the messages and pins, the original stays
 as it was, and `/resume` lists both so you can try two approaches from the
-same point. `/history <words>` searches every saved session in every
+same point. `/fork stay [title]` makes the same copy but stays on the original
+session; later messages land only on the live one, and the copy is listed
+with a parent link (`fork_of`). `/history <words>` searches every saved session in every
 directory for the words and shows the best matching line with the session
 id to `/resume`.
+
+`janetcode --bg "prompt"` starts that prompt in a detached child, prints
+the session id, and returns. Reopen it with `--resume <id>`. Armed `/loop`
+jobs are stored on the session and restored when that session is resumed.
 
 ```sh
 janetcode --sessions        # list sessions for this directory
 janetcode --continue        # resume the newest one
 janetcode --resume <id>
+janetcode --bg "fix the tests"
 ```
 
 Inside the TUI, `/resume` lists the sessions for the directory and

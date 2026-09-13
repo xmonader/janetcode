@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -21,21 +22,7 @@ const (
 	overlayTodos  = "todos"
 )
 
-func (m *model) taskTool() *agent.Task {
-	ag := m.opts.Agent
-	if ag == nil || ag.Tools == nil {
-		return nil
-	}
-	t, ok := ag.Tools.Get("task")
-	if !ok {
-		return nil
-	}
-	task, ok := t.(*agent.Task)
-	if !ok {
-		return nil
-	}
-	return task
-}
+func (m *model) taskTool() *agent.Task { return m.opts.Agent.TaskTool() }
 
 func (m *model) openOverlay(kind string) {
 	m.overlay = kind
@@ -227,13 +214,13 @@ func (m *model) agentsListView(height int) string {
 	inner := w - 4
 	var lines []string
 	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
-	add(styleKey.Render("Team"))
+	add(styleKey.Render("Subagents"))
 	add(styleDim.Render("this session · live · enter opens the transcript · ctrl+t"))
 	add("")
 	kids := m.overlayKids()
 	if len(kids) == 0 {
-		add(styleDim.Render("no teammates yet"))
-		add(styleFaint.Render("the model starts one with the task tool · /team <brief> starts a general teammate now"))
+		add(styleDim.Render("no subagents yet"))
+		add(styleFaint.Render("the model starts one with the task tool · /agents new <brief> starts one now"))
 	} else {
 		if m.overlayIdx >= len(kids) {
 			m.overlayIdx = len(kids) - 1
@@ -243,7 +230,7 @@ func (m *model) agentsListView(height int) string {
 			if !k.Done {
 				state, stateStyle = "running", styleWarn
 			}
-			age := shortDuration(time.Since(k.Started))
+			age := textfmt.Duration(time.Since(k.Started))
 			mark := "  "
 			if i == m.overlayIdx {
 				mark = styleAccent.Render("▸ ")
@@ -262,12 +249,12 @@ func (m *model) agentsListView(height int) string {
 			}
 			if k.Usage.InputTokens+k.Usage.OutputTokens > 0 {
 				add("    " + styleFaint.Render(fmt.Sprintf("tokens in=%s out=%s",
-					shortTokens(k.Usage.InputTokens), shortTokens(k.Usage.OutputTokens))))
+					textfmt.Tokens(k.Usage.InputTokens), textfmt.Tokens(k.Usage.OutputTokens))))
 			}
 			add("")
 		}
 	}
-	add(styleFaint.Render(`↑↓ choose · enter open · esc close · /team <brief> starts one · /agents <id> jumps`))
+	add(styleFaint.Render(`↑↓ choose · enter open · esc close · /agents new <brief> starts one · /agents <id> jumps`))
 	box := styleDialog.Width(w - 2).Render(strings.Join(lines, "\n"))
 	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
@@ -291,7 +278,7 @@ func (m *model) agentDetailView(height int) string {
 	head := fmt.Sprintf("%s  %s  %s  %s",
 		styleKey.Render(log.ID),
 		stateStyle.Render(state),
-		styleFaint.Render(shortDuration(time.Since(log.Started))),
+		styleFaint.Render(textfmt.Duration(time.Since(log.Started))),
 		log.Description)
 	help := styleFaint.Render("esc back to the list · ↑↓ / pgup pgdn scroll · ctrl+c close")
 	body := m.renderChildSteps(log, w)
@@ -578,4 +565,59 @@ func (m *model) jobDetailView(height int) string {
 	parts := []string{truncateLine(head, w), help, ""}
 	parts = append(parts, shown...)
 	return clipHeight(strings.Join(parts, "\n"), height)
+}
+
+// jobsCommand opens the live jobs overlay, or kills one by number.
+func (m *model) jobsCommand(args []string) {
+	if len(args) >= 2 && args[0] == "stdin" {
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			m.transcript.errorf("usage: /jobs stdin <n> <text>")
+			return
+		}
+		if m.opts.Jobs == nil {
+			m.transcript.errorf("background jobs are not available")
+			return
+		}
+		text := strings.Join(args[2:], " ")
+		if err := m.opts.Jobs.Write(n, text); err != nil {
+			m.transcript.errorf("%v", err)
+			return
+		}
+		m.note(fmt.Sprintf("wrote to job %d", n))
+		return
+	}
+	if len(args) == 2 && args[0] == "kill" {
+		n, err := strconv.Atoi(args[1])
+		if err != nil {
+			m.transcript.errorf("usage: /jobs kill <n>")
+			return
+		}
+		if m.opts.Jobs == nil {
+			m.transcript.errorf("background jobs are not available")
+			return
+		}
+		if err := m.opts.Jobs.Kill(n); err != nil {
+			m.transcript.errorf("%v", err)
+			return
+		}
+		m.note(fmt.Sprintf("killed job %d", n))
+		return
+	}
+	m.openOverlay(overlayJobs)
+	jobs := m.overlayJobList()
+	switch {
+	case len(args) == 1:
+		m.overlayChild = args[0]
+		if n, err := strconv.Atoi(args[0]); err == nil {
+			for i, j := range jobs {
+				if j.ID == n {
+					m.overlayIdx = i
+					break
+				}
+			}
+		}
+	case len(jobs) == 1:
+		m.overlayChild = strconv.Itoa(jobs[0].ID)
+	}
 }

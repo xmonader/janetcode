@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // A run can be lost to one model rather than to the work: a coding-plan
@@ -109,7 +110,7 @@ func (a *Agent) fallback(ctx context.Context, cause error, emit func(Event)) (*l
 			prov, model = p, resolved
 		}
 		emit(Event{Kind: EvDiscard})
-		emit(Event{Kind: EvNotice, Text: firstLineOf(cause.Error()) + " · falling back to " + model})
+		emit(Event{Kind: EvNotice, Text: textfmt.FirstLine(cause.Error(), 70) + " · falling back to " + model})
 		emit(Event{Kind: EvPhase, Text: "falling back to " + model})
 		resp, err := a.callOn(ctx, prov, model, emit)
 		if err == nil {

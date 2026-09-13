@@ -1,9 +1,9 @@
 package tui
 
 import (
-	"strconv"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
@@ -19,21 +19,23 @@ func (m *model) budgetCommand(arg string) {
 	switch {
 	case arg == "":
 		if a.MaxCostUSD <= 0 {
-			m.transcript.info("no cost budget · /budget 0.50 stops the session once it has spent that much")
+			m.note("no cost budget · /budget 0.50 stops the session once it has spent that much")
 			return
 		}
-		m.transcript.info("cost budget " + m.budgetStatus() + " · /budget off removes it")
-	case strings.EqualFold(arg, "off"), strings.EqualFold(arg, "none"), arg == "0":
-		if a.MaxCostUSD <= 0 {
-			m.transcript.info("there was no cost budget")
-			return
-		}
-		a.MaxCostUSD = 0
-		m.transcript.info("cost budget removed")
+		m.note("cost budget " + m.budgetStatus() + " · /budget off removes it")
 	default:
-		usd, err := strconv.ParseFloat(strings.TrimPrefix(arg, "$"), 64)
-		if err != nil || usd <= 0 {
-			m.transcript.errorf("%q is not an amount · /budget 0.50, or /budget off", arg)
+		usd, err := agent.ParseBudget(arg)
+		if err != nil {
+			m.transcript.errorf("%v", err)
+			return
+		}
+		if usd == 0 {
+			if a.MaxCostUSD <= 0 {
+				m.note("there was no cost budget")
+				return
+			}
+			a.MaxCostUSD = 0
+			m.note("cost budget removed")
 			return
 		}
 		a.MaxCostUSD = usd
@@ -49,7 +51,11 @@ func (m *model) budgetCommand(arg string) {
 			// the provider's own figure against the ceiling.
 			line += "\nnothing prices this model, so the spend is unknown and the budget cannot stop anything · /usage says why"
 		}
-		m.transcript.info(line)
+		if strings.Contains(line, "\n") {
+			m.transcript.info(line)
+		} else {
+			m.note(line)
+		}
 	}
 }
 

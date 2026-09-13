@@ -3,6 +3,8 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -63,4 +65,18 @@ func (a *Agent) stopForBudget(spent float64, uses []llm.Block, emit func(Event))
 	emit(Event{Kind: EvNotice, Text: err.Error()})
 	emit(Event{Kind: EvVerdict, Text: "stopped on the cost budget · " + err.Error(), IsError: true})
 	return err
+}
+
+// ParseBudget reads a /budget argument: an amount in dollars (a leading $
+// is allowed), or off, none or 0 for no ceiling, which returns 0.
+func ParseBudget(arg string) (float64, error) {
+	arg = strings.TrimSpace(arg)
+	if strings.EqualFold(arg, "off") || strings.EqualFold(arg, "none") || arg == "0" {
+		return 0, nil
+	}
+	usd, err := strconv.ParseFloat(strings.TrimPrefix(arg, "$"), 64)
+	if err != nil || usd <= 0 {
+		return 0, fmt.Errorf("%q is not an amount · /budget 0.50, or /budget off", arg)
+	}
+	return usd, nil
 }

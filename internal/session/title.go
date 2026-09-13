@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -33,7 +34,7 @@ func GenerateTitle(ctx context.Context, p llm.Provider, model string, msgs []llm
 		return "", err
 	}
 	title := strings.TrimSpace(resp.Message.Text())
-	title = strings.Trim(firstLine(title, 80), "\"'`* .")
+	title = strings.Trim(textfmt.FirstLine(title, 80), "\"'`* .")
 	if len(strings.Fields(title)) > 10 {
 		title = strings.Join(strings.Fields(title)[:10], " ")
 	}

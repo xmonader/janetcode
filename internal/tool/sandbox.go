@@ -96,6 +96,32 @@ func (s *Sandbox) Status() string {
 	}
 }
 
+// SetSandbox applies a /sandbox argument (""/"status", "on", "off", or an
+// image name) and returns the status line to show. sb may be nil, meaning
+// the session has none.
+func SetSandbox(sb *Sandbox, arg string) (string, error) {
+	if sb == nil {
+		return "", fmt.Errorf("this session has no sandbox")
+	}
+	switch arg {
+	case "", "status":
+	case "on":
+		if err := sb.Enable(); err != nil {
+			return "", fmt.Errorf("sandbox: %v", err)
+		}
+	case "off":
+		sb.Disable()
+	default:
+		sb.SetImage(arg)
+		if !sb.Enabled() {
+			if err := sb.Enable(); err != nil {
+				return "", fmt.Errorf("sandbox: %v", err)
+			}
+		}
+	}
+	return sb.Status(), nil
+}
+
 func (s *Sandbox) lookPath(name string) (string, error) {
 	if s != nil && s.look != nil {
 		return s.look(name)

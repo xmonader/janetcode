@@ -104,8 +104,8 @@ func TestBuiltinsAreComplete(t *testing.T) {
 			t.Errorf("%v", err)
 		}
 	}
-	if len(set.Names()) < 6 {
-		t.Errorf("want at least 6 builtins, got %d", len(set.Names()))
+	if len(set.Names()) < 16 {
+		t.Errorf("want at least 16 builtins, got %d", len(set.Names()))
 	}
 }
 

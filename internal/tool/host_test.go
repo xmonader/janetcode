@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -86,6 +87,32 @@ func TestWorkspaceRetargetsFileTools(t *testing.T) {
 	}
 	if strings.Contains(out, "from-a") {
 		t.Fatal("still seeing the old tree")
+	}
+}
+
+func TestRetargetRequiresAWorkspace(t *testing.T) {
+	if _, err := Retarget(nil, "/cwd", "ssh", "", nil); err == nil {
+		t.Fatal("want error with no workspace")
+	}
+}
+
+func TestRetargetStatusAndLocal(t *testing.T) {
+	ws := NewLocal("/start")
+	status, err := Retarget(ws, "/start", "ssh", "status", nil)
+	if err != nil || !strings.Contains(status, "/start") {
+		t.Fatalf("status=%q err=%v", status, err)
+	}
+	status, err = Retarget(ws, "/back", "ssh", "off", nil)
+	if err != nil || !strings.Contains(status, "/back") || ws.Kind() != "local" {
+		t.Fatalf("off: status=%q kind=%s err=%v", status, ws.Kind(), err)
+	}
+}
+
+func TestRetargetDialFailureIsReported(t *testing.T) {
+	ws := NewLocal("/start")
+	dial := func(string) (Host, error) { return nil, errors.New("boom") }
+	if _, err := Retarget(ws, "/start", "docker", "myctr", dial); err == nil || !strings.Contains(err.Error(), "docker: boom") {
+		t.Fatalf("err = %v", err)
 	}
 }
 

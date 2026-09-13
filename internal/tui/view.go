@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // openCommand shows a file inline, centred on a line when one is given.
@@ -33,7 +35,7 @@ func (m *model) openCommand(arg string) {
 		return
 	}
 	if bytes.IndexByte(data, 0) >= 0 {
-		m.transcript.errorf("%s is binary (%s)", path, shortBytes(int64(len(data))))
+		m.transcript.errorf("%s is binary (%s)", path, textfmt.Bytes(int64(len(data))))
 		return
 	}
 	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
@@ -97,7 +99,7 @@ func (m *model) diffCommand(args []string) {
 		return
 	}
 	if len(files) == 0 {
-		m.transcript.info("working tree clean: nothing differs from HEAD")
+		m.note("working tree clean")
 		return
 	}
 	var sb strings.Builder
@@ -135,7 +137,7 @@ func (m *model) showFileDiff(path string) {
 				return
 			}
 		}
-		m.transcript.info(path + " is unchanged")
+		m.note(path + " is unchanged")
 		return
 	}
 	_, hunks := splitPatch(patch)
@@ -183,7 +185,7 @@ func (m *model) revertHunk(spec string) {
 		m.transcript.errorf("git apply -R: %v %s", err, strings.TrimSpace(string(out)))
 		return
 	}
-	m.transcript.info(fmt.Sprintf("reverted hunk %d of %s (%d left)", n, path, len(hunks)-1))
+	m.note(fmt.Sprintf("reverted hunk %d of %s (%d left)", n, path, len(hunks)-1))
 }
 
 // splitPatch separates a single-file git diff into its header and hunks,

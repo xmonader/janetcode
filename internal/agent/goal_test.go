@@ -124,6 +124,44 @@ func TestGoalStatusOnABlockedGoalReportsTheReason(t *testing.T) {
 	}
 }
 
+func TestTargetGoalPauseAndResume(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}}
+	id := a.CreateGoal("ship the cache", 0)
+	g, phase, err := TargetGoal(a.Log.Events(), "pause")
+	if err != nil || g.ID != id || phase != GoalPaused {
+		t.Fatalf("g=%+v phase=%q err=%v", g, phase, err)
+	}
+	a.SetGoalPhase(id, phase, "")
+	g, phase, err = TargetGoal(a.Log.Events(), "resume")
+	if err != nil || g.ID != id || phase != GoalActive {
+		t.Fatalf("resume: g=%+v phase=%q err=%v", g, phase, err)
+	}
+}
+
+func TestTargetGoalDoneFallsBackToMostRecent(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}}
+	id := a.CreateGoal("ship the cache", 0)
+	a.SetGoalPhase(id, GoalPaused, "")
+	g, phase, err := TargetGoal(a.Log.Events(), "done")
+	if err != nil || g.ID != id || phase != GoalComplete {
+		t.Fatalf("g=%+v phase=%q err=%v", g, phase, err)
+	}
+}
+
+func TestTargetGoalWithNoGoalIsAnError(t *testing.T) {
+	if _, _, err := TargetGoal(nil, "pause"); err == nil {
+		t.Fatal("want error with no goal at all")
+	}
+}
+
+func TestFormatGoalsIncludesReason(t *testing.T) {
+	gs := []Goal{{ID: "g1", Phase: GoalBlocked, Reason: "no credentials", Rounds: 1, MaxRounds: 8, Objective: "ship it"}}
+	out := FormatGoals(gs)
+	if !strings.Contains(out, "g1") || !strings.Contains(out, "ship it") || !strings.Contains(out, "no credentials") {
+		t.Fatalf("out = %q", out)
+	}
+}
+
 func TestGoalStatusWithNoGoalAtAllStillErrors(t *testing.T) {
 	a := &Agent{Log: &session.Memory{}}
 	tl := &GoalStatus{Parent: a}

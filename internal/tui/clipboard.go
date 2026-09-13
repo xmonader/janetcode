@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -54,6 +56,43 @@ func readClipboardImage() ([]byte, error) {
 
 func isPNG(b []byte) bool { return bytes.HasPrefix(b, []byte("\x89PNG\r\n\x1a\n")) }
 
+// writeClipboardText copies s to the system clipboard. On failure the
+// caller can still show the text.
+func writeClipboardText(s string) error {
+	type cand struct {
+		name string
+		args []string
+	}
+	var cands []cand
+	switch runtime.GOOS {
+	case "darwin":
+		cands = []cand{{"pbcopy", nil}}
+	case "windows":
+		cands = []cand{{"clip", nil}}
+	default:
+		cands = []cand{
+			{"wl-copy", nil},
+			{"xclip", []string{"-selection", "clipboard"}},
+		}
+	}
+	var tried []string
+	for _, c := range cands {
+		if _, err := exec.LookPath(c.name); err != nil {
+			continue
+		}
+		tried = append(tried, c.name)
+		cmd := exec.Command(c.name, c.args...)
+		cmd.Stdin = strings.NewReader(s)
+		if err := cmd.Run(); err == nil {
+			return nil
+		}
+	}
+	if len(tried) == 0 {
+		return errors.New("no clipboard helper found (install wl-copy or xclip on Linux, pbcopy on macOS)")
+	}
+	return fmt.Errorf("clipboard write failed (tried %v)", tried)
+}
+
 // saveClipboardImage writes the image where an @mention can find it and
 // returns the absolute path.
 func saveClipboardImage(data []byte) (string, error) {
@@ -66,4 +105,24 @@ func saveClipboardImage(data []byte) (string, error) {
 		return "", err
 	}
 	return p, nil
+}
+
+func (m *model) copyCommand() {
+	text := ""
+	if m.opts.Agent != nil {
+		text = m.opts.Agent.LastAssistantText()
+	}
+	if text == "" {
+		m.transcript.errorf("no assistant reply to copy")
+		return
+	}
+	fn := m.copyText
+	if fn == nil {
+		fn = writeClipboardText
+	}
+	if err := fn(text); err != nil {
+		m.transcript.info("copy (clipboard unavailable): " + err.Error() + "\n" + text)
+		return
+	}
+	m.note("copied last reply (" + strconv.Itoa(len(text)) + " bytes)")
 }

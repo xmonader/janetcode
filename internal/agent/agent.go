@@ -16,11 +16,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/snapshot"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/verify"
 )
@@ -379,7 +381,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		}
 		if repeated > 0 {
 			emit(Event{Kind: EvNotice, Text: fmt.Sprintf(
-				"%s of attachment was already in the context word for word and was not sent again", shortInt(repeated))})
+				"%s of attachment was already in the context word for word and was not sent again", textfmt.Tokens(repeated))})
 		}
 	}
 	// The checkpoint remembers the conversation as it stood before this
@@ -925,6 +927,88 @@ func (a *Agent) traced(emit func(Event)) func(Event) {
 // mutates the history and is only safe between turns; use Steer to say
 // something to a turn that is already running.
 func (a *Agent) AddContext(text string) { a.appendUserText(text) }
+
+// AskOnce answers a side question against the current conversation
+// without recording a user turn or changing Messages.
+func (a *Agent) AskOnce(ctx context.Context, question string) (string, error) {
+	question = strings.TrimSpace(question)
+	if question == "" {
+		return "", fmt.Errorf("empty question")
+	}
+	if a.Provider == nil {
+		return "", fmt.Errorf("no provider")
+	}
+	msgs := append([]llm.Message(nil), a.Messages...)
+	msgs = append(msgs, llm.TextMessage(llm.RoleUser, question))
+	max := a.MaxTokens
+	if max <= 0 || max > 2048 {
+		max = 2048
+	}
+	resp, err := a.Provider.Stream(ctx, llm.Request{
+		Model:     a.Model,
+		System:    a.systemPrompt(),
+		Messages:  msgs,
+		MaxTokens: max,
+	}, nil)
+	if err != nil {
+		return "", err
+	}
+	if resp == nil {
+		return "", fmt.Errorf("empty reply")
+	}
+	return strings.TrimSpace(resp.Message.Text()), nil
+}
+
+// ApplyConfig writes a catalogued config key onto cfg and the live agent,
+// and saves it to path when there is one. /config in every front-end
+// comes through here, so a key set in one is set the same way in all.
+func ApplyConfig(cfg *config.Config, a *Agent, path, key, val string) (any, error) {
+	key, val = strings.TrimSpace(key), strings.TrimSpace(val)
+	applied, err := config.ApplyKV(cfg, key, val)
+	if err != nil {
+		return nil, err
+	}
+	if path != "" {
+		if err := config.UpdateKey(path, key, applied); err != nil {
+			return nil, fmt.Errorf("save config: %w", err)
+		}
+	}
+	if a == nil {
+		return applied, nil
+	}
+	switch key {
+	case "intent":
+		if a.Tools != nil {
+			a.Tools.Intent = cfg.IntentEnabled()
+		}
+	case "auto_approve":
+		a.AutoApprove = cfg.AutoApprove
+	case "compact_at":
+		a.CompactAt = cfg.CompactAt
+	case "max_tokens":
+		a.MaxTokens = cfg.MaxTokens
+	case "max_iterations":
+		a.MaxIterations = cfg.MaxIterations
+	case "model":
+		a.Model = cfg.Model
+	}
+	return applied, nil
+}
+
+// LastAssistantText is the last assistant reply, for /copy.
+func (a *Agent) LastAssistantText() string {
+	if a == nil {
+		return ""
+	}
+	for i := len(a.Messages) - 1; i >= 0; i-- {
+		if a.Messages[i].Role == llm.RoleAssistant {
+			if t := strings.TrimSpace(a.Messages[i].Text()); t != "" {
+				return t
+			}
+		}
+	}
+	return ""
+}
 
 // Steer queues a note for the running turn. The history belongs to the
 // turn goroutine while it runs, so the note is held here and delivered by

@@ -37,6 +37,12 @@ func LoadProject(cwd string) (servers map[string]ServerConfig, hash string, err 
 
 // TrustStore remembers which project files the user approved, keyed by
 // directory and content hash, so an edited .mcp.json asks again.
+// The store also holds the approvals of other project files, keyed by the
+// directory with a suffix so they stay apart from the MCP approval.
+func HooksTrustKey(cwd string) string       { return cwd + "#hooks" }
+func VerifyTrustKey(cwd string) string      { return cwd + "#verify" }
+func PermissionsTrustKey(cwd string) string { return cwd + "#permissions" }
+
 type TrustStore struct {
 	Path string
 }

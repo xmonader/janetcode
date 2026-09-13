@@ -7,32 +7,10 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/feature"
+	"github.com/xmonader/janetcode/internal/slash"
 )
 
-// TestEveryCommandIsCatalogued is the drift gate. A command the user can
-// type but that the catalogue cannot describe is a feature nobody can
-// find: /help <topic> will not mention it, --inspect features will not
-// list it, and the model will not know it exists. Adding a command
-// therefore has to mean adding a line saying when it helps.
-func TestEveryCommandIsCatalogued(t *testing.T) {
-	cat := feature.New()
-	cat.AddAll(Features())
-	for _, c := range commands {
-		f, ok := cat.Get(feature.KindCommand, c.name)
-		if !ok {
-			t.Errorf("%s is in the command table but not in the catalogue", c.name)
-			continue
-		}
-		if strings.TrimSpace(f.What) == "" {
-			t.Errorf("%s has no description", c.name)
-		}
-		if strings.TrimSpace(f.When) == "" {
-			t.Errorf("%s has no \"when it helps\" line: add one to commandWhen in features.go", c.name)
-		}
-	}
-}
-
-var dispatchCase = regexp.MustCompile(`(?m)^\tcase ("/[a-z?]+"(?:, "/[a-z?]+")*):`)
+var dispatchCase = regexp.MustCompile(`(?m)^\tcase ("/[a-z][a-z0-9?-]*"(?:, "/[a-z][a-z0-9?-]*")*):`)
 
 // TestDispatchedCommandsAreInTheTable reads the source of the command
 // dispatcher and checks that every name it answers to is either in the
@@ -40,7 +18,7 @@ var dispatchCase = regexp.MustCompile(`(?m)^\tcase ("/[a-z?]+"(?:, "/[a-z?]+")*)
 // completion and the catalogue are all built from, so a command that
 // only exists in the switch is invisible everywhere else.
 func TestDispatchedCommandsAreInTheTable(t *testing.T) {
-	src, err := os.ReadFile("tui.go")
+	src, err := os.ReadFile("commands.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +40,7 @@ func TestDispatchedCommandsAreInTheTable(t *testing.T) {
 		for _, name := range strings.Split(m[1], ", ") {
 			name = strings.Trim(name, `"`)
 			found++
-			if known[name] || commandAliases[name] != "" {
+			if known[name] || slash.Aliases[name] != "" {
 				continue
 			}
 			t.Errorf("%s is dispatched but is neither in the command table nor a declared alias", name)

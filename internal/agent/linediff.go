@@ -3,6 +3,8 @@ package agent
 import (
 	"fmt"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/diff"
 )
 
 // edit is one step of a line diff: '=' kept, '-' removed, '+' added.
@@ -10,10 +12,6 @@ type edit struct {
 	op   byte
 	line string
 }
-
-// maxDiffSteps bounds the Myers search; beyond it the diff degrades to
-// "replace everything", which is what a rewrite of that size is anyway.
-const maxDiffSteps = 3000
 
 // splitLines keeps line endings so the join is exact.
 func splitLines(s string) []string {
@@ -27,114 +25,20 @@ func splitLines(s string) []string {
 	return lines
 }
 
-// diffLines is a Myers line diff of a against b.
+// diffLines is a thin adapter over diff.Lines, the shared Myers line-diff
+// implementation: it just relabels diff.Op's ' ' (equal) as '=' to match
+// this package's edit type.
 func diffLines(a, b []string) []edit {
-	// Trim the common prefix and suffix first: most edits are local.
-	pre := 0
-	for pre < len(a) && pre < len(b) && a[pre] == b[pre] {
-		pre++
-	}
-	suf := 0
-	for suf < len(a)-pre && suf < len(b)-pre && a[len(a)-1-suf] == b[len(b)-1-suf] {
-		suf++
-	}
-	var out []edit
-	for _, l := range a[:pre] {
-		out = append(out, edit{'=', l})
-	}
-	out = append(out, myers(a[pre:len(a)-suf], b[pre:len(b)-suf])...)
-	for _, l := range a[len(a)-suf:] {
-		out = append(out, edit{'=', l})
+	ops := diff.Lines(a, b)
+	out := make([]edit, len(ops))
+	for i, op := range ops {
+		k := op.Kind
+		if k == ' ' {
+			k = '='
+		}
+		out[i] = edit{op: k, line: op.Text}
 	}
 	return out
-}
-
-func myers(a, b []string) []edit {
-	n, m := len(a), len(b)
-	if n == 0 && m == 0 {
-		return nil
-	}
-	replaceAll := func() []edit {
-		out := make([]edit, 0, n+m)
-		for _, l := range a {
-			out = append(out, edit{'-', l})
-		}
-		for _, l := range b {
-			out = append(out, edit{'+', l})
-		}
-		return out
-	}
-	limit := n + m
-	if limit > maxDiffSteps {
-		limit = maxDiffSteps
-	}
-	// v[k] is the furthest x on diagonal k; trace keeps v per step for
-	// the backtrack, sized to the diagonals in use.
-	v := make([]int, 2*limit+3)
-	off := limit + 1
-	var trace [][]int
-	for d := 0; d <= limit; d++ {
-		snap := make([]int, 2*d+1)
-		copy(snap, v[off-d:off+d+1])
-		trace = append(trace, snap)
-		for k := -d; k <= d; k += 2 {
-			var x int
-			if k == -d || (k != d && v[off+k-1] < v[off+k+1]) {
-				x = v[off+k+1]
-			} else {
-				x = v[off+k-1] + 1
-			}
-			y := x - k
-			for x < n && y < m && a[x] == b[y] {
-				x++
-				y++
-			}
-			v[off+k] = x
-			if x >= n && y >= m {
-				return backtrack(a, b, trace, d)
-			}
-		}
-	}
-	return replaceAll()
-}
-
-func backtrack(a, b []string, trace [][]int, d int) []edit {
-	x, y := len(a), len(b)
-	var rev []edit
-	for ; d > 0; d-- {
-		snap := trace[d]
-		at := func(k int) int { return snap[k+d] }
-		k := x - y
-		var pk int
-		if k == -d || (k != d && at(k-1) < at(k+1)) {
-			pk = k + 1
-		} else {
-			pk = k - 1
-		}
-		px := at(pk)
-		py := px - pk
-		for x > px && y > py {
-			x--
-			y--
-			rev = append(rev, edit{'=', a[x]})
-		}
-		if x == px {
-			y--
-			rev = append(rev, edit{'+', b[y]})
-		} else {
-			x--
-			rev = append(rev, edit{'-', a[x]})
-		}
-	}
-	for x > 0 && y > 0 {
-		x--
-		y--
-		rev = append(rev, edit{'=', a[x]})
-	}
-	for i, j := 0, len(rev)-1; i < j; i, j = i+1, j-1 {
-		rev[i], rev[j] = rev[j], rev[i]
-	}
-	return rev
 }
 
 // Hunk is a unified-diff hunk: Lines carry their ' ', '-' or '+' prefix

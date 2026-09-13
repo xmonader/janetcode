@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/xmonader/janetcode/internal/agent"
 )
 
@@ -125,4 +126,39 @@ func (m *model) planView() string {
 		out = indent(out, strings.Repeat(" ", g))
 	}
 	return out
+}
+
+// planCommand enters plan mode, approves the plan, or leaves the mode.
+func (m *model) planCommand(arg string) tea.Cmd {
+	ag := m.opts.Agent
+	switch arg {
+	case "approve", "go", "execute":
+		if !ag.PlanMode {
+			m.transcript.errorf("not in plan mode: /plan <request> writes a plan first")
+			m.refresh(false)
+			return nil
+		}
+		if m.running {
+			m.transcript.errorf("wait for the plan to finish")
+			m.refresh(false)
+			return nil
+		}
+		ag.SetPlanMode(false)
+		m.status = "plan approved · executing · /undo reverts a step"
+		return m.submit(agent.PlanApprovedPrompt)
+	case "off", "cancel", "exit":
+		ag.SetPlanMode(false)
+		m.noteMode()
+		m.refresh(false)
+		return nil
+	}
+	if !ag.PlanMode {
+		ag.SetPlanMode(true)
+		m.noteMode()
+	}
+	if arg == "" {
+		m.refresh(false)
+		return nil
+	}
+	return m.submit(arg)
 }

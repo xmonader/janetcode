@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Prompt-cache accounting.
@@ -95,7 +96,7 @@ func (a *Agent) CacheReport() string {
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d model call(s) · %s read from cache · %s billed as fresh input\n",
-		l.calls, shortInt(used.CacheReadTokens), shortInt(used.InputTokens))
+		l.calls, textfmt.Tokens(used.CacheReadTokens), textfmt.Tokens(used.InputTokens))
 	if l.calls < 2 {
 		b.WriteString("\nnot enough calls yet to say whether the cache is working")
 		return b.String()
@@ -104,7 +105,7 @@ func (a *Agent) CacheReport() string {
 		b.WriteString("\nno call paid for a prefix it could have read: the cache is working")
 		return b.String()
 	}
-	fmt.Fprintf(&b, "\n%s paid twice across %s:\n", shortInt(l.total), plural(len(l.misses), "call"))
+	fmt.Fprintf(&b, "\n%s paid twice across %s:\n", textfmt.Tokens(l.total), textfmt.Plural(len(l.misses), "call"))
 	byCause := map[string]int{}
 	for _, m := range l.misses {
 		byCause[m.Cause] += m.Tokens
@@ -115,7 +116,7 @@ func (a *Agent) CacheReport() string {
 	}
 	sort.Slice(causes, func(i, j int) bool { return byCause[causes[i]] > byCause[causes[j]] })
 	for _, c := range causes {
-		fmt.Fprintf(&b, "  %-9s %s\n", shortInt(byCause[c]), c)
+		fmt.Fprintf(&b, "  %-9s %s\n", textfmt.Tokens(byCause[c]), c)
 	}
 	if p := a.Price; p != nil {
 		if usd, ok := (llm.Usage{InputTokens: l.total}).Cost(p); ok {
@@ -129,19 +130,9 @@ func (a *Agent) CacheReport() string {
 		if i == 5 {
 			break
 		}
-		fmt.Fprintf(&b, "  turn %-3d %-9s %s\n", m.Turn, shortInt(m.Tokens), m.Cause)
+		fmt.Fprintf(&b, "  turn %-3d %-9s %s\n", m.Turn, textfmt.Tokens(m.Tokens), m.Cause)
 	}
 	return strings.TrimRight(b.String(), "\n")
-}
-
-func shortInt(n int) string {
-	switch {
-	case n >= 1_000_000:
-		return fmt.Sprintf("%.1fM", float64(n)/1e6)
-	case n >= 1_000:
-		return fmt.Sprintf("%.1fk", float64(n)/1e3)
-	}
-	return fmt.Sprint(n)
 }
 
 // cacheWasteFloor is how much a single turn must have paid twice before

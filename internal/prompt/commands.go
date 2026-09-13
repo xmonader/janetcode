@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Custom is a user-defined slash command: a prompt template stored as a
@@ -43,7 +45,7 @@ func CustomCommands(cwd, configDir string) []Custom {
 				continue
 			}
 			name := strings.TrimSuffix(e.Name(), ".md")
-			byName[name] = Custom{Name: name, Help: firstLineOf(body), Body: body, Path: p}
+			byName[name] = Custom{Name: name, Help: textfmt.HeadingLine(body, 60), Body: body, Path: p}
 		}
 	}
 	out := make([]Custom, 0, len(byName))
@@ -65,13 +67,4 @@ func (c Custom) Expand(args string) string {
 		return c.Body
 	}
 	return c.Body + "\n\n" + args
-}
-
-func firstLineOf(s string) string {
-	line, _, _ := strings.Cut(s, "\n")
-	line = strings.TrimSpace(strings.TrimLeft(line, "# "))
-	if len(line) > 60 {
-		line = line[:59] + "…"
-	}
-	return line
 }

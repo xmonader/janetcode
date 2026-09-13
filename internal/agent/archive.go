@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -279,7 +280,7 @@ func inlineBudget(name string) int {
 }
 
 func archiveNote(id string, size, shown int, digest string) string {
-	return fmt.Sprintf("[output is %s (sha256 %s); about %s of the middle is omitted here. The full output is saved as %s: expand_output {\"id\":%q,\"grep\":\"<regexp>\"} finds lines in it, {\"id\":%q,\"offset\":<line>,\"limit\":<lines>} reads a slice.]\n", humanBytes(size), digest, humanBytes(size-shown), id, id, id)
+	return fmt.Sprintf("[output is %s (sha256 %s); about %s of the middle is omitted here. The full output is saved as %s: expand_output {\"id\":%q,\"grep\":\"<regexp>\"} finds lines in it, {\"id\":%q,\"offset\":<line>,\"limit\":<lines>} reads a slice.]\n", textfmt.Bytes(int64(size)), digest, textfmt.Bytes(int64(size-shown)), id, id, id)
 }
 
 // outputDigest identifies the output the stub stands for. Two calls that
@@ -296,14 +297,4 @@ func archiveNote(id string, size, shown int, digest string) string {
 func outputDigest(out string) string {
 	sum := sha256.Sum256([]byte(out))
 	return hex.EncodeToString(sum[:])[:12]
-}
-
-func humanBytes(n int) string {
-	switch {
-	case n >= 1<<20:
-		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
-	case n >= 1<<10:
-		return fmt.Sprintf("%.1f KB", float64(n)/(1<<10))
-	}
-	return fmt.Sprintf("%d bytes", n)
 }

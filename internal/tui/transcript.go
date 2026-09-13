@@ -1,14 +1,16 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/charmbracelet/x/ansi"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
@@ -16,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -281,7 +284,7 @@ func (t *transcript) apply(ev agent.Event) {
 		e.output = ev.Output
 		e.isError = ev.IsError
 		if ev.Duration > 0 {
-			e.dur = shortDuration(ev.Duration)
+			e.dur = textfmt.Duration(ev.Duration)
 		}
 	case agent.EvDiscard:
 		t.dropOpen()
@@ -724,7 +727,7 @@ func toolElapsed(e *entry) string {
 		return styleFaint.Render(" " + e.dur)
 	case e.running && !e.started.IsZero():
 		if el := time.Since(e.started); el > time.Second {
-			return styleFaint.Render(" " + shortDuration(el))
+			return styleFaint.Render(" " + textfmt.Duration(el))
 		}
 	}
 	return ""
@@ -859,7 +862,7 @@ func streamingSummary(name, partial, cwd string) string {
 		if name == "edit_file" {
 			verb = "editing"
 		}
-		return fmt.Sprintf("%s · %s %d lines (%s) so far", path, verb, lines, shortBytes(int64(len(body))))
+		return fmt.Sprintf("%s · %s %d lines (%s) so far", path, verb, lines, textfmt.Bytes(int64(len(body))))
 	case "bash":
 		if m := partialCommandRe.FindStringSubmatch(partial); m != nil {
 			return truncateLine(strings.ReplaceAll(m[1], `\n`, " ⏎ "), 80) + "…"
@@ -960,7 +963,7 @@ func thinkingView(text string, done bool, took time.Duration, started time.Time)
 		// Only when it was long enough to have been waited for: "thought
 		// for 40ms" is noise on every line.
 		if took >= time.Second {
-			head = "· thought for " + shortDuration(took)
+			head = "· thought for " + textfmt.Duration(took)
 		}
 		if len(lines) > 1 {
 			return fmt.Sprintf("%s: %s (%d lines)", head, first, len(lines))
@@ -1119,7 +1122,7 @@ func relTo(cwd, p string) string {
 	if cwd == "" || !filepath.IsAbs(p) {
 		return p
 	}
-	if r, err := filepath.Rel(cwd, p); err == nil && !strings.HasPrefix(r, "..") {
+	if r := textfmt.RelTo(cwd, p); r != p {
 		return r
 	}
 	return shortPath(p)
@@ -1223,31 +1226,6 @@ func clipNote(s string, lines int, expandable bool) string {
 
 func indent(s, prefix string) string {
 	return prefix + strings.ReplaceAll(s, "\n", "\n"+prefix)
-}
-
-func shortDuration(d time.Duration) string {
-	switch {
-	case d < time.Millisecond:
-		return "<1ms"
-	case d < time.Second:
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	case d < time.Minute:
-		return fmt.Sprintf("%.1fs", d.Seconds())
-	default:
-		return d.Round(time.Second).String()
-	}
-}
-
-func shortTokens(n int) string {
-	switch {
-	case n >= 1_000_000:
-		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
-	case n >= 10_000:
-		return fmt.Sprintf("%dk", n/1000)
-	case n >= 1_000:
-		return fmt.Sprintf("%.1fk", float64(n)/1000)
-	}
-	return fmt.Sprint(n)
 }
 
 // renderCode shows lines verbatim with diff colouring by prefix and no
@@ -1397,4 +1375,82 @@ func sanitize(s string) string {
 		}
 		return r
 	}, s)
+}
+
+var ansiSeq = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
+
+func (m *model) find(q string) {
+	// A repeat continues past the previous hit even when the viewport could
+	// not scroll down to it (matches near the bottom).
+	from := m.viewport.YOffset
+	if q == m.lastFind && m.lastFindAt > from {
+		from = m.lastFindAt
+	} else if q != m.lastFind {
+		from = -1
+	}
+	m.lastFind = q
+	lines := strings.Split(m.lastContent, "\n")
+	needle := strings.ToLower(q)
+	var hits []int
+	for i, l := range lines {
+		if strings.Contains(strings.ToLower(ansiSeq.ReplaceAllString(l, "")), needle) {
+			hits = append(hits, i)
+		}
+	}
+	if len(hits) == 0 {
+		m.status = fmt.Sprintf("no match for %q", q)
+		return
+	}
+	next := hits[0]
+	idx := 0
+	for i, h := range hits {
+		if h > from {
+			next, idx = h, i
+			break
+		}
+	}
+	m.lastFindAt = next
+	m.viewport.SetYOffset(next)
+	m.pinned = m.viewport.AtBottom()
+	m.status = fmt.Sprintf("match %d/%d for %q on line %d · /find again for the next", idx+1, len(hits), q, next+1)
+}
+
+// previewCall asks a tool what a call would do, for a call whose
+// arguments have finished streaming but which has not run yet. The edit
+// tools answer with a unified diff against the file on disk; anything
+// else, and any error, answers with nothing.
+func (m *model) previewCall(name string, input []byte) string {
+	if m.opts.Agent == nil || m.opts.Agent.Tools == nil {
+		return ""
+	}
+	t, ok := m.opts.Agent.Tools.Get(name)
+	if !ok {
+		return ""
+	}
+	pv, ok := t.(tool.Previewer)
+	if !ok {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	out, err := pv.Preview(ctx, input)
+	if err != nil {
+		return ""
+	}
+	return out
+}
+
+// toolRenderer finds the tool behind a call when it knows how to present
+// itself in the transcript (see tool.Renderer). MCP and user-supplied
+// tools do not, and get the generic rendering.
+func (m *model) toolRenderer(name string) (tool.Renderer, bool) {
+	if m.opts.Agent == nil || m.opts.Agent.Tools == nil {
+		return nil, false
+	}
+	t, ok := m.opts.Agent.Tools.Get(name)
+	if !ok {
+		return nil, false
+	}
+	r, ok := t.(tool.Renderer)
+	return r, ok
 }

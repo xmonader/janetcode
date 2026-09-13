@@ -84,6 +84,44 @@ func LastGoal(events []session.Event, phase string) *Goal {
 	return nil
 }
 
+// TargetGoal picks which goal a bare /goal pause|resume|done acts on and
+// the phase it moves to: resume targets the last paused goal, pause and
+// done target the active one, and either falls back to the most recent
+// goal of any phase. verb must be "pause", "resume" or "done".
+func TargetGoal(events []session.Event, verb string) (*Goal, string, error) {
+	g := ActiveGoal(events)
+	if verb == "resume" {
+		g = LastGoal(events, GoalPaused)
+	}
+	if g == nil {
+		g = LastGoal(events, "")
+	}
+	if g == nil {
+		return nil, "", fmt.Errorf("no goal")
+	}
+	phase := GoalPaused
+	if verb == "resume" {
+		phase = GoalActive
+	}
+	if verb == "done" {
+		phase = GoalComplete
+	}
+	return g, phase, nil
+}
+
+// FormatGoals renders the /goal listing: one line per goal plus its
+// reason, if any.
+func FormatGoals(gs []Goal) string {
+	var sb strings.Builder
+	for _, g := range gs {
+		fmt.Fprintf(&sb, "%s  %-8s  %d/%d  %s\n", g.ID, g.Phase, g.Rounds, g.MaxRounds, g.Objective)
+		if g.Reason != "" {
+			fmt.Fprintf(&sb, "    %s\n", g.Reason)
+		}
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
 func (a *Agent) CreateGoal(objective string, maxRounds int) string {
 	if maxRounds <= 0 {
 		maxRounds = defaultGoalRounds

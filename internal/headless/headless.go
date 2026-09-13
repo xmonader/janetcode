@@ -19,6 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -112,9 +113,9 @@ func run(ctx context.Context, opts Options, rec *recorder) error {
 			fmt.Fprintf(opts.Stderr, "[until] passed: %s\n", opts.Until)
 			return nil
 		}
-		fmt.Fprintf(opts.Stderr, "[until] round %d/%d failed (exit %d): %s\n", round, rounds, exit, oneLine(out, 200))
+		fmt.Fprintf(opts.Stderr, "[until] round %d/%d failed (exit %d): %s\n", round, rounds, exit, textfmt.Clip(textfmt.OneLine(out), 200))
 		if round >= rounds {
-			return fmt.Errorf("%w after %d rounds: %s", ErrUntilFailed, rounds, oneLine(out, 300))
+			return fmt.Errorf("%w after %d rounds: %s", ErrUntilFailed, rounds, textfmt.Clip(textfmt.OneLine(out), 300))
 		}
 		blocks = []llm.Block{{Type: llm.BlockText, Synthetic: true, Text: fmt.Sprintf("The check command has not passed yet.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nKeep working until this command exits 0, then stop.", opts.Until, exit, tool.TruncateTo(strings.TrimSpace(out), 4000))}}
 	}
@@ -154,7 +155,7 @@ func watch(ctx context.Context, opts Options, rec *recorder) error {
 			fixes = 0
 			continue
 		}
-		fmt.Fprintf(opts.Stderr, "[watch] ✗ exit %d: %s\n", exit, oneLine(out, 200))
+		fmt.Fprintf(opts.Stderr, "[watch] ✗ exit %d: %s\n", exit, textfmt.Clip(textfmt.OneLine(out), 200))
 		if fixes >= rounds {
 			fmt.Fprintf(opts.Stderr, "[watch] %d fixes did not make it pass; waiting for your change\n", fixes)
 			continue
@@ -233,16 +234,16 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 			// The model's own reason for the call, when it gave one, reads
 			// better than its arguments.
 			if e.Call.Intent != "" {
-				fmt.Fprintf(opts.Stderr, "\n[tool] %s — %s\n       %s\n", e.Call.Name, e.Call.Intent, oneLine(string(e.Call.Input), 160))
+				fmt.Fprintf(opts.Stderr, "\n[tool] %s — %s\n       %s\n", e.Call.Name, e.Call.Intent, textfmt.Clip(textfmt.OneLine(string(e.Call.Input)), 160))
 			} else {
-				fmt.Fprintf(opts.Stderr, "\n[tool] %s %s\n", e.Call.Name, oneLine(string(e.Call.Input), 200))
+				fmt.Fprintf(opts.Stderr, "\n[tool] %s %s\n", e.Call.Name, textfmt.Clip(textfmt.OneLine(string(e.Call.Input)), 200))
 			}
 		case agent.EvToolResult:
 			tag := "ok"
 			if e.IsError {
 				tag = "error"
 			}
-			fmt.Fprintf(opts.Stderr, "[tool %s] %s\n", tag, oneLine(e.Output, 300))
+			fmt.Fprintf(opts.Stderr, "[tool %s] %s\n", tag, textfmt.Clip(textfmt.OneLine(e.Output), 300))
 		case agent.EvCompacted:
 			fmt.Fprintf(opts.Stderr, "[compacted] %s\n", e.Text)
 		case agent.EvVerdict:
@@ -278,14 +279,6 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 	return err
 }
 
-func oneLine(s string, max int) string {
-	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
-	if len(s) > max {
-		return s[:max] + "…"
-	}
-	return s
-}
-
 // stdinApprover asks on the terminal; without a terminal it denies, so a
 // CI run never silently mutates anything unless --yolo was given.
 type stdinApprover struct {
@@ -311,7 +304,7 @@ func (a *stdinApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 	if call.Warning != "" {
 		fmt.Fprintf(a.out, "\nWARNING: %s\n", call.Warning)
 	}
-	fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways this session / [r]ule %s saved for good / [n]o (add a reason after n): ", call.Name, oneLine(string(call.Input), 200), perm.Suggest(call.Name, perm.Subject(call.Name, call.Input)))
+	fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways this session / [r]ule %s saved for good / [n]o (add a reason after n): ", call.Name, textfmt.Clip(textfmt.OneLine(string(call.Input)), 200), perm.Suggest(call.Name, perm.Subject(call.Name, call.Input)))
 	type res struct {
 		s   string
 		err error

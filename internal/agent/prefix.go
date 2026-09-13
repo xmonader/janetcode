@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Prompt-cache prefixes only work while the request stays append-only. The
@@ -132,7 +133,7 @@ func (a *Agent) PrefixReport() string {
 		b.WriteString("\nevery request so far only appended to the one before it: the cached prefix held")
 		return b.String()
 	}
-	fmt.Fprintf(&b, "\n%s where the prefix stopped matching:\n", plural(len(w.drifts), "point"))
+	fmt.Fprintf(&b, "\n%s where the prefix stopped matching:\n", textfmt.Plural(len(w.drifts), "point"))
 	for i, d := range w.drifts {
 		if i == 8 {
 			fmt.Fprintf(&b, "  … and %d more\n", len(w.drifts)-8)

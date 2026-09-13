@@ -143,7 +143,7 @@ func TestPruneArchivesBeforeTrimming(t *testing.T) {
 	}}
 	a.Prune()
 	got := a.Messages[2].Blocks[0].Text
-	if !strings.HasPrefix(got, "[output is 9.8 KB") || !strings.Contains(got, "saved as ctx-1") || len(got) > pruneKeep+400 {
+	if !strings.HasPrefix(got, "[output is 9.8KB") || !strings.Contains(got, "saved as ctx-1") || len(got) > pruneKeep+400 {
 		t.Fatalf("pruned = %.200q (len %d)", got, len(got))
 	}
 	if _, body, err := ar.Get("ctx-1"); err != nil || body != "output "+long {

@@ -45,6 +45,38 @@ func TestSandboxCommandDocker(t *testing.T) {
 	}
 }
 
+func TestSetSandboxNilReportsNoSandbox(t *testing.T) {
+	if _, err := SetSandbox(nil, ""); err == nil {
+		t.Fatal("want error for a nil sandbox")
+	}
+}
+
+func TestSetSandboxOnOff(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sandbox is not supported on windows")
+	}
+	s := &Sandbox{look: func(name string) (string, error) { return "/usr/bin/" + name, nil }}
+	status, err := SetSandbox(s, "on")
+	if err != nil || !strings.Contains(status, "on") {
+		t.Fatalf("status=%q err=%v", status, err)
+	}
+	status, err = SetSandbox(s, "off")
+	if err != nil || !strings.Contains(status, "off") {
+		t.Fatalf("status=%q err=%v", status, err)
+	}
+}
+
+func TestSetSandboxUnknownArgIsAnImage(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sandbox is not supported on windows")
+	}
+	s := &Sandbox{look: func(name string) (string, error) { return "/usr/bin/" + name, nil }}
+	status, err := SetSandbox(s, "myimage:latest")
+	if err != nil || s.Image() != "myimage:latest" || !s.Enabled() {
+		t.Fatalf("status=%q image=%q enabled=%v err=%v", status, s.Image(), s.Enabled(), err)
+	}
+}
+
 func TestLocalShellSkipsSandboxWhenOff(t *testing.T) {
 	cmd, err := localShell(context.Background(), nil, nil, t.TempDir(), "echo hi")
 	if err != nil {

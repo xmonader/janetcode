@@ -233,6 +233,35 @@ func resolvePath(root, p string) (string, error) {
 	return confinePath(root, p, true)
 }
 
+// confineIn tries each root in order. Relative paths are first joined to
+// the working directory (roots[0]); an extra root then admits that
+// absolute path if it falls inside it.
+func confineIn(roots []string, p string, evalSymlinks bool) (string, error) {
+	if len(roots) == 0 || strings.TrimSpace(roots[0]) == "" {
+		return confinePath("", p, evalSymlinks)
+	}
+	if strings.TrimSpace(p) == "" {
+		return "", fmt.Errorf("path is empty")
+	}
+	abs := p
+	if !filepath.IsAbs(p) {
+		abs = filepath.Join(roots[0], p)
+	}
+	abs = filepath.Clean(abs)
+	var last error
+	for _, root := range roots {
+		got, err := confineAbs(root, abs, p, evalSymlinks)
+		if err == nil {
+			return got, nil
+		}
+		last = err
+	}
+	if last == nil {
+		last = fmt.Errorf("path %q is outside the working directory", p)
+	}
+	return "", last
+}
+
 // confinePath makes p absolute relative to root and rejects escapes
 // outside root. evalSymlinks is the local-filesystem check; a remote
 // host skips it so a path is not resolved against this machine.
@@ -245,14 +274,17 @@ func confinePath(root, p string, evalSymlinks bool) (string, error) {
 		abs = filepath.Join(root, p)
 	}
 	abs = filepath.Clean(abs)
+	return confineAbs(root, abs, p, evalSymlinks)
+}
+
+func confineAbs(root, abs, named string, evalSymlinks bool) (string, error) {
 	rel, err := filepath.Rel(root, abs)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path %q is outside the working directory", p)
+		return "", fmt.Errorf("path %q is outside the working directory", named)
 	}
 	if !evalSymlinks {
 		return abs, nil
 	}
-	// Resolve symlinks on the deepest existing ancestor.
 	if real, err := filepath.EvalSymlinks(abs); err == nil {
 		realRoot, rerr := filepath.EvalSymlinks(root)
 		if rerr != nil {
@@ -260,7 +292,7 @@ func confinePath(root, p string, evalSymlinks bool) (string, error) {
 		}
 		rel2, err := filepath.Rel(realRoot, real)
 		if err != nil || rel2 == ".." || strings.HasPrefix(rel2, ".."+string(filepath.Separator)) {
-			return "", fmt.Errorf("path %q resolves outside the working directory", p)
+			return "", fmt.Errorf("path %q resolves outside the working directory", named)
 		}
 	}
 	return abs, nil

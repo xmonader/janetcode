@@ -8,6 +8,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // recorded is a ledger of the shape a real session leaves behind: the
@@ -90,7 +91,7 @@ func TestEveryShapeOfRefusalIsSeenAsOne(t *testing.T) {
 			{Seq: 1, Type: session.TypeToolResult, Turn: 1, Name: "read_file", IsError: true, Output: out},
 		})
 		if len(ivs) != 1 || ivs[0].Kind != IvRefused {
-			t.Errorf("%q was not read as a refusal: %v", firstLineOf(out), ivs)
+			t.Errorf("%q was not read as a refusal: %v", textfmt.FirstLine(out, 70), ivs)
 		}
 	}
 }
@@ -140,7 +141,7 @@ func TestWhyNCountsBackwards(t *testing.T) {
 	} {
 		got := WhyLast(recorded(), n)
 		if !strings.HasPrefix(got, string(want)) {
-			t.Errorf("/why %d began %q, wanted %s", n, firstLineOf(got), want)
+			t.Errorf("/why %d began %q, wanted %s", n, textfmt.FirstLine(got, 70), want)
 		}
 	}
 }

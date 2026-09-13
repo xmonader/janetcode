@@ -57,15 +57,15 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 			case len(o.Config.Commands) == 0:
 				m.transcript.errorf("no %s in %s", verify.ProjectFile, shortPath(m.opts.Cwd))
 			case o.ProjectTrusted:
-				m.transcript.info("project verification is already trusted")
+				m.note("project verification is already trusted")
 			default:
-				if err := o.Trust.Trust(m.opts.Cwd+"#verify", o.ProjectHash); err != nil {
+				if err := o.Trust.Trust(mcp.VerifyTrustKey(m.opts.Cwd), o.ProjectHash); err != nil {
 					m.transcript.errorf("record trust: %v", err)
 					return nil
 				}
 				o.ProjectTrusted = true
 				ag.Verify = &verify.Runner{Config: o.Config, Cwd: m.opts.Cwd}
-				m.transcript.info("trusted " + verify.ProjectFile + " · its checks run after every change")
+				m.note("trusted " + verify.ProjectFile + " · its checks run after every change")
 			}
 			return nil
 		default:
@@ -89,7 +89,7 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	r, send := &verify.Runner{Config: o.Config, Cwd: m.opts.Cwd}, m.send
-	m.transcript.info("verifying: " + strings.Join(o.Config.Commands, " · "))
+	m.note("verifying: " + strings.Join(o.Config.Commands, " · "))
 	m.refresh(false)
 	go func() { send(verifyDoneMsg{res: r.Run(ctx)}) }()
 	return m.spinner.Tick
@@ -109,7 +109,7 @@ func (m *model) saveVerify(c verify.Config, done string) tea.Cmd {
 	}
 	o.Config, o.ProjectHash, o.ProjectTrusted = cfg, hash, true
 	if o.Trust.Path != "" && hash != "" {
-		if err := o.Trust.Trust(m.opts.Cwd+"#verify", hash); err != nil {
+		if err := o.Trust.Trust(mcp.VerifyTrustKey(m.opts.Cwd), hash); err != nil {
 			m.transcript.errorf("record trust: %v", err)
 		}
 	}
@@ -118,7 +118,7 @@ func (m *model) saveVerify(c verify.Config, done string) tea.Cmd {
 	} else {
 		m.opts.Agent.Verify = &verify.Runner{Config: cfg, Cwd: m.opts.Cwd}
 	}
-	m.transcript.info(done + " · " + verifyLine(cfg))
+	m.note(done + " · " + verifyLine(cfg))
 	return nil
 }
 
@@ -138,8 +138,7 @@ func (m *model) finishVerify(msg verifyDoneMsg) {
 		m.cancel = nil
 	}
 	if msg.res.OK() {
-		m.transcript.info("✓ " + msg.res.Summary())
-		m.status = "verified"
+		m.note("✓ " + msg.res.Summary())
 		return
 	}
 	m.transcript.errorf("%s\n%s", msg.res.Summary(), strings.TrimSpace(msg.res.Output))

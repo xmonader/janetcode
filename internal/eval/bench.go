@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Bench harness names and the 01–20 grouping the live runner uses.
@@ -392,12 +394,12 @@ func RenderComparativeReport(byHarness map[string][]BenchTaskResult, meta Report
 			if r.Unavailable && r.UnavailableReason != "" {
 				why = r.UnavailableReason
 			}
-			fmt.Fprintf(&b, "- **%s / %s** (batch %d): %s\n", h, r.Task, r.Batch, firstLine(why))
+			fmt.Fprintf(&b, "- **%s / %s** (batch %d): %s\n", h, r.Task, r.Batch, textfmt.FirstLine(why, 0))
 			if r.Command != "" {
 				fmt.Fprintf(&b, "  - command: `%s`\n", r.Command)
 			}
 			if r.StderrExcerpt != "" {
-				fmt.Fprintf(&b, "  - stderr: %s\n", firstLine(r.StderrExcerpt))
+				fmt.Fprintf(&b, "  - stderr: %s\n", textfmt.FirstLine(r.StderrExcerpt, 0))
 			}
 		}
 	}

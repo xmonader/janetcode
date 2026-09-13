@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -132,7 +133,7 @@ func ptcLabel(code string) string {
 	if i := strings.IndexByte(code, '\n'); i > 0 {
 		code = code[:i]
 	}
-	return truncate(oneLine(code), 80)
+	return textfmt.Clip(textfmt.OneLine(code), 80)
 }
 
 func formatPTC(r agent.PTCRun) string {
@@ -149,7 +150,7 @@ func formatPTC(r agent.PTCRun) string {
 		b.WriteString(strings.TrimRight(r.Code, "\n") + "\n")
 	}
 	for _, c := range r.Calls {
-		b.WriteString("→ " + c.Name + " " + oneLine(c.Input) + "\n")
+		b.WriteString("→ " + c.Name + " " + textfmt.OneLine(c.Input) + "\n")
 		if c.Output != "" {
 			b.WriteString(tool.TruncateTo(c.Output, 1500) + "\n")
 		}

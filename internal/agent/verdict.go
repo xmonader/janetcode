@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // What actually happened in a turn, as opposed to what the model says
@@ -239,7 +240,7 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 				continue
 			}
 			o.Ran++
-			o.Checks = append(o.Checks, firstLineOf(cmd))
+			o.Checks = append(o.Checks, textfmt.FirstLine(cmd, 70))
 			switch {
 			case e.IsError:
 				o.Failed++
@@ -395,14 +396,4 @@ func argPathOf(arguments string) string {
 		return ""
 	}
 	return in.Path
-}
-
-func firstLineOf(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		s = s[:i]
-	}
-	if len(s) > 70 {
-		s = s[:69] + "…"
-	}
-	return s
 }

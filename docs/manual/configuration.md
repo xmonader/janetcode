@@ -221,7 +221,10 @@ is defined, what brings each in, and which have been sent this session;
 The `"theme"` key selects the palette: `auto` (detect the terminal
 background, the default), `dark`, `light`, or the name of a builtin or a
 theme you define. The builtins are `default`, `solarized-dark`,
-`solarized-light`, `high-contrast`, `muted`, `mono`, `gruvbox` and `nord`;
+`solarized-light`, `high-contrast`, `muted`, `mono`, `gruvbox`, `nord`,
+`catppuccin-mocha`, `catppuccin-latte`, `dracula`, `tokyo-night`,
+`one-dark`, `rose-pine`, `everforest`, `kanagawa`, `monokai` and
+`github-light`;
 `janetcode --inspect themes` lists them, [interface.md](interface.md)
 describes them, and `/theme` switches between them live.
 

@@ -3,10 +3,11 @@ package tool
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // How a tool call reads in the transcript used to be a switch on the
@@ -38,18 +39,6 @@ type RenderContext struct {
 	// Cwd is the working directory, so a path can be named the short way
 	// the rest of the interface names it.
 	Cwd string
-}
-
-// relTo names p the way the reader thinks of it: relative to the working
-// directory when it lies under it.
-func relTo(cwd, p string) string {
-	if cwd == "" || !filepath.IsAbs(p) {
-		return p
-	}
-	if r, err := filepath.Rel(cwd, p); err == nil && !strings.HasPrefix(r, "..") {
-		return r
-	}
-	return p
 }
 
 // HeadTail keeps the first head and the last tail lines of s with a count
@@ -94,7 +83,7 @@ func (ReadFile) RenderResult(input json.RawMessage, out string, o RenderContext)
 		Offset int    `json:"offset"`
 	}
 	json.Unmarshal(input, &in)
-	label := relTo(o.Cwd, in.Path)
+	label := textfmt.RelTo(o.Cwd, in.Path)
 	if label != "" && in.Offset > 1 {
 		label += fmt.Sprintf(" from line %d", in.Offset)
 	}

@@ -11,6 +11,8 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/project"
+	"github.com/xmonader/janetcode/internal/slash"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // The terminal's side of the hint engine: it watches what it is already
@@ -87,10 +89,7 @@ func (m *model) noteUse(name string) {
 	if name == "" {
 		return
 	}
-	if canonical := commandAliases[name]; canonical != "" {
-		name = canonical
-	}
-	m.opts.Usage.Note(name)
+	m.opts.Usage.Note(slash.Canonical(name))
 }
 
 // firstRunID is the id the first-run project line is recorded under, in
@@ -133,7 +132,7 @@ func onPath(name string) bool {
 // hintsCommand is /hints on|off.
 func (m *model) hintsCommand(args []string) {
 	if m.hints == nil {
-		m.transcript.info("hints are not available in this session")
+		m.note("hints are not available in this session")
 		return
 	}
 	switch {
@@ -142,23 +141,23 @@ func (m *model) hintsCommand(args []string) {
 		// way: somebody who has just turned hints off and typed /hints
 		// was being told again how to turn them off.
 		if m.hints.Off {
-			m.transcript.info("hints are off · /hints on brings them back for this session, and they stay off for every project while \"hints\": false is in the config file")
+			m.note("hints are off · /hints on brings them back")
 			return
 		}
 		// Said and spent are different things: a rule suppressed because
 		// the first-run line had already proposed it was never a hint
 		// anybody read, and counting it as given overstated the help.
-		line := plural(len(m.hints.Shown()), "hint") + " shown for this project"
+		line := textfmt.Plural(len(m.hints.Shown()), "hint") + " shown for this project"
 		if n := len(m.hints.Skipped()); n > 0 {
 			line += fmt.Sprintf(", %d skipped", n)
 		}
-		m.transcript.info(line + " · /hints off silences them for this session, and \"hints\": false in the config file does it for every project")
+		m.note(line + " · /hints off silences them")
 	case args[0] == "on":
 		m.hints.Off = false
-		m.transcript.info("hints on")
+		m.note("hints on")
 	case args[0] == "off":
 		m.hints.Off = true
-		m.transcript.info("hints off · \"hints\": false in the config file makes it permanent")
+		m.note("hints off · \"hints\": false in the config file makes it permanent")
 	default:
 		m.transcript.errorf("usage: /hints [on|off]")
 	}

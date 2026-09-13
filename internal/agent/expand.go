@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -153,7 +154,7 @@ func (t *ExpandOutput) list() string {
 	var sb strings.Builder
 	sb.WriteString("Archived outputs, newest first (id, tool, subject, size, time):\n")
 	for _, e := range es {
-		fmt.Fprintf(&sb, "%s\t%s\t%s\t%s\t%s\n", e.ID, e.Name, e.Subject, humanBytes(e.Size), e.Created.Local().Format("15:04:05"))
+		fmt.Fprintf(&sb, "%s\t%s\t%s\t%s\t%s\n", e.ID, e.Name, e.Subject, textfmt.Bytes(int64(e.Size)), e.Created.Local().Format("15:04:05"))
 	}
 	return sb.String()
 }

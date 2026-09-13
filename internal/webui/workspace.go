@@ -14,6 +14,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -109,18 +110,7 @@ func termsOf(ag *agent.Agent) *tool.Terms {
 	return nil
 }
 
-func (s *server) taskTool() *agent.Task {
-	ag := s.opts.Agent
-	if ag == nil || ag.Tools == nil {
-		return nil
-	}
-	t, ok := ag.Tools.Get("task")
-	if !ok {
-		return nil
-	}
-	task, _ := t.(*agent.Task)
-	return task
-}
+func (s *server) taskTool() *agent.Task { return s.opts.Agent.TaskTool() }
 
 type memItem struct {
 	Name string `json:"name"`
@@ -151,7 +141,7 @@ func (s *server) workspace() workspace {
 		add, del := c.Stats()
 		path := c.Path
 		if s.opts.Cwd != "" {
-			path = relTo(s.opts.Cwd, path)
+			path = textfmt.RelTo(s.opts.Cwd, path)
 		}
 		ws.Files = append(ws.Files, fileItem{Seq: c.Seq, Path: path, Tool: c.Tool, Add: add, Del: del})
 	}
@@ -200,7 +190,7 @@ func (s *server) workspace() workspace {
 		if ws.CtxPct > 100 {
 			ws.CtxPct = 100
 		}
-		ws.CtxLabel = fmt.Sprintf("%s / %s", shortTokens(est), shortTokens(lim))
+		ws.CtxLabel = fmt.Sprintf("%s / %s", textfmt.Tokens(est), textfmt.Tokens(lim))
 	}
 	return ws
 }
@@ -218,7 +208,7 @@ func (s *server) changeAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	path := c.Path
 	if s.opts.Cwd != "" {
-		path = relTo(s.opts.Cwd, path)
+		path = textfmt.RelTo(s.opts.Cwd, path)
 	}
 	writeJSON(w, map[string]any{
 		"seq":  c.Seq,
@@ -283,9 +273,9 @@ func (s *server) startNewSession() error {
 	}
 	s.opts.Session = sess
 	if s.opts.Agent != nil {
-		s.opts.Agent.Messages = nil
-		s.opts.Agent.SetLog(sess)
-		s.opts.Agent.UndoPath = sess.UndoPath()
+		if err := s.opts.Agent.OpenSession(sess, nil); err != nil {
+			return err
+		}
 	}
 	s.resetView()
 	return nil
@@ -339,9 +329,9 @@ func (s *server) loadSession(w http.ResponseWriter, r *http.Request) {
 	}
 	s.opts.Session = sess
 	if s.opts.Agent != nil {
-		s.opts.Agent.Messages = append([]llm.Message(nil), msgs...)
-		s.opts.Agent.SetLog(sess)
-		s.opts.Agent.UndoPath = sess.UndoPath()
+		if err := s.opts.Agent.OpenSession(sess, append([]llm.Message(nil), msgs...)); err != nil {
+			s.errf("%v", err)
+		}
 	}
 	s.resetView()
 	s.replayHistory(msgs)
@@ -384,7 +374,7 @@ func (s *server) replayHistory(msgs []llm.Message) {
 				e.Running = false
 				e.Done = true
 				e.Error = b.IsError
-				e.Output = truncate(b.Text, 4000)
+				e.Output = textfmt.Clip(b.Text, 4000)
 				s.push(e)
 			}
 		}
@@ -444,7 +434,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out.Close()
-		paths = append(paths, relTo(s.opts.Cwd, dst))
+		paths = append(paths, textfmt.RelTo(s.opts.Cwd, dst))
 	}
 	writeJSON(w, map[string]any{"ok": "1", "paths": paths})
 }

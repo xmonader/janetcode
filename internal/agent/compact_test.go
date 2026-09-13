@@ -10,6 +10,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -489,7 +490,7 @@ func TestCompactFoldMatchesHistoryWithoutRelogging(t *testing.T) {
 	}
 	for i := range got {
 		if got[i].Text() != a.Messages[i].Text() {
-			t.Fatalf("message %d: fold %q history %q", i, trunc(got[i].Text(), 40), trunc(a.Messages[i].Text(), 40))
+			t.Fatalf("message %d: fold %q history %q", i, textfmt.Clip(strings.TrimSpace(got[i].Text()), 40), textfmt.Clip(strings.TrimSpace(a.Messages[i].Text()), 40))
 		}
 	}
 	// start + summary + replacement + end, and nothing per kept message.

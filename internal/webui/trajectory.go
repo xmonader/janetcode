@@ -1,12 +1,14 @@
 package webui
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 type trajRow struct {
@@ -53,7 +55,7 @@ func (s *server) trajectoryRows() []trajRow {
 		}
 		if e.DurationMs > 0 {
 			row.DurMs = e.DurationMs
-			row.Dur = shortDuration(time.Duration(e.DurationMs) * time.Millisecond)
+			row.Dur = textfmt.Duration(time.Duration(e.DurationMs) * time.Millisecond)
 		}
 		if !e.Time.IsZero() {
 			row.At = e.Time.UTC().Format(time.RFC3339)
@@ -86,16 +88,16 @@ func (s *server) trajectoryDetail(w http.ResponseWriter, n int) {
 			"name":    e.Name,
 			"surface": string(session.Classify(ev, e)),
 			"error":   e.IsError,
-			"preview": truncate(body, 4000),
+			"preview": textfmt.Clip(body, 4000),
 		}
 		if e.DurationMs > 0 {
-			item["dur"] = shortDuration(time.Duration(e.DurationMs) * time.Millisecond)
+			item["dur"] = textfmt.Duration(time.Duration(e.DurationMs) * time.Millisecond)
 		}
 		if e.Intent != "" {
 			item["intent"] = e.Intent
 		}
 		if e.Arguments != "" {
-			item["arguments"] = truncate(e.Arguments, 2000)
+			item["arguments"] = textfmt.Clip(e.Arguments, 2000)
 		}
 		if e.Usage != nil {
 			item["usage"] = map[string]int{
@@ -108,6 +110,64 @@ func (s *server) trajectoryDetail(w http.ResponseWriter, n int) {
 		return
 	}
 	http.Error(w, "unknown event", http.StatusNotFound)
+}
+
+func (s *server) trajectory(arg string) {
+	if s.opts.Session == nil {
+		s.errf("no session")
+		return
+	}
+	ev := s.opts.Session.Events()
+	if strings.HasPrefix(arg, "grep ") {
+		q := strings.TrimSpace(strings.TrimPrefix(arg, "grep "))
+		hits := session.QueryEvents(ev, session.QueryFilter{Text: q})
+		if len(hits) == 0 {
+			s.notice("no events matching " + q)
+			return
+		}
+		var sb strings.Builder
+		for _, h := range hits {
+			fmt.Fprintf(&sb, "#%d %s %s %s\n  %s\n", h.Event.Seq, h.Kind, h.Event.Type, h.Event.Name, h.Snippet)
+		}
+		s.sheet("trajectory · "+q, strings.TrimRight(sb.String(), "\n"))
+		return
+	}
+	if n, err := strconv.Atoi(arg); err == nil && arg != "" {
+		for _, e := range ev {
+			if e.Seq != n {
+				continue
+			}
+			var sb strings.Builder
+			fmt.Fprintf(&sb, "seq %d  %s  turn %d step %d  %s\n", e.Seq, e.Type, e.Turn, e.Step, session.Classify(ev, e))
+			if e.DurationMs > 0 {
+				fmt.Fprintf(&sb, "duration %s\n", textfmt.Duration(time.Duration(e.DurationMs)*time.Millisecond))
+			}
+			if e.Usage != nil {
+				fmt.Fprintf(&sb, "usage in=%d cache=%d out=%d\n", e.Usage.InputTokens, e.Usage.CacheReadTokens, e.Usage.OutputTokens)
+			}
+			body := e.Output
+			if body == "" && e.Message != nil {
+				body = e.Message.Text()
+			}
+			sb.WriteString(textfmt.Clip(body, 4000))
+			s.sheet(fmt.Sprintf("event %d", n), sb.String())
+			return
+		}
+		s.errf("no event seq %d", n)
+		return
+	}
+	if len(ev) == 0 {
+		s.notice("no trajectory events yet: no turn has run")
+		return
+	}
+	hidden := session.Shadowed(ev)
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "seq  turn/step  type                 name        dur    surface\n")
+	for _, e := range ev {
+		fmt.Fprintf(&sb, "%-4d %d/%-6d %-20s %-11s %7s %s\n", e.Seq, e.Turn, e.Step, e.Type, textfmt.Clip(e.Name, 11),
+			textfmt.Duration(time.Duration(e.DurationMs)*time.Millisecond), session.ClassifyWith(hidden, e))
+	}
+	s.sheet("trajectory", strings.TrimRight(sb.String(), "\n"))
 }
 
 func trajKind(t string) string {
@@ -147,13 +207,13 @@ func trajPreview(e session.Event) string {
 		return s
 	}
 	if e.Output != "" {
-		return truncate(oneLine(e.Output), 120)
+		return textfmt.Clip(textfmt.OneLine(e.Output), 120)
 	}
 	if e.Message != nil {
-		return truncate(oneLine(e.Message.Text()), 120)
+		return textfmt.Clip(textfmt.OneLine(e.Message.Text()), 120)
 	}
 	if e.Reason != "" {
-		return truncate(oneLine(e.Reason), 120)
+		return textfmt.Clip(textfmt.OneLine(e.Reason), 120)
 	}
 	return ""
 }

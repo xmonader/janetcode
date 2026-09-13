@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -143,7 +144,7 @@ func firstLine(s string, n int) string {
 		s = s[:i]
 	}
 	s = strings.TrimSpace(strings.TrimLeft(s, "#*- "))
-	return trunc(s, n)
+	return textfmt.Clip(s, n)
 }
 
 // Changes lists the session's file changes, oldest first, with content.

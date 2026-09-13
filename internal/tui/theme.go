@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -37,40 +36,16 @@ func (m *model) themeList() string {
 	set := themeSetOr(m.opts.Themes)
 	var sb strings.Builder
 	sb.WriteString("auto" + strings.Repeat(" ", 16-4) + "follow the terminal background\n")
-	for _, t := range m.themesSorted(set) {
+	for _, t := range set.Sorted() {
 		mark := "  "
 		if t.Name == m.opts.Theme {
 			mark = "▸ "
 		}
-		mode := "light"
-		if t.Dark {
-			mode = "dark"
-		}
-		if t.Adaptive() {
-			mode = "adapts"
-		}
+		mode := t.Mode()
 		fmt.Fprintf(&sb, "%s%-14s %-7s %s\n", mark, t.Name, mode, t.Desc)
 	}
 	sb.WriteString("\nselect one with /theme <name>, or /theme alone for a searchable list")
 	return strings.TrimRight(sb.String(), "\n")
-}
-
-// themesSorted returns the themes with the default first, then the rest of
-// the builtins, then user themes, each group alphabetical — the order a
-// user scans them in.
-func (m *model) themesSorted(set *theme.Set) []theme.Theme {
-	all := set.All()
-	sort.SliceStable(all, func(i, j int) bool {
-		a, b := all[i], all[j]
-		if a.Name == theme.DefaultName != (b.Name == theme.DefaultName) {
-			return a.Name == theme.DefaultName
-		}
-		if a.Builtin != b.Builtin {
-			return a.Builtin // builtins before user themes
-		}
-		return a.Name < b.Name
-	})
-	return all
 }
 
 // applyThemeChoice switches to a theme by name (or auto/dark/light),
@@ -102,7 +77,7 @@ func (m *model) applyThemeChoice(name string, persist bool) {
 		cfg.Theme = name
 	}
 	m.spinner.Style = styleAccent
-	m.transcript.info(m.themeApplied(name, th, mode))
+	m.note(m.themeApplied(name, th, mode))
 	if persist && m.opts.ConfigPath != "" {
 		if err := config.UpdateKey(m.opts.ConfigPath, "theme", name); err != nil {
 			m.transcript.errorf("saving theme: %v", err)
@@ -133,14 +108,8 @@ func (m *model) openThemePicker() tea.Cmd {
 		cells: []string{"auto", "auto", "follow the terminal background"},
 		name:  "auto",
 	}}
-	for _, t := range m.themesSorted(set) {
-		mode := "light"
-		if t.Dark {
-			mode = "dark"
-		}
-		if t.Adaptive() {
-			mode = "adapts"
-		}
+	for _, t := range set.Sorted() {
+		mode := t.Mode()
 		tag := ""
 		if t.Name == m.opts.Theme {
 			tag = "current"
@@ -175,11 +144,75 @@ func (m *model) completeTheme(partial string) []command {
 	if partial == "" || strings.HasPrefix("auto", strings.ToLower(partial)) {
 		out = append(out, command{name: "/theme auto", help: "follow the terminal background"})
 	}
-	for _, t := range m.themesSorted(set) {
+	for _, t := range set.Sorted() {
 		if partial != "" && !strings.Contains(strings.ToLower(t.Name), strings.ToLower(partial)) {
 			continue
 		}
 		out = append(out, command{name: "/theme " + t.Name, help: t.Desc})
 	}
 	return out
+}
+
+// themeSetOr returns the given set or, when it is nil (a test, or a
+// session built without a config), a fresh set of just the builtins.
+func themeSetOr(set *theme.Set) *theme.Set {
+	if set != nil {
+		return set
+	}
+	s, _ := theme.Build(nil)
+	return s
+}
+
+// resolveTheme turns the configured theme name into the Theme to draw and
+// the mode (dark) to draw it in. auto follows the terminal background;
+// dark and light pin the default theme's mode; a named theme is drawn as
+// itself — an adaptive one still follows the terminal, a single-mode one
+// pins the background to its own light/dark, which is what "selecting a
+// dark-only theme pins the assumption" means. detectedDark is the
+// terminal's real background, probed once, so switching never re-probes.
+func resolveTheme(name string, set *theme.Set, detectedDark bool) (theme.Theme, bool) {
+	set = themeSetOr(set)
+	def := set.Default()
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "", "auto":
+		return def, detectedDark
+	case "dark":
+		return def, true
+	case "light":
+		return def, false
+	}
+	if t, ok := set.Get(name); ok {
+		if t.Adaptive() {
+			return t, detectedDark
+		}
+		return t, t.Dark
+	}
+	// The config validated the name, so this is only reached by a caller
+	// with no set; fall back to the default in the detected mode.
+	return def, detectedDark
+}
+
+// detectTheme decides which palette the session uses. An explicit theme
+// from the config wins; otherwise the terminal is asked once, here, before
+// the program starts, because the query talks to the terminal and must not
+// race with key input later.
+//
+// When the terminal does not answer — a multiplexer that swallows OSC 11,
+// a CI pty, a pipe — we assume dark: most developer terminals are, and the
+// dark palette on a light terminal is merely pale where the light palette
+// on a dark terminal is unreadable.
+//
+// The answer is then pinned on lipgloss, so the adaptive colours in
+// styles.go and the glamour style in mdstyle.go can never disagree: with
+// "theme": "light" configured on a dark terminal the transcript used to
+// render our palette dark and the model's markdown light.
+func detectTheme(theme string) string {
+	if theme != "dark" && theme != "light" {
+		theme = "dark"
+		if !lipgloss.HasDarkBackground() {
+			theme = "light"
+		}
+	}
+	lipgloss.SetHasDarkBackground(theme == "dark")
+	return theme
 }

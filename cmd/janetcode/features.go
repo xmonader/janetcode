@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -82,6 +81,8 @@ var flagWhen = map[string]string{
 	"theme":                "one run in a different colour scheme without changing the config",
 	"web":                  "you want the session in a browser, on another screen or from a phone on the same machine",
 	"web-addr":             "the default loopback port is taken, or you are deliberately binding off loopback",
+	"bg":                   "a prompt you want to keep running after this terminal is gone; reopen with --resume",
+	"add-dir":              "a sibling tree or generated directory the file tools should be allowed to touch this session",
 }
 
 // configWhen describes each key of the config file. The struct's json
@@ -313,30 +314,12 @@ func themesReport(cfg *config.Config) string {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "active theme: %s\n\n", active)
-	// default first, then the other builtins, then user themes.
-	all := set.All()
-	sort.SliceStable(all, func(i, j int) bool {
-		a, c := all[i], all[j]
-		if (a.Name == theme.DefaultName) != (c.Name == theme.DefaultName) {
-			return a.Name == theme.DefaultName
-		}
-		if a.Builtin != c.Builtin {
-			return a.Builtin
-		}
-		return a.Name < c.Name
-	})
-	for _, t := range all {
+	for _, t := range set.Sorted() {
 		mark := "  "
 		if t.Name == active {
 			mark = "* "
 		}
-		mode := "light"
-		if t.Dark {
-			mode = "dark"
-		}
-		if t.Adaptive() {
-			mode = "adapts"
-		}
+		mode := t.Mode()
 		src := "builtin"
 		if !t.Builtin {
 			src = "user"

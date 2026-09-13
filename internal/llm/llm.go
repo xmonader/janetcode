@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Role is the author of a message.
@@ -219,6 +221,25 @@ func (u Usage) CostSource(p *Price) string {
 		return "list price"
 	}
 	return "unpriced"
+}
+
+// TokenLine is the four token counts every usage view shows.
+func (u Usage) TokenLine() string {
+	return fmt.Sprintf("in %s · out %s · cache read %s · cache write %s",
+		textfmt.Tokens(u.InputTokens), textfmt.Tokens(u.OutputTokens), textfmt.Tokens(u.CacheReadTokens), textfmt.Tokens(u.CacheWriteTokens))
+}
+
+// CostNote is the session cost with where it comes from, and when nothing
+// prices the model, what to do about it.
+func (u Usage) CostNote(p *Price) string {
+	usd, _ := u.Cost(p)
+	switch u.CostSource(p) {
+	case "reported":
+		return "cost " + FormatUSDPrecise(usd) + " (reported by the provider)"
+	case "list price":
+		return "cost " + FormatUSDPrecise(usd) + " at list price (an API-equivalent estimate from the config's \"prices\" or LiteLLM's rate table, not money spent)"
+	}
+	return "cost unpriced: the provider does not report it and no rate is known for this model; add it under \"prices\" in the config file, or wait for the rate table to be fetched"
 }
 
 // FormatUSD renders a cost with the fewest decimals that are honest:

@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Tree is one session's checkout.
@@ -151,17 +153,10 @@ func (s Summary) String() string {
 	case s.Commits == 0:
 		return "uncommitted changes only"
 	case s.Dirty:
-		return fmt.Sprintf("%s, plus uncommitted changes", plural(s.Commits, "commit"))
+		return fmt.Sprintf("%s, plus uncommitted changes", textfmt.Plural(s.Commits, "commit"))
 	default:
-		return plural(s.Commits, "commit")
+		return textfmt.Plural(s.Commits, "commit")
 	}
-}
-
-func plural(n int, word string) string {
-	if n == 1 {
-		return "1 " + word
-	}
-	return fmt.Sprintf("%d %ss", n, word)
 }
 
 // worktreeAt reports whether git already has a worktree checked out at path.

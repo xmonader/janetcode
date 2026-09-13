@@ -4,22 +4,15 @@ package tool
 
 import (
 	"os/exec"
-	"strconv"
-	"syscall"
+
+	"github.com/xmonader/janetcode/internal/procgroup"
 )
 
 // setProcessGroup starts the command in its own process group and kills
 // the whole tree on cancellation with taskkill, the closest Windows has to
 // killing a process group. Untested on a real Windows machine.
 func setProcessGroup(cmd *exec.Cmd) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP}
-	cmd.Cancel = func() error {
-		kill := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid))
-		if err := kill.Run(); err != nil {
-			return cmd.Process.Kill()
-		}
-		return nil
-	}
+	procgroup.KillOnCancel(cmd)
 }
 
 // processDone has no cheap answer here: Windows offers no "does this

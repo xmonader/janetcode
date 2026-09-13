@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -76,7 +77,7 @@ func (a *Agent) applyPathRules(t tool.Tool, input json.RawMessage, emit func(Eve
 				continue
 			}
 			a.queueHarness(text)
-			emit(Event{Kind: EvNotice, Text: firstLineOf(text)})
+			emit(Event{Kind: EvNotice, Text: textfmt.FirstLine(text, 70)})
 		}
 	}
 	if a.PathSkills != nil {
@@ -85,7 +86,7 @@ func (a *Agent) applyPathRules(t tool.Tool, input json.RawMessage, emit func(Eve
 				continue
 			}
 			a.queueHarness(text)
-			emit(Event{Kind: EvNotice, Text: firstLineOf(text)})
+			emit(Event{Kind: EvNotice, Text: textfmt.FirstLine(text, 70)})
 		}
 	}
 }

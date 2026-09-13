@@ -41,8 +41,9 @@ type Host interface {
 // use. One pointer is shared so /ssh and /docker retarget every tool
 // without rebuilding the agent.
 type Workspace struct {
-	mu   sync.RWMutex
-	host Host
+	mu    sync.RWMutex
+	host  Host
+	extra []string
 }
 
 // NewLocal builds a workspace on the process's own filesystem.
@@ -106,6 +107,83 @@ func (w *Workspace) Set(h Host) {
 	w.host = h
 }
 
+// AddDir grants file tools an extra local root for this session. The
+// path must exist as a directory. Relative paths stay relative to the
+// working directory; extra roots mainly admit absolute paths under them
+// (and relatives that resolve there, such as ../sibling/file).
+func (w *Workspace) AddDir(dir string) error {
+	if w == nil {
+		return fmt.Errorf("no workspace")
+	}
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return fmt.Errorf("directory is empty")
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	st, err := os.Stat(abs)
+	if err != nil {
+		return err
+	}
+	if !st.IsDir() {
+		return fmt.Errorf("%s is not a directory", dir)
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, e := range w.extra {
+		if e == abs {
+			return nil
+		}
+	}
+	w.extra = append(w.extra, abs)
+	return nil
+}
+
+// ExtraDirs is a copy of the additional file-tool roots.
+func (w *Workspace) ExtraDirs() []string {
+	if w == nil {
+		return nil
+	}
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return append([]string(nil), w.extra...)
+}
+
+// Roots is the working directory followed by extra dirs.
+func (w *Workspace) Roots() []string {
+	r := w.Root()
+	extra := w.ExtraDirs()
+	if r == "" {
+		return extra
+	}
+	return append([]string{r}, extra...)
+}
+
+// Retarget applies a /ssh or /docker argument to ws: ""/"status" reports
+// the current workspace, "off"/"local" returns it to the local
+// filesystem at cwd, and anything else dials a new host with dial. kind
+// names the command in the dial error ("ssh" or "docker").
+func Retarget(ws *Workspace, cwd, kind, arg string, dial func(string) (Host, error)) (string, error) {
+	if ws == nil {
+		return "", fmt.Errorf("this session has no retargetable workspace")
+	}
+	switch arg {
+	case "", "status":
+		return "workspace " + ws.Label(), nil
+	case "off", "local":
+		ws.Set(LocalHost(cwd))
+		return "workspace local · " + cwd, nil
+	}
+	h, err := dial(arg)
+	if err != nil {
+		return "", fmt.Errorf("%s: %v", kind, err)
+	}
+	ws.Set(h)
+	return "workspace " + h.Label() + " · file tools and bash run there", nil
+}
+
 // Local is the process's own filesystem and shell.
 type Local struct{ root string }
 
@@ -151,10 +229,14 @@ func rootOf(root string, ws *Workspace) string {
 
 func resolveOn(ws *Workspace, root, p string) (string, error) {
 	r := rootOf(root, ws)
-	if ws != nil && !ws.Local() {
-		return confinePath(r, p, false)
+	eval := ws == nil || ws.Local()
+	roots := []string{r}
+	if ws != nil && ws.Local() {
+		if extra := ws.ExtraDirs(); len(extra) > 0 {
+			roots = append([]string{r}, extra...)
+		}
 	}
-	return confinePath(r, p, true)
+	return confineIn(roots, p, eval)
 }
 
 func readFileOf(ws *Workspace, path string) ([]byte, error) {

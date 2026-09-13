@@ -22,6 +22,7 @@ import (
 	"github.com/xmonader/janetcode/internal/md"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -125,7 +126,7 @@ func readDir(dir, source string) []Skill {
 			s.Keywords = append(s.Keywords, strings.ToLower(k))
 		}
 		if s.Description == "" {
-			s.Description = firstLine(body)
+			s.Description = textfmt.HeadingLine(body, 120)
 		}
 		if sdir != "" {
 			s.Files = supportingFiles(sdir)
@@ -174,15 +175,6 @@ func (s Skill) Expand(args string) string {
 		return body
 	}
 	return body + "\n\n" + args
-}
-
-func firstLine(s string) string {
-	line, _, _ := strings.Cut(s, "\n")
-	line = strings.TrimSpace(strings.TrimLeft(line, "# "))
-	if len(line) > 120 {
-		line = line[:119] + "…"
-	}
-	return line
 }
 
 var wordRe = regexp.MustCompile(`[a-z0-9][a-z0-9_.+-]{2,}`)
