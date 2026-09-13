@@ -334,6 +334,27 @@ func TestTestsEditedInTheSameTurn(t *testing.T) {
 	}
 }
 
+// A locked accept-test file (see accept.go) cannot be edited by any tool
+// call while it is locked: the attempt is refused and logged as an
+// error result, never as a successful write. FoldOutcome only counts
+// successful edits toward TestsEdited, so a locked test's denied edit
+// must not turn a real green into a self-checked one — the model could
+// not have touched it either way.
+func TestVerdictNotSelfCheckedWhenTheTestEditWasDenied(t *testing.T) {
+	pass := "ok  \texample.com/x\t0.02s\n[exit code 0]"
+	got := FoldOutcome([]session.Event{
+		result(1, "edit_file", `{"path":"parse_test.go"}`, "parse_test.go is a locked acceptance test for \"parse ints\": it may not be changed by any tool call.", true),
+		result(1, "edit_file", `{"path":"parse.go"}`, "ok", false),
+		result(1, "bash", `{"command":"go test ./..."}`, pass, false),
+	}, 1)
+	if got.Verdict != VerdictVerified {
+		t.Fatalf("verdict = %q (%s), want verified: a denied edit of a locked test is not a self-check", got.Verdict, got.Why)
+	}
+	if len(got.TestsEdited) != 0 {
+		t.Fatalf("tests edited = %v, want none: the edit was refused, not applied", got.TestsEdited)
+	}
+}
+
 func TestTestFileDetection(t *testing.T) {
 	for path, want := range map[string]bool{
 		"parse_test.go":               true,

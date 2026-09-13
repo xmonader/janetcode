@@ -21,18 +21,20 @@ import (
 // plain-language description": Undo is what would be reverted, Keep is
 // everything else considered (so a preview can show both sides), Mixed is
 // a change the model could not cleanly put on either side (see Mixed),
-// Why is one line explaining the split, Fallback marks a selection made
-// by keyword overlap rather than a model, because none was configured or
-// its reply could not be used, and Warnings is the deterministic coupling
-// guard's findings (see detectCoupling) — independent of how the split
-// was made.
+// Unavailable is a change excluded from consideration entirely because its
+// own edit can no longer be located (see partitionUndoable), Why is one
+// line explaining the split, Fallback marks a selection made by keyword
+// overlap rather than a model, because none was configured or its reply
+// could not be used, and Warnings is the deterministic coupling guard's
+// findings (see detectCoupling) — independent of how the split was made.
 type Selection struct {
-	Undo     []Change
-	Keep     []Change
-	Mixed    []Mixed
-	Why      string
-	Fallback bool
-	Warnings []string
+	Undo        []Change
+	Keep        []Change
+	Mixed       []Mixed
+	Unavailable []UnavailableChange
+	Why         string
+	Fallback    bool
+	Warnings    []string
 }
 
 // Mixed is a recorded change the model said contains both edits that
@@ -42,6 +44,17 @@ type Selection struct {
 // about which half of the change the user meant, so ApplyPendingUndo
 // refuses while any are present unless run with force.
 type Mixed struct {
+	Change Change
+	Why    string
+}
+
+// UnavailableChange is a recorded change SelectChanges left out of the
+// model's (or the keyword fallback's) candidates entirely: its own edit
+// could no longer be located in the file as it is now, so neither undoing
+// nor keeping it is a real choice — the file was edited, or reverted (e.g.
+// by `git checkout`), outside the session since it was recorded. See
+// partitionUndoable.
+type UnavailableChange struct {
 	Change Change
 	Why    string
 }
@@ -65,11 +78,14 @@ type UndoReport struct {
 	// reverted: no verify commands are configured, or they are but are
 	// not trusted. Empty whenever Checks ran (or nothing was reverted).
 	CheckNote string
-	// Diagnostics is the language-server fallback's report, consulted
-	// only when CheckNote is set (no verify check ran): one note per
-	// reverted file that has a running language server, or a plain
-	// admission that nothing verified the result when no diagnose hook
-	// is available at all. Empty whenever Checks ran.
+	// Diagnostics is the language-server fallback's report, consulted only
+	// when CheckNote is set (no verify check ran): one line per file any
+	// of the selection's candidates touched — reverted or kept, so a kept
+	// change that only builds against something an undone one just
+	// removed is not missed — naming the file and either what the
+	// language server found or that the file could not be checked, or a
+	// plain admission that nothing verified the result when no diagnose
+	// hook is available at all. Empty whenever Checks ran.
 	Diagnostics string
 }
 
@@ -108,7 +124,15 @@ func (a *Agent) SelectChanges(ctx context.Context, description string) (Selectio
 	if description == "" {
 		return Selection{}, fmt.Errorf("empty description")
 	}
-	candidates := a.undoCandidates()
+	all := a.undoCandidates()
+	if len(all) == 0 {
+		return Selection{}, ErrNoChangesToUndo
+	}
+	// A candidate whose own edit can no longer be located is not a choice
+	// between undo and keep at all — offering it either way would promise
+	// something this guard cannot actually do. It is excluded before the
+	// model or the keyword fallback ever sees it (see partitionUndoable).
+	candidates, unavailable := partitionUndoable(all)
 	if len(candidates) == 0 {
 		return Selection{}, ErrNoChangesToUndo
 	}
@@ -121,6 +145,7 @@ func (a *Agent) SelectChanges(ctx context.Context, description string) (Selectio
 	if !got {
 		sel = selectByKeywords(description, candidates)
 	}
+	sel.Unavailable = unavailable
 	// The coupling guard runs regardless of how the split was made: a
 	// model can miss it as easily as the keyword fallback can.
 	sel.Warnings = detectCoupling(sel)
@@ -393,81 +418,312 @@ func tokensWithPrefix(lines []string, prefix byte) map[string]bool {
 	return out
 }
 
-// rename is one hunk's plausible rename: an identifier dropped and a
-// different one added in its place.
-type rename struct{ from, to string }
+// identStopwords excludes the handful of keywords and generic words common
+// enough, across Go and C-ish languages, that flagging them as a coupled
+// identifier would be mostly noise: control flow, primitive type names and
+// a few words that show up in nearly every hunk regardless of what it
+// does. It is deliberately small — anything not obviously a keyword is
+// left in, since a false warning costs one line of output and a false "no
+// coupling" costs a broken build.
+var identStopwords = map[string]bool{
+	"func": true, "package": true, "import": true, "return": true,
+	"if": true, "else": true, "for": true, "range": true, "switch": true,
+	"case": true, "default": true, "break": true, "continue": true,
+	"defer": true, "chan": true, "struct": true, "interface": true,
+	"type": true, "const": true, "var": true, "nil": true, "true": true,
+	"false": true, "iota": true, "select": true, "fallthrough": true,
+	"goto": true, "string": true, "int": true, "int32": true, "int64": true,
+	"bool": true, "byte": true, "rune": true, "error": true, "uint": true,
+	"void": true, "char": true, "long": true, "short": true,
+	"double": true, "static": true, "public": true, "private": true,
+	"protected": true, "class": true, "new": true, "this": true,
+	"null": true, "include": true, "define": true, "namespace": true,
+	"using": true, "template": true, "virtual": true, "override": true,
+	"and": true, "with": true, "from": true, "the": true,
+}
 
-// renames lists the changes a Change's hunks look like renames of: for
-// each hunk, the identifiers removed and not re-added, and those added
-// and not previously present. When a hunk has exactly one of each, it is
-// treated as unambiguous — from was renamed to to. A hunk with more than
-// one candidate on either side is skipped rather than guessing which
-// pairs with which.
-func renames(c Change) []rename {
-	var out []rename
+// isAllDigits reports whether s is nothing but digits, so a stray line
+// number or literal never counts as a "meaningful identifier" below (it
+// is already unreachable via identToken for a token that starts with a
+// digit; this catches an underscore-led one like "_42").
+func isAllDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return len(s) > 0
+}
+
+// addedIdents is the identifiers c genuinely introduces: those appearing
+// on any of its added ('+') lines, across all its hunks, that do not also
+// appear on any of its removed ('-') lines anywhere in the change. The
+// exclusion is what keeps a line rewritten for an unrelated reason from
+// counting as "introducing" every identifier that line happens to carry —
+// a hunk that changes a log message's wording carries its call, say
+// `log.Println(...)`, on both the removed and the added side unchanged;
+// only the wording itself is new. Unlike a hunk-by-hunk rename detector,
+// this is computed across the whole change, so a rename split across
+// widely separated hunks (a definition here, a call site there) is caught
+// exactly as well as one two lines apart in the same hunk as an unrelated
+// edit.
+func addedIdents(c Change) map[string]bool {
+	added, removed := map[string]bool{}, map[string]bool{}
 	for _, h := range c.Hunks() {
-		removed := tokensWithPrefix(h.Lines, '-')
-		added := tokensWithPrefix(h.Lines, '+')
-		var onlyRemoved, onlyAdded []string
-		for t := range removed {
-			if !added[t] {
-				onlyRemoved = append(onlyRemoved, t)
-			}
+		for t := range tokensWithPrefix(h.Lines, '+') {
+			added[t] = true
 		}
-		for t := range added {
-			if !removed[t] {
-				onlyAdded = append(onlyAdded, t)
-			}
+		for t := range tokensWithPrefix(h.Lines, '-') {
+			removed[t] = true
 		}
-		if len(onlyRemoved) == 1 && len(onlyAdded) == 1 {
-			out = append(out, rename{from: onlyRemoved[0], to: onlyAdded[0]})
+	}
+	out := map[string]bool{}
+	for t := range added {
+		if !removed[t] {
+			out[t] = true
 		}
 	}
 	return out
 }
 
-// introduces reports whether any of c's added lines mention tok — c
-// either introduces it or uses one already introduced elsewhere.
-func introduces(c Change, tok string) bool {
-	for _, h := range c.Hunks() {
-		if tokensWithPrefix(h.Lines, '+')[tok] {
-			return true
+// meaningfulIdents narrows a set of identifiers to the ones worth checking
+// for coupling: real words, not a keyword, not purely numeric.
+func meaningfulIdents(ids map[string]bool) map[string]bool {
+	out := map[string]bool{}
+	for t := range ids {
+		if len(t) < 3 || identStopwords[t] || isAllDigits(t) {
+			continue
+		}
+		out[t] = true
+	}
+	return out
+}
+
+// countIdent counts whole-word occurrences of tok across lines.
+func countIdent(lines []string, tok string) int {
+	n := 0
+	for _, l := range lines {
+		for _, t := range identToken.FindAllString(l, -1) {
+			if t == tok {
+				n++
+			}
 		}
 	}
-	return false
+	return n
+}
+
+// simulateUndoneContent computes, for every file some change in undo
+// touches, that file's content once undo is reverted — current disk
+// content with each of undo's changes to that file applied in reverse,
+// newest first, exactly the order and per-hunk location logic
+// UndoSelection itself uses (see revertContent, UndoChange's own
+// implementation). A path is left out of the result when its content
+// cannot be read, or a change on it cannot be relocated (which should not
+// happen for a selection built from SelectChanges, since partitionUndoable
+// already excluded any change like that from the candidates); the caller
+// falls back to disk content for a path with no entry.
+func simulateUndoneContent(undo []Change) map[string][]string {
+	byPath := map[string][]Change{}
+	for _, c := range undo {
+		byPath[c.Path] = append(byPath[c.Path], c)
+	}
+	out := map[string][]string{}
+	for path, chs := range byPath {
+		sort.Slice(chs, func(i, j int) bool { return chs[i].Seq > chs[j].Seq }) // newest first
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		lines := splitLines(string(data))
+		ok := true
+		for _, c := range chs {
+			if !c.Existed {
+				// This change created the file; reverting it removes it,
+				// so there is nothing left for an older change (rare: a
+				// second change to a path whose first one created it) to
+				// apply to.
+				lines, ok = nil, false
+				break
+			}
+			reverted, rok, _ := revertContent(lines, c)
+			if !rok {
+				ok = false
+				break
+			}
+			lines = reverted
+		}
+		if ok {
+			out[path] = lines
+		}
+	}
+	return out
 }
 
 // detectCoupling is undo selection's guard independent of the model's own
-// judgement: for each identifier a change being undone looks like it
-// renamed (see renames), if some other, different-file change being kept
-// also carries that new name, undoing the first alone would leave the
-// second referring to a name the revert just took away (or, read the
-// other way, calling a name the surviving code never defines). Each such
-// pair is named once, in a stable order, so the caller can refuse to
-// proceed without a deliberate override. This only catches the direction
-// where the rename is on the undone side; a rename kept while its use is
-// undone is not flagged, to keep the guard simple, token-based and low on
-// false positives rather than exhaustive.
+// judgement, and independent of recognizing any particular edit shape
+// (rename, deleted helper, dropped import, ...): it simulates reverting
+// sel.Undo and asks, for every meaningful identifier a kept change relies
+// on (appears on its own added lines) that some undone change also
+// introduced (appears on its added lines too), whether the simulated
+// result still has that identifier anywhere in the touched files besides
+// the kept change's own added lines. If not, keeping that change while
+// undoing the other would very likely leave it referring to something
+// that no longer exists. Each such pairing is reported once, in a stable
+// order.
 func detectCoupling(sel Selection) []string {
-	seen := map[string]bool{}
+	if len(sel.Undo) == 0 || len(sel.Keep) == 0 {
+		return nil
+	}
+	touched := selectionTouchedPaths(sel)
+	simulated := simulateUndoneContent(sel.Undo)
+	content := make(map[string][]string, len(touched))
+	for _, p := range touched {
+		if lines, ok := simulated[p]; ok {
+			content[p] = lines
+			continue
+		}
+		if data, err := os.ReadFile(p); err == nil {
+			content[p] = splitLines(string(data))
+		}
+	}
+	cwd := processCwd()
 	var out []string
-	for _, u := range sel.Undo {
-		for _, rn := range renames(u) {
-			for _, k := range sel.Keep {
-				if k.Path == u.Path || !introduces(k, rn.to) {
-					continue
+	seen := map[string]bool{}
+	for _, k := range sel.Keep {
+		kAdded := addedIdents(k)
+		for t := range meaningfulIdents(kAdded) {
+			var coupledWith *Change
+			for i := range sel.Undo {
+				if addedIdents(sel.Undo[i])[t] {
+					coupledWith = &sel.Undo[i]
+					break
 				}
-				key := fmt.Sprintf("%d|%d|%s", u.Seq, k.Seq, rn.to)
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				out = append(out, fmt.Sprintf("#%d and #%d both carry the rename %s→%s; undoing only #%d would leave #%d calling %s", u.Seq, k.Seq, rn.from, rn.to, u.Seq, k.Seq, rn.to))
 			}
+			if coupledWith == nil {
+				continue
+			}
+			total := 0
+			for _, p := range touched {
+				total += countIdent(content[p], t)
+			}
+			inKept := countIdent(hunkAddedLines(k), t)
+			if total-inKept > 0 {
+				continue // t still occurs somewhere else; nothing orphaned
+			}
+			key := fmt.Sprintf("%d|%d|%s", coupledWith.Seq, k.Seq, t)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, fmt.Sprintf("#%d uses %s, which undoing #%d would remove from %s; the result would likely not build — undo both, or keep both", k.Seq, t, coupledWith.Seq, relTo(cwd, coupledWith.Path)))
 		}
 	}
 	sort.Strings(out)
 	return out
+}
+
+// hunkAddedLines is the literal text of c's added lines, prefix stripped,
+// across all its hunks.
+func hunkAddedLines(c Change) []string {
+	var out []string
+	for _, h := range c.Hunks() {
+		for _, l := range h.Lines {
+			if len(l) > 0 && l[0] == '+' {
+				out = append(out, l[1:])
+			}
+		}
+	}
+	return out
+}
+
+// selectionTouchedPaths lists, without duplicates, every file any change
+// sel considered touches: undone, kept, or left mixed.
+func selectionTouchedPaths(sel Selection) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(p string) {
+		if p != "" && !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
+	for _, c := range sel.Undo {
+		add(c.Path)
+	}
+	for _, c := range sel.Keep {
+		add(c.Path)
+	}
+	for _, m := range sel.Mixed {
+		add(m.Change.Path)
+	}
+	return out
+}
+
+// partitionUndoable splits candidates into those whose recorded edit can
+// still be located against the file's current content and those that
+// cannot — the file was edited, or reverted outside the session (e.g. by
+// `git checkout`), since the change was made. Neither undoing nor keeping
+// such a change is a real choice, so it must never reach the model or the
+// keyword fallback as one; the caller reports it separately (see
+// Selection.Unavailable).
+//
+// Each path's own candidates are walked newest to oldest, chaining each
+// hypothetical revert into the next (using revertContent, the same
+// function UndoChange itself reverts with): a change blocked only because
+// a later, still-present change to the same file sits on top of it is not
+// marked unavailable on that account, since a selection that undoes that
+// later change too — UndoSelection always reverts newest first — would
+// restore the state it needs. A change whose own edit cannot be found even
+// so (typically the newest one on its file, if any) is unavailable no
+// matter what else gets selected.
+func partitionUndoable(candidates []Change) (ok []Change, unavailable []UnavailableChange) {
+	byPath := map[string][]Change{}
+	for _, c := range candidates {
+		byPath[c.Path] = append(byPath[c.Path], c)
+	}
+	cwd := processCwd()
+	bad := map[int]string{}
+	for path, chs := range byPath {
+		sort.Slice(chs, func(i, j int) bool { return chs[i].Seq > chs[j].Seq }) // newest first
+		data, rerr := os.ReadFile(path)
+		exists := rerr == nil
+		var lines []string
+		if exists {
+			lines = splitLines(string(data))
+		}
+		for _, c := range chs {
+			if !c.Existed {
+				// c created path: undoable iff the file, as this
+				// hypothetical chain has it so far, still matches
+				// exactly what c wrote.
+				if exists && strings.Join(lines, "") == string(c.After) {
+					exists, lines = false, nil
+					continue
+				}
+				bad[c.Seq] = fmt.Sprintf("#%d created %s, which no longer matches what it wrote; undoing it would guess at what to remove", c.Seq, relTo(cwd, path))
+				continue
+			}
+			if !exists {
+				bad[c.Seq] = fmt.Sprintf("#%d edited %s, which is gone since", c.Seq, relTo(cwd, path))
+				continue
+			}
+			reverted, rok, badHunk := revertContent(lines, c)
+			if !rok {
+				h := c.Hunks()[badHunk-1]
+				bad[c.Seq] = fmt.Sprintf("#%d's hunk %d (%s) of %s no longer applies: those lines were edited outside the session since", c.Seq, badHunk, h.Header(), relTo(cwd, path))
+				continue
+			}
+			lines = reverted
+		}
+	}
+	for _, c := range candidates {
+		if why, isBad := bad[c.Seq]; isBad {
+			unavailable = append(unavailable, UnavailableChange{Change: c, Why: why})
+		} else {
+			ok = append(ok, c)
+		}
+	}
+	return ok, unavailable
 }
 
 // UndoSelection reverts sel.Undo, newest change first so a later edit to
@@ -483,7 +739,6 @@ func (a *Agent) UndoSelection(ctx context.Context, sel Selection) (UndoReport, e
 	undo := append([]Change(nil), sel.Undo...)
 	sort.Slice(undo, func(i, j int) bool { return undo[i].Seq > undo[j].Seq })
 	var rep UndoReport
-	var revertedPaths []string
 	for i, c := range undo {
 		done, err := a.UndoChange(c.Seq)
 		if err != nil {
@@ -495,23 +750,30 @@ func (a *Agent) UndoSelection(ctx context.Context, sel Selection) (UndoReport, e
 			break
 		}
 		rep.Reverted = append(rep.Reverted, done)
-		revertedPaths = append(revertedPaths, c.Path)
 	}
 	if len(rep.Reverted) > 0 {
-		a.reportChecks(ctx, &rep, revertedPaths)
+		a.reportChecks(ctx, &rep, sel)
 	}
 	return rep, nil
 }
 
 // reportChecks fills in rep's verification fields after at least one
-// change from a selection was reverted. It runs the project's verify
-// gate when one is trusted and configured; otherwise it explains why not
+// change from a selection was reverted. It runs the project's verify gate
+// when one is trusted and configured; otherwise it explains why not
 // (VerifyUntrusted, or nothing configured at all) and, since no checks
-// ran, falls back to language-server diagnostics for the reverted files
-// through a.Diagnose when one is wired up — the same hook a file tool's
-// own edit uses (see agent.go) — or admits plainly that nothing verified
-// the result when there is no such hook either.
-func (a *Agent) reportChecks(ctx context.Context, rep *UndoReport, paths []string) {
+// ran, falls back to language-server diagnostics through a.Diagnose when
+// one is wired up — the same hook a file tool's own edit uses (see
+// agent.go) — or admits plainly that nothing verified the result when
+// there is no such hook either.
+//
+// The fallback covers every file any of sel's candidates touches, reverted
+// or kept, not only the reverted ones: a kept change can just as easily
+// stop building once an undone neighbor's definition disappears under it
+// (see detectCoupling), and checking only the reverted side would report
+// "no problems" without having looked at the file that actually broke.
+// Each file gets its own line naming it, so the report never reads as a
+// bare "no problems" when some touched file was never examined at all.
+func (a *Agent) reportChecks(ctx context.Context, rep *UndoReport, sel Selection) {
 	if a.Verify.Enabled() {
 		res := a.Verify.Run(ctx)
 		ok := res.OK()
@@ -524,20 +786,19 @@ func (a *Agent) reportChecks(ctx context.Context, rep *UndoReport, paths []strin
 	} else {
 		rep.CheckNote = "no checks configured (/verify set <cmd>)"
 	}
-	if a.Diagnose == nil {
+	paths := selectionTouchedPaths(sel)
+	if a.Diagnose == nil || len(paths) == 0 {
 		rep.Diagnostics = "nothing verified the result"
 		return
 	}
-	seen := map[string]bool{}
+	cwd := processCwd()
 	var notes []string
 	for _, p := range paths {
-		if p == "" || seen[p] {
-			continue
+		note := a.Diagnose(ctx, p)
+		if note == "" {
+			note = "not checked (no diagnostics available for this file)"
 		}
-		seen[p] = true
-		if note := a.Diagnose(ctx, p); note != "" {
-			notes = append(notes, note)
-		}
+		notes = append(notes, fmt.Sprintf("%s: %s", relTo(cwd, p), note))
 	}
 	rep.Diagnostics = strings.Join(notes, "\n")
 }
@@ -691,6 +952,12 @@ func FormatSelection(cwd string, sel Selection) string {
 		sb.WriteString("\nwarning:\n")
 		for _, w := range sel.Warnings {
 			fmt.Fprintf(&sb, "  %s\n", w)
+		}
+	}
+	if len(sel.Unavailable) > 0 {
+		sb.WriteString("\nunavailable: these changes could not be located and were left out of undo and keep:\n")
+		for _, u := range sel.Unavailable {
+			fmt.Fprintf(&sb, "  #%d %s\n", u.Change.Seq, u.Why)
 		}
 	}
 	switch {

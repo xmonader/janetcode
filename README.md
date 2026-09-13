@@ -203,6 +203,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /yolo (toggle auto-approve)   /auto (edits and known-safe reads)   /edits (edits go through, commands ask)   /hints [on | off]
 /why [n] (explain the last thing the harness did on its own)   /budget <usd> (stop at a spending ceiling)
 /plan <request> (plan mode: explore, write a plan; /plan approve executes it)
+/accept <request> (write acceptance tests first; /accept approve locks them as a gate)
 /readonly  (toggle read-only: the model can inspect but change nothing)
 /sandbox [on|off]  /review [focus]  /loop [duration] <prompt>
 /connect   /model     /compact (summarise the context to free the window)
@@ -258,6 +259,7 @@ Features, each a section of the interface page:
 - [Getting back what compaction dropped](docs/manual/interface.md#getting-back-what-compaction-dropped) — archived output and conversation, searchable with `expand_output`
 - [What a turn actually demonstrated](docs/manual/interface.md#what-a-turn-actually-demonstrated) — a verdict per turn from what ran, not from what the model said
 - [Plan mode and read-only mode](docs/manual/interface.md#plan-mode-and-read-only-mode) — explore and plan first, or forbid changes entirely
+- [Acceptance tests](docs/manual/interface.md#acceptance-tests) — `/accept <request>` writes tests first and stops; `/accept approve` locks them so no tool call can weaken them and their command gates the session
 - [Verification gates](docs/manual/interface.md#verification-gates) — `.janetcode/verify.json` says what done means; failures go back to the model
 - [Diagnostics from language servers](docs/manual/interface.md#diagnostics-from-language-servers) — compile and type errors after every edit, when a server is on PATH
 - [The reach of an edit](docs/manual/interface.md#the-reach-of-an-edit) — a permission prompt for `edit_file`/`write_file` shows the symbols it changes, their references, their tests and the checks that will run, from the language server or the repository map, within a fixed short budget

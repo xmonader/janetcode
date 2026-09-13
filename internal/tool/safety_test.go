@@ -62,6 +62,46 @@ func TestClassify(t *testing.T) {
 	}
 }
 
+// TestWriteTargets covers the write-target extraction the accept-tests
+// lock uses to catch a bash command that would touch a locked file (see
+// internal/agent's acceptDenial): a bare relative name, a redirect, a
+// wrapped command, and the innocuous cases that must not show up.
+func TestWriteTargets(t *testing.T) {
+	root := t.TempDir()
+	want := func(rel string) string { return filepath.Join(root, rel) }
+	cases := []struct {
+		cmd  string
+		want []string
+	}{
+		{"echo x > foo_test.go", []string{want("foo_test.go")}},
+		{"echo x >> foo_test.go", []string{want("foo_test.go")}},
+		{`sh -c "echo x > foo_test.go"`, []string{want("foo_test.go")}},
+		{"sudo tee foo_test.go", []string{want("foo_test.go")}},
+		{"timeout 5 rm foo_test.go", []string{want("foo_test.go")}},
+		{"mv foo_test.go bar_test.go", []string{want("foo_test.go"), want("bar_test.go")}},
+		{"cp foo_test.go /tmp/copy", []string{want("foo_test.go"), "/tmp/copy"}},
+		{"cat foo_test.go", nil}, // cat is not a mutator
+		{"go test ./...", nil},   // no mutator, no redirect
+		{"echo hi", nil},
+	}
+	for _, c := range cases {
+		got := WriteTargets(c.cmd, root)
+		if len(got) != len(c.want) {
+			t.Errorf("%q: targets = %v, want %v", c.cmd, got, c.want)
+			continue
+		}
+		seen := map[string]bool{}
+		for _, g := range got {
+			seen[g] = true
+		}
+		for _, w := range c.want {
+			if !seen[w] {
+				t.Errorf("%q: targets = %v, missing %v", c.cmd, got, w)
+			}
+		}
+	}
+}
+
 func TestSafeRead(t *testing.T) {
 	yes := []string{
 		"ls", "ls -la src", "pwd", "echo hi", "cat README.md", "head -n 20 a.go",

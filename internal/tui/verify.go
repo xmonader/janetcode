@@ -29,6 +29,15 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 		o = &VerifyOptions{}
 		m.opts.Verify = o
 	}
+	// The config is loaded once at startup (see cmd/janetcode/main.go), so
+	// a project file that was missing or malformed then, and got written
+	// or fixed since, would otherwise go unnoticed until the process
+	// restarts: every /verify and /verify trust re-reads it from disk
+	// first, the same way saveVerify already does after a /verify set.
+	if err := m.reloadVerify(o); err != nil {
+		m.transcript.errorf("%v", err)
+		return nil
+	}
 	ag := m.opts.Agent
 	if len(args) > 0 {
 		switch args[0] {
@@ -93,6 +102,33 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 	m.refresh(false)
 	go func() { send(verifyDoneMsg{res: r.Run(ctx)}) }()
 	return m.spinner.Tick
+}
+
+// reloadVerify re-reads the project's verify config from disk into o,
+// recomputing whether it is trusted from the file's current content hash
+// (trust itself is still keyed by that hash, via o.Trust, so fixing a
+// malformed file does not silently inherit trust an earlier, different
+// content never earned) and keeping the agent's own Verify/VerifyUntrusted
+// in step with it. A malformed file is reported to the caller and leaves
+// o and the agent exactly as they were, the same as saveVerify already
+// does when a write leaves the file unparsable.
+func (m *model) reloadVerify(o *VerifyOptions) error {
+	cfg, hash, err := verify.Load(m.opts.Cwd)
+	if err != nil {
+		return err
+	}
+	o.Config, o.ProjectHash = cfg, hash
+	defined := len(cfg.Commands) > 0 || cfg.Mutate != ""
+	o.ProjectTrusted = defined && o.Trust.Trusted(mcp.VerifyTrustKey(m.opts.Cwd), hash)
+	ag := m.opts.Agent
+	if o.ProjectTrusted {
+		ag.Verify = &verify.Runner{Config: cfg, Cwd: m.opts.Cwd}
+		ag.VerifyUntrusted = false
+	} else {
+		ag.Verify = nil
+		ag.VerifyUntrusted = defined
+	}
+	return nil
 }
 
 // saveVerify writes the project file. The user wrote it, so it is trusted.

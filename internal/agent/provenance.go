@@ -304,22 +304,16 @@ func (a *Agent) UndoChange(seq int) (string, error) {
 		if !exists {
 			return "", fmt.Errorf("#%d edited %s but the file is gone", seq, c.Path)
 		}
-		lines := splitLines(string(data))
-		hunks := c.Hunks()
-		for i := len(hunks) - 1; i >= 0; i-- {
-			h := hunks[i]
-			old, new := h.sides()
-			at, ok := locate(lines, new, h.NewStart-1)
-			if !ok {
-				return "", fmt.Errorf("hunk %d of #%d (%s) no longer applies: those lines were edited since", i+1, seq, h.Header())
-			}
-			lines = append(append(append([]string{}, lines[:at]...), old...), lines[at+len(new):]...)
+		reverted, ok, badHunk := revertContent(splitLines(string(data)), c)
+		if !ok {
+			h := c.Hunks()[badHunk-1]
+			return "", fmt.Errorf("hunk %d of #%d (%s) no longer applies: those lines were edited since", badHunk, seq, h.Header())
 		}
-		if err := tool.AtomicWrite(c.Path, []byte(strings.Join(lines, ""))); err != nil {
+		if err := tool.AtomicWrite(c.Path, []byte(strings.Join(reverted, ""))); err != nil {
 			return "", err
 		}
 		verb = "restored"
-		if len(hunks) > 0 {
+		if hunks := c.Hunks(); len(hunks) > 0 {
 			verb = fmt.Sprintf("reverted %d hunk(s) of", len(hunks))
 		}
 	}
@@ -333,6 +327,31 @@ func (a *Agent) UndoChange(seq int) (string, error) {
 	now, _ := os.ReadFile(c.Path)
 	a.record(Change{Turn: a.Stats().Turns, Tool: "undo", Intent: fmt.Sprintf("undo #%d: %s", seq, c.Intent), Path: c.Path, Existed: exists, Before: data, After: now})
 	return verb + " " + c.Path, nil
+}
+
+// revertContent computes what an existing file's content would be if
+// change c were reverted on top of cur (its current lines, e.g. from
+// splitLines), without writing anything: each hunk is located in cur and
+// put back the way it was, newest hunk first, same as UndoChange itself
+// does — this is UndoChange's only implementation of that, factored out so
+// a caller that wants to know the answer without writing (the undo
+// coupling guard, see undo_intent.go) can never drift from what actually
+// happens on disk. ok is false when some hunk's lines could not be found
+// (edited since c was recorded); badHunk is that hunk's 1-based index
+// among c.Hunks() for the caller's own message, 0 when ok.
+func revertContent(cur []string, c Change) (reverted []string, ok bool, badHunk int) {
+	lines := append([]string(nil), cur...)
+	hunks := c.Hunks()
+	for i := len(hunks) - 1; i >= 0; i-- {
+		h := hunks[i]
+		old, new := h.sides()
+		at, found := locate(lines, new, h.NewStart-1)
+		if !found {
+			return nil, false, i + 1
+		}
+		lines = append(append(append([]string{}, lines[:at]...), old...), lines[at+len(new):]...)
+	}
+	return lines, true, 0
 }
 
 // locate finds block in lines, preferring the occurrence nearest to hint.

@@ -154,34 +154,17 @@ func classifyWords(toks []string, seg, root string, depth int) (Risk, string) {
 
 var redirect = regexp.MustCompile(`(?:^|[^<>&|0-9])>{1,2}\s*("[^"]+"|'[^']+'|[^\s;&|]+)`)
 
-// escapes reports whether a path argument resolves outside root. Only
-// tokens that look like paths are considered, so option-like words and
-// bare names never trip it.
+// escapes reports whether a path argument resolves outside root. Callers
+// only pass it a mutator's non-flag arguments or a redirect target, so a
+// glob or variable is the only kind of token it declines to judge.
 func escapes(tk, root string) (string, bool) {
 	if root == "" {
 		return "", false
 	}
-	if strings.HasPrefix(tk, "~") {
-		if home, err := os.UserHomeDir(); err == nil {
-			tk = home + tk[1:]
-		}
-	}
-	if strings.HasPrefix(tk, "$HOME") {
-		if home, err := os.UserHomeDir(); err == nil {
-			tk = home + strings.TrimPrefix(tk, "$HOME")
-		}
-	}
-	if !strings.HasPrefix(tk, "/") && !strings.Contains(tk, "..") {
+	abs, ok := resolvePathArg(tk, root)
+	if !ok {
 		return "", false
 	}
-	if strings.ContainsAny(tk, "$*?") {
-		return "", false // a glob or variable: cannot judge, leave it to the prompt
-	}
-	abs := tk
-	if !filepath.IsAbs(tk) {
-		abs = filepath.Join(root, tk)
-	}
-	abs = filepath.Clean(abs)
 	rootClean := filepath.Clean(root)
 	if abs == rootClean || strings.HasPrefix(abs, rootClean+string(filepath.Separator)) {
 		return "", false
@@ -195,6 +178,127 @@ func escapes(tk, root string) (string, bool) {
 		return "", false
 	}
 	return abs, true
+}
+
+// resolvePathArg resolves a shell word against root: ~ and $HOME expand
+// first, then a relative word joins root the way the shell would resolve
+// it from the working directory. A glob or variable is left alone since
+// nothing here can judge what it expands to. Shared by escapes (which
+// only cares whether the result lands outside root — true for every
+// bare relative word, since joining root can only stay under it or go
+// above it through a leading "..") and WriteTargets (which wants the
+// resolved path whichever side of root it lands on, bare relative words
+// included: "foo_test.go" is exactly the shape a locked file's own name
+// takes in a command run from the workspace).
+func resolvePathArg(tk, root string) (string, bool) {
+	if strings.HasPrefix(tk, "~") {
+		if home, err := os.UserHomeDir(); err == nil {
+			tk = home + tk[1:]
+		}
+	}
+	if strings.HasPrefix(tk, "$HOME") {
+		if home, err := os.UserHomeDir(); err == nil {
+			tk = home + strings.TrimPrefix(tk, "$HOME")
+		}
+	}
+	if strings.ContainsAny(tk, "$*?") {
+		return "", false // a glob or variable: cannot judge, leave it to the prompt
+	}
+	abs := tk
+	if !filepath.IsAbs(tk) {
+		abs = filepath.Join(root, tk)
+	}
+	return filepath.Clean(abs), true
+}
+
+// WriteTargets returns the file paths a shell command line would write
+// to, resolved against root: the path arguments of a mutator like
+// mv/cp/tee/rm, plus any redirect target. It shares Classify's wrapper
+// unwrapping (sudo, env, timeout, sh -c, eval) and path recognition
+// (resolvePathArg), so a caller checking a command against a set of
+// protected paths sees exactly the writes Classify would grade — used
+// by the accept-tests lock to catch a bash command that would touch a
+// locked test file the same way edit_file/write_file are caught.
+func WriteTargets(command, root string) []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(p string) {
+		if p == "" || seen[p] {
+			return
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	for _, seg := range splitSegments(command) {
+		collectWriteTargets(seg, root, 0, add)
+	}
+	return out
+}
+
+func collectWriteTargets(seg, root string, depth int, add func(string)) {
+	seg = strings.TrimSpace(seg)
+	if seg == "" || depth > maxWrapperDepth {
+		return
+	}
+	toks := shellWords(seg)
+	if len(toks) == 0 {
+		return
+	}
+	skipOpts := func(i int) int {
+		for i < len(toks) && strings.HasPrefix(toks[i], "-") {
+			i++
+		}
+		return i
+	}
+	switch toks[0] {
+	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer":
+		collectWriteTargets(strings.Join(toks[skipOpts(1):], " "), root, depth+1, add)
+		return
+	case "env":
+		i := 1
+		for i < len(toks) && (strings.HasPrefix(toks[i], "-") || strings.Contains(toks[i], "=")) {
+			i++
+		}
+		collectWriteTargets(strings.Join(toks[i:], " "), root, depth+1, add)
+		return
+	case "timeout":
+		i := skipOpts(1)
+		if i < len(toks) {
+			i++ // the duration
+		}
+		collectWriteTargets(strings.Join(toks[i:], " "), root, depth+1, add)
+		return
+	case "sh", "bash", "zsh", "dash", "ksh":
+		for i := 1; i < len(toks)-1; i++ {
+			if strings.HasPrefix(toks[i], "-") && strings.Contains(toks[i], "c") {
+				for _, s := range splitSegments(toks[i+1]) {
+					collectWriteTargets(s, root, depth+1, add)
+				}
+				return
+			}
+		}
+		return
+	case "eval":
+		for _, s := range splitSegments(strings.Join(toks[1:], " ")) {
+			collectWriteTargets(s, root, depth+1, add)
+		}
+		return
+	}
+	if mutators[toks[0]] {
+		for _, tk := range toks[1:] {
+			if strings.HasPrefix(tk, "-") {
+				continue
+			}
+			if abs, ok := resolvePathArg(tk, root); ok {
+				add(abs)
+			}
+		}
+	}
+	for _, m := range redirect.FindAllStringSubmatch(seg, -1) {
+		if abs, ok := resolvePathArg(strings.Trim(m[1], `"'`), root); ok {
+			add(abs)
+		}
+	}
 }
 
 // SafeRead reports whether a command is a known-safe read: listing,

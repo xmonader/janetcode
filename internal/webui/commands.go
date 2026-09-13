@@ -19,7 +19,7 @@ import (
 // less than the terminal's.
 var webCommands = []string{
 	"/help", "/clear", "/compact", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/loop",
-	"/readonly", "/plan", "/verbose", "/undo", "/redo", "/changes", "/diff", "/open", "/context",
+	"/readonly", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/diff", "/open", "/context",
 	"/stats", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills",
 	"/pin", "/unpin", "/title", "/model", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/ssh", "/docker", "/reload",
@@ -29,6 +29,7 @@ var webCommands = []string{
 var webArgs = map[string]string{
 	"/help":        "[topic]",
 	"/undo":        "[preview | about <description> | apply [--force]]",
+	"/accept":      "[<request> | approve | lock | unlock | off]",
 	"/diff":        "[path]",
 	"/loop":        "[duration] [prompt|off]",
 	"/jobs":        "[kill n]",
@@ -104,6 +105,8 @@ func (s *server) runCommand(text string) error {
 		s.noteOnOff("read-only", ag.ReadOnly, "the model can inspect but change nothing")
 	case "/plan":
 		s.plan(arg)
+	case "/accept":
+		s.accept(arg)
 	case "/verbose":
 		s.mu.Lock()
 		s.verbose = !s.verbose

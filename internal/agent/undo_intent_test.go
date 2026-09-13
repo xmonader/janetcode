@@ -206,8 +206,10 @@ func TestApplyPendingUndoRefusesAfterChangesMoved(t *testing.T) {
 // an unrelated log message, and a second, separate write_file call
 // creating main_test.go, which already calls the new name. The rename's
 // def and call site, and the log edit, are kept far enough apart in
-// main.go that they land in separate diff hunks, matching how renames()
-// expects one hunk to carry one, unambiguous, renamed identifier.
+// main.go that they land in separate diff hunks — a gentler case than
+// setupRealisticRenameCouplingAgent's, where they land in the very same
+// hunk, but useful for checking the guard also catches a rename that
+// spans hunks (a definition in one, a call site in another).
 func setupRenameCouplingAgent(t *testing.T) (a *Agent, root string, f *fake, renameSeq, testSeq int) {
 	t.Helper()
 	mainGo := "package m\n\nfunc compute() int {\n\treturn 1\n}\n\n" +
@@ -267,9 +269,11 @@ func TestDetectCouplingWarnsWhenARenameIsSplitAcrossUndoAndKeep(t *testing.T) {
 	if len(sel.Warnings) == 0 {
 		t.Fatalf("expected a coupling warning, got none: sel=%+v", sel)
 	}
-	want := fmt.Sprintf("#%d and #%d", renameSeq, testSeq)
-	if !strings.Contains(sel.Warnings[0], want) || !strings.Contains(sel.Warnings[0], "compute") || !strings.Contains(sel.Warnings[0], "calculate") {
-		t.Fatalf("warning = %q", sel.Warnings[0])
+	if want := fmt.Sprintf("#%d uses calculate", testSeq); !strings.Contains(sel.Warnings[0], want) {
+		t.Fatalf("warning = %q, want it to name the kept change and the identifier: %q", sel.Warnings[0], want)
+	}
+	if want := fmt.Sprintf("undoing #%d", renameSeq); !strings.Contains(sel.Warnings[0], want) {
+		t.Fatalf("warning = %q, want it to name the undone change: %q", sel.Warnings[0], want)
 	}
 	if rendered := FormatSelection(root, sel); !strings.Contains(rendered, "warning:") || !strings.Contains(rendered, "--force") {
 		t.Fatalf("FormatSelection did not surface the warning:\n%s", rendered)
@@ -287,6 +291,195 @@ func TestDetectCouplingWarnsWhenARenameIsSplitAcrossUndoAndKeep(t *testing.T) {
 	if len(rep.Reverted) != 1 {
 		t.Fatalf("reverted = %+v", rep.Reverted)
 	}
+}
+
+// setupRealisticRenameCouplingAgent reproduces the real end-to-end failure
+// (reproduced twice with a real model, not this test's fake): a Go module
+// where main.go and main_test.go already exist on disk before the session
+// starts. One model turn adds log.Printf lines to compute() and main() AND
+// renames compute -> calculate everywhere. Unlike
+// setupRenameCouplingAgent's carefully spaced edits, a real model's rename
+// and its nearby logging lines land close enough together that they fall
+// in the SAME diff hunk — main.go ends up as one recorded change carrying
+// both the rename and the logging, and main_test.go as a second change
+// renaming only the call site.
+func setupRealisticRenameCouplingAgent(t *testing.T) (a *Agent, root string, f *fake, mainSeq, testSeq int) {
+	t.Helper()
+	mainGoBefore := "package main\n\nimport \"fmt\"\n\n" +
+		"func compute(x int) int {\n\treturn x * 2\n}\n\n" +
+		"func main() {\n\tresult := compute(3)\n\tfmt.Println(result)\n}\n"
+	mainGoAfter := "package main\n\nimport (\n\t\"fmt\"\n\t\"log\"\n)\n\n" +
+		"func calculate(x int) int {\n\tlog.Printf(\"calculate start\")\n\treturn x * 2\n}\n\n" +
+		"func main() {\n\tresult := calculate(3)\n\tlog.Printf(\"done\")\n\tfmt.Println(result)\n}\n"
+	testGoBefore := "package main\n\nimport \"testing\"\n\n" +
+		"func TestCompute(t *testing.T) {\n\tif compute(3) != 6 {\n\t\tt.Fatal(\"bad\")\n\t}\n}\n"
+	testGoAfter := "package main\n\nimport \"testing\"\n\n" +
+		"func TestCompute(t *testing.T) {\n\tif calculate(3) != 6 {\n\t\tt.Fatal(\"bad\")\n\t}\n}\n"
+
+	f = &fake{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "Rename compute to calculate and add some logging."},
+			{Type: llm.BlockToolUse, ID: "c1", Name: "write_file", Input: mustJSON(map[string]any{"path": "main.go", "content": mainGoAfter})},
+		}}, StopReason: llm.StopToolUse},
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "Update the test to call the renamed function."},
+			{Type: llm.BlockToolUse, ID: "c2", Name: "write_file", Input: mustJSON(map[string]any{"path": "main_test.go", "content": testGoAfter})},
+		}}, StopReason: llm.StopToolUse},
+		text("done"),
+	}}
+	a, root = newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root}, tool.EditFile{Root: root})
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte(mainGoBefore), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "main_test.go"), []byte(testGoBefore), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	changes := a.Changes()
+	if len(changes) != 2 {
+		t.Fatalf("setup: changes = %+v", changes)
+	}
+	// Confirm the premise: main.go's rename and its logging land in one
+	// hunk, so a hunk-level "exactly one identifier added" heuristic
+	// cannot isolate the rename here.
+	hunks := changes[0].Hunks()
+	if len(hunks) != 1 {
+		t.Fatalf("setup: expected the rename and the logging to merge into one hunk, got %d", len(hunks))
+	}
+	return a, root, f, changes[0].Seq, changes[1].Seq
+}
+
+// TestUndoAboutCatchesRenameCoupledWithUnrelatedLoggingInOneHunk is the
+// real end-to-end failure: the model is asked to undo "the logging changes
+// but keep the rename", picks #1 (main.go) to undo and #2 (main_test.go) to
+// keep with no mixed entry, and the old hunk-level detectCoupling missed it
+// because main.go's single hunk mixes the rename with unrelated added
+// identifiers (log, Printf, done, ...), so the "exactly one identifier
+// added" heuristic never recognizes compute->calculate as a rename at all.
+// Applying this selection would leave main_test.go calling calculate while
+// main.go no longer defines it. The guard must catch this regardless of
+// whether it can name it a "rename".
+func TestUndoAboutCatchesRenameCoupledWithUnrelatedLoggingInOneHunk(t *testing.T) {
+	a, root, f, mainSeq, testSeq := setupRealisticRenameCouplingAgent(t)
+	f.responses = append(f.responses, text(fmt.Sprintf(`{"undo":[%d],"keep":[%d]}`, mainSeq, testSeq)))
+	sel, err := a.PreviewUndoAbout(context.Background(), "the logging changes but keep the rename")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sel.Mixed) != 0 {
+		t.Fatalf("expected no mixed entry (matching the real repro), got %+v", sel.Mixed)
+	}
+	if len(sel.Warnings) == 0 {
+		t.Fatalf("expected a coupling warning: undoing #%d would leave #%d calling a name main.go no longer defines, got none: sel=%+v", mainSeq, testSeq, sel)
+	}
+	if _, err := a.ApplyPendingUndo(context.Background(), false); !errors.Is(err, ErrUndoNeedsForce) {
+		t.Fatalf("apply without force: %v", err)
+	}
+	rep, err := a.ApplyPendingUndo(context.Background(), true)
+	if err != nil {
+		t.Fatalf("apply with force: %v", err)
+	}
+	if len(rep.Reverted) != 1 {
+		t.Fatalf("reverted = %+v", rep.Reverted)
+	}
+	_ = root
+}
+
+// TestUndoAboutBothUndoneRaisesNoCouplingWarning is the other half of the
+// same scenario: when the model (or the user) decides to undo both the
+// rename and the logging together, nothing is left depending on a name
+// that is about to disappear, so the guard must stay quiet.
+func TestUndoAboutBothUndoneRaisesNoCouplingWarning(t *testing.T) {
+	a, _, f, mainSeq, testSeq := setupRealisticRenameCouplingAgent(t)
+	f.responses = append(f.responses, text(fmt.Sprintf(`{"undo":[%d,%d],"keep":[]}`, mainSeq, testSeq)))
+	sel, err := a.PreviewUndoAbout(context.Background(), "undo the rename and the logging both")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sel.Warnings) != 0 {
+		t.Fatalf("expected no coupling warning when both changes are undone together, got %+v", sel.Warnings)
+	}
+	if _, err := a.ApplyPendingUndo(context.Background(), false); err != nil {
+		t.Fatalf("apply without force should not be refused: %v", err)
+	}
+}
+
+// TestSelectChangesExcludesExternallyRevertedChangeAsUnavailable is item 3
+// of the QA re-test: a change whose file was reverted outside the session
+// (e.g. `git checkout`, here simulated by writing the pre-change content
+// straight back) can no longer be located, so it must never be offered to
+// the model or the keyword fallback as something to undo or to keep —
+// either answer would promise a revert this guard cannot actually perform.
+func TestSelectChangesExcludesExternallyRevertedChangeAsUnavailable(t *testing.T) {
+	a, root, f := setupUndoIntentAgent(t)
+	changes := a.Changes() // [0]=logger.go (created), [1]=app.go (created)
+	// Simulate `git checkout -- logger.go` (or any external revert) after
+	// the session made its change: the file goes back to not existing,
+	// since that change created it, so its recorded After no longer
+	// matches disk.
+	if err := os.Remove(filepath.Join(root, "logger.go")); err != nil {
+		t.Fatal(err)
+	}
+	f.responses = append(f.responses, text(fmt.Sprintf(`{"undo":[%d],"keep":[]}`, changes[1].Seq)))
+	sel, err := a.SelectChanges(context.Background(), "the logging change")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sel.Unavailable) != 1 || sel.Unavailable[0].Change.Seq != changes[0].Seq {
+		t.Fatalf("unavailable = %+v", sel.Unavailable)
+	}
+	for _, c := range append(append([]Change(nil), sel.Undo...), sel.Keep...) {
+		if c.Seq == changes[0].Seq {
+			t.Fatalf("the unavailable change must not also appear in undo or keep: %+v", sel)
+		}
+	}
+	// The model was only ever shown the one remaining, available
+	// candidate.
+	if len(f.requests) == 0 {
+		t.Fatal("expected the model to have been asked")
+	}
+	if prompt := string(f.requests[len(f.requests)-1].Messages[0].Text()); strings.Contains(prompt, "logger.go") {
+		t.Fatalf("the unavailable change's file should not have been offered to the model:\n%s", prompt)
+	}
+	if rendered := FormatSelection(root, sel); !strings.Contains(rendered, "unavailable:") {
+		t.Fatalf("FormatSelection did not surface the unavailable change:\n%s", rendered)
+	}
+}
+
+// TestReportChecksDiagnosticsCoverKeptFilesToo is item 4 of the QA re-test:
+// the language-server fallback must look at every file any candidate
+// change touched, kept ones included, not only the ones actually
+// reverted — otherwise a kept file that breaks because of what was
+// undone is never examined, and the report falsely reads as clean.
+func TestReportChecksDiagnosticsCoverKeptFilesToo(t *testing.T) {
+	a, root, _ := setupUndoIntentAgent(t)
+	changes := a.Changes() // [0]=logger.go, [1]=app.go
+	var asked []string
+	a.Diagnose = func(_ context.Context, path string) string {
+		asked = append(asked, path)
+		if strings.Contains(path, "app.go") {
+			return "" // no language server covers this one
+		}
+		return "[diagnostics] no problems"
+	}
+	rep, err := a.UndoSelection(context.Background(), Selection{Undo: []Change{changes[0]}, Keep: []Change{changes[1]}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(asked) != 2 {
+		t.Fatalf("expected both the reverted and the kept file to be checked, asked = %+v", asked)
+	}
+	if !strings.Contains(rep.Diagnostics, "logger.go") || !strings.Contains(rep.Diagnostics, "app.go") {
+		t.Fatalf("Diagnostics should name every touched file: %q", rep.Diagnostics)
+	}
+	if !strings.Contains(rep.Diagnostics, "not checked") {
+		t.Fatalf("the kept file with no language server coverage must say it was not checked, not go unmentioned: %q", rep.Diagnostics)
+	}
+	_ = root
 }
 
 // TestSelectionMixedChangeBlocksApplyWithoutForce is QA scenario (2): a

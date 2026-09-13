@@ -191,6 +191,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 !command         run a shell command here; its output is shown and shared with the model
 /help      /quit      /clear (new session)     /yolo (toggle auto-approve)   /auto (edits and known-safe reads)   /edits (edits go through, commands ask)
 /plan <request> (plan mode: explore, write a plan; /plan approve executes it)
+/accept <request> (write acceptance tests first; /accept approve locks them as a gate)
 /readonly  (toggle read-only: the model can inspect but change nothing)
 /sandbox [on|off|image]  (wrap local bash in docker; file tools stay here)
 /review [focus]  (two subagents read the current diff: bugs and tests)
@@ -696,18 +697,30 @@ instance), the model is told not to guess which half to keep: it lists
 that change as `mixed`, with why, and the preview shows it separately
 from `undo` and `keep` rather than silently choosing a side for it.
 
+A change whose own edit can no longer be located — the file was edited, or
+reverted outside the session (e.g. `git checkout`), since the change was
+recorded — is left out of the preview entirely, under its own
+`unavailable` heading with why: neither undoing nor keeping it is a real
+choice, so it is never offered to the model or the keyword fallback as
+one.
+
 Independently of what the model says, a deterministic guard checks every
-preview for a coupling the model might have missed: when a change being
-undone looks like it renamed or introduced an identifier — a name dropped
-on one side of a hunk and a different one added in its place — and a
-different, kept change carries that same new name, undoing the first
-alone would leave the second referring to something that just
-disappeared. The preview shows this as a warning naming both changes,
-e.g. `#2 and #3 both carry the rename compute→calculate; undoing only #2
-would leave #3 calling calculate`. This check is deliberately simple and
-token-based (it does not parse any language), and it only catches this
-one direction — the rename on the undone side, the use on the kept side —
-rather than trying to be exhaustive.
+preview for a coupling the model might have missed, by simulation rather
+than by trying to recognize a rename, a deleted helper or a dropped import
+as a specific shape: it reverts the `undo` side in memory and asks, for
+every meaningful identifier a `keep` change relies on (appears on its own
+added lines) that some `undo` change also introduced (appears on its added
+lines too), whether that identifier still occurs anywhere in the touched
+files besides the kept change's own added lines once the revert has
+happened. If not, keeping that change while undoing the other would very
+likely leave it referring to something that no longer exists. The preview
+shows this as a warning naming both changes, e.g. `#3 uses calculate,
+which undoing #2 would remove from main.go; the result would likely not
+build — undo both, or keep both`. Because it simulates the actual revert
+instead of pattern-matching a hunk, it catches a rename even when it lands
+in the very same hunk as an unrelated edit (adding logging next to it,
+say) — the kind of hunk a per-hunk "one name dropped, one name added"
+heuristic cannot pick apart.
 
 `/undo apply` reverts exactly the selection just previewed, newest change
 first, and stops at the first change that refuses (edited since, most
@@ -730,10 +743,13 @@ pass or fail with a short summary; if verify is defined in
 `.janetcode/verify.json` but not yet trusted, it says so instead of
 running anything (`/verify trust` trusts it); if nothing is configured at
 all, it says `no checks configured (/verify set <cmd>)`. In the latter
-two cases — nothing actually ran — it falls back to the language
-server's diagnostics for the reverted files when one is available, and
-reports any errors; with no language server either, it says plainly that
-nothing verified the result.
+two cases — nothing actually ran — it falls back to the language server's
+diagnostics for every file any of the preview's candidates touched, kept
+ones included, not only the ones actually reverted (a kept file can stop
+building once something an undone one defined disappears from under it),
+naming each file and either what the language server found or that the
+file could not be checked; with no language server either, it says
+plainly that nothing verified the result.
 
 ### Proof in the commit
 
@@ -1354,6 +1370,48 @@ another local root for this session. `/btw` asks a side question that is
 not stored as a user turn; `/copy` copies the last reply; `/config key=value`
 sets a catalogued setting; `/doctor` prints the same checkup as
 `janetcode --doctor` without changing files.
+
+### Acceptance tests
+
+`/accept <request>` puts the session in a test-first mode: the model's
+only job is to write acceptance tests for the request — tests that fail
+against the code as it stands and would pass once the request is done.
+Every other mutating tool is refused while this lasts; a `write_file` or
+`edit_file` on anything but a test file is turned down the same way
+read-only mode turns down an edit, and the model is told to touch only
+test files. When it is done it ends its final message with one line of
+the fixed form `ACCEPT-VERIFY: <command>`, naming how to run the tests it
+just wrote; the harness nudges it once for a missing command before
+falling back to a guess (`go test ./<pkg>/...`, `pytest <files>`, `npm
+test`, `cargo test`, or a matching command already in
+`.janetcode/verify.json`).
+
+Review the tests with `/diff <path>` for each file `/accept` lists (they
+are new, untracked files, so `/diff` shows them in full), then run
+`/accept approve`. From that point the files are **locked**: any
+`edit_file`/`write_file` call on one, or a bash command that would write
+to one (`echo > path`, `sed -i`, `mv`, `rm`, and the like — the same
+path-escape analysis the workspace guard uses), is refused with a message
+telling the model the test is locked and to fix the code instead. Their
+run command also becomes an extra verification gate for this session
+only — not written to `.janetcode/verify.json`, and not applied to any
+other session — so a turn is not done until it passes, alongside
+whatever the project's own checks already require. A turn's verdict (see
+above) never marks a locked test as self-checked, because the model
+could not have edited it: an edit the lock refused never lands as a
+successful write, so it never enters the turn's edited-files count.
+
+Each locked file's content is hashed at approval time, and the hash is
+checked again before every gate run; a mismatch — a bash trick that
+slipped past the write check, an external edit, anything — is reported
+loudly and fails the gate outright, without even running the tests,
+since a green result over changed tests would show nothing. `/accept
+unlock` lifts the lock when a test itself turns out wrong (its hash is
+refreshed the moment the fix is saved); `/accept lock` reapplies it.
+`/accept` alone reports the request, the locked files, whether their
+hashes are intact, and the last gate result; `/accept off` ends the mode
+and unlocks everything. The state is kept on the session record, so `-c`
+or `-r` on a locked session comes back locked.
 
 A `task` with `fork: true` inherits this conversation's history and
 tools, runs in the background, and can be continued by id. It cannot

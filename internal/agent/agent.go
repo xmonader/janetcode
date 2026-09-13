@@ -334,6 +334,14 @@ type Agent struct {
 	Sandbox *tool.Sandbox
 	// Cron is the session-scoped scheduler; jobs die when the session ends.
 	Cron *Cron
+	// Accept is the /accept "acceptance tests you approve first" state,
+	// or nil when the mode has never been used this session (see
+	// accept.go). It is a *session.AcceptMeta rather than a private type
+	// so it can be persisted as-is.
+	Accept *session.AcceptMeta
+	// OnAcceptChange, when set, is called after Accept changes so the
+	// session file can keep it — the same shape as Cron.OnChange.
+	OnAcceptChange func(*session.AcceptMeta)
 	// Forked is true when this agent is a fork of a parent conversation
 	// and must not spawn another fork.
 	Forked bool
@@ -476,6 +484,8 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	stops, needs := 0, 0
 	corrections := 0
 	gate := gateState{}
+	acceptGate := gateState{}
+	acceptNudged := false
 	for iter := 0; iter < maxIter; iter++ {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -582,7 +592,13 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			if more := a.stopHook(ctx, resp.Message.Text(), &stops, emit); more {
 				continue
 			}
+			if more := a.acceptCapture(resp.Message.Text(), &acceptNudged, emit); more {
+				continue
+			}
 			if more := !a.Off["verify"] && a.verifyGate(ctx, &gate, emit); more {
+				continue
+			}
+			if more := a.acceptVerifyGate(ctx, &acceptGate, emit); more {
 				continue
 			}
 			// What the turn actually demonstrated, decided from what the
@@ -1284,6 +1300,14 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 			}
 		}
 	}
+	// A locked accept-test file is refused like a denied permission rule:
+	// before anything asks the user, and with no way for AutoApprove or a
+	// saved rule to skip past it (see accept.go).
+	if t.Mutating() {
+		if reason := a.acceptDenial(t, u.Input); reason != "" {
+			return nil, reason, nil
+		}
+	}
 	subject := perm.Subject(u.Name, u.Input)
 	verdict, rule := a.Rules.Decide(u.Name, subject)
 	if verdict == perm.Denied {
@@ -1394,6 +1418,11 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if a.readOnly() && t.Mutating() {
 		return refuse(fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", u.Name, a.modeName()), true)
 	}
+	if t.Mutating() {
+		if reason := a.acceptWritingDenial(t, u.Input); reason != "" {
+			return refuse(reason, true)
+		}
+	}
 	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
 		return "", true, err
@@ -1438,6 +1467,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	} else if t.Mutating() {
 		a.mutated = true
 		a.mutations++
+		if a.Accept != nil && (u.Name == "write_file" || u.Name == "edit_file") {
+			a.acceptTrackEdit(t, u.Input)
+		}
 	}
 	if checkingCommit && !isErr {
 		a.checkCommitAttach(ctx, commitPreHead, emit)

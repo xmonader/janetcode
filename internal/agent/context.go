@@ -32,6 +32,7 @@ func (a *Agent) systemPrompt() string {
 			system += planSystem
 		}
 	}
+	system += a.acceptSystemText()
 	return system
 }
 

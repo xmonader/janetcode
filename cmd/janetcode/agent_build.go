@@ -258,6 +258,8 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	}
 	expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	ag.RestoreFromLog()      // plan mode and the turn counter of a resumed session
+	ag.Accept = sess.Meta.Accept
+	ag.OnAcceptChange = func(am *session.AcceptMeta) { _ = sess.SetAccept(am) }
 	task.Parent = ag
 	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
 	ag.Tools.Add(&agent.TodoTool{Parent: ag})

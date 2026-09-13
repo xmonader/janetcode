@@ -49,6 +49,9 @@ type Meta struct {
 	// the session into a regression eval that replays the exact tree and
 	// commit the session began from.
 	Start *StartState `json:"start,omitempty"`
+	// Accept is the /accept acceptance-tests-you-approve-first state for
+	// this session (see accept.go), so a resume restores the lock.
+	Accept *AcceptMeta `json:"accept,omitempty"`
 }
 
 // StartState is a session's git state at its first turn: the commit HEAD

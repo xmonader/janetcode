@@ -1273,6 +1273,51 @@ func TestVerifyCommandSetsRunsAndGatesTurns(t *testing.T) {
 	}
 }
 
+// TestVerifyRereadsProjectFileEachCommand is the pre-existing bug found
+// alongside the undo-by-intent QA re-test: verify's project config is
+// loaded once at session start (see cmd/janetcode/main.go), so a
+// .janetcode/verify.json that was malformed at startup, then fixed by
+// hand mid-session (not through /verify set, which already reloads after
+// writing), used to keep saying "no verification commands" / "no
+// .janetcode/verify.json" until the process restarted. /verify and
+// /verify trust must re-read the file from disk every time instead.
+func TestVerifyRereadsProjectFileEachCommand(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "n/a"), StopReason: llm.StopEndTurn})
+	// Simulate what main.go leaves behind when the project file is
+	// malformed at startup: verify.Load fails, so the session starts with
+	// an empty, untrusted VerifyOptions rather than erroring out.
+	if err := os.MkdirAll(filepath.Join(h.m.opts.Cwd, filepath.Dir(verify.ProjectFile)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(h.m.opts.Cwd, verify.ProjectFile), []byte("{not valid json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.m.opts.Verify = &VerifyOptions{Trust: mcp.TrustStore{Path: filepath.Join(t.TempDir(), "trust.json")}}
+	h.keys("/verify")
+	h.enter()
+	if h.m.opts.Verify.ProjectTrusted {
+		t.Fatal("a malformed file must not read as trusted")
+	}
+	// The user fixes the file by hand mid-session — a plain text edit,
+	// the way the real bug was found, not a /verify set (which already
+	// reloads after writing). Without a restart, /verify trust and
+	// /verify must both see it.
+	if err := os.WriteFile(filepath.Join(h.m.opts.Cwd, verify.ProjectFile), []byte(`{"commands":["true"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h.keys("/verify trust")
+	h.enter()
+	if !h.m.opts.Verify.ProjectTrusted || h.m.opts.Agent.Verify == nil {
+		t.Fatalf("expected /verify trust to pick up and trust the now-valid file: %+v", h.m.opts.Verify)
+	}
+	h.keys("/verify")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	if v := plain(h.m.View()); !strings.Contains(v, "verified: true") {
+		t.Fatalf("expected /verify to run the now-loaded command, view:\n%s", v)
+	}
+}
+
 func TestPlanModeHidesToolsUntilApproved(t *testing.T) {
 	h := newHarness(t,
 		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "## Plan\n1. write a.txt"), StopReason: llm.StopEndTurn},

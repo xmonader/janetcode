@@ -49,6 +49,7 @@ var Commands = []Command{
 	{Name: "/pin", Args: "[note or @file]", Help: "keep a note in the system prompt for the whole session; alone lists pins"},
 	{Name: "/unpin", Args: "<n>", Help: "remove a pin"},
 	{Name: "/plan", Args: "[request|approve|off]", Help: "plan mode: the model explores and writes a plan; approve executes it"},
+	{Name: "/accept", Args: "[<request> | approve | lock | unlock | off]", Help: "acceptance tests you approve first: writes tests for a request and stops; approve locks them so no tool call can weaken them and their command gates the session; unlock/lock and off manage the mode"},
 	{Name: "/trajectory", Args: "[n|grep <words>]", Help: "event ledger of this session (turn/step/tool/compaction); n shows one record"},
 	{Name: "/why", Args: "[n]", Help: "explain the last thing the harness did on its own, in plain words; n goes further back"},
 	{Name: "/feedback", Args: "up|down [note]", Help: "rate the last assistant message (not sent to the model)"},

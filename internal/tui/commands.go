@@ -150,6 +150,8 @@ func (m *model) command(text string) tea.Cmd {
 		m.noteMode()
 	case "/plan":
 		return m.planCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/accept":
+		return m.acceptCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/why":
 		m.whyCommand(fields[1:])
 	case "/trajectory":
