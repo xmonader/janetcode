@@ -78,6 +78,7 @@ var flagWhen = map[string]string{
 	"mcp-auth":             "a remote MCP server needs an OAuth login once",
 	"append-system-prompt": "an experiment that adds instructions, recorded so the A/B is traceable",
 	"doctor":               "something is not working and you want to know which part",
+	"proof":                "code review, or months later: which session and turn wrote a committed file and what actually demonstrated it worked",
 	"theme":                "one run in a different colour scheme without changing the config",
 	"web":                  "you want the session in a browser, on another screen or from a phone on the same machine",
 	"web-addr":             "the default loopback port is taken, or you are deliberately binding off loopback",
@@ -119,6 +120,7 @@ var configWhen = map[string][2]string{
 	"stream_max_duration": {"longest one streamed call may take", "a call that streams steadily for ever"},
 	"memory":              {"extract project memory automatically after turns that changed something", "you would rather decide yourself what is remembered (/remember always works)"},
 	"hints":               {"one-time hints about features you have not used", "you know the harness and want the transcript quiet"},
+	"proof_notes":         {"attach evidence of this session's changes to a commit it makes, as a git note", "you review commits without the session that made them, or want the write skipped"},
 }
 
 // harnessFeatures are the things janetcode does without being asked.

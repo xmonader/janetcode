@@ -199,6 +199,12 @@ type Agent struct {
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
 	Verify *verify.Runner
+	// ProofNotes gates the automatic side of internal/proof: when a bash
+	// call this session runs looks like `git commit` and HEAD actually
+	// moves, evidence for this session's part of that commit is attached
+	// as a git note (see proof.go). It does not gate /proof or --proof,
+	// which attach on request regardless. Config default is on.
+	ProofNotes bool
 	// ReadOnly hides mutating tools from the model and refuses them if
 	// called anyway. PlanMode does the same and asks for a plan.
 	ReadOnly bool
@@ -1351,6 +1357,15 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if t.Mutating() {
 		pend = a.before(t, u.Input)
 	}
+	// A bash call that looks like `git commit` gets HEAD read before it
+	// runs, so a move can be detected after: see checkCommitAttach. The
+	// read only happens for a command that already matched, so an
+	// ordinary bash call costs nothing extra.
+	checkingCommit := u.Name == "bash" && looksLikeGitCommit(commandOf(string(u.Input)))
+	var commitPreHead string
+	if checkingCommit {
+		commitPreHead = a.headForCommitCheck(ctx)
+	}
 	out, err := runSafely(ctx, t, u.Input)
 	dur := time.Since(start)
 	if err == nil && len(pend) > 0 {
@@ -1366,6 +1381,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	} else if t.Mutating() {
 		a.mutated = true
 		a.mutations++
+	}
+	if checkingCommit && !isErr {
+		a.checkCommitAttach(ctx, commitPreHead, emit)
 	}
 	if out == "" {
 		out = "(no output)"

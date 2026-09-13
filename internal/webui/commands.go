@@ -22,7 +22,7 @@ var webCommands = []string{
 	"/stats", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills",
 	"/pin", "/unpin", "/title", "/model", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/ssh", "/docker", "/reload",
-	"/inspect", "/permissions", "/export", "/feedback", "/eval",
+	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof",
 }
 
 var webArgs = map[string]string{
@@ -248,6 +248,8 @@ func (s *server) runCommand(text string) error {
 		s.export(arg)
 	case "/eval":
 		s.evalKeep(arg)
+	case "/proof":
+		s.proofCommand(arg)
 	case "/feedback":
 		s.notice("recorded " + arg + " (not sent to the model)")
 	default:

@@ -78,6 +78,7 @@ var Commands = []Command{
 	{Name: "/verbose", Args: "", Help: "toggle expanded tool output for the whole transcript (ctrl+o expands one turn)"},
 	{Name: "/hints", Args: "[on|off]", Help: "one-time hints about features this session could have used; alone says how many have been given"},
 	{Name: "/eval", Args: "keep [name] [--check cmd]", Help: "keep turns this session into a regression eval task under .janetcode/evals, runnable later with janetcode --eval; --check sets its check command, else the project's verify.json"},
+	{Name: "/proof", Args: "[commit]", Help: "which session, turn and intent wrote each file of a commit, and what actually demonstrated it worked; attaches one from this session first if the commit (default HEAD) has none yet"},
 	{Name: "/quit", Args: "", Help: "exit"},
 }
 

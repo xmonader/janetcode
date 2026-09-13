@@ -19,6 +19,7 @@ janetcode --init     # writes ~/.config/janetcode/config.json
   "compact_at": 80000,
   "memory": true,
   "hints": true,
+  "proof_notes": true,
   "theme": "auto",
   "providers": {
     "anthropic":  { "type": "anthropic", "api_key": "sk-ant-..." },
@@ -87,6 +88,22 @@ been said is a small JSON file under the config directory, keyed by
 project — never in the project itself. `/hints off` silences them for one
 session, `/hints on` brings them back, and `/hints` alone says how many
 have been given.
+
+### Proof notes
+
+`"proof_notes": false` turns off attaching evidence to a commit this
+session makes. On by default: when a bash call runs something that looks
+like `git commit` and HEAD actually moves, janetcode attaches a git note
+recording which turns of this session wrote which of the commit's files,
+their stated intent, and what the harness actually observed demonstrating
+the work (see "Proof in the commit" in [Interface](interface.md)). It
+costs one `git notes add` per commit this session makes and nothing
+otherwise, so unlike `intent` there is no per-request budget to weigh it
+against — the setting exists for a repository where a third-party git
+notes ref is unwelcome, or a CI checkout where the write would fail
+anyway. `/config proof_notes=false` sets it for one session; `/proof`
+still attaches on request regardless, since that is something you asked
+for directly.
 
 ### Model fallback
 

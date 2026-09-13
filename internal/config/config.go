@@ -134,6 +134,13 @@ type Config struct {
 	// turning them off is for somebody who knows the harness and wants
 	// the transcript quiet. /hints on|off does it for one session.
 	Hints *bool `json:"hints,omitempty"`
+	// ProofNotes attaches machine-readable evidence to a commit this
+	// session makes (see internal/proof): which session, turn and stated
+	// intent wrote each of its files, and what actually demonstrated the
+	// work. Nil means on; it costs one git-notes write per commit and
+	// nothing when a turn made no commit, so unlike Intent there is no
+	// per-request budget to weigh it against.
+	ProofNotes *bool `json:"proof_notes,omitempty"`
 }
 
 // StreamLimits are the watchdog bounds for one streamed model call.
@@ -149,6 +156,10 @@ func (c *Config) AutoMemory() bool { return c.Memory == nil || *c.Memory }
 
 // ShowHints reports whether one-time feature hints are enabled.
 func (c *Config) ShowHints() bool { return c.Hints == nil || *c.Hints }
+
+// ProofNotesEnabled reports whether commits made this session get proof
+// notes attached automatically.
+func (c *Config) ProofNotesEnabled() bool { return c.ProofNotes == nil || *c.ProofNotes }
 
 // ModelMeta is what a provider's model list said about one model.
 type ModelMeta struct {

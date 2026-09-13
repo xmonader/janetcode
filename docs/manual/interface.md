@@ -668,6 +668,41 @@ as changes themselves. Turn-level `/undo` and `/redo` still restore
 whole snapshots. Shell commands are not tracked at hunk level; a git
 snapshot covers them for turn-level undo.
 
+### Proof in the commit
+
+Change provenance lives in the session log, which is why `/blame` only
+speaks for a file this session touched. `/proof [commit]` (default
+`HEAD`) makes the same evidence outlive the session: which session, turn
+and stated intent wrote each of a commit's files, and what the harness
+actually observed demonstrating the work — a turn's `TurnOutcome` (see
+"What a turn actually demonstrated"), not the model's own claim.
+
+When a bash call that looks like `git commit` succeeds and HEAD actually
+moves, janetcode attaches this evidence automatically as a git note under
+`refs/notes/janetcode`, and says so (`proof attached to <sha> · /proof
+shows it`). `/proof` does the same on request: if the commit already
+carries a note it is printed; if not, and this session made a tracked
+change to one of its files, one is attached first. Two sessions
+contributing changes to the same commit both show, rather than the
+second overwriting the first — the note is merged, not replaced.
+
+`/blame path` still answers from the session's own record first; when
+this session never changed the path, it falls back to the same evidence
+read from git blame plus whatever commit along the way carries a note,
+showing each line's commit, its intent and its verdict.
+
+Notes are local to the clone that made them, like any other git ref: they
+are not pushed or fetched by `git push`/`git pull` on their own.
+
+```sh
+git push origin refs/notes/janetcode                          # share them
+git fetch origin refs/notes/janetcode:refs/notes/janetcode     # pull them
+git log --notes=janetcode                                      # read them inline
+```
+
+`"proof_notes": false` (or `/config proof_notes=false`) turns off the
+automatic attach; see [Configuration](configuration.md#proof-notes).
+
 ### Trajectory critic
 
 The harness watches the shape of a turn, not just its last call. An

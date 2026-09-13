@@ -36,6 +36,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--inspect <subject>` | print one part of the session state and exit; `list` names them |
 | `--inspect features` | print the whole feature catalogue: commands, keys, flags, tools, config keys. `--inspect "features <query>"` searches it and the embedded manual |
 | `--doctor` | check config, credentials, providers, tools and report what is wrong |
+| `--proof [commit]` | print the proof note attached to a commit (default `HEAD`): which session, turn and intent wrote each of its files, and what actually demonstrated the work; "no proof for `<sha>`" when none is attached, then exit |
 | `--init` | write a starter config file |
 | `--allow`, `--deny` | add a permission rule for this run |
 | `--mcp-auth <server>` | run the OAuth flow for an MCP server |

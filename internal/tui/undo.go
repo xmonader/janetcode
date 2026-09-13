@@ -1,13 +1,16 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -95,6 +98,15 @@ func (m *model) blameCommand(path string) {
 	}
 	lines, note, err := m.opts.Agent.Blame(abs)
 	if err != nil {
+		// This session never changed the file; the commit(s) that did may
+		// still carry proof of who wrote each line and why (see
+		// internal/proof), so try that before giving up.
+		if errors.Is(err, agent.ErrNoChange) {
+			if text, cerr := m.blameCommitted(abs); cerr == nil {
+				m.transcript.code(text)
+				return
+			}
+		}
 		m.transcript.errorf("%v", err)
 		return
 	}
@@ -110,6 +122,32 @@ func (m *model) blameCommand(path string) {
 		fmt.Fprintf(&sb, "%s %4d │ %s\n", who, i+1, l.Text)
 	}
 	m.transcript.code(strings.TrimRight(sb.String(), "\n"))
+}
+
+// blameCommitted attributes a file's lines from committed history, via
+// git blame plus whatever proof notes the commits that wrote them carry
+// (see internal/proof.BlameCommitted). Used when this session never
+// changed the file itself.
+func (m *model) blameCommitted(abs string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	lines, err := proof.BlameCommitted(ctx, m.opts.Cwd, abs)
+	if err != nil {
+		return "", err
+	}
+	var sb strings.Builder
+	for i, l := range lines {
+		sha := proof.Short(l.Commit)
+		fmt.Fprintf(&sb, "%s %4d │ %s", sha, i+1, l.Text)
+		if l.Intent != "" {
+			fmt.Fprintf(&sb, "  · %s", l.Intent)
+		}
+		if l.Verdict != "" {
+			fmt.Fprintf(&sb, " (%s)", l.Verdict)
+		}
+		sb.WriteString("\n")
+	}
+	return strings.TrimRight(sb.String(), "\n"), nil
 }
 
 // relPath shortens an absolute path under the working directory.

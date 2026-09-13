@@ -67,6 +67,7 @@ var When = map[string]string{
 	"/why":         "the harness did something you did not ask for and you want it explained without spending a model call",
 	"/hints":       "the one-time hints are in your way, or you want them back",
 	"/eval":        "a session found or fixed something and you want it to stay caught: a regression test that replays it against this project",
+	"/proof":       "months later, or in code review now: which session and turn wrote a committed line, and what actually showed it worked",
 }
 
 // Invoke overrides what the catalogue says to type, for the few
@@ -112,6 +113,7 @@ var Topics = map[string][]string{
 	"/config":      {"setting", "key"},
 	"/doctor":      {"checkup", "health", "diagnose"},
 	"/eval":        {"regression", "test", "keep", "replay", "task"},
+	"/proof":       {"evidence", "commit", "notes", "attribution", "audit", "provenance"},
 }
 
 // Features renders the commands as catalogue entries. It reads the

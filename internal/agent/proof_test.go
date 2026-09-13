@@ -1,0 +1,194 @@
+package agent
+
+import (
+	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/proof"
+	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/snapshot"
+	"github.com/xmonader/janetcode/internal/tool"
+)
+
+func TestLooksLikeGitCommit(t *testing.T) {
+	cases := []struct {
+		cmd  string
+		want bool
+	}{
+		{"git commit -am 'msg'", true},
+		{"git -C repo commit -m x", true},
+		{"cd repo && git commit -m x", true},
+		{"git add -A && git commit -m x", true},
+		{"git commit; echo done", true},
+		{"git commit-tree -m x HEAD^{tree}", false},
+		{"git log --grep commit", false},
+		{"git status", false},
+	}
+	for _, c := range cases {
+		if got := looksLikeGitCommit(c.cmd); got != c.want {
+			t.Errorf("looksLikeGitCommit(%q) = %v, want %v", c.cmd, got, c.want)
+		}
+	}
+}
+
+// TestAutomaticProofAttachOnCommit is the end-to-end path: a turn writes a
+// file and then commits it with a bash call, and the harness attaches
+// proof of that turn's own work to the new commit without being asked.
+func TestAutomaticProofAttachOnCommit(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"foo.go","content":"package foo\n"}`),
+		toolCall("t2", "bash", `{"command":"git add -A && git commit -m 'add foo'"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	gitInit(t, root)
+	repo, err := snapshot.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Snapshots = repo
+	a.AutoApprove = true
+	a.ProofNotes = true
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root})
+	sess, err := session.New(t.TempDir(), root, "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Log = sess
+
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "add foo", emit); err != nil {
+		t.Fatal(err)
+	}
+	var sawNotice bool
+	for _, e := range *evs {
+		if e.Kind == EvNotice && strings.Contains(e.Text, "proof attached to") {
+			sawNotice = true
+		}
+	}
+	if !sawNotice {
+		t.Fatalf("expected a proof-attached notice; events: %+v", *evs)
+	}
+	sha := headOf(t, root)
+	r, ok, err := proof.Read(context.Background(), root, sha)
+	if err != nil || !ok {
+		t.Fatalf("proof.Read: ok=%v err=%v", ok, err)
+	}
+	if len(r.Files) != 1 || r.Files[0].Path != "foo.go" {
+		t.Fatalf("files = %+v", r.Files)
+	}
+	if r.Session != sess.Meta.ID {
+		t.Fatalf("session = %q, want %q", r.Session, sess.Meta.ID)
+	}
+}
+
+// TestProofNotesGateSkipsAutomaticAttach checks that ProofNotes: false
+// stops the automatic attach without failing the commit itself.
+func TestProofNotesGateSkipsAutomaticAttach(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"foo.go","content":"package foo\n"}`),
+		toolCall("t2", "bash", `{"command":"git add -A && git commit -m 'add foo'"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	gitInit(t, root)
+	repo, err := snapshot.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Snapshots = repo
+	a.AutoApprove = true
+	a.ProofNotes = false
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root})
+	sess, err := session.New(t.TempDir(), root, "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Log = sess
+
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "add foo", emit); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range *evs {
+		if e.Kind == EvNotice && strings.Contains(e.Text, "proof attached") {
+			t.Fatalf("proof_notes disabled but got a proof notice: %s", e.Text)
+		}
+	}
+	sha := headOf(t, root)
+	if _, ok, _ := proof.Read(context.Background(), root, sha); ok {
+		t.Fatal("expected no proof note when ProofNotes is false")
+	}
+}
+
+// TestAgentProofAttachesFromSlashCommand covers the /proof "show or
+// attach" path directly: the session made the change but never ran a
+// commit itself (as if the user committed it in another terminal), and
+// Agent.Proof still finds and attaches the evidence on request.
+func TestAgentProofAttachesFromSlashCommand(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"foo.go","content":"package foo\n"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	gitInit(t, root)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	sess, err := session.New(t.TempDir(), root, "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Log = sess
+	if err := a.Run(context.Background(), "add foo", nil); err != nil {
+		t.Fatal(err)
+	}
+	commitAll(t, root, "add foo")
+
+	text, err := a.Proof(context.Background(), root, "")
+	if err != nil {
+		t.Fatalf("Proof: %v", err)
+	}
+	if !strings.Contains(text, "foo.go") {
+		t.Fatalf("summary missing foo.go: %s", text)
+	}
+	sha := headOf(t, root)
+	if _, ok, rerr := proof.Read(context.Background(), root, sha); rerr != nil || !ok {
+		t.Fatalf("expected /proof to have attached a note: ok=%v err=%v", ok, rerr)
+	}
+
+	// A second call finds the note already there and just prints it.
+	text2, err := a.Proof(context.Background(), root, sha)
+	if err != nil || text2 != text {
+		t.Fatalf("second Proof call = %q, %v; want the same summary and no error", text2, err)
+	}
+}
+
+// TestAgentProofNoEvidence is the case /proof cannot help with: the
+// session never touched any file the named commit contains.
+func TestAgentProofNoEvidence(t *testing.T) {
+	a, root := newAgent(t, &fake{}, nil)
+	gitInit(t, root)
+	os.WriteFile(filepath.Join(root, "untouched.txt"), []byte("x\n"), 0o644)
+	commitAll(t, root, "untouched by this session")
+
+	if _, err := a.Proof(context.Background(), root, ""); err == nil {
+		t.Fatal("expected an error when this session made no tracked change to the commit")
+	}
+}
+
+func commitAll(t *testing.T, root, msg string) {
+	t.Helper()
+	for _, args := range [][]string{{"add", "-A"}, {"commit", "-q", "-m", msg}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+}

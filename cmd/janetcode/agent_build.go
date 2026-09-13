@@ -217,6 +217,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		ContextWindow: d.cfg.MetaFor(d.cfg.Model).ContextWindow,
 		Fallbacks:     d.cfg.FallbackModels,
 		Route:         d.models,
+		ProofNotes:    d.cfg.ProofNotesEnabled(),
 	}
 	expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	ag.RestoreFromLog()      // plan mode and the turn counter of a resumed session

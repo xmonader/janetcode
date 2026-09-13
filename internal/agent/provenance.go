@@ -55,6 +55,11 @@ const (
 // ErrNoSuchChange is returned for an unknown change number.
 var ErrNoSuchChange = errors.New("no such change")
 
+// ErrNoChange is returned by Blame when this session never changed the
+// path, so a caller can fall back to committed history (see
+// internal/proof.BlameCommitted) instead of matching the message text.
+var ErrNoChange = errors.New("no change to this path in this session")
+
 // pending is the content of the paths a mutating call is about to touch.
 type pending struct {
 	path    string
@@ -185,7 +190,7 @@ func (a *Agent) Blame(path string) (lines []BlameLine, note string, err error) {
 		}
 	}
 	if len(changes) == 0 {
-		return nil, "", fmt.Errorf("no change to %s in this session", path)
+		return nil, "", fmt.Errorf("%w: %s", ErrNoChange, path)
 	}
 	cur := splitLines(string(changes[0].Before))
 	owners := make([]int, len(cur))
