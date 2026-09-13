@@ -105,7 +105,11 @@ func (m *model) completeMemory(partial string) []command {
 }
 
 func (m *model) completeUndo(partial string) []command {
-	out := []command{{name: "/undo preview", help: "list what would be reverted"}}
+	out := []command{
+		{name: "/undo preview", help: "list what would be reverted"},
+		{name: "/undo about", help: "preview only the changes matching a description"},
+		{name: "/undo apply", help: "revert the selection from the last /undo about"},
+	}
 	if m.opts.Agent == nil {
 		return out
 	}

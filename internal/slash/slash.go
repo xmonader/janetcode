@@ -32,7 +32,7 @@ var Commands = []Command{
 	{Name: "/history", Args: "<words>", Help: "find earlier sessions in any directory whose conversation mentions the words"},
 	{Name: "/find", Args: "<text>", Help: "jump to the next line matching text; repeat to continue"},
 	{Name: "/stats", Args: "", Help: "session statistics: turns, model calls, tool calls per tool, tokens, cost"},
-	{Name: "/undo", Args: "[preview|n]", Help: "revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it; n reverts one change from /changes"},
+	{Name: "/undo", Args: "[preview | n | about <description> | apply]", Help: "revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it; n reverts one change from /changes; about <description> previews only the changes matching it, apply reverts that preview"},
 	{Name: "/changes", Args: "[n]", Help: "this session's file changes grouped by turn and intent; n shows one change's hunks"},
 	{Name: "/blame", Args: "<path>", Help: "which change wrote each line of a file changed this session"},
 	{Name: "/redo", Args: "", Help: "reapply what the last /undo reverted (until the next change)"},

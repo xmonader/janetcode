@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/slash"
@@ -27,7 +28,7 @@ var webCommands = []string{
 
 var webArgs = map[string]string{
 	"/help":        "[topic]",
-	"/undo":        "[preview]",
+	"/undo":        "[preview | about <description> | apply]",
 	"/diff":        "[path]",
 	"/loop":        "[duration] [prompt|off]",
 	"/jobs":        "[kill n]",
@@ -112,13 +113,45 @@ func (s *server) runCommand(text string) error {
 	case "/compact":
 		go func() { _ = ag.Compact(context.Background(), s.apply) }()
 	case "/undo":
-		if arg == "preview" {
+		sub, description, _ := strings.Cut(arg, " ")
+		switch sub {
+		case "preview":
 			list, err := ag.UndoPreview()
 			if err != nil {
 				s.errf("undo: %v", err)
 				return nil
 			}
 			s.sheet("undo preview", strings.Join(list, "\n"))
+			return nil
+		case "about":
+			description = strings.TrimSpace(description)
+			if description == "" {
+				s.errf("usage: /undo about <description>")
+				return nil
+			}
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancel()
+				sel, err := ag.PreviewUndoAbout(ctx, description)
+				if err != nil {
+					s.errf("undo about: %v", err)
+					return
+				}
+				s.sheet("undo about", agent.FormatSelection(s.opts.Cwd, sel))
+			}()
+			return nil
+		case "apply":
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancel()
+				rep, err := ag.ApplyPendingUndo(ctx)
+				if err != nil {
+					s.errf("undo apply: %v", err)
+					return
+				}
+				s.sheet("undo", agent.FormatUndoReport(rep))
+				ag.TellModelUndone(rep)
+			}()
 			return nil
 		}
 		done, err := ag.Undo()

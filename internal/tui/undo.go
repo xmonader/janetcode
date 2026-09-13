@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -235,4 +237,77 @@ func (m *model) undoCommand(cmd string, preview bool) {
 		m.opts.Agent.AddContext("I reverted the file changes from your last edits:\n" + strings.Join(done, "\n") + "\nDo not redo them unless I ask.")
 	}
 	m.status = fmt.Sprintf("undid %s · %s can still be undone · /redo reapplies", textfmt.Plural(len(done), "file change"), textfmt.Plural(len(m.opts.Agent.Checkpoints()), "more turn"))
+}
+
+// undoAboutMsg carries the result of "/undo about <description>" back
+// from the goroutine that ran it, the same way btwMsg and doctorMsg do
+// for their own side calls.
+type undoAboutMsg struct {
+	description string
+	sel         agent.Selection
+	err         error
+}
+
+// undoAboutCommand previews which of this session's changes match
+// description, without touching anything. The match can call a model, so
+// it runs off the UI goroutine like /btw does.
+func (m *model) undoAboutCommand(description string) tea.Cmd {
+	description = strings.TrimSpace(description)
+	if description == "" {
+		m.transcript.errorf("usage: /undo about <description>")
+		return nil
+	}
+	ag, send := m.opts.Agent, m.send
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		sel, err := ag.PreviewUndoAbout(ctx, description)
+		send(undoAboutMsg{description: description, sel: sel, err: err})
+	}()
+	m.note(fmt.Sprintf("matching %q against this session's changes…", description))
+	m.refresh(false)
+	return nil
+}
+
+// finishUndoAbout shows the preview and, when it found anything to
+// revert, points at /undo apply.
+func (m *model) finishUndoAbout(msg undoAboutMsg) {
+	if msg.err != nil {
+		m.transcript.errorf("undo about: %v", msg.err)
+		return
+	}
+	m.transcript.code(agent.FormatSelection(m.opts.Cwd, msg.sel))
+}
+
+// undoApplyMsg carries the result of "/undo apply".
+type undoApplyMsg struct {
+	rep agent.UndoReport
+	err error
+}
+
+// undoApplyCommand reverts the selection from the last /undo about. It
+// runs off the UI goroutine because it can run the project's verify
+// checks, which may take a while.
+func (m *model) undoApplyCommand() tea.Cmd {
+	ag, send := m.opts.Agent, m.send
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		rep, err := ag.ApplyPendingUndo(ctx)
+		send(undoApplyMsg{rep: rep, err: err})
+	}()
+	m.note("applying the previewed undo…")
+	m.refresh(false)
+	return nil
+}
+
+// finishUndoApply shows what was reverted and tells the model, so it
+// does not go on believing changes are still there.
+func (m *model) finishUndoApply(msg undoApplyMsg) {
+	if msg.err != nil {
+		m.transcript.errorf("undo apply: %v", msg.err)
+		return
+	}
+	m.transcript.code(agent.FormatUndoReport(msg.rep))
+	m.opts.Agent.TellModelUndone(msg.rep)
 }

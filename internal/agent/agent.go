@@ -275,6 +275,10 @@ type Agent struct {
 	// UndoPath, when set, persists undo checkpoints next to the session so
 	// /undo survives a resume.
 	UndoPath string
+	// pendingUndo is the selection last shown by "/undo about", for a
+	// following "/undo apply" (see undo_intent.go). Not persisted: it does
+	// not survive a resume, the way turn-level undo checkpoints do.
+	pendingUndo *pendingUndo
 	// Log, when set, is the append-only trajectory of this conversation.
 	// Resume reconstructs counts by folding it. Nil means in-memory stats only.
 	Log          session.Log

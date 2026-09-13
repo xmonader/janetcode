@@ -285,9 +285,19 @@ func (m *model) command(text string) tea.Cmd {
 	case "/memory", "/remember", "/forget":
 		m.memoryCommand(fields[0], strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/undo", "/redo":
-		if n, err := strconv.Atoi(strings.Join(fields[1:], "")); err == nil && fields[0] == "/undo" {
-			m.undoChange(n)
-		} else {
+		rest := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
+		switch {
+		case fields[0] == "/undo" && rest == "apply":
+			return m.undoApplyCommand()
+		case fields[0] == "/undo" && (rest == "about" || strings.HasPrefix(rest, "about ")):
+			return m.undoAboutCommand(strings.TrimSpace(strings.TrimPrefix(rest, "about")))
+		case fields[0] == "/undo":
+			if n, err := strconv.Atoi(strings.Join(fields[1:], "")); err == nil {
+				m.undoChange(n)
+			} else {
+				m.undoCommand(fields[0], len(fields) > 1 && fields[1] == "preview")
+			}
+		default:
 			m.undoCommand(fields[0], len(fields) > 1 && fields[1] == "preview")
 		}
 	case "/changes":

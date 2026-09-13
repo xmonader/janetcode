@@ -201,7 +201,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /connect   /model     /compact (summarise the context to free the window)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost, what the harness had to recover)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
-/undo [preview]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
+/undo [preview | about <description> | apply]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
 /budget [usd | off] (stop the session once it has spent that much; alone reports it)
 /fork [stay] [title]  /title <text>  /history <words> (search every saved session)
 /open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)
@@ -667,6 +667,29 @@ were edited since is refused rather than guessed. Reverts are recorded
 as changes themselves. Turn-level `/undo` and `/redo` still restore
 whole snapshots. Shell commands are not tracked at hunk level; a git
 snapshot covers them for turn-level undo.
+
+### Undo by description
+
+`/undo about <description>` finds which of this session's changes match a
+plain-language description and previews only those, e.g. `/undo about the
+logging changes but keep the rename`: everything considered is listed,
+numbered, and marked `undo` or `keep`. Nothing is touched by the preview.
+With a provider configured it is one side model call — not added to the
+conversation, the same discipline `/btw` uses — given the description and
+a compact numbered list of the candidates (path, stated reason, line
+counts, a few of the changed lines); without a provider, or if the reply
+cannot be used, it falls back to ranking candidates by keyword overlap
+with the description and says so, since keyword overlap is a much weaker
+signal than a model reading the description and the diff together.
+`/undo apply` reverts exactly the selection just previewed, newest change
+first, and stops at the first change that refuses (edited since, most
+often) rather than guessing past it; it then re-runs the project's verify
+checks if any changes were reverted and a verify gate is configured
+(see "Verification gates", below). Asking twice in a row does not ask the
+model twice: the preview is remembered until the next `/undo about`, and
+`/undo apply` refuses if the session's changes moved since — something
+else was undone or added — rather than acting on a selection that no
+longer describes what is there.
 
 ### Proof in the commit
 

@@ -208,7 +208,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /connect   /model     /compact (summarise the context to free the window)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
-/undo [preview]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
+/undo [preview | about <description> | apply]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
 /fork [title]  /title <text>  /history <words> (search every saved session)
 /open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)
 /context   (what fills the window)   /pin <note or @file>   /unpin <n>
@@ -248,6 +248,7 @@ Features, each a section of the interface page:
 - [File viewer and hunk review](docs/manual/interface.md#file-viewer-and-hunk-review) — `/open path:line` and `/diff`, with per-hunk revert
 - [Repository map](docs/manual/interface.md#repository-map) — a ranked map of the repository in every request, and a `repo_map` tool
 - [Change provenance](docs/manual/interface.md#change-provenance-changes-blame-undo-n) — every change recorded per tool call; `/changes`, `/blame`, `/undo n`
+- [Undo by description](docs/manual/interface.md#undo-by-description) — `/undo about <description>` previews only the session's changes matching it, `/undo apply` reverts that preview and re-runs the checks
 - [Proof in the commit](docs/manual/interface.md#proof-in-the-commit) — a commit this session makes gets a git note recording which session, turn and intent wrote each of its files and what actually demonstrated it worked; `/proof [commit]`, `janetcode --proof`
 - [Recipes](docs/manual/interface.md#recipes-replay-a-turn-for-free) — crystallise a turn's tool calls into `.janetcode/recipes/<name>.json` and replay them with no model call and no tokens; `/recipe save|run|show|list`, `janetcode --recipe <name>`, a failed step hands over to the model
 - [Trajectory critic](docs/manual/interface.md#trajectory-critic) — the harness watches the shape of a turn for loops and stalls

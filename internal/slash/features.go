@@ -20,7 +20,7 @@ var When = map[string]string{
 	"/history":     "you remember what was said but not which session said it",
 	"/find":        "the answer scrolled past and you want it back",
 	"/stats":       "you want to know where the turns, the tool calls and the money went",
-	"/undo":        "the model changed the wrong thing; this puts every file back as it was before the turn",
+	"/undo":        "the model changed the wrong thing; this puts every file back as it was before the turn, or /undo about <description> reverts only the changes that match it",
 	"/changes":     "you want to review what this session wrote, turn by turn, before trusting it",
 	"/blame":       "a file looks wrong and you want to know which turn wrote which line",
 	"/redo":        "the undo was the mistake",

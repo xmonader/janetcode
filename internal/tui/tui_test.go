@@ -2210,6 +2210,52 @@ func TestChangesBlameAndUndoOne(t *testing.T) {
 	}
 }
 
+// TestUndoAboutPreviewThenApply drives the whole "undo by intent" flow
+// through the terminal: /undo about previews a selection, and /undo apply
+// reverts exactly that preview.
+func TestUndoAboutPreviewThenApply(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "Add debug logging output."},
+			{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"logger.go","content":"package m\n\nfunc init() {\n\tlogging.Debug(\"start\")\n}\n"}`)},
+		}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "Rename the Foo variable to Bar."},
+			{Type: llm.BlockToolUse, ID: "w2", Name: "write_file", Input: json.RawMessage(`{"path":"app.go","content":"package m\n\nfunc run() {\n\tbar := 1\n\t_ = bar\n}\n"}`)},
+		}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, `{"undo":[1],"keep":[2],"why":"matches the logging change"}`), StopReason: llm.StopEndTurn},
+	)
+	h.m.opts.Agent.AutoApprove = true
+	h.m.opts.Agent.Tools = tool.NewRegistry(tool.WriteFile{Root: h.m.opts.Cwd})
+	h.keys("add logging and rename foo")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+
+	h.keys("/undo about the logging change")
+	h.enter()
+	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "undo apply") })
+	v := plain(h.m.View())
+	for _, want := range []string{"[undo] #1", "logger.go", "[keep] #2", "app.go", "matches the logging change", "/undo apply reverts the changes marked undo"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("missing %q in preview view:\n%s", want, v)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "logger.go")); err != nil {
+		t.Fatalf("preview must not touch anything: %v", err)
+	}
+
+	h.keys("/undo apply")
+	h.enter()
+	h.pump(func() bool { return strings.Contains(plain(h.m.View()), "↶") })
+	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "logger.go")); !os.IsNotExist(err) {
+		t.Fatalf("logger.go should have been reverted (removed): %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "app.go")); err != nil {
+		t.Fatalf("app.go (kept) should still be there: %v", err)
+	}
+}
+
 func TestReadlineKeysEditTheInput(t *testing.T) {
 	h := newHarness(t)
 	h.keys("hello world")

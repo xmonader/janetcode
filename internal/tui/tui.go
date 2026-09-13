@@ -600,6 +600,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refresh(false)
 		return m, nil
 
+	case undoAboutMsg:
+		m.finishUndoAbout(msg)
+		m.refresh(false)
+		return m, nil
+
+	case undoApplyMsg:
+		m.finishUndoApply(msg)
+		m.refresh(false)
+		return m, nil
+
 	case cronFireMsg:
 		if m.running {
 			m.note("loop " + msg.id + " skipped · a turn is running")
