@@ -530,6 +530,7 @@ func (t *Task) editingChild(wt *worktree, profile *skill.Profile) *Agent {
 		CompactAt:     p.CompactAt,
 		ContextWindow: p.ContextWindow,
 		Ledger:        p.Ledger,
+		Impact:        p.Impact,
 	}
 	// An editing subagent approves its own calls because nothing it does
 	// reaches the real tree and the patch is reviewed before it is
@@ -650,6 +651,7 @@ func (t *Task) child(only []string, profile *skill.Profile) (*Agent, error) {
 		Rules:  perm.Rules{Deny: p.Rules.Deny},
 		Debug:  p.Debug,
 		Ledger: p.Ledger,
+		Impact: p.Impact,
 	}, nil
 }
 
@@ -699,6 +701,7 @@ func (t *Task) forkChild() (*Agent, error) {
 		Debug:         p.Debug,
 		Forked:        true,
 		Ledger:        p.Ledger,
+		Impact:        p.Impact,
 	}
 	if !p.AutoApprove && p.Approver != nil {
 		child.Approver = bubbled{to: p.Approver, name: "fork"}

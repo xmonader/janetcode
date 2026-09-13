@@ -194,6 +194,28 @@ func (t WriteFile) Touches(input json.RawMessage) ([]string, error) {
 	return touchedPathOn(t.WS, t.Root, input)
 }
 
+// Result computes what this write would produce, without writing: the
+// resolved path, and the file's content before (empty for a file that
+// does not exist yet) and after. internal/impact uses it to analyze the
+// reach of a write before it is approved.
+func (t WriteFile) Result(input json.RawMessage) (path, before, after string, err error) {
+	var in struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	if err := decode(input, &in); err != nil {
+		return "", "", "", err
+	}
+	p, err := resolveOn(t.WS, t.Root, in.Path)
+	if err != nil {
+		return "", "", "", err
+	}
+	if old, rerr := readFileOf(t.WS, p); rerr == nil && !isBinary(old) {
+		before, _ = decodeText(old)
+	}
+	return p, before, in.Content, nil
+}
+
 func (t WriteFile) Preview(_ context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Path    string `json:"path"`
@@ -823,6 +845,19 @@ func (t EditFile) Preview(_ context.Context, input json.RawMessage) (string, err
 		return "", err
 	}
 	return diff.Unified(pl.display, pl.before, pl.after, 3), nil
+}
+
+// Result computes what applying the edit would produce, without writing:
+// the resolved path, and the file's content before and after. It shares
+// plan's exact-match and line-range logic, so this is never out of step
+// with what Run would actually do. internal/impact uses it to analyze the
+// reach of an edit before it is approved.
+func (t EditFile) Result(input json.RawMessage) (path, before, after string, err error) {
+	pl, err := t.plan(input)
+	if err != nil {
+		return "", "", "", err
+	}
+	return pl.path, pl.before, pl.after, nil
 }
 
 // ListDir lists a directory.

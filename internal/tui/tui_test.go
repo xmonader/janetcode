@@ -2399,6 +2399,66 @@ func TestPermissionKeysDropTheLearnedNoteWhenNarrow(t *testing.T) {
 	}
 }
 
+// TestPermissionImpactReservesOneRow: footerHeight claims one extra row
+// only while the pending call has something to say about its reach, so a
+// call with no impact costs the layout nothing.
+func TestPermissionImpactReservesOneRow(t *testing.T) {
+	h := newHarness(t)
+	h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "e1", Name: "edit_file"}, reply: make(chan verdict, 1)}
+	without := h.m.footerHeight()
+	h.m.pending.call.Impact = "changes Foo (func) · 3 refs in 2 files"
+	with := h.m.footerHeight()
+	if with != without+1 {
+		t.Fatalf("footerHeight with impact = %d, without = %d; want exactly one more row", with, without)
+	}
+}
+
+// TestPermissionViewShowsImpact: the impact line sits between the notice
+// row and the keys row of the permission box.
+func TestPermissionViewShowsImpact(t *testing.T) {
+	h := newHarness(t)
+	h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "e1", Name: "edit_file", Input: json.RawMessage(`{"path":"a.go"}`),
+		Impact: "changes Parse (func) · 3 refs in 2 files · tests: parse_test.go"}, reply: make(chan verdict, 1)}
+	h.m.layout()
+	v := plain(h.m.permissionView())
+	if !strings.Contains(v, "changes Parse (func) · 3 refs in 2 files · tests: parse_test.go") {
+		t.Fatalf("permission view missing the impact line:\n%s", v)
+	}
+	if !strings.Contains(v, "allow edit_file") {
+		t.Fatalf("permission view missing the notice row:\n%s", v)
+	}
+}
+
+// TestPermissionImpactAbsentWhenEmpty: a call with no impact shows no
+// extra row at all — nothing to fit, nothing to reserve.
+func TestPermissionImpactAbsentWhenEmpty(t *testing.T) {
+	h := newHarness(t)
+	h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "e1", Name: "edit_file", Input: json.RawMessage(`{"path":"a.go"}`)}, reply: make(chan verdict, 1)}
+	if got := h.m.permissionImpact(); got != "" {
+		t.Fatalf("expected no impact row, got %q", got)
+	}
+}
+
+// TestPermissionImpactNeverWraps: at a narrow (80) and a wide (160)
+// terminal, a long impact line is fitted to the width and truncated
+// rather than wrapped onto a second line.
+func TestPermissionImpactNeverWraps(t *testing.T) {
+	h := newHarness(t)
+	long := "changes Parse (func), Run (method), VeryLongSymbolNameThatKeepsGoingAndGoing (func) · 214 refs in 60 files · tests: parse_test.go, cli_test.go, another_test.go, yet_another_test.go · checks: go test ./..., go vet ./..., gofmt -l ."
+	for _, w := range []int{80, 160} {
+		h.m.width = w
+		h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "e1", Name: "edit_file", Impact: long}, reply: make(chan verdict, 1)}
+		line := plain(h.m.permissionImpact())
+		if strings.Contains(line, "\n") {
+			t.Fatalf("width %d: impact line wrapped:\n%s", w, line)
+		}
+		room := w - 4
+		if lipgloss.Width(line) > room {
+			t.Fatalf("width %d: impact line is %d cols, want <= %d: %q", w, lipgloss.Width(line), room, line)
+		}
+	}
+}
+
 // TestGoalStartsWorkingAtOnce: /goal <objective> used to record the goal
 // and stop, since the loop only advanced when a turn ended. It starts
 // the first round immediately, and the status bar shows the goal.

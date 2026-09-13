@@ -2,11 +2,11 @@ package tui
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/rules"
@@ -285,20 +285,29 @@ func (m *model) command(text string) tea.Cmd {
 	case "/memory", "/remember", "/forget":
 		m.memoryCommand(fields[0], strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/undo", "/redo":
+		if fields[0] == "/redo" {
+			m.undoCommand(fields[0], false)
+			break
+		}
 		rest := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
+		ua, err := agent.ParseUndoArgs(rest)
+		if err != nil {
+			m.transcript.errorf("%v", err)
+			break
+		}
 		switch {
-		case fields[0] == "/undo" && rest == "apply":
-			return m.undoApplyCommand()
-		case fields[0] == "/undo" && (rest == "about" || strings.HasPrefix(rest, "about ")):
-			return m.undoAboutCommand(strings.TrimSpace(strings.TrimPrefix(rest, "about")))
-		case fields[0] == "/undo":
-			if n, err := strconv.Atoi(strings.Join(fields[1:], "")); err == nil {
-				m.undoChange(n)
-			} else {
-				m.undoCommand(fields[0], len(fields) > 1 && fields[1] == "preview")
+		case ua.Apply:
+			return m.undoApplyCommand(ua.Force)
+		case ua.About:
+			if ua.Description == "" {
+				m.transcript.errorf("usage: /undo about <description>")
+				break
 			}
+			return m.undoAboutCommand(ua.Description)
+		case ua.N != 0:
+			m.undoChange(ua.N)
 		default:
-			m.undoCommand(fields[0], len(fields) > 1 && fields[1] == "preview")
+			m.undoCommand(fields[0], ua.Preview)
 		}
 	case "/changes":
 		m.changesCommand(fields[1:])

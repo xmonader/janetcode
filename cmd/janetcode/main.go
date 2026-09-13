@@ -520,8 +520,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	verifyTrusted := verifyDefined && trust.Trusted(mcp.VerifyTrustKey(cwd), verifyHash)
 	if verifyTrusted {
 		ag.Verify = &verify.Runner{Config: verifyCfg, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[verify] %s\n", s) }}
-	} else if verifyDefined && *promptText != "" {
-		fmt.Fprintf(os.Stderr, "[verify] %s is not trusted yet; open the TUI and run /verify trust\n", verify.ProjectFile)
+	} else if verifyDefined {
+		ag.VerifyUntrusted = true
+		if *promptText != "" {
+			fmt.Fprintf(os.Stderr, "[verify] %s is not trusted yet; open the TUI and run /verify trust\n", verify.ProjectFile)
+		}
 	}
 	rules, _ := cfg.Permissions.Rules() // validated by config.Load
 	projRules, permHash, err := perm.LoadProject(cwd)

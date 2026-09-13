@@ -260,6 +260,7 @@ Features, each a section of the interface page:
 - [Plan mode and read-only mode](docs/manual/interface.md#plan-mode-and-read-only-mode) — explore and plan first, or forbid changes entirely
 - [Verification gates](docs/manual/interface.md#verification-gates) — `.janetcode/verify.json` says what done means; failures go back to the model
 - [Diagnostics from language servers](docs/manual/interface.md#diagnostics-from-language-servers) — compile and type errors after every edit, when a server is on PATH
+- [The reach of an edit](docs/manual/interface.md#the-reach-of-an-edit) — a permission prompt for `edit_file`/`write_file` shows the symbols it changes, their references, their tests and the checks that will run, from the language server or the repository map, within a fixed short budget
 - [Hooks](docs/manual/interface.md#hooks) — shell commands at fixed points of the loop that can block or rewrite a call
 - [MCP servers](docs/manual/interface.md#mcp-servers) — stdio and remote servers, with OAuth, deferred tools and a trust store
 - [Custom commands](docs/manual/interface.md#custom-commands) — prompt templates as `/name` from `.janetcode/commands/`

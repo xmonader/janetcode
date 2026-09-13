@@ -9,6 +9,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // What actually happened in a turn, as opposed to what the model says
@@ -166,17 +167,17 @@ func ranEdited(cmd string, edited map[string]bool) bool {
 	return false
 }
 
-// testFileRe matches a path that holds tests. A green produced by a suite
-// that was itself edited in the same turn is weaker evidence than one
-// against tests that were already there: at the honest end the model
+// isTestFile reports whether a path holds tests. A green produced by a
+// suite that was itself edited in the same turn is weaker evidence than
+// one against tests that were already there: at the honest end the model
 // wrote a regression test with the fix, and at the other it changed the
 // thing that was failing until it stopped failing. The harness cannot
 // tell those apart, so it says which kind of green this is and leaves the
 // judgement to the reader.
-var testFileRe = regexp.MustCompile(`(?i)((^|/)tests?/|(^|/)spec/|_test\.[a-z]+$|_spec\.[a-z]+$|(^|/)test_[^/]+$|\.test\.[a-z]+$|\.spec\.[a-z]+$|(^|/)conftest\.py$|Test[A-Z][^/]*\.java$)`)
-
-// isTestFile reports whether a path holds tests.
-func isTestFile(path string) bool { return path != "" && testFileRe.MatchString(path) }
+//
+// The pattern itself lives in package tool (see tool.IsTestFile), shared
+// with internal/impact.
+func isTestFile(path string) bool { return tool.IsTestFile(path) }
 
 // claimRe matches an assertion a check could have demonstrated. It is
 // deliberately narrow: a claim about tests, builds or verification, not

@@ -8,23 +8,42 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 // Selection is the answer to "which of this session's changes match a
 // plain-language description": Undo is what would be reverted, Keep is
-// everything else considered (so a preview can show both sides), Why is
-// one line explaining the split, and Fallback marks a selection made by
-// keyword overlap rather than a model, because none was configured or its
-// reply could not be used.
+// everything else considered (so a preview can show both sides), Mixed is
+// a change the model could not cleanly put on either side (see Mixed),
+// Why is one line explaining the split, Fallback marks a selection made
+// by keyword overlap rather than a model, because none was configured or
+// its reply could not be used, and Warnings is the deterministic coupling
+// guard's findings (see detectCoupling) — independent of how the split
+// was made.
 type Selection struct {
 	Undo     []Change
 	Keep     []Change
+	Mixed    []Mixed
 	Why      string
 	Fallback bool
+	Warnings []string
+}
+
+// Mixed is a recorded change the model said contains both edits that
+// match the undo description and edits that do not — a rename and a
+// logging tweak made in the same write_file or edit_file call, say. It is
+// placed on neither side of the split: choosing one would be a guess
+// about which half of the change the user meant, so ApplyPendingUndo
+// refuses while any are present unless run with force.
+type Mixed struct {
+	Change Change
+	Why    string
 }
 
 // UndoReport is what UndoSelection did.
@@ -37,11 +56,21 @@ type UndoReport struct {
 	// were never attempted because of it.
 	Refused string
 	// Checks is the verify gate's summary line, run once after any
-	// change was reverted; empty when nothing was reverted or no verify
-	// gate is configured.
+	// change was reverted; empty when nothing was reverted, or nothing
+	// ran to verify it (see CheckNote and Diagnostics for why).
 	Checks string
 	// ChecksOK is nil when Checks was not run, else whether it passed.
 	ChecksOK *bool
+	// CheckNote explains why Checks is empty even though something was
+	// reverted: no verify commands are configured, or they are but are
+	// not trusted. Empty whenever Checks ran (or nothing was reverted).
+	CheckNote string
+	// Diagnostics is the language-server fallback's report, consulted
+	// only when CheckNote is set (no verify check ran): one note per
+	// reverted file that has a running language server, or a plain
+	// admission that nothing verified the result when no diagnose hook
+	// is available at all. Empty whenever Checks ran.
+	Diagnostics string
 }
 
 // ErrNoChangesToUndo is returned by SelectChanges when this session has no
@@ -83,15 +112,22 @@ func (a *Agent) SelectChanges(ctx context.Context, description string) (Selectio
 	if len(candidates) == 0 {
 		return Selection{}, ErrNoChangesToUndo
 	}
+	sel, got := Selection{}, false
 	if a.Provider != nil {
-		if sel, err := a.selectByModel(ctx, description, candidates); err == nil {
-			return sel, nil
+		if s, err := a.selectByModel(ctx, description, candidates); err == nil {
+			sel, got = s, true
 		}
 	}
-	return selectByKeywords(description, candidates), nil
+	if !got {
+		sel = selectByKeywords(description, candidates)
+	}
+	// The coupling guard runs regardless of how the split was made: a
+	// model can miss it as easily as the keyword fallback can.
+	sel.Warnings = detectCoupling(sel)
+	return sel, nil
 }
 
-const selectSystem = "You are selecting which of a coding session's file changes match a plain-language description, so the matching ones can be undone while the rest stay untouched. You are given the description and a numbered list of changes: each change's path, the model's stated reason for making it, how many lines it added and removed, and a few of the changed lines. Undo a change only when it clearly matches the description; when a change is unrelated, or you are not sure, keep it. Reply with JSON only, no prose outside it."
+const selectSystem = "You are selecting which of a coding session's file changes match a plain-language description, so the matching ones can be undone while the rest stay untouched. You are given the description and a numbered list of changes: each change's path, the model's stated reason for making it, how many lines it added and removed, and a few of the changed lines. Undo a change only when it clearly matches the description; when a change is unrelated, or you are not sure, keep it. One logical change can span several recorded changes across different files or calls — a rename touching both a definition and its call sites, for instance — treat those as a unit and put them all on the same side; never split one logical change across undo and keep. When a single recorded change itself mixes edits that match the description with edits that do not, do not guess which half to keep: list its number in \"mixed\" with why, instead of placing it in \"undo\" or \"keep\". Reply with JSON only, no prose outside it."
 
 // undoSelectSchema constrains the model's reply the same way compaction's
 // working-memory record does (see working.go): a provider that supports
@@ -106,8 +142,9 @@ var undoSelectSchema = &llm.Schema{
 "properties":{
 "undo":{"type":"array","items":{"type":"integer"}},
 "keep":{"type":"array","items":{"type":"integer"}},
+"mixed":{"type":"array","items":{"type":"object","properties":{"seq":{"type":"integer"},"why":{"type":"string"}},"required":["seq","why"],"additionalProperties":false}},
 "why":{"type":"string"}},
-"required":["undo","keep","why"],
+"required":["undo","keep","mixed","why"],
 "additionalProperties":false}`),
 }
 
@@ -133,11 +170,11 @@ func (a *Agent) selectByModel(ctx context.Context, description string, candidate
 	if resp == nil {
 		return Selection{}, fmt.Errorf("empty reply")
 	}
-	undoIDs, keepIDs, why, err := parseSelectionReply(resp.Message.Text())
+	undoIDs, keepIDs, mixedIDs, why, err := parseSelectionReply(resp.Message.Text())
 	if err != nil {
 		return Selection{}, err
 	}
-	return resolveSelection(candidates, undoIDs, keepIDs, why), nil
+	return resolveSelection(candidates, undoIDs, keepIDs, mixedIDs, why), nil
 }
 
 // buildSelectPrompt renders description and candidates for selectByModel,
@@ -179,35 +216,44 @@ func buildSelectPrompt(cwd, description string, candidates []Change) string {
 			break
 		}
 	}
-	sb.WriteString("\nReply with JSON {\"undo\":[...],\"keep\":[...],\"why\":\"...\"} using the change numbers above.")
+	sb.WriteString("\nReply with JSON {\"undo\":[...],\"keep\":[...],\"mixed\":[{\"seq\":n,\"why\":\"...\"}],\"why\":\"...\"} using the change numbers above. Keep a logical change that spans several recorded changes together on one side; list a change that mixes matching and unrelated edits in \"mixed\" instead of guessing which half to keep.")
 	return sb.String()
+}
+
+// mixedSeq is one element of the model's "mixed" list: a change it could
+// not cleanly place, and why.
+type mixedSeq struct {
+	Seq int    `json:"seq"`
+	Why string `json:"why"`
 }
 
 // parseSelectionReply reads the model's JSON, tolerating a reply wrapped
 // in a code fence or followed by trailing prose: the same "first { to
 // last }" extraction working.go's merge uses for the compaction record.
-func parseSelectionReply(text string) (undo, keep []int, why string, err error) {
+func parseSelectionReply(text string) (undo, keep []int, mixed []mixedSeq, why string, err error) {
 	text = strings.TrimSpace(text)
 	start, end := strings.Index(text, "{"), strings.LastIndex(text, "}")
 	if start < 0 || end <= start {
-		return nil, nil, "", fmt.Errorf("no JSON object in the model's reply")
+		return nil, nil, nil, "", fmt.Errorf("no JSON object in the model's reply")
 	}
 	var got struct {
-		Undo []int  `json:"undo"`
-		Keep []int  `json:"keep"`
-		Why  string `json:"why"`
+		Undo  []int      `json:"undo"`
+		Keep  []int      `json:"keep"`
+		Mixed []mixedSeq `json:"mixed"`
+		Why   string     `json:"why"`
 	}
 	if jerr := json.Unmarshal([]byte(text[start:end+1]), &got); jerr != nil {
-		return nil, nil, "", jerr
+		return nil, nil, nil, "", jerr
 	}
-	return got.Undo, got.Keep, strings.TrimSpace(got.Why), nil
+	return got.Undo, got.Keep, got.Mixed, strings.TrimSpace(got.Why), nil
 }
 
 // resolveSelection turns the model's (or the fallback's) seq numbers into
 // Changes, silently dropping any seq that is not among candidates. A
-// candidate the model named in neither list is kept: undo is opt-in, not
-// opt-out, so a name the model forgot to place does not get reverted.
-func resolveSelection(candidates []Change, undoIDs, keepIDs []int, why string) Selection {
+// candidate the model named in none of the three lists is kept: undo is
+// opt-in, not opt-out, so a name the model forgot to place does not get
+// reverted.
+func resolveSelection(candidates []Change, undoIDs, keepIDs []int, mixedIDs []mixedSeq, why string) Selection {
 	byID := make(map[int]Change, len(candidates))
 	for _, c := range candidates {
 		byID[c.Seq] = c
@@ -224,6 +270,12 @@ func resolveSelection(candidates []Change, undoIDs, keepIDs []int, why string) S
 		if c, ok := byID[id]; ok && !placed[id] {
 			sel.Keep = append(sel.Keep, c)
 			placed[id] = true
+		}
+	}
+	for _, m := range mixedIDs {
+		if c, ok := byID[m.Seq]; ok && !placed[m.Seq] {
+			sel.Mixed = append(sel.Mixed, Mixed{Change: c, Why: m.Why})
+			placed[m.Seq] = true
 		}
 	}
 	for _, c := range candidates {
@@ -321,12 +373,109 @@ func changeText(c Change) string {
 	return sb.String()
 }
 
+// identToken matches a bare identifier: letters, digits and underscore,
+// not starting with a digit. Good enough to spot a renamed symbol without
+// parsing any particular language.
+var identToken = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
+
+// tokensWithPrefix collects the identifiers on a hunk's lines that carry
+// the given diff prefix ('+' or '-'), ignoring the prefix byte itself.
+func tokensWithPrefix(lines []string, prefix byte) map[string]bool {
+	out := map[string]bool{}
+	for _, l := range lines {
+		if len(l) == 0 || l[0] != prefix {
+			continue
+		}
+		for _, t := range identToken.FindAllString(l[1:], -1) {
+			out[t] = true
+		}
+	}
+	return out
+}
+
+// rename is one hunk's plausible rename: an identifier dropped and a
+// different one added in its place.
+type rename struct{ from, to string }
+
+// renames lists the changes a Change's hunks look like renames of: for
+// each hunk, the identifiers removed and not re-added, and those added
+// and not previously present. When a hunk has exactly one of each, it is
+// treated as unambiguous — from was renamed to to. A hunk with more than
+// one candidate on either side is skipped rather than guessing which
+// pairs with which.
+func renames(c Change) []rename {
+	var out []rename
+	for _, h := range c.Hunks() {
+		removed := tokensWithPrefix(h.Lines, '-')
+		added := tokensWithPrefix(h.Lines, '+')
+		var onlyRemoved, onlyAdded []string
+		for t := range removed {
+			if !added[t] {
+				onlyRemoved = append(onlyRemoved, t)
+			}
+		}
+		for t := range added {
+			if !removed[t] {
+				onlyAdded = append(onlyAdded, t)
+			}
+		}
+		if len(onlyRemoved) == 1 && len(onlyAdded) == 1 {
+			out = append(out, rename{from: onlyRemoved[0], to: onlyAdded[0]})
+		}
+	}
+	return out
+}
+
+// introduces reports whether any of c's added lines mention tok — c
+// either introduces it or uses one already introduced elsewhere.
+func introduces(c Change, tok string) bool {
+	for _, h := range c.Hunks() {
+		if tokensWithPrefix(h.Lines, '+')[tok] {
+			return true
+		}
+	}
+	return false
+}
+
+// detectCoupling is undo selection's guard independent of the model's own
+// judgement: for each identifier a change being undone looks like it
+// renamed (see renames), if some other, different-file change being kept
+// also carries that new name, undoing the first alone would leave the
+// second referring to a name the revert just took away (or, read the
+// other way, calling a name the surviving code never defines). Each such
+// pair is named once, in a stable order, so the caller can refuse to
+// proceed without a deliberate override. This only catches the direction
+// where the rename is on the undone side; a rename kept while its use is
+// undone is not flagged, to keep the guard simple, token-based and low on
+// false positives rather than exhaustive.
+func detectCoupling(sel Selection) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, u := range sel.Undo {
+		for _, rn := range renames(u) {
+			for _, k := range sel.Keep {
+				if k.Path == u.Path || !introduces(k, rn.to) {
+					continue
+				}
+				key := fmt.Sprintf("%d|%d|%s", u.Seq, k.Seq, rn.to)
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
+				out = append(out, fmt.Sprintf("#%d and #%d both carry the rename %s→%s; undoing only #%d would leave #%d calling %s", u.Seq, k.Seq, rn.from, rn.to, u.Seq, k.Seq, rn.to))
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // UndoSelection reverts sel.Undo, newest change first so a later edit to
 // the same file is undone before an earlier one — the same order
 // UndoChange itself expects hunks to disappear in. It stops at the first
-// refusal, keeping what was already reverted; when anything was reverted
-// and a verify gate is configured, the same checks the gate runs (see
-// verifyGate in agent.go) are run once more and their outcome reported.
+// refusal, keeping what was already reverted; whenever anything was
+// reverted, reportChecks fills in how (or whether) the result was
+// verified, so a revert never finishes silent about it.
 func (a *Agent) UndoSelection(ctx context.Context, sel Selection) (UndoReport, error) {
 	if len(sel.Undo) == 0 {
 		return UndoReport{}, ErrNothingSelected
@@ -334,6 +483,7 @@ func (a *Agent) UndoSelection(ctx context.Context, sel Selection) (UndoReport, e
 	undo := append([]Change(nil), sel.Undo...)
 	sort.Slice(undo, func(i, j int) bool { return undo[i].Seq > undo[j].Seq })
 	var rep UndoReport
+	var revertedPaths []string
 	for i, c := range undo {
 		done, err := a.UndoChange(c.Seq)
 		if err != nil {
@@ -345,14 +495,51 @@ func (a *Agent) UndoSelection(ctx context.Context, sel Selection) (UndoReport, e
 			break
 		}
 		rep.Reverted = append(rep.Reverted, done)
+		revertedPaths = append(revertedPaths, c.Path)
 	}
-	if len(rep.Reverted) > 0 && a.Verify.Enabled() {
+	if len(rep.Reverted) > 0 {
+		a.reportChecks(ctx, &rep, revertedPaths)
+	}
+	return rep, nil
+}
+
+// reportChecks fills in rep's verification fields after at least one
+// change from a selection was reverted. It runs the project's verify
+// gate when one is trusted and configured; otherwise it explains why not
+// (VerifyUntrusted, or nothing configured at all) and, since no checks
+// ran, falls back to language-server diagnostics for the reverted files
+// through a.Diagnose when one is wired up — the same hook a file tool's
+// own edit uses (see agent.go) — or admits plainly that nothing verified
+// the result when there is no such hook either.
+func (a *Agent) reportChecks(ctx context.Context, rep *UndoReport, paths []string) {
+	if a.Verify.Enabled() {
 		res := a.Verify.Run(ctx)
 		ok := res.OK()
 		rep.ChecksOK = &ok
 		rep.Checks = res.Summary()
+		return
 	}
-	return rep, nil
+	if a.VerifyUntrusted {
+		rep.CheckNote = fmt.Sprintf("the project's %s is not trusted, so checks did not run (/verify trust)", verify.ProjectFile)
+	} else {
+		rep.CheckNote = "no checks configured (/verify set <cmd>)"
+	}
+	if a.Diagnose == nil {
+		rep.Diagnostics = "nothing verified the result"
+		return
+	}
+	seen := map[string]bool{}
+	var notes []string
+	for _, p := range paths {
+		if p == "" || seen[p] {
+			continue
+		}
+		seen[p] = true
+		if note := a.Diagnose(ctx, p); note != "" {
+			notes = append(notes, note)
+		}
+	}
+	rep.Diagnostics = strings.Join(notes, "\n")
 }
 
 // pendingUndo is the last selection shown by "/undo about", kept so
@@ -376,6 +563,13 @@ var ErrNoPendingUndo = errors.New("agent: no previewed undo to apply; run /undo 
 // undone, reverted, or added.
 var ErrUndoSelectionStale = errors.New("agent: the session's changes moved since /undo about; run it again")
 
+// ErrUndoNeedsForce is returned by ApplyPendingUndo when the previewed
+// selection has a change the model flagged as Mixed, or the deterministic
+// coupling guard raised a Warning, and force was not passed: acting on
+// either without a deliberate override risks leaving the tree half
+// consistent, so the caller must re-run as "/undo apply --force".
+var ErrUndoNeedsForce = errors.New("agent: this selection has mixed changes or coupling warnings; rerun as /undo apply --force to proceed anyway")
+
 // PreviewUndoAbout selects changes matching description and remembers the
 // selection as the session's pending undo, for a later ApplyPendingUndo.
 func (a *Agent) PreviewUndoAbout(ctx context.Context, description string) (Selection, error) {
@@ -388,13 +582,19 @@ func (a *Agent) PreviewUndoAbout(ctx context.Context, description string) (Selec
 }
 
 // ApplyPendingUndo reverts the selection from the last PreviewUndoAbout.
-func (a *Agent) ApplyPendingUndo(ctx context.Context) (UndoReport, error) {
+// Unless force is true, it refuses when the selection has any Mixed
+// change or coupling Warning, leaving the preview in place so the caller
+// can re-run with force rather than having to preview again.
+func (a *Agent) ApplyPendingUndo(ctx context.Context, force bool) (UndoReport, error) {
 	p := a.pendingUndo
 	if p == nil {
 		return UndoReport{}, ErrNoPendingUndo
 	}
 	if fingerprintChanges(a.undoCandidates()) != p.fingerprint {
 		return UndoReport{}, ErrUndoSelectionStale
+	}
+	if !force && (len(p.sel.Mixed) > 0 || len(p.sel.Warnings) > 0) {
+		return UndoReport{}, ErrUndoNeedsForce
 	}
 	a.pendingUndo = nil
 	return a.UndoSelection(ctx, p.sel)
@@ -443,9 +643,15 @@ func relTo(cwd, path string) string {
 
 // FormatSelection renders a selection for confirmation: every candidate
 // considered, numbered, with its path, reason and line counts, marked
-// undo or keep, in seq order so the listing reads like /changes does.
+// undo, keep or mixed, in seq order so the listing reads like /changes
+// does, followed by the mixed changes' reasons and any coupling warnings
+// shown prominently, since either one blocks /undo apply short of
+// --force.
 func FormatSelection(cwd string, sel Selection) string {
 	all := append(append([]Change(nil), sel.Undo...), sel.Keep...)
+	for _, m := range sel.Mixed {
+		all = append(all, m.Change)
+	}
 	sort.Slice(all, func(i, j int) bool { return all[i].Seq < all[j].Seq })
 	mark := make(map[int]string, len(all))
 	for _, c := range sel.Undo {
@@ -453,6 +659,9 @@ func FormatSelection(cwd string, sel Selection) string {
 	}
 	for _, c := range sel.Keep {
 		mark[c.Seq] = "keep"
+	}
+	for _, m := range sel.Mixed {
+		mark[m.Change.Seq] = "mixed"
 	}
 	var sb strings.Builder
 	if sel.Fallback {
@@ -472,15 +681,33 @@ func FormatSelection(cwd string, sel Selection) string {
 	if sel.Why != "" {
 		fmt.Fprintf(&sb, "\n%s\n", sel.Why)
 	}
-	if len(sel.Undo) == 0 {
+	if len(sel.Mixed) > 0 {
+		sb.WriteString("\nmixed: these changes contain both matching and unrelated edits and were put on neither side:\n")
+		for _, m := range sel.Mixed {
+			fmt.Fprintf(&sb, "  #%d %s\n", m.Change.Seq, m.Why)
+		}
+	}
+	if len(sel.Warnings) > 0 {
+		sb.WriteString("\nwarning:\n")
+		for _, w := range sel.Warnings {
+			fmt.Fprintf(&sb, "  %s\n", w)
+		}
+	}
+	switch {
+	case len(sel.Undo) == 0 && len(sel.Mixed) == 0:
 		sb.WriteString("\nnothing matched that description; /undo apply would do nothing\n")
-	} else {
+	case len(sel.Mixed) > 0 || len(sel.Warnings) > 0:
+		sb.WriteString("\n/undo apply refuses while the above stands; /undo apply --force overrides it\n")
+	default:
 		sb.WriteString("\n/undo apply reverts the changes marked undo\n")
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }
 
-// FormatUndoReport renders what UndoSelection did.
+// FormatUndoReport renders what UndoSelection did: what was reverted,
+// where it stopped, and — prominently, since staying silent about it is
+// exactly the defect this guards against — how (or whether) the result
+// was verified afterwards.
 func FormatUndoReport(rep UndoReport) string {
 	var sb strings.Builder
 	for _, r := range rep.Reverted {
@@ -492,8 +719,77 @@ func FormatUndoReport(rep UndoReport) string {
 	if rep.Refused != "" {
 		fmt.Fprintf(&sb, "stopped: %s\n", rep.Refused)
 	}
-	if rep.Checks != "" {
+	switch {
+	case rep.Checks != "":
 		fmt.Fprintf(&sb, "%s\n", rep.Checks)
+	case rep.CheckNote != "":
+		fmt.Fprintf(&sb, "%s\n", rep.CheckNote)
+		if rep.Diagnostics != "" {
+			fmt.Fprintf(&sb, "%s\n", rep.Diagnostics)
+		}
 	}
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+// UndoArgs is "/undo"'s parsed arguments, shared by every front-end (see
+// ParseUndoArgs) so "/undo ..." means exactly the same thing in the
+// terminal and the web UI. The zero value is a bare "/undo": revert the
+// last turn's whole checkpoint.
+type UndoArgs struct {
+	// Preview lists what a bare /undo would revert, without touching
+	// anything.
+	Preview bool
+	// N is a specific /changes number to revert on its own; zero when
+	// not given.
+	N int
+	// About previews the selection matching Description, without
+	// touching anything (see PreviewUndoAbout). About is set whenever the
+	// first word is "about", even with an empty Description — the caller
+	// reports that as its own usage error, worded for its front-end.
+	About       bool
+	Description string
+	// Apply reverts the selection from the last About (see
+	// ApplyPendingUndo). Force is --force: proceed even though the
+	// selection has a Mixed change or a coupling Warning.
+	Apply bool
+	Force bool
+}
+
+// errUndoArgsUsage documents /undo's argument shape (kept in step with
+// slash.Command "/undo" and webArgs["/undo"]).
+var errUndoArgsUsage = errors.New("usage: /undo [preview | n | about <description> | apply [--force]]")
+
+// ParseUndoArgs parses the text after "/undo" (leading/trailing space
+// trimmed by the caller or here either way): the one shared parser both
+// the terminal and the web UI dispatch through, so a spelling accepted by
+// one is accepted, and means the same thing, in the other.
+func ParseUndoArgs(rest string) (UndoArgs, error) {
+	rest = strings.TrimSpace(rest)
+	if rest == "" {
+		return UndoArgs{}, nil
+	}
+	fields := strings.Fields(rest)
+	switch fields[0] {
+	case "preview":
+		if len(fields) != 1 {
+			return UndoArgs{}, errUndoArgsUsage
+		}
+		return UndoArgs{Preview: true}, nil
+	case "about":
+		return UndoArgs{About: true, Description: strings.TrimSpace(strings.TrimPrefix(rest, "about"))}, nil
+	case "apply":
+		a := UndoArgs{Apply: true}
+		for _, f := range fields[1:] {
+			if f != "--force" {
+				return UndoArgs{}, errUndoArgsUsage
+			}
+			a.Force = true
+		}
+		return a, nil
+	default:
+		if n, err := strconv.Atoi(fields[0]); err == nil && len(fields) == 1 {
+			return UndoArgs{N: n}, nil
+		}
+		return UndoArgs{}, errUndoArgsUsage
+	}
 }

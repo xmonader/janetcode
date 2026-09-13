@@ -153,6 +153,11 @@ At a permission prompt: `y` allow once, `a` allow that tool for the session,
 deny silently, `c` cancel the whole turn. Destructive shell commands (recursive deletes, force pushes,
 sudo, piping downloads into a shell) are flagged in the prompt.
 
+An `edit_file` or `write_file` call to a file that already exists shows a
+second line: the reach of the change, such as
+`changes Parse (func) · 14 refs in 6 files · tests: parse_test.go, cli_test.go · checks: go test ./...`
+(see [The reach of an edit](#the-reach-of-an-edit)).
+
 Typing while the model is working queues the message; it is sent as soon as
 the turn ends. `ctrl+s` instead hands what you typed to the turn that is
 running — the model reads it before its next step. `↑` with an empty prompt
@@ -681,15 +686,54 @@ counts, a few of the changed lines); without a provider, or if the reply
 cannot be used, it falls back to ranking candidates by keyword overlap
 with the description and says so, since keyword overlap is a much weaker
 signal than a model reading the description and the diff together.
+One logical change can span several recorded changes — a rename touching
+both a definition and its call sites, say, possibly in different files —
+and the model is told to keep such a group on one side rather than
+splitting it across `undo` and `keep`. When a single recorded change
+itself mixes edits that match the description with edits that do not (a
+rename and an unrelated logging tweak made in the same call, for
+instance), the model is told not to guess which half to keep: it lists
+that change as `mixed`, with why, and the preview shows it separately
+from `undo` and `keep` rather than silently choosing a side for it.
+
+Independently of what the model says, a deterministic guard checks every
+preview for a coupling the model might have missed: when a change being
+undone looks like it renamed or introduced an identifier — a name dropped
+on one side of a hunk and a different one added in its place — and a
+different, kept change carries that same new name, undoing the first
+alone would leave the second referring to something that just
+disappeared. The preview shows this as a warning naming both changes,
+e.g. `#2 and #3 both carry the rename compute→calculate; undoing only #2
+would leave #3 calling calculate`. This check is deliberately simple and
+token-based (it does not parse any language), and it only catches this
+one direction — the rename on the undone side, the use on the kept side —
+rather than trying to be exhaustive.
+
 `/undo apply` reverts exactly the selection just previewed, newest change
 first, and stops at the first change that refuses (edited since, most
-often) rather than guessing past it; it then re-runs the project's verify
-checks if any changes were reverted and a verify gate is configured
-(see "Verification gates", below). Asking twice in a row does not ask the
-model twice: the preview is remembered until the next `/undo about`, and
-`/undo apply` refuses if the session's changes moved since — something
-else was undone or added — rather than acting on a selection that no
-longer describes what is there.
+often) rather than guessing past it. It refuses outright, without
+touching anything, when the preview has a `mixed` change or a coupling
+warning: `/undo apply --force` overrides that and proceeds anyway. Asking
+twice in a row does not ask the model twice: the preview is remembered
+until the next `/undo about`, and `/undo apply` refuses if the session's
+changes moved since — something else was undone or added — rather than
+acting on a selection that no longer describes what is there (a refusal
+for `mixed` changes or a coupling warning does not consume the preview
+either, so a plain `/undo apply --force` right after it acts on the same
+selection without asking the model again).
+
+Whatever was reverted, `/undo apply` always says how (or whether) the
+result was checked afterwards, rather than reverting silently: if the
+project's verify gate is configured and trusted, it re-runs the same
+checks the gate runs (see "Verification gates", below) and reports
+pass or fail with a short summary; if verify is defined in
+`.janetcode/verify.json` but not yet trusted, it says so instead of
+running anything (`/verify trust` trusts it); if nothing is configured at
+all, it says `no checks configured (/verify set <cmd>)`. In the latter
+two cases — nothing actually ran — it falls back to the language
+server's diagnostics for the reverted files when one is available, and
+reports any errors; with no language server either, it says plainly that
+nothing verified the result.
 
 ### Proof in the commit
 
@@ -1463,6 +1507,29 @@ The query surface is tested against the real binaries of all five
 supported servers — gopls, pyright, typescript-language-server,
 rust-analyzer and clangd — for definition, references across files, hover,
 outline and workspace search.
+
+#### The reach of an edit
+
+Before you approve an `edit_file` or `write_file` call to a file that
+already exists, the prompt names what it reaches: the symbols whose
+definitions the change touches, how many places reference each one, which
+test files already cover them, and which verify commands will run —
+`changes Parse (func) · 14 refs in 6 files · tests: parse_test.go,
+cli_test.go · checks: go test ./...`. There is nothing to show for a new
+file (there is no "reach" for code that does not exist yet) or a non-code
+file, and the line is silent then.
+
+The answer comes from the language server for that file when one is on
+PATH — the same resolved view `symbols` queries — and from the repository
+map otherwise: its regex/AST-based index finds a file's definitions and
+counts identifier occurrences without a running server, at the cost of a
+coarser, unresolved count. An answer built the second way, or one cut
+short by the time budget below, says `(partial)`.
+
+This never delays the prompt beyond a fixed, short budget (well under a
+second): whatever is not known by then is left out rather than waited for,
+so a slow or absent language server never makes approving a change feel
+slower.
 
 ### Hooks
 

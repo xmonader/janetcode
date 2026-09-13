@@ -287,13 +287,14 @@ type undoApplyMsg struct {
 
 // undoApplyCommand reverts the selection from the last /undo about. It
 // runs off the UI goroutine because it can run the project's verify
-// checks, which may take a while.
-func (m *model) undoApplyCommand() tea.Cmd {
+// checks, which may take a while. force is --force: proceed even though
+// the selection has a mixed change or a coupling warning.
+func (m *model) undoApplyCommand(force bool) tea.Cmd {
 	ag, send := m.opts.Agent, m.send
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		rep, err := ag.ApplyPendingUndo(ctx)
+		rep, err := ag.ApplyPendingUndo(ctx, force)
 		send(undoApplyMsg{rep: rep, err: err})
 	}()
 	m.note("applying the previewed undo…")

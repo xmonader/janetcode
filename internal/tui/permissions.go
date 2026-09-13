@@ -254,9 +254,27 @@ func (m *model) permissionNotice() string {
 	return fitLine("  "+line, room)
 }
 
+// permissionImpact is the extra dim row shown under the notice while a
+// mutating edit is pending: the reach of the change, computed by
+// package impact and carried on the call as ToolCall.Impact. It is fit to
+// one line and never wraps — footerHeight only reserves the one extra row
+// this claims when it is non-empty (see layout.go), so a wrapped line
+// would run into the input box below it.
+func (m *model) permissionImpact() string {
+	if m.pending == nil || m.pending.call.Impact == "" {
+		return ""
+	}
+	room := m.width - 4
+	return fitLine("  "+styleDim.Render(sanitize(m.pending.call.Impact)), room)
+}
+
 func (m *model) permissionView() string {
 	if m.pending == nil {
 		return ""
 	}
-	return m.permissionNotice() + "\n" + m.permissionKeys(m.pending.call.Name, m.suggestedRule(m.pending.call.Name, m.pending.call.Input), m.pending.call.Learned, pendingExpandable(m.pending.call))
+	view := m.permissionNotice()
+	if imp := m.permissionImpact(); imp != "" {
+		view += "\n" + imp
+	}
+	return view + "\n" + m.permissionKeys(m.pending.call.Name, m.suggestedRule(m.pending.call.Name, m.pending.call.Input), m.pending.call.Learned, pendingExpandable(m.pending.call))
 }

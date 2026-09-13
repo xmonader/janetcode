@@ -7,6 +7,7 @@
   const ask = document.getElementById("ask");
   const askLine = document.getElementById("ask-line");
   const askRule = document.getElementById("ask-rule");
+  const askImpact = document.getElementById("ask-impact");
   const askPreview = document.getElementById("ask-preview");
   const questionsEl = document.getElementById("questions");
   const qPrompt = document.getElementById("q-prompt");
@@ -222,6 +223,8 @@
     askLine.textContent = "Allow " + p.name + (p.summary ? " — " + p.summary : "") + (p.warning ? "  Warning: " + p.warning : "") + "?";
     askRule.hidden = !p.rule;
     if (p.rule) askRule.textContent = "rule: " + p.rule + (p.learned ? "  ·  " + p.learned : "");
+    askImpact.hidden = !p.impact;
+    if (p.impact) askImpact.textContent = p.impact;
     askPreview.hidden = !p.preview;
     if (p.preview) askPreview.innerHTML = diffHTML(p.preview);
   }

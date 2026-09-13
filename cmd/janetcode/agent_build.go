@@ -9,6 +9,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/impact"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/memory"
@@ -69,6 +70,42 @@ func diagnoseNote(m *lsp.Manager) func(context.Context, string) string {
 			lines = append(lines[:40], fmt.Sprintf("… %d more; use the diagnostics tool", len(lines)-40))
 		}
 		return "[diagnostics]\n" + strings.Join(lines, "\n")
+	}
+}
+
+// impactHook builds the agent's preview of what a mutating edit reaches
+// (see package impact): the language server's resolved view when one
+// covers the file, the repository map's index otherwise. edit and write
+// reconstruct the exact tools' own apply logic (EditFile.Result,
+// WriteFile.Result), so the "after" content analyzed is never out of
+// step with what the real call would write. checks is read lazily so it
+// sees verify's project config once main has decided whether to trust it,
+// even though this hook is wired up before that happens.
+func impactHook(cwd string, ws *tool.Workspace, diag *lsp.Manager, repo *repomap.Cache, checks func() []string) func(context.Context, agent.ToolCall) string {
+	edit := tool.EditFile{Root: cwd, WS: ws}
+	write := tool.WriteFile{Root: cwd, WS: ws}
+	return func(ctx context.Context, call agent.ToolCall) string {
+		var path, before, after string
+		var err error
+		switch call.Name {
+		case "edit_file":
+			path, before, after, err = edit.Result(call.Input)
+		case "write_file":
+			path, before, after, err = write.Result(call.Input)
+		default:
+			return ""
+		}
+		if err != nil || before == "" || before == after {
+			// A bad input, a file that does not exist yet (write_file
+			// creating one), or an edit that changes nothing: none of
+			// these have a reach worth reporting.
+			return ""
+		}
+		ctx, cancel := context.WithTimeout(ctx, impact.Budget)
+		defer cancel()
+		ix, _ := repo.Get(ctx)
+		in := impact.Input{Path: path, Old: before, New: after, Cwd: cwd, LSP: diag, RepoIndex: ix, Checks: checks()}
+		return impact.Analyze(ctx, in).Line()
 	}
 }
 
@@ -285,6 +322,15 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		}
 	}
 	ag.PlanCheck = repo.CheckPlan
+	// ag.Verify is not wired up yet at this point (main.go sets it once it
+	// knows whether the project's verify config is trusted), so the
+	// checks are read at call time rather than captured now.
+	ag.Impact = impactHook(d.cwd, ws, diag, repo, func() []string {
+		if ag.Verify != nil {
+			return ag.Verify.Config.Commands
+		}
+		return nil
+	})
 	var err error
 	if ag.Predictor, err = agent.LoadPredictor(filepath.Join(cfgDir, "critic.json")); err != nil {
 		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)

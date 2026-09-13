@@ -399,6 +399,9 @@ func (m *model) footerView() string {
 	// cursor while typing. A permission prompt uses that row and keeps
 	// this box, so the transcript does not move.
 	parts := []string{m.footerNotice()}
+	if imp := m.permissionImpact(); imp != "" {
+		parts = append(parts, imp)
+	}
 	// The command menu and the @path menu are the same menu: same rows,
 	// same highlight, same footer line, same height whatever is in them.
 	if m.pending == nil && !m.denying {

@@ -28,7 +28,7 @@ var webCommands = []string{
 
 var webArgs = map[string]string{
 	"/help":        "[topic]",
-	"/undo":        "[preview | about <description> | apply]",
+	"/undo":        "[preview | about <description> | apply [--force]]",
 	"/diff":        "[path]",
 	"/loop":        "[duration] [prompt|off]",
 	"/jobs":        "[kill n]",
@@ -113,9 +113,18 @@ func (s *server) runCommand(text string) error {
 	case "/compact":
 		go func() { _ = ag.Compact(context.Background(), s.apply) }()
 	case "/undo":
-		sub, description, _ := strings.Cut(arg, " ")
-		switch sub {
-		case "preview":
+		// One shared parser (agent.ParseUndoArgs) decides what "/undo
+		// ..." means, so the terminal and the web UI agree; the web UI
+		// just does not expose "/undo n" as its own command (webArgs
+		// narrows it out), so ua.N falls through to a bare undo below,
+		// same as an unrecognized argument always has.
+		ua, perr := agent.ParseUndoArgs(arg)
+		if perr != nil {
+			s.errf("%v", perr)
+			return nil
+		}
+		switch {
+		case ua.Preview:
 			list, err := ag.UndoPreview()
 			if err != nil {
 				s.errf("undo: %v", err)
@@ -123,16 +132,15 @@ func (s *server) runCommand(text string) error {
 			}
 			s.sheet("undo preview", strings.Join(list, "\n"))
 			return nil
-		case "about":
-			description = strings.TrimSpace(description)
-			if description == "" {
+		case ua.About:
+			if ua.Description == "" {
 				s.errf("usage: /undo about <description>")
 				return nil
 			}
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 				defer cancel()
-				sel, err := ag.PreviewUndoAbout(ctx, description)
+				sel, err := ag.PreviewUndoAbout(ctx, ua.Description)
 				if err != nil {
 					s.errf("undo about: %v", err)
 					return
@@ -140,11 +148,11 @@ func (s *server) runCommand(text string) error {
 				s.sheet("undo about", agent.FormatSelection(s.opts.Cwd, sel))
 			}()
 			return nil
-		case "apply":
+		case ua.Apply:
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 				defer cancel()
-				rep, err := ag.ApplyPendingUndo(ctx)
+				rep, err := ag.ApplyPendingUndo(ctx, ua.Force)
 				if err != nil {
 					s.errf("undo apply: %v", err)
 					return

@@ -61,6 +61,14 @@ type ToolCall struct {
 	// about to ask and nothing else already makes the prompt unusual
 	// (see authorize); a front-end may offer it next to the r key.
 	Learned string
+	// Impact is one line describing the reach of an edit_file or
+	// write_file call to an existing file: the symbols its changed lines
+	// redefine, how many places reference them, which tests cover them,
+	// and which verify commands will run (see package impact). Set only
+	// when the call is about to ask (see Agent.Impact); "" when there is
+	// nothing to say, which is most non-edit calls and every non-code
+	// file.
+	Impact string
 }
 
 // Approver decides whether a mutating tool call may run. Implementations
@@ -204,6 +212,12 @@ type Agent struct {
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
 	Verify *verify.Runner
+	// VerifyUntrusted is set at build time (see main.go) when the
+	// project's .janetcode/verify.json defines checks but they are not
+	// trusted (see mcp.VerifyTrustKey), so Verify itself is left nil.
+	// undo_intent.go's UndoReport uses it to say why no checks ran rather
+	// than staying silent, without re-reading the trust store itself.
+	VerifyUntrusted bool
 	// ProofNotes gates the automatic side of internal/proof: when a bash
 	// call this session runs looks like `git commit` and HEAD actually
 	// moves, evidence for this session's part of that commit is attached
@@ -241,6 +255,13 @@ type Agent struct {
 	// and returns a note (language-server diagnostics) appended to the
 	// tool result, or "".
 	Diagnose func(ctx context.Context, path string) string
+	// Impact, when set, is asked what an edit_file or write_file call
+	// reaches — the symbols it redefines, their references, their tests,
+	// and the checks that will run (see package impact) — and returns one
+	// line for ToolCall.Impact, or "". It is only ever asked right before
+	// a permission prompt is actually shown, on a short internal budget,
+	// so it never delays one noticeably.
+	Impact func(ctx context.Context, call ToolCall) string
 	// mutations counts successful mutating tool calls this turn.
 	mutations int
 	// SaveRule, when set, persists a rule the user created with AllowAlways.
@@ -1279,6 +1300,9 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	if t.Mutating() && (mustAsk || !a.AutoApprove && !autoEdit && !autoSafe && !a.allowed[u.Name] && verdict != perm.Allowed && !hookAllowed) {
 		if a.Approver == nil {
 			return nil, "Permission denied: no approver configured for mutating tools.", nil
+		}
+		if a.Impact != nil && editTool(u.Name) {
+			call.Impact = a.Impact(ctx, *call)
 		}
 		// suggested is the rule AllowAlways would save, and its string
 		// form is the shape the ledger tracks approvals and refusals

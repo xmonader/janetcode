@@ -38,6 +38,13 @@ func (m *model) inputHeight() int {
 
 func (m *model) footerHeight() int {
 	h := m.inputHeight() + 2 + 1 // border, and the reserved notice row
+	if m.pending != nil && m.pending.call.Impact != "" {
+		// A second reserved row for the impact line (see
+		// permissionImpact): what the pending edit reaches. Claimed only
+		// while there is one to show, so a call with nothing to say about
+		// its reach costs the layout nothing.
+		h++
+	}
 	if m.pending == nil && !m.denying && len(m.completions()) > 0 {
 		// The menu always claims the same height, however many rows it has
 		// to show: narrowing it as you type used to resize the viewport on

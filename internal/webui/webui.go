@@ -218,6 +218,12 @@ type permPayload struct {
 	// approved several times with no refusal (see agent.ToolCall), shown
 	// next to Rule so the "remember this rule" button explains itself.
 	Learned string `json:"learned,omitempty"`
+	// Impact is the reach of an edit_file or write_file call to an
+	// existing file — the symbols it redefines, their references, their
+	// tests, and the checks that will run (see package impact) — carried
+	// verbatim from agent.ToolCall.Impact. "" for every other call and for
+	// a new file.
+	Impact string `json:"impact,omitempty"`
 }
 
 func newServer(opts Options) *server {
