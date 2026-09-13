@@ -134,7 +134,9 @@ func (a *Agent) SelectChanges(ctx context.Context, description string) (Selectio
 	// model or the keyword fallback ever sees it (see partitionUndoable).
 	candidates, unavailable := partitionUndoable(all)
 	if len(candidates) == 0 {
-		return Selection{}, ErrNoChangesToUndo
+		// Every change is still there but none can be reverted any more:
+		// say which and why, rather than claiming there is nothing.
+		return Selection{Unavailable: unavailable, Why: "every change left in this session was edited or reverted since"}, nil
 	}
 	sel, got := Selection{}, false
 	if a.Provider != nil {

@@ -614,3 +614,25 @@ func TestParseUndoArgs(t *testing.T) {
 		}
 	}
 }
+
+// TestSelectChangesAllUnavailableIsNotNothingToUndo: when every change
+// the session made was reverted outside it, the preview names them as
+// unavailable instead of claiming the session has no changes.
+func TestSelectChangesAllUnavailableIsNotNothingToUndo(t *testing.T) {
+	a, root, _ := setupUndoIntentAgent(t)
+	for _, name := range []string{"logger.go", "app.go"} {
+		if err := os.Remove(filepath.Join(root, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sel, err := a.SelectChanges(context.Background(), "the logging change")
+	if err != nil {
+		t.Fatalf("err = %v, want a selection listing unavailable changes", err)
+	}
+	if len(sel.Unavailable) != 2 || len(sel.Undo) != 0 {
+		t.Fatalf("selection = %+v", sel)
+	}
+	if rendered := FormatSelection(root, sel); !strings.Contains(rendered, "unavailable:") {
+		t.Fatalf("unavailable changes not shown:\n%s", rendered)
+	}
+}
