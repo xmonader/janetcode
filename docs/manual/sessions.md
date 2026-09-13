@@ -6,10 +6,13 @@ Every conversation is saved as append-only JSONL under
 `~/.local/share/janetcode/sessions/`.
 
 A session's first turn in a git repository also records the commit `HEAD`
-pointed to and a snapshot of the work tree at that moment, so the session
-can later be turned into a regression eval with `/eval keep` (see
-[evals](evals.md)) that replays it against the state it actually started
-from.
+pointed to (empty when the repository has no commits yet) and a snapshot
+of the work tree at that moment, so the session can later be turned into
+a regression eval with `/eval keep` (see [evals](evals.md)) that replays
+it against the state it actually started from. A session begun before
+this existed, or where recording otherwise failed, has no such state
+recorded; `/eval keep --base <rev>` is the fallback for keeping one of
+those anyway.
 
 Every session gets a title after its first turn: the model is asked for a
 few words (a headless run uses the first prompt instead), and `/title

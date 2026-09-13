@@ -68,6 +68,17 @@ type Turn struct {
 	Failed      int      `json:"failed"`
 	Tested      bool     `json:"tested"`
 	TestsEdited []string `json:"tests_edited,omitempty"`
+	// Mutation is the mutation-testing score for this turn, when one was
+	// logged (see internal/mutate.Report.Event and TurnOutcomeInput.Mutation).
+	Mutation *Mutation `json:"mutation,omitempty"`
+}
+
+// Mutation is a turn's mutation-testing score: how many of the small
+// mutations tried against the lines it changed were caught by the tests.
+type Mutation struct {
+	Killed   int `json:"killed"`
+	Survived int `json:"survived"`
+	Total    int `json:"total"`
 }
 
 // Record is the evidence attached to one commit. Session and Model name
@@ -107,6 +118,10 @@ type TurnOutcomeInput struct {
 	Failed      int
 	Tested      bool
 	TestsEdited []string
+	// Mutation is the turn's mutation-testing score, folded from the
+	// latest session.TypeMutation event logged for that turn, or nil when
+	// none was.
+	Mutation *Mutation
 }
 
 // Build assembles a Record from one session's tracked changes and turn
@@ -165,6 +180,7 @@ func Build(sessionID, model, repoRoot string, changes []ChangeInput, outcomes ma
 		turns = append(turns, Turn{
 			Turn: tn, Verdict: o.Verdict, Why: o.Why, Checks: o.Checks,
 			Passed: o.Passed, Failed: o.Failed, Tested: o.Tested, TestsEdited: o.TestsEdited,
+			Mutation: o.Mutation,
 		})
 	}
 	return Record{
@@ -291,7 +307,11 @@ func Summary(r Record) string {
 		if t.Session != "" {
 			who = " (" + t.Session + ")"
 		}
-		fmt.Fprintf(&b, "%s turn %d%s: %s: %s\n", verdictMark(t.Verdict), t.Turn, who, t.Verdict, t.Why)
+		fmt.Fprintf(&b, "%s turn %d%s: %s: %s", verdictMark(t.Verdict), t.Turn, who, t.Verdict, t.Why)
+		if t.Mutation != nil {
+			fmt.Fprintf(&b, " · mutations %d/%d caught", t.Mutation.Killed, t.Mutation.Total)
+		}
+		b.WriteString("\n")
 	}
 	for _, f := range r.Files {
 		fmt.Fprintf(&b, "%s\n", f.Path)

@@ -167,6 +167,11 @@ func (m *model) finishRecipe(msg recipeDoneMsg) tea.Cmd {
 	case msg.err != nil:
 		m.transcript.errorf("recipe %s: %v", msg.recipe.Name, msg.err)
 		m.status = "error"
+	case msg.failed != nil && msg.failed.Verify:
+		m.note(fmt.Sprintf("recipe %s: steps all ran, but the project's checks failed; handing over to the model", msg.recipe.Name))
+		m.term.turnEnded(false, m.status)
+		m.refresh(false)
+		return m.submit(agent.RecipeHandover(msg.recipe, *msg.failed))
 	case msg.failed != nil:
 		m.note(fmt.Sprintf("recipe %s stopped at step %d (%s); handing over to the model", msg.recipe.Name, msg.failed.Step, msg.failed.Tool))
 		m.term.turnEnded(false, m.status)

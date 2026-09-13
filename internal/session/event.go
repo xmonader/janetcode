@@ -39,6 +39,12 @@ const (
 	// TypeVerdict records what a turn that changed code actually
 	// demonstrated, as against what the model said about it.
 	TypeVerdict = "turn/verdict"
+	// TypeMutation records one mutation-testing run's result (see
+	// internal/mutate.Report.Event): Turn names the turn whose changed
+	// lines were mutated, and Extra carries {killed, survived, total,
+	// command}. A proof record folds the latest one per turn into
+	// proof.Turn.Mutation.
+	TypeMutation = "verify/mutation"
 )
 
 const (

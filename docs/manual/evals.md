@@ -76,11 +76,12 @@ session.
 ## Keeping a session as an eval
 
 Every task above starts from a prompt someone wrote by hand. `/eval keep
-[name] [--check <cmd>]` writes one from a session that actually happened:
-a bug that got fixed, a feature that got built, whatever the conversation
-in front of you turned out to be. It is idle-only — it reads the session
-log, not the model — and it needs a git repository, because what it
-writes down is not just what was said but the tree it was said over:
+[name] [--base <rev>] [--self-contained] [--check <cmd>]` writes one from
+a session that actually happened: a bug that got fixed, a feature that
+got built, whatever the conversation in front of you turned out to be.
+It is idle-only — it reads the session log, not the model — and it needs
+a git repository, because what it writes down is not just what was said
+but the tree it was said over:
 
 - **Prompts** — the session's own user turns, in order, so replaying the
   task sends the same conversation the session had (tool results,
@@ -89,20 +90,29 @@ writes down is not just what was said but the tree it was said over:
 - **Repo and Base** — the commit `HEAD` pointed to when the session's
   first turn ran. This is recorded once, automatically, the moment a
   session's first turn starts in a git repository (see
-  [sessions](sessions.md)); a session started before this existed, or
-  outside git, has nothing to keep.
-- **Patch** — a `git diff --binary` of whatever was uncommitted at that
-  moment, so an experiment that started mid-edit replays mid-edit too.
-  Omitted when there was nothing uncommitted.
+  [sessions](sessions.md)). A session begun in a repository with no
+  commits yet has an empty `Base`, and is still kept: the whole starting
+  tree travels as `patch` instead (see below). A session with no
+  recorded start at all — one begun before this feature existed, or
+  where recording failed — has nothing to fall back on and needs
+  `--base <rev>` instead, which resolves `<rev>` to a commit and uses it
+  as `Base` in place of anything recorded (a session that did record a
+  start still honors `--base` over it, when both are given). `--base`
+  keeps no `patch` of its own: it names a starting commit, not a
+  starting moment, so there is nothing uncommitted to carry.
+- **Patch** — a `git diff --binary` of whatever was uncommitted at the
+  session's recorded start, so an experiment that started mid-edit
+  replays mid-edit too. Omitted when there was nothing uncommitted, or
+  when `--base` was given without `--self-contained`.
 - **Check** — `--check <cmd>`, or, when that is left off, the project's
   `.janetcode/verify.json` commands joined with `&&`. Neither present is
   an error: a kept session needs some definition of done.
 
 The task is written to `.janetcode/evals/<name>.json` (plus a
-`<name>.patch` beside it when there was uncommitted state), where `<name>`
-defaults to a slug of the session's title. `/eval keep` refuses to
-overwrite an existing task; pass a different name instead. Running it
-later is the same as any other task:
+`<name>.patch` beside it when there is one), where `<name>` defaults to a
+slug of the session's title. `/eval keep` refuses to overwrite an
+existing task; pass a different name instead. Running it later is the
+same as any other task:
 
 ```sh
 janetcode --eval .janetcode/evals
@@ -110,9 +120,23 @@ janetcode --eval .janetcode/evals
 
 A task with `base` set runs in a detached git worktree of `repo` checked
 out at that commit, with `patch` applied, instead of an empty directory —
-so the base commit has to exist in whatever clone runs it. Committing
-`.janetcode/evals` (task, patch and all) into the repository is what
-makes that true for everyone who clones it.
+so the base commit has to exist in whatever clone runs it, and a run
+against one that does not fails with a clear error naming the fix rather
+than a raw git message. Committing `.janetcode/evals` (task, patch and
+all) into the repository is what makes that true for everyone who clones
+it; when it is not — a session kept before its base was ever pushed — the
+same check `/eval keep` used to decide this shows up as a warning when
+you keep it: push the base commit, or re-keep with `--self-contained`.
+
+A task with no `base` but a `patch` (an unborn repository at session
+start, or any `--self-contained` keep) runs in a plain, freshly
+`git init`-ed directory with `patch` applied instead of a worktree, so it
+never depends on `repo` having that commit at all. `--self-contained`
+asks for this on purpose, trading `base`'s smaller patch (just what was
+uncommitted) for a self-sufficient one (the whole starting tree, as a
+diff from the empty tree) — the way to keep a session whose base commit
+you do not intend to push, or hand a task to someone who has no access to
+`repo` at all.
 
 ## The task sets, and which one an ablation can use
 

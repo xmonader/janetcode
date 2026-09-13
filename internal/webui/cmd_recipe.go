@@ -161,6 +161,10 @@ func (s *server) finishRecipe(r recipe.Recipe, report string, failed *agent.Reci
 	case err != nil:
 		s.upsert(&entry{Kind: "error", Text: "recipe " + r.Name + ": " + err.Error(), Error: true})
 		s.statusSet("error")
+	case failed != nil && failed.Verify:
+		s.notice(fmt.Sprintf("recipe %s: steps all ran, but the project's checks failed; handing over to the model", r.Name))
+		s.startTurn(agent.RecipeHandover(r, *failed))
+		return
 	case failed != nil:
 		s.notice(fmt.Sprintf("recipe %s stopped at step %d (%s); handing over to the model", r.Name, failed.Step, failed.Tool))
 		s.startTurn(agent.RecipeHandover(r, *failed))

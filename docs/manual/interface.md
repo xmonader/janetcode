@@ -675,7 +675,9 @@ speaks for a file this session touched. `/proof [commit]` (default
 `HEAD`) makes the same evidence outlive the session: which session, turn
 and stated intent wrote each of a commit's files, and what the harness
 actually observed demonstrating the work — a turn's `TurnOutcome` (see
-"What a turn actually demonstrated"), not the model's own claim.
+"What a turn actually demonstrated"), not the model's own claim. When the
+project runs mutation testing (`/verify mutate`, below) the turn's line
+also shows the score, e.g. `mutations 7/9 caught`.
 
 When a bash call that looks like `git commit` succeeds and HEAD actually
 moves, janetcode attaches this evidence automatically as a git note under
@@ -693,12 +695,22 @@ showing each line's commit, its intent and its verdict.
 
 Notes are local to the clone that made them, like any other git ref: they
 are not pushed or fetched by `git push`/`git pull` on their own.
+`/proof push [remote]` shares them (default remote `origin`); `/proof
+fetch [remote]` pulls them, and also adds the notes refspec to that
+remote's fetch config so a plain `git fetch` brings them from then on
+too. Both work the same way from the command line, as `janetcode --proof
+push|fetch`.
 
-```sh
-git push origin refs/notes/janetcode                          # share them
-git fetch origin refs/notes/janetcode:refs/notes/janetcode     # pull them
-git log --notes=janetcode                                      # read them inline
 ```
+/proof push            # share this clone's proof notes with origin
+/proof fetch upstream   # pull upstream's notes, and configure future fetches to bring them
+```
+
+<sub>Under the hood, `/proof push` runs `git push <remote>
+refs/notes/janetcode`; `/proof fetch` runs `git fetch <remote>
+refs/notes/janetcode:refs/notes/janetcode` and adds
+`+refs/notes/janetcode:refs/notes/janetcode` to `remote.<remote>.fetch`.
+`git log --notes=janetcode` reads them inline once fetched.</sub>
 
 `"proof_notes": false` (or `/config proof_notes=false`) turns off the
 automatic attach; see [Configuration](configuration.md#proof-notes).
@@ -732,12 +744,16 @@ each through the exact pipeline a model-driven call goes through —
 authorize, permission rules, the approval prompt, checkpoints, the event
 log — so undo, `/changes` and a commit's proof note all see it as they
 would any other turn. No model is called and no tokens are spent unless a
-step fails partway through; then the run stops and hands the failure to
-the model — which step, its output, and the recipe's own description as
-the goal to finish — as an ordinary turn, the same as a queued prompt or a
-goal round starting its next one. `/recipe run deploy-staging --dry-run`
-prints the expanded steps without running any of them, and `/recipe list`
-shows what is saved.
+step fails partway through, or every step succeeds but the project's own
+[verification gate](#verification-gates) fails afterwards — the run stops
+either way and hands the failure to the model as an ordinary turn, the
+same as a queued prompt or a goal round starting its next one: which step
+failed and its output, or, when the steps all worked but the checks
+didn't, that outcome and the checks' output; either way the recipe's own
+description goes along as the goal to finish. A recipe that mutated
+nothing skips the gate entirely, the same as a read-only turn does.
+`/recipe run deploy-staging --dry-run` prints the expanded steps without
+running any of them, and `/recipe list` shows what is saved.
 
 The same replay runs with no session open at all:
 
@@ -745,9 +761,14 @@ The same replay runs with no session open at all:
 janetcode --recipe deploy-staging env=prod
 ```
 
-runs headless and exits; a failing step hands over to the configured
-model the way `-p` running under `--until` does, or exits non-zero when no
-provider is configured.
+runs headless and exits; a failure — a step, or the verify gate — hands
+over to the configured model the way `-p` running under `--until` does,
+or exits non-zero when no provider is configured. It builds the agent
+through the same path `-p` does, so a configured, trusted MCP server's
+tools are available to a step that names one; servers are only actually
+started when a step's tool name says the recipe needs one, so a recipe of
+plain file and shell steps — the common case — starts none and stays
+fast.
 
 ### Trajectory critic
 
@@ -1253,7 +1274,9 @@ tests let through as a failure: the model is told which line's behaviour
 is not pinned down and asked to add a test (or say why the mutation is
 equivalent). At most twelve mutants run per turn (`max_mutants`), spread
 across the changed lines, so the cost is bounded by twelve test runs.
-Test files and comments are never mutated.
+Test files and comments are never mutated. Every run's score is logged
+against the turn it tested, so `/proof` shows it too (see "Proof in the
+commit", above).
 
 `/verify` runs the checks now, `/verify set "make test"` adds a command to
 the file, `/verify clear` removes them all. Like hooks, a verify file that

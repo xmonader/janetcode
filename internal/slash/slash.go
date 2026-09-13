@@ -77,9 +77,9 @@ var Commands = []Command{
 	{Name: "/theme", Args: "[name]", Help: "switch the colour theme: alone opens a searchable list, or name a builtin or user theme; the choice is saved"},
 	{Name: "/verbose", Args: "", Help: "toggle expanded tool output for the whole transcript (ctrl+o expands one turn)"},
 	{Name: "/hints", Args: "[on|off]", Help: "one-time hints about features this session could have used; alone says how many have been given"},
-	{Name: "/eval", Args: "keep [name] [--check cmd]", Help: "keep turns this session into a regression eval task under .janetcode/evals, runnable later with janetcode --eval; --check sets its check command, else the project's verify.json"},
+	{Name: "/eval", Args: "keep [name] [--check cmd] [--base rev] [--self-contained]", Help: "keep turns this session into a regression eval task under .janetcode/evals, runnable later with janetcode --eval; --check sets its check command, else the project's verify.json"},
 	{Name: "/recipe", Args: "[list | show <name> | save <name> [--turn n] [k=v...] | run <name> [--dry-run] [k=v...]]", Help: "crystallise a turn's tool calls into a replayable program under .janetcode/recipes and run it later with no model call; a failed step hands over to the model"},
-	{Name: "/proof", Args: "[commit]", Help: "which session, turn and intent wrote each file of a commit, and what actually demonstrated it worked; attaches one from this session first if the commit (default HEAD) has none yet"},
+	{Name: "/proof", Args: "[commit | push [remote] | fetch [remote]]", Help: "which session, turn and intent wrote each file of a commit, and what actually demonstrated it worked (mutation score included when logged); attaches one from this session first if the commit (default HEAD) has none yet; push/fetch move notes to/from a remote, since they are local only until pushed"},
 	{Name: "/quit", Args: "", Help: "exit"},
 }
 

@@ -2,12 +2,15 @@ package mutate
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 func TestMutateFlipsOperatorsOutsideStringsAndComments(t *testing.T) {
@@ -42,6 +45,26 @@ func TestMutateFlipsOperatorsOutsideStringsAndComments(t *testing.T) {
 	}
 	if IsTestFile("internal/x/x.go") {
 		t.Error("x.go is not a test file")
+	}
+}
+
+func TestReportEvent(t *testing.T) {
+	rep := Report{Command: "go test ./...", Total: 9, Killed: 7, Survived: []Outcome{{}, {}}}
+	e := rep.Event()
+	if e.Type != session.TypeMutation {
+		t.Fatalf("type = %q, want %q", e.Type, session.TypeMutation)
+	}
+	var got struct {
+		Killed   int    `json:"killed"`
+		Survived int    `json:"survived"`
+		Total    int    `json:"total"`
+		Command  string `json:"command"`
+	}
+	if err := json.Unmarshal(e.Extra, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Killed != 7 || got.Survived != 2 || got.Total != 9 || got.Command != "go test ./..." {
+		t.Fatalf("extra = %+v", got)
 	}
 }
 

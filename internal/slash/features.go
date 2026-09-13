@@ -67,7 +67,7 @@ var When = map[string]string{
 	"/why":         "the harness did something you did not ask for and you want it explained without spending a model call",
 	"/hints":       "the one-time hints are in your way, or you want them back",
 	"/eval":        "a session found or fixed something and you want it to stay caught: a regression test that replays it against this project",
-	"/proof":       "months later, or in code review now: which session and turn wrote a committed line, and what actually showed it worked",
+	"/proof":       "months later, or in code review now: which session and turn wrote a committed line, what actually showed it worked (mutation score included), and push/fetch to share notes since they are local until moved",
 	"/recipe":      "a turn's tool calls worked and you would rather replay them for free next time than pay a model to redo the same steps",
 }
 

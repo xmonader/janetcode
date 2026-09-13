@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -83,9 +84,40 @@ func (a *Agent) buildProof(repoRoot string, committed []string) proof.Record {
 		outcomes[tn] = proof.TurnOutcomeInput{
 			Verdict: string(o.Verdict), Why: o.Why, Checks: o.Checks,
 			Passed: o.Passed, Failed: o.Failed, Tested: o.Tested, TestsEdited: o.TestsEdited,
+			Mutation: foldMutation(events, tn),
 		}
 	}
 	return proof.Build(sessionID, a.Model, repoRoot, inputs, outcomes, committed)
+}
+
+// mutationExtra mirrors the Extra JSON internal/mutate's Report.Event
+// writes onto a session.TypeMutation event; duplicated here (rather than
+// imported) because internal/mutate does not export it and pulling in the
+// whole package just for this shape is not worth a new dependency for a
+// four-field struct.
+type mutationExtra struct {
+	Killed   int    `json:"killed"`
+	Survived int    `json:"survived"`
+	Total    int    `json:"total"`
+	Command  string `json:"command"`
+}
+
+// foldMutation returns the turn's mutation-testing score, from the latest
+// session.TypeMutation event logged for it, or nil when the turn logged
+// none.
+func foldMutation(events []session.Event, turn int) *proof.Mutation {
+	var m *proof.Mutation
+	for _, e := range events {
+		if e.Type != session.TypeMutation || e.Turn != turn {
+			continue
+		}
+		var x mutationExtra
+		if json.Unmarshal(e.Extra, &x) != nil {
+			continue
+		}
+		m = &proof.Mutation{Killed: x.Killed, Survived: x.Survived, Total: x.Total}
+	}
+	return m
 }
 
 // gitCommitRe is the fast pre-check before the tokenising one: whether a

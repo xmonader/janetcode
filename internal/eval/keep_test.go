@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,6 +71,20 @@ func keptSession(t *testing.T, root string, snap snapshot.Snap, prompts ...strin
 	return sess
 }
 
+// runGit runs a git command in dir for a test, failing it on error and
+// returning trimmed stdout+stderr.
+func runGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func TestKeepWritesTaskAndPatch(t *testing.T) {
 	root := initKeepRepo(t)
 	repo, err := snapshot.Open(root)
@@ -83,7 +98,7 @@ func TestKeepWritesTaskAndPatch(t *testing.T) {
 	sess := keptSession(t, root, snap, "add a widget", "wire it up")
 
 	dir := filepath.Join(root, ".janetcode", "evals")
-	path, task, err := Keep(KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir})
+	path, task, _, err := Keep(KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir})
 	if err != nil {
 		t.Fatalf("Keep: %v", err)
 	}
@@ -110,7 +125,7 @@ func TestKeepWritesTaskAndPatch(t *testing.T) {
 	}
 
 	// A second Keep with the same name must refuse to overwrite.
-	if _, _, err := Keep(KeepOptions{Root: root, Session: sess, Name: task.Name, Check: "true", Dir: dir}); err == nil {
+	if _, _, _, err := Keep(KeepOptions{Root: root, Session: sess, Name: task.Name, Check: "true", Dir: dir}); err == nil {
 		t.Fatal("Keep did not refuse to overwrite an existing task")
 	}
 }
@@ -133,7 +148,7 @@ func TestPrepareWorktreeMatchesSnapshot(t *testing.T) {
 	sess := keptSession(t, root, snap, "add a widget")
 
 	dir := filepath.Join(root, ".janetcode", "evals")
-	_, task, err := Keep(KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir})
+	_, task, _, err := Keep(KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir})
 	if err != nil {
 		t.Fatalf("Keep: %v", err)
 	}
@@ -171,18 +186,25 @@ func TestPrepareWorktreeMatchesSnapshot(t *testing.T) {
 
 func TestParseKeepArgs(t *testing.T) {
 	cases := []struct {
-		arg, name, check string
-		wantErr          bool
+		arg                    string
+		name, check, base      string
+		selfContained, wantErr bool
 	}{
-		{"", "", "", false},
-		{"my-fix", "my-fix", "", false},
-		{"my fix", "my fix", "", false},
-		{"--check go test ./...", "", "go test ./...", false},
-		{"my-fix --check go test ./...", "my-fix", "go test ./...", false},
-		{"my-fix --check", "", "", true},
+		{arg: "", name: "", check: "", base: ""},
+		{arg: "my-fix", name: "my-fix"},
+		{arg: "my fix", name: "my fix"},
+		{arg: "--check go test ./...", check: "go test ./..."},
+		{arg: "my-fix --check go test ./...", name: "my-fix", check: "go test ./..."},
+		{arg: "my-fix --check", wantErr: true},
+		{arg: "--base abc123", base: "abc123"},
+		{arg: "my-fix --base abc123", name: "my-fix", base: "abc123"},
+		{arg: "my-fix --base abc123 --check go test ./...", name: "my-fix", base: "abc123", check: "go test ./..."},
+		{arg: "my-fix --base", wantErr: true},
+		{arg: "--self-contained", selfContained: true},
+		{arg: "my-fix --self-contained --base abc123", name: "my-fix", base: "abc123", selfContained: true},
 	}
 	for _, c := range cases {
-		name, check, err := ParseKeepArgs(c.arg)
+		name, check, base, selfContained, err := ParseKeepArgs(c.arg)
 		if (err != nil) != c.wantErr {
 			t.Errorf("ParseKeepArgs(%q): err = %v, wantErr %v", c.arg, err, c.wantErr)
 			continue
@@ -190,8 +212,216 @@ func TestParseKeepArgs(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		if name != c.name || check != c.check {
-			t.Errorf("ParseKeepArgs(%q) = (%q, %q), want (%q, %q)", c.arg, name, check, c.name, c.check)
+		if name != c.name || check != c.check || base != c.base || selfContained != c.selfContained {
+			t.Errorf("ParseKeepArgs(%q) = (%q, %q, %q, %v), want (%q, %q, %q, %v)", c.arg, name, check, base, selfContained, c.name, c.check, c.base, c.selfContained)
 		}
+	}
+}
+
+// TestKeepUnbornRepo covers /eval keep's first limitation: a session that
+// began in a repository with no commits yet. Base must stay empty and
+// the whole starting tree must travel as a patch against the empty tree,
+// and preparing the work dir from that task must reproduce the tree
+// snapshot.Take recorded, exactly as a Base-plus-Patch task would.
+func TestKeepUnbornRepo(t *testing.T) {
+	root := t.TempDir()
+	runGit(t, root, "init", "-q")
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "widget.go"), []byte("package main\n\nfunc Widget() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	repo, err := snapshot.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, err := repo.Take(context.Background(), "unborn start")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Head != "" {
+		t.Fatalf("Head = %q, want empty on an unborn branch", snap.Head)
+	}
+	sess := keptSession(t, root, snap, "start the project")
+
+	dir := filepath.Join(root, ".janetcode", "evals")
+	_, task, warnings, err := Keep(KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir})
+	if err != nil {
+		t.Fatalf("Keep: %v", err)
+	}
+	if task.Base != "" {
+		t.Fatalf("Base = %q, want empty for an unborn repository", task.Base)
+	}
+	if task.Patch == "" {
+		t.Fatal("want a patch carrying the whole starting tree")
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none: there is no base commit to be missing from a remote", warnings)
+	}
+
+	work, cleanup, err := prepareWorkDir(context.Background(), task)
+	if err != nil {
+		t.Fatalf("prepareWorkDir: %v", err)
+	}
+	defer cleanup()
+	got, err := os.ReadFile(filepath.Join(work, "main.go"))
+	if err != nil {
+		t.Fatalf("main.go: %v", err)
+	}
+	if string(got) != "package main\n" {
+		t.Fatalf("main.go = %q", got)
+	}
+	got, err = os.ReadFile(filepath.Join(work, "widget.go"))
+	if err != nil {
+		t.Fatalf("widget.go: %v", err)
+	}
+	if string(got) != "package main\n\nfunc Widget() {}\n" {
+		t.Fatalf("widget.go = %q", got)
+	}
+}
+
+// TestKeepWithBaseOverride covers a session with no recorded Start (one
+// begun before this feature existed, or where recording failed): Keep
+// must refuse without --base and name it as the way out, and with
+// --base must use that commit as Base with no patch, even though the
+// repository has uncommitted changes /eval keep would otherwise diff.
+func TestKeepWithBaseOverride(t *testing.T) {
+	root := initKeepRepo(t)
+	head := runGit(t, root, "rev-parse", "HEAD")
+
+	sess, err := session.New(t.TempDir(), root, "anthropic", "test-model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := llm.TextMessage(llm.RoleUser, "fix the bug")
+	if _, err := sess.Append(session.Event{Type: session.TypeUserMessage, Turn: 1, Surface: true, Message: &msg}); err != nil {
+		t.Fatal(err)
+	}
+	// Deliberately no SetStart: this session predates start recording.
+
+	dir := filepath.Join(root, ".janetcode", "evals")
+	if _, _, _, err := Keep(KeepOptions{Root: root, Session: sess, Name: "no-base", Check: "true", Dir: dir}); err == nil {
+		t.Fatal("Keep without Start or --base must fail")
+	} else if !strings.Contains(err.Error(), "--base") {
+		t.Fatalf("error = %v, want it to name --base as the way out", err)
+	}
+
+	_, task, _, err := Keep(KeepOptions{Root: root, Session: sess, Name: "with-base", Base: head, Check: "true", Dir: dir})
+	if err != nil {
+		t.Fatalf("Keep with --base: %v", err)
+	}
+	if task.Base != head {
+		t.Fatalf("Base = %s, want %s", task.Base, head)
+	}
+	if task.Patch != "" {
+		t.Fatalf("Patch = %q, want none: --base has no snapshot to diff against", task.Patch)
+	}
+}
+
+// TestKeepSelfContained covers --self-contained: Base stays empty and the
+// whole tree at the session's snapshot travels as a patch, so the task
+// still prepares correctly once the source repository is gone entirely.
+func TestKeepSelfContained(t *testing.T) {
+	root := initKeepRepo(t)
+	repo, err := snapshot.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, err := repo.Take(context.Background(), "self-contained start")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess := keptSession(t, root, snap, "add a widget")
+
+	dir := t.TempDir()
+	_, task, _, err := Keep(KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir, SelfContained: true})
+	if err != nil {
+		t.Fatalf("Keep: %v", err)
+	}
+	if task.Base != "" {
+		t.Fatalf("Base = %q, want empty for a self-contained task", task.Base)
+	}
+	if task.Patch == "" {
+		t.Fatal("want a patch carrying the whole starting tree")
+	}
+
+	// The task must run without the source repository existing at all.
+	if err := os.RemoveAll(root); err != nil {
+		t.Fatal(err)
+	}
+
+	work, cleanup, err := prepareWorkDir(context.Background(), task)
+	if err != nil {
+		t.Fatalf("prepareWorkDir: %v", err)
+	}
+	defer cleanup()
+	got, err := os.ReadFile(filepath.Join(work, "main.go"))
+	if err != nil {
+		t.Fatalf("main.go: %v", err)
+	}
+	if string(got) != "package main\n\n// widget added\n" {
+		t.Fatalf("main.go = %q", got)
+	}
+	if _, err := os.ReadFile(filepath.Join(work, "widget.go")); err != nil {
+		t.Fatalf("widget.go: %v", err)
+	}
+}
+
+// TestKeepBaseWarnings covers /eval keep's third limitation: a Base
+// commit may exist only in the clone that kept it. The warning must be
+// present when the base is unpushed and gone once it is on a remote.
+func TestKeepBaseWarnings(t *testing.T) {
+	root := initKeepRepo(t)
+	remote := t.TempDir()
+	runGit(t, remote, "init", "-q", "--bare")
+	runGit(t, root, "remote", "add", "origin", remote)
+
+	repo, err := snapshot.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, err := repo.Take(context.Background(), "warning start")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess := keptSession(t, root, snap, "do a thing")
+
+	dir := filepath.Join(root, ".janetcode", "evals")
+	_, _, warnings, err := Keep(KeepOptions{Root: root, Session: sess, Name: "local-only", Check: "true", Dir: dir})
+	if err != nil {
+		t.Fatalf("Keep: %v", err)
+	}
+	if len(warnings) == 0 {
+		t.Fatal("want a warning: the base commit is not on any remote yet")
+	}
+
+	branch := runGit(t, root, "branch", "--show-current")
+	if branch == "" {
+		branch = "master"
+	}
+	runGit(t, root, "push", "-q", "origin", "HEAD:refs/heads/"+branch)
+	runGit(t, root, "fetch", "-q", "origin")
+
+	_, _, warnings, err = Keep(KeepOptions{Root: root, Session: sess, Name: "pushed", Check: "true", Dir: dir})
+	if err != nil {
+		t.Fatalf("Keep: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none once the base is on a remote", warnings)
+	}
+}
+
+// TestPrepareWorktreeMissingBase covers /eval keep's fourth limitation: a
+// Base commit that is not in the clone running the task must fail with a
+// clear error, not a raw git message.
+func TestPrepareWorktreeMissingBase(t *testing.T) {
+	root := initKeepRepo(t)
+	task := Task{Name: "missing-base", Repo: root, Base: strings.Repeat("a", 40)}
+	if _, _, err := prepareWorktree(context.Background(), task); err == nil {
+		t.Fatal("want an error for a base commit that does not exist")
+	} else if !strings.Contains(err.Error(), "is not in this repository") || !strings.Contains(err.Error(), "--self-contained") {
+		t.Fatalf("error = %v, want it to name the fix", err)
 	}
 }

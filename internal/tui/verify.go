@@ -137,6 +137,9 @@ func (m *model) finishVerify(msg verifyDoneMsg) {
 		m.cancel()
 		m.cancel = nil
 	}
+	if msg.res.Mutation != nil && msg.res.Mutation.Skipped == "" {
+		m.opts.Agent.LogEvent(msg.res.Mutation.Event())
+	}
 	if msg.res.OK() {
 		m.note("✓ " + msg.res.Summary())
 		return

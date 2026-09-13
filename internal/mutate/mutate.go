@@ -7,6 +7,7 @@ package mutate
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -269,6 +271,26 @@ func (r Report) Summary() string {
 		s += fmt.Sprintf(", %d survived", len(r.Survived))
 	}
 	return s + " (" + r.Duration.Round(100*time.Millisecond).String() + ")"
+}
+
+// mutationExtra is the JSON shape of the Extra field on a
+// session.TypeMutation event (see Event): the numbers a proof record
+// needs, without the per-mutant detail Feedback prints.
+type mutationExtra struct {
+	Killed   int    `json:"killed"`
+	Survived int    `json:"survived"`
+	Total    int    `json:"total"`
+	Command  string `json:"command"`
+}
+
+// Event turns a completed run into the session event that records it, so
+// a session's log — and from it a proof record (see internal/proof and
+// internal/agent's buildProof) — knows the mutation score for the turn
+// that produced it. Call it only for a run that actually mutated
+// something; a skipped run (r.Skipped != "") has no score to log.
+func (r Report) Event() session.Event {
+	extra, _ := json.Marshal(mutationExtra{Killed: r.Killed, Survived: len(r.Survived), Total: r.Total, Command: r.Command})
+	return session.Event{Type: session.TypeMutation, Extra: extra}
 }
 
 // Feedback tells the model which changed lines the tests do not pin down.

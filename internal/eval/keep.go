@@ -36,6 +36,17 @@ type KeepOptions struct {
 	// Dir is where the task and its patch are written; the default is
 	// Root/.janetcode/evals.
 	Dir string
+	// Base names a starting commit directly, resolved to a full sha and
+	// recorded as Task.Base with no patch. It is the way to keep a
+	// session that has no recorded Start (one begun before this feature
+	// existed, or where recording failed), and it overrides a recorded
+	// Start when given even if one exists.
+	Base string
+	// SelfContained makes the kept task independent of Base ever existing
+	// in the clone that runs it: Task.Base stays empty and the whole
+	// starting tree — the session's own snapshot, or Base's tree when
+	// Base is set — travels as a patch against the empty tree instead.
+	SelfContained bool
 }
 
 // Keep turns a session into a Task: its user prompts become Task.Prompts,
@@ -47,30 +58,84 @@ type KeepOptions struct {
 // from, not an empty directory: see docs/manual/evals.md.
 //
 // It writes <name>.json (and <name>.patch, when the session started with
-// uncommitted changes) into Dir and refuses to overwrite an existing task.
-func Keep(opts KeepOptions) (path string, task Task, err error) {
+// uncommitted changes, the repository was unborn, or SelfContained was
+// asked for) into Dir and refuses to overwrite an existing task.
+//
+// A session begun in a repository with no commits yet has an empty
+// Start.Head; Keep still keeps it, leaving Task.Base empty and writing
+// the whole starting tree as a patch against the empty tree instead (see
+// prepareWorkDir's no-Base path). A session with no recorded Start at
+// all needs opts.Base.
+//
+// Warnings reports non-fatal problems the caller should show: today,
+// that Task.Base is reachable from no remote-tracking ref, so a clone
+// other than this one cannot run the task until it is pushed or the
+// session is re-kept with SelfContained.
+func Keep(opts KeepOptions) (path string, task Task, warnings []string, err error) {
 	sess := opts.Session
 	if sess == nil {
-		return "", Task{}, fmt.Errorf("no session to keep")
-	}
-	start := sess.Meta.Start
-	if start == nil || start.Head == "" {
-		return "", Task{}, fmt.Errorf("this session has no recorded start state, so there is nothing to replay it against: it began before this feature existed, before this repository had any commit, or outside a git repository")
+		return "", Task{}, nil, fmt.Errorf("no session to keep")
 	}
 	prompts := userPrompts(sess.Events())
 	if len(prompts) == 0 {
-		return "", Task{}, fmt.Errorf("no user prompts found in this session")
+		return "", Task{}, nil, fmt.Errorf("no user prompts found in this session")
 	}
 	check := strings.TrimSpace(opts.Check)
 	if check == "" {
 		cfg, _, verr := verify.Load(opts.Root)
 		if verr != nil {
-			return "", Task{}, fmt.Errorf("load %s: %w", verify.ProjectFile, verr)
+			return "", Task{}, nil, fmt.Errorf("load %s: %w", verify.ProjectFile, verr)
 		}
 		check = strings.Join(cfg.Commands, " && ")
 	}
 	if check == "" {
-		return "", Task{}, fmt.Errorf("no check command: pass --check <command>, or add commands to %s", verify.ProjectFile)
+		return "", Task{}, nil, fmt.Errorf("no check command: pass --check <command>, or add commands to %s", verify.ProjectFile)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	start := sess.Meta.Start
+	base := strings.TrimSpace(opts.Base)
+	var baseSHA string
+	var patch []byte
+	switch {
+	case base != "":
+		resolved, rerr := resolveRev(ctx, opts.Root, base)
+		if rerr != nil {
+			return "", Task{}, nil, rerr
+		}
+		if opts.SelfContained {
+			patch, err = emptyTreeDiff(ctx, opts.Root, resolved)
+		} else {
+			baseSHA = resolved
+		}
+	case start != nil && start.Head != "":
+		if opts.SelfContained {
+			patch, err = emptyTreeDiff(ctx, opts.Root, start.Snap)
+		} else {
+			baseSHA = start.Head
+			patch, err = gitDiff(ctx, opts.Root, start.Head, start.Snap)
+		}
+	case start != nil && start.Head == "":
+		// The repository was unborn (no commits) when the session began:
+		// there is no Base to record either way, so the whole starting
+		// tree travels as a patch against the empty tree.
+		patch, err = emptyTreeDiff(ctx, opts.Root, start.Snap)
+	default:
+		return "", Task{}, nil, fmt.Errorf("this session has no recorded start state, so there is nothing to replay it against: it began before this feature existed, before this repository had any commit, or outside a git repository; pass --base <rev> to choose a starting commit directly")
+	}
+	if err != nil {
+		return "", Task{}, nil, fmt.Errorf("diff session start: %w", err)
+	}
+
+	if baseSHA != "" {
+		ok, rerr := hasRemoteContaining(ctx, opts.Root, baseSHA)
+		if rerr != nil {
+			warnings = append(warnings, fmt.Sprintf("could not check whether %s is on a remote: %v", shortSHA(baseSHA), rerr))
+		} else if !ok {
+			warnings = append(warnings, fmt.Sprintf("base %s is only local: push it, or re-keep with --self-contained, so another clone can run this task", shortSHA(baseSHA)))
+		}
 	}
 
 	name := strings.TrimSpace(opts.Name)
@@ -84,13 +149,13 @@ func Keep(opts KeepOptions) (path string, task Task, err error) {
 		dir = filepath.Join(opts.Root, ".janetcode", "evals")
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", Task{}, err
+		return "", Task{}, nil, err
 	}
 	taskPath := filepath.Join(dir, name+".json")
 	if _, statErr := os.Stat(taskPath); statErr == nil {
-		return "", Task{}, fmt.Errorf("%s already exists; pass a different name", taskPath)
+		return "", Task{}, nil, fmt.Errorf("%s already exists; pass a different name", taskPath)
 	} else if !errors.Is(statErr, os.ErrNotExist) {
-		return "", Task{}, statErr
+		return "", Task{}, nil, statErr
 	}
 
 	// Repo is written relative to the task file so the eval directory can
@@ -108,50 +173,65 @@ func Keep(opts KeepOptions) (path string, task Task, err error) {
 		Timeout: 900,
 		Tags:    []string{"kept"},
 		Repo:    repo,
-		Base:    start.Head,
+		Base:    baseSHA,
 		dir:     dir,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	patch, derr := gitDiff(ctx, opts.Root, start.Head, start.Snap)
-	if derr != nil {
-		return "", Task{}, fmt.Errorf("diff session start: %w", derr)
-	}
 	if len(bytes.TrimSpace(patch)) > 0 {
 		patchName := name + ".patch"
 		if err := fsutil.WriteFileAtomic(filepath.Join(dir, patchName), patch, 0o644); err != nil {
-			return "", Task{}, fmt.Errorf("write patch: %w", err)
+			return "", Task{}, nil, fmt.Errorf("write patch: %w", err)
 		}
 		t.Patch = patchName
 	}
 
 	data, merr := json.MarshalIndent(t, "", "  ")
 	if merr != nil {
-		return "", Task{}, merr
+		return "", Task{}, nil, merr
 	}
 	if err := fsutil.WriteFileAtomic(taskPath, append(data, '\n'), 0o644); err != nil {
-		return "", Task{}, err
+		return "", Task{}, nil, err
 	}
-	return taskPath, t, nil
+	return taskPath, t, warnings, nil
 }
 
 // ParseKeepArgs reads the argument to /eval keep: arg is the text after
-// "keep". A bare word (or several, joined) names the task; --check takes
-// the rest of the line as the check command, so it must come last.
-func ParseKeepArgs(arg string) (name, check string, err error) {
+// "keep". A bare word (or several, joined) names the task. --base <rev>
+// names a starting commit directly (see KeepOptions.Base) — the way to
+// keep a session with no recorded start state, or to point at a
+// different one. --self-contained asks for KeepOptions.SelfContained.
+// --check takes the rest of the line as the check command, so it must
+// come last; --base and --self-contained may appear anywhere before it.
+func ParseKeepArgs(arg string) (name, check, base string, selfContained bool, err error) {
+	const usage = "usage: /eval keep [name] [--base <rev>] [--self-contained] [--check <command>]"
 	arg = strings.TrimSpace(arg)
 	if arg == "" {
-		return "", "", nil
+		return "", "", "", false, nil
 	}
 	if i := strings.Index(arg, "--check"); i >= 0 {
 		check = strings.TrimSpace(arg[i+len("--check"):])
 		if check == "" {
-			return "", "", fmt.Errorf("usage: /eval keep [name] [--check <command>]")
+			return "", "", "", false, fmt.Errorf(usage)
 		}
-		return strings.TrimSpace(arg[:i]), check, nil
+		arg = strings.TrimSpace(arg[:i])
 	}
-	return arg, "", nil
+	fields := strings.Fields(arg)
+	var nameParts []string
+	for i := 0; i < len(fields); i++ {
+		switch fields[i] {
+		case "--base":
+			if i+1 >= len(fields) {
+				return "", "", "", false, fmt.Errorf(usage)
+			}
+			i++
+			base = fields[i]
+		case "--self-contained":
+			selfContained = true
+		default:
+			nameParts = append(nameParts, fields[i])
+		}
+	}
+	return strings.Join(nameParts, " "), check, base, selfContained, nil
 }
 
 // userPrompts is the user prompts of a session, in order: what the user
@@ -217,4 +297,79 @@ func gitDiff(ctx context.Context, dir, head, snap string) ([]byte, error) {
 		return nil, fmt.Errorf("git diff: %s", msg)
 	}
 	return stdout.Bytes(), nil
+}
+
+// resolveRev turns --base's argument into a full commit sha, so Task.Base
+// is stable even if the rev given (a branch, a tag, a short hash) later
+// points somewhere else.
+func resolveRev(ctx context.Context, dir, rev string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--verify", rev+"^{commit}")
+	cmd.Dir = dir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", fmt.Errorf("--base %s: %s", rev, msg)
+	}
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+// emptyTreeHash is the hash of the empty tree, computed rather than
+// hardcoded so a sha256 repository gets its own value instead of git's
+// well-known sha1 constant.
+func emptyTreeHash(ctx context.Context, dir string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "hash-object", "-t", "tree", os.DevNull)
+	cmd.Dir = dir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", fmt.Errorf("empty tree hash: %s", msg)
+	}
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+// emptyTreeDiff is the whole tree at treeish, expressed as a patch from
+// nothing: how Keep represents a starting state with no base commit to
+// point at, whether because the repository was unborn at session start
+// or because SelfContained asked for one anyway.
+func emptyTreeDiff(ctx context.Context, dir, treeish string) ([]byte, error) {
+	empty, err := emptyTreeHash(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	return gitDiff(ctx, dir, empty, treeish)
+}
+
+// hasRemoteContaining reports whether sha is reachable from any
+// remote-tracking ref. Keep uses it to warn when a kept task's base
+// commit exists only in the local clone that made it, so another clone
+// running the task later would find no such commit to check out.
+func hasRemoteContaining(ctx context.Context, dir, sha string) (bool, error) {
+	cmd := exec.CommandContext(ctx, "git", "for-each-ref", "--contains", sha, "refs/remotes")
+	cmd.Dir = dir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return false, fmt.Errorf("check remote refs: %s", msg)
+	}
+	return strings.TrimSpace(stdout.String()) != "", nil
+}
+
+// shortSHA is a commit hash shortened for a human-readable message.
+func shortSHA(sha string) string {
+	if len(sha) > 12 {
+		return sha[:12]
+	}
+	return sha
 }

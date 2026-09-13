@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/mutate"
 	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/snapshot"
@@ -178,6 +179,53 @@ func TestAgentProofNoEvidence(t *testing.T) {
 
 	if _, err := a.Proof(context.Background(), root, ""); err == nil {
 		t.Fatal("expected an error when this session made no tracked change to the commit")
+	}
+}
+
+// TestAgentProofIncludesMutationScore covers the event → record path: a
+// mutation-testing run logs a session.TypeMutation event for a turn (as
+// verifyGate and /verify's manual run both do via mutate.Report.Event),
+// and buildProof folds the latest one for a turn into proof.Turn.Mutation,
+// which Summary then prints.
+func TestAgentProofIncludesMutationScore(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"foo.go","content":"package foo\n"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	gitInit(t, root)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	sess, err := session.New(t.TempDir(), root, "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Log = sess
+	if err := a.Run(context.Background(), "add foo", nil); err != nil {
+		t.Fatal(err)
+	}
+	// The turn just ran mutation testing; log its result the same way
+	// verifyGate and the manual /verify command do.
+	a.LogEvent(mutate.Report{Command: "go test ./...", Total: 9, Killed: 7, Survived: []mutate.Outcome{{}, {}}}.Event())
+	commitAll(t, root, "add foo")
+
+	got, err := a.Proof(context.Background(), root, "")
+	if err != nil {
+		t.Fatalf("Proof: %v", err)
+	}
+	if !strings.Contains(got, "mutations 7/9 caught") {
+		t.Fatalf("summary missing mutation score: %s", got)
+	}
+	sha := headOf(t, root)
+	r, ok, err := proof.Read(context.Background(), root, sha)
+	if err != nil || !ok {
+		t.Fatalf("proof.Read: ok=%v err=%v", ok, err)
+	}
+	if len(r.Turns) != 1 || r.Turns[0].Mutation == nil {
+		t.Fatalf("turns = %+v, want a mutation score", r.Turns)
+	}
+	if m := r.Turns[0].Mutation; m.Killed != 7 || m.Survived != 2 || m.Total != 9 {
+		t.Fatalf("mutation = %+v", m)
 	}
 }
 

@@ -1502,6 +1502,9 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 		return false
 	}
 	a.working.Verify = res.Summary()
+	if res.Mutation != nil && res.Mutation.Skipped == "" {
+		a.logEvent(res.Mutation.Event())
+	}
 	if res.OK() {
 		emit(Event{Kind: EvNotice, Text: res.Summary()})
 		return false

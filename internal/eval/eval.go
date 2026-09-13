@@ -344,36 +344,53 @@ func (r *Runner) Run(ctx context.Context, tasks []Task) []Result {
 }
 
 // prepareWorkDir creates the directory a run works in. An ordinary task
-// gets a plain temporary directory, git-initialised when git is available
-// so tools that expect a repository still find one. A task with Base set
+// gets a plain temporary directory, git-initialised when git is
+// available so tools that expect a repository still find one; a Patch
+// with no Base (an unborn repository, or a self-contained kept task —
+// see internal/eval/keep.go) is applied there too, since it is a diff
+// against the empty tree rather than against Base. A task with Base set
 // (one kept from a session by /eval keep) gets a detached git worktree of
 // Repo at Base instead, with Patch applied, so the run sees the exact
 // tree the session started from rather than an empty one. Either way the
 // caller is responsible for calling the returned cleanup.
 func prepareWorkDir(ctx context.Context, t Task) (dir string, cleanup func(), err error) {
-	if t.Base == "" {
-		dir, err = os.MkdirTemp("", "janetcode-eval-"+sanitize(t.Name)+"-")
-		if err != nil {
-			return "", nil, err
-		}
-		if _, err := exec.LookPath("git"); err == nil {
-			_ = exec.Command("git", "-C", dir, "init", "-q").Run()
-		}
-		return dir, func() { os.RemoveAll(dir) }, nil
+	if t.Base != "" {
+		return prepareWorktree(ctx, t)
 	}
-	return prepareWorktree(ctx, t)
+	dir, err = os.MkdirTemp("", "janetcode-eval-"+sanitize(t.Name)+"-")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup = func() { os.RemoveAll(dir) }
+	patch := t.PatchPath()
+	if _, gerr := exec.LookPath("git"); gerr == nil {
+		_ = exec.Command("git", "-C", dir, "init", "-q").Run()
+	} else if patch != "" {
+		cleanup()
+		return "", nil, fmt.Errorf("task %s has a patch but git is not available", t.Name)
+	}
+	if patch != "" {
+		if out, aerr := exec.CommandContext(ctx, "git", "-C", dir, "apply", "--binary", patch).CombinedOutput(); aerr != nil {
+			cleanup()
+			return "", nil, fmt.Errorf("git apply %s: %w: %s", patch, aerr, strings.TrimSpace(string(out)))
+		}
+	}
+	return dir, cleanup, nil
 }
 
-// prepareWorktree is prepareWorkDir's path for a kept task: it checks out
-// Repo at the detached commit Base into a fresh temporary path and applies
-// Patch, the diff between that commit and the work tree snapshotted when
-// the session began (see internal/eval/keep.go). Factored out from
-// prepareWorkDir so a test can check the resulting tree without running a
-// model.
+// prepareWorktree is prepareWorkDir's path for a kept task with a Base:
+// it checks out Repo at the detached commit Base into a fresh temporary
+// path and applies Patch, the diff between that commit and the work tree
+// snapshotted when the session began (see internal/eval/keep.go).
+// Factored out from prepareWorkDir so a test can check the resulting
+// tree without running a model.
 func prepareWorktree(ctx context.Context, t Task) (dir string, cleanup func(), err error) {
 	repo := t.RepoPath()
 	if repo == "" {
 		return "", nil, fmt.Errorf("task %s: base %q is set but repo is empty", t.Name, t.Base)
+	}
+	if out, cerr := exec.CommandContext(ctx, "git", "-C", repo, "cat-file", "-e", t.Base+"^{commit}").CombinedOutput(); cerr != nil {
+		return "", nil, fmt.Errorf("task %s: base %s is not in this repository: fetch it or re-keep with --self-contained (%s)", t.Name, t.Base, strings.TrimSpace(string(out)))
 	}
 	dir, err = os.MkdirTemp("", "janetcode-eval-"+sanitize(t.Name)+"-")
 	if err != nil {

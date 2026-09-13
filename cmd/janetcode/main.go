@@ -33,6 +33,7 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/rates"
+	"github.com/xmonader/janetcode/internal/recipe"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 	_ "github.com/xmonader/janetcode/internal/treesitter" // registers the grammar parser when built with -tags treesitter
@@ -200,8 +201,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		mcpAuth      = fs.String("mcp-auth", "", "log in to the named remote MCP server with OAuth (browser flow) and exit")
 		appendSystem = fs.String("append-system-prompt", "", "text (or @file) appended to the system prompt; JANETCODE_SYSTEM_MD=<file> replaces the base prompt. Both are recorded in eval results so a prompt A/B is traceable")
 		runDoctor    = fs.Bool("doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
-		runProof     = fs.Bool("proof", false, "print the proof note (see internal/proof) attached to a commit -- which session, turn and intent wrote each of its files, and what actually demonstrated the work -- then exit; the commit is a positional argument, default HEAD")
-		recipeName   = fs.String("recipe", "", "replay a saved recipe (.janetcode/recipes/<name>.json, see /recipe save) as tool calls with no model call and no tokens, then exit; extra positional arguments are k=v parameter substitutions; a step that fails hands over to the model if a provider is configured, otherwise the run exits non-zero")
+		runProof     = fs.Bool("proof", false, "print the proof note (see internal/proof) attached to a commit -- which session, turn and intent wrote each of its files, and what actually demonstrated the work -- then exit; positional argument is a commit (default HEAD), or push [remote] | fetch [remote] to move proof notes to/from a remote, since they are local only until pushed")
+		recipeName   = fs.String("recipe", "", "replay a saved recipe (.janetcode/recipes/<name>.json, see /recipe save) as tool calls with no model call and no tokens, then exit; extra positional arguments are k=v parameter substitutions; a step that fails, or the project's verify gate once every step has succeeded, hands over to the model if a provider is configured, otherwise the run exits non-zero")
 		themeFlag    = fs.String("theme", "", "colour theme for this run: auto, dark, light, or the name of a builtin or user theme (--inspect themes lists them)")
 		web          = fs.Bool("web", false, "serve the session in a browser instead of the terminal")
 		webAddr      = fs.String("web-addr", "127.0.0.1:8787", "listen address for --web. Loopback by default; anyone who can reach the port can approve commands in this directory")
@@ -594,7 +595,39 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		if sess != nil {
 			defer func() { _ = sess.Sync() }()
 		}
-		return runRecipeFlag(ctx, ag, cwd, *recipeName, fs.Args(), os.Stdout, os.Stderr, os.Stdin)
+		r, err := recipe.Load(cwd, *recipeName)
+		if err != nil {
+			return fmt.Errorf("--recipe: %w", err)
+		}
+		// A recipe is built through the same agent the normal headless
+		// run (-p) uses, so its steps see the same tools — including a
+		// configured MCP server's, when the recipe actually calls one.
+		// Starting every server for a recipe that never touches one would
+		// slow down the common case (plain file and shell steps) for
+		// nothing, so this only starts them when a step's tool name says
+		// otherwise; servers.Close is already deferred above, so whatever
+		// gets started here still shuts down on exit either way.
+		if agent.NeedsMCP(r) {
+			toStart := map[string]mcp.ServerConfig{}
+			for n, c := range cfg.MCPServers {
+				toStart[n] = c
+			}
+			if projectTrusted {
+				for n, c := range projectServers {
+					toStart[n] = c
+				}
+			} else if len(projectServers) > 0 {
+				fmt.Fprintf(os.Stderr, "[mcp] %s lists servers that are not trusted yet; open the TUI and run /mcp trust\n", mcp.ProjectFile)
+			}
+			servers.StartAll(ctx, toStart, func(name string, c *mcp.Client, err error) {
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "[mcp] %s failed: %v\n", name, err)
+					return
+				}
+				fmt.Fprintf(os.Stderr, "[mcp] %s ready: %d tools\n", name, len(c.Tools()))
+			})
+		}
+		return runRecipeFlag(ctx, ag, cwd, r, fs.Args(), os.Stdout, os.Stderr, os.Stdin)
 	}
 
 	// The hint engine remembers what it has already said, per project,
