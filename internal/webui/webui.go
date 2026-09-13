@@ -214,6 +214,10 @@ type permPayload struct {
 	Warning    string `json:"warning,omitempty"`
 	Rule       string `json:"rule,omitempty"`
 	Expandable bool   `json:"expandable,omitempty"`
+	// Learned is the ledger's note that this call's shape has been
+	// approved several times with no refusal (see agent.ToolCall), shown
+	// next to Rule so the "remember this rule" button explains itself.
+	Learned string `json:"learned,omitempty"`
 }
 
 func newServer(opts Options) *server {

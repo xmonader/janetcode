@@ -56,6 +56,12 @@ type State struct {
 	DeniedShape string
 	DeniedCount int
 
+	// ApprovedShape is a permission rule shape the ledger has seen
+	// approved perm.LearnAfter times with no refusal, and how often. It
+	// is what the r key, or /permissions allow, would save.
+	ApprovedShape string
+	ApprovedCount int
+
 	// ContextPct is how full the context is against the compaction
 	// threshold.
 	ContextPct int
@@ -257,6 +263,16 @@ func Rules() []Rule {
 			When: func(s *State) bool { return s.DeniedCount >= 3 && s.DeniedShape != "" },
 			Text: func(s *State) string {
 				return fmt.Sprintf("that is the %d%s time you have refused %s — /permissions deny %q refuses calls of that shape from now on without asking you again, and /permissions lists what is saved", s.DeniedCount, ordinal(s.DeniedCount), s.DeniedShape, s.DeniedShape)
+			},
+		},
+		{
+			// Fires the first time a shape crosses the learn threshold
+			// with a clean record; a refusal after that never lets it
+			// fire, since permission-rule above is the honest advice then.
+			ID: "learned-rule", Feature: "/permissions",
+			When: func(s *State) bool { return s.ApprovedCount >= 3 && s.ApprovedShape != "" },
+			Text: func(s *State) string {
+				return fmt.Sprintf("you have approved %s %d times running and never refused it — r at the next prompt saves it as a rule, or /permissions allow %q does it now", s.ApprovedShape, s.ApprovedCount, s.ApprovedShape)
 			},
 		},
 		{

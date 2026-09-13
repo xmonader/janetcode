@@ -529,6 +529,7 @@ func (t *Task) editingChild(wt *worktree, profile *skill.Profile) *Agent {
 		Rules:         perm.Rules{Deny: p.Rules.Deny},
 		CompactAt:     p.CompactAt,
 		ContextWindow: p.ContextWindow,
+		Ledger:        p.Ledger,
 	}
 	// An editing subagent approves its own calls because nothing it does
 	// reaches the real tree and the patch is reviewed before it is
@@ -646,8 +647,9 @@ func (t *Task) child(only []string, profile *skill.Profile) (*Agent, error) {
 		// delegating the job. The allow list is deliberately not passed
 		// on: permission granted in the session is not permission the
 		// subagent asked for.
-		Rules: perm.Rules{Deny: p.Rules.Deny},
-		Debug: p.Debug,
+		Rules:  perm.Rules{Deny: p.Rules.Deny},
+		Debug:  p.Debug,
+		Ledger: p.Ledger,
 	}, nil
 }
 
@@ -696,6 +698,7 @@ func (t *Task) forkChild() (*Agent, error) {
 		Archive:       p.Archive,
 		Debug:         p.Debug,
 		Forked:        true,
+		Ledger:        p.Ledger,
 	}
 	if !p.AutoApprove && p.Approver != nil {
 		child.Approver = bubbled{to: p.Approver, name: "fork"}

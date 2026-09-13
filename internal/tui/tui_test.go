@@ -2292,7 +2292,7 @@ func TestPermissionKeysFitOneLine(t *testing.T) {
 	for _, w := range []int{60, 80, 110, 200} {
 		h.m.width = w
 		for _, expandable := range []bool{false, true} {
-			line := plain(h.m.permissionKeys("edit_file", "edit_file(/tmp/claude-1000/-home-driver-wspace-janetcode/dd12e125-65a6-415a-b19b-31de5e8c912b/scratchpad/tuiproj/*)", expandable))
+			line := plain(h.m.permissionKeys("edit_file", "edit_file(/tmp/claude-1000/-home-driver-wspace-janetcode/dd12e125-65a6-415a-b19b-31de5e8c912b/scratchpad/tuiproj/*)", "", expandable))
 			if lipgloss.Width(line) > w-6 || !strings.Contains(line, "n") {
 				t.Fatalf("width %d expandable=%v: %d cols: %q", w, expandable, lipgloss.Width(line), line)
 			}
@@ -2309,7 +2309,7 @@ func TestPermissionKeysKeepTheRule(t *testing.T) {
 	for _, w := range []int{60, 80} {
 		h.m.width = w
 		for _, rule := range []string{"edit_file(cmd/*)", "bash(go test ./internal/...)", "edit_file(internal/tui/*)"} {
-			line := plain(h.m.permissionKeys("edit_file", rule, false))
+			line := plain(h.m.permissionKeys("edit_file", rule, "", false))
 			if lipgloss.Width(line) > w-6 {
 				t.Fatalf("width %d rule %q: %d cols: %q", w, rule, lipgloss.Width(line), line)
 			}
@@ -2322,6 +2322,34 @@ func TestPermissionKeysKeepTheRule(t *testing.T) {
 				t.Fatalf("width %d rule %q: rule shown as %q", w, rule, named)
 			}
 		}
+	}
+}
+
+// TestPermissionKeysShowTheLearnedNoteWhenWide: a wide terminal names why
+// r is worth pressing, next to the rule it would save.
+func TestPermissionKeysShowTheLearnedNoteWhenWide(t *testing.T) {
+	h := newHarness(t)
+	h.m.width = 200
+	line := plain(h.m.permissionKeys("bash", "bash(go test *)", "approved 4× before, never refused", false))
+	if !strings.Contains(line, "bash(go test *)") || !strings.Contains(line, "approved 4×") {
+		t.Fatalf("a wide line dropped the learned note:\n%s", line)
+	}
+}
+
+// TestPermissionKeysDropTheLearnedNoteWhenNarrow: the note is the first
+// thing to go once the line no longer fits, before the rule is touched.
+func TestPermissionKeysDropTheLearnedNoteWhenNarrow(t *testing.T) {
+	h := newHarness(t)
+	h.m.width = 60
+	line := plain(h.m.permissionKeys("bash", "bash(go test ./internal/...)", "approved 4× before, never refused", false))
+	if lipgloss.Width(line) > 60-6 {
+		t.Fatalf("narrow line overflowed: %d cols: %q", lipgloss.Width(line), line)
+	}
+	if strings.Contains(line, "approved") {
+		t.Fatalf("a narrow line kept the learned note instead of dropping it first:\n%s", line)
+	}
+	if !strings.Contains(line, "bash(go") {
+		t.Fatalf("the rule itself was dropped before the learned note:\n%s", line)
 	}
 }
 

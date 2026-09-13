@@ -10,6 +10,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/hints"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -211,21 +212,45 @@ func (m *model) observeBang(cmdline string) {
 	m.noteHint(func(s *hints.State) { s.RepeatedBangCommand = cmdline })
 }
 
-// observeDenial records a refusal by the rule shape it would have
-// saved, which is the shape the r key offers.
+// observeDenial reads the refusal count the agent has already recorded
+// in the ledger for shape, the rule shape the r key would have saved.
+// The ledger, not an in-memory count here, is what makes this survive a
+// session that ends and a new one that starts on the same project.
 func (m *model) observeDenial(shape string) {
 	if m.hints == nil || m.hints.Off || shape == "" {
 		return
 	}
-	if m.denials == nil {
-		m.denials = map[string]int{}
+	ag := m.opts.Agent
+	if ag == nil {
+		return
 	}
-	m.denials[shape]++
-	if m.denials[shape] < 3 {
+	tally := ag.Ledger.Get(shape)
+	if tally.Denied < 3 {
 		return
 	}
 	m.noteHint(func(s *hints.State) {
-		s.DeniedShape, s.DeniedCount = shape, m.denials[shape]
+		s.DeniedShape, s.DeniedCount = shape, tally.Denied
+	})
+}
+
+// observeApproval reads the ledger's tally for a shape the user just
+// approved: once it has been allowed perm.LearnAfter times with no
+// refusal, the learned-rule hint offers to save it before the user has
+// to keep answering the same prompt.
+func (m *model) observeApproval(shape string) {
+	if m.hints == nil || m.hints.Off || shape == "" {
+		return
+	}
+	ag := m.opts.Agent
+	if ag == nil {
+		return
+	}
+	tally := ag.Ledger.Get(shape)
+	if tally.Allowed < perm.LearnAfter || tally.Denied != 0 {
+		return
+	}
+	m.noteHint(func(s *hints.State) {
+		s.ApprovedShape, s.ApprovedCount = shape, tally.Allowed
 	})
 }
 

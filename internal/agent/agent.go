@@ -55,6 +55,12 @@ type ToolCall struct {
 	// Intent is the model's own one-line reason for making this call,
 	// when the registry asks for one. Shown to the user as it runs.
 	Intent string
+	// Learned notes that the ledger has seen this call's shape (see
+	// perm.Suggest) approved perm.LearnAfter times with no refusal, e.g.
+	// "approved 4× before, never refused". Set only when the call is
+	// about to ask and nothing else already makes the prompt unusual
+	// (see authorize); a front-end may offer it next to the r key.
+	Learned string
 }
 
 // Approver decides whether a mutating tool call may run. Implementations
@@ -228,6 +234,13 @@ type Agent struct {
 	mutations int
 	// SaveRule, when set, persists a rule the user created with AllowAlways.
 	SaveRule func(perm.Rule) error
+	// Ledger, when set, remembers how permission prompts of each rule
+	// shape have been answered, across sessions, so a call approved
+	// several times running with no refusal can be flagged as learned
+	// (ToolCall.Learned) and offered in /permissions before the user ever
+	// saves a rule for it. Nil is a working default: perm.Ledger's
+	// methods are nil-safe no-ops.
+	Ledger *perm.Ledger
 	// CompactAt is the estimated token count that triggers automatic
 	// compaction before a model call. Zero means DefaultCompactAt; negative
 	// disables it.
@@ -1230,6 +1243,14 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		if a.Approver == nil {
 			return nil, "Permission denied: no approver configured for mutating tools.", nil
 		}
+		// suggested is the rule AllowAlways would save, and its string
+		// form is the shape the ledger tracks approvals and refusals
+		// under (see perm.Suggest): computed once and reused for both.
+		suggested := perm.Suggest(u.Name, subject)
+		shape := suggested.String()
+		if tally := a.Ledger.Get(shape); tally.Allowed >= perm.LearnAfter && tally.Denied == 0 && !mustAsk && call.Warning == "" {
+			call.Learned = fmt.Sprintf("approved %d× before, never refused", tally.Allowed)
+		}
 		var (
 			d      Decision
 			reason string
@@ -1243,6 +1264,11 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		if err != nil {
 			return nil, "", err
 		}
+		// Recorded before the switch below, which returns early for a
+		// denial: the ledger has to see a refusal too, not only the
+		// allow variants.
+		a.stats.approval(d == Deny)
+		a.Ledger.Record(shape, d != Deny)
 		switch d {
 		case AllowSession:
 			if !mustAsk {
@@ -1250,13 +1276,12 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 			}
 		case AllowAlways:
 			if !mustAsk {
-				r := perm.Suggest(u.Name, subject)
-				a.Rules.Add(perm.Allowed, r)
+				a.Rules.Add(perm.Allowed, suggested)
 				if a.SaveRule != nil {
-					if err := a.SaveRule(r); err != nil {
-						emit(Event{Kind: EvNotice, Text: "could not save permission rule " + r.String() + ": " + err.Error()})
+					if err := a.SaveRule(suggested); err != nil {
+						emit(Event{Kind: EvNotice, Text: "could not save permission rule " + suggested.String() + ": " + err.Error()})
 					} else {
-						emit(Event{Kind: EvNotice, Text: "saved permission rule: " + r.String()})
+						emit(Event{Kind: EvNotice, Text: "saved permission rule: " + suggested.String()})
 					}
 				}
 			}

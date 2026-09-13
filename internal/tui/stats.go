@@ -50,6 +50,9 @@ func (m *model) statsCommand() {
 		fmt.Fprintf(&sb, "\nrecovered · %s", strings.Join(saves, " · "))
 	}
 	fmt.Fprintf(&sb, "\ncontext ~%s of %s · %s · %s undoable", textfmt.Tokens(ag.EstimateTokens()), tokensOrUnknown(ag.CompactThreshold()), textfmt.Plural(st.Compactions, "compaction"), textfmt.Plural(len(ag.Checkpoints()), "turn"))
+	if line := st.PromptLine(); line != "" {
+		sb.WriteString("\n" + line)
+	}
 	if m.opts.Jobs != nil {
 		if jobs := m.opts.Jobs.List(); len(jobs) > 0 {
 			running := 0

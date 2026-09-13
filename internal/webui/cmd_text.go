@@ -15,6 +15,7 @@ import (
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -200,6 +201,9 @@ func (s *server) statsText() string {
 	sb.WriteString("tokens " + u.TokenLine() + "\n")
 	if usd, ok := u.Cost(ag.Price); ok {
 		sb.WriteString("cost " + llm.FormatUSD(usd) + "\n")
+	}
+	if line := st.PromptLine(); line != "" {
+		sb.WriteString(line + "\n")
 	}
 	for _, t := range st.Tools {
 		fmt.Fprintf(&sb, "  %-16s %d calls", t.Name, t.Calls)
@@ -387,17 +391,22 @@ func (s *server) permissionsText() string {
 		sb.WriteString("plan mode\n")
 	}
 	rs := ag.Rules
-	if len(rs.Allow) == 0 && len(rs.Deny) == 0 {
-		if sb.Len() == 0 {
-			return "no saved rules · y/a/r at a prompt"
+	switch {
+	case len(rs.Allow) == 0 && len(rs.Deny) == 0 && sb.Len() == 0:
+		sb.WriteString("no saved rules · y/a/r at a prompt\n")
+	default:
+		for _, r := range rs.Deny {
+			fmt.Fprintf(&sb, "deny  %s\n", r.String())
 		}
-		return sb.String()
+		for _, r := range rs.Allow {
+			fmt.Fprintf(&sb, "allow %s\n", r.String())
+		}
 	}
-	for _, r := range rs.Deny {
-		fmt.Fprintf(&sb, "deny  %s\n", r.String())
-	}
-	for _, r := range rs.Allow {
-		fmt.Fprintf(&sb, "allow %s\n", r.String())
+	if lines := perm.CandidateLines(ag.Ledger, ag.Rules); len(lines) > 0 {
+		sb.WriteString("approved often, not saved:\n")
+		for _, l := range lines {
+			fmt.Fprintf(&sb, "  %s\n", l)
+		}
 	}
 	return sb.String()
 }

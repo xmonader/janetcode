@@ -1,9 +1,12 @@
 package agent
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Stats are cumulative counters for the process lifetime. Unlike the
@@ -31,11 +34,27 @@ type Stats struct {
 	// attempts on every call is not the run the timings suggest.
 	Retries int
 	Tools   []ToolStat // sorted by calls, descending
+	// Approvals counts permission prompts actually shown to the user
+	// (mutating calls the rules and the auto modes did not already
+	// settle), and Refusals how many of them were denied. A call
+	// answered by AllowAlways still counts once here; only the rule it
+	// saves keeps the next call like it from prompting again.
+	Approvals int
+	Refusals  int
 }
 
 // Saves is how many times the harness rescued a call that would
 // otherwise have been a wasted turn or a lost run.
 func (s Stats) Saves() int { return s.Recoveries + s.WatchdogKills + s.Fallbacks + s.Retries }
+
+// PromptLine is "asked N times · M refused" for /stats, worded once for
+// both front-ends. Empty until the first prompt has been shown.
+func (s Stats) PromptLine() string {
+	if s.Approvals == 0 {
+		return ""
+	}
+	return fmt.Sprintf("asked %s · %d refused", textfmt.Plural(s.Approvals, "time"), s.Refusals)
+}
 
 // ToolStat is the tally for one tool.
 type ToolStat struct {
@@ -109,6 +128,17 @@ func (c *statsCounter) watchdogKill() {
 func (c *statsCounter) fellBack() {
 	c.mu.Lock()
 	c.s.Fallbacks++
+	c.mu.Unlock()
+}
+
+// approval records one permission prompt that was actually shown, and
+// whether the user refused it.
+func (c *statsCounter) approval(refused bool) {
+	c.mu.Lock()
+	c.s.Approvals++
+	if refused {
+		c.s.Refusals++
+	}
 	c.mu.Unlock()
 }
 

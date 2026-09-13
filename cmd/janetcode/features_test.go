@@ -114,6 +114,7 @@ func TestEveryHintNamesSomethingThatExists(t *testing.T) {
 	states := []*hints.State{
 		{MutatingTurns: 3},
 		{DeniedCount: 3, DeniedShape: "bash(git push *)"},
+		{ApprovedCount: 3, ApprovedShape: "bash(go test *)"},
 		{Promotable: true, SlowCommandSeconds: 42},
 		{ContextPct: 70, Spent: true, CostKnown: true},
 		{PasteLines: 80},

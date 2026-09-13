@@ -277,6 +277,16 @@ after `/permissions trust`. Headless runs take `--allow` and `--deny`
 with comma-separated rules, and a `pre_tool` hook can answer
 `{"decision":"allow"}` to approve a call itself.
 
+janetcode also remembers, per project and across sessions, how you
+answered every permission prompt — a ledger under `"permissions"` in the
+config directory, keyed the same way memory and hints are, never in the
+project itself. It never saves a rule on its own: once a call's shape has
+been approved three times running with no refusal, the prompt itself
+notes it ("approved 4× before, never refused" next to the rule the `r`
+key would save), a one-time hint may mention it, and `/permissions` lists
+it under "approved often, not saved" with the `/permissions allow <rule>`
+that would save it. Saving still takes the `r` key or that command.
+
 ### Memory
 
 janetcode remembers across sessions. Each entry is a small markdown file

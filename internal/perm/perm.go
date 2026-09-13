@@ -110,6 +110,16 @@ func (rs *Rules) Add(v Verdict, r Rule) bool {
 	return true
 }
 
+// hasAllow reports whether an equal rule is already saved as an allow.
+func (rs Rules) hasAllow(r Rule) bool {
+	for _, e := range rs.Allow {
+		if e == r {
+			return true
+		}
+	}
+	return false
+}
+
 // Merge returns the union of both sets, a's rules first.
 func Merge(a, b Rules) Rules {
 	out := Rules{}

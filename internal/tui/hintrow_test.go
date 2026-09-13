@@ -12,6 +12,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/hints"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -48,16 +49,22 @@ func TestAnUnrelatedShellCommandIsNotATestCommand(t *testing.T) {
 	}
 }
 
+// observeDenial reads its count from the agent's ledger rather than
+// counting in the TUI itself, so a test drives it by recording into the
+// ledger the way the agent's authorize path does, then calling
+// observeDenial the way answer() does.
 func TestThreeRefusalsOfTheSameShapeOfferADenyRule(t *testing.T) {
 	h := newHarness(t)
 	withHints(h)
-	h.m.hintState.VerifyConfigured = true
+	h.m.opts.Agent.Ledger = perm.OpenLedger(t.TempDir(), "proj")
 	for i := 0; i < 2; i++ {
+		h.m.opts.Agent.Ledger.Record("bash(git push *)", false)
 		h.m.observeDenial("bash(git push *)")
 	}
 	if strings.Contains(plain(h.m.View()), "/permissions deny") {
 		t.Fatal("hinted before the third refusal")
 	}
+	h.m.opts.Agent.Ledger.Record("bash(git push *)", false)
 	h.m.observeDenial("bash(git push *)")
 	v := plain(h.m.View())
 	// A refusal must never be answered with the key that allows it for
@@ -71,12 +78,63 @@ func TestThreeRefusalsOfTheSameShapeOfferADenyRule(t *testing.T) {
 	// Different shapes are counted apart.
 	h2 := newHarness(t)
 	withHints(h2)
-	h2.m.hintState.VerifyConfigured = true
-	h2.m.observeDenial("bash(rm *)")
-	h2.m.observeDenial("bash(curl *)")
-	h2.m.observeDenial("edit_file")
+	h2.m.opts.Agent.Ledger = perm.OpenLedger(t.TempDir(), "proj")
+	for _, shape := range []string{"bash(rm *)", "bash(curl *)", "edit_file"} {
+		h2.m.opts.Agent.Ledger.Record(shape, false)
+		h2.m.observeDenial(shape)
+	}
 	if v := plain(h2.m.View()); strings.Contains(v, "/permissions deny") {
 		t.Fatalf("three different shapes were counted as one:\n%s", v)
+	}
+}
+
+// TestNoLedgerObserveDenialIsANoOp: without a ledger wired (an agent
+// built before this feature, or a test harness that never sets one),
+// observeDenial has nothing to read and must not panic.
+func TestNoLedgerObserveDenialIsANoOp(t *testing.T) {
+	h := newHarness(t)
+	withHints(h)
+	h.m.observeDenial("bash(git push *)")
+	if v := plain(h.m.View()); strings.Contains(v, "/permissions deny") {
+		t.Fatalf("a nil ledger somehow offered a deny rule:\n%s", v)
+	}
+}
+
+// TestApprovedThreeTimesOffersTheLearnedRule: once the ledger has seen a
+// shape approved perm.LearnAfter times with no refusal, the next approval
+// of it (as answer() would drive) offers saving it as a rule.
+func TestApprovedThreeTimesOffersTheLearnedRule(t *testing.T) {
+	h := newHarness(t)
+	withHints(h)
+	h.m.opts.Agent.Ledger = perm.OpenLedger(t.TempDir(), "proj")
+	for i := 0; i < perm.LearnAfter-1; i++ {
+		h.m.opts.Agent.Ledger.Record("bash(go test *)", true)
+		h.m.observeApproval("bash(go test *)")
+	}
+	if strings.Contains(plain(h.m.View()), "/permissions allow") {
+		t.Fatal("hinted before the learn threshold")
+	}
+	h.m.opts.Agent.Ledger.Record("bash(go test *)", true)
+	h.m.observeApproval("bash(go test *)")
+	v := plain(h.m.View())
+	if !strings.Contains(v, "bash(go test *)") || !strings.Contains(v, "/permissions allow") {
+		t.Fatalf("the learn threshold did not offer a rule:\n%s", v)
+	}
+}
+
+// TestARefusalStopsTheLearnedRuleFromFiring: a shape refused even once
+// is never offered as a candidate, whatever it was approved before.
+func TestARefusalStopsTheLearnedRuleFromFiring(t *testing.T) {
+	h := newHarness(t)
+	withHints(h)
+	h.m.opts.Agent.Ledger = perm.OpenLedger(t.TempDir(), "proj")
+	for i := 0; i < perm.LearnAfter; i++ {
+		h.m.opts.Agent.Ledger.Record("bash(go test *)", true)
+	}
+	h.m.opts.Agent.Ledger.Record("bash(go test *)", false)
+	h.m.observeApproval("bash(go test *)")
+	if v := plain(h.m.View()); strings.Contains(v, "/permissions allow") {
+		t.Fatalf("a refused shape was still offered as a learned rule:\n%s", v)
 	}
 }
 

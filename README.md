@@ -231,7 +231,7 @@ The full manual lives in [`docs/manual/`](docs/manual/README.md):
 
 Features, each a section of the interface page:
 
-- [Permission rules](docs/manual/interface.md#permission-rules) — allow once, for the session, or by a saved rule such as `bash(go test *)`
+- [Permission rules](docs/manual/interface.md#permission-rules) — allow once, for the session, or by a saved rule such as `bash(go test *)`; a per-project ledger notices what you keep approving and proposes saving it, never saving one itself
 - [Memory](docs/manual/interface.md#memory) — facts and preferences kept across sessions, one markdown file each, recalled per turn
 - [Skills](docs/manual/interface.md#skills) — markdown instructions for one kind of task, attached when the prompt matches or run as `/name`
 - [Background jobs](docs/manual/interface.md#background-jobs) — long commands run detached; the model is told when they finish

@@ -69,6 +69,12 @@ func (m *model) permissionsCommand(args []string) {
 	if o != nil && len(o.Project.Allow) > 0 && !o.ProjectTrusted {
 		sb.WriteString(perm.ProjectFile + " has allow rules that are not trusted yet; run /permissions trust to enable them\n")
 	}
+	if lines := perm.CandidateLines(ag.Ledger, ag.Rules); len(lines) > 0 {
+		sb.WriteString("approved often, not saved:\n")
+		for _, l := range lines {
+			sb.WriteString("  " + l + "\n")
+		}
+	}
 	sb.WriteString("/permissions allow bash(go test *) adds a rule (deny likewise); press r at a prompt to save one for that call")
 	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 }
@@ -114,10 +120,14 @@ func (m *model) answer(d agent.Decision, reason string) {
 	m.pendingClosedAt = time.Now()
 	m.denying = false
 	m.setPhase("thinking")
-	if d == agent.Deny {
-		// Counted by the rule the r key would have saved, because that is
-		// what the hint is going to offer.
-		m.observeDenial(perm.Suggest(call.Name, perm.Subject(call.Name, call.Input)).String())
+	// Named by the rule the r key would save, because that is the shape
+	// both hints below are about.
+	shape := perm.Suggest(call.Name, perm.Subject(call.Name, call.Input)).String()
+	switch d {
+	case agent.Deny:
+		m.observeDenial(shape)
+	case agent.Allow:
+		m.observeApproval(shape)
 	}
 	m.refresh(false)
 }
@@ -127,11 +137,20 @@ func (m *model) answer(d agent.Decision, reason string) {
 // layout, so a wrapped key line would run over the input. expandable says
 // whether there is more of the call to see: without that, the line used to
 // offer ctrl+o even for a two-line diff that was already shown whole.
-func (m *model) permissionKeys(tool, rule string, expandable bool) string {
-	return m.formatPermissionKeys(tool, rule, expandable, true)
+func (m *model) permissionKeys(tool, rule, learned string, expandable bool) string {
+	return m.formatPermissionKeys(tool, rule, learned, expandable, true)
 }
 
-func (m *model) formatPermissionKeys(tool, rule string, expandable, color bool) string {
+// learnedHeadline shortens the ledger's note ("approved 4× before, never
+// refused") to what fits on the key line: the count.
+func learnedHeadline(s string) string {
+	if i := strings.Index(s, ","); i >= 0 {
+		s = s[:i]
+	}
+	return strings.TrimSuffix(s, " before")
+}
+
+func (m *model) formatPermissionKeys(tool, rule, learned string, expandable, color bool) string {
 	type seg struct{ key, text string }
 	// Box width minus its border and padding, with two columns to spare
 	// so a line measured at the limit never wraps inside the box.
@@ -160,7 +179,15 @@ func (m *model) formatPermissionKeys(tool, rule string, expandable, color bool) 
 		}
 		return out, lipgloss.Width(plain.String())
 	}
-	long := []seg{{"y", " allow once"}, {"a", " always for " + tool + " this session"}, {"r", " save rule " + rule}, {"n", " deny (and say why)"}, {"c", " cancel the turn"}}
+	// The learned note rides along with the rule in the two widest
+	// layouts and is the first thing dropped when narrowing: it explains
+	// why r is worth pressing, but the rule itself is what makes the key
+	// useful at all.
+	note := ""
+	if learned != "" {
+		note = " · " + learnedHeadline(learned)
+	}
+	long := []seg{{"y", " allow once"}, {"a", " always for " + tool + " this session"}, {"r", " save rule " + rule + note}, {"n", " deny (and say why)"}, {"c", " cancel the turn"}}
 	if expandable {
 		long = append(long, seg{"", "(ctrl+o expands)"})
 	}
@@ -176,7 +203,7 @@ func (m *model) formatPermissionKeys(tool, rule string, expandable, color bool) 
 	// "r rule" with no rule at all, which is the one wording that makes
 	// the key useless.
 	rule = shortenPaths(m.opts.Cwd, rule)
-	medium := []seg{{"y", " once"}, {"a", " always for " + tool}, {"r", " rule " + rule}, {"n", " deny"}, {"c", " cancel"}}
+	medium := []seg{{"y", " once"}, {"a", " always for " + tool}, {"r", " rule " + rule + note}, {"n", " deny"}, {"c", " cancel"}}
 	if s, w := render(medium, " · "); w <= room {
 		return s
 	}
@@ -231,5 +258,5 @@ func (m *model) permissionView() string {
 	if m.pending == nil {
 		return ""
 	}
-	return m.permissionNotice() + "\n" + m.permissionKeys(m.pending.call.Name, m.suggestedRule(m.pending.call.Name, m.pending.call.Input), pendingExpandable(m.pending.call))
+	return m.permissionNotice() + "\n" + m.permissionKeys(m.pending.call.Name, m.suggestedRule(m.pending.call.Name, m.pending.call.Input), m.pending.call.Learned, pendingExpandable(m.pending.call))
 }

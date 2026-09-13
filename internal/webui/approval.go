@@ -196,5 +196,6 @@ func (s *server) permOf(c agent.ToolCall) permPayload {
 		Preview: c.Preview,
 		Warning: c.Warning,
 		Rule:    rule,
+		Learned: c.Learned,
 	}
 }

@@ -530,6 +530,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	ag.Rules = rules
 	ag.SaveRule = func(r perm.Rule) error { return config.AddPermission(cfgPath, "allow", r) }
+	// The ledger is keyed like the hint store below: per project, in the
+	// config directory, never in the project itself.
+	ag.Ledger = perm.OpenLedger(cfgDir, memory.Key(cwd))
 	projectTrusted := len(projectServers) > 0 && trust.Trusted(cwd, projectHash)
 
 	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {
