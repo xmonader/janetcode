@@ -79,17 +79,23 @@ type Event struct {
 	Name      string       `json:"name,omitempty"`
 	Arguments string       `json:"arguments,omitempty"`
 	// Intent is the model's own one-line reason for a tool call.
-	Intent     string          `json:"intent,omitempty"`
-	Output     string          `json:"output,omitempty"`
-	IsError    bool            `json:"is_error,omitempty"`
-	DurationMs int64           `json:"duration_ms,omitempty"`
-	Reason     string          `json:"reason,omitempty"`
-	Active     *bool           `json:"active,omitempty"`
-	Source     string          `json:"source,omitempty"`
-	TTFTMs     int64           `json:"ttft_ms,omitempty"`
-	DecodeMs   int64           `json:"decode_ms,omitempty"`
-	Tokens     int             `json:"tokens,omitempty"`
-	Extra      json.RawMessage `json:"extra,omitempty"`
+	Intent     string `json:"intent,omitempty"`
+	Output     string `json:"output,omitempty"`
+	IsError    bool   `json:"is_error,omitempty"`
+	DurationMs int64  `json:"duration_ms,omitempty"`
+	Reason     string `json:"reason,omitempty"`
+	Active     *bool  `json:"active,omitempty"`
+	Source     string `json:"source,omitempty"`
+	TTFTMs     int64  `json:"ttft_ms,omitempty"`
+	DecodeMs   int64  `json:"decode_ms,omitempty"`
+	Tokens     int    `json:"tokens,omitempty"`
+	// Model is the model that actually answered a TypeAssistant event's
+	// call: Agent.Model on an ordinary step, a fallback's model after a
+	// failure, or the experimental step router's RouteCheap (see
+	// internal/agent/steproute.go) when the step was routed there. Empty
+	// on every event that is not one model call.
+	Model string          `json:"model,omitempty"`
+	Extra json.RawMessage `json:"extra,omitempty"`
 }
 
 // live returns the indexes of the surface events that still reach the

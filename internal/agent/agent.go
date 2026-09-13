@@ -170,6 +170,19 @@ type Agent struct {
 	turnStart time.Time
 	warned    bool
 	lastScore float64
+	// stepRoute is the turn-scoped state the step-routing policy (see
+	// steproute.go) reads and updates: whether anything in this turn
+	// already means the rest of it must stay on Model, and whether the
+	// step just finished was a clean, mechanical batch worth trusting
+	// the next call to RouteCheap.
+	stepRoute stepRoute
+	// routeCheapState caches the one-time resolution of RouteCheap to a
+	// provider (see resolveRouteCheap): whether it has been attempted,
+	// whether it failed (routing is then off for the rest of the
+	// session and the one notice already fired), and, on success, the
+	// provider, its resolved model name, and whether that provider is
+	// the one Model already runs on.
+	routeCheapState routeCheapState
 
 	Provider llm.Provider
 	Tools    *tool.Registry
@@ -238,6 +251,16 @@ type Agent struct {
 	// it, so a fallback can be on a different backend. Without it a
 	// fallback is sent to the provider already in use.
 	Route func(model string) (llm.Provider, string, error)
+	// RouteCheap is the model mechanical steps of a turn are sent to
+	// instead of Model -- reads, listings, greps and checks that already
+	// passed -- while planning, edits and anything that goes wrong stay
+	// on Model. Empty (the default) is off: this is experimental, and
+	// stays off by default until an eval run justifies turning it on
+	// (see docs/manual/evals.md, "Measuring step routing"). Resolved
+	// through Route at call time, the same way a Fallback is; when it
+	// cannot be routed, routing is off for the session and one notice
+	// says so. See steproute.go for the policy.
+	RouteCheap string
 	// Pins are user notes kept in the system prompt across compaction.
 	Pins []string
 	// Jobs, when set, is polled before each model call so finished
@@ -390,6 +413,11 @@ type Agent struct {
 	// so EstimateTokens only has to guess about what came after.
 	lastInputTokens int
 	lastInputMsgs   int
+	// lastCallModel is the model that answered the most recent call --
+	// Model on an ordinary step, a fallback's model, or RouteCheap when
+	// the step router sent it there -- so the assistant event logged for
+	// it can say which (see session.Event.Model).
+	lastCallModel string
 
 	// Estimated size of the tool definitions and the registry version it
 	// was measured at; see toolTokens.
@@ -472,6 +500,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}()
 	a.loops.reset()
 	a.turnStart, a.warned = time.Now(), false
+	a.stepRoute = stepRoute{}
 	a.integ.userText = ""
 	for _, b := range blocks {
 		if b.Type == llm.BlockText && b.Text != "" {
@@ -537,7 +566,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		a.addUsage(resp.Usage)
 		msg := resp.Message
 		u := resp.Usage
-		a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &msg, Usage: &u})
+		a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &msg, Usage: &u, Model: a.lastCallModel})
 		emit(Event{Kind: EvTextBlockDone})
 		// The ceiling is asked about here, while the call just paid for
 		// is in the totals and before its tools are run.
@@ -560,6 +589,9 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 				return ErrStuck
 			}
 			repeatNote = note
+			if note != "" {
+				a.stepRoute.taint("a loop nudge fired this turn")
+			}
 		}
 
 		// A response cut off at the output limit may have had its tool
@@ -582,10 +614,15 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 				a.Messages = append(a.Messages, tr)
 				a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &tr})
 				a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
+				a.stepRoute.prevMechanical = false
 				continue
 			}
 		}
 		if resp.StopReason != llm.StopToolUse {
+			// The model ended its turn instead of making tool calls: not
+			// the mechanical streak the router looks for, whatever sends
+			// it back for another call below.
+			a.stepRoute.prevMechanical = false
 			if more := a.faultNeeds(resp.Message.Text(), &needs, emit); more {
 				continue
 			}
@@ -596,9 +633,11 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 				continue
 			}
 			if more := !a.Off["verify"] && a.verifyGate(ctx, &gate, emit); more {
+				a.stepRoute.taint("a verification check failed and was sent back")
 				continue
 			}
 			if more := a.acceptVerifyGate(ctx, &acceptGate, emit); more {
+				a.stepRoute.taint("an acceptance check failed and was sent back")
 				continue
 			}
 			// What the turn actually demonstrated, decided from what the
@@ -636,6 +675,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			}
 		}
 		results, err := a.executeAll(ctx, uses, emit)
+		a.stepRoute.prevMechanical = allMechanicalStep(uses, results)
 		if repeatNote != "" && len(results) > 0 {
 			results[len(results)-1].Text += repeatNote
 			emit(Event{Kind: EvNotice, Text: strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(repeatNote), "[harness]"))})
@@ -796,10 +836,25 @@ func serialize(emit func(Event)) func(Event) {
 	}
 }
 
-// call sends the conversation to the session's model, falling back to the
-// configured alternatives when the failure is one another model could
-// survive (see fallback).
+// call sends the conversation to the session's model, or, when the
+// step-routing policy allows it, to RouteCheap instead (see steproute.go).
+// A routed call that fails outright falls back to Model for this one call
+// rather than being treated as a policy question; Model's own failures
+// still fall back to the configured alternatives when the failure is one
+// another model could survive (see fallback).
 func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, error) {
+	if prov, model, ok := a.routeStep(emit); ok {
+		resp, err := a.callOn(ctx, prov, model, emit)
+		if err == nil {
+			a.stats.routed()
+			return resp, nil
+		}
+		if ctx.Err() != nil {
+			return nil, err
+		}
+		emit(Event{Kind: EvNotice, Text: "routed call to " + model + " failed (" + textfmt.FirstLine(err.Error(), 70) + "); this step goes to " + a.Model})
+		a.stepRoute.taint("a routed call failed")
+	}
 	resp, err := a.callOn(ctx, a.Provider, a.Model, emit)
 	if err == nil {
 		return resp, nil
@@ -827,7 +882,14 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, emi
 		}
 		forward(e, emit)
 	})
-	a.stats.model(time.Since(start), err != nil)
+	var u llm.Usage
+	if resp != nil {
+		u = resp.Usage
+	}
+	a.stats.model(model, time.Since(start), u, err != nil)
+	if err == nil {
+		a.lastCallModel = model
+	}
 	if errors.Is(err, llm.ErrStreamWatchdog) {
 		a.stats.watchdogKill()
 	}
@@ -1061,6 +1123,12 @@ func ApplyConfig(cfg *config.Config, a *Agent, path, key, val string) (any, erro
 		a.Model = cfg.Model
 	case "proof_notes":
 		a.ProofNotes = cfg.ProofNotesEnabled()
+	case "route_cheap":
+		a.RouteCheap = cfg.RouteCheap
+		// A value changed mid-session invalidates whatever resolveRouteCheap
+		// cached (a stale provider, or a stale "cannot be routed" notice
+		// that no longer applies).
+		a.routeCheapState = routeCheapState{}
 	}
 	return applied, nil
 }
@@ -1109,6 +1177,11 @@ func (a *Agent) deliverSteering(emit func(Event)) {
 	if len(notes) == 0 {
 		return
 	}
+	// A note the user typed mid-turn is a decision landing that the
+	// mechanical-streak policy cannot see coming, so the rest of the
+	// turn stays on Model rather than risk a cheap model missing what
+	// changed.
+	a.stepRoute.taint("the user steered this turn")
 	text := strings.Join(notes, "\n\n")
 	a.deliverText(text, false)
 	emit(Event{Kind: EvNotice, Text: "steering the turn: " + strings.SplitN(text, "\n", 2)[0]})

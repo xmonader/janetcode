@@ -186,6 +186,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalRuns     = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips). One run per task is a coin flip: this set swings 21% between identical runs, so a comparison wants 3 or more")
 		evalCompare  = fs.String("eval-compare", "", "results file of a baseline run to compare against (paired by task, bootstrap interval)")
 		evalOff      = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify, repomap, working, plan, critic")
+		evalRoute    = fs.String("eval-route", "", "set route_cheap for this run: send a turn's mechanical steps (reads, greps, checks that already passed) to this model instead of the session's, and record the variant in the results file so a comparison shows what it bought (see docs/manual/evals.md, \"Measuring step routing\")")
 		evalLabel    = fs.String("eval-label", "", "name recorded in the results file for this variant")
 		evalTrain    = fs.String("eval-train", "", "train the trajectory critic from these eval result files (comma-separated files or directories) and exit")
 		evalTimeout  = fs.Duration("eval-timeout", 0, "replace every task's timeout with this wall budget (benchmarks give each harness the same)")
@@ -456,7 +457,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			return err
 		}
 		return runEval(ctx, cfg, prov, evalOptions{path: *evalPath, jobs: *evalJobs, only: *evalOnly, jsonOut: *evalJSON, keep: *evalKeep,
-			runs: *evalRuns, compare: *evalCompare, off: *evalOff, label: *evalLabel, prompt: ov,
+			runs: *evalRuns, compare: *evalCompare, off: *evalOff, route: *evalRoute, label: *evalLabel, prompt: ov,
 			timeout: *evalTimeout, maxTurns: *evalTurns, noToolLimit: *evalNoLimit, compactAt: *evalCompact, facts: *evalFacts, factsBlind: *evalBlind})
 	}
 

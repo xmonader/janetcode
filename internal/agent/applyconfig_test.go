@@ -53,6 +53,10 @@ func TestApplyConfigUpdatesLiveAgent(t *testing.T) {
 			func(a *Agent) { a.ProofNotes = true },
 			func(a *Agent) any { return a.ProofNotes },
 			func(cfg *config.Config) any { return cfg.ProofNotesEnabled() }},
+		{"route_cheap", "haiku",
+			func(a *Agent) { a.RouteCheap = "starting-model"; a.routeCheapState = routeCheapState{resolved: true} },
+			func(a *Agent) any { return a.RouteCheap },
+			func(cfg *config.Config) any { return cfg.RouteCheap }},
 	}
 	// noAgentField are settable keys with nothing cached on Agent for
 	// ApplyConfig to update: each is read straight from *config.Config

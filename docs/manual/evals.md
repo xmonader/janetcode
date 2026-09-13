@@ -233,6 +233,45 @@ JANETCODE_SYSTEM_MD=prompts/terse.md janetcode --eval evals --eval-runs 5 \
 janetcode --eval-report terse.json --eval-compare base.json
 ```
 
+## Measuring step routing
+
+`route_cheap` (see [Configuration](configuration.md)) is an experimental,
+off-by-default setting that sends a turn's mechanical steps to a cheaper
+model. Its value has to come from an eval run, the same way any other
+harness change does — not from turning it on and reading a transcript —
+so `EVAL_ROUTE=<model>` (`--eval-route <model>` directly) sets it for a
+run and records `route:<model>` as the variant, exactly like `EVAL_OFF`
+records `off:<behaviour>` (both together are recorded, comma-separated,
+when both are set):
+
+```sh
+make eval EVAL_RUNS=3 EVAL_JSON=evals/baseline.json
+EVAL_ROUTE=claude-haiku-4.5 make eval EVAL_RUNS=3 \
+  EVAL_JSON=evals/routed.json EVAL_COMPARE=evals/baseline.json
+```
+
+The comparison this prints is the whole case for the feature: the
+pass-rate delta with its bootstrap interval, and cost per solved task
+with its own paired interval (see "cost per solved task" above — nothing
+new was added for this, the same numbers a prompt or a harness change is
+judged on). What would justify turning `route_cheap` on by default in a
+real project:
+
+- the pass-rate delta's interval does not cross into a regression (the
+  router must not be trading correctness for cost);
+- the cost-per-solved-task ratio's interval is below 1 — a "real saving"
+  in the comparison's own words, not a point estimate inside the noise;
+- the saving survives on the `multistep` set (51–62) specifically, not
+  only on the easy set — a turn with no headroom in it (see "The task
+  sets" above) cannot show whether routing away the wrong step ever costs
+  a task, and multistep tasks are the ones with steps to route in the
+  first place.
+
+A regression here is worth reading closely rather than discarding: the
+router is deliberately simple (no ML, a short list of named rules — see
+`internal/agent/steproute.go`), so a pass-rate drop on a specific task
+usually names the rule that let a step through it should not have.
+
 ## Every eval flag
 
 The environment variables above are what `make eval` sets; each is a flag
@@ -250,6 +289,7 @@ on `janetcode --eval <file-or-directory>` and can be given directly.
 | `--eval-label <text>` | name this variant, so two runs can be told apart in a results file |
 | `--eval-keep` | keep the work directory of every task, to look at one that failed |
 | `--eval-off <behaviour>` | turn one harness behaviour off for the run: an ablation |
+| `--eval-route <model>` | set `route_cheap` for the run (experimental step routing) and record the variant, like `--eval-off` |
 | `--eval-timeout <seconds>` | replace every task's own timeout, so a benchmark gives each harness the same wall budget |
 | `--eval-max-turns <n>` | cap the model calls one task may spend (`--max-turns` is the same cap for a real run) |
 | `--eval-no-tool-limit` | ignore each task's `max_tool_calls`, for comparing against harnesses that enforce no tool budget |

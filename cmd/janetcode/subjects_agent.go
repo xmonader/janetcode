@@ -197,6 +197,9 @@ func statsReport(a *agent.Agent) string {
 		fmt.Fprintf(&b, "recovered: %d tool calls from text the model wrote instead of calling · %d streams ended by the watchdog · %d calls that only worked on a fallback model\n",
 			s.Recoveries, s.WatchdogKills, s.Fallbacks)
 	}
+	if line := s.RouteLine(a.RouteCheap); line != "" {
+		b.WriteString(line + "\n")
+	}
 	if len(s.Tools) > 0 {
 		b.WriteString("\n  tool                calls  errors      time\n")
 		for _, t := range s.Tools {

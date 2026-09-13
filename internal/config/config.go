@@ -141,6 +141,19 @@ type Config struct {
 	// nothing when a turn made no commit, so unlike Intent there is no
 	// per-request budget to weigh it against.
 	ProofNotes *bool `json:"proof_notes,omitempty"`
+	// RouteCheap is an experimental, off-by-default model name: when set,
+	// a turn's mechanical steps (reads, listings, greps, a check that
+	// already passed) are sent to it instead of Model, which stays on
+	// planning, edits and anything that goes wrong (see
+	// internal/agent/steproute.go for the exact policy). It is resolved
+	// through the same routing RouteFor gives a fallback; a name nothing
+	// can route turns the feature off for the session with one notice.
+	// Switching models mid-turn breaks the provider's prompt cache (see
+	// internal/agent/cachestat.go), so this is a bet that the tokens
+	// saved by a cheaper model outweigh a cache miss on the switch — it
+	// is off by default until an eval run says that bet pays off; see
+	// docs/manual/evals.md, "Measuring step routing".
+	RouteCheap string `json:"route_cheap,omitempty"`
 }
 
 // StreamLimits are the watchdog bounds for one streamed model call.

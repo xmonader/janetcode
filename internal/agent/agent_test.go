@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -20,12 +21,22 @@ import (
 // fake is a scripted provider. Each Stream call pops the next response and
 // records the request it saw.
 type fake struct {
+	// name is what Name() reports; "" defaults to "fake", so existing
+	// callers that never set it are unaffected. Tests that need two
+	// providers to be told apart (the step router's same-provider cache
+	// rule, in steproute_test.go) set it explicitly.
+	name      string
 	responses []*llm.Response
 	errs      []error
 	requests  []llm.Request
 }
 
-func (f *fake) Name() string { return "fake" }
+func (f *fake) Name() string {
+	if f.name != "" {
+		return f.name
+	}
+	return "fake"
+}
 func (f *fake) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
 	if emit == nil {
 		emit = func(llm.Event) {}
@@ -925,5 +936,84 @@ func TestSteerAfterTheLastCallSaysSo(t *testing.T) {
 	defer a.steerMu.Unlock()
 	if len(a.steer) != 1 {
 		t.Fatalf("steer = %v", a.steer)
+	}
+}
+
+// TestStepRoutingSendsMechanicalStepsToTheCheapModel runs a whole turn
+// across two fake providers and checks which calls actually went where:
+// the first call always on Model, a clean read routed to RouteCheap, a
+// routed call that fails outright answered by Model instead (not by the
+// fallback chain), and every call after that failure back on Model for
+// the rest of the turn even though the step right after it is clean and
+// mechanical again.
+func TestStepRoutingSendsMechanicalStepsToTheCheapModel(t *testing.T) {
+	main := &fake{responses: []*llm.Response{
+		toolCall("t1", "read_file", `{"path":"a.txt"}`), // step 1: always Model
+		toolCall("t3", "read_file", `{"path":"a.txt"}`), // step 3: the routed call failed, Model answers this one
+		text("done"), // step 4: tainted, stays on Model
+	}}
+	cheap := &fake{name: "cheap-provider", responses: []*llm.Response{
+		toolCall("t2", "read_file", `{"path":"a.txt"}`), // step 2: a clean mechanical streak routes here
+	}, errs: []error{nil, errors.New("cheap provider had a bad day")}}
+	a, _ := newAgent(t, main, nil)
+	a.RouteCheap = "cheap-model"
+	a.Route = func(model string) (llm.Provider, string, error) { return cheap, model, nil }
+	a.AutoApprove = true
+	mem := &session.Memory{}
+	a.Log = mem
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "read the file three times", emit); err != nil {
+		t.Fatal(err)
+	}
+	if len(main.requests) != 3 {
+		t.Fatalf("main saw %d requests, want 3 (first call, the routed call's failure, and the rest of the tainted turn)", len(main.requests))
+	}
+	if len(cheap.requests) != 2 {
+		t.Fatalf("cheap saw %d requests, want 2 (the routed call, and the one that failed)", len(cheap.requests))
+	}
+	for i, req := range main.requests {
+		// newAgent's Model is "m"; every request on main must carry it.
+		if req.Model != "m" {
+			t.Errorf("main.requests[%d].Model = %q, want %q", i, req.Model, "m")
+		}
+	}
+	for i, req := range cheap.requests {
+		if req.Model != "cheap-model" {
+			t.Errorf("cheap.requests[%d].Model = %q, want %q", i, req.Model, "cheap-model")
+		}
+	}
+	// The stats say the same story: one call actually landed on the
+	// cheap model, out of five total (the failed routed attempt and its
+	// fallback both count, the way a fallback to another provider always
+	// has).
+	st := a.Stats()
+	if st.ModelCalls != 5 {
+		t.Fatalf("ModelCalls = %d, want 5", st.ModelCalls)
+	}
+	if st.RoutedCalls != 1 {
+		t.Fatalf("RoutedCalls = %d, want 1", st.RoutedCalls)
+	}
+	if line := st.RouteLine("cheap-model"); line != "routed 1 of 5 model calls to cheap-model" {
+		t.Fatalf("RouteLine = %q", line)
+	}
+	// The session log's assistant events say which model answered each
+	// one -- step 2 says "cheap-model", every other step says "m".
+	var loggedModels []string
+	for _, e := range mem.Events() {
+		if e.Type == session.TypeAssistant {
+			loggedModels = append(loggedModels, e.Model)
+		}
+	}
+	if want := []string{"m", "cheap-model", "m", "m"}; !reflect.DeepEqual(loggedModels, want) {
+		t.Fatalf("logged assistant models = %v, want %v", loggedModels, want)
+	}
+	var sawFailureNotice bool
+	for _, e := range *evs {
+		if e.Kind == EvNotice && strings.Contains(e.Text, "routed call to cheap-model failed") {
+			sawFailureNotice = true
+		}
+	}
+	if !sawFailureNotice {
+		t.Fatal("nothing said the routed call failed and fell back to Model")
 	}
 }

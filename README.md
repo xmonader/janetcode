@@ -150,6 +150,11 @@ tool calls per tool with failures, tokens, cache hit rate and cost.
 All paths are confined to the working directory, symlinks included.
 Read-only tools run concurrently; mutating tools run one at a time, in order.
 
+**Experimental:** `route_cheap` (off by default) sends a turn's mechanical
+steps — reads, greps, a check that already passed — to a cheaper model
+while planning and edits stay on yours; see [Configuration](docs/manual/configuration.md#step-routing-experimental)
+and "Measuring step routing" in [Evals](docs/manual/evals.md) before turning it on.
+
 ## Using it
 
 The transcript streams the model's markdown as it arrives, shows each tool

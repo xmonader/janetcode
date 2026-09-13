@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -41,6 +42,37 @@ type Stats struct {
 	// saves keeps the next call like it from prompting again.
 	Approvals int
 	Refusals  int
+	// Models is the per-model breakdown of every call this session made:
+	// how many, their tokens and how many failed. A session that never
+	// routes or falls back has exactly one entry; RouteCheap and
+	// Fallbacks are the two ways a second one appears.
+	Models []ModelStat
+	// RoutedCalls counts model calls the experimental step router (see
+	// steproute.go) sent to RouteCheap instead of Model, so /stats can
+	// report "routed N of M model calls to <cheap>" — the number the
+	// feature has to earn its keep against, not a guess.
+	RoutedCalls int
+}
+
+// ModelStat is the tally for one model actually used in this session.
+type ModelStat struct {
+	Name   string
+	Calls  int
+	Errors int
+	Time   time.Duration
+	Usage  llm.Usage
+}
+
+// RouteLine is "routed N of M model calls to <cheap>", worded once so
+// both front-ends' /stats say the same thing (see PromptLine). Empty when
+// nothing was ever routed: route_cheap is off, the policy was never
+// eligible this session, or every routed call failed and fell back to
+// the main model before it could count.
+func (s Stats) RouteLine(cheap string) string {
+	if cheap == "" || s.RoutedCalls == 0 {
+		return ""
+	}
+	return fmt.Sprintf("routed %d of %s to %s", s.RoutedCalls, textfmt.Plural(s.ModelCalls, "model call"), cheap)
 }
 
 // Saves is how many times the harness rescued a call that would
@@ -74,9 +106,10 @@ func (s Stats) ToolCalls() (calls, errors int) {
 }
 
 type statsCounter struct {
-	mu    sync.Mutex
-	s     Stats
-	tools map[string]*ToolStat
+	mu     sync.Mutex
+	s      Stats
+	tools  map[string]*ToolStat
+	models map[string]*ModelStat
 }
 
 func (c *statsCounter) turn() {
@@ -85,13 +118,40 @@ func (c *statsCounter) turn() {
 	c.mu.Unlock()
 }
 
-func (c *statsCounter) model(d time.Duration, failed bool) {
+// model records one call to the provider: name is the model that
+// actually answered it (Model, a fallback, or RouteCheap), so the
+// per-model breakdown reflects where the calls really went rather than
+// only the session's nominal model.
+func (c *statsCounter) model(name string, d time.Duration, u llm.Usage, failed bool) {
 	c.mu.Lock()
 	c.s.ModelCalls++
 	c.s.ModelTime += d
 	if failed {
 		c.s.ModelErrors++
 	}
+	if c.models == nil {
+		c.models = map[string]*ModelStat{}
+	}
+	m := c.models[name]
+	if m == nil {
+		m = &ModelStat{Name: name}
+		c.models[name] = m
+	}
+	m.Calls++
+	m.Time += d
+	if failed {
+		m.Errors++
+	} else {
+		m.Usage.Add(u)
+	}
+	c.mu.Unlock()
+}
+
+// routed records one model call the step router sent to RouteCheap
+// instead of Model.
+func (c *statsCounter) routed() {
+	c.mu.Lock()
+	c.s.RoutedCalls++
 	c.mu.Unlock()
 }
 
@@ -174,6 +234,16 @@ func (a *Agent) Stats() Stats {
 			return s.Tools[i].Calls > s.Tools[j].Calls
 		}
 		return s.Tools[i].Name < s.Tools[j].Name
+	})
+	s.Models = make([]ModelStat, 0, len(a.stats.models))
+	for _, m := range a.stats.models {
+		s.Models = append(s.Models, *m)
+	}
+	sort.Slice(s.Models, func(i, j int) bool {
+		if s.Models[i].Calls != s.Models[j].Calls {
+			return s.Models[i].Calls > s.Models[j].Calls
+		}
+		return s.Models[i].Name < s.Models[j].Name
 	})
 	return s
 }

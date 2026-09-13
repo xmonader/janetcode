@@ -57,6 +57,7 @@ var flagWhen = map[string]string{
 	"eval-runs":            "one run per task is a coin flip; a comparison wants three or more",
 	"eval-compare":         "deciding whether a change actually helped",
 	"eval-off":             "an ablation: what does this behaviour buy",
+	"eval-route":           "measuring whether the experimental step router (route_cheap) is worth turning on",
 	"eval-label":           "telling two variants apart in a results file",
 	"eval-train":           "the trajectory critic has runs to learn from",
 	"eval-timeout":         "giving every harness in a benchmark the same wall budget",
@@ -128,6 +129,7 @@ var configWhen = map[string][2]string{
 	"memory":              {"extract project memory automatically after turns that changed something", "you would rather decide yourself what is remembered (/remember always works)"},
 	"hints":               {"one-time hints about features you have not used", "you know the harness and want the transcript quiet"},
 	"proof_notes":         {"attach evidence of this session's changes to a commit it makes, as a git note", "you review commits without the session that made them, or want the write skipped"},
+	"route_cheap":         {"experimental: send a turn's mechanical steps (reads, greps, checks that already passed) to this model instead", "an eval run showed it saves cost without moving the pass rate; empty is off"},
 }
 
 // harnessFeatures are the things janetcode does without being asked.

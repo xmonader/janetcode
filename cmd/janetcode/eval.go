@@ -37,19 +37,40 @@ func promptRecord(o prompt.Override) *eval.PromptRecord {
 }
 
 type evalOptions struct {
-	path, only, jsonOut string
-	jobs, runs          int
-	keep                bool
-	timeout             time.Duration
-	maxTurns            int
-	noToolLimit         bool
-	compactAt           int
-	facts               int
-	factsBlind          bool
-	compare, off, label string
+	path, only, jsonOut        string
+	jobs, runs                 int
+	keep                       bool
+	timeout                    time.Duration
+	maxTurns                   int
+	noToolLimit                bool
+	compactAt                  int
+	facts                      int
+	factsBlind                 bool
+	compare, off, route, label string
 	// prompt records a replaced or extended system prompt, so an A/B of
 	// the prompt itself can be told apart in the results file.
 	prompt prompt.Override
+}
+
+// evalVariant is the label a results file records for a run: --eval-label
+// when given, otherwise "off:<behaviour>" and/or "route:<model>" for
+// whichever of --eval-off / --eval-route (EVAL_OFF / EVAL_ROUTE) were set
+// — comma-separated when both were, so a run that both ablates something
+// and routes can still be told apart from one that only did either. This
+// is the naming EVAL_OFF has always used, extended to cover EVAL_ROUTE
+// the same way (see docs/manual/evals.md, "Measuring step routing").
+func evalVariant(label, off, route string) string {
+	if label != "" {
+		return label
+	}
+	var parts []string
+	if strings.TrimSpace(off) != "" {
+		parts = append(parts, "off:"+off)
+	}
+	if route != "" {
+		parts = append(parts, "route:"+route)
+	}
+	return strings.Join(parts, ",")
 }
 
 // runEval runs the eval tasks with fresh, minimal agents (core tools, no
@@ -74,10 +95,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			off[f] = true
 		}
 	}
-	variant := o.label
-	if variant == "" && len(off) > 0 {
-		variant = "off:" + o.off
-	}
+	variant := evalVariant(o.label, o.off, o.route)
 	var baseline *eval.File
 	if o.compare != "" {
 		f, err := eval.ReadFile(o.compare)
@@ -110,6 +128,12 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	if !o.keep {
 		defer os.RemoveAll(archiveDir)
 	}
+	// A pool, not a single provider, because route_cheap (o.route) may
+	// name a model on a different backend than cfg's own; it resolves
+	// through the same config.RouteFor a real session's provider pool
+	// uses (see cmd/janetcode/provider.go), so an eval run measures the
+	// feature exactly as a session would use it.
+	pool := newProviderPool(cfg, prov)
 	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, Timeout: o.timeout, IgnoreToolLimit: o.noToolLimit, Facts: o.facts, FactsBlind: o.factsBlind, NewAgent: func(root string) (*agent.Agent, error) {
 		repo := &repomap.Cache{Root: root}
 		var prep func([]llm.Block) ([]llm.Block, string)
@@ -135,6 +159,8 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			MaxTokens:     cfg.MaxTokens,
 			MaxIterations: maxIter,
 			CompactAt:     compactAt,
+			Route:         pool.For,
+			RouteCheap:    o.route,
 		}
 		expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 		if !off["todo"] {

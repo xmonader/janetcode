@@ -121,6 +121,49 @@ session's model (`/model` switches back).
 { "model": "qwen3.7-plus", "fallback_models": ["glm-5", "claude-opus-5"] }
 ```
 
+### Step routing (experimental)
+
+`route_cheap` is a model name; empty (the default) is off. When set, a
+turn's mechanical steps — reading a file, listing a directory, grep, a
+check command that already passed — are sent to it instead of the
+session's model, which stays on the first call of every turn, on
+planning and edits, and on anything that goes wrong. It is resolved the
+same way `fallback_models` is, so it may live on a different provider;
+a name nothing can route turns the feature off for the session with one
+notice rather than failing every call.
+
+```json
+{ "model": "claude-opus-5", "route_cheap": "claude-haiku-4.5" }
+```
+
+The policy is deliberately not learned — see
+`internal/agent/steproute.go` for the exact rules — but the short form is:
+a step routes only when it is not the turn's first call, the step right
+before it was a clean batch of nothing but reads and passing checks, and
+nothing has yet happened this turn that means "pay attention" (a
+verification or acceptance check failing, the trajectory critic warning,
+a loop nudge, or a note you typed mid-turn). Any of those sends the very
+next call back to the session's model and keeps every later call in the
+turn there too.
+
+Switching models mid-turn breaks the provider's prompt cache: the whole
+prefix is billed as fresh input on the call that switches, in either
+direction (see "Prompt-cache accounting" via `/why` or the cache report,
+and `internal/agent/cachestat.go`). So the router only ever switches when
+that cost is small: `route_cheap` is on the same provider as the
+session's model (nothing else about the request changes, and the eventual
+switch back is the same one-time cost), or the conversation so far is
+small enough — under 20,000 estimated tokens — that repricing it from
+cold costs little in absolute terms even across providers. Past that, a
+cross-provider route is skipped for that call.
+
+This is off by default because its value has to come from an eval run,
+not from turning it on and reading the transcript: see "Measuring step
+routing" in [Evals](evals.md) for the exact commands and what result
+would justify leaving it on. `/stats` reports "routed N of M model calls
+to `<cheap>`" once anything has actually routed, and `/config
+route_cheap=` (empty) turns it back off for the running session.
+
 ### Stream watchdog
 
 A streamed model call can stop producing without ever failing: the socket
