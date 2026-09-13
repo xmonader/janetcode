@@ -19,7 +19,6 @@ import (
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/session"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // promptRecord is what goes in the results file about the prompt: which
@@ -130,7 +129,7 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			Log:           &session.Memory{},
 			Archive:       archive,
 			Price:         cfg.PriceFor(cfg.Model),
-			Tools:         evalTools(root, repo, expand, off),
+			Tools:         eval.Tools(root, repo, expand, off),
 			System:        prompt.SystemWith(root, o.prompt),
 			Model:         cfg.Model,
 			MaxTokens:     cfg.MaxTokens,
@@ -217,28 +216,6 @@ var (
 	evalToolNames []string
 	evalToolsOnce sync.Once
 )
-
-// evalTools is the eval agent's registry. --eval-off extratools strips it
-// to the four tools a session actually leans on — read, write, edit and a
-// shell — so that the cost of a wide tool surface can be measured rather
-// than assumed: every schema is in the prefix of every request, and every
-// tool is one more thing to choose between each turn.
-func evalTools(root string, repo *repomap.Cache, expand *agent.ExpandOutput, off map[string]bool) *tool.Registry {
-	core := []tool.Tool{
-		tool.ReadFile{Root: root},
-		tool.WriteFile{Root: root},
-		tool.EditFile{Root: root, NoLines: off["lineedit"]},
-		tool.Bash{Root: root, Cache: &tool.ShellCache{}},
-	}
-	if off["extratools"] {
-		return tool.NewRegistry(core...)
-	}
-	return tool.NewRegistry(append(core,
-		tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root},
-		repomap.Tool{Cache: repo},
-		expand,
-	)...)
-}
 
 // trainCritic fits the trajectory predictor to the pass/fail outcomes in
 // eval result files and saves it where the agent loads it from.

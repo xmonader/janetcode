@@ -85,6 +85,12 @@ var flagWhen = map[string]string{
 	"bg":                   "a prompt you want to keep running after this terminal is gone; reopen with --resume",
 	"add-dir":              "a sibling tree or generated directory the file tools should be allowed to touch this session",
 	"recipe":               "a turn's tool calls worked and you want to rerun them from a script or CI with no model call and no tokens",
+	"what-if":              "a fix landed and you want to know what a different model, a disabled behaviour or a different prompt would have done from that point on, without redoing the turns that already worked",
+	"from-turn":            "--what-if needs to know which turn is the one being changed",
+	"off":                  "with --what-if: an ablation for the live part of a counterfactual run",
+	"prompt":               "with --what-if: the turn being changed also needs different words, not just a different model",
+	"what-if-keep":         "a counterfactual run's worktree is worth a look after the fact",
+	"json":                 "a script wants --what-if's comparison as data, not prose",
 }
 
 // configWhen describes each key of the config file. The struct's json

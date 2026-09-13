@@ -269,6 +269,7 @@ Features, each a section of the interface page:
 - [Project instructions](docs/manual/configuration.md#project-instructions) — `JANETCODE.md`, `AGENTS.md` or `CLAUDE.md`, from the working directory up to the repository root
 - [Path-scoped rules](docs/manual/configuration.md#path-scoped-rules) — `.janetcode/rules/*.md` sent only when a call touches a path they name (`/rules`)
 - [Keeping a session as an eval](docs/manual/evals.md#keeping-a-session-as-an-eval) — `/eval keep [name] [--check cmd]` turns a real session into a regression eval task, replayed later with `janetcode --eval .janetcode/evals`
+- [What if: replaying a session with one thing changed](docs/manual/sessions.md#what-if-replaying-a-session-with-one-thing-changed) — `janetcode --what-if <session> --from-turn <n> [--model m] [--off names] [--deny rule] [--prompt text]` replays the turns before `n` for free and runs the rest live against the change, then reports where the two runs first diverge, per-turn verdicts, files changed, a check run in the worktree, tool calls, tokens and cost
 
 ## What has been measured
 

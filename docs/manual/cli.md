@@ -26,6 +26,12 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--bg` | run the prompt in the background, print the session id, and return; reopen with `--resume` |
 | `--add-dir <path>` | extra local directory file tools may read and edit this session (repeatable) |
 | `--replay <session>` | re-run a saved session against the current code, with the model's replies read from the recording instead of bought: it reports the tool calls it makes now against the ones recorded, and needs no API key |
+| `--what-if <session>` | counterfactual replay: see [What if: replaying a session with one thing changed](sessions.md#what-if-replaying-a-session-with-one-thing-changed) |
+| `--from-turn <n>` | with `--what-if`: the first turn (1-based) to run live instead of from the recording |
+| `--off <names>` | with `--what-if`: comma-separated behaviours to disable for the live part, the same names as `--eval-off` / `JANETCODE_OFF` |
+| `--prompt "<text>"` | with `--what-if`: replacement text for `--from-turn`'s prompt, instead of the session's own recorded one |
+| `--what-if-keep` | with `--what-if`: leave the worktree on disk instead of removing it, and print its path |
+| `--json` | with `--what-if`: write the comparison report as JSON to stdout instead of text |
 | `--sessions` | list the sessions recorded for this directory |
 | `--worktree <branch>` | run the session in a git worktree on that branch |
 | `--until "<cmd>"` | keep going until the command exits 0, at most five rounds |

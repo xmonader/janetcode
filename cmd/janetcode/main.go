@@ -175,6 +175,12 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		evalOnly     = fs.String("eval-only", "", "comma-separated task names or tags to run")
 		evalJSON     = fs.String("eval-json", "", "write eval results to this JSON file")
 		replayPath   = fs.String("replay", "", "re-run a saved session against the current code, with the model's replies read from the recording instead of bought: reports the tool calls it makes now against the ones recorded, and needs no API key")
+		whatIf       = fs.String("what-if", "", "counterfactual replay: replay this session (id or path) in an isolated git worktree. Turns before --from-turn re-run from the recording (no tokens spent); from there the session's remaining prompts run live against whatever changed (--model, --provider, --off, --deny, --prompt). Prints a comparison with the original run -- where they first diverged, per-turn verdicts, files changed, a check run in the worktree, tool calls, tokens and cost -- and exits 0; see docs/manual/sessions.md")
+		whatIfFrom   = fs.Int("from-turn", 0, "with --what-if: the first turn (1-based) to run live instead of from the recording")
+		whatIfOff    = fs.String("off", "", "with --what-if: comma-separated behaviours to disable for the live part (same names as --eval-off / JANETCODE_OFF)")
+		whatIfPrompt = fs.String("prompt", "", "with --what-if: replacement text for --from-turn's prompt, instead of the session's own recorded one")
+		whatIfKeep   = fs.Bool("what-if-keep", false, "with --what-if: leave the worktree on disk instead of removing it, and print its path")
+		jsonOut      = fs.Bool("json", false, "with --what-if: write the comparison report as JSON to stdout instead of text")
 		evalReport   = fs.String("eval-report", "", "re-read a saved results file and print its report and tool adoption, without running anything; with --eval-compare it prints the paired comparison of two saved files")
 		evalKeep     = fs.Bool("eval-keep", false, "keep eval work directories")
 		evalRuns     = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips). One run per task is a coin flip: this set swings 21% between identical runs, so a comparison wants 3 or more")
@@ -296,6 +302,26 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			return fmt.Errorf("%w: --recipe and --bg do not combine", headless.ErrBadInput)
 		}
 	}
+	if *whatIf != "" {
+		switch {
+		case *promptText != "":
+			return fmt.Errorf("%w: --what-if and -p do not combine", headless.ErrBadInput)
+		case *evalPath != "" || *evalReport != "":
+			return fmt.Errorf("%w: --what-if and --eval do not combine", headless.ErrBadInput)
+		case *replayPath != "":
+			return fmt.Errorf("%w: --what-if and --replay do not combine", headless.ErrBadInput)
+		case *recipeName != "":
+			return fmt.Errorf("%w: --what-if and --recipe do not combine", headless.ErrBadInput)
+		case *web:
+			return fmt.Errorf("%w: --web is a session, not a one-shot; drop --what-if", headless.ErrBadInput)
+		case *acpMode:
+			return fmt.Errorf("%w: --what-if and --acp do not combine", headless.ErrBadInput)
+		case *bg:
+			return fmt.Errorf("%w: --what-if and --bg do not combine", headless.ErrBadInput)
+		case *whatIfFrom <= 0:
+			return fmt.Errorf("%w: --what-if needs --from-turn <n> (1-based)", headless.ErrBadInput)
+		}
+	}
 
 	if *evalTrain != "" {
 		cfgPath, _ := config.Path()
@@ -401,6 +427,17 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	if *replayPath != "" {
 		return runReplay(*replayPath)
+	}
+	if *whatIf != "" {
+		if prov == nil {
+			return errors.New("--what-if needs a configured provider for the live part")
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return runWhatIf(ctx, cfg, prov, whatIfOptions{
+			session: *whatIf, fromTurn: *whatIfFrom, off: *whatIfOff, deny: *deny, prompt: *whatIfPrompt,
+			keep: *whatIfKeep, json: *jsonOut,
+		})
 	}
 	// Re-reading saved results needs no provider and no money: the data is
 	// already on disk, and a comparison that was printed once should be

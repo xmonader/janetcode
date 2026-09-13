@@ -129,3 +129,117 @@ func TestReplayCatchesADroppedToolCall(t *testing.T) {
 		t.Fatalf("bad recording replays as %v", bad)
 	}
 }
+
+// fakeLive is a stub live provider for testing Until's boundary: it never
+// touches the recording and reports how many times it was asked.
+type fakeLive struct{ calls int }
+
+func (f *fakeLive) Name() string { return "fake-live" }
+
+func (f *fakeLive) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	f.calls++
+	m := llm.TextMessage(llm.RoleAssistant, "live reply")
+	return &llm.Response{Message: m, StopReason: llm.StopEndTurn}, nil
+}
+
+// twoTurns is a recording with two model calls in turn 1 and one in turn
+// 2, the shape Until's boundary logic has to get right: the switch must
+// land between turn 1's second call and turn 2's first, not after some
+// fixed count of Stream calls.
+const twoTurns = `{"type":"event","seq":1,"t":"user/message","turn":1,"message":{"role":"user","blocks":[{"type":"text","text":"first"}]}}
+{"type":"event","seq":2,"t":"assistant/message","turn":1,"message":{"role":"assistant","blocks":[{"type":"tool_use","id":"a","name":"bash","input":{"command":"ls"}}]}}
+{"type":"event","seq":3,"t":"assistant/message","turn":1,"message":{"role":"assistant","blocks":[{"type":"text","text":"done with turn 1"}]}}
+{"type":"event","seq":4,"t":"user/message","turn":2,"message":{"role":"user","blocks":[{"type":"text","text":"second"}]}}
+{"type":"event","seq":5,"t":"assistant/message","turn":2,"message":{"role":"assistant","blocks":[{"type":"text","text":"recorded turn 2 reply, should never be seen"}]}}
+`
+
+// TestUntilServesRecordedThenSwitches is the point of Until: turn 1's two
+// model calls come from the recording (no live call at all), and turn 2's
+// call is answered by the live provider instead of the recording's own
+// (very different) turn-2 reply.
+func TestUntilServesRecordedThenSwitches(t *testing.T) {
+	rp, err := Read(strings.NewReader(twoTurns))
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := &fakeLive{}
+	p := Until(rp, 2, live)
+
+	r1, err := p.Stream(context.Background(), llm.Request{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r1.Message.ToolUses()) != 1 || r1.Message.ToolUses()[0].Name != "bash" {
+		t.Fatalf("turn 1 call 1 = %+v, want the recorded bash call", r1)
+	}
+	if live.calls != 0 {
+		t.Fatalf("live called during turn 1: %d", live.calls)
+	}
+
+	r2, err := p.Stream(context.Background(), llm.Request{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r2.Message.Text() != "done with turn 1" {
+		t.Fatalf("turn 1 call 2 = %+v, want the recorded end-of-turn reply", r2)
+	}
+	if live.calls != 0 {
+		t.Fatalf("live called before turn 2: %d", live.calls)
+	}
+
+	r3, err := p.Stream(context.Background(), llm.Request{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if live.calls != 1 {
+		t.Fatalf("live.calls = %d, want 1 after turn 2's first call", live.calls)
+	}
+	if r3.Message.Text() != "live reply" {
+		t.Fatalf("turn 2 = %+v, want the live reply, not the recording's", r3)
+	}
+
+	// Once switched, later calls stay live even though the recording is
+	// exhausted (this recording has only one turn-2 response).
+	if _, err := p.Stream(context.Background(), llm.Request{}, nil); err != nil {
+		t.Fatalf("a further call after switching should reach live, not fail on the exhausted recording: %v", err)
+	}
+	if live.calls != 2 {
+		t.Fatalf("live.calls = %d, want 2", live.calls)
+	}
+}
+
+// TestUntilFromTurnOneIsAllLive covers --from-turn 1: nothing is replayed
+// and the very first call goes live.
+func TestUntilFromTurnOneIsAllLive(t *testing.T) {
+	rp, err := Read(strings.NewReader(twoTurns))
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := &fakeLive{}
+	p := Until(rp, 1, live)
+	if _, err := p.Stream(context.Background(), llm.Request{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if live.calls != 1 {
+		t.Fatalf("live.calls = %d, want 1", live.calls)
+	}
+}
+
+// TestUntilBeyondRecordingStaysRecorded covers a from-turn beyond every
+// recorded turn: every recorded call is served and live is never reached.
+func TestUntilBeyondRecordingStaysRecorded(t *testing.T) {
+	rp, err := Read(strings.NewReader(twoTurns))
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := &fakeLive{}
+	p := Until(rp, 99, live)
+	for i := 0; i < 3; i++ {
+		if _, err := p.Stream(context.Background(), llm.Request{}, nil); err != nil {
+			t.Fatalf("call %d: %v", i, err)
+		}
+	}
+	if live.calls != 0 {
+		t.Fatalf("live.calls = %d, want 0", live.calls)
+	}
+}

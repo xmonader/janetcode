@@ -206,6 +206,50 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 	return taskPath, t, warnings, nil
 }
 
+// PrepareStart reproduces a session's recorded start state (see
+// session.StartState, set on the session's first turn — /eval keep folds
+// it into Task.Base/Patch, and this is the same computation done directly
+// from the recording, with no kept Task or patch file in between) as a
+// working directory: repoRoot's tree at start.Head with whatever was
+// uncommitted at that moment applied on top. It is the primitive
+// --what-if (internal/whatif) needs to put a session's own worktree back
+// where the session's first turn found it, before replaying anything —
+// and it shares its git plumbing with Keep's own Task.Base/Patch path
+// (prepareEmptyDir, prepareWorktreeAt in eval.go) rather than
+// re-implementing "check out a commit and apply a patch" a second time.
+//
+// A session recorded before its repository had any commit (start.Head ==
+// "") gets a plain git-initialised directory with the whole start.Snap
+// tree applied as a patch from the empty tree, mirroring prepareWorkDir's
+// no-Base path for an unborn repository.
+func PrepareStart(ctx context.Context, repoRoot string, start session.StartState) (dir string, cleanup func(), err error) {
+	if start.Snap == "" {
+		return "", nil, fmt.Errorf("session has no recorded start state")
+	}
+	if repoRoot == "" {
+		return "", nil, fmt.Errorf("no repository to replay the session's start state against")
+	}
+	if start.Head == "" {
+		patch, derr := emptyTreeDiff(ctx, repoRoot, start.Snap)
+		if derr != nil {
+			return "", nil, fmt.Errorf("diff session start: %w", derr)
+		}
+		return prepareEmptyDir(ctx, "whatif", patch)
+	}
+	// Checked before diffing, not just before the worktree add: a missing
+	// Head fails `git diff` itself with a raw "bad object" error, which
+	// would reach the caller before prepareWorktreeAt's own check ever
+	// ran.
+	if out, cerr := exec.CommandContext(ctx, "git", "-C", repoRoot, "cat-file", "-e", start.Head+"^{commit}").CombinedOutput(); cerr != nil {
+		return "", nil, fmt.Errorf("%s: fetch it before replaying this session", (&errBaseMissing{base: start.Head, detail: strings.TrimSpace(string(out))}).Error())
+	}
+	patch, derr := gitDiff(ctx, repoRoot, start.Head, start.Snap)
+	if derr != nil {
+		return "", nil, fmt.Errorf("diff session start: %w", derr)
+	}
+	return prepareWorktreeAt(ctx, repoRoot, "whatif", start.Head, patch)
+}
+
 // ParseKeepArgs reads the argument to /eval keep: arg is the text after
 // "keep". A bare word (or several, joined) names the task. --base <rev>
 // names a starting commit directly (see KeepOptions.Base) — the way to

@@ -90,3 +90,79 @@ An MCP server that exposes more than six tools has them registered
 their names in the `tool_search` description and loads the ones it needs
 by keyword, after which they stay available. The `task` subagent tool takes
 an optional `tools` list so a narrow job gets a narrow toolset.
+
+## What if: replaying a session with one thing changed
+
+`janetcode --what-if <session id or path> --from-turn <n> [--model <m>]
+[--off <names>] [--deny <rule>] [--prompt "<text>"]` answers "what would
+have happened if..." for a session that already ran, without redoing the
+turns that already worked and without touching the real project tree.
+
+The mechanism is the same recorded-start state `/eval keep` uses (see
+[evals](evals.md#keeping-a-session-as-an-eval)): the session's first turn
+recorded the commit `HEAD` pointed to and a snapshot of the work tree at
+that moment, and `--what-if` checks that state out into a fresh, isolated
+git worktree. Turns before `--from-turn` are then re-executed there
+against the model's own recorded replies — the same cassette
+`--replay` reads, so no tokens are spent and no API key is needed for
+that part — with every tool call actually run for real against the
+worktree, so the tree reaches exactly the state it had right before the
+turn being changed. From `--from-turn` on, the session's remaining user
+prompts run **live**, against whatever was asked to change:
+
+- `--model <m>` — a different model (the session's own model otherwise);
+  `--provider` selects the backend the same way it does for any run
+- `--off <names>` — an ablation, disabling named harness behaviours for
+  the live part only (the same names `--eval-off` and `JANETCODE_OFF`
+  take, e.g. `--off coach,repomap`)
+- `--deny <rule>` — an extra permission-deny rule for the live part
+  (comma-separated, same syntax as the ordinary `--deny` flag); it wins
+  even though the run auto-approves everything else
+- `--prompt "<text>"` — replaces the recorded prompt of the turn named by
+  `--from-turn`; every prompt after it is still the session's own
+
+Every tool call in the worktree is auto-approved without asking — safe
+because the whole run, replayed and live alike, takes place in a worktree
+that is thrown away afterward (`--what-if-keep` keeps it instead, and
+prints where).
+
+At the end it prints a comparison between the session as it actually
+happened and as it happened with the change applied: where the two first
+diverge (the first tool call, at or after `--from-turn`, whose name or
+arguments differ, with both calls shown), a verdict per turn on each side
+(see [what a turn actually demonstrated](interface.md#what-a-turn-actually-demonstrated)), which files each
+side touched and by how many lines, a run of the project's own
+[verify commands](evals.md) in the resulting worktree, and tool calls,
+tokens and cost — split into what the whole session would have cost
+against what this run actually bought new, since the replayed turns spend
+nothing. It exits 0 whether or not the two runs agree; `--json` writes the
+same report as one JSON object instead of prose, for a script.
+
+```sh
+janetcode --what-if 20260911-153001-4f2a --from-turn 4 --model claude-opus-5
+janetcode --what-if 20260911-153001-4f2a --from-turn 2 --off coach,repomap
+janetcode --what-if 20260911-153001-4f2a --from-turn 3 --prompt "fix it without touching the public API" --json
+```
+
+`--what-if`'s live agent is the same minimal, real (not read-only) tool
+set an eval run uses (core file and shell tools, search, `expand_output`,
+a todo tool and code execution — see [evals](evals.md)) rather than a
+real session's full tool set: no MCP, no hooks, no memory or skills, and
+none of the job/terminal/fetch/subagent tools a session normally carries.
+That keeps a comparison about the change under test rather than about
+which of the product's own features happened to be wired up, the same
+reasoning eval runs are built on; when the original session actually used
+a tool outside that set, the report says so, since the live part cannot
+behave the same way past that point for a reason that has nothing to do
+with what was asked to change. Files changed is folded from `write_file`
+and `edit_file` records only (the same ones `/undo` and `--proof` keep):
+a file a bash command edited directly does not appear on either side, a
+symmetric gap the report also notes.
+
+`--what-if` refuses clearly, before spending anything, when: the session
+has no recorded start state (it predates this feature, predates the
+repository's first commit, or began outside a git repository — the same
+condition `/eval keep` reports, with the same `--base`-shaped fix not
+available here since there is no task to keep); `--from-turn` is out of
+range, or the recording has fewer turns than it names; or no provider is
+configured for the live part.

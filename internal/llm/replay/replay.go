@@ -30,8 +30,12 @@ import (
 // Provider answers each request with the next recorded assistant message.
 type Provider struct {
 	responses []*llm.Response
-	prompts   []string
-	at        int
+	// turns is the user turn each response in responses answered, same
+	// index for same index, so a caller (Until) can find where one turn's
+	// model calls end and the next one's begin without re-parsing the log.
+	turns   []int
+	prompts []string
+	at      int
 }
 
 // Prompts are the user messages of the recorded session, in order, so a
@@ -96,6 +100,7 @@ func Read(r io.Reader) (*Provider, error) {
 			Type  string `json:"type"`
 			Event struct {
 				Type    string       `json:"t"`
+				Turn    int          `json:"turn"`
 				Message *llm.Message `json:"message"`
 				Usage   *llm.Usage   `json:"usage"`
 			}
@@ -124,6 +129,7 @@ func Read(r io.Reader) (*Provider, error) {
 				resp.Usage = *rec.Event.Usage
 			}
 			p.responses = append(p.responses, resp)
+			p.turns = append(p.turns, rec.Event.Turn)
 		}
 	}
 	if err := sc.Err(); err != nil {
@@ -133,6 +139,61 @@ func Read(r io.Reader) (*Provider, error) {
 		return nil, fmt.Errorf("replay: %s holds no assistant messages", "the recording")
 	}
 	return p, nil
+}
+
+// Until wraps recorded so it answers with the recording through the last
+// model call of turn-1, then delegates every call from turn onward to
+// live. It is --what-if's (internal/whatif) core mechanism: turns before
+// turn re-execute for free against the model's actual recorded replies,
+// so the tools they drive put the tree back exactly where the session had
+// it, and turn onward talks to a real model — possibly a different one,
+// with different tools, ablations or a rewritten prompt.
+//
+// The boundary is decided from the recording itself, not counted turns of
+// Stream calls: recorded's turns (set by Read from each assistant event's
+// own Turn field) name which user turn each recorded response answered,
+// and Until switches at the first response numbered turn or later. A
+// recording with no call that late — turn is beyond what was recorded —
+// switches on the very first call, i.e. behaves as pure live from the
+// start; a recording with only earlier turns never switches at all, i.e.
+// behaves as recorded alone (Prompts and Remaining still read straight
+// off it, since the caller drives replay with those before turn N is
+// ever reached).
+func Until(recorded *Provider, turn int, live llm.Provider) llm.Provider {
+	cutoff := len(recorded.responses)
+	for i, t := range recorded.turns {
+		if t >= turn {
+			cutoff = i
+			break
+		}
+	}
+	return &untilProvider{recorded: recorded, cutoff: cutoff, live: live}
+}
+
+// untilProvider is Until's provider. It never switches back to recorded
+// once live has answered a call: from the moment turn N is reached, the
+// rest of the run is live, even for the model calls of a turn already
+// under way.
+type untilProvider struct {
+	recorded *Provider
+	cutoff   int
+	live     llm.Provider
+	switched bool
+}
+
+func (p *untilProvider) Name() string {
+	if p.switched {
+		return p.live.Name()
+	}
+	return p.recorded.Name()
+}
+
+func (p *untilProvider) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
+	if !p.switched && p.recorded.at < p.cutoff {
+		return p.recorded.Stream(ctx, req, emit)
+	}
+	p.switched = true
+	return p.live.Stream(ctx, req, emit)
 }
 
 // stopOf recovers why a response ended. A message carrying tool calls

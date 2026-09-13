@@ -5,6 +5,7 @@
 package eval
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -302,6 +304,38 @@ func FoldCompaction(events []session.Event) Compaction {
 	return c
 }
 
+// Tools is the minimal, real (not read-only) tool set an eval agent gets:
+// core file and shell tools plus search and expand_output, unless ablated
+// by off. It is the "product default minus a terminal or the network"
+// registry docs/manual/evals.md describes, and --what-if
+// (internal/whatif) builds its agent's tool set from the same call for
+// the same reason evals do: a lean, well-understood surface makes a
+// result about the model and the prompts (or, for --what-if, about the
+// change under test) rather than about which of main's product features
+// happened to be wired up. --eval-off extratools strips it further, to
+// the four tools a session actually leans on, so the cost of a wide tool
+// surface can be measured rather than assumed.
+//
+// A caller still adds a todo tool, Script or RunCode, and anything else
+// that needs a *agent.Agent to close over (Parent) on top of this, since
+// that agent does not exist yet when Tools is called.
+func Tools(root string, repo *repomap.Cache, expand *agent.ExpandOutput, off map[string]bool) *tool.Registry {
+	core := []tool.Tool{
+		tool.ReadFile{Root: root},
+		tool.WriteFile{Root: root},
+		tool.EditFile{Root: root, NoLines: off["lineedit"]},
+		tool.Bash{Root: root, Cache: &tool.ShellCache{}},
+	}
+	if off["extratools"] {
+		return tool.NewRegistry(core...)
+	}
+	return tool.NewRegistry(append(core,
+		tool.ListDir{Root: root}, tool.Glob{Root: root}, tool.Grep{Root: root},
+		repomap.Tool{Cache: repo},
+		expand,
+	)...)
+}
+
 // Runner executes tasks with fresh agents.
 type Runner struct {
 	// NewAgent builds an agent whose tools are rooted at dir.
@@ -378,29 +412,25 @@ func (r *Runner) Run(ctx context.Context, tasks []Task) []Result {
 // Repo at Base instead, with Patch applied, so the run sees the exact
 // tree the session started from rather than an empty one. Either way the
 // caller is responsible for calling the returned cleanup.
+//
+// The git plumbing itself (init-or-worktree, then apply) is shared with
+// PrepareStart (see keep.go): a kept Task differs only in that its patch
+// already lives in a file on disk instead of being computed on the fly,
+// so this reads that file once and hands the bytes to the same helpers.
 func prepareWorkDir(ctx context.Context, t Task) (dir string, cleanup func(), err error) {
 	if t.Base != "" {
 		return prepareWorktree(ctx, t)
 	}
-	dir, err = os.MkdirTemp("", "janetcode-eval-"+sanitize(t.Name)+"-")
+	patch, err := readPatchFile(t.PatchPath())
 	if err != nil {
 		return "", nil, err
 	}
-	cleanup = func() { os.RemoveAll(dir) }
-	patch := t.PatchPath()
-	if _, gerr := exec.LookPath("git"); gerr == nil {
-		_ = exec.Command("git", "-C", dir, "init", "-q").Run()
-	} else if patch != "" {
-		cleanup()
-		return "", nil, fmt.Errorf("task %s has a patch but git is not available", t.Name)
-	}
-	if patch != "" {
-		if out, aerr := exec.CommandContext(ctx, "git", "-C", dir, "apply", "--binary", patch).CombinedOutput(); aerr != nil {
-			cleanup()
-			return "", nil, fmt.Errorf("git apply %s: %w: %s", patch, aerr, strings.TrimSpace(string(out)))
+	if len(bytes.TrimSpace(patch)) > 0 {
+		if _, gerr := exec.LookPath("git"); gerr != nil {
+			return "", nil, fmt.Errorf("task %s has a patch but git is not available", t.Name)
 		}
 	}
-	return dir, cleanup, nil
+	return prepareEmptyDir(ctx, t.Name, patch)
 }
 
 // prepareWorktree is prepareWorkDir's path for a kept task with a Base:
@@ -414,10 +444,83 @@ func prepareWorktree(ctx context.Context, t Task) (dir string, cleanup func(), e
 	if repo == "" {
 		return "", nil, fmt.Errorf("task %s: base %q is set but repo is empty", t.Name, t.Base)
 	}
-	if out, cerr := exec.CommandContext(ctx, "git", "-C", repo, "cat-file", "-e", t.Base+"^{commit}").CombinedOutput(); cerr != nil {
-		return "", nil, fmt.Errorf("task %s: base %s is not in this repository: fetch it or re-keep with --self-contained (%s)", t.Name, t.Base, strings.TrimSpace(string(out)))
+	patch, err := readPatchFile(t.PatchPath())
+	if err != nil {
+		return "", nil, err
 	}
-	dir, err = os.MkdirTemp("", "janetcode-eval-"+sanitize(t.Name)+"-")
+	dir, cleanup, err = prepareWorktreeAt(ctx, repo, t.Name, t.Base, patch)
+	if err != nil {
+		var missing *errBaseMissing
+		if errors.As(err, &missing) {
+			return "", nil, fmt.Errorf("task %s: %s: fetch it or re-keep with --self-contained (%s)", t.Name, missing.Error(), missing.detail)
+		}
+		return "", nil, fmt.Errorf("task %s: %w", t.Name, err)
+	}
+	return dir, cleanup, nil
+}
+
+// readPatchFile is a Task's Patch, read into memory, or nil when there is
+// none. Reading it once here lets the shared preparation helpers below
+// take a patch as bytes regardless of whether the caller has one on disk
+// (a kept Task) or freshly computed (PrepareStart).
+func readPatchFile(path string) ([]byte, error) {
+	if path == "" {
+		return nil, nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read patch %s: %w", path, err)
+	}
+	return b, nil
+}
+
+// prepareEmptyDir makes a plain temporary directory, git-initialised when
+// git is available, with patch applied on top when it is non-empty: the
+// no-Base path a kept Task with only a Patch takes, and the path
+// PrepareStart takes for a session recorded before its repository had any
+// commit.
+func prepareEmptyDir(ctx context.Context, name string, patch []byte) (dir string, cleanup func(), err error) {
+	dir, err = os.MkdirTemp("", "janetcode-eval-"+sanitize(name)+"-")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup = func() { os.RemoveAll(dir) }
+	if _, gerr := exec.LookPath("git"); gerr == nil {
+		_ = exec.Command("git", "-C", dir, "init", "-q").Run()
+	}
+	if len(bytes.TrimSpace(patch)) > 0 {
+		if err := applyPatch(ctx, dir, patch); err != nil {
+			cleanup()
+			return "", nil, err
+		}
+	}
+	return dir, cleanup, nil
+}
+
+// errBaseMissing is prepareWorktreeAt's error when base is not a commit in
+// repo, left for the caller to add its own advice: a kept Task points at
+// re-keeping with --self-contained (prepareWorktree), while PrepareStart
+// has no keep step to suggest.
+type errBaseMissing struct {
+	base, detail string
+}
+
+func (e *errBaseMissing) Error() string {
+	return fmt.Sprintf("base %s is not in this repository: %s", e.base, e.detail)
+}
+
+// prepareWorktreeAt checks out repo at the detached commit base into a
+// fresh temporary path and applies patch on top. Shared by prepareWorktree
+// (a kept Task's Base, patch read from its Patch file) and PrepareStart (a
+// session's recorded Start.Head, patch computed from Start.Snap): the one
+// implementation of "check out a commit into a scratch worktree and apply
+// a patch," so a fix to it or to git's own quirks around worktrees is made
+// once for both callers.
+func prepareWorktreeAt(ctx context.Context, repo, name, base string, patch []byte) (dir string, cleanup func(), err error) {
+	if out, cerr := exec.CommandContext(ctx, "git", "-C", repo, "cat-file", "-e", base+"^{commit}").CombinedOutput(); cerr != nil {
+		return "", nil, &errBaseMissing{base: base, detail: strings.TrimSpace(string(out))}
+	}
+	dir, err = os.MkdirTemp("", "janetcode-eval-"+sanitize(name)+"-")
 	if err != nil {
 		return "", nil, err
 	}
@@ -426,19 +529,36 @@ func prepareWorktree(ctx context.Context, t Task) (dir string, cleanup func(), e
 	if err := os.Remove(dir); err != nil {
 		return "", nil, err
 	}
-	if out, gerr := exec.CommandContext(ctx, "git", "-C", repo, "worktree", "add", "--detach", dir, t.Base).CombinedOutput(); gerr != nil {
-		return "", nil, fmt.Errorf("git worktree add %s: %w: %s", t.Base, gerr, strings.TrimSpace(string(out)))
+	if out, gerr := exec.CommandContext(ctx, "git", "-C", repo, "worktree", "add", "--detach", dir, base).CombinedOutput(); gerr != nil {
+		return "", nil, fmt.Errorf("git worktree add %s: %w: %s", base, gerr, strings.TrimSpace(string(out)))
 	}
 	cleanup = func() {
 		_ = exec.Command("git", "-C", repo, "worktree", "remove", "--force", dir).Run()
 	}
-	if patch := t.PatchPath(); patch != "" {
-		if out, aerr := exec.CommandContext(ctx, "git", "-C", dir, "apply", "--binary", patch).CombinedOutput(); aerr != nil {
+	if len(bytes.TrimSpace(patch)) > 0 {
+		if err := applyPatch(ctx, dir, patch); err != nil {
 			cleanup()
-			return "", nil, fmt.Errorf("git apply %s: %w: %s", patch, aerr, strings.TrimSpace(string(out)))
+			return "", nil, err
 		}
 	}
 	return dir, cleanup, nil
+}
+
+// applyPatch applies patch (in memory, not a file on disk) in dir. Reading
+// the patch into memory before this is called — rather than passing a
+// path to `git apply` — sidesteps the -C footgun TestLoadRelativeDirResolvesPatchAbsolute
+// exists to catch: `-C dir` changes git's working directory before it
+// opens its arguments, so a relative patch path is read relative to dir,
+// not to wherever the caller resolved it from.
+func applyPatch(ctx context.Context, dir string, patch []byte) error {
+	cmd := exec.CommandContext(ctx, "git", "-C", dir, "apply", "--binary")
+	cmd.Stdin = bytes.NewReader(patch)
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git apply: %w: %s", err, strings.TrimSpace(out.String()))
+	}
+	return nil
 }
 
 // writeFiles writes a task's Files into dir before a run starts.
