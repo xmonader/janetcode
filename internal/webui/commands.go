@@ -22,7 +22,7 @@ var webCommands = []string{
 	"/stats", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills",
 	"/pin", "/unpin", "/title", "/model", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/ssh", "/docker", "/reload",
-	"/inspect", "/permissions", "/export", "/feedback",
+	"/inspect", "/permissions", "/export", "/feedback", "/eval",
 }
 
 var webArgs = map[string]string{
@@ -34,6 +34,7 @@ var webArgs = map[string]string{
 	"/memory":      "[query]",
 	"/remember":    "[-g] <fact>",
 	"/permissions": "",
+	"/eval":        "keep [name] [--check cmd]",
 }
 
 var commandSpecs = func() []slash.Command {
@@ -245,6 +246,8 @@ func (s *server) runCommand(text string) error {
 		s.sheet("permissions", s.permissionsText())
 	case "/export":
 		s.export(arg)
+	case "/eval":
+		s.evalKeep(arg)
 	case "/feedback":
 		s.notice("recorded " + arg + " (not sent to the model)")
 	default:

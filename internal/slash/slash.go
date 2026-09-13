@@ -77,6 +77,7 @@ var Commands = []Command{
 	{Name: "/theme", Args: "[name]", Help: "switch the colour theme: alone opens a searchable list, or name a builtin or user theme; the choice is saved"},
 	{Name: "/verbose", Args: "", Help: "toggle expanded tool output for the whole transcript (ctrl+o expands one turn)"},
 	{Name: "/hints", Args: "[on|off]", Help: "one-time hints about features this session could have used; alone says how many have been given"},
+	{Name: "/eval", Args: "keep [name] [--check cmd]", Help: "keep turns this session into a regression eval task under .janetcode/evals, runnable later with janetcode --eval; --check sets its check command, else the project's verify.json"},
 	{Name: "/quit", Args: "", Help: "exit"},
 }
 
@@ -86,7 +87,7 @@ var Commands = []Command{
 // /budget is here for a different reason from the rest: the ceiling is
 // read by the turn that is running, so writing it from the key handler
 // while a turn is in flight would be a data race on the agent.
-var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/ssh", "/docker"}
+var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/ssh", "/docker", "/eval"}
 
 func init() {
 	idle := map[string]bool{}

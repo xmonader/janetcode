@@ -204,6 +204,40 @@ func TestForkTitleAndSearch(t *testing.T) {
 	}
 }
 
+// TestSetStartRoundTripsAndForks checks the piece /eval keep depends on:
+// the recorded start state survives a reopen, and a fork inherits it
+// rather than starting blank, since a fork's own first turn happens well
+// after the git state SetStart described.
+func TestSetStartRoundTripsAndForks(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir, "/work", "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	put(t, s, llm.TextMessage(llm.RoleUser, "hi"))
+	want := StartState{Head: "abc123", Snap: "def456", At: time.Now().UTC().Truncate(time.Second)}
+	if err := s.SetStart(want); err != nil {
+		t.Fatal(err)
+	}
+	s2, _, err := Open(dir, s.Meta.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s2.Meta.Start == nil || *s2.Meta.Start != want {
+		t.Fatalf("Start after reopen = %+v, want %+v", s2.Meta.Start, want)
+	}
+	f, err := Fork(dir, s, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Meta.Start == nil || *f.Meta.Start != want {
+		t.Fatalf("fork Start = %+v, want %+v", f.Meta.Start, want)
+	}
+	if f.Meta.Start == s.Meta.Start {
+		t.Fatal("fork shares the original's Start pointer")
+	}
+}
+
 // TestEmptySessionLeavesNoFile: a session that never records an event —
 // a start with no key, a TUI opened and closed — leaves nothing on disk
 // and nothing in the list; the first event creates the file with its

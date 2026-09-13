@@ -47,6 +47,31 @@ type Task struct {
 	MaxToolCalls int `json:"max_tool_calls,omitempty"`
 	// Tags let a run select a subset.
 	Tags []string `json:"tags,omitempty"`
+	// Repo, Base and Patch make the task's work dir a real repository
+	// state instead of an empty temp dir: a detached git worktree of Repo
+	// at commit Base, with Patch applied on top. /eval keep writes these
+	// to turn a session into a task. Repo and Patch are relative to the
+	// task file's directory (see dir) unless absolute.
+	Repo  string `json:"repo,omitempty"`
+	Base  string `json:"base,omitempty"`
+	Patch string `json:"patch,omitempty"`
+	// dir is the directory the task was loaded from, set by Load, so Repo
+	// and Patch resolve relative to the task rather than the process's
+	// cwd. Zero value for a task built in memory (e.g. by a test).
+	dir string `json:"-"`
+}
+
+// RepoPath is Repo resolved against the task's source directory.
+func (t Task) RepoPath() string { return t.resolvePath(t.Repo) }
+
+// PatchPath is Patch resolved against the task's source directory.
+func (t Task) PatchPath() string { return t.resolvePath(t.Patch) }
+
+func (t Task) resolvePath(p string) string {
+	if p == "" || filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(t.dir, p)
 }
 
 // Load reads one JSON file or every *.json in a directory, sorted by name.
@@ -85,6 +110,7 @@ func Load(path string) ([]Task, error) {
 			return nil, fmt.Errorf("%s: duplicate task name %q", f, t.Name)
 		}
 		seen[t.Name] = true
+		t.dir = filepath.Dir(f)
 		expandLarge(&t)
 		tasks = append(tasks, t)
 	}
@@ -317,11 +343,85 @@ func (r *Runner) Run(ctx context.Context, tasks []Task) []Result {
 	return results
 }
 
+// prepareWorkDir creates the directory a run works in. An ordinary task
+// gets a plain temporary directory, git-initialised when git is available
+// so tools that expect a repository still find one. A task with Base set
+// (one kept from a session by /eval keep) gets a detached git worktree of
+// Repo at Base instead, with Patch applied, so the run sees the exact
+// tree the session started from rather than an empty one. Either way the
+// caller is responsible for calling the returned cleanup.
+func prepareWorkDir(ctx context.Context, t Task) (dir string, cleanup func(), err error) {
+	if t.Base == "" {
+		dir, err = os.MkdirTemp("", "janetcode-eval-"+sanitize(t.Name)+"-")
+		if err != nil {
+			return "", nil, err
+		}
+		if _, err := exec.LookPath("git"); err == nil {
+			_ = exec.Command("git", "-C", dir, "init", "-q").Run()
+		}
+		return dir, func() { os.RemoveAll(dir) }, nil
+	}
+	return prepareWorktree(ctx, t)
+}
+
+// prepareWorktree is prepareWorkDir's path for a kept task: it checks out
+// Repo at the detached commit Base into a fresh temporary path and applies
+// Patch, the diff between that commit and the work tree snapshotted when
+// the session began (see internal/eval/keep.go). Factored out from
+// prepareWorkDir so a test can check the resulting tree without running a
+// model.
+func prepareWorktree(ctx context.Context, t Task) (dir string, cleanup func(), err error) {
+	repo := t.RepoPath()
+	if repo == "" {
+		return "", nil, fmt.Errorf("task %s: base %q is set but repo is empty", t.Name, t.Base)
+	}
+	dir, err = os.MkdirTemp("", "janetcode-eval-"+sanitize(t.Name)+"-")
+	if err != nil {
+		return "", nil, err
+	}
+	// `git worktree add` refuses to check out into a path that already
+	// exists, even an empty one MkdirTemp just made.
+	if err := os.Remove(dir); err != nil {
+		return "", nil, err
+	}
+	if out, gerr := exec.CommandContext(ctx, "git", "-C", repo, "worktree", "add", "--detach", dir, t.Base).CombinedOutput(); gerr != nil {
+		return "", nil, fmt.Errorf("git worktree add %s: %w: %s", t.Base, gerr, strings.TrimSpace(string(out)))
+	}
+	cleanup = func() {
+		_ = exec.Command("git", "-C", repo, "worktree", "remove", "--force", dir).Run()
+	}
+	if patch := t.PatchPath(); patch != "" {
+		if out, aerr := exec.CommandContext(ctx, "git", "-C", dir, "apply", "--binary", patch).CombinedOutput(); aerr != nil {
+			cleanup()
+			return "", nil, fmt.Errorf("git apply %s: %w: %s", patch, aerr, strings.TrimSpace(string(out)))
+		}
+	}
+	return dir, cleanup, nil
+}
+
+// writeFiles writes a task's Files into dir before a run starts.
+func writeFiles(dir string, files map[string]string) error {
+	for name, content := range files {
+		p := filepath.Join(dir, filepath.FromSlash(name))
+		// err is declared here, not in the if: an err scoped to the if
+		// leaves the check below reading the outer err, which would be
+		// nil, and the failure would go unreported.
+		err := os.MkdirAll(filepath.Dir(p), 0o755)
+		if err == nil {
+			err = os.WriteFile(p, []byte(content), 0o644)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 	res = Result{Name: t.Name}
 	start := time.Now()
 	defer func() { res.Duration = time.Since(start) }()
-	dir, err := os.MkdirTemp("", "janetcode-eval-"+sanitize(t.Name)+"-")
+	dir, cleanup, err := prepareWorkDir(ctx, t)
 	if err != nil {
 		res.Reason = "mkdir: " + err.Error()
 		return res
@@ -329,24 +429,11 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 	if r.Keep {
 		res.Dir = dir
 	} else {
-		defer os.RemoveAll(dir)
+		defer cleanup()
 	}
-	for name, content := range t.Files {
-		p := filepath.Join(dir, filepath.FromSlash(name))
-		// err is declared here, not in the if: an err scoped to the if
-		// leaves the check below reading the outer err, which is the nil
-		// from MkdirTemp, and the failure goes unreported.
-		err := os.MkdirAll(filepath.Dir(p), 0o755)
-		if err == nil {
-			err = os.WriteFile(p, []byte(content), 0o644)
-		}
-		if err != nil {
-			res.Reason = "setup: " + err.Error()
-			return res
-		}
-	}
-	if _, err := exec.LookPath("git"); err == nil {
-		_ = exec.Command("git", "-C", dir, "init", "-q").Run()
+	if err := writeFiles(dir, t.Files); err != nil {
+		res.Reason = "setup: " + err.Error()
+		return res
 	}
 	ag, err := r.NewAgent(dir)
 	if err != nil {

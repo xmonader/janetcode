@@ -213,6 +213,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)
 /context   (what fills the window)   /pin <note or @file>   /unpin <n>
 /export [file.md] (write the conversation as a Markdown transcript)
+/eval keep [name] [--check cmd] (turn this session into a regression eval task)
 ```
 
 `ctrl+c` cancels a running turn, or clears typed text; when idle it asks
@@ -259,6 +260,7 @@ Features, each a section of the interface page:
 - [Custom commands](docs/manual/interface.md#custom-commands) — prompt templates as `/name` from `.janetcode/commands/`
 - [Project instructions](docs/manual/configuration.md#project-instructions) — `JANETCODE.md`, `AGENTS.md` or `CLAUDE.md`, from the working directory up to the repository root
 - [Path-scoped rules](docs/manual/configuration.md#path-scoped-rules) — `.janetcode/rules/*.md` sent only when a call touches a path they name (`/rules`)
+- [Keeping a session as an eval](docs/manual/evals.md#keeping-a-session-as-an-eval) — `/eval keep [name] [--check cmd]` turns a real session into a regression eval task, replayed later with `janetcode --eval .janetcode/evals`
 
 ## What has been measured
 

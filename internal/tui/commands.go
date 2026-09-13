@@ -331,6 +331,8 @@ func (m *model) command(text string) tea.Cmd {
 		m.transcript.info(line)
 	case "/budget":
 		m.budgetCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/eval":
+		m.evalCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	default:
 		if c, ok := m.custom[fields[0]]; ok {
 			args := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))

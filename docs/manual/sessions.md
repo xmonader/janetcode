@@ -5,6 +5,12 @@ Part of the [janetcode manual](README.md); the [README](../../README.md) has the
 Every conversation is saved as append-only JSONL under
 `~/.local/share/janetcode/sessions/`.
 
+A session's first turn in a git repository also records the commit `HEAD`
+pointed to and a snapshot of the work tree at that moment, so the session
+can later be turned into a regression eval with `/eval keep` (see
+[evals](evals.md)) that replays it against the state it actually started
+from.
+
 Every session gets a title after its first turn: the model is asked for a
 few words (a headless run uses the first prompt instead), and `/title
 <text>` renames one. `/fork [title]` branches the conversation: a new

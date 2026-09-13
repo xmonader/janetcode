@@ -404,6 +404,9 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	merged := a.appendUserBlocks(blocks...)
 	a.turnN++
 	a.stepN = 0
+	if a.turnN == 1 {
+		a.recordStart()
+	}
 	a.logEvent(session.Event{Type: session.TypeTurnStart, Turn: a.turnN})
 	a.logUserMessage(merged)
 	a.cp.beginTurn(a.turnN, before)

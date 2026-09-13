@@ -44,6 +44,22 @@ type Meta struct {
 	Loops []LoopSpec `json:"loops,omitempty"`
 	// ExtraDirs are additional local roots file tools may read and edit.
 	ExtraDirs []string `json:"extra_dirs,omitempty"`
+	// Start is the repository state recorded on this session's first user
+	// turn, when its cwd is a git repository. /eval keep reads it to turn
+	// the session into a regression eval that replays the exact tree and
+	// commit the session began from.
+	Start *StartState `json:"start,omitempty"`
+}
+
+// StartState is a session's git state at its first turn: the commit HEAD
+// pointed to and a snapshot commit (see internal/snapshot) of the whole
+// work tree, tracked and untracked, at that moment.
+type StartState struct {
+	// Head is the commit sha HEAD pointed to; empty on an unborn branch.
+	Head string `json:"head"`
+	// Snap is the snapshot commit recording the work tree.
+	Snap string    `json:"snap"`
+	At   time.Time `json:"at"`
 }
 
 // LoopSpec is one persisted session loop (/loop).
@@ -471,6 +487,10 @@ func Fork(dir string, from *Session, title string) (*Session, error) {
 	}
 	ns.Meta.Pins = append([]string(nil), from.Meta.Pins...)
 	ns.Meta.ForkOf = from.Meta.ID
+	if from.Meta.Start != nil {
+		start := *from.Meta.Start
+		ns.Meta.Start = &start
+	}
 	if title = strings.TrimSpace(title); title == "" {
 		title = "fork of " + from.Label()
 	}
@@ -700,6 +720,14 @@ func (s *Session) SetExtraDirs(dirs []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Meta.ExtraDirs = append([]string(nil), dirs...)
+	return s.rewriteLocked()
+}
+
+// SetStart records the session's git start state and rewrites metadata.
+func (s *Session) SetStart(st StartState) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Meta.Start = &st
 	return s.rewriteLocked()
 }
 

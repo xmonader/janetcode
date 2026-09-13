@@ -73,6 +73,47 @@ the variant name is recorded in the results file so a comparison says what
 it compared. The same names work as `JANETCODE_OFF=script` for a real
 session.
 
+## Keeping a session as an eval
+
+Every task above starts from a prompt someone wrote by hand. `/eval keep
+[name] [--check <cmd>]` writes one from a session that actually happened:
+a bug that got fixed, a feature that got built, whatever the conversation
+in front of you turned out to be. It is idle-only — it reads the session
+log, not the model — and it needs a git repository, because what it
+writes down is not just what was said but the tree it was said over:
+
+- **Prompts** — the session's own user turns, in order, so replaying the
+  task sends the same conversation the session had (tool results,
+  slash commands and mid-turn steering notes are not prompts and are
+  left out).
+- **Repo and Base** — the commit `HEAD` pointed to when the session's
+  first turn ran. This is recorded once, automatically, the moment a
+  session's first turn starts in a git repository (see
+  [sessions](sessions.md)); a session started before this existed, or
+  outside git, has nothing to keep.
+- **Patch** — a `git diff --binary` of whatever was uncommitted at that
+  moment, so an experiment that started mid-edit replays mid-edit too.
+  Omitted when there was nothing uncommitted.
+- **Check** — `--check <cmd>`, or, when that is left off, the project's
+  `.janetcode/verify.json` commands joined with `&&`. Neither present is
+  an error: a kept session needs some definition of done.
+
+The task is written to `.janetcode/evals/<name>.json` (plus a
+`<name>.patch` beside it when there was uncommitted state), where `<name>`
+defaults to a slug of the session's title. `/eval keep` refuses to
+overwrite an existing task; pass a different name instead. Running it
+later is the same as any other task:
+
+```sh
+janetcode --eval .janetcode/evals
+```
+
+A task with `base` set runs in a detached git worktree of `repo` checked
+out at that commit, with `patch` applied, instead of an empty directory —
+so the base commit has to exist in whatever clone runs it. Committing
+`.janetcode/evals` (task, patch and all) into the repository is what
+makes that true for everyone who clones it.
+
 ## The task sets, and which one an ablation can use
 
 `evals/` holds four sets, and they are not interchangeable:
