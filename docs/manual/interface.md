@@ -706,6 +706,13 @@ push|fetch`.
 /proof fetch upstream   # pull upstream's notes, and configure future fetches to bring them
 ```
 
+A note is only useful once the commit it describes is somewhere someone
+else can see it, so `/proof push` checks first: if any noted commit is not
+yet reachable from the remote's own refs, it still pushes the notes (they
+are harmless sitting there even so, and other commits' notes may well
+already be on the remote) but warns —
+`N noted commit(s) are not on <remote> yet; push your branch too`.
+
 <sub>Under the hood, `/proof push` runs `git push <remote>
 refs/notes/janetcode`; `/proof fetch` runs `git fetch <remote>
 refs/notes/janetcode:refs/notes/janetcode` and adds
@@ -713,7 +720,31 @@ refs/notes/janetcode:refs/notes/janetcode` and adds
 `git log --notes=janetcode` reads them inline once fetched.</sub>
 
 `"proof_notes": false` (or `/config proof_notes=false`) turns off the
-automatic attach; see [Configuration](configuration.md#proof-notes).
+automatic attach; see [Configuration](configuration.md#proof-notes). The
+setting takes effect immediately in a running session, the same as any
+other live `/config` key.
+
+#### Amend and rebase keep their notes
+
+A `git commit --amend` or a `git rebase` builds a new commit object and
+throws the old one away, and by default git does not carry a note across
+that — the note stays attached to the abandoned commit and looks, from
+`/proof`, like it was simply dropped. The first time a note is attached
+(automatically or via `/proof`, and also when `/proof fetch` first
+configures a remote) janetcode sets three git config values so this
+does not happen:
+
+```
+notes.rewriteRef = refs/notes/janetcode   # (added, not replaced, if the key already has values)
+notes.rewrite.amend = true                # (only if the key had no value at all)
+notes.rewrite.rebase = true                # (only if the key had no value at all)
+```
+
+With these set, git itself copies a commit's note onto its replacement
+during `--amend` or a rebase, no further action needed. Because the two
+`notes.rewrite.*` keys are only ever set when they were previously unset,
+an explicit `false` you (or another tool) put there on purpose is never
+overridden.
 
 ### Recipes: replay a turn for free
 
@@ -734,10 +765,57 @@ files are meant to be committed, the same way `.janetcode/commands` and
 names the recipe, picks a turn (default: the latest one that made a tool
 call), and parameterises: every place the literal text `staging` appears
 inside a step's JSON input becomes `{{env}}`, and the recipe records
-`staging` as its default. `--desc` sets the saved description; without it,
-the turn's own first line is used. `/recipe show deploy-staging` prints
-the recipe's parameters and its steps (tool and a compact form of the
-input) with the defaults filled in.
+`staging` as its default. Two params whose values overlap are substituted
+longest value first, so one being a substring of the other (`v1` inside
+`v1.2`) does not eat part of the longer one; this is a value-level rule,
+not a token-aware one, so a very short param value can still land inside
+an unrelated word — keep params to values distinctive enough that this
+does not matter (a version number, a hostname), not single letters or
+common short words. `--desc` sets the saved description; without it, the
+turn's own first line is used. `/recipe show deploy-staging` prints the
+recipe's parameters and its steps with the defaults filled in; an
+`edit_file` step shows as a compact `path: "old" → "new"` instead of raw
+JSON, and a step with a precondition (see below) names it at the end.
+
+**What replay verifies before it changes anything.** A recipe never
+replays a position and hopes the file still matches — a saved step is one
+of:
+
+- an `edit_file` **text-form** call (`old_string`/`new_string`, the shape
+  the model writes on its own): replayed as is. `old_string` must still
+  match the current file exactly once; replay fails, unchanged, on zero
+  matches or on more than one (`edit_file` itself refuses an ambiguous
+  match, the same as it would for a model-driven call).
+- a **positional** edit — `edit_file`'s line-range form
+  (`from_line`/`to_line`/anchors), or a `write_file` that overwrote a
+  file which already existed — recorded at save time, not at replay
+  time. `/recipe save` converts each one into an anchored `edit_file`
+  text-form step using the session's own record of what the file looked
+  like before and after the call: the changed lines plus just enough
+  surrounding unchanged text, grown only as far as needed to be unique in
+  the file as it was recorded. This is why the params above matter: give
+  the value that changed a name (`/recipe save bump version=1.1.0
+  from=1.0.0`) and the anchor becomes reusable — `/recipe run bump
+  from=1.1.0 version=1.2.0` on a file that has since moved from `1.0.0`
+  to `1.1.0` finds `## 1.1.0` and inserts correctly; running it again
+  with the stale `from=1.0.0` fails cleanly whenever that text is no
+  longer in the file at all. The mechanism only ever verifies text, not
+  version ordering, though: if `1.0.0` still occurs somewhere else in the
+  file (older history further down, say) a stale `from` can still find
+  and match *that* occurrence rather than refuse — pick param values
+  distinctive enough that this does not come up in practice, and check
+  `/recipe run --dry-run` or the diff-stat a real run reports.
+- a `write_file` that **created a new file** cannot be anchored — there
+  was no "before" to diff against — so it is kept as `write_file` but
+  gains a precondition: replay refuses to run it if the path exists now
+  with content different from what it is about to write. A path that is
+  still absent, or that already holds byte-for-byte what this step would
+  write anyway (a harmless no-op), proceeds.
+- `bash` steps replay exactly as recorded.
+
+Whenever a step cannot be verified this way, **it fails and does not
+touch anything** — this is the whole point: a replay must never change
+content it has not verified is what the recording expected.
 
 `/recipe run deploy-staging env=prod` runs the recipe's steps one by one,
 each through the exact pipeline a model-driven call goes through —
@@ -750,10 +828,18 @@ either way and hands the failure to the model as an ordinary turn, the
 same as a queued prompt or a goal round starting its next one: which step
 failed and its output, or, when the steps all worked but the checks
 didn't, that outcome and the checks' output; either way the recipe's own
-description goes along as the goal to finish. A recipe that mutated
-nothing skips the gate entirely, the same as a read-only turn does.
-`/recipe run deploy-staging --dry-run` prints the expanded steps without
-running any of them, and `/recipe list` shows what is saved.
+description goes along as the goal to finish. The one exception is a
+failure that was the harness itself refusing the call — a permission
+rule, a "no" from you, a failed precondition above — rather than the tool
+running and failing on its own: that is reported directly instead, never
+handed to the model, since the model's own retry of the very same call
+would be refused the very same way. A recipe that mutated nothing skips
+the verify gate entirely, the same as a read-only turn does. A run that
+finishes clean reports a compact per-file `+added -removed` line count of
+everything it actually changed, so success is inspectable rather than
+taken on faith. `/recipe run deploy-staging --dry-run` prints the
+expanded steps without running any of them, and `/recipe list` shows what
+is saved.
 
 The same replay runs with no session open at all:
 
@@ -763,12 +849,19 @@ janetcode --recipe deploy-staging env=prod
 
 runs headless and exits; a failure — a step, or the verify gate — hands
 over to the configured model the way `-p` running under `--until` does,
-or exits non-zero when no provider is configured. It builds the agent
-through the same path `-p` does, so a configured, trusted MCP server's
-tools are available to a step that names one; servers are only actually
-started when a step's tool name says the recipe needs one, so a recipe of
-plain file and shell steps — the common case — starts none and stays
-fast.
+unless it was a permission denial (reported directly, as above) or no
+provider is configured (also reported directly). Before starting
+anything, this checks whether stdin can actually answer a permission
+prompt: without a terminal and without `--yolo`, a mutating step that no
+permission rule or auto mode already allows would only ever be
+auto-denied one at a time, so the run refuses to start at all, lists the
+steps that would need approval, and suggests `--yolo` or adding a
+permission rule from an interactive session first — rather than spend a
+model turn learning what this already knows. It builds the agent through
+the same path `-p` does, so a configured, trusted MCP server's tools are
+available to a step that names one; servers are only actually started
+when a step's tool name says the recipe needs one, so a recipe of plain
+file and shell steps — the common case — starts none and stays fast.
 
 ### Trajectory critic
 

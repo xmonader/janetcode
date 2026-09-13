@@ -100,12 +100,28 @@ func (r Record) Empty() bool { return len(r.Files) == 0 }
 
 // ChangeInput is one tracked file change, as internal/agent's Change
 // reports it: Added/Removed are already computed (Change.Stats), since
-// this package does not have the diff logic that produces them.
+// this package does not have the diff logic that produces them. Before and
+// After are the file's full content just before and after this one change
+// (internal/agent's Change.Before/After) — Build needs them to tell a
+// change that actually landed in a given commit from one that only shares
+// its path with a change an earlier commit already carried (see Build).
 type ChangeInput struct {
 	Seq, Turn      int
 	Tool, Intent   string
 	Path           string
 	Added, Removed int
+	Before, After  []byte
+}
+
+// FileVersions is one committed file's content just before and after the
+// commit that touched it: Parent is nil when the file did not exist in the
+// commit's parent (new file, or the commit is a root commit with none),
+// Commit is nil when the commit deleted the file. CommittedFileVersions
+// builds this from git; Build uses it to decide which of a session's
+// changes to a path are actually part of one specific commit.
+type FileVersions struct {
+	Parent []byte
+	Commit []byte
 }
 
 // TurnOutcomeInput is one turn's verdict, as internal/agent's TurnOutcome
@@ -127,21 +143,22 @@ type TurnOutcomeInput struct {
 // Build assembles a Record from one session's tracked changes and turn
 // outcomes, keeping only what actually landed in commit: a change whose
 // path (absolute, or relative to repoRoot) does not normalise to one of
-// committed is dropped, and a turn is kept only when it wrote a change
-// that survived that filter. An empty result (Files == nil) means none of
-// this session's changes reached the commit, and the caller should not
-// attach it.
-func Build(sessionID, model, repoRoot string, changes []ChangeInput, outcomes map[int]TurnOutcomeInput, committed []string) Record {
-	want := map[string]bool{}
-	for _, p := range committed {
-		want[normPath(repoRoot, p)] = true
-	}
+// committed's keys is dropped, and — see changeLandedIn — so is a change
+// to a committed path whose content shows it was not part of this
+// specific commit (a file edited more than once across the session, and
+// committed more than once, must not have an earlier edit re-attributed
+// to a later commit just because they share a path). A turn is kept only
+// when it wrote a change that survived both filters. An empty result
+// (Files == nil) means none of this session's changes reached the commit,
+// and the caller should not attach it.
+func Build(sessionID, model, repoRoot string, changes []ChangeInput, outcomes map[int]TurnOutcomeInput, committed map[string]FileVersions) Record {
 	byPath := map[string]*File{}
 	var order []string
 	turnsUsed := map[int]bool{}
 	for _, c := range changes {
 		p := normPath(repoRoot, c.Path)
-		if !want[p] {
+		fv, ok := committed[p]
+		if !ok || !changeLandedIn(c, fv) {
 			continue
 		}
 		f, ok := byPath[p]
@@ -189,6 +206,189 @@ func Build(sessionID, model, repoRoot string, changes []ChangeInput, outcomes ma
 	}
 }
 
+// changeLandedIn reports whether change c is actually part of the commit
+// fv describes, as opposed to a change to the same path that a different
+// commit — earlier or later in the session — already carries. This is the
+// fix for the misattribution bug Build used to have: filtering by path
+// alone means a file edited in turn 1 (committed in commit A) and again
+// in turn 3 (committed in commit B) puts turn 1's change in both notes,
+// because both commits touch the path.
+//
+// The rule, applied line by line rather than by byte-for-byte diff so it
+// survives unrelated edits elsewhere in the file: take the lines c's own
+// edit added (present in c.After, absent from c.Before). The change
+// belongs to this commit when at least one of those lines is present in
+// the commit's own version of the file (fv.Commit) and not every one of
+// them was already present in the commit's parent (fv.Parent) — a change
+// whose added lines are all already in the parent was committed earlier,
+// by an earlier commit, and does not belong here. "At least one" rather
+// than "all", in both directions, because a large edit can share
+// incidental lines (a closing brace, a blank line) with content that
+// predates it or postdates the commit; requiring every line to agree
+// would make the check too easy to fool by an unrelated coincidence.
+//
+// A change with nothing to add (a pure deletion) falls back to the same
+// logic on the lines it removed: it belongs to the commit when at least
+// one of them was present before the commit (in fv.Parent) and not every
+// one of them survived into the commit's own version (fv.Commit) — i.e.
+// the commit actually is where they went away.
+//
+// Blank lines are excluded from every set compared here: they carry no
+// attribution signal (every version of every file has some) and would
+// otherwise make coincidental overlaps and "already there" false
+// positives more likely, not less.
+func changeLandedIn(c ChangeInput, fv FileVersions) bool {
+	added := linesAddedBy(c.Before, c.After)
+	if len(added) > 0 {
+		return intersects(added, lineSet(fv.Commit)) && !isSubset(added, lineSet(fv.Parent))
+	}
+	removed := linesAddedBy(c.After, c.Before)
+	if len(removed) == 0 {
+		// No line-level change survives blank-line filtering either way:
+		// nothing here to attribute to any commit.
+		return false
+	}
+	return intersects(removed, lineSet(fv.Parent)) && !isSubset(removed, lineSet(fv.Commit))
+}
+
+// lineSet is data's non-blank lines as a set, for the content comparisons
+// changeLandedIn makes. Line-exact, not fuzzy: a line changed by so much
+// as whitespace counts as a different line, which is the conservative
+// direction to be wrong in here (it can miss a genuine match rather than
+// invent one).
+func lineSet(data []byte) map[string]bool {
+	set := map[string]bool{}
+	for _, l := range splitDataLines(data) {
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+		set[l] = true
+	}
+	return set
+}
+
+// linesAddedBy returns the lines present in after but not in before, as a
+// set. Used both ways (after vs before, and — for a pure deletion — before
+// vs after) by changeLandedIn.
+func linesAddedBy(before, after []byte) map[string]bool {
+	b := lineSet(before)
+	added := map[string]bool{}
+	for l := range lineSet(after) {
+		if !b[l] {
+			added[l] = true
+		}
+	}
+	return added
+}
+
+func intersects(a, b map[string]bool) bool {
+	for l := range a {
+		if b[l] {
+			return true
+		}
+	}
+	return false
+}
+
+func isSubset(a, b map[string]bool) bool {
+	for l := range a {
+		if !b[l] {
+			return false
+		}
+	}
+	return true
+}
+
+// splitDataLines splits data into lines, dropping a trailing empty element
+// caused by a final newline, mirroring how internal/agent's own line
+// splitter treats file content (this package does not import that one, to
+// avoid the dependency cycle Build's own doc comment explains).
+func splitDataLines(data []byte) []string {
+	if len(data) == 0 {
+		return nil
+	}
+	lines := strings.SplitAfter(string(data), "\n")
+	if n := len(lines); n > 0 && lines[n-1] == "" {
+		lines = lines[:n-1]
+	}
+	return lines
+}
+
+// commitParent returns commit's first parent, or "" when it has none (a
+// root commit) — the tree state a commit's own content is measured
+// against. git rev-list prints the commit's own sha followed by its
+// parents' (multiple for a merge; this uses only the first), or the sha
+// alone for a root commit, so the parent count tells the two apart without
+// relying on parsing an error message.
+func commitParent(ctx context.Context, repoDir, commit string) (string, error) {
+	out, err := runGit(ctx, repoDir, "rev-list", "--parents", "-n1", commit)
+	if err != nil {
+		return "", err
+	}
+	fields := strings.Fields(out)
+	if len(fields) < 2 {
+		return "", nil
+	}
+	return fields[1], nil
+}
+
+// blobMissingRe matches git's message for a path that has no blob at a
+// given revision — the file did not exist there yet, or was deleted — as
+// opposed to a real error (bad repository, bad revision) that should not
+// be swallowed into "no content".
+var blobMissingRe = regexp.MustCompile(`(?i)exists on disk, but not in|does not exist in`)
+
+// showBlob reads path's content at rev, ok=false when the path has no
+// blob there (not an error: a new file has nothing at its parent, a
+// deleted one has nothing at the commit).
+func showBlob(ctx context.Context, repoDir, rev, path string) (data []byte, ok bool, err error) {
+	cmd := exec.CommandContext(ctx, "git", "show", rev+":"+filepath.ToSlash(path))
+	cmd.Dir = repoDir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if runErr := cmd.Run(); runErr != nil {
+		if blobMissingRe.MatchString(stderr.String()) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("git show %s:%s: %s", short(rev), path, firstNonEmpty(strings.TrimSpace(stderr.String()), runErr.Error()))
+	}
+	return stdout.Bytes(), true, nil
+}
+
+// CommittedFileVersions resolves, for every path in paths, the file's
+// content just before (the commit's parent) and after (the commit
+// itself) — what Build needs to tell which of a session's changes to a
+// path actually landed in this commit (see changeLandedIn). paths is
+// normally CommittedFiles(ctx, repoDir, commit)'s own result.
+func CommittedFileVersions(ctx context.Context, repoDir, commit string, paths []string) (map[string]FileVersions, error) {
+	parent, err := commitParent(ctx, repoDir, commit)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]FileVersions, len(paths))
+	for _, p := range paths {
+		var fv FileVersions
+		if parent != "" {
+			data, ok, err := showBlob(ctx, repoDir, parent, p)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				fv.Parent = data
+			}
+		}
+		data, ok, err := showBlob(ctx, repoDir, commit, p)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			fv.Commit = data
+		}
+		out[filepath.ToSlash(p)] = fv
+	}
+	return out, nil
+}
+
 // normPath makes an absolute-or-relative path comparable to what git
 // reports for a commit: relative to repoRoot, forward slashes.
 func normPath(repoRoot, p string) string {
@@ -219,6 +419,12 @@ func Short(sha string) string { return short(sha) }
 // note is already there (see merge) so that two sessions contributing to
 // one commit both show, instead of the second overwriting the first.
 func Attach(ctx context.Context, repoDir, commit string, r Record) error {
+	// So the note survives a later `git commit --amend` or `git rebase`
+	// on this commit instead of being silently dropped (see
+	// EnsureRewriteConfig); a no-op after the first call in a repository.
+	if err := EnsureRewriteConfig(ctx, repoDir); err != nil {
+		return err
+	}
 	if existing, ok, err := Read(ctx, repoDir, commit); err != nil {
 		return err
 	} else if ok {

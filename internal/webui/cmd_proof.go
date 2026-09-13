@@ -22,11 +22,15 @@ func (s *server) proofCommand(arg string) {
 	defer cancel()
 	switch a.Action {
 	case proof.ActionPush:
-		if err := proof.Push(ctx, s.opts.Cwd, a.Remote); err != nil {
+		warning, err := proof.Push(ctx, s.opts.Cwd, a.Remote)
+		if err != nil {
 			s.errf("proof push: %v", err)
 			return
 		}
 		s.notice("pushed proof notes to " + a.Remote)
+		if warning != "" {
+			s.notice(warning)
+		}
 	case proof.ActionFetch:
 		if err := proof.Fetch(ctx, s.opts.Cwd, a.Remote); err != nil {
 			s.errf("proof fetch: %v", err)

@@ -27,10 +27,14 @@ func runProofFlag(w io.Writer, cwd, args string) error {
 	a := proof.ParseArgs(args)
 	switch a.Action {
 	case proof.ActionPush:
-		if err := proof.Push(ctx, root, a.Remote); err != nil {
+		warning, err := proof.Push(ctx, root, a.Remote)
+		if err != nil {
 			return fmt.Errorf("--proof push: %w", err)
 		}
 		fmt.Fprintf(w, "pushed proof notes to %s\n", a.Remote)
+		if warning != "" {
+			fmt.Fprintln(w, warning)
+		}
 		return nil
 	case proof.ActionFetch:
 		if err := proof.Fetch(ctx, root, a.Remote); err != nil {

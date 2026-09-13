@@ -10,6 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/recipe"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // runRecipeFlag implements `janetcode --recipe <name> [k=v ...]`: it
@@ -24,13 +25,26 @@ import (
 // headless.Run so its output is reported the same way. Without a
 // configured provider there is nothing to hand over to, so the run just
 // reports the failure and exits non-zero.
+//
+// Before any of that, preflightRecipe refuses to start at all when stdin
+// cannot answer a permission prompt and the recipe has a mutating step
+// that would need one: without it, every such step is auto-denied one at
+// a time, each denial still hands over to the model, and the model's own
+// retry of the exact same call is denied the exact same way — a run that
+// spends tokens to arrive at nothing. And whenever a step or the verify
+// gate does fail on a permission denial (RecipeFailure.Denied) rather
+// than the tool's own merits, this reports it directly instead of handing
+// over, for the same reason: the model would only be told no again.
 func runRecipeFlag(ctx context.Context, ag *agent.Agent, cwd string, r recipe.Recipe, kv []string, stdout, stderr io.Writer, stdin *os.File) error {
-	if ag.Approver == nil {
-		ag.Approver = headless.NewStdinApprover(stdin, stderr)
-	}
 	args, err := parseRecipeArgs(kv)
 	if err != nil {
 		return fmt.Errorf("--recipe: %w", err)
+	}
+	if err := preflightRecipe(ag, r, args, stdin, stderr); err != nil {
+		return err
+	}
+	if ag.Approver == nil {
+		ag.Approver = headless.NewStdinApprover(stdin, stderr)
 	}
 	report, failed, err := ag.RunRecipe(ctx, r, args, nil)
 	if report != "" {
@@ -41,6 +55,16 @@ func runRecipeFlag(ctx context.Context, ag *agent.Agent, cwd string, r recipe.Re
 	}
 	if failed == nil {
 		return nil
+	}
+	if failed.Denied {
+		// The harness itself refused this, not the tool: handing it to
+		// the model would only spend a turn learning what this already
+		// knows. Report it and stop, the same way a bad --until check
+		// would if there were nothing left to try.
+		if failed.Verify {
+			return fmt.Errorf("--recipe %s: the project's checks failed with a permission denial: %s", r.Name, textfmt.OneLine(failed.Output))
+		}
+		return fmt.Errorf("--recipe %s: step %d (%s) was denied: %s", r.Name, failed.Step, failed.Tool, textfmt.OneLine(failed.Output))
 	}
 	if ag.Provider == nil {
 		if failed.Verify {
@@ -57,6 +81,33 @@ func runRecipeFlag(ctx context.Context, ag *agent.Agent, cwd string, r recipe.Re
 		Agent: ag, Prompt: agent.RecipeHandover(r, *failed),
 		Stdout: stdout, Stderr: stderr, Stdin: stdin, Cwd: cwd,
 	})
+}
+
+// preflightRecipe fails fast, before RunRecipe touches anything, when
+// stdin cannot answer a permission prompt (no terminal, and --yolo was
+// not given) and the recipe has at least one mutating step this agent's
+// rules and auto modes would not already clear — see
+// Agent.StepsNeedingApproval. An error from recipe.Expand is not this
+// function's business to report: RunRecipe (or its own caller) will hit
+// the same error and say so.
+func preflightRecipe(ag *agent.Agent, r recipe.Recipe, args map[string]string, stdin *os.File, stderr io.Writer) error {
+	if ag.AutoApprove || headless.StdinInteractive(stdin) {
+		return nil
+	}
+	steps, err := recipe.Expand(r, args)
+	if err != nil {
+		return nil
+	}
+	need := ag.StepsNeedingApproval(steps)
+	if len(need) == 0 {
+		return nil
+	}
+	fmt.Fprintf(stderr, "--recipe %s: %s would need approval this run cannot ask for (stdin is not a terminal):\n", r.Name, textfmt.Plural(len(need), "step"))
+	for _, n := range need {
+		fmt.Fprintf(stderr, "  %s\n", n)
+	}
+	fmt.Fprintf(stderr, "Re-run with --yolo to auto-approve, or add a permission rule from an interactive session first (/permissions allow ...).\n")
+	return fmt.Errorf("--recipe %s: needs approval this run cannot give", r.Name)
 }
 
 // parseRecipeArgs reads --recipe's positional k=v arguments.

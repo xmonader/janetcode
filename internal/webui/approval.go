@@ -36,7 +36,7 @@ func (s *server) doCancel(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.pending != nil {
 		select {
-		case s.pending.reply <- verdict{d: agent.Deny, reason: "the user cancelled the turn"}:
+		case s.pending.reply <- verdict{d: agent.Deny, reason: agent.CancelledReason}:
 		default:
 		}
 		s.pending = nil
@@ -93,7 +93,7 @@ func (s *server) permission(w http.ResponseWriter, r *http.Request) {
 	}
 	reason := body.Reason
 	if body.Decision == "cancel" {
-		reason = "the user cancelled the turn"
+		reason = agent.CancelledReason
 		s.mu.Lock()
 		if s.cancel != nil {
 			s.cancel()

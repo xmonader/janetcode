@@ -40,7 +40,10 @@ func (a *Agent) Proof(ctx context.Context, repoDir, commit string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	r := a.buildProof(root, committed)
+	r, err := a.buildProof(ctx, root, sha, committed)
+	if err != nil {
+		return "", err
+	}
 	if r.Empty() {
 		return "", fmt.Errorf("no proof for %s: this session made no tracked change to any file in that commit", proof.Short(sha))
 	}
@@ -54,8 +57,17 @@ func (a *Agent) Proof(ctx context.Context, repoDir, commit string) (string, erro
 // their turns' verdicts (see verdict.go) into a proof.Record limited to
 // committed — the plain proof.ChangeInput/TurnOutcomeInput types exist so
 // that conversion happens here rather than proof importing this package
-// back, which would cycle (agent already needs to call into proof).
-func (a *Agent) buildProof(repoRoot string, committed []string) proof.Record {
+// back, which would cycle (agent already needs to call into proof). The
+// git reads Build needs to tell a change that actually landed in commit
+// from one that only shares its path with an earlier commit (see
+// proof.changeLandedIn) happen here too, via proof.CommittedFileVersions,
+// keeping every git call behind the proof package as everywhere else in
+// this file.
+func (a *Agent) buildProof(ctx context.Context, repoRoot, commit string, committed []string) (proof.Record, error) {
+	versions, err := proof.CommittedFileVersions(ctx, repoRoot, commit, committed)
+	if err != nil {
+		return proof.Record{}, err
+	}
 	var sessionID string
 	if sess, ok := a.Log.(*session.Session); ok {
 		sessionID = sess.Meta.ID
@@ -71,6 +83,7 @@ func (a *Agent) buildProof(repoRoot string, committed []string) proof.Record {
 		inputs = append(inputs, proof.ChangeInput{
 			Seq: c.Seq, Turn: c.Turn, Tool: c.Tool, Intent: c.Intent,
 			Path: c.Path, Added: add, Removed: del,
+			Before: c.Before, After: c.After,
 		})
 		turnsUsed[c.Turn] = true
 	}
@@ -87,7 +100,7 @@ func (a *Agent) buildProof(repoRoot string, committed []string) proof.Record {
 			Mutation: foldMutation(events, tn),
 		}
 	}
-	return proof.Build(sessionID, a.Model, repoRoot, inputs, outcomes, committed)
+	return proof.Build(sessionID, a.Model, repoRoot, inputs, outcomes, versions), nil
 }
 
 // mutationExtra mirrors the Extra JSON internal/mutate's Report.Event
@@ -194,7 +207,11 @@ func (a *Agent) checkCommitAttach(ctx context.Context, preHead string, emit func
 	if err != nil {
 		return
 	}
-	r := a.buildProof(root, committed)
+	r, err := a.buildProof(ctx, root, postHead, committed)
+	if err != nil {
+		emit(Event{Kind: EvNotice, Text: "proof: could not read " + proof.Short(postHead) + "'s content to attach evidence: " + err.Error()})
+		return
+	}
 	if r.Empty() {
 		// Not an error: the commit may be entirely someone else's changes,
 		// a merge, or files this session never touched with the tracked

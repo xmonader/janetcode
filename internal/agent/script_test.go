@@ -294,7 +294,7 @@ func TestRenderScripts(t *testing.T) {
 	// The script tool is run through the agent so the outer call is logged
 	// too, as it would be in a session.
 	in, _ := json.Marshal(map[string]string{"code": "from janetcode_tools import list_dir\nlist_dir(path='.')\nprint('done')\n"})
-	out, isErr := ag.runNested(context.Background(), "outer", "execute_code", in)
+	out, isErr, _ := ag.runNested(context.Background(), "outer", "execute_code", in)
 	if isErr {
 		t.Fatalf("script failed: %s", out)
 	}

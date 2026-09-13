@@ -80,6 +80,16 @@ func (c *checkpointer) beginTurn(turn, messages int) {
 	c.turn, c.messages = turn, messages
 }
 
+// turnStart returns the index into Agent.Messages the running turn's own
+// messages begin at (the "before" beginTurn was called with), so a caller
+// can bound a search to only messages made during this turn (see
+// intentFor's fallback to the previous assistant message of the same turn).
+func (c *checkpointer) turnStart() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.messages
+}
+
 // snapshot records the state before a mutating tool runs: a git snapshot
 // of the work tree on the first mutating call of the turn, and a copy of
 // every path a file tool will touch, once per turn per path.

@@ -92,15 +92,18 @@ func (a *Agent) before(t tool.Tool, input []byte) []pending {
 }
 
 // after records a Change for every touched path whose content differs
-// from what before saw.
-func (a *Agent) after(u llm.Block, pend []pending) {
+// from what before saw. explicitIntent is the call's own stated intent —
+// ToolCall.Intent, taken off the call's input by tool.TakeIntent when the
+// intent feature is on — and is intentFor's first choice before it falls
+// back to reading the transcript.
+func (a *Agent) after(u llm.Block, explicitIntent string, pend []pending) {
 	for _, p := range pend {
 		data, err := os.ReadFile(p.path)
 		exists := err == nil
 		if !exists && !p.existed || exists && p.existed && bytes.Equal(data, p.data) {
 			continue
 		}
-		a.record(Change{Turn: a.Stats().Turns, Call: u.ID, Tool: u.Name, Intent: a.intentFor(u.ID), Path: p.path, Existed: p.existed, Before: p.data, After: data})
+		a.record(Change{Turn: a.Stats().Turns, Call: u.ID, Tool: u.Name, Intent: a.intentFor(u.ID, explicitIntent), Path: p.path, Existed: p.existed, Before: p.data, After: data})
 	}
 }
 
@@ -122,22 +125,72 @@ func (a *Agent) record(c Change) {
 	}
 }
 
-// intentFor is the first line of what the model said before the tool
-// call, i.e. why it made the change.
-func (a *Agent) intentFor(callID string) string {
+// intentFor is why the model made a tool call, one clipped line, tried in
+// order of how much it can be trusted:
+//
+//  1. explicitIntent, the call's own stated intent (ToolCall.Intent /
+//     Change.Intent): when the intent feature is on, the model says why
+//     in the call's own arguments, which needs no reconstruction and
+//     survives a reasoning style — qwen and others — that puts its
+//     explanation somewhere other than plain text before the call.
+//  2. Text before the tool_use block in the same assistant message: the
+//     traditional case, a model that narrates then calls the tool.
+//  3. The first line of a thinking block in that same message, for a
+//     model whose reasoning about the call lands there instead of in
+//     visible text.
+//  4. The last text of the previous assistant message earlier in the same
+//     turn (bounded by a.cp.turnStart so an earlier turn's chatter is
+//     never borrowed), for a model that explains itself once and then
+//     just calls tools on later steps.
+//
+// Anything found is clipped to one line; finding nothing returns "".
+func (a *Agent) intentFor(callID, explicitIntent string) string {
+	if s := strings.TrimSpace(explicitIntent); s != "" {
+		return firstLine(s, 120)
+	}
+	turnStart := a.cp.turnStart()
+	callIdx := -1
 	for i := len(a.Messages) - 1; i >= 0; i-- {
 		m := a.Messages[i]
 		if m.Role != llm.RoleAssistant {
 			continue
 		}
-		var text string
+		var text, thinking string
+		found := false
 		for _, b := range m.Blocks {
 			if b.Type == llm.BlockToolUse && b.ID == callID {
-				return firstLine(text, 120)
+				found = true
+				break
 			}
-			if b.Type == llm.BlockText {
+			switch b.Type {
+			case llm.BlockText:
 				text = b.Text
+			case llm.BlockThinking:
+				thinking = b.Text
 			}
+		}
+		if !found {
+			continue
+		}
+		callIdx = i
+		if s := strings.TrimSpace(text); s != "" {
+			return firstLine(s, 120)
+		}
+		if s := strings.TrimSpace(thinking); s != "" {
+			return firstLine(s, 120)
+		}
+		break
+	}
+	if callIdx < 0 {
+		return ""
+	}
+	for i := callIdx - 1; i >= turnStart && i >= 0; i-- {
+		m := a.Messages[i]
+		if m.Role != llm.RoleAssistant {
+			continue
+		}
+		if s := strings.TrimSpace(m.Text()); s != "" {
+			return firstLine(s, 120)
 		}
 	}
 	return ""

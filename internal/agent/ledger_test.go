@@ -160,3 +160,24 @@ func TestLearnedNoteHiddenBehindAWarning(t *testing.T) {
 		t.Fatalf("learned note shown despite a warning: %q", got)
 	}
 }
+
+type cancelApprover struct{}
+
+func (cancelApprover) Approve(ctx context.Context, call ToolCall) (Decision, error) { return Deny, nil }
+func (cancelApprover) ApproveWithReason(ctx context.Context, call ToolCall) (Decision, string, error) {
+	return Deny, CancelledReason, nil
+}
+
+func TestCancelIsNotRecordedAsRefusal(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"a.txt","content":"x"}`),
+		text("done"),
+	}}
+	a, _ := newAgent(t, f, cancelApprover{})
+	a.Ledger = perm.OpenLedger(t.TempDir(), "proj")
+	_ = a.Run(context.Background(), "write", nil)
+	shape := perm.Suggest("write_file", perm.Subject("write_file", []byte(`{"path":"a.txt"}`))).String()
+	if got := a.Ledger.Get(shape); got.Denied != 0 || got.Allowed != 0 {
+		t.Fatalf("cancel recorded in the ledger as %+v", got)
+	}
+}

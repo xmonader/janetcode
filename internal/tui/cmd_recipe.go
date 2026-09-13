@@ -80,7 +80,12 @@ func (m *model) saveRecipe(rest string) {
 	if turn == 0 {
 		turn = recipe.LatestToolTurn(events)
 	}
-	steps, err := recipe.FromEvents(events, turn)
+	// RecipeSteps, not recipe.FromEvents directly: it converts any
+	// positional edit_file or write_file call into a content-anchored
+	// step using this session's own change provenance, so a saved recipe
+	// never carries a mutation whose replay could silently land on the
+	// wrong lines of a file that moved on. See its doc comment.
+	steps, err := ag.RecipeSteps(turn)
 	if err != nil {
 		m.transcript.errorf("recipe save: %v", err)
 		return
@@ -151,7 +156,10 @@ type recipeDoneMsg struct {
 // finishRecipe handles recipeDoneMsg: it prints the run's report and, on
 // a failed step, hands over to the model with agent.RecipeHandover — the
 // same submit path a queued prompt or a goal round uses to start its next
-// turn.
+// turn. A failure the harness itself denied (msg.failed.Denied — a
+// permission rule, a "no" from the user, a failed precondition) is never
+// handed over: the model's own retry of the same call would be refused
+// the same way, so this reports it instead and stops.
 func (m *model) finishRecipe(msg recipeDoneMsg) tea.Cmd {
 	m.running = false
 	m.cancelling = false
@@ -167,6 +175,13 @@ func (m *model) finishRecipe(msg recipeDoneMsg) tea.Cmd {
 	case msg.err != nil:
 		m.transcript.errorf("recipe %s: %v", msg.recipe.Name, msg.err)
 		m.status = "error"
+	case msg.failed != nil && msg.failed.Denied:
+		what := fmt.Sprintf("step %d (%s)", msg.failed.Step, msg.failed.Tool)
+		if msg.failed.Verify {
+			what = "the project's checks"
+		}
+		m.transcript.errorf("recipe %s: %s was denied, not handed to the model: %s", msg.recipe.Name, what, msg.failed.Output)
+		m.status = "denied"
 	case msg.failed != nil && msg.failed.Verify:
 		m.note(fmt.Sprintf("recipe %s: steps all ran, but the project's checks failed; handing over to the model", msg.recipe.Name))
 		m.term.turnEnded(false, m.status)

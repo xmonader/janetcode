@@ -36,6 +36,20 @@ type Param struct {
 	Default string `json:"default"`
 }
 
+// Expect is a precondition RunRecipe checks before a step is allowed to
+// run, so a replay never mutates something it has not verified matches
+// what the recording expected.
+type Expect struct {
+	// Absent means the step's target path must either not exist yet, or
+	// already hold exactly the content this step is about to write (a
+	// harmless no-op replay) — anything else fails the step rather than
+	// overwriting it. Set on a write_file step that created a new file
+	// when it was recorded: there is no "before" content to anchor a
+	// safer form on, so the file's absence (or byte-for-byte agreement
+	// with what would be written anyway) is all that can be verified.
+	Absent bool `json:"absent,omitempty"`
+}
+
 // Step is one real tool call, kept exactly as it would be made through
 // Agent.runNested: the tool's registered name and its input, both taken
 // from what the session already logged.
@@ -43,6 +57,14 @@ type Step struct {
 	Tool   string          `json:"tool"`
 	Input  json.RawMessage `json:"input"`
 	Intent string          `json:"intent,omitempty"`
+	// Expect, when set, is checked before the step runs; see Expect.
+	Expect *Expect `json:"expect,omitempty"`
+	// CallID is the tool-call id this step was extracted from, kept only
+	// long enough for the agent's own save-time conversion (see
+	// internal/agent's Agent.RecipeSteps) to match a step against the
+	// session's change provenance for the same call. It never reaches a
+	// saved recipe file.
+	CallID string `json:"-"`
 }
 
 // Recipe is a named, saved program of steps, with the parameters it
@@ -113,7 +135,7 @@ func FromEvents(events []session.Event, turn int) ([]Step, error) {
 		if !ok || res.IsError {
 			continue
 		}
-		steps = append(steps, Step{Tool: call.Name, Input: json.RawMessage(call.Arguments), Intent: call.Intent})
+		steps = append(steps, Step{Tool: call.Name, Input: json.RawMessage(call.Arguments), Intent: call.Intent, CallID: id})
 	}
 	if len(steps) == 0 {
 		return nil, fmt.Errorf("turn %d has no replayable tool calls (steps that failed, or that only affect the conversation, do not count)", turn)
@@ -183,7 +205,7 @@ func Parameterise(steps []Step, params map[string]string) ([]Step, []Param) {
 			out[i] = st
 			continue
 		}
-		out[i] = Step{Tool: st.Tool, Input: data, Intent: st.Intent}
+		out[i] = Step{Tool: st.Tool, Input: data, Intent: st.Intent, Expect: st.Expect}
 	}
 	var ps []Param
 	for _, n := range names {
@@ -262,7 +284,7 @@ func Expand(r Recipe, args map[string]string) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("step %d (%s): %w", i+1, st.Tool, err)
 		}
-		out[i] = Step{Tool: st.Tool, Input: data, Intent: st.Intent}
+		out[i] = Step{Tool: st.Tool, Input: data, Intent: st.Intent, Expect: st.Expect}
 	}
 	return out, nil
 }

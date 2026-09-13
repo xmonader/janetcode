@@ -2,14 +2,18 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/recipe"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // mcpToolPrefix names a tool an MCP server contributed to the registry:
@@ -47,6 +51,15 @@ type RecipeFailure struct {
 	// a step: every step succeeded, but the checks that ran afterwards
 	// did not.
 	Verify bool
+	// Denied marks a failure that was the harness itself refusing the
+	// call — a permission rule, a hook block, a "no" from the approver,
+	// read-only mode, or a failed Expect precondition — rather than the
+	// tool running and failing on its own. A front-end must not hand a
+	// denial to the model: the model's own retry would be refused by the
+	// very same rule or precondition, so the only effect of handing it
+	// over is spending a turn to learn nothing. Report it instead (see
+	// cmd/janetcode's runRecipeFlag and the tui/webui recipe commands).
+	Denied bool
 }
 
 // RunRecipe replays a recipe's steps through exactly the pipeline a model
@@ -125,17 +138,30 @@ func (a *Agent) RunRecipe(ctx context.Context, r recipe.Recipe, args map[string]
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "recipe %s (%s)\n", r.Name, textfmt.Plural(len(steps), "step"))
+	stepIDs := make(map[string]bool, len(steps))
 	for i, st := range steps {
 		if err := ctx.Err(); err != nil {
 			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "cancelled"})
 			return strings.TrimRight(b.String(), "\n"), nil, err
 		}
+		// A step's precondition (see recipe.Expect) is checked before it
+		// ever reaches runNested: the whole point of Expect is that this
+		// step must not run at all when what it is about to touch is not
+		// what the recording verified, so there is nothing for authorize
+		// or the tool itself to weigh in on here.
+		if msg := a.checkExpect(st); msg != "" {
+			fmt.Fprintf(&b, "## step %d: %s\n%s\n", i+1, st.Tool, msg)
+			a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Name: st.Tool, Output: msg, IsError: true})
+			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "recipe-failed"})
+			return finish(b.String(), &RecipeFailure{Step: i + 1, Tool: st.Tool, Output: msg, Denied: true})
+		}
 		id := fmt.Sprintf("recipe-%s-%d", r.Name, i+1)
-		out, isErr := a.runNested(ctx, id, st.Tool, st.Input)
+		stepIDs[id] = true
+		out, isErr, denied := a.runNested(ctx, id, st.Tool, st.Input)
 		fmt.Fprintf(&b, "## step %d: %s\n%s\n", i+1, st.Tool, strings.TrimRight(out, "\n"))
 		if isErr {
 			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "recipe-failed"})
-			return finish(b.String(), &RecipeFailure{Step: i + 1, Tool: st.Tool, Output: out})
+			return finish(b.String(), &RecipeFailure{Step: i + 1, Tool: st.Tool, Output: out, Denied: denied})
 		}
 	}
 
@@ -166,9 +192,88 @@ func (a *Agent) RunRecipe(ctx context.Context, r recipe.Recipe, args map[string]
 		}
 	}
 
+	// A clean run is inspectable rather than taken on faith: a compact
+	// per-file +/- line count of everything the run's own steps actually
+	// changed, so "it finished" and "it changed what it should have"
+	// are not the same claim.
+	if stat := recipeDiffStat(a.Changes(), stepIDs); stat != "" {
+		fmt.Fprintf(&b, "\n%s\n", stat)
+	}
 	fmt.Fprintf(&b, "\n[recipe %s finished, %s]", r.Name, textfmt.Plural(len(steps), "step"))
 	a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "recipe-done"})
 	return finish(b.String(), nil)
+}
+
+// recipeDiffStat summarises, one line per path in the order first
+// touched, the net effect of the changes whose call id is in ids — the
+// steps this run of RunRecipe itself made, as opposed to any other change
+// recorded earlier in the session.
+func recipeDiffStat(changes []Change, ids map[string]bool) string {
+	type stat struct{ add, del int }
+	var order []string
+	stats := map[string]*stat{}
+	for _, c := range changes {
+		if !ids[c.Call] {
+			continue
+		}
+		s, ok := stats[c.Path]
+		if !ok {
+			s = &stat{}
+			stats[c.Path] = s
+			order = append(order, c.Path)
+		}
+		add, del := c.Stats()
+		s.add += add
+		s.del += del
+	}
+	if len(order) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("changed:\n")
+	for _, p := range order {
+		s := stats[p]
+		fmt.Fprintf(&b, "  %s (+%d -%d)\n", p, s.add, s.del)
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// checkExpect reports why st must not run, or "" when it may proceed. Only
+// steps with an Expect precondition (see recipe.Expect) are checked; every
+// other step returns "" here; and the actual pre-existing check (a rule,
+// a hook, the approver) still runs afterwards, from runNested, exactly as
+// for any other call.
+func (a *Agent) checkExpect(st recipe.Step) string {
+	if st.Expect == nil || !st.Expect.Absent {
+		return ""
+	}
+	t, ok := a.Tools.Get(st.Tool)
+	if !ok {
+		return "" // an unknown tool is reported by runNested, same as ever
+	}
+	tc, ok := t.(tool.Toucher)
+	if !ok {
+		return ""
+	}
+	paths, err := tc.Touches(st.Input)
+	if err != nil || len(paths) == 0 {
+		return ""
+	}
+	var in struct {
+		Content string `json:"content"`
+	}
+	_ = json.Unmarshal(st.Input, &in)
+	data, rerr := os.ReadFile(paths[0])
+	switch {
+	case errors.Is(rerr, os.ErrNotExist):
+		return "" // absent, exactly as it was when this was recorded
+	case rerr != nil:
+		return fmt.Sprintf("could not check %s before writing it: %v", paths[0], rerr)
+	case string(data) == in.Content:
+		return "" // already holds exactly what this step would write
+	default:
+		return fmt.Sprintf("%s did not exist when this recipe was recorded, but it exists now with different content; refusing to overwrite it rather than guess. Check it by hand, or update the recipe.", paths[0])
+	}
 }
 
 // maybeCompactAfterRecipe applies the same compaction check RunBlocks
@@ -245,4 +350,307 @@ func RecipeHandover(r recipe.Recipe, f RecipeFailure) string {
 	}
 	b.WriteString("\nWork out why this step failed and finish the job yourself, using whatever tools and judgement it takes.")
 	return b.String()
+}
+
+// RecipeSteps is what /recipe save crystallises a turn into. It starts
+// from recipe.FromEvents (the turn's successful, replayable tool calls,
+// in order) and then converts every step whose effect on disk was decided
+// by position rather than by content — a write_file that overwrote a file
+// that already existed, or an edit_file call that located itself by
+// from_line/to_line/from_anchor/to_anchor — into a content-anchored
+// edit_file text-form step (or, for a write_file that created a brand
+// new file, the same write_file plus a precondition; see recipe.Expect).
+//
+// recipe.FromEvents itself only ever sees the event log, which has the
+// call and its result but not the file's content before and after —
+// exactly what a positional edit needs turned into an anchor. This is the
+// one place that has both: the event log (for FromEvents) and this
+// session's own change provenance (Change, in provenance.go), matched to
+// a step by the tool-call id FromEvents already carries on recipe.Step
+// (CallID; never written to the saved file — see its own comment).
+//
+// A step this cannot safely convert — no recorded Change for its call
+// (a no-op write, or provenance that was not captured for some reason),
+// or a hunk with nothing to anchor on — is kept exactly as extracted
+// rather than dropped or guessed at; RunRecipe and edit_file's own
+// uniqueness check are what make even that safe to replay (see
+// checkExpect and internal/tool/files.go's EditFile.apply).
+func (a *Agent) RecipeSteps(turn int) ([]recipe.Step, error) {
+	var events []session.Event
+	if a.Log != nil {
+		events = a.Log.Events()
+	}
+	steps, err := recipe.FromEvents(events, turn)
+	if err != nil {
+		return nil, err
+	}
+	changes := make(map[string]Change, len(steps))
+	for _, c := range a.Changes() {
+		changes[c.Call] = c
+	}
+	out := make([]recipe.Step, 0, len(steps))
+	for _, st := range steps {
+		out = append(out, a.convertStep(st, changes)...)
+	}
+	return out, nil
+}
+
+// convertStep applies RecipeSteps's conversion to one extracted step,
+// returning the one or more steps it should be saved as.
+func (a *Agent) convertStep(st recipe.Step, changes map[string]Change) []recipe.Step {
+	switch st.Tool {
+	case "write_file":
+		return a.convertWriteFile(st, changes)
+	case "edit_file":
+		return a.convertEditFile(st, changes)
+	default:
+		return []recipe.Step{st}
+	}
+}
+
+func (a *Agent) convertWriteFile(st recipe.Step, changes map[string]Change) []recipe.Step {
+	c, ok := changes[st.CallID]
+	if !ok {
+		return []recipe.Step{st}
+	}
+	if !c.Existed {
+		// Nothing existed to anchor against; the file's absence (or
+		// agreement with what this step would write anyway) is the whole
+		// precondition RunRecipe can check for it. See recipe.Expect.
+		st.Expect = &recipe.Expect{Absent: true}
+		return []recipe.Step{st}
+	}
+	return a.hunksToEditSteps(st, c)
+}
+
+func (a *Agent) convertEditFile(st recipe.Step, changes map[string]Change) []recipe.Step {
+	if !editFileUsesLineForm(st.Input) {
+		return []recipe.Step{st} // already a text-form edit from the model
+	}
+	c, ok := changes[st.CallID]
+	if !ok {
+		return []recipe.Step{st}
+	}
+	return a.hunksToEditSteps(st, c)
+}
+
+// lineFormFields is the set of field names that put an edit_file call into
+// its line-range form; see internal/tool/files.go's oneEdit.byLine.
+type lineFormFields struct {
+	FromLine   json.RawMessage `json:"from_line"`
+	ToLine     json.RawMessage `json:"to_line"`
+	FromAnchor json.RawMessage `json:"from_anchor"`
+	ToAnchor   json.RawMessage `json:"to_anchor"`
+}
+
+func (f lineFormFields) byLine() bool {
+	return len(f.FromLine) > 0 || len(f.ToLine) > 0 || len(f.FromAnchor) > 0 || len(f.ToAnchor) > 0
+}
+
+// editFileUsesLineForm reports whether an edit_file call's input locates
+// any of its edits by line or anchor rather than by old_string, at the
+// top level or inside its edits list.
+func editFileUsesLineForm(input json.RawMessage) bool {
+	var in struct {
+		lineFormFields
+		Edits []lineFormFields `json:"edits"`
+	}
+	if json.Unmarshal(input, &in) != nil {
+		return false
+	}
+	if in.byLine() {
+		return true
+	}
+	for _, e := range in.Edits {
+		if e.byLine() {
+			return true
+		}
+	}
+	return false
+}
+
+// hunksToEditSteps turns a change's line-level diff into one edit_file
+// text-form step per changed region. Each step's old_string is that
+// region's own changed lines plus enough surrounding, unchanged context —
+// starting at none and growing symmetrically — to be unique in the file
+// as it was recorded; a region this cannot even build a non-empty anchor
+// for (nothing textual differs — a shape-only rewrite, say) falls back to
+// the original step rather than emit something that cannot possibly
+// match anything.
+//
+// This deliberately does not reuse Change.Hunks(): that pads every region
+// with makeHunks' fixed three lines of context (and merges regions within
+// six lines of each other) for a human reading a diff, which is often far
+// more than an anchor needs and, worse, bakes in surrounding text that
+// will legitimately differ the next time the same recipe runs — a
+// changelog's body text a line below the heading, say. rawChangeRegions
+// gives the change's true boundaries with no context at all, so growth
+// here adds only as much as uniqueness actually demands.
+func (a *Agent) hunksToEditSteps(st recipe.Step, c Change) []recipe.Step {
+	var in struct {
+		Path string `json:"path"`
+	}
+	if json.Unmarshal(st.Input, &in) != nil || in.Path == "" {
+		return []recipe.Step{st}
+	}
+	before := splitLines(string(c.Before))
+	after := splitLines(string(c.After))
+	regions := rawChangeRegions(diffLines(before, after))
+	if len(regions) == 0 {
+		return []recipe.Step{st}
+	}
+	out := make([]recipe.Step, 0, len(regions))
+	for _, h := range regions {
+		oldText, newText, ok := anchoredEditText(before, after, h)
+		if !ok || oldText == newText {
+			return []recipe.Step{st}
+		}
+		input, err := json.Marshal(map[string]string{"path": in.Path, "old_string": oldText, "new_string": newText})
+		if err != nil {
+			return []recipe.Step{st}
+		}
+		out = append(out, recipe.Step{Tool: "edit_file", Input: input, Intent: st.Intent})
+	}
+	return out
+}
+
+// rawChangeRegions groups a line-level diff into its changed regions with
+// no surrounding context at all: each contiguous run of non-equal edits
+// becomes one Hunk (OldStart/OldCount/NewStart/NewCount only — Lines is
+// left unset, nothing here needs it), unmerged with its neighbours no
+// matter how close. Compare Hunks()/makeHunks in linediff.go, which pads
+// every region with a fixed few lines of context for a human reading a
+// diff; this is that same walk without the padding, because
+// hunksToEditSteps grows its own context outward only as far as
+// uniqueness demands.
+func rawChangeRegions(edits []edit) []Hunk {
+	var out []Hunk
+	oldLine, newLine := 1, 1
+	i := 0
+	for i < len(edits) {
+		if edits[i].op == '=' {
+			oldLine++
+			newLine++
+			i++
+			continue
+		}
+		h := Hunk{OldStart: oldLine, NewStart: newLine}
+		j := i
+		for j < len(edits) && edits[j].op != '=' {
+			if edits[j].op != '+' {
+				h.OldCount++
+			}
+			if edits[j].op != '-' {
+				h.NewCount++
+			}
+			j++
+		}
+		out = append(out, h)
+		oldLine += h.OldCount
+		newLine += h.NewCount
+		i = j
+	}
+	return out
+}
+
+// maxAnchorGrowth bounds how far a hunk's context is grown looking for a
+// unique anchor, so a huge file with a genuinely repeated block does not
+// walk the growth loop across the whole file. Recipes are recorded from
+// small, deliberate edits; a real hunk needs a handful of lines of context
+// at most.
+const maxAnchorGrowth = 200
+
+// anchoredEditText turns one line-diff hunk into the old/new text an
+// edit_file text-form step would take. before/after are the file's lines
+// (with their line endings) as recorded; h names where in each the hunk's
+// changed lines sit. The lines just outside the hunk are unchanged by
+// construction, so growing the window by one line on each side — using
+// the same source line for both old and new — cannot itself introduce a
+// difference; only which lines bound the replacement changes.
+//
+// The result is not guaranteed unique: growth stops at the file's edges
+// or after maxAnchorGrowth lines, whichever comes first. Ambiguity beyond
+// that is left for edit_file's own match count to catch at replay time
+// (see internal/tool/files.go's oneEdit.apply): it refuses rather than
+// guessing among several matches, which is the same "fail rather than
+// corrupt" rule this whole conversion exists to uphold.
+func anchoredEditText(before, after []string, h Hunk) (oldText, newText string, ok bool) {
+	oldLo, oldHi := h.OldStart-1, h.OldStart-1+h.OldCount
+	newLo, newHi := h.NewStart-1, h.NewStart-1+h.NewCount
+	if oldLo < 0 || oldHi > len(before) || newLo < 0 || newHi > len(after) {
+		return "", "", false
+	}
+	unique := func() bool {
+		needle := strings.Join(before[oldLo:oldHi], "")
+		return needle != "" && strings.Count(strings.Join(before, ""), needle) == 1
+	}
+	for i := 0; !unique() && i < maxAnchorGrowth; i++ {
+		grew := false
+		if oldLo > 0 && newLo > 0 {
+			oldLo--
+			newLo--
+			grew = true
+		}
+		if oldHi < len(before) && newHi < len(after) {
+			oldHi++
+			newHi++
+			grew = true
+		}
+		if !grew {
+			break
+		}
+	}
+	oldText = strings.Join(before[oldLo:oldHi], "")
+	newText = strings.Join(after[newLo:newHi], "")
+	return oldText, newText, oldText != ""
+}
+
+// StepsNeedingApproval reports, for a resolved (post-recipe.Expand) list
+// of steps, which ones this agent's current permission rules and auto
+// modes cannot clear on their own — the steps an interactive approver
+// would be asked about. A headless caller whose approver cannot ask (no
+// terminal on stdin, see cmd/janetcode's runRecipeFlag) uses this to fail
+// before starting anything rather than after every one of them is
+// auto-denied and the run hands over to a model whose own calls are then
+// denied the same way.
+//
+// A step a rule denies outright is not included: authorize refuses it
+// immediately, without ever reaching the approver, so a missing terminal
+// changes nothing about how it fails. Hooks are not consulted either —
+// running one here for a call that will not actually happen would be a
+// side effect this is supposed to have none of — so a PreTool hook that
+// would in fact allow a call is not accounted for and this can occasionally
+// over-report; that is the safe direction to be wrong in.
+func (a *Agent) StepsNeedingApproval(steps []recipe.Step) []string {
+	if a.AutoApprove {
+		return nil
+	}
+	var need []string
+	for i, st := range steps {
+		t, ok := a.Tools.Get(st.Tool)
+		if !ok || !t.Mutating() {
+			continue
+		}
+		mustAsk := false
+		if g, ok := t.(tool.Guard); ok {
+			if ask, _ := g.Guard(st.Input); ask {
+				mustAsk = true
+			}
+		}
+		verdict, _ := a.Rules.Decide(st.Tool, perm.Subject(st.Tool, st.Input))
+		if !mustAsk {
+			switch {
+			case verdict == perm.Denied:
+				continue // authorize refuses this on its own; no prompt involved
+			case verdict == perm.Allowed:
+				continue
+			case (a.AutoEdits || a.AutoMode) && editTool(st.Tool):
+				continue
+			case a.AutoMode && a.autoAllows(llm.Block{Name: st.Tool, Input: st.Input}):
+				continue
+			}
+		}
+		need = append(need, fmt.Sprintf("step %d: %s %s", i+1, st.Tool, textfmt.Clip(textfmt.OneLine(string(st.Input)), 100)))
+	}
+	return need
 }

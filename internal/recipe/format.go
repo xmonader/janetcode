@@ -16,13 +16,58 @@ const stepLineMax = 160
 // FormatSteps renders steps the way /recipe show and /recipe run
 // --dry-run print them, one line per step: the tool and a compact form of
 // its input. internal/tui and internal/webui both call this, so the two
-// front-ends never format a step differently.
+// front-ends never format a step differently. An edit_file text-form step
+// (old_string/new_string) shows as a compact "old → new" instead of the
+// raw JSON, which is unreadable once either side has any length: what
+// replay verifies and changes is exactly that pair.
 func FormatSteps(steps []Step) string {
 	var b strings.Builder
 	for i, st := range steps {
-		fmt.Fprintf(&b, "%d. %s %s\n", i+1, st.Tool, compactJSON(st.Input))
+		fmt.Fprintf(&b, "%d. %s %s\n", i+1, st.Tool, describeStep(st))
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// describeStep is one step's compact one-line description, with the
+// precondition RunRecipe checks before it (see Expect) named at the end
+// when the step has one.
+func describeStep(st Step) string {
+	body := oldNewSummary(st)
+	if body == "" {
+		body = compactJSON(st.Input)
+	}
+	if st.Expect != nil && st.Expect.Absent {
+		body += " [must not already exist with different content]"
+	}
+	return body
+}
+
+// oldNewSummary renders an edit_file text-form step's old_string and
+// new_string as "path: old → new", each clipped, or "" for any step this
+// does not apply to (line-form edits, other tools, or a malformed input
+// that could not be parsed this way — compactJSON falls back for those).
+func oldNewSummary(st Step) string {
+	if st.Tool != "edit_file" {
+		return ""
+	}
+	var in struct {
+		Path      string `json:"path"`
+		OldString string `json:"old_string"`
+		NewString string `json:"new_string"`
+	}
+	if json.Unmarshal(st.Input, &in) != nil || in.OldString == "" {
+		return ""
+	}
+	half := stepLineMax / 2
+	old := textfmt.Clip(oneLine(in.OldString), half)
+	new := textfmt.Clip(oneLine(in.NewString), half)
+	return fmt.Sprintf("%s: %q → %q", in.Path, old, new)
+}
+
+// oneLine collapses newlines so a multi-line old_string/new_string still
+// prints as one line.
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 func compactJSON(raw json.RawMessage) string {

@@ -229,6 +229,125 @@ func TestAgentProofIncludesMutationScore(t *testing.T) {
 	}
 }
 
+// TestAutomaticProofDoesNotMisattributeAcrossCommits is defect #2's
+// end-to-end regression test: a file written in turn 1 and committed
+// (commit A), then edited again in turn 2 and committed again (commit B),
+// must not have turn 1's change show up in commit B's note just because
+// it is the same path -- each commit's note holds only the change that
+// actually landed in it.
+func TestAutomaticProofDoesNotMisattributeAcrossCommits(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"foo.go","content":"package foo\n"}`),
+		toolCall("t2", "bash", `{"command":"git add -A && git commit -m 'add foo'"}`),
+		text("turn 1 done"),
+		toolCall("t3", "edit_file", `{"path":"foo.go","old_string":"package foo\n","new_string":"package foo\n\nfunc A() {}\n"}`),
+		toolCall("t4", "bash", `{"command":"git add -A && git commit -m 'add A'"}`),
+		text("turn 2 done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	gitInit(t, root)
+	repo, err := snapshot.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Snapshots = repo
+	a.AutoApprove = true
+	a.ProofNotes = true
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root}, tool.EditFile{Root: root})
+	sess, err := session.New(t.TempDir(), root, "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Log = sess
+
+	if err := a.Run(context.Background(), "add foo", nil); err != nil {
+		t.Fatal(err)
+	}
+	shaA := headOf(t, root)
+	if err := a.Run(context.Background(), "add A", nil); err != nil {
+		t.Fatal(err)
+	}
+	shaB := headOf(t, root)
+	if shaA == shaB {
+		t.Fatal("the second commit did not move HEAD")
+	}
+
+	recA, ok, err := proof.Read(context.Background(), root, shaA)
+	if err != nil || !ok {
+		t.Fatalf("proof.Read(commit A): ok=%v err=%v", ok, err)
+	}
+	if len(recA.Files) != 1 || len(recA.Files[0].Changes) != 1 || recA.Files[0].Changes[0].Seq != 1 {
+		t.Fatalf("commit A's note = %+v, want only the turn 1 change (#1)", recA.Files)
+	}
+
+	recB, ok, err := proof.Read(context.Background(), root, shaB)
+	if err != nil || !ok {
+		t.Fatalf("proof.Read(commit B): ok=%v err=%v", ok, err)
+	}
+	if len(recB.Files) != 1 || len(recB.Files[0].Changes) != 1 || recB.Files[0].Changes[0].Seq != 2 {
+		t.Fatalf("commit B's note = %+v, want only the turn 2 change (#2)", recB.Files)
+	}
+}
+
+// TestManualCommitsDoNotMisattributeAcrossCommits covers the same fix
+// through the manual path (/proof on request rather than the automatic
+// bash-commit hook): a session writes then edits the same file across two
+// turns, the user commits each turn's work separately outside the
+// session's own tool calls, and /proof on each commit must show only that
+// commit's own change.
+func TestManualCommitsDoNotMisattributeAcrossCommits(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"foo.go","content":"package foo\n"}`),
+		text("turn 1 done"),
+		toolCall("t2", "edit_file", `{"path":"foo.go","old_string":"package foo\n","new_string":"package foo\n\nfunc A() {}\n"}`),
+		text("turn 2 done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	gitInit(t, root)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root}, tool.EditFile{Root: root})
+	sess, err := session.New(t.TempDir(), root, "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Log = sess
+
+	if err := a.Run(context.Background(), "add foo", nil); err != nil {
+		t.Fatal(err)
+	}
+	commitAll(t, root, "add foo")
+	shaA := headOf(t, root)
+
+	if err := a.Run(context.Background(), "add A", nil); err != nil {
+		t.Fatal(err)
+	}
+	commitAll(t, root, "add A")
+	shaB := headOf(t, root)
+
+	if _, err := a.Proof(context.Background(), root, shaA); err != nil {
+		t.Fatalf("Proof(commit A): %v", err)
+	}
+	if _, err := a.Proof(context.Background(), root, shaB); err != nil {
+		t.Fatalf("Proof(commit B): %v", err)
+	}
+
+	recA, ok, err := proof.Read(context.Background(), root, shaA)
+	if err != nil || !ok {
+		t.Fatalf("proof.Read(commit A): ok=%v err=%v", ok, err)
+	}
+	if len(recA.Files) != 1 || len(recA.Files[0].Changes) != 1 || recA.Files[0].Changes[0].Seq != 1 {
+		t.Fatalf("commit A's note = %+v, want only the turn 1 change (#1)", recA.Files)
+	}
+
+	recB, ok, err := proof.Read(context.Background(), root, shaB)
+	if err != nil || !ok {
+		t.Fatalf("proof.Read(commit B): ok=%v err=%v", ok, err)
+	}
+	if len(recB.Files) != 1 || len(recB.Files[0].Changes) != 1 || recB.Files[0].Changes[0].Seq != 2 {
+		t.Fatalf("commit B's note = %+v, want only the turn 2 change (#2)", recB.Files)
+	}
+}
+
 func commitAll(t *testing.T, root, msg string) {
 	t.Helper()
 	for _, args := range [][]string{{"add", "-A"}, {"commit", "-q", "-m", msg}} {

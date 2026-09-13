@@ -1,6 +1,7 @@
 package perm
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -117,5 +118,19 @@ func TestCandidateLinesSkipsAlreadySavedRules(t *testing.T) {
 	}
 	if strings.Contains(strings.Join(lines, "\n"), "go test") {
 		t.Fatalf("an already-saved rule was still offered: %v", lines)
+	}
+}
+
+func TestLedgerWarnedShapeIsNeverACandidate(t *testing.T) {
+	l := OpenLedger(t.TempDir(), "proj")
+	for range 4 {
+		l.Record("bash(chmod *)", true)
+	}
+	l.MarkWarned("bash(chmod *)")
+	if c := l.Candidates(LearnAfter); len(c) != 0 {
+		t.Fatalf("warned shape proposed: %+v", c)
+	}
+	if !OpenLedger(filepath.Dir(filepath.Dir(l.path)), "proj").Get("bash(chmod *)").Warned {
+		t.Fatal("warned flag not persisted")
 	}
 }

@@ -19,9 +19,13 @@ const LearnAfter = 3
 // Tally is how often a permission-rule shape (see Suggest) has been
 // approved or refused, and when it last happened.
 type Tally struct {
-	Allowed int       `json:"allowed"`
-	Denied  int       `json:"denied"`
-	Last    time.Time `json:"last"`
+	Allowed int `json:"allowed"`
+	Denied  int `json:"denied"`
+	// Warned is set once a call of this shape was approved while it
+	// carried a warning. Such a shape is never proposed as a rule: the
+	// prompt does not offer it, so /permissions must not either.
+	Warned bool      `json:"warned,omitempty"`
+	Last   time.Time `json:"last"`
 }
 
 // Candidate is a shape the ledger thinks is worth saving as a rule: it
@@ -101,6 +105,27 @@ func (l *Ledger) Record(shape string, allowed bool) Tally {
 	return t
 }
 
+// MarkWarned records that a call of shape carried a warning.
+func (l *Ledger) MarkWarned(shape string) {
+	if l == nil || l.path == "" || shape == "" {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	m := l.load()
+	t := m[shape]
+	if t.Warned {
+		return
+	}
+	t.Warned = true
+	m[shape] = t
+	if data, err := json.Marshal(m); err == nil {
+		if err := os.MkdirAll(filepath.Dir(l.path), 0o700); err == nil {
+			_ = fsutil.WriteFileAtomic(l.path, data, 0o600)
+		}
+	}
+}
+
 // Get returns the tally for shape, zero if it has never been answered.
 func (l *Ledger) Get(shape string) Tally {
 	if l == nil || l.path == "" {
@@ -123,7 +148,7 @@ func (l *Ledger) Candidates(min int) []Candidate {
 	m := l.load()
 	out := make([]Candidate, 0, len(m))
 	for shape, t := range m {
-		if t.Allowed >= min && t.Denied == 0 {
+		if t.Allowed >= min && t.Denied == 0 && !t.Warned {
 			out = append(out, Candidate{Rule: shape, Tally: t})
 		}
 	}

@@ -63,7 +63,7 @@ func (t *RunCode) Run(ctx context.Context, input json.RawMessage) (string, error
 			return "", fmt.Errorf("step %d: %s cannot be called from run_code", i+1, st.Name)
 		}
 		id := fmt.Sprintf("runcode-%d", i+1)
-		out, isErr := t.Parent.runNested(ctx, id, st.Name, st.Input)
+		out, isErr, _ := t.Parent.runNested(ctx, id, st.Name, st.Input)
 		fmt.Fprintf(&b, "## %s\n%s\n", st.Name, strings.TrimRight(out, "\n"))
 		if isErr {
 			fmt.Fprintf(&b, "\n[step %d failed]\n", i+1)

@@ -345,3 +345,13 @@ func (a *stdinApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 func isTerminal(f *os.File) bool {
 	return term.IsTerminal(int(f.Fd()))
 }
+
+// StdinInteractive reports whether f can actually answer a permission
+// prompt: non-nil and a terminal. Exported so another headless entry
+// point that has to decide *before* starting whether it could ever ask —
+// `janetcode --recipe`'s preflight check, which fails fast rather than
+// let every mutating step auto-deny one at a time — can ask the same
+// question stdinApprover answers for itself on each call.
+func StdinInteractive(f *os.File) bool {
+	return f != nil && isTerminal(f)
+}

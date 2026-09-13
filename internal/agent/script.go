@@ -411,7 +411,7 @@ func (r *rpc) dispatch(ctx context.Context, name string, input json.RawMessage) 
 	if len(input) == 0 {
 		input = json.RawMessage("{}")
 	}
-	out, isErr := r.parent.runNested(ctx, fmt.Sprintf("script-%d", n), name, input)
+	out, isErr, _ := r.parent.runNested(ctx, fmt.Sprintf("script-%d", n), name, input)
 	if isErr {
 		return "", out
 	}
@@ -425,7 +425,15 @@ func (r *rpc) dispatch(ctx context.Context, name string, input json.RawMessage) 
 // because the script's loop is its own business. Everything that protects
 // the user — the hooks, the permission rules, the approval prompt, the
 // snapshot, the event log — is the same.
-func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMessage) (string, bool) {
+//
+// The third return, denied, says whether a failure was authorize itself
+// refusing the call (a permission rule, a missing or negative approver, a
+// hook block, read-only mode) rather than the tool running and failing on
+// its own merits. RunRecipe uses it to tell a permission denial apart from
+// an ordinary step failure, since only the latter is worth handing to the
+// model — a call the harness itself refused will be refused again with
+// the same words.
+func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMessage) (string, bool, bool) {
 	emit := a.emitter()
 	// A script sees the same tool schemas the model does, so it passes
 	// intent= as a keyword argument. It has to come off here too, or every
@@ -435,19 +443,19 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	call := ToolCall{ID: id, Name: name, Input: input, Intent: intent}
 	t, ok := a.Tools.Get(name)
 	if !ok {
-		return fmt.Sprintf("Unknown tool %q. Available: %s", name, a.toolNames()), true
+		return fmt.Sprintf("Unknown tool %q. Available: %s", name, a.toolNames()), true, false
 	}
 	if a.readOnly() && t.Mutating() {
-		return fmt.Sprintf("%s is not available: this session is read-only (%s).", name, a.modeName()), true
+		return fmt.Sprintf("%s is not available: this session is read-only (%s).", name, a.modeName()), true, true
 	}
 	u := llm.Block{ID: id, Name: name, Input: input}
 	_, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
-		return "Error: " + err.Error(), true
+		return "Error: " + err.Error(), true, false
 	}
 	if deny != "" {
 		emit(Event{Kind: EvToolResult, Call: &call, Output: deny, IsError: true})
-		return deny, true
+		return deny, true, true
 	}
 	emit(Event{Kind: EvToolRun, Call: &call})
 	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: id, Name: name, Arguments: string(u.Input), Intent: intent})
@@ -463,7 +471,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	if isErr {
 		out = "Error: " + runErr.Error()
 	} else if t.Mutating() {
-		a.after(u, pend)
+		a.after(u, intent, pend)
 		a.mutated = true
 		a.mutations++
 	}
@@ -475,7 +483,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	if !isErr {
 		a.stash(id, name, subjectOf(name, u.Input), out)
 	}
-	return out, isErr
+	return out, isErr, false
 }
 
 // emitter is the current turn's event sink, or a sink that drops events

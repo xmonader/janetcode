@@ -74,7 +74,12 @@ func (s *server) saveRecipe(rest string) {
 	if turn == 0 {
 		turn = recipe.LatestToolTurn(events)
 	}
-	steps, err := recipe.FromEvents(events, turn)
+	// RecipeSteps, not recipe.FromEvents directly: it converts any
+	// positional edit_file or write_file call into a content-anchored
+	// step using this session's own change provenance, so a saved recipe
+	// never carries a mutation whose replay could silently land on the
+	// wrong lines of a file that moved on. See its doc comment.
+	steps, err := ag.RecipeSteps(turn)
 	if err != nil {
 		s.errf("recipe save: %v", err)
 		return
@@ -144,7 +149,11 @@ func (s *server) runRecipe(rest string) {
 // finishRecipe ends a background /recipe run: it prints the run's report
 // and, on a failed step, hands over to the model with
 // agent.RecipeHandover through s.startTurn — the same path a goal round
-// uses to start its next turn.
+// uses to start its next turn. A failure the harness itself denied
+// (failed.Denied — a permission rule, a "no" from the user, a failed
+// precondition) is never handed over: the model's own retry of the same
+// call would be refused the same way, so this reports it instead and
+// stops.
 func (s *server) finishRecipe(r recipe.Recipe, report string, failed *agent.RecipeFailure, err error) {
 	s.mu.Lock()
 	s.running = false
@@ -161,6 +170,13 @@ func (s *server) finishRecipe(r recipe.Recipe, report string, failed *agent.Reci
 	case err != nil:
 		s.upsert(&entry{Kind: "error", Text: "recipe " + r.Name + ": " + err.Error(), Error: true})
 		s.statusSet("error")
+	case failed != nil && failed.Denied:
+		what := fmt.Sprintf("step %d (%s)", failed.Step, failed.Tool)
+		if failed.Verify {
+			what = "the project's checks"
+		}
+		s.upsert(&entry{Kind: "error", Text: fmt.Sprintf("recipe %s: %s was denied, not handed to the model: %s", r.Name, what, failed.Output), Error: true})
+		s.statusSet("denied")
 	case failed != nil && failed.Verify:
 		s.notice(fmt.Sprintf("recipe %s: steps all ran, but the project's checks failed; handing over to the model", r.Name))
 		s.startTurn(agent.RecipeHandover(r, *failed))

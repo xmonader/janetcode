@@ -142,7 +142,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.answer(agent.Deny, "")
 		case "c", "C", "ctrl+c":
 			// Not just this call: the whole turn stops here.
-			m.answer(agent.Deny, "the user cancelled the turn")
+			m.answer(agent.Deny, agent.CancelledReason)
 			m.cancelTurn()
 		case "ctrl+o":
 			// At a prompt ctrl+o is about this one call, not the session.

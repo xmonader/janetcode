@@ -80,6 +80,11 @@ type ReasonApprover interface {
 // reason, when given, follows it.
 const DeniedMessage = "The user denied permission for this tool call. Ask before retrying or choose another approach."
 
+// CancelledReason is the reason a front-end gives with the denial that
+// answers a prompt by cancelling the whole turn. It is not a verdict on the
+// call, so the permission ledger does not count it as a refusal.
+const CancelledReason = "the user cancelled the turn"
+
 // ApproverFunc adapts a function to Approver.
 type ApproverFunc func(ctx context.Context, call ToolCall) (Decision, error)
 
@@ -1013,6 +1018,8 @@ func ApplyConfig(cfg *config.Config, a *Agent, path, key, val string) (any, erro
 		a.MaxIterations = cfg.MaxIterations
 	case "model":
 		a.Model = cfg.Model
+	case "proof_notes":
+		a.ProofNotes = cfg.ProofNotesEnabled()
 	}
 	return applied, nil
 }
@@ -1188,6 +1195,23 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	return out, isErr, err
 }
 
+// allowSession marks name as allowed for the rest of this session,
+// initialising the map on first use. RunBlocks also initialises it before
+// its own loop starts, but that is a convenience for the common path, not
+// the thing that makes this safe: RunRecipe (see recipe.go) drives calls
+// through authorize without ever going through RunBlocks's turn setup, so
+// initialising only there left a straight-line path — a fresh agent whose
+// very first action is RunRecipe, with an approver that answers
+// AllowSession — straight into an assignment on a nil map. Initialising
+// here, at the point the map is actually written, is safe under every
+// caller rather than only the ones remembered to set it up first.
+func (a *Agent) allowSession(name string) {
+	if a.allowed == nil {
+		a.allowed = map[string]bool{}
+	}
+	a.allowed[name] = true
+}
+
 // authorize is everything that has to happen before a tool call may run:
 // the pre-tool hook (which can rewrite the input or refuse the call), the
 // preview and warning shown to the user, the permission rules, and the
@@ -1277,11 +1301,16 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		// denial: the ledger has to see a refusal too, not only the
 		// allow variants.
 		a.stats.approval(d == Deny)
-		a.Ledger.Record(shape, d != Deny)
+		if d != Deny || reason != CancelledReason {
+			a.Ledger.Record(shape, d != Deny)
+		}
+		if call.Warning != "" && d != Deny {
+			a.Ledger.MarkWarned(shape)
+		}
 		switch d {
 		case AllowSession:
 			if !mustAsk {
-				a.allowed[u.Name] = true
+				a.allowSession(u.Name)
 			}
 		case AllowAlways:
 			if !mustAsk {
@@ -1369,7 +1398,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	out, err := runSafely(ctx, t, u.Input)
 	dur := time.Since(start)
 	if err == nil && len(pend) > 0 {
-		a.after(u, pend)
+		a.after(u, intent, pend)
 	}
 	if ctx.Err() != nil {
 		return "", true, ctx.Err()

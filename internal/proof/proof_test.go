@@ -58,15 +58,19 @@ func commit(t *testing.T, root, msg string) string {
 func TestBuildFiltersToCommittedFiles(t *testing.T) {
 	root := t.TempDir()
 	changes := []ChangeInput{
-		{Seq: 1, Turn: 1, Tool: "write_file", Intent: "add foo", Path: filepath.Join(root, "foo.go"), Added: 3},
-		{Seq: 2, Turn: 1, Tool: "edit_file", Intent: "tweak foo", Path: filepath.Join(root, "foo.go"), Added: 1, Removed: 1},
-		{Seq: 3, Turn: 2, Tool: "write_file", Intent: "scratch file, not committed", Path: filepath.Join(root, "scratch.go"), Added: 2},
+		{Seq: 1, Turn: 1, Tool: "write_file", Intent: "add foo", Path: filepath.Join(root, "foo.go"), Added: 3,
+			Before: nil, After: []byte("line1\n")},
+		{Seq: 2, Turn: 1, Tool: "edit_file", Intent: "tweak foo", Path: filepath.Join(root, "foo.go"), Added: 1, Removed: 1,
+			Before: []byte("line1\n"), After: []byte("line1\nline2\n")},
+		{Seq: 3, Turn: 2, Tool: "write_file", Intent: "scratch file, not committed", Path: filepath.Join(root, "scratch.go"), Added: 2,
+			Before: nil, After: []byte("scratch\n")},
 	}
 	outcomes := map[int]TurnOutcomeInput{
 		1: {Verdict: "verified", Why: "tests ran and passed", Tested: true},
 		2: {Verdict: "unverified", Why: "nothing was run"},
 	}
-	r := Build("sess-1", "test-model", root, changes, outcomes, []string{"foo.go"})
+	committed := map[string]FileVersions{"foo.go": {Commit: []byte("line1\nline2\n")}}
+	r := Build("sess-1", "test-model", root, changes, outcomes, committed)
 	if r.Empty() {
 		t.Fatal("expected a non-empty record")
 	}
@@ -83,10 +87,47 @@ func TestBuildFiltersToCommittedFiles(t *testing.T) {
 
 func TestBuildEmptyWhenNothingLanded(t *testing.T) {
 	root := t.TempDir()
-	changes := []ChangeInput{{Seq: 1, Turn: 1, Tool: "write_file", Path: filepath.Join(root, "other.go")}}
-	r := Build("sess-1", "m", root, changes, nil, []string{"foo.go"})
+	changes := []ChangeInput{{Seq: 1, Turn: 1, Tool: "write_file", Path: filepath.Join(root, "other.go"), After: []byte("x\n")}}
+	committed := map[string]FileVersions{"foo.go": {Commit: []byte("y\n")}}
+	r := Build("sess-1", "m", root, changes, nil, committed)
 	if !r.Empty() {
 		t.Fatalf("expected empty record, got %+v", r)
+	}
+}
+
+// TestBuildExcludesAnEarlierCommitsChange is defect #2's regression test:
+// a file edited in turn 1 (committed by commit A) and edited again in
+// turn 3 (committed by commit B) must show only turn 3's change in B's
+// record — turn 1's change already belongs to A, and sharing a path with
+// B is not enough to put it there too.
+func TestBuildExcludesAnEarlierCommitsChange(t *testing.T) {
+	root := t.TempDir()
+	changes := []ChangeInput{
+		{Seq: 1, Turn: 1, Tool: "write_file", Intent: "turn 1: create foo", Path: filepath.Join(root, "foo.go"),
+			Before: nil, After: []byte("one\ntwo\nthree\n")},
+		{Seq: 2, Turn: 3, Tool: "edit_file", Intent: "turn 3: add four", Path: filepath.Join(root, "foo.go"),
+			Before: []byte("one\ntwo\nthree\n"), After: []byte("one\ntwo\nthree\nfour\n")},
+	}
+	outcomes := map[int]TurnOutcomeInput{
+		1: {Verdict: "verified", Why: "commit A"},
+		3: {Verdict: "verified", Why: "commit B"},
+	}
+	// Commit A: parent is empty (nothing existed yet), its own version is
+	// exactly what turn 1 wrote.
+	commitA := map[string]FileVersions{"foo.go": {Commit: []byte("one\ntwo\nthree\n")}}
+	rA := Build("sess-1", "m", root, changes, outcomes, commitA)
+	if len(rA.Files) != 1 || len(rA.Files[0].Changes) != 1 || rA.Files[0].Changes[0].Seq != 1 {
+		t.Fatalf("commit A = %+v, want only turn 1's change", rA.Files)
+	}
+	// Commit B: parent is what turn 1 already committed (commit A's
+	// version), its own version is what turn 3 left behind.
+	commitB := map[string]FileVersions{"foo.go": {
+		Parent: []byte("one\ntwo\nthree\n"),
+		Commit: []byte("one\ntwo\nthree\nfour\n"),
+	}}
+	rB := Build("sess-1", "m", root, changes, outcomes, commitB)
+	if len(rB.Files) != 1 || len(rB.Files[0].Changes) != 1 || rB.Files[0].Changes[0].Seq != 2 {
+		t.Fatalf("commit B = %+v, want only turn 3's change", rB.Files)
 	}
 }
 
@@ -96,10 +137,15 @@ func TestAttachReadRoundTrip(t *testing.T) {
 	write(t, root, "foo.go", "package foo\n")
 	sha := commit(t, root, "add foo")
 
+	versions, err := CommittedFileVersions(ctx, root, sha, []string{"foo.go"})
+	if err != nil {
+		t.Fatalf("CommittedFileVersions: %v", err)
+	}
 	r := Build("sess-1", "model-a", root,
-		[]ChangeInput{{Seq: 1, Turn: 1, Tool: "write_file", Intent: "add foo", Path: filepath.Join(root, "foo.go"), Added: 1}},
+		[]ChangeInput{{Seq: 1, Turn: 1, Tool: "write_file", Intent: "add foo", Path: filepath.Join(root, "foo.go"), Added: 1,
+			Before: nil, After: []byte("package foo\n")}},
 		map[int]TurnOutcomeInput{1: {Verdict: "verified", Why: "built"}},
-		[]string{"foo.go"})
+		versions)
 	if err := Attach(ctx, root, sha, r); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
@@ -113,6 +159,70 @@ func TestAttachReadRoundTrip(t *testing.T) {
 	summary := Summary(got)
 	if !strings.Contains(summary, "foo.go") || !strings.Contains(summary, "verified") {
 		t.Fatalf("summary missing expected content: %s", summary)
+	}
+}
+
+// TestAttachSurvivesAmend is defect #5's regression test: attaching a
+// note configures git (see EnsureRewriteConfig) to copy a note onto a
+// rewritten commit, so `git commit --amend` does not silently drop it.
+func TestAttachSurvivesAmend(t *testing.T) {
+	ctx := context.Background()
+	root := initRepo(t)
+	write(t, root, "foo.go", "package foo\n")
+	sha := commit(t, root, "add foo")
+
+	r := Build("sess-1", "model-a", root,
+		[]ChangeInput{{Seq: 1, Turn: 1, Tool: "write_file", Intent: "add foo", Path: filepath.Join(root, "foo.go"), Added: 1,
+			Before: nil, After: []byte("package foo\n")}},
+		map[int]TurnOutcomeInput{1: {Verdict: "verified", Why: "built"}},
+		map[string]FileVersions{"foo.go": {Commit: []byte("package foo\n")}})
+	if err := Attach(ctx, root, sha, r); err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+
+	gitIn(t, root, "commit", "--amend", "-q", "-m", "add foo (amended)")
+	amended := gitIn(t, root, "rev-parse", "HEAD")
+	if amended == sha {
+		t.Fatal("amend did not move HEAD")
+	}
+
+	got, ok, err := Read(ctx, root, amended)
+	if err != nil || !ok {
+		t.Fatalf("Read(amended HEAD): ok=%v err=%v -- the note did not survive the amend", ok, err)
+	}
+	if got.Session != "sess-1" || len(got.Files) != 1 || got.Files[0].Path != "foo.go" {
+		t.Fatalf("note on amended commit = %+v", got)
+	}
+}
+
+// TestEnsureRewriteConfigLeavesAnExplicitSettingAlone checks the other
+// half of defect #5's fix: EnsureRewriteConfig must not clobber a
+// notes.rewrite.amend the user (or another tool) already set on purpose.
+func TestEnsureRewriteConfigLeavesAnExplicitSettingAlone(t *testing.T) {
+	ctx := context.Background()
+	root := initRepo(t)
+	gitIn(t, root, "config", "notes.rewrite.amend", "false")
+
+	if err := EnsureRewriteConfig(ctx, root); err != nil {
+		t.Fatalf("EnsureRewriteConfig: %v", err)
+	}
+	if got := gitIn(t, root, "config", "--get", "notes.rewrite.amend"); got != "false" {
+		t.Fatalf("notes.rewrite.amend = %q, want the explicit false left alone", got)
+	}
+	if got := gitIn(t, root, "config", "--get", "notes.rewrite.rebase"); got != "true" {
+		t.Fatalf("notes.rewrite.rebase = %q, want janetcode's default of true", got)
+	}
+	if got := gitIn(t, root, "config", "--get-all", "notes.rewriteRef"); !strings.Contains(got, NotesRef) {
+		t.Fatalf("notes.rewriteRef = %q, want it to include %s", got, NotesRef)
+	}
+
+	// A second call must not duplicate notes.rewriteRef.
+	if err := EnsureRewriteConfig(ctx, root); err != nil {
+		t.Fatalf("EnsureRewriteConfig (second call): %v", err)
+	}
+	out := gitIn(t, root, "config", "--get-all", "notes.rewriteRef")
+	if n := strings.Count(out, NotesRef); n != 1 {
+		t.Fatalf("notes.rewriteRef has %d copies of %s, want 1: %q", n, NotesRef, out)
 	}
 }
 
@@ -136,17 +246,23 @@ func TestAttachMergesTwoSessions(t *testing.T) {
 	write(t, root, "foo.go", "package foo\n")
 	sha := commit(t, root, "add foo")
 
+	versions, err := CommittedFileVersions(ctx, root, sha, []string{"foo.go"})
+	if err != nil {
+		t.Fatalf("CommittedFileVersions: %v", err)
+	}
 	r1 := Build("sess-1", "model-a", root,
-		[]ChangeInput{{Seq: 1, Turn: 1, Tool: "write_file", Intent: "first pass", Path: filepath.Join(root, "foo.go"), Added: 1}},
+		[]ChangeInput{{Seq: 1, Turn: 1, Tool: "write_file", Intent: "first pass", Path: filepath.Join(root, "foo.go"), Added: 1,
+			Before: nil, After: []byte("package foo\n")}},
 		map[int]TurnOutcomeInput{1: {Verdict: "verified", Why: "built"}},
-		[]string{"foo.go"})
+		versions)
 	if err := Attach(ctx, root, sha, r1); err != nil {
 		t.Fatalf("attach 1: %v", err)
 	}
 	r2 := Build("sess-2", "model-b", root,
-		[]ChangeInput{{Seq: 1, Turn: 1, Tool: "edit_file", Intent: "second pass", Path: filepath.Join(root, "foo.go"), Added: 2}},
+		[]ChangeInput{{Seq: 1, Turn: 1, Tool: "edit_file", Intent: "second pass", Path: filepath.Join(root, "foo.go"), Added: 2,
+			Before: nil, After: []byte("package foo\n")}},
 		map[int]TurnOutcomeInput{1: {Verdict: "verified", Why: "tests passed"}},
-		[]string{"foo.go"})
+		versions)
 	if err := Attach(ctx, root, sha, r2); err != nil {
 		t.Fatalf("attach 2: %v", err)
 	}
@@ -206,20 +322,30 @@ func TestBlameCommittedAttribution(t *testing.T) {
 	root := initRepo(t)
 	write(t, root, "foo.go", "package foo\n\nfunc A() {}\n")
 	sha1 := commit(t, root, "add foo")
+	versions1, err := CommittedFileVersions(ctx, root, sha1, []string{"foo.go"})
+	if err != nil {
+		t.Fatalf("CommittedFileVersions(sha1): %v", err)
+	}
 	r1 := Build("sess-1", "model-a", root,
-		[]ChangeInput{{Seq: 1, Turn: 1, Tool: "write_file", Intent: "add A", Path: filepath.Join(root, "foo.go"), Added: 3}},
+		[]ChangeInput{{Seq: 1, Turn: 1, Tool: "write_file", Intent: "add A", Path: filepath.Join(root, "foo.go"), Added: 3,
+			Before: nil, After: []byte("package foo\n\nfunc A() {}\n")}},
 		map[int]TurnOutcomeInput{1: {Verdict: "verified", Why: "built and ran"}},
-		[]string{"foo.go"})
+		versions1)
 	if err := Attach(ctx, root, sha1, r1); err != nil {
 		t.Fatalf("attach: %v", err)
 	}
 
 	write(t, root, "foo.go", "package foo\n\nfunc A() {}\n\nfunc B() {}\n")
 	sha2 := commit(t, root, "add B")
+	versions2, err := CommittedFileVersions(ctx, root, sha2, []string{"foo.go"})
+	if err != nil {
+		t.Fatalf("CommittedFileVersions(sha2): %v", err)
+	}
 	r2 := Build("sess-1", "model-a", root,
-		[]ChangeInput{{Seq: 2, Turn: 2, Tool: "edit_file", Intent: "add B", Path: filepath.Join(root, "foo.go"), Added: 2}},
+		[]ChangeInput{{Seq: 2, Turn: 2, Tool: "edit_file", Intent: "add B", Path: filepath.Join(root, "foo.go"), Added: 2,
+			Before: []byte("package foo\n\nfunc A() {}\n"), After: []byte("package foo\n\nfunc A() {}\n\nfunc B() {}\n")}},
 		map[int]TurnOutcomeInput{2: {Verdict: "unverified", Why: "nothing was run"}},
-		[]string{"foo.go"})
+		versions2)
 	if err := Attach(ctx, root, sha2, r2); err != nil {
 		t.Fatalf("attach 2: %v", err)
 	}
