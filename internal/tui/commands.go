@@ -335,6 +335,8 @@ func (m *model) command(text string) tea.Cmd {
 		m.evalCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/proof":
 		m.proofCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+	case "/recipe":
+		return m.recipeCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	default:
 		if c, ok := m.custom[fields[0]]; ok {
 			args := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))

@@ -84,6 +84,7 @@ var flagWhen = map[string]string{
 	"web-addr":             "the default loopback port is taken, or you are deliberately binding off loopback",
 	"bg":                   "a prompt you want to keep running after this terminal is gone; reopen with --resume",
 	"add-dir":              "a sibling tree or generated directory the file tools should be allowed to touch this session",
+	"recipe":               "a turn's tool calls worked and you want to rerun them from a script or CI with no model call and no tokens",
 }
 
 // configWhen describes each key of the config file. The struct's json

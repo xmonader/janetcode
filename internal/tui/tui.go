@@ -578,6 +578,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refresh(false)
 		return m, nil
 
+	case recipeDoneMsg:
+		return m, m.finishRecipe(msg)
+
 	case btwMsg:
 		if msg.err != nil {
 			m.transcript.errorf("btw: %v", msg.err)

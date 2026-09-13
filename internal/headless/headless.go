@@ -286,6 +286,14 @@ type stdinApprover struct {
 	out io.Writer
 }
 
+// NewStdinApprover is the approver Run installs when none is set. It is
+// exported so another headless entry point — `janetcode --recipe`, which
+// runs Agent.RunRecipe directly rather than through Run — can give a
+// replayed step the same permission prompt a live -p run would.
+func NewStdinApprover(in *os.File, out io.Writer) agent.Approver {
+	return &stdinApprover{in: in, out: out}
+}
+
 func (a *stdinApprover) Approve(ctx context.Context, call agent.ToolCall) (agent.Decision, error) {
 	d, _, err := a.ApproveWithReason(ctx, call)
 	return d, err

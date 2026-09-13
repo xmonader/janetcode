@@ -215,6 +215,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /export [file.md] (write the conversation as a Markdown transcript)
 /eval keep [name] [--check cmd] (turn this session into a regression eval task)
 /proof [commit] (which session, turn and intent wrote each file of a commit, and what showed it worked)
+/recipe [list | show <name> | save <name> | run <name>] (replay a turn's tool calls with no model call)
 ```
 
 `ctrl+c` cancels a running turn, or clears typed text; when idle it asks
@@ -248,6 +249,7 @@ Features, each a section of the interface page:
 - [Repository map](docs/manual/interface.md#repository-map) — a ranked map of the repository in every request, and a `repo_map` tool
 - [Change provenance](docs/manual/interface.md#change-provenance-changes-blame-undo-n) — every change recorded per tool call; `/changes`, `/blame`, `/undo n`
 - [Proof in the commit](docs/manual/interface.md#proof-in-the-commit) — a commit this session makes gets a git note recording which session, turn and intent wrote each of its files and what actually demonstrated it worked; `/proof [commit]`, `janetcode --proof`
+- [Recipes](docs/manual/interface.md#recipes-replay-a-turn-for-free) — crystallise a turn's tool calls into `.janetcode/recipes/<name>.json` and replay them with no model call and no tokens; `/recipe save|run|show|list`, `janetcode --recipe <name>`, a failed step hands over to the model
 - [Trajectory critic](docs/manual/interface.md#trajectory-critic) — the harness watches the shape of a turn for loops and stalls
 - [Browsing](docs/manual/interface.md#browsing) — web pages through `fetch_url` and `web_search`, or a browser MCP server
 - [Calling tools from a script](docs/manual/interface.md#calling-tools-from-a-script) — `execute_code` runs Python that calls the tools, so a chain costs one turn

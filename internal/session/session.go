@@ -533,6 +533,7 @@ var syntheticPrefixes = []string{
 	"I undid change #",
 	"I reapplied the file changes",
 	"I reverted the file changes",
+	"/recipe run ",
 }
 
 // Synthetic reports whether a user message is machinery rather than

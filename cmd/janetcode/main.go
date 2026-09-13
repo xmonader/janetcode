@@ -201,6 +201,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		appendSystem = fs.String("append-system-prompt", "", "text (or @file) appended to the system prompt; JANETCODE_SYSTEM_MD=<file> replaces the base prompt. Both are recorded in eval results so a prompt A/B is traceable")
 		runDoctor    = fs.Bool("doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
 		runProof     = fs.Bool("proof", false, "print the proof note (see internal/proof) attached to a commit -- which session, turn and intent wrote each of its files, and what actually demonstrated the work -- then exit; the commit is a positional argument, default HEAD")
+		recipeName   = fs.String("recipe", "", "replay a saved recipe (.janetcode/recipes/<name>.json, see /recipe save) as tool calls with no model call and no tokens, then exit; extra positional arguments are k=v parameter substitutions; a step that fails hands over to the model if a provider is configured, otherwise the run exits non-zero")
 		themeFlag    = fs.String("theme", "", "colour theme for this run: auto, dark, light, or the name of a builtin or user theme (--inspect themes lists them)")
 		web          = fs.Bool("web", false, "serve the session in a browser instead of the terminal")
 		webAddr      = fs.String("web-addr", "127.0.0.1:8787", "listen address for --web. Loopback by default; anyone who can reach the port can approve commands in this directory")
@@ -279,6 +280,20 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	}
 	if *bg && *acpMode {
 		return fmt.Errorf("%w: --bg and --acp cannot be combined", headless.ErrBadInput)
+	}
+	if *recipeName != "" {
+		switch {
+		case *promptText != "":
+			return fmt.Errorf("%w: --recipe and -p do not combine; a recipe hands over to the model on its own if a step fails", headless.ErrBadInput)
+		case *watchCmd != "":
+			return fmt.Errorf("%w: --recipe and --watch do not combine", headless.ErrBadInput)
+		case *web:
+			return fmt.Errorf("%w: --web is a session, not a one-shot; drop --recipe", headless.ErrBadInput)
+		case *acpMode:
+			return fmt.Errorf("%w: --recipe and --acp do not combine", headless.ErrBadInput)
+		case *bg:
+			return fmt.Errorf("%w: --recipe and --bg do not combine", headless.ErrBadInput)
+		}
 	}
 
 	if *evalTrain != "" {
@@ -571,6 +586,15 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	ag.Tools.AddDeferred(feature.Introspect{Catalog: catalog})
 	if *inspectWhat != "" {
 		return inspectOnce(subjects, *inspectWhat, os.Stdout)
+	}
+
+	if *recipeName != "" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if sess != nil {
+			defer func() { _ = sess.Sync() }()
+		}
+		return runRecipeFlag(ctx, ag, cwd, *recipeName, fs.Args(), os.Stdout, os.Stderr, os.Stdin)
 	}
 
 	// The hint engine remembers what it has already said, per project,

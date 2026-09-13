@@ -703,6 +703,52 @@ git log --notes=janetcode                                      # read them inlin
 `"proof_notes": false` (or `/config proof_notes=false`) turns off the
 automatic attach; see [Configuration](configuration.md#proof-notes).
 
+### Recipes: replay a turn for free
+
+A turn that read the right files, ran the right commands and edited the
+right lines cost a model call for every one of those steps. Once it has
+worked once, `/recipe save <name>` crystallises it into a small JSON file
+under `.janetcode/recipes/<name>.json`: the turn's tool calls, in order,
+with their inputs — dropped are any call that failed and any tool whose
+effect is only on the conversation (`task`, `workflow`, `execute_code`,
+`run_code`, `ask`, `cron`, `todo`, `expand_output` and the like). Saved
+files are meant to be committed, the same way `.janetcode/commands` and
+`.janetcode/evals` are.
+
+```
+/recipe save deploy-staging --turn 4 env=staging
+```
+
+names the recipe, picks a turn (default: the latest one that made a tool
+call), and parameterises: every place the literal text `staging` appears
+inside a step's JSON input becomes `{{env}}`, and the recipe records
+`staging` as its default. `--desc` sets the saved description; without it,
+the turn's own first line is used. `/recipe show deploy-staging` prints
+the recipe's parameters and its steps (tool and a compact form of the
+input) with the defaults filled in.
+
+`/recipe run deploy-staging env=prod` runs the recipe's steps one by one,
+each through the exact pipeline a model-driven call goes through —
+authorize, permission rules, the approval prompt, checkpoints, the event
+log — so undo, `/changes` and a commit's proof note all see it as they
+would any other turn. No model is called and no tokens are spent unless a
+step fails partway through; then the run stops and hands the failure to
+the model — which step, its output, and the recipe's own description as
+the goal to finish — as an ordinary turn, the same as a queued prompt or a
+goal round starting its next one. `/recipe run deploy-staging --dry-run`
+prints the expanded steps without running any of them, and `/recipe list`
+shows what is saved.
+
+The same replay runs with no session open at all:
+
+```sh
+janetcode --recipe deploy-staging env=prod
+```
+
+runs headless and exits; a failing step hands over to the configured
+model the way `-p` running under `--until` does, or exits non-zero when no
+provider is configured.
+
 ### Trajectory critic
 
 The harness watches the shape of a turn, not just its last call. An
