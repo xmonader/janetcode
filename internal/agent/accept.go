@@ -43,6 +43,46 @@ import (
 // no extra round trip, and nothing for a front-end to render specially.
 var acceptVerifyLine = regexp.MustCompile(`(?m)^\s*ACCEPT-VERIFY:\s*(.+?)\s*$`)
 
+// cleanVerifyCommand takes the raw text after "ACCEPT-VERIFY:" (or a
+// user's /accept command argument) down to the one literal shell command
+// it names, or "" if it cannot be made into one. It exists because a
+// model likes to wrap the command in backticks or quotes — and a stated
+// command wrapped in backticks, like `cd pkg && go test -run TestSlug`
+// run literally does not run go test at all: the shell performs command substitution first,
+// runs the test suite to build a new command line out of its stdout,
+// then tries to execute that output's first line as a command — which is
+// how a QA run's gate failed with exit 127 and "===: command not found"
+// on a command that worked fine typed by hand. Only the text on the line
+// itself, trimmed of that wrapping, is ever stored; anything left
+// spanning more than one line, or empty once unwrapped, is rejected
+// rather than run.
+func cleanVerifyCommand(s string) string {
+	s = strings.TrimSpace(s)
+	for {
+		trimmed := stripMatchingWrap(s)
+		if trimmed == s {
+			break
+		}
+		s = strings.TrimSpace(trimmed)
+	}
+	if s == "" || strings.ContainsAny(s, "\n\r") {
+		return ""
+	}
+	return s
+}
+
+// stripMatchingWrap removes one layer of wrapping that spans the whole
+// string: a triple or single backtick pair, or a matching pair of
+// double or single quotes.
+func stripMatchingWrap(s string) string {
+	for _, wrap := range []string{"```", "`", `"`, "'"} {
+		if len(s) >= 2*len(wrap) && strings.HasPrefix(s, wrap) && strings.HasSuffix(s, wrap) {
+			return s[len(wrap) : len(s)-len(wrap)]
+		}
+	}
+	return s
+}
+
 // AcceptArgs is what "/accept ..." asks for, parsed once in
 // ParseAcceptArgs (the same shape as undo_intent.go's ParseUndoArgs) so
 // the terminal and the web UI agree on what each spelling means.
@@ -52,6 +92,12 @@ type AcceptArgs struct {
 	// Request starts the mode: write acceptance tests for this text.
 	Request                    string
 	Approve, Lock, Unlock, Off bool
+	// SetCommand is /accept command <cmd>: replace the verify command
+	// directly, when the model's stated or inferred one is wrong (see
+	// Agent.AcceptSetCommand). Command holds the text after "command ",
+	// still raw — AcceptSetCommand is what cleans it.
+	SetCommand bool
+	Command    string
 }
 
 // ParseAcceptArgs parses the text after "/accept". Anything that is not
@@ -70,9 +116,11 @@ func ParseAcceptArgs(rest string) AcceptArgs {
 		return AcceptArgs{Unlock: true}
 	case "off", "cancel", "exit":
 		return AcceptArgs{Off: true}
-	default:
-		return AcceptArgs{Request: rest}
 	}
+	if arg, ok := strings.CutPrefix(rest, "command"); ok && (arg == "" || arg[0] == ' ') {
+		return AcceptArgs{SetCommand: true, Command: strings.TrimSpace(arg)}
+	}
+	return AcceptArgs{Request: rest}
 }
 
 // AcceptStart puts the session in test-writing mode for request: until
@@ -102,7 +150,7 @@ func (a *Agent) AcceptApprove() (string, error) {
 	if len(a.Accept.Files) == 0 {
 		return "", fmt.Errorf("no test files were written")
 	}
-	cmd := strings.TrimSpace(a.Accept.Proposed)
+	cmd := cleanVerifyCommand(a.Accept.Proposed)
 	if cmd == "" {
 		cmd = InferTestCommand(a.Accept.Files, a.Accept.Root, a.verifyCommands())
 	}
@@ -113,6 +161,7 @@ func (a *Agent) AcceptApprove() (string, error) {
 	if err := a.rehashAccept(); err != nil {
 		return "", err
 	}
+	a.captureAcceptContents()
 	a.Accept.Phase = session.AcceptLocked
 	a.Accept.Proposed = ""
 	a.Accept.Tamper = ""
@@ -129,10 +178,38 @@ func (a *Agent) AcceptLock() error {
 	if err := a.rehashAccept(); err != nil {
 		return err
 	}
+	a.captureAcceptContents()
 	a.Accept.Phase = session.AcceptLocked
 	a.Accept.Tamper = ""
 	a.persistAccept()
 	return nil
+}
+
+// AcceptSetCommand replaces the verification command directly — for
+// /accept command <cmd>, when the model's stated or inferred command
+// turns out wrong (a bad ACCEPT-VERIFY line, or a gate that failed
+// because the command itself would not run at all — see
+// acceptVerifyGate's exit-126/127 handling). It does not touch the
+// locked files or their hashes/content, only which command gates the
+// session and gets approved.
+func (a *Agent) AcceptSetCommand(raw string) (string, error) {
+	if a.Accept == nil {
+		return "", fmt.Errorf("accept: nothing started yet")
+	}
+	cmd := cleanVerifyCommand(raw)
+	if cmd == "" {
+		return "", fmt.Errorf("accept: command is empty, or is not a single line")
+	}
+	switch a.Accept.Phase {
+	case session.AcceptProposed:
+		a.Accept.Proposed = cmd
+	case session.AcceptLocked, session.AcceptUnlocked:
+		a.Accept.Command = cmd
+	default:
+		return "", fmt.Errorf("accept: nothing proposed or locked yet to set a command for")
+	}
+	a.persistAccept()
+	return cmd, nil
 }
 
 // AcceptUnlock lifts the lock so the model may edit the test files — a
@@ -159,7 +236,7 @@ func (a *Agent) AcceptStatus() string {
 	case session.AcceptWriting:
 		b.WriteString("writing acceptance tests — only test files may be written; the model ends with an ACCEPT-VERIFY line when done\n")
 	case session.AcceptProposed:
-		fmt.Fprintf(&b, "proposed command: %s\nreview the files below (a front-end /diff shows each one), then /accept approve\n", a.Accept.Proposed)
+		fmt.Fprintf(&b, "proposed command: %q\nreview the files below (a front-end /diff shows each one), then /accept approve — or /accept command <cmd> to correct it first\n", a.Accept.Proposed)
 	}
 	if len(a.Accept.Files) > 0 {
 		b.WriteString("files:\n")
@@ -168,7 +245,11 @@ func (a *Agent) AcceptStatus() string {
 		}
 	}
 	if a.Accept.Command != "" {
-		fmt.Fprintf(&b, "command: %s\n", a.Accept.Command)
+		// %q rather than %s: the exact command as it will be run, quotes
+		// and any stray wrapping visible rather than swallowed, so a bad
+		// one (see cleanVerifyCommand) is obvious before it burns a gate
+		// round.
+		fmt.Fprintf(&b, "command: %q\n", a.Accept.Command)
 	}
 	if a.Accept.Phase == session.AcceptLocked || a.Accept.Phase == session.AcceptUnlocked {
 		if bad := a.acceptIntegrityCheck(); len(bad) > 0 {
@@ -222,6 +303,89 @@ func hashFile(path string) (string, error) {
 	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+// acceptMaxContentSize bounds how large a locked file's full content is
+// kept for immediate restore, per file. A file over the cap still has
+// its hash checked (acceptIntegrityCheck, acceptRestoreTampered), so a
+// change is still caught and reported — it just cannot be put back in
+// place automatically, which an acceptance test this large would be an
+// odd shape for anyway.
+const acceptMaxContentSize = 256 * 1024
+
+// captureAcceptContents (re)reads every locked file's content into
+// Accept.Contents, alongside rehashAccept's hashes. This is the content
+// half of "locked means locked": a hash alone only tells the harness a
+// file moved outside a tool call, after the fact; keeping the bytes
+// themselves is what lets acceptRestoreTampered put a tampered file back
+// immediately, on its own, rather than merely reporting the tamper and
+// waiting for the model or the user to fix it.
+func (a *Agent) captureAcceptContents() {
+	contents := make(map[string][]byte, len(a.Accept.Files))
+	for _, p := range a.Accept.Files {
+		data, err := os.ReadFile(p)
+		if err != nil || len(data) > acceptMaxContentSize {
+			continue
+		}
+		contents[p] = data
+	}
+	a.Accept.Contents = contents
+}
+
+// acceptRestoreTampered is the backstop behind the lock: called after
+// every mutating tool call while accept mode is locked (see executeTool
+// and runNested), whatever tool just ran. The pre-execution checks
+// (acceptDenial, built on the file tools' declared targets and
+// tool.WriteTargets for bash) are the first line of defence, and are
+// necessarily incomplete — a shell trick they do not recognise, a
+// nested script or run_code call, anything at all that ends up writing
+// to disk. This looks at what is actually there afterwards: any locked
+// file whose hash no longer matches the one recorded at approve/lock
+// time is restored immediately from the content captured then, and the
+// tool call that caused it gets told so in its own result, in addition
+// to a notice for the user. A file too large to have kept in full (see
+// acceptMaxContentSize) cannot be restored this way; it is still
+// reported here, and acceptIntegrityCheck fails the verification gate
+// over it regardless.
+func (a *Agent) acceptRestoreTampered(toolName string, emit func(Event)) string {
+	if a.Accept == nil || a.Accept.Phase != session.AcceptLocked {
+		return ""
+	}
+	var restored, unrestorable []string
+	for _, p := range a.Accept.Files {
+		want, ok := a.Accept.Hashes[p]
+		if !ok {
+			continue
+		}
+		got, err := hashFile(p)
+		if err == nil && got == want {
+			continue
+		}
+		name := relOrBase(p, a.Accept.Root)
+		content, haveContent := a.Accept.Contents[p]
+		if !haveContent {
+			unrestorable = append(unrestorable, name)
+			continue
+		}
+		if werr := tool.AtomicWrite(p, content); werr != nil {
+			unrestorable = append(unrestorable, fmt.Sprintf("%s (could not restore it: %s)", name, werr))
+			continue
+		}
+		restored = append(restored, name)
+	}
+	if len(restored) == 0 && len(unrestorable) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, name := range restored {
+		fmt.Fprintf(&b, "%s is a locked acceptance test; the change your %s call made to it was reverted. Fix the code instead.\n", name, toolName)
+	}
+	for _, name := range unrestorable {
+		fmt.Fprintf(&b, "%s is a locked acceptance test and changed, but is too large to restore automatically; tell the user it needs manual attention.\n", name)
+	}
+	msg := strings.TrimRight(b.String(), "\n")
+	emit(Event{Kind: EvNotice, Text: "accept: " + msg, IsError: true})
+	return msg
 }
 
 // isLockedPath reports whether abs (already resolved) names a file
@@ -298,11 +462,22 @@ func (a *Agent) acceptDenial(t tool.Tool, input json.RawMessage) string {
 }
 
 // acceptWritingDenial reports why a mutating call must not run during
-// the writing phase — every mutating tool is refused except a
-// write_file or edit_file whose every touched path is a test file — or
-// "" when the call may proceed.
+// the writing or proposed phase — every mutating tool is refused except
+// a write_file or edit_file whose every touched path is a test file —
+// or "" when the call may proceed. The restriction has to hold for both
+// phases: a QA run found the writing-phase-only version of this check
+// let the model edit a non-test file the moment its turn ended and the
+// mode moved to "proposed", well before the user had a chance to run
+// /accept approve. Called from both executeTool (the model's own calls)
+// and runNested (script/execute_code/run_code calls), so a script cannot
+// reach past it either.
 func (a *Agent) acceptWritingDenial(t tool.Tool, input json.RawMessage) string {
-	if a.Accept == nil || a.Accept.Phase != session.AcceptWriting {
+	if a.Accept == nil {
+		return ""
+	}
+	switch a.Accept.Phase {
+	case session.AcceptWriting, session.AcceptProposed:
+	default:
 		return ""
 	}
 	if t.Name() == "write_file" || t.Name() == "edit_file" {
@@ -317,6 +492,9 @@ func (a *Agent) acceptWritingDenial(t tool.Tool, input json.RawMessage) string {
 		if allTests {
 			return ""
 		}
+	}
+	if a.Accept.Phase == session.AcceptProposed {
+		return fmt.Sprintf("this session proposed acceptance tests for %q and is waiting on the user to run /accept approve: only test files may be written until then, or until /accept off. Wait for the user rather than starting the implementation.", a.Accept.Request)
 	}
 	return fmt.Sprintf("this session is writing acceptance tests for %q: only test files may be written, and no other tool is available until the user reviews them and runs /accept approve. End your final message with a line \"ACCEPT-VERIFY: <command>\" naming how to run the tests you wrote.", a.Accept.Request)
 }
@@ -418,11 +596,31 @@ func (a *Agent) acceptCapture(text string, nudged *bool, emit func(Event)) bool 
 		return true
 	}
 	if m := acceptVerifyLine.FindStringSubmatch(text); m != nil {
-		a.Accept.Proposed = strings.TrimSpace(m[1])
-		a.Accept.Phase = session.AcceptProposed
-		a.persistAccept()
-		emit(Event{Kind: EvNotice, Text: fmt.Sprintf("accept: %d test file(s) proposed · verifies with: %s · review, then /accept approve", len(a.Accept.Files), a.Accept.Proposed)})
-		return false
+		if cmd := cleanVerifyCommand(m[1]); cmd != "" {
+			a.Accept.Proposed = cmd
+			a.Accept.Phase = session.AcceptProposed
+			a.persistAccept()
+			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("accept: %d test file(s) proposed · verifies with: %s · review, then /accept approve", len(a.Accept.Files), a.Accept.Proposed)})
+			return false
+		}
+		// Captured something, but it is not usable as one literal shell
+		// command as stated — empty once any wrapping backticks/quotes
+		// are stripped, or it spans more than one line. Running it
+		// as-is is exactly how a backtick-wrapped command turned into a
+		// command-substitution bug (see cleanVerifyCommand), so this
+		// falls back the same way a missing command does rather than
+		// storing something unsafe to run.
+		if *nudged {
+			a.Accept.Proposed = InferTestCommand(a.Accept.Files, a.Accept.Root, a.verifyCommands())
+			a.Accept.Phase = session.AcceptProposed
+			a.persistAccept()
+			emit(Event{Kind: EvNotice, Text: "accept: the stated ACCEPT-VERIFY command was not usable as a single command; using an inferred one — check it before approving: " + a.Accept.Proposed})
+			return false
+		}
+		*nudged = true
+		emit(Event{Kind: EvNotice, Text: "accept: ACCEPT-VERIFY command was not usable"})
+		a.appendHarnessText("[accept] The ACCEPT-VERIFY line must name exactly one single-line shell command, with nothing else on that line — no wrapping quotes or backticks needed. State it again.")
+		return true
 	}
 	if *nudged {
 		a.Accept.Proposed = InferTestCommand(a.Accept.Files, a.Accept.Root, a.verifyCommands())
@@ -480,6 +678,16 @@ func (a *Agent) acceptVerifyGate(ctx context.Context, g *gateState, emit func(Ev
 	a.persistAccept()
 	if res.OK() {
 		emit(Event{Kind: EvNotice, Text: "accept: " + res.Summary()})
+		return false
+	}
+	// Exit 126/127 means the command itself could not be run at all — not
+	// found, or not executable — not that a test failed. Sending the
+	// model back to "fix the code" for that burns whole rounds (a QA run
+	// saw ~7 minutes of retries) on something no code change can fix; the
+	// gate gives up on the first one and points at the one thing that
+	// actually helps.
+	if res.Exit == 126 || res.Exit == 127 {
+		emit(Event{Kind: EvNotice, Text: fmt.Sprintf("accept: %s · the command itself did not run (exit %d) — this is not a failing test; fix it with /accept command <cmd> instead of retrying", res.Summary(), res.Exit), IsError: true})
 		return false
 	}
 	g.rounds++

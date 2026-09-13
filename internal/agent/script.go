@@ -448,6 +448,15 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	if a.readOnly() && t.Mutating() {
 		return fmt.Sprintf("%s is not available: this session is read-only (%s).", name, a.modeName()), true, true
 	}
+	// The writing/proposed-phase restriction has to hold for a call made
+	// from inside a script too, or it is a way around it rather than a
+	// convenience: see executeTool's identical check and acceptWritingDenial.
+	if t.Mutating() {
+		if reason := a.acceptWritingDenial(t, input); reason != "" {
+			emit(Event{Kind: EvToolResult, Call: &call, Output: reason, IsError: true})
+			return reason, true, true
+		}
+	}
 	u := llm.Block{ID: id, Name: name, Input: input}
 	_, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
@@ -474,6 +483,15 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 		a.after(u, intent, pend)
 		a.mutated = true
 		a.mutations++
+		// Same content guarantee as executeTool: a locked file this
+		// nested call moved, by any means, is restored right now.
+		if note := a.acceptRestoreTampered(name, emit); note != "" {
+			if out == "" {
+				out = note
+			} else {
+				out += "\n\n" + note
+			}
+		}
 	}
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
 	a.logEvent(session.Event{Type: session.TypeToolResult, CallID: id, Name: name, Arguments: string(u.Input), Output: out, IsError: isErr, DurationMs: dur.Milliseconds()})

@@ -31,6 +31,13 @@ func (s *server) accept(arg string) {
 			return
 		}
 		s.notice("accept: unlocked · edits to the test files are allowed until /accept lock")
+	case a.SetCommand:
+		cmd, err := ag.AcceptSetCommand(a.Command)
+		if err != nil {
+			s.errf("accept: %v", err)
+			return
+		}
+		s.notice("accept: command set to " + cmd)
 	case a.Off:
 		ag.AcceptOff()
 		s.notice("accept: off")

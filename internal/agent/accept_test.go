@@ -345,6 +345,177 @@ func TestAcceptStateSurvivesResume(t *testing.T) {
 	}
 }
 
+// TestAcceptProposedPhaseRefusesNonTestFileEdits is the enforcement gap a
+// real QA run found: once the writing turn ends and the mode moves to
+// "proposed", the restriction to test-file writes has to keep holding
+// until the user actually runs /accept approve — a model that just goes
+// ahead and edits the implementation before approval must be refused the
+// same way it would be mid-writing.
+func TestAcceptProposedPhaseRefusesNonTestFileEdits(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"impl.go","content":"package foo\n"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root}, tool.EditFile{Root: root})
+	testPath := filepath.Join(root, "foo_test.go")
+	if err := os.WriteFile(testPath, []byte("package foo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a.Accept = &session.AcceptMeta{
+		Phase: session.AcceptProposed, Request: "add foo", Root: root,
+		Files: []string{testPath}, Proposed: "go test ./...",
+	}
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "go ahead and implement it now", emit); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "impl.go")); err == nil {
+		t.Fatal("a non-test file was written while tests were only proposed, not yet approved")
+	}
+	if !anyDenied(*evs, "only test files") {
+		t.Fatalf("no denial mentioning test-files-only in the proposed phase: %+v", evs)
+	}
+}
+
+// TestAcceptProposedPhaseRefusesBash covers the same gap for bash: the
+// writing phase already refuses every bash call outright (it is not a
+// file tool that could touch only test files), and proposed must too.
+func TestAcceptProposedPhaseRefusesBash(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"echo hi"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root})
+	a.Accept = &session.AcceptMeta{
+		Phase: session.AcceptProposed, Request: "add foo", Root: root,
+		Files: []string{filepath.Join(root, "foo_test.go")}, Proposed: "go test ./...",
+	}
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "run something", emit); err != nil {
+		t.Fatal(err)
+	}
+	if !anyDenied(*evs, "only test files") {
+		t.Fatalf("bash was not refused in the proposed phase: %+v", evs)
+	}
+}
+
+// TestAcceptLockedFileRestoredAfterUntrackedBashWrite is the content
+// guarantee behind the lock: WriteTargets' static command analysis can
+// always be extended, but it can never cover every way to write a file
+// (here, `dd of=...` — no mutator name, no `>` redirect for it to catch).
+// The lock has to hold anyway: after every mutating tool call the
+// harness compares each locked file's hash and restores it from the
+// content captured at approve/lock time the moment it moved, whatever
+// wrote it, and tells the model plainly that its change was reverted.
+func TestAcceptLockedFileRestoredAfterUntrackedBashWrite(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"printf 'tampered\n' | dd of=foo_test.go 2>/dev/null"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root})
+	testPath := filepath.Join(root, "foo_test.go")
+	orig := "package foo\n"
+	if err := os.WriteFile(testPath, []byte(orig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sum, _ := hashFile(testPath)
+	a.Accept = &session.AcceptMeta{
+		Phase: session.AcceptLocked, Request: "add foo", Root: root,
+		Files: []string{testPath}, Hashes: map[string]string{testPath: sum},
+		Contents: map[string][]byte{testPath: []byte(orig)},
+		Command:  "true",
+	}
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "fix the code so the test passes", emit); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(testPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != orig {
+		t.Fatalf("a locked file bypassed by dd was not restored: %q", data)
+	}
+	found := false
+	for _, e := range *evs {
+		if e.Kind == EvToolResult && strings.Contains(e.Output, "was reverted") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no revert message reached the model's tool result: %+v", evs)
+	}
+}
+
+// TestAcceptCaptureStripsBacktickWrappedCommand is the exit-127 bug: a
+// model that wraps its ACCEPT-VERIFY command in backticks (or fences the
+// whole final message and adds trailing content, as here) must not have
+// that wrapping become part of the literal shell command — running the
+// backtick-wrapped form performs command substitution, then
+// tries to execute the test output's first line as a command, which is
+// exactly how "===: command not found" (exit 127) was produced from a
+// gate command that ran fine by hand.
+func TestAcceptCaptureStripsBacktickWrappedCommand(t *testing.T) {
+	a := &Agent{Accept: &session.AcceptMeta{
+		Phase: session.AcceptWriting, Request: "slug fix", Files: []string{"foo_test.go"},
+	}}
+	text := "Wrote the acceptance test.\n\nACCEPT-VERIFY: `cd pkg && go test -v -run TestSlug`\n\n=== RUN   TestSlug\n--- PASS: TestSlug (0.00s)\nPASS\n"
+	nudged := false
+	if more := a.acceptCapture(text, &nudged, func(Event) {}); more {
+		t.Fatal("capture should have moved to proposed, not asked again")
+	}
+	if strings.ContainsAny(a.Accept.Proposed, "`") {
+		t.Fatalf("proposed command kept its backtick wrapping: %q", a.Accept.Proposed)
+	}
+	if a.Accept.Proposed != "cd pkg && go test -v -run TestSlug" {
+		t.Fatalf("proposed command = %q", a.Accept.Proposed)
+	}
+}
+
+// TestAcceptGateStopsImmediatelyOnCommandNotFound is the runaway-retry
+// bug: a gate command that cannot even run (exit 126/127 — not found, not
+// executable) is a bad command, not a failing test, so sending the model
+// back to "fix the code" for verify.MaxRounds rounds only burns time. The
+// gate must give up on the first such failure and point at
+// `/accept command <cmd>` instead of retrying.
+func TestAcceptGateStopsImmediatelyOnCommandNotFound(t *testing.T) {
+	root := t.TempDir()
+	testPath := filepath.Join(root, "foo_test.go")
+	if err := os.WriteFile(testPath, []byte("package foo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sum, _ := hashFile(testPath)
+	a := &Agent{Accept: &session.AcceptMeta{
+		Phase: session.AcceptLocked, Request: "add foo", Root: root,
+		Files: []string{testPath}, Hashes: map[string]string{testPath: sum},
+		Command: "this-command-does-not-exist-anywhere-xyz",
+	}}
+	a.mutations = 1
+	g := &gateState{}
+	evs, emit := collect()
+	if more := a.acceptVerifyGate(context.Background(), g, emit); more {
+		t.Fatal("the gate asked for another round for a command that cannot run at all")
+	}
+	if g.rounds != 0 {
+		t.Fatalf("rounds = %d, want 0: an unrunnable command must not spend a retry round", g.rounds)
+	}
+	hinted := false
+	for _, e := range *evs {
+		if strings.Contains(e.Text, "/accept command") {
+			hinted = true
+		}
+	}
+	if !hinted {
+		t.Fatalf("no hint to fix the command via /accept command: %+v", evs)
+	}
+}
+
 func anyDenied(evs []Event, substr string) bool {
 	for _, e := range evs {
 		if e.Kind == EvToolResult && e.IsError && e.Denied && strings.Contains(e.Output, substr) {

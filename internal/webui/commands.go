@@ -29,7 +29,7 @@ var webCommands = []string{
 var webArgs = map[string]string{
 	"/help":        "[topic]",
 	"/undo":        "[preview | about <description> | apply [--force]]",
-	"/accept":      "[<request> | approve | lock | unlock | off]",
+	"/accept":      "[<request> | approve | lock | unlock | command <cmd> | off]",
 	"/diff":        "[path]",
 	"/loop":        "[duration] [prompt|off]",
 	"/jobs":        "[kill n]",

@@ -102,6 +102,39 @@ func TestWriteTargets(t *testing.T) {
 	}
 }
 
+// TestWriteTargetsCatchesSedInPlace is the lock-bypass this repairs: a
+// `sed -i` (or `perl -i`) rewrite of a locked test file has to show up as
+// a write target the same way `echo > file` and `tee file` already do,
+// or the accept-tests lock (accept.go's acceptDenial, built on
+// WriteTargets) never sees it and the file is silently rewritten. sed
+// was missing from the mutators table entirely — not a quoting or
+// tokenizing bug — so the fix is that it and perl are recognised as
+// mutators at all; the test only asserts the real target is among the
+// results, since a mutator's own script/pattern argument (here
+// "s/.../.../ ") is also swept in as a harmless, never-matching false
+// positive by the same loop that finds the real one.
+func TestWriteTargetsCatchesSedInPlace(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "foo_test.go")
+	cases := []string{
+		`sed -i 's/{"", ""}/{"", "EMPTY"}/' foo_test.go`,
+		`sed -i.bak 's/foo/bar/' foo_test.go`,
+		`perl -i -pe 's/foo/bar/' foo_test.go`,
+	}
+	for _, cmd := range cases {
+		got := WriteTargets(cmd, root)
+		found := false
+		for _, g := range got {
+			if g == target {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%q: targets = %v, missing the locked file %v", cmd, got, target)
+		}
+	}
+}
+
 func TestSafeRead(t *testing.T) {
 	yes := []string{
 		"ls", "ls -la src", "pwd", "echo hi", "cat README.md", "head -n 20 a.go",

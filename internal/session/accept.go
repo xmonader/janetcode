@@ -49,6 +49,16 @@ type AcceptMeta struct {
 	// Hashes is each file's sha256 as of the last approve or lock (or
 	// the last edit made while unlocked), keyed by the same path.
 	Hashes map[string]string `json:"hashes,omitempty"`
+	// Contents is each locked file's full content as of the last approve
+	// or lock, keyed by the same path as Hashes — the content guarantee
+	// behind the lock: a hash alone only detects that a file was changed
+	// by something other than a tool call (a bash trick, a nested script
+	// call, anything the pre-execution checks missed); this is what lets
+	// the harness put the file back immediately instead of only
+	// reporting the tamper. A file too large to keep in full (see
+	// agent.acceptMaxContentSize) has no entry here and falls back to
+	// hash-only detection.
+	Contents map[string][]byte `json:"contents,omitempty"`
 	// Command is the approved verification command; empty until
 	// AcceptProposed becomes AcceptLocked.
 	Command string `json:"command,omitempty"`

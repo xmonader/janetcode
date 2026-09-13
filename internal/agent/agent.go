@@ -1470,6 +1470,17 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		if a.Accept != nil && (u.Name == "write_file" || u.Name == "edit_file") {
 			a.acceptTrackEdit(t, u.Input)
 		}
+		// The content guarantee behind the lock: whatever just ran, and
+		// whatever the pre-execution checks did or did not recognise
+		// about it, a locked file that moved is restored right now, not
+		// merely reported the next time the gate happens to run.
+		if note := a.acceptRestoreTampered(u.Name, emit); note != "" {
+			if out == "" {
+				out = note
+			} else {
+				out += "\n\n" + note
+			}
+		}
 	}
 	if checkingCommit && !isErr {
 		a.checkCommitAttach(ctx, commitPreHead, emit)

@@ -59,9 +59,16 @@ var wholeLine = []struct {
 }
 
 // mutators are commands whose path arguments are checked against the root.
+// sed and perl are here for their -i (in-place edit) form: the file
+// argument is the same kind of write target as tee's or cp's, and
+// without them here neither Classify's workspace-escape check nor
+// WriteTargets' locked-file check ever look at what such a command
+// touches — exactly the gap a `sed -i ... locked_test.go` used to slip
+// through (see accept.go's lock).
 var mutators = map[string]bool{
 	"rm": true, "rmdir": true, "mv": true, "cp": true, "chmod": true, "chown": true, "chgrp": true,
 	"truncate": true, "tee": true, "ln": true, "install": true, "rsync": true, "shred": true, "mkdir": true, "touch": true,
+	"sed": true, "perl": true,
 }
 
 // Classify grades a command line run with root as the working directory.

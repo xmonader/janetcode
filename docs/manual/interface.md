@@ -1379,39 +1379,61 @@ against the code as it stands and would pass once the request is done.
 Every other mutating tool is refused while this lasts; a `write_file` or
 `edit_file` on anything but a test file is turned down the same way
 read-only mode turns down an edit, and the model is told to touch only
-test files. When it is done it ends its final message with one line of
-the fixed form `ACCEPT-VERIFY: <command>`, naming how to run the tests it
-just wrote; the harness nudges it once for a missing command before
-falling back to a guess (`go test ./<pkg>/...`, `pytest <files>`, `npm
-test`, `cargo test`, or a matching command already in
-`.janetcode/verify.json`).
+test files. This restriction holds through both the writing phase and
+the "proposed" phase that follows it — from the moment the model states
+its verify command until you actually run `/accept approve`, only test
+files may still be written, whatever the model tries next; approval is
+the only thing that hands the implementation tools back. When it is
+done writing tests it ends its final message with one line of the fixed
+form `ACCEPT-VERIFY: <command>`, naming how to run the tests it just
+wrote — one literal shell command on that line, with no wrapping needed
+around it (a backtick or quote pair wrapping the whole command is
+stripped automatically, but content spanning more than one line is
+rejected rather than run literally); the harness nudges it once for a
+missing or unusable command before falling back to a guess (`go test
+./<pkg>/...`, `pytest <files>`, `npm test`, `cargo test`, or a matching
+command already in `.janetcode/verify.json`).
 
 Review the tests with `/diff <path>` for each file `/accept` lists (they
 are new, untracked files, so `/diff` shows them in full), then run
 `/accept approve`. From that point the files are **locked**: any
 `edit_file`/`write_file` call on one, or a bash command that would write
-to one (`echo > path`, `sed -i`, `mv`, `rm`, and the like — the same
-path-escape analysis the workspace guard uses), is refused with a message
-telling the model the test is locked and to fix the code instead. Their
-run command also becomes an extra verification gate for this session
-only — not written to `.janetcode/verify.json`, and not applied to any
-other session — so a turn is not done until it passes, alongside
-whatever the project's own checks already require. A turn's verdict (see
-above) never marks a locked test as self-checked, because the model
-could not have edited it: an edit the lock refused never lands as a
-successful write, so it never enters the turn's edited-files count.
+to one (`echo > path`, `sed -i`/`perl -i`, `mv`, `cp`, `rm`, and the
+like — the same path-escape analysis the workspace guard uses), is
+refused up front with a message telling the model the test is locked and
+to fix the code instead. That pre-execution check cannot cover every way
+a command could reach the file, so it is backed by a content guarantee:
+each locked file's full content is captured at approve/lock time
+alongside its hash, and after *every* mutating tool call while locked —
+whatever tool ran, including one made from inside a script or run_code
+step — the file's hash is checked again; if it moved, it is restored
+from the captured content immediately, and the tool call that caused it
+is told plainly that its change was reverted and to fix the code
+instead, with a matching notice for you. Their run command also becomes
+an extra verification gate for this session only — not written to
+`.janetcode/verify.json`, and not applied to any other session — so a
+turn is not done until it passes, alongside whatever the project's own
+checks already require. If the gate command itself cannot run at all
+(exit 126 or 127 — not found, not executable), the harness gives up
+after that one attempt instead of spending retries on a command that no
+code change can fix, and says to correct it with `/accept command
+<cmd>` rather than editing code. A turn's verdict (see above) never
+marks a locked test as self-checked, because the model could not have
+edited it: an edit the lock refused never lands as a successful write,
+so it never enters the turn's edited-files count.
 
-Each locked file's content is hashed at approval time, and the hash is
-checked again before every gate run; a mismatch — a bash trick that
-slipped past the write check, an external edit, anything — is reported
-loudly and fails the gate outright, without even running the tests,
-since a green result over changed tests would show nothing. `/accept
-unlock` lifts the lock when a test itself turns out wrong (its hash is
-refreshed the moment the fix is saved); `/accept lock` reapplies it.
-`/accept` alone reports the request, the locked files, whether their
-hashes are intact, and the last gate result; `/accept off` ends the mode
-and unlocks everything. The state is kept on the session record, so `-c`
-or `-r` on a locked session comes back locked.
+`/accept unlock` lifts the lock when a test itself turns out wrong (its
+hash and stored content are refreshed the moment the fix is saved);
+`/accept lock` reapplies it. `/accept command <cmd>` replaces the
+proposed or locked verify command directly, for when the stated or
+inferred one is wrong. `/accept` alone reports the request, the locked
+files, the exact command in effect (quoted, so any stray wrapping is
+visible rather than swallowed), whether their hashes are intact, and the
+last gate result; `/accept off` ends the mode and unlocks everything.
+The state is kept on the session record, so `-c` or `-r` on a locked
+session comes back locked — the restriction on non-test writes, the
+lock itself, and the content-restore guarantee all still apply after a
+resume, the same as in the session that set them up.
 
 A `task` with `fork: true` inherits this conversation's history and
 tools, runs in the background, and can be continued by id. It cannot

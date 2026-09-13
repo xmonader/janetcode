@@ -35,6 +35,13 @@ func (m *model) acceptCommand(arg string) tea.Cmd {
 			break
 		}
 		m.note("accept: unlocked · edits to the test files are allowed until /accept lock")
+	case a.SetCommand:
+		cmd, err := ag.AcceptSetCommand(a.Command)
+		if err != nil {
+			m.transcript.errorf("accept: %v", err)
+			break
+		}
+		m.note("accept: command set to " + cmd)
 	case a.Off:
 		ag.AcceptOff()
 		m.note("accept: off")
