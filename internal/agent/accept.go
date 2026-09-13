@@ -378,7 +378,11 @@ func (a *Agent) acceptRestoreTampered(toolName string, emit func(Event)) string 
 	}
 	var b strings.Builder
 	for _, name := range restored {
-		fmt.Fprintf(&b, "%s is a locked acceptance test; the change your %s call made to it was reverted. Fix the code instead.\n", name, toolName)
+		if toolName == "" {
+			fmt.Fprintf(&b, "%s is a locked acceptance test; it had been changed outside the session and was restored to the approved version.\n", name)
+		} else {
+			fmt.Fprintf(&b, "%s is a locked acceptance test; the change your %s call made to it was reverted. Fix the code instead.\n", name, toolName)
+		}
 	}
 	for _, name := range unrestorable {
 		fmt.Fprintf(&b, "%s is a locked acceptance test and changed, but is too large to restore automatically; tell the user it needs manual attention.\n", name)

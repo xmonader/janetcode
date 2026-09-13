@@ -1440,7 +1440,11 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	start := time.Now()
 	var pend []pending
+	var tamperedBefore string
 	if t.Mutating() {
+		// A locked file changed outside any tool call is put back before
+		// this call runs, so the note after it never blames this call.
+		tamperedBefore = a.acceptRestoreTampered("", emit)
 		pend = a.before(t, u.Input)
 	}
 	// A bash call that looks like `git commit` gets HEAD read before it
@@ -1474,7 +1478,10 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		// whatever the pre-execution checks did or did not recognise
 		// about it, a locked file that moved is restored right now, not
 		// merely reported the next time the gate happens to run.
-		if note := a.acceptRestoreTampered(u.Name, emit); note != "" {
+		for _, note := range []string{tamperedBefore, a.acceptRestoreTampered(u.Name, emit)} {
+			if note == "" {
+				continue
+			}
 			if out == "" {
 				out = note
 			} else {

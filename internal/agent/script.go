@@ -469,7 +469,9 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 	emit(Event{Kind: EvToolRun, Call: &call})
 	a.logEvent(session.Event{Type: session.TypeToolCall, CallID: id, Name: name, Arguments: string(u.Input), Intent: intent})
 	var pend []pending
+	var tamperedBefore string
 	if t.Mutating() {
+		tamperedBefore = a.acceptRestoreTampered("", emit)
 		a.cp.snapshot(a.Snapshots, t, u.Input)
 		pend = a.before(t, u.Input)
 	}
@@ -485,7 +487,10 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 		a.mutations++
 		// Same content guarantee as executeTool: a locked file this
 		// nested call moved, by any means, is restored right now.
-		if note := a.acceptRestoreTampered(name, emit); note != "" {
+		for _, note := range []string{tamperedBefore, a.acceptRestoreTampered(name, emit)} {
+			if note == "" {
+				continue
+			}
 			if out == "" {
 				out = note
 			} else {

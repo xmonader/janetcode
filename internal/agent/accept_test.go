@@ -453,6 +453,47 @@ func TestAcceptLockedFileRestoredAfterUntrackedBashWrite(t *testing.T) {
 	}
 }
 
+// TestAcceptExternalTamperIsRestoredWithoutBlamingTheCall: a locked file
+// changed outside janetcode is put back before the next mutating call
+// runs, and the note says it changed outside the session rather than
+// blaming that call.
+func TestAcceptExternalTamperIsRestoredWithoutBlamingTheCall(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"echo hi > other.txt"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root})
+	testPath := filepath.Join(root, "foo_test.go")
+	orig := "package foo\n"
+	if err := os.WriteFile(testPath, []byte(orig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sum, _ := hashFile(testPath)
+	a.Accept = &session.AcceptMeta{
+		Phase: session.AcceptLocked, Request: "add foo", Root: root,
+		Files: []string{testPath}, Hashes: map[string]string{testPath: sum},
+		Contents: map[string][]byte{testPath: []byte(orig)},
+		Command:  "true",
+	}
+	if err := os.WriteFile(testPath, []byte("package foo // weakened\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "write other.txt", emit); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(testPath); string(data) != orig {
+		t.Fatalf("external tamper not restored: %q", data)
+	}
+	for _, e := range *evs {
+		if e.Kind == EvToolResult && strings.Contains(e.Output, "your bash call") {
+			t.Fatalf("the bash call was blamed for a change made outside the session: %q", e.Output)
+		}
+	}
+}
+
 // TestAcceptCaptureStripsBacktickWrappedCommand is the exit-127 bug: a
 // model that wraps its ACCEPT-VERIFY command in backticks (or fences the
 // whole final message and adds trailing content, as here) must not have
