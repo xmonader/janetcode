@@ -81,6 +81,7 @@ func (m *model) command(text string) tea.Cmd {
 		}
 	}
 	m.noteUse(fields[0])
+	defer m.observeCommand(fields)
 	switch fields[0] {
 	case "/help", "/?":
 		// /help alone is the keys-and-commands sheet it has always been.

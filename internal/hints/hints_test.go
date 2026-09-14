@@ -281,3 +281,62 @@ func TestANilEngineIsSilentRatherThanFatal(t *testing.T) {
 		t.Fatalf("nil engine produced %q", got)
 	}
 }
+
+// The hints for the features added since the engine: each fires exactly
+// when its condition holds, is spent silently for a user who already uses
+// what it teaches, and waits while the user is being asked something.
+func TestTheFeatureHintsFireOnTheirMomentOnly(t *testing.T) {
+	for _, tc := range []struct {
+		id, use, want string
+		on, off       State
+	}{
+		{"undo-about", "/undo about", "/undo about <description>", State{UndoneMixed: 2}, State{UndoneMixed: 1}},
+		{"recipe-repeat", "/recipe save", "/recipe save <name>", State{RepeatedTurnShape: "edit_file VERSION, edit_file CHANGELOG"}, State{}},
+		{"accept-tests", "/accept", "/accept <request>", State{TestFirstPrompt: true}, State{}},
+		{"eval-keep", "/eval keep", "/eval keep <name>", State{VerifiedAfterFailure: true}, State{}},
+		{"proof-notes", "/proof", "/proof push", State{ProofAttached: true}, State{}},
+		{"what-if-model", "what-if", "--what-if s1 --from-turn 1 --model m2", State{SwitchedModel: "m2", SessionID: "s1"}, State{SwitchedModel: "m2"}},
+	} {
+		t.Run(tc.id, func(t *testing.T) {
+			quiet := func(s State) *State { s.VerifyConfigured = true; return &s }
+			if got := New(nil, nil).Eval(quiet(tc.off)); got != "" {
+				t.Fatalf("fired without its condition: %q", got)
+			}
+			e := New(nil, nil)
+			blocked := quiet(tc.on)
+			blocked.Blocked = true
+			if got := e.Eval(blocked); got != "" {
+				t.Fatalf("interrupted a prompt: %q", got)
+			}
+			got := e.Eval(quiet(tc.on))
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("hint = %q, want it to name %q", got, tc.want)
+			}
+			if e.Shown()[0] != tc.id {
+				t.Fatalf("recorded %v", e.Shown())
+			}
+			if again := e.Eval(quiet(tc.on)); again != "" {
+				t.Fatalf("fired twice: %q", again)
+			}
+			used := New(nil, nil)
+			s := quiet(tc.on)
+			s.Used = func(f string) bool { return f == tc.use }
+			if got := used.Eval(s); got != "" {
+				t.Fatalf("taught %s to a user who uses it: %q", tc.use, got)
+			}
+			if !used.Given(tc.id) {
+				t.Fatal("the rule was not spent for a user who already uses the feature")
+			}
+		})
+	}
+}
+
+// Having typed /undo says nothing about /undo about: the subcommand hints
+// are suppressed by the subcommand, not by the command.
+func TestASubcommandHintIsNotSuppressedByTheBareCommand(t *testing.T) {
+	e := New(nil, nil)
+	got := e.Eval(&State{VerifyConfigured: true, UndoneMixed: 3, Used: func(f string) bool { return f == "/undo" }})
+	if !strings.Contains(got, "/undo about") {
+		t.Fatalf("hint = %q", got)
+	}
+}

@@ -92,6 +92,33 @@ type State struct {
 	// history it came back with had already been summarised.
 	ResumedAfterCompaction bool
 
+	// RepeatedTurnShape describes the file changes of a turn that
+	// repeated, in order and on the same files, those of an earlier turn
+	// of the session: what /recipe save would have kept.
+	RepeatedTurnShape string
+
+	// UndoneMixed is how many distinct files or intents a whole-turn
+	// /undo just reverted together, when that was more than one: the
+	// case /undo about reverts only part of.
+	UndoneMixed int
+
+	// TestFirstPrompt is set when the user asks for tests to be written,
+	// or for a large feature, in a prompt: what /accept is for.
+	TestFirstPrompt bool
+
+	// ProofAttached is set when the session's own commit has had a proof
+	// note attached.
+	ProofAttached bool
+
+	// VerifiedAfterFailure is set when a turn ended verified: a check
+	// that had been failing now passes.
+	VerifiedAfterFailure bool
+
+	// SwitchedModel is the model the user switched to after at least one
+	// turn on another, and SessionID the session --what-if would replay.
+	SwitchedModel string
+	SessionID     string
+
 	// Used reports whether the user has already used a catalogue
 	// feature. Rules that point at a feature the user knows are skipped,
 	// and among the rest the unused ones go first. Nil means "unknown",
@@ -108,10 +135,22 @@ type Rule struct {
 	// Feature is the catalogue name the hint points at, used to skip
 	// rules for features the user already knows.
 	Feature string
+	// Use is the usage key that means the user already knows what the
+	// hint teaches, when that is narrower than Feature: a subcommand
+	// such as "/undo about", where having typed /undo says nothing.
+	// Empty means Feature.
+	Use string
 	// When decides whether the rule applies right now.
 	When func(*State) bool
 	// Text is the hint. Present tense, one line, names what to type.
 	Text func(*State) string
+}
+
+func (r Rule) usage() string {
+	if r.Use != "" {
+		return r.Use
+	}
+	return r.Feature
 }
 
 // Engine holds the rules and what has already been said.
@@ -174,7 +213,7 @@ func (e *Engine) Eval(s *State) string {
 		// A feature the user already reaches for needs no introduction.
 		// The rule is still marked as fired: the moment it belonged to
 		// has passed, and offering it later would be worse than not.
-		if s.Used != nil && r.Feature != "" && s.Used(r.Feature) {
+		if s.Used != nil && r.usage() != "" && s.Used(r.usage()) {
 			e.fire(r.ID, false)
 			continue
 		}
@@ -307,6 +346,48 @@ func Rules() []Rule {
 					what = "that looked like a stack trace"
 				}
 				return what + " — @path attaches a file instead, which costs a reference rather than the whole text, and tab completes the path"
+			},
+		},
+		{
+			ID: "undo-about", Feature: "/undo", Use: "/undo about",
+			When: func(s *State) bool { return s.UndoneMixed >= 2 },
+			Text: func(s *State) string {
+				return fmt.Sprintf("that reverted %d separate changes at once — when only part of a turn is wrong, /undo about <description> previews just the matching changes and /undo apply reverts those", s.UndoneMixed)
+			},
+		},
+		{
+			ID: "recipe-repeat", Feature: "/recipe", Use: "/recipe save",
+			When: func(s *State) bool { return s.RepeatedTurnShape != "" },
+			Text: func(s *State) string {
+				return "this turn made the same changes as an earlier one (" + s.RepeatedTurnShape + ") — /recipe save <name> keeps them as a program that /recipe run <name> repeats with no model call"
+			},
+		},
+		{
+			ID: "accept-tests", Feature: "/accept",
+			When: func(s *State) bool { return s.TestFirstPrompt },
+			Text: func(_ *State) string {
+				return "/accept <request> has the tests written first and stops for you to read them; /accept approve then locks them, so the code is written against tests nothing can weaken"
+			},
+		},
+		{
+			ID: "eval-keep", Feature: "/eval", Use: "/eval keep",
+			When: func(s *State) bool { return s.VerifiedAfterFailure },
+			Text: func(_ *State) string {
+				return "that turn made a failing check pass — /eval keep <name> turns this session into a regression eval that janetcode --eval replays later"
+			},
+		},
+		{
+			ID: "proof-notes", Feature: "/proof",
+			When: func(s *State) bool { return s.ProofAttached },
+			Text: func(_ *State) string {
+				return "that commit carries a proof note of which turn wrote each file and what showed it worked — /proof shows it, and /proof push shares the notes, which stay in this clone until pushed"
+			},
+		},
+		{
+			ID: "what-if-model", Feature: "what-if",
+			When: func(s *State) bool { return s.SwitchedModel != "" && s.SessionID != "" },
+			Text: func(s *State) string {
+				return fmt.Sprintf("janetcode --what-if %s --from-turn 1 --model %s replays this session's prompts on %s in a throwaway worktree and compares the outcomes", s.SessionID, s.SwitchedModel, s.SwitchedModel)
 			},
 		},
 		{

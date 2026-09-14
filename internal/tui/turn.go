@@ -36,6 +36,7 @@ func (m *model) submitAs(text, note string) tea.Cmd {
 		m.transcript.info(note)
 	} else {
 		m.transcript.user(text)
+		m.observePrompt(text)
 	}
 	// A host the user just named is a host the user is asking about, so
 	// fetch_url may reach it even on a private network. Only main seeded

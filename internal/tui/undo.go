@@ -209,7 +209,11 @@ func (m *model) undoCommand(cmd string, preview bool) {
 			return
 		}
 	} else {
+		spread := m.undoSpread()
 		done, err = m.opts.Agent.Undo()
+		if err == nil && len(done) > 0 {
+			defer m.observeUndo(spread)
+		}
 		if errors.Is(err, agent.ErrNothingToUndo) {
 			m.transcript.errorf("nothing to undo: no turn has changed anything yet")
 			return

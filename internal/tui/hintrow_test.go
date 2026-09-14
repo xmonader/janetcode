@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,6 +14,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/hints"
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -427,5 +430,190 @@ func TestHintsDoNotRunOnKeystrokes(t *testing.T) {
 	h.m.View()
 	if evals != 0 {
 		t.Fatalf("the hint rules were evaluated %d times while typing and rendering", evals)
+	}
+}
+
+// writeTurn is a scripted turn that writes each file in one response and
+// then ends.
+func writeTurn(tag string, files ...string) []*llm.Response {
+	var blocks []llm.Block
+	for i, f := range files {
+		in, _ := json.Marshal(map[string]string{"path": f, "content": tag + "\n"})
+		blocks = append(blocks, llm.Block{Type: llm.BlockToolUse, ID: fmt.Sprintf("%s-%d", tag, i), Name: "write_file", Input: in})
+	}
+	return []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: blocks}, StopReason: llm.StopToolUse},
+		{Message: llm.TextMessage(llm.RoleAssistant, "done "+tag), StopReason: llm.StopEndTurn},
+	}
+}
+
+// flat is the view with its wrapping undone, for a hint long enough to
+// wrap across lines.
+func flat(view string) string { return strings.Join(strings.Fields(plain(view)), " ") }
+
+func runPrompt(h *harness, text string) {
+	h.keys(text)
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+}
+
+// Two turns that change the same files in the same order are a procedure,
+// and the recipe hint names it — through the real event flow, from the
+// agent's own record of the changes.
+func TestTwoTurnsWithTheSameChangesOfferARecipe(t *testing.T) {
+	var rs []*llm.Response
+	rs = append(rs, writeTurn("one", "VERSION", "CHANGELOG")...)
+	rs = append(rs, writeTurn("two", "notes.txt")...)
+	rs = append(rs, writeTurn("three", "VERSION", "CHANGELOG")...)
+	h := newHarness(t, rs...)
+	withHints(h)
+	h.m.hintState.VerifyConfigured = true
+	h.m.opts.Agent.AutoApprove = true
+	runPrompt(h, "bump the version")
+	runPrompt(h, "write notes")
+	if v := plain(h.m.View()); strings.Contains(v, "/recipe save") {
+		t.Fatalf("offered a recipe before anything repeated:\n%s", v)
+	}
+	runPrompt(h, "bump it again")
+	v := flat(h.m.View())
+	if !strings.Contains(v, "/recipe save <name>") || !strings.Contains(v, "VERSION") || !strings.Contains(v, "CHANGELOG") {
+		t.Fatalf("a repeated turn did not offer a recipe:\n%s", v)
+	}
+}
+
+func TestARecipeUserIsNotToldAboutRecipes(t *testing.T) {
+	var rs []*llm.Response
+	rs = append(rs, writeTurn("one", "VERSION", "CHANGELOG")...)
+	rs = append(rs, writeTurn("two", "VERSION", "CHANGELOG")...)
+	h := newHarness(t, rs...)
+	h.m.opts.Usage = feature.OpenUsage(t.TempDir())
+	h.m.opts.Usage.Note("/recipe save")
+	e := withHints(h)
+	h.m.hintState.VerifyConfigured = true
+	h.m.opts.Agent.AutoApprove = true
+	runPrompt(h, "bump the version")
+	runPrompt(h, "bump it again")
+	if v := plain(h.m.View()); strings.Contains(v, "/recipe save") {
+		t.Fatalf("taught /recipe save to a user who uses it:\n%s", v)
+	}
+	if !e.Given("recipe-repeat") {
+		t.Fatal("the rule was not spent")
+	}
+}
+
+// A whole-turn /undo of a turn that changed several files offers the
+// partial undo, through the real /undo command.
+func TestUndoingAMixedTurnOffersUndoAbout(t *testing.T) {
+	h := newHarness(t, writeTurn("one", "a.txt", "b.txt")...)
+	withHints(h)
+	h.m.hintState.VerifyConfigured = true
+	h.m.opts.Agent.AutoApprove = true
+	runPrompt(h, "make two files")
+	h.keys("/undo")
+	h.enter()
+	v := flat(h.m.View())
+	if !strings.Contains(v, "↶") {
+		t.Fatalf("undo did not run:\n%s", v)
+	}
+	if !strings.Contains(v, "/undo about <description>") || !strings.Contains(v, "2 separate changes") {
+		t.Fatalf("undoing a two-file turn did not offer /undo about:\n%s", v)
+	}
+}
+
+func TestUndoingAOneFileTurnSaysNothingAboutUndoAbout(t *testing.T) {
+	h := newHarness(t, writeTurn("one", "a.txt")...)
+	withHints(h)
+	h.m.hintState.VerifyConfigured = true
+	h.m.opts.Agent.AutoApprove = true
+	runPrompt(h, "make a file")
+	h.keys("/undo")
+	h.enter()
+	if v := plain(h.m.View()); strings.Contains(v, "/undo about") {
+		t.Fatalf("a one-file undo offered /undo about:\n%s", v)
+	}
+}
+
+// Typing /undo about counts as knowing it, although /undo alone does not.
+func TestUndoAboutIsCountedAsItsOwnUse(t *testing.T) {
+	h := newHarness(t)
+	h.m.opts.Usage = feature.OpenUsage(t.TempDir())
+	h.m.observeCommand([]string{"/undo", "about", "the", "logging"})
+	if !h.m.opts.Usage.Used("/undo about") {
+		t.Fatal("/undo about was not counted")
+	}
+	h.m.observeCommand([]string{"/undo", "preview"})
+	if h.m.opts.Usage.Used("/undo preview") {
+		t.Fatal("a subcommand no hint teaches was counted")
+	}
+}
+
+func TestAPromptAskingForTestsOffersAccept(t *testing.T) {
+	for _, p := range []string{"add a retry flag and write tests for it", "fix the parser, TDD please", "do this test-first"} {
+		h := newHarness(t)
+		withHints(h)
+		h.m.hintState.VerifyConfigured = true
+		h.m.observePrompt(p)
+		if v := plain(h.m.View()); !strings.Contains(v, "/accept <request>") {
+			t.Errorf("%q did not offer /accept:\n%s", p, v)
+		}
+	}
+	h := newHarness(t)
+	withHints(h)
+	h.m.hintState.VerifyConfigured = true
+	h.m.observePrompt("why does the latest test fail?")
+	if v := plain(h.m.View()); strings.Contains(v, "/accept") {
+		t.Fatalf("a question about a test offered /accept:\n%s", v)
+	}
+	h.m.pending = &permissionMsg{}
+	h.m.observePrompt("write tests for the cache")
+	if v := plain(h.m.View()); strings.Contains(v, "/accept <request>") {
+		t.Fatalf("the hint landed on a permission prompt:\n%s", v)
+	}
+}
+
+func TestAVerifiedTurnOffersEvalKeep(t *testing.T) {
+	h := newHarness(t)
+	withHints(h)
+	h.m.hintState.VerifyConfigured = true
+	h.m.applyEvent(agent.Event{Kind: agent.EvVerdict, Text: "⚠ unverified: nothing ran", IsError: true})
+	if v := plain(h.m.View()); strings.Contains(v, "/eval keep") {
+		t.Fatalf("an unverified turn offered /eval keep:\n%s", v)
+	}
+	h.m.applyEvent(agent.Event{Kind: agent.EvVerdict, Text: "✓ verified: go test ./... failed earlier and passes now"})
+	if v := plain(h.m.View()); !strings.Contains(v, "/eval keep <name>") {
+		t.Fatalf("a verified turn did not offer /eval keep:\n%s", v)
+	}
+}
+
+func TestAttachingAProofNoteOffersProofPush(t *testing.T) {
+	h := newHarness(t)
+	withHints(h)
+	h.m.hintState.VerifyConfigured = true
+	h.m.applyEvent(agent.Event{Kind: agent.EvNotice, Text: "proof: could not attach evidence to abc123: boom"})
+	if v := plain(h.m.View()); strings.Contains(v, "/proof push") {
+		t.Fatalf("a failed attach offered /proof push:\n%s", v)
+	}
+	h.m.applyEvent(agent.Event{Kind: agent.EvNotice, Text: agent.ProofAttachedNotice + "abc123 · /proof shows it"})
+	if v := plain(h.m.View()); !strings.Contains(v, "/proof push") {
+		t.Fatalf("attaching a note did not offer /proof push:\n%s", v)
+	}
+}
+
+func TestSwitchingModelAfterATurnOffersWhatIf(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hi"), StopReason: llm.StopEndTurn})
+	withHints(h)
+	h.m.hintState.VerifyConfigured = true
+	// Before any turn, a switch is a choice of model, not a comparison.
+	h.m.opts.Agent.SwitchModel("m0", nil, nil)
+	h.m.observeCommand([]string{"/model", "m0"})
+	if v := plain(h.m.View()); strings.Contains(v, "--what-if") {
+		t.Fatalf("a switch before any turn offered --what-if:\n%s", v)
+	}
+	runPrompt(h, "hello")
+	h.keys("/model m2")
+	h.enter()
+	v := plain(h.m.View())
+	if !strings.Contains(v, "--what-if "+h.m.opts.Session.Meta.ID) || !strings.Contains(v, "--model m2") {
+		t.Fatalf("switching model mid-session did not offer --what-if:\n%s", v)
 	}
 }

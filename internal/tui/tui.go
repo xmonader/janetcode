@@ -234,6 +234,7 @@ type model struct {
 	hints         *hints.Engine            // event-driven one-time hints; nil disables them
 	hintState     hints.State              // what the hint rules are allowed to look at
 	bangSeen      map[string]int           // !commands the user ran, by command line
+	hintObs       hintObservations         // what the hint observers remember between events
 	queued        []string                 // prompts typed while a turn was running
 	steering      []string                 // notes handed to the running turn (ctrl+s)
 	custom        map[string]prompt.Custom // user-defined slash commands

@@ -160,6 +160,18 @@ func (c *checkpointer) dropRedo(repo *snapshot.Repo) {
 // ErrNothingToRedo is returned by Redo when no undo can be reapplied.
 var ErrNothingToRedo = errors.New("nothing to redo")
 
+// UndoTurn is the turn the next Undo reverts, so a caller can describe
+// that turn from Changes before the undo happens. ok is false when there
+// is nothing to undo.
+func (a *Agent) UndoTurn() (turn int, ok bool) {
+	a.cp.mu.Lock()
+	defer a.cp.mu.Unlock()
+	if n := len(a.cp.all); n > 0 {
+		return a.cp.all[n-1].Turn, true
+	}
+	return 0, false
+}
+
 // UndoPreview lists what Undo would do, one "verb path" per line, without
 // changing anything.
 func (a *Agent) UndoPreview() ([]string, error) {

@@ -122,6 +122,12 @@ func TestEveryHintNamesSomethingThatExists(t *testing.T) {
 		{Untrusted: []string{".mcp.json", ".janetcode/hooks.json"}},
 		{UnpricedModel: "some/model", Spent: true},
 		{ResumedAfterCompaction: true},
+		{UndoneMixed: 3},
+		{RepeatedTurnShape: "edit_file VERSION, edit_file CHANGELOG.md"},
+		{TestFirstPrompt: true},
+		{VerifiedAfterFailure: true},
+		{ProofAttached: true},
+		{SwitchedModel: "claude-opus-5-some-long-name", SessionID: "20260911-153001-4f2a"},
 	}
 	seen := 0
 	for _, r := range hints.Rules() {

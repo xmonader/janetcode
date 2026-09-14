@@ -218,8 +218,13 @@ func (a *Agent) checkCommitAttach(ctx context.Context, preHead string, emit func
 		emit(Event{Kind: EvNotice, Text: "proof: could not attach evidence to " + proof.Short(postHead) + ": " + err.Error()})
 		return
 	}
-	emit(Event{Kind: EvNotice, Text: "proof attached to " + proof.Short(postHead) + " · /proof shows it"})
+	emit(Event{Kind: EvNotice, Text: ProofAttachedNotice + proof.Short(postHead) + " · /proof shows it"})
 }
+
+// ProofAttachedNotice begins the notice emitted when the session's own
+// commit has had a proof note attached, so a front-end can recognise the
+// moment without matching prose that may be reworded.
+const ProofAttachedNotice = "proof attached to "
 
 // headForCommitCheck reads HEAD cheaply, only ever called for a bash
 // command that already matched looksLikeGitCommit.

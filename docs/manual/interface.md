@@ -1220,6 +1220,23 @@ large paste or a stack trace, `/usage` at $0.50, the trust command for a
 project file that is present but not enabled, the `prices` key for a model
 nothing can price, and `/context` on a session resumed after a compaction.
 
+The newer features have theirs too:
+
+- `/recipe save <name>` when a turn repeats an earlier turn's file changes
+  (the same tools on the same files, in the same order, at least two of them)
+- `/undo about <description>` after a whole-turn `/undo` that reverted
+  changes to two or more files, or with two or more intents
+- `/accept <request>` when a prompt asks for tests to be written ("write
+  tests", "with tests", "test-first", "TDD") or opens a long feature request
+- `/eval keep <name>` when a turn ends verified: a failing check now passes
+- `/proof` and `/proof push` the first time the session's own commit gets
+  a proof note
+- `janetcode --what-if <session> --from-turn 1 --model <m>` after switching
+  model with `/model` once the session has had a turn
+
+A hint that teaches a subcommand is suppressed by the subcommand, not the
+command: having typed `/undo` does not silence the `/undo about` hint.
+
 Each fires at most once per project, ever. One at most per moment. Never
 while a permission prompt or a picker is open. Never for a feature you
 already use. `/hints off`, or `"hints": false` in the config file, silences
