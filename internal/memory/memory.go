@@ -705,8 +705,8 @@ func nameFor(desc string) string {
 // "- " list bullet, and cuts it to max bytes with "…" when max > 0.
 func oneLine(s string, max int) string {
 	s = textfmt.Squash(strings.TrimPrefix(strings.TrimSpace(s), "- "))
-	if max > 0 && len(s) > max {
-		s = s[:max-1] + "…"
+	if max > 0 {
+		s = textfmt.ClipBytes(s, max)
 	}
 	return s
 }

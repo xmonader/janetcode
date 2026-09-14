@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // Plural renders n with word, pluralized with a trailing "s" unless n is 1.
@@ -108,6 +109,27 @@ func FirstLine(s string, max int) string {
 		return s
 	}
 	return Clip(s, max)
+}
+
+// ClipBytes shortens s to at most max bytes, never splitting a multi-byte
+// UTF-8 character. When the string is clipped a trailing "…" is appended;
+// the result is always valid UTF-8 and at most max bytes long.
+func ClipBytes(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	if len(s) <= max {
+		return s
+	}
+	const ellipsis = "…"
+	cut := max - len(ellipsis)
+	if cut < 0 {
+		cut = 0
+	}
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + ellipsis
 }
 
 // OneLine flattens s to a single line by replacing newlines with spaces

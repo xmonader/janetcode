@@ -128,6 +128,30 @@ func TestClip(t *testing.T) {
 	}
 }
 
+func TestClipBytes(t *testing.T) {
+	cases := []struct {
+		s    string
+		max  int
+		want string
+	}{
+		{"hello", 10, "hello"},    // no truncation
+		{"hello", 5, "hello"},     // exact fit
+		{"hello world", 5, "he…"}, // ASCII truncation
+		{"hello", 1, "…"},         // max below ellipsis length
+		{"hello", 0, ""},          // max=0
+		{"aé", 3, "aé"},           // exact fit with 2-byte char
+		{"a中b", 4, "a…"},          // truncate before 3-byte char
+		{"a中", 4, "a中"},           // exact fit with 3-byte char
+		{"a🎉", 5, "a🎉"},           // exact fit with 4-byte char
+		{"a🎉", 3, "…"},            // max=3, can't fit content
+	}
+	for _, c := range cases {
+		if got := ClipBytes(c.s, c.max); got != c.want {
+			t.Errorf("ClipBytes(%q, %d) = %q, want %q", c.s, c.max, got, c.want)
+		}
+	}
+}
+
 func TestFirstLine(t *testing.T) {
 	cases := []struct {
 		s    string
