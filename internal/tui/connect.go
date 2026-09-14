@@ -13,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -328,7 +329,7 @@ func (m *model) handleModels(msg modelsMsg) {
 	default:
 		current := ""
 		if c.name == m.opts.Config.Provider {
-			current = m.opts.Agent.Model
+			current = m.opts.Agent.Settings().Model
 		}
 		sort.SliceStable(msg.models, func(i, j int) bool {
 			if (msg.models[i].ID == current) != (msg.models[j].ID == current) {
@@ -512,7 +513,7 @@ func (m *model) applyConnect(modelID string) {
 	}
 	*m.opts.Config = *cfg
 	m.opts.Agent.Provider = prov
-	m.opts.Agent.Model = modelID
+	m.opts.Agent.UpdateSettings(func(s *agent.Settings) { s.Model = modelID })
 	m.opts.Provider = c.name
 	note := "connected to " + c.name + " · " + modelID
 	if mi, ok := c.meta[modelID]; ok {
@@ -845,5 +846,5 @@ func (m *model) headerModel() string {
 	if m.opts.Agent.Provider == nil {
 		return "not connected · /connect"
 	}
-	return m.opts.Provider + "/" + m.opts.Agent.Model
+	return m.opts.Provider + "/" + m.opts.Agent.Settings().Model
 }

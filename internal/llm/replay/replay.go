@@ -33,14 +33,9 @@ type Provider struct {
 	// turns is the user turn each response in responses answered, same
 	// index for same index, so a caller (Until) can find where one turn's
 	// model calls end and the next one's begin without re-parsing the log.
-	turns   []int
-	prompts []string
-	at      int
+	turns []int
+	at    int
 }
-
-// Prompts are the user messages of the recorded session, in order, so a
-// caller can drive the same turns that were recorded.
-func (p *Provider) Prompts() []string { return p.prompts }
 
 // Remaining is how many recorded responses have not been used.
 func (p *Provider) Remaining() int { return len(p.responses) - p.at }
@@ -114,12 +109,6 @@ func Read(r io.Reader) (*Provider, error) {
 			continue
 		}
 		switch rec.Event.Type {
-		case session.TypeUserMessage:
-			if rec.Event.Message != nil {
-				if t := strings.TrimSpace(rec.Event.Message.Text()); t != "" {
-					p.prompts = append(p.prompts, t)
-				}
-			}
 		case session.TypeAssistant:
 			if rec.Event.Message == nil {
 				continue
@@ -156,9 +145,8 @@ func Read(r io.Reader) (*Provider, error) {
 // recording with no call that late — turn is beyond what was recorded —
 // switches on the very first call, i.e. behaves as pure live from the
 // start; a recording with only earlier turns never switches at all, i.e.
-// behaves as recorded alone (Prompts and Remaining still read straight
-// off it, since the caller drives replay with those before turn N is
-// ever reached).
+// behaves as recorded alone (Remaining still reads straight off it). The
+// caller drives the turns themselves from the session log (session.Turns).
 func Until(recorded *Provider, turn int, live llm.Provider) llm.Provider {
 	cutoff := len(recorded.responses)
 	for i, t := range recorded.turns {

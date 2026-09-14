@@ -12,7 +12,6 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
-	"github.com/xmonader/janetcode/internal/eval"
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
@@ -162,7 +161,7 @@ type streamEvent struct {
 	IsError    bool            `json:"is_error,omitempty"`
 	DurationMS int64           `json:"duration_ms,omitempty"`
 	StopReason string          `json:"stop_reason,omitempty"`
-	Usage      *eval.CLIUsage  `json:"usage,omitempty"`
+	Usage      *CLIUsage       `json:"usage,omitempty"`
 	// Attempts and WaitMS describe a retry event: the call failed this
 	// many times and spent this long in backoff before it answered. Text
 	// carries the reason.
@@ -237,8 +236,8 @@ func (r *recorder) event(e agent.Event) {
 	}
 }
 
-func usageOf(u llm.Usage) eval.CLIUsage {
-	return eval.CLIUsage{
+func usageOf(u llm.Usage) CLIUsage {
+	return CLIUsage{
 		InputTokens:      u.InputTokens,
 		OutputTokens:     u.OutputTokens,
 		CacheReadTokens:  u.CacheReadTokens,
@@ -255,11 +254,11 @@ func (r *recorder) spentUSD() (float64, bool) {
 
 // result builds the envelope. modelCalls and toolCalls come from the
 // agent's own counters where it has them, which survive compaction.
-func (r *recorder) result(ag *agent.Agent, err error) eval.CLIResult {
+func (r *recorder) result(ag *agent.Agent, err error) CLIResult {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	res := eval.CLIResult{
-		Type:              eval.CLIResultType,
+	res := CLIResult{
+		Type:              CLIResultType,
 		Harness:           "janetcode",
 		Result:            r.answer,
 		ExitCode:          ExitCode(err),
@@ -299,7 +298,7 @@ func (r *recorder) result(ag *agent.Agent, err error) eval.CLIResult {
 		if calls, _ := st.ToolCalls(); calls > 0 {
 			res.ToolCalls = calls
 		}
-		res.Recoveries = eval.CLIRecoveries{
+		res.Recoveries = CLIRecoveries{
 			ProseToolCalls: st.Recoveries,
 			WatchdogKills:  st.WatchdogKills,
 			ModelFallbacks: st.Fallbacks,

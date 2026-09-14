@@ -254,13 +254,7 @@ func countLines(s string) int {
 	return n
 }
 
-// atomicWrite writes via a temp file + rename so a crash mid-write never
-// leaves a truncated file. Preserves the mode of an existing file.
-// touchedPath resolves the "path" field of a file tool's input.
-func touchedPath(root string, input json.RawMessage) ([]string, error) {
-	return touchedPathOn(nil, root, input)
-}
-
+// touchedPathOn resolves the "path" field of a file tool's input.
 func touchedPathOn(ws *Workspace, root string, input json.RawMessage) ([]string, error) {
 	var in struct {
 		Path string `json:"path"`
@@ -281,6 +275,7 @@ func touchedPathOn(ws *Workspace, root string, input json.RawMessage) ([]string,
 // so a crash mid-write never leaves a truncated file.
 func AtomicWrite(p string, data []byte) error { return atomicWrite(p, data) }
 
+// atomicWrite is AtomicWrite, preserving the mode of an existing file.
 func atomicWrite(p string, data []byte) error {
 	mode := os.FileMode(0o644)
 	if st, err := os.Stat(p); err == nil {

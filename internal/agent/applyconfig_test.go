@@ -8,7 +8,7 @@ import (
 )
 
 // TestApplyConfigUpdatesLiveAgent audits every key in config.SettableKeys
-// against agent.ApplyConfig's live-update switch (see agent.go ~1001):
+// against agent.ApplyConfig's live-update switch (see applyconfig.go):
 // /config setting a key must take effect in the running session, not just
 // on the next one. cases lists the keys that have a live Agent field to
 // update and checks it actually changed; noAgentField documents, by name,

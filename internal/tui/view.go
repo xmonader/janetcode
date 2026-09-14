@@ -3,13 +3,14 @@ package tui
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -178,11 +179,8 @@ func (m *model) revertHunk(spec string) {
 		return
 	}
 	single := header + hunks[n-1]
-	cmd := exec.CommandContext(context.Background(), "git", "apply", "-R", "--recount", "-")
-	cmd.Dir = m.opts.Cwd
-	cmd.Stdin = strings.NewReader(single)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		m.transcript.errorf("git apply -R: %v %s", err, strings.TrimSpace(string(out)))
+	if _, err := gitx.RunInput(context.Background(), m.opts.Cwd, []byte(single), "apply", "-R", "--recount", "-"); err != nil {
+		m.transcript.errorf("git apply -R: %s", gitx.Detail(err))
 		return
 	}
 	m.note(fmt.Sprintf("reverted hunk %d of %s (%d left)", n, path, len(hunks)-1))
@@ -248,15 +246,12 @@ func changedFiles(root string) ([]changedFile, error) {
 	return files, nil
 }
 
+// gitOut is git's untrimmed stdout (a patch keeps its final newline); a
+// failure is reported as git's own stderr.
 func gitOut(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.Output()
+	out, err := gitx.RunBytes(context.Background(), dir, nil, args...)
 	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
-			return "", fmt.Errorf("%s", strings.TrimSpace(string(ee.Stderr)))
-		}
-		return "", err
+		return "", errors.New(gitx.Detail(err))
 	}
 	return string(out), nil
 }

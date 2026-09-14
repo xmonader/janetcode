@@ -15,7 +15,7 @@ import (
 func (s *server) model(arg string) {
 	ag := s.opts.Agent
 	if arg == "" {
-		s.notice("model: " + ag.Model + " (" + s.opts.Provider + ") · /model <name> switches, across providers when the name routes elsewhere")
+		s.notice("model: " + ag.Settings().Model + " (" + s.opts.Provider + ") · /model <name> switches, across providers when the name routes elsewhere")
 		return
 	}
 	cfg := s.opts.Config
@@ -34,7 +34,7 @@ func (s *server) model(arg string) {
 			s.notice("switched to provider " + name + " for " + arg)
 		}
 	}
-	ag.Model = arg
+	ag.UpdateSettings(func(st *agent.Settings) { st.Model = arg })
 	if cfg != nil {
 		ag.Price = cfg.PriceFor(arg)
 		ag.ContextWindow = cfg.MetaFor(arg).ContextWindow
@@ -101,12 +101,13 @@ func (s *server) configKV(arg string) {
 func (s *server) pin(arg string) {
 	ag := s.opts.Agent
 	if arg == "" {
-		if len(ag.Pins) == 0 {
+		pins := ag.PinsSnapshot()
+		if len(pins) == 0 {
 			s.notice("no pins: /pin <note> or /pin @path")
 			return
 		}
 		var sb strings.Builder
-		for i, p := range ag.Pins {
+		for i, p := range pins {
 			fmt.Fprintf(&sb, "%d. %s\n", i+1, textfmt.Clip(strings.ReplaceAll(p, "\n", " "), 120))
 		}
 		s.sheet("pins", sb.String())
@@ -118,8 +119,7 @@ func (s *server) pin(arg string) {
 		return
 	}
 	arg = text
-	ag.Pin(arg)
-	s.notice(fmt.Sprintf("pinned (%d)", len(ag.Pins)))
+	s.notice(fmt.Sprintf("pinned (%d)", ag.Pin(arg)))
 }
 
 func (s *server) export(path string) {

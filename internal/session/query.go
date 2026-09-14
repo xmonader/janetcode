@@ -3,8 +3,6 @@ package session
 import (
 	"strings"
 	"unicode/utf8"
-
-	"github.com/xmonader/janetcode/internal/llm"
 )
 
 // QueryFilter selects events across one session log.
@@ -70,24 +68,4 @@ func truncRunes(s string, max int) string {
 		cut--
 	}
 	return s[:cut] + "…"
-}
-
-// LastAssistantSeq is the seq of the most recent assistant/message, or 0.
-func LastAssistantSeq(events []Event) int {
-	for i := len(events) - 1; i >= 0; i-- {
-		if events[i].Type == TypeAssistant {
-			return events[i].Seq
-		}
-	}
-	return 0
-}
-
-// MessageAtSeq returns the surface message at seq if any.
-func MessageAtSeq(events []Event, seq int) *llm.Message {
-	for i := range events {
-		if events[i].Seq == seq {
-			return events[i].Message
-		}
-	}
-	return nil
 }

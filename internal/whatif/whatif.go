@@ -3,7 +3,7 @@
 // reproduces the tree the session had right before turn N by replaying
 // turns 1..N-1 against the model's own recorded replies — no tokens
 // spent, see internal/llm/replay — in an isolated git worktree (see
-// internal/eval's PrepareStart), then runs the session's remaining user
+// worktree.AtStart), then runs the session's remaining user
 // prompts live against a changed setup: a different model, ablations, an
 // extra permission-deny rule, or a replacement prompt for turn N. It
 // reports how the two runs compare: where they first diverge, per-turn
@@ -25,13 +25,13 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
-	"github.com/xmonader/janetcode/internal/eval"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/llm/replay"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/verify"
+	"github.com/xmonader/janetcode/internal/worktree"
 )
 
 // Options configures one counterfactual run.
@@ -40,7 +40,7 @@ type Options struct {
 	// session.Dir()) or a path to its .jsonl file directly.
 	SessionArg string
 	// Root is the repository the session's recorded start state replays
-	// against (see session.StartState, eval.PrepareStart). Empty falls
+	// against (see session.StartState, worktree.AtStart). Empty falls
 	// back to the session's own recorded Meta.Cwd.
 	Root string
 	// FromTurn is N, 1-based: turns before it replay from the recording,
@@ -311,7 +311,7 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 		return Report{}, fmt.Errorf("--what-if needs a configured provider for the live part")
 	}
 
-	turns := sessionTurns(origEvents)
+	turns := session.Turns(origEvents)
 	total := len(turns)
 	if total == 0 {
 		return Report{}, fmt.Errorf("session %s has no recorded turns to replay", sess.Meta.ID)
@@ -324,15 +324,9 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 		return Report{}, fmt.Errorf("--from-turn %d: the recording has only %d turn(s)", n, total)
 	}
 
-	off := map[string]bool{}
-	for _, name := range opts.Off {
-		if name = strings.TrimSpace(name); name == "" {
-			continue
-		}
-		if !agent.KnownSwitch(name) {
-			return Report{}, fmt.Errorf("--off: unknown behaviour %q (%s)", name, strings.Join(agent.Switches(), ", "))
-		}
-		off[name] = true
+	off, err := agent.ParseSwitches(strings.Join(opts.Off, ","))
+	if err != nil {
+		return Report{}, fmt.Errorf("--off: %w", err)
 	}
 	denyRules, err := perm.ParseAll(opts.Deny)
 	if err != nil {
@@ -344,7 +338,7 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 		root = sess.Meta.Cwd
 	}
 	logf("preparing a worktree at the session's start state (%s)", sess.Meta.ID)
-	workDir, cleanup, err := eval.PrepareStart(ctx, root, *sess.Meta.Start)
+	workDir, cleanup, err := worktree.AtStart(ctx, "whatif", root, sess.Meta.Start.Head, sess.Meta.Start.Snap)
 	if err != nil {
 		return Report{}, fmt.Errorf("prepare worktree: %w", err)
 	}
@@ -372,7 +366,7 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 	// replaying and restored the moment the live part starts, where the
 	// real provider makes them safe (and meaningful) again.
 	ag.CompactAt = -1
-	ag.MaxIterations = len(recorded.Prompts()) + recordedCallCount(recorded) + total + 20
+	ag.MaxIterations = recordedCallCount(recorded) + total + 20
 
 	var (
 		preLive  llm.Usage

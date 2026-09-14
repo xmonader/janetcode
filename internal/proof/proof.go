@@ -12,17 +12,18 @@
 package proof
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/gitx"
 )
 
 // NotesRef is where proof records are stored, as git notes.
@@ -321,7 +322,7 @@ func splitDataLines(data []byte) []string {
 // alone for a root commit, so the parent count tells the two apart without
 // relying on parsing an error message.
 func commitParent(ctx context.Context, repoDir, commit string) (string, error) {
-	out, err := runGit(ctx, repoDir, "rev-list", "--parents", "-n1", commit)
+	out, err := gitx.Run(ctx, repoDir, nil, "rev-list", "--parents", "-n1", commit)
 	if err != nil {
 		return "", err
 	}
@@ -342,17 +343,15 @@ var blobMissingRe = regexp.MustCompile(`(?i)exists on disk, but not in|does not 
 // blob there (not an error: a new file has nothing at its parent, a
 // deleted one has nothing at the commit).
 func showBlob(ctx context.Context, repoDir, rev, path string) (data []byte, ok bool, err error) {
-	cmd := exec.CommandContext(ctx, "git", "show", rev+":"+filepath.ToSlash(path))
-	cmd.Dir = repoDir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if runErr := cmd.Run(); runErr != nil {
-		if blobMissingRe.MatchString(stderr.String()) {
+	data, err = gitx.RunBytes(ctx, repoDir, nil, "show", rev+":"+filepath.ToSlash(path))
+	if err != nil {
+		var ge *gitx.Error
+		if errors.As(err, &ge) && blobMissingRe.MatchString(ge.Stderr) {
 			return nil, false, nil
 		}
-		return nil, false, fmt.Errorf("git show %s:%s: %s", short(rev), path, firstNonEmpty(strings.TrimSpace(stderr.String()), runErr.Error()))
+		return nil, false, fmt.Errorf("git show %s:%s: %s", gitx.Short(rev), path, gitx.Detail(err))
 	}
-	return stdout.Bytes(), true, nil
+	return data, true, nil
 }
 
 // CommittedFileVersions resolves, for every path in paths, the file's
@@ -403,17 +402,17 @@ func normPath(repoRoot, p string) string {
 // Root resolves the top level of the git work tree containing dir, the
 // base every path in a Record and every git command here is anchored to.
 func Root(ctx context.Context, dir string) (string, error) {
-	return runGit(ctx, dir, "rev-parse", "--show-toplevel")
+	return gitx.Run(ctx, dir, nil, "rev-parse", "--show-toplevel")
 }
 
 // Resolve returns the full commit sha that ref names (a short sha, "HEAD",
 // a branch, ...), or an error naming what could not be resolved.
 func Resolve(ctx context.Context, repoDir, ref string) (string, error) {
-	return runGit(ctx, repoDir, "rev-parse", "--verify", "-q", ref+"^{commit}")
+	return gitx.Run(ctx, repoDir, nil, "rev-parse", "--verify", "-q", ref+"^{commit}")
 }
 
 // Short is a commit sha shortened for display.
-func Short(sha string) string { return short(sha) }
+func Short(sha string) string { return gitx.Short(sha) }
 
 // Attach stores r as the proof note on commit, merging it with whatever
 // note is already there (see merge) so that two sessions contributing to
@@ -434,13 +433,8 @@ func Attach(ctx context.Context, repoDir, commit string, r Record) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, "git", "notes", "--ref="+NotesRef, "add", "-f", "-F", "-", commit)
-	cmd.Dir = repoDir
-	cmd.Stdin = bytes.NewReader(data)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git notes add: %s", firstNonEmpty(strings.TrimSpace(stderr.String()), err.Error()))
+	if _, err := gitx.RunInput(ctx, repoDir, data, "notes", "--ref="+NotesRef, "add", "-f", "-F", "-", commit); err != nil {
+		return fmt.Errorf("git notes add: %s", gitx.Detail(err))
 	}
 	return nil
 }
@@ -452,19 +446,17 @@ var noNoteRe = regexp.MustCompile(`(?i)no note found for object`)
 // Read returns the proof record attached to commit, or ok=false when the
 // commit has none.
 func Read(ctx context.Context, repoDir, commit string) (Record, bool, error) {
-	cmd := exec.CommandContext(ctx, "git", "notes", "--ref="+NotesRef, "show", commit)
-	cmd.Dir = repoDir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if runErr := cmd.Run(); runErr != nil {
-		if noNoteRe.MatchString(stderr.String()) {
+	out, err := gitx.RunBytes(ctx, repoDir, nil, "notes", "--ref="+NotesRef, "show", commit)
+	if err != nil {
+		var ge *gitx.Error
+		if errors.As(err, &ge) && noNoteRe.MatchString(ge.Stderr) {
 			return Record{}, false, nil
 		}
-		return Record{}, false, fmt.Errorf("git notes show: %s", firstNonEmpty(strings.TrimSpace(stderr.String()), runErr.Error()))
+		return Record{}, false, fmt.Errorf("git notes show: %s", gitx.Detail(err))
 	}
 	var r Record
-	if err := json.Unmarshal(stdout.Bytes(), &r); err != nil {
-		return Record{}, false, fmt.Errorf("proof note on %s is not valid JSON: %w", short(commit), err)
+	if err := json.Unmarshal(out, &r); err != nil {
+		return Record{}, false, fmt.Errorf("proof note on %s is not valid JSON: %w", gitx.Short(commit), err)
 	}
 	return r, true, nil
 }
@@ -474,7 +466,7 @@ func Read(ctx context.Context, repoDir, commit string) (Record, bool, error) {
 // tells diff-tree to treat it as a diff against the empty tree, which is
 // otherwise the one case it reports nothing for.
 func CommittedFiles(ctx context.Context, repoDir, commit string) ([]string, error) {
-	out, err := runGit(ctx, repoDir, "diff-tree", "--no-commit-id", "--name-only", "-r", "--root", commit)
+	out, err := gitx.Run(ctx, repoDir, nil, "diff-tree", "--no-commit-id", "--name-only", "-r", "--root", commit)
 	if err != nil {
 		return nil, err
 	}
@@ -559,14 +551,14 @@ var blameHeaderRe = regexp.MustCompile(`^([0-9a-f]{40}) \d+ (\d+)`)
 // commit and cached, since a file's lines commonly come from a handful of
 // commits.
 func BlameCommitted(ctx context.Context, repoDir, path string) ([]Line, error) {
-	out, err := runGitRaw(ctx, repoDir, "blame", "--porcelain", "--", path)
+	out, err := gitx.RunBytes(ctx, repoDir, nil, "blame", "--porcelain", "--", path)
 	if err != nil {
 		return nil, err
 	}
 	var lines []Line
 	var curSHA string
 	var curNo int
-	for _, raw := range strings.Split(out, "\n") {
+	for _, raw := range strings.Split(string(out), "\n") {
 		if m := blameHeaderRe.FindStringSubmatch(raw); m != nil {
 			curSHA = m[1]
 			curNo, _ = strconv.Atoi(m[2])
@@ -726,38 +718,4 @@ func orDash(s string) string {
 		return "-"
 	}
 	return s
-}
-
-func firstNonEmpty(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
-}
-
-func short(sha string) string {
-	if len(sha) > 12 {
-		return sha[:12]
-	}
-	return sha
-}
-
-func runGit(ctx context.Context, dir string, args ...string) (string, error) {
-	out, err := runGitRaw(ctx, dir, args...)
-	return strings.TrimRight(out, "\n"), err
-}
-
-func runGitRaw(ctx context.Context, dir string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = dir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		return "", fmt.Errorf("git %s: %s", args[0], msg)
-	}
-	return stdout.String(), nil
 }

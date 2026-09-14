@@ -50,11 +50,11 @@ func TestOutputFormatJSONEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run: %v\nstderr: %s", err, errOut)
 	}
-	var res eval.CLIResult
+	var res headless.CLIResult
 	if jerr := json.Unmarshal([]byte(out), &res); jerr != nil {
 		t.Fatalf("stdout is not one JSON object: %v\n%s", jerr, out)
 	}
-	if res.Type != eval.CLIResultType || res.Harness != "janetcode" {
+	if res.Type != headless.CLIResultType || res.Harness != "janetcode" {
 		t.Fatalf("envelope = %+v", res)
 	}
 	if !strings.Contains(res.Result, "it says hello") {
@@ -120,7 +120,7 @@ func TestOutputFormatStreamJSONEndToEnd(t *testing.T) {
 			t.Fatalf("line is not JSON: %q", l)
 		}
 	}
-	var res eval.CLIResult
+	var res headless.CLIResult
 	if jerr := json.Unmarshal([]byte(lines[len(lines)-1]), &res); jerr != nil || res.Harness != "janetcode" {
 		t.Fatalf("last line is not the result: %q", lines[len(lines)-1])
 	}
@@ -180,7 +180,7 @@ func TestJSONEnvelopeReportsRecoveries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run: %v\nstderr: %s", err, errOut)
 	}
-	var res eval.CLIResult
+	var res headless.CLIResult
 	if jerr := json.Unmarshal([]byte(out), &res); jerr != nil {
 		t.Fatalf("stdout is not one JSON object: %v\n%s", jerr, out)
 	}

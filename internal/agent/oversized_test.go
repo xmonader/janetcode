@@ -55,26 +55,6 @@ func TestLargeOutputOptIn(t *testing.T) {
 			t.Fatalf("%s must not count as consent", in)
 		}
 	}
-	schema := WithLargeOutputOption(json.RawMessage(`{"type":"object","properties":{"pattern":{"type":"string"}},"required":["pattern"]}`))
-	var obj struct {
-		Properties map[string]json.RawMessage `json:"properties"`
-		Required   []string                   `json:"required"`
-	}
-	if err := json.Unmarshal(schema, &obj); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := obj.Properties[AcceptLargeOutput]; !ok {
-		t.Fatal("the option was not added")
-	}
-	if _, ok := obj.Properties["pattern"]; !ok {
-		t.Fatal("the tool's own properties were lost")
-	}
-	// Never required: it is an escape hatch, not a question.
-	for _, r := range obj.Required {
-		if r == AcceptLargeOutput {
-			t.Fatal("the opt-in must not be required")
-		}
-	}
 }
 
 // TestTakeLargeOutput: the opt-in is not declared on any schema, so it has

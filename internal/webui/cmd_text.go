@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/feature"
+	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
@@ -183,7 +183,7 @@ func (s *server) contextText() string {
 		pct = r.Total * 100 / r.CompactAt
 	}
 	fmt.Fprintf(&sb, "context ~%s tokens · compaction at %s (%d%%) · %d messages, %d turns\n", textfmt.Tokens(r.Total), textfmt.Tokens(r.CompactAt), pct, r.Messages, r.Turns)
-	fmt.Fprintf(&sb, "  system %s   extra %s   pins %s (%d)\n", textfmt.Tokens(r.System), textfmt.Tokens(r.Extra), textfmt.Tokens(r.Pins), len(s.opts.Agent.Pins))
+	fmt.Fprintf(&sb, "  system %s   extra %s   pins %s (%d)\n", textfmt.Tokens(r.System), textfmt.Tokens(r.Extra), textfmt.Tokens(r.Pins), len(s.opts.Agent.PinsSnapshot()))
 	fmt.Fprintf(&sb, "  tools  %s (%d)   user %s   assistant %s\n", textfmt.Tokens(r.Tools), r.ToolCount, textfmt.Tokens(r.UserText), textfmt.Tokens(r.AssistantText))
 	fmt.Fprintf(&sb, "  tool calls %s   results %s   thinking %s\n", textfmt.Tokens(r.ToolCalls), textfmt.Tokens(r.ToolResults), textfmt.Tokens(r.Thinking))
 	return sb.String()
@@ -317,13 +317,13 @@ func (s *server) changesText(arg string) string {
 }
 
 func (s *server) diffText(path string) string {
-	args := []string{"-C", s.opts.Cwd, "diff", "--no-color"}
+	args := []string{"diff", "--no-color"}
 	if path != "" {
 		args = append(args, "--", path)
 	}
-	out, err := exec.Command("git", args...).Output()
+	out, err := gitx.RunBytes(context.Background(), s.opts.Cwd, nil, args...)
 	if err != nil {
-		return "git diff: " + err.Error()
+		return err.Error()
 	}
 	if len(bytes.TrimSpace(out)) == 0 {
 		return "no changes against HEAD"
@@ -378,22 +378,23 @@ func (s *server) openText(arg string) string {
 func (s *server) permissionsText() string {
 	ag := s.opts.Agent
 	var sb strings.Builder
-	if ag.AutoApprove {
+	modes := ag.Settings()
+	if modes.AutoApprove {
 		sb.WriteString("YOLO · every tool runs without asking\n")
 	}
-	if ag.AutoMode {
+	if modes.AutoMode {
 		sb.WriteString("AUTO · in-workspace edits and known-safe reads run, other commands ask\n")
 	}
-	if ag.AutoEdits {
+	if modes.AutoEdits {
 		sb.WriteString("auto-edits · file changes go through, commands still ask\n")
 	}
-	if ag.ReadOnly {
+	if modes.ReadOnly {
 		sb.WriteString("read-only · mutating tools are hidden\n")
 	}
-	if ag.PlanMode {
+	if modes.PlanMode {
 		sb.WriteString("plan mode\n")
 	}
-	rs := ag.Rules
+	rs := ag.RulesSnapshot()
 	switch {
 	case len(rs.Allow) == 0 && len(rs.Deny) == 0 && sb.Len() == 0:
 		sb.WriteString("no saved rules · y/a/r at a prompt\n")
@@ -405,7 +406,7 @@ func (s *server) permissionsText() string {
 			fmt.Fprintf(&sb, "allow %s\n", r.String())
 		}
 	}
-	if lines := perm.CandidateLines(ag.Ledger, ag.Rules); len(lines) > 0 {
+	if lines := perm.CandidateLines(ag.Ledger, rs); len(lines) > 0 {
 		sb.WriteString("approved often, not saved:\n")
 		for _, l := range lines {
 			fmt.Fprintf(&sb, "  %s\n", l)

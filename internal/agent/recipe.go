@@ -70,9 +70,8 @@ type RecipeFailure struct {
 // It runs as its own logged turn, so /changes, undo and verdicts work on
 // it the way they do on any other turn — but there is no model in the
 // loop to open one the usual way (RunBlocks calls the provider). Rather
-// than reimplement a model turn's bookkeeping a second time, this reuses
-// the same internals RunBlocks opens and closes a turn with (turnN,
-// cp.beginTurn/endTurn, the turn/start and turn/end log events), with the
+// than reimplement a model turn's bookkeeping a second time, this opens
+// and closes the turn with the same beginTurn/endTurn RunBlocks uses, with the
 // turn's user message the synthetic text "/recipe run <name> ...": from
 // the log's point of view this looks exactly like a turn whose "model"
 // happened to be a fixed script instead of the provider.
@@ -97,17 +96,7 @@ func (a *Agent) RunRecipe(ctx context.Context, r recipe.Recipe, args map[string]
 		return "", nil, err
 	}
 
-	before := len(a.Messages)
-	merged := a.appendUserBlocks(llm.Block{Type: llm.BlockText, Text: recipeLabel(r.Name, args), Synthetic: true})
-	a.turnN++
-	a.stepN = 0
-	if a.turnN == 1 {
-		a.recordStart()
-	}
-	a.logEvent(session.Event{Type: session.TypeTurnStart, Turn: a.turnN})
-	a.logUserMessage(merged)
-	a.cp.beginTurn(a.turnN, before)
-	a.mutated, a.mutations = false, 0
+	a.beginTurn(llm.Block{Type: llm.BlockText, Text: recipeLabel(r.Name, args), Synthetic: true})
 	defer a.endTurn()
 
 	if emit == nil {
@@ -622,7 +611,8 @@ func anchoredEditText(before, after []string, h Hunk) (oldText, newText string, 
 // would in fact allow a call is not accounted for and this can occasionally
 // over-report; that is the safe direction to be wrong in.
 func (a *Agent) StepsNeedingApproval(steps []recipe.Step) []string {
-	if a.AutoApprove {
+	s := a.Settings()
+	if s.AutoApprove {
 		return nil
 	}
 	var need []string
@@ -637,16 +627,16 @@ func (a *Agent) StepsNeedingApproval(steps []recipe.Step) []string {
 				mustAsk = true
 			}
 		}
-		verdict, _ := a.Rules.Decide(st.Tool, perm.Subject(st.Tool, st.Input))
+		verdict, _ := a.decideRule(st.Tool, perm.Subject(st.Tool, st.Input))
 		if !mustAsk {
 			switch {
 			case verdict == perm.Denied:
 				continue // authorize refuses this on its own; no prompt involved
 			case verdict == perm.Allowed:
 				continue
-			case (a.AutoEdits || a.AutoMode) && editTool(st.Tool):
+			case (s.AutoEdits || s.AutoMode) && editTool(st.Tool):
 				continue
-			case a.AutoMode && a.autoAllows(llm.Block{Name: st.Tool, Input: st.Input}):
+			case s.AutoMode && a.autoAllows(llm.Block{Name: st.Tool, Input: st.Input}):
 				continue
 			}
 		}

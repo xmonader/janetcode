@@ -7,9 +7,10 @@ import "github.com/xmonader/janetcode/internal/session"
 // same trail as everything else, so a turn can be read back whole.
 func (a *Agent) LogEvent(e session.Event) { a.logEvent(e) }
 
-// SetPlanMode records plan/mode on the log so resume can fold it.
+// SetPlanMode switches plan mode, safe while a turn runs, and records
+// plan/mode on the log so resume can fold it.
 func (a *Agent) SetPlanMode(on bool) {
-	a.PlanMode = on
+	a.UpdateSettings(func(s *Settings) { s.PlanMode = on })
 	v := on
 	a.logEvent(session.Event{Type: session.TypePlanMode, Active: &v})
 }
@@ -48,7 +49,8 @@ func (a *Agent) RestoreFromLog() {
 		return
 	}
 	ev := a.Log.Events()
-	a.PlanMode = session.FoldPlanMode(ev)
+	plan := session.FoldPlanMode(ev)
+	a.UpdateSettings(func(s *Settings) { s.PlanMode = plan })
 	a.turnN = 0
 	for _, e := range ev {
 		if e.Turn > a.turnN {

@@ -223,7 +223,7 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 			continue
 		}
 		switch {
-		case (e.Name == "write_file" || e.Name == "edit_file") && !e.IsError:
+		case editTool(e.Name) && !e.IsError:
 			if p := argPathOf(e.Arguments); p != "" {
 				edited[p] = true
 				if isTestFile(p) {

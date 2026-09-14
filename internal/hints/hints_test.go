@@ -153,7 +153,7 @@ func TestTrustHintNamesTheRightCommand(t *testing.T) {
 func TestShownRoundTripsThroughTheStore(t *testing.T) {
 	dir := t.TempDir()
 	s := Open(dir, "proj-abc")
-	if got := s.Shown(); got != nil {
+	if got, _ := s.Load(); got != nil {
 		t.Fatalf("a fresh project already had %v", got)
 	}
 	if err := s.Save([]string{"verify-gate", "spend"}, []string{"budget"}); err != nil {
@@ -167,11 +167,11 @@ func TestShownRoundTripsThroughTheStore(t *testing.T) {
 		t.Fatalf("skipped read back %v", skipped)
 	}
 	// A different project has its own record.
-	if got := Open(dir, "other").Shown(); got != nil {
+	if got, _ := Open(dir, "other").Load(); got != nil {
 		t.Fatalf("projects share a record: %v", got)
 	}
-	if want := filepath.Join(dir, "hints", "proj-abc.json"); s.Path() != want {
-		t.Fatalf("path = %q", s.Path())
+	if _, err := os.Stat(filepath.Join(dir, "hints", "proj-abc.json")); err != nil {
+		t.Fatalf("record not where it belongs: %v", err)
 	}
 }
 
@@ -194,7 +194,7 @@ func TestAStoreFileWithoutSkippedStillReads(t *testing.T) {
 
 func TestTheStoreIsHarmlessWithNowhereToWrite(t *testing.T) {
 	s := Open("", "")
-	if s.Shown() != nil || s.Save([]string{"x"}, nil) != nil || s.Path() != "" {
+	if shown, _ := s.Load(); shown != nil || s.Save([]string{"x"}, nil) != nil {
 		t.Fatal("a store with no path misbehaved")
 	}
 }

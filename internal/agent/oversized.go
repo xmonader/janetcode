@@ -117,33 +117,3 @@ func takeLargeOutput(input json.RawMessage) json.RawMessage {
 	}
 	return out
 }
-
-// WithLargeOutputOption adds the opt-in to a tool's schema. Unused by
-// default; kept for a caller that would rather declare it than rely on the
-// refusal to name it.
-func WithLargeOutputOption(schema json.RawMessage) json.RawMessage {
-	const prop = `"` + AcceptLargeOutput + `":{"type":"boolean","description":"Re-run accepting the stated token cost of a withheld result."}`
-	var obj map[string]json.RawMessage
-	if json.Unmarshal(schema, &obj) != nil {
-		return schema
-	}
-	props, ok := obj["properties"]
-	if !ok {
-		return schema
-	}
-	t := strings.TrimSpace(string(props))
-	if !strings.HasPrefix(t, "{") || !strings.HasSuffix(t, "}") || strings.Contains(t, AcceptLargeOutput) {
-		return schema
-	}
-	inner := strings.TrimSpace(t[1 : len(t)-1])
-	if inner == "" {
-		obj["properties"] = json.RawMessage("{" + prop + "}")
-	} else {
-		obj["properties"] = json.RawMessage("{" + prop + "," + inner + "}")
-	}
-	out, err := json.Marshal(obj)
-	if err != nil {
-		return schema
-	}
-	return out
-}

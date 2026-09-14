@@ -29,7 +29,7 @@ func (m *model) permissionsCommand(args []string) {
 		if args[0] == "deny" {
 			v = perm.Denied
 		}
-		ag.Rules.Add(v, r)
+		ag.AddRule(v, r)
 		if o != nil && o.Save != nil {
 			if err := o.Save(args[0], r); err != nil {
 				m.transcript.errorf("save rule: %v", err)
@@ -51,25 +51,26 @@ func (m *model) permissionsCommand(args []string) {
 				return
 			}
 			o.ProjectTrusted = true
-			ag.Rules = perm.Merge(ag.Rules, o.Project)
+			ag.MergeRules(o.Project)
 			m.note("trusted " + perm.ProjectFile + " · its allow rules are active")
 		}
 		return
 	}
 	var sb strings.Builder
-	if len(ag.Rules.Allow) == 0 && len(ag.Rules.Deny) == 0 {
+	rules := ag.RulesSnapshot()
+	if len(rules.Allow) == 0 && len(rules.Deny) == 0 {
 		sb.WriteString("no permission rules yet\n")
 	}
-	for _, r := range ag.Rules.Deny {
+	for _, r := range rules.Deny {
 		sb.WriteString("deny   " + r.String() + "\n")
 	}
-	for _, r := range ag.Rules.Allow {
+	for _, r := range rules.Allow {
 		sb.WriteString("allow  " + r.String() + "\n")
 	}
 	if o != nil && len(o.Project.Allow) > 0 && !o.ProjectTrusted {
 		sb.WriteString(perm.ProjectFile + " has allow rules that are not trusted yet; run /permissions trust to enable them\n")
 	}
-	if lines := perm.CandidateLines(ag.Ledger, ag.Rules); len(lines) > 0 {
+	if lines := perm.CandidateLines(ag.Ledger, rules); len(lines) > 0 {
 		sb.WriteString("approved often, not saved:\n")
 		for _, l := range lines {
 			sb.WriteString("  " + l + "\n")

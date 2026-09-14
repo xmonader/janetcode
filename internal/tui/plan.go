@@ -133,7 +133,7 @@ func (m *model) planCommand(arg string) tea.Cmd {
 	ag := m.opts.Agent
 	switch arg {
 	case "approve", "go", "execute":
-		if !ag.PlanMode {
+		if !ag.Settings().PlanMode {
 			m.transcript.errorf("not in plan mode: /plan <request> writes a plan first")
 			m.refresh(false)
 			return nil
@@ -152,7 +152,7 @@ func (m *model) planCommand(arg string) tea.Cmd {
 		m.refresh(false)
 		return nil
 	}
-	if !ag.PlanMode {
+	if !ag.Settings().PlanMode {
 		ag.SetPlanMode(true)
 		m.noteMode()
 	}

@@ -146,7 +146,7 @@ func (a *Agent) record(c Change) {
 // Anything found is clipped to one line; finding nothing returns "".
 func (a *Agent) intentFor(callID, explicitIntent string) string {
 	if s := strings.TrimSpace(explicitIntent); s != "" {
-		return firstLine(s, 120)
+		return intentLine(s, 120)
 	}
 	turnStart := a.cp.turnStart()
 	callIdx := -1
@@ -174,10 +174,10 @@ func (a *Agent) intentFor(callID, explicitIntent string) string {
 		}
 		callIdx = i
 		if s := strings.TrimSpace(text); s != "" {
-			return firstLine(s, 120)
+			return intentLine(s, 120)
 		}
 		if s := strings.TrimSpace(thinking); s != "" {
-			return firstLine(s, 120)
+			return intentLine(s, 120)
 		}
 		break
 	}
@@ -190,19 +190,19 @@ func (a *Agent) intentFor(callID, explicitIntent string) string {
 			continue
 		}
 		if s := strings.TrimSpace(m.Text()); s != "" {
-			return firstLine(s, 120)
+			return intentLine(s, 120)
 		}
 	}
 	return ""
 }
 
-func firstLine(s string, n int) string {
-	s = strings.TrimSpace(s)
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		s = s[:i]
-	}
-	s = strings.TrimSpace(strings.TrimLeft(s, "#*- "))
-	return textfmt.Clip(s, n)
+// intentLine is the first line of s with any Markdown heading or list
+// marker taken off, clipped to n runes. It differs from textfmt.HeadingLine
+// in also dropping "*" and "-" bullets, which is how a model often opens
+// the sentence explaining a call.
+func intentLine(s string, n int) string {
+	s = textfmt.FirstLine(strings.TrimSpace(s), 0)
+	return textfmt.Clip(strings.TrimSpace(strings.TrimLeft(s, "#*- ")), n)
 }
 
 // Changes lists the session's file changes, oldest first, with content.
@@ -335,7 +335,7 @@ func (a *Agent) UndoChange(seq int) (string, error) {
 // put back the way it was, newest hunk first, same as UndoChange itself
 // does — this is UndoChange's only implementation of that, factored out so
 // a caller that wants to know the answer without writing (the undo
-// coupling guard, see undo_intent.go) can never drift from what actually
+// coupling guard, see undo_coupling.go) can never drift from what actually
 // happens on disk. ok is false when some hunk's lines could not be found
 // (edited since c was recorded); badHunk is that hunk's 1-based index
 // among c.Hunks() for the caller's own message, 0 when ok.

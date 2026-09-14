@@ -248,7 +248,7 @@ func TestTheHintRecordIsWrittenWhenOneFires(t *testing.T) {
 	e.Record = func(string) { _ = store.Save(e.Shown(), e.Skipped()) }
 	h.m.observeBang("go test ./...")
 	h.m.observeBang("go test ./...")
-	if got := store.Shown(); len(got) != 1 || got[0] != "verify-gate" {
+	if got, _ := store.Load(); len(got) != 1 || got[0] != "verify-gate" {
 		t.Fatalf("recorded %v", got)
 	}
 	// A new session for the same project does not repeat it.

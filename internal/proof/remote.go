@@ -1,12 +1,12 @@
 package proof
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/gitx"
 )
 
 // Proof notes are local only until pushed: `git push` and `git fetch`
@@ -36,7 +36,7 @@ func Push(ctx context.Context, repoDir, remote string) (warning string, err erro
 		remote = DefaultRemote
 	}
 	warning = notPushedWarning(ctx, repoDir, remote)
-	if _, err := runGit(ctx, repoDir, "push", remote, NotesRef); err != nil {
+	if _, err := gitx.Run(ctx, repoDir, nil, "push", remote, NotesRef); err != nil {
 		return "", err
 	}
 	return warning, nil
@@ -74,19 +74,17 @@ func notPushedWarning(ctx context.Context, repoDir, remote string) string {
 // annotate, from `git notes list`, which prints one "<note-blob-sha>
 // <annotated-object-sha>" line per note.
 func notedCommits(ctx context.Context, repoDir string) ([]string, error) {
-	cmd := exec.CommandContext(ctx, "git", "notes", "--ref="+NotesRef, "list")
-	cmd.Dir = repoDir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
+	raw, err := gitx.Run(ctx, repoDir, nil, "notes", "--ref="+NotesRef, "list")
+	if err != nil {
 		// No notes ref yet is not a real error: there is simply nothing to
 		// warn about.
-		if strings.Contains(stderr.String(), "No note") || strings.Contains(stderr.String(), "does not exist") {
+		var ge *gitx.Error
+		if errors.As(err, &ge) && (strings.Contains(ge.Stderr, "No note") || strings.Contains(ge.Stderr, "does not exist")) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("git notes list: %s", firstNonEmpty(strings.TrimSpace(stderr.String()), err.Error()))
+		return nil, fmt.Errorf("git notes list: %s", gitx.Detail(err))
 	}
-	out := strings.TrimSpace(stdout.String())
+	out := strings.TrimSpace(raw)
 	if out == "" {
 		return nil, nil
 	}
@@ -107,7 +105,7 @@ func notedCommits(ctx context.Context, repoDir string) ([]string, error) {
 // excluding them from a walk that starts at commit ("--not --remotes=…")
 // leaves nothing when commit already sits in the remote's history.
 func commitOnRemote(ctx context.Context, repoDir, remote, commit string) (bool, error) {
-	out, err := runGit(ctx, repoDir, "rev-list", "-n1", commit, "--not", "--remotes="+remote)
+	out, err := gitx.Run(ctx, repoDir, nil, "rev-list", "-n1", commit, "--not", "--remotes="+remote)
 	if err != nil {
 		return false, err
 	}
@@ -120,7 +118,7 @@ func Fetch(ctx context.Context, repoDir, remote string) error {
 	if strings.TrimSpace(remote) == "" {
 		remote = DefaultRemote
 	}
-	_, err := runGit(ctx, repoDir, "fetch", remote, NotesRef+":"+NotesRef)
+	_, err := gitx.Run(ctx, repoDir, nil, "fetch", remote, NotesRef+":"+NotesRef)
 	return err
 }
 
@@ -173,22 +171,17 @@ func EnsureRewriteConfig(ctx context.Context, repoDir string) error {
 // addConfigValueIfAbsent adds value to the multi-valued git config key
 // unless it is already one of the values key holds.
 func addConfigValueIfAbsent(ctx context.Context, repoDir, key, value string) error {
-	cmd := exec.CommandContext(ctx, "git", "config", "--get-all", key)
-	cmd.Dir = repoDir
-	out, err := cmd.Output()
-	if err != nil {
-		var ee *exec.ExitError
-		// Exit 1 means the key has no values yet -- not an error here.
-		if !errors.As(err, &ee) || ee.ExitCode() != 1 {
-			return fmt.Errorf("git config --get-all %s: %w", key, err)
-		}
+	out, err := gitx.Run(ctx, repoDir, nil, "config", "--get-all", key)
+	// Exit 1 means the key has no values yet -- not an error here.
+	if err != nil && gitx.ExitCode(err) != 1 {
+		return fmt.Errorf("git config --get-all %s: %w", key, err)
 	}
-	for _, line := range strings.Split(string(out), "\n") {
+	for _, line := range strings.Split(out, "\n") {
 		if strings.TrimSpace(line) == value {
 			return nil
 		}
 	}
-	if _, err := runGit(ctx, repoDir, "config", "--add", key, value); err != nil {
+	if _, err := gitx.Run(ctx, repoDir, nil, "config", "--add", key, value); err != nil {
 		return fmt.Errorf("git config --add %s %s: %w", key, value, err)
 	}
 	return nil
@@ -197,17 +190,12 @@ func addConfigValueIfAbsent(ctx context.Context, repoDir, key, value string) err
 // setConfigIfUnset sets the single-valued git config key to value unless
 // it already has any value at all.
 func setConfigIfUnset(ctx context.Context, repoDir, key, value string) error {
-	cmd := exec.CommandContext(ctx, "git", "config", "--get", key)
-	cmd.Dir = repoDir
-	if err := cmd.Run(); err == nil {
+	if _, err := gitx.Run(ctx, repoDir, nil, "config", "--get", key); err == nil {
 		return nil // already set, to whatever value; leave it alone
-	} else {
-		var ee *exec.ExitError
-		if !errors.As(err, &ee) || ee.ExitCode() != 1 {
-			return fmt.Errorf("git config --get %s: %w", key, err)
-		}
+	} else if gitx.ExitCode(err) != 1 {
+		return fmt.Errorf("git config --get %s: %w", key, err)
 	}
-	if _, err := runGit(ctx, repoDir, "config", key, value); err != nil {
+	if _, err := gitx.Run(ctx, repoDir, nil, "config", key, value); err != nil {
 		return fmt.Errorf("git config %s %s: %w", key, value, err)
 	}
 	return nil

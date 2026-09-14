@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -19,9 +18,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/worktree"
 )
 
 // Mutant is one operator flip on one line.
@@ -135,14 +136,14 @@ func maskStrings(s string) string {
 // are excluded. The map is path → sorted 1-based lines.
 func Changed(ctx context.Context, root string) (map[string][]int, error) {
 	out := map[string][]int{}
-	diff, err := git(ctx, root, "diff", "-U0", "--no-color", "HEAD", "--", ".")
+	diff, err := gitx.Run(ctx, root, nil, "diff", "-U0", "--no-color", "HEAD", "--", ".")
 	if err != nil && !strings.Contains(err.Error(), "unknown revision") && !strings.Contains(err.Error(), "bad revision") {
 		return nil, err
 	}
 	if err == nil {
 		parseDiff(diff, out)
 	}
-	untracked, err := git(ctx, root, "ls-files", "--others", "--exclude-standard")
+	untracked, err := gitx.Run(ctx, root, nil, "ls-files", "--others", "--exclude-standard")
 	if err != nil {
 		return nil, err
 	}
@@ -355,18 +356,11 @@ func (r *Runner) Run(ctx context.Context) (Report, error) {
 		return rep, err
 	}
 	defer repo.Drop(context.Background(), snap)
-	dir, err := os.MkdirTemp("", "janetcode-mut-")
+	dir, cleanup, err := worktree.Detached(ctx, "mut", repo.Root, snap.Commit, nil)
 	if err != nil {
 		return rep, err
 	}
-	os.Remove(dir)
-	if out, err := git(ctx, repo.Root, "worktree", "add", "--detach", "-q", dir, snap.Commit); err != nil {
-		return rep, fmt.Errorf("git worktree add: %v: %s", err, out)
-	}
-	defer func() {
-		_, _ = git(context.Background(), repo.Root, "worktree", "remove", "--force", dir)
-		os.RemoveAll(dir)
-	}()
+	defer cleanup()
 	// Untracked files are not in the snapshot's tree only if ignored;
 	// snapshot.Take adds everything else. Copy nothing more.
 	timeout := r.Timeout
@@ -434,13 +428,4 @@ func tail(s string, n int) string {
 		return s
 	}
 	return "…" + s[len(s)-n:]
-}
-
-func git(ctx context.Context, dir string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return string(out), fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
-	}
-	return string(out), nil
 }

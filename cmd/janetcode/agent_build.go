@@ -41,15 +41,12 @@ func chainPrep(hooks ...func([]llm.Block) ([]llm.Block, string)) func([]llm.Bloc
 }
 
 // envOff reads JANETCODE_OFF, a comma-separated list of behaviours to
-// disable for this session.
+// disable for this session. An unknown name is dropped: it would switch
+// nothing off anyway, and a misspelling in an environment variable should
+// not stop a session from starting.
 func envOff() map[string]bool {
-	out := map[string]bool{}
-	for _, n := range strings.Split(os.Getenv("JANETCODE_OFF"), ",") {
-		if n = strings.TrimSpace(n); n != "" {
-			out[n] = true
-		}
-	}
-	return out
+	off, _ := agent.ParseSwitches(os.Getenv("JANETCODE_OFF"))
+	return off
 }
 
 func diagnoseNote(m *lsp.Manager) func(context.Context, string) string {
@@ -237,6 +234,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 			expand,
 			task,
 		),
+		Root:          d.cwd,
 		System:        prompt.SystemWith(d.cwd, d.promptOverride),
 		Model:         d.cfg.Model,
 		MaxTokens:     d.cfg.MaxTokens,

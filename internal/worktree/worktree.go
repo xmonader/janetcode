@@ -8,10 +8,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -31,6 +31,11 @@ type Tree struct {
 // checkout lives inside the repository's git directory, which nothing
 // scans and git already ignores, so the agent cannot wander into it and a
 // build cannot pick it up.
+//
+// Nothing removes the checkout when the session ends, on purpose: the
+// branch is the user's to review and merge, and naming it again continues
+// in the same checkout (docs/manual/interface.md, "A whole session in a
+// worktree"). `git worktree remove` is how a user discards one.
 func Open(ctx context.Context, repo, branch string) (*Tree, error) {
 	branch = strings.TrimSpace(branch)
 	if branch == "" {
@@ -39,13 +44,13 @@ func Open(ctx context.Context, repo, branch string) (*Tree, error) {
 	if strings.ContainsAny(branch, " \t\\:?*[") || strings.HasPrefix(branch, "-") {
 		return nil, fmt.Errorf("worktree: %q is not a usable branch name", branch)
 	}
-	if _, err := git(ctx, repo, "rev-parse", "--git-dir"); err != nil {
+	if _, err := gitx.Run(ctx, repo, nil, "rev-parse", "--git-dir"); err != nil {
 		return nil, fmt.Errorf("worktree: %s is not a git repository", repo)
 	}
-	common, err := git(ctx, repo, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	common, err := gitx.Run(ctx, repo, nil, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
 		// Older git without --path-format: fall back to the plain form.
-		if common, err = git(ctx, repo, "rev-parse", "--git-common-dir"); err != nil {
+		if common, err = gitx.Run(ctx, repo, nil, "rev-parse", "--git-common-dir"); err != nil {
 			return nil, err
 		}
 		if !filepath.IsAbs(common) {
@@ -65,7 +70,7 @@ func Open(ctx context.Context, repo, branch string) (*Tree, error) {
 		if err := t.Validate(ctx); err == nil {
 			return t, nil
 		}
-		if _, err := git(ctx, repo, "worktree", "prune"); err != nil {
+		if _, err := gitx.Run(ctx, repo, nil, "worktree", "prune"); err != nil {
 			return nil, fmt.Errorf("worktree: %s is registered but missing, and it could not be pruned: %w", path, err)
 		}
 		_ = os.RemoveAll(path)
@@ -79,8 +84,8 @@ func Open(ctx context.Context, repo, branch string) (*Tree, error) {
 	} else {
 		args = append(args, "-b", branch, path)
 	}
-	if out, err := git(ctx, repo, args...); err != nil {
-		return nil, fmt.Errorf("worktree: git %s: %w: %s", strings.Join(args, " "), err, out)
+	if _, err := gitx.Run(ctx, repo, nil, args...); err != nil {
+		return nil, fmt.Errorf("worktree: git %s: %s", strings.Join(args, " "), gitx.Detail(err))
 	}
 	t := &Tree{Path: path, Branch: branch, Repo: repo, Created: true}
 	if err := t.Validate(ctx); err != nil {
@@ -112,12 +117,6 @@ func (t *Tree) Validate(ctx context.Context) error {
 	return nil
 }
 
-// Remove deletes the checkout. The branch and its commits stay.
-func (t *Tree) Remove(ctx context.Context) error {
-	_, err := git(ctx, t.Repo, "worktree", "remove", "--force", t.Path)
-	return err
-}
-
 // Summary describes what the session left behind, for the message printed
 // when it ends: how many commits are on the branch and whether anything is
 // still uncommitted.
@@ -130,16 +129,16 @@ type Summary struct {
 // Summarize compares the branch with the commit it started from.
 func (t *Tree) Summarize(ctx context.Context) Summary {
 	s := Summary{}
-	base, err := git(ctx, t.Repo, "rev-parse", "--abbrev-ref", "HEAD")
+	base, err := gitx.Run(ctx, t.Repo, nil, "rev-parse", "--abbrev-ref", "HEAD")
 	if err == nil && base != t.Branch {
 		s.Base = base
 	}
 	if s.Base != "" {
-		if out, err := git(ctx, t.Path, "rev-list", "--count", s.Base+".."+t.Branch); err == nil {
+		if out, err := gitx.Run(ctx, t.Path, nil, "rev-list", "--count", s.Base+".."+t.Branch); err == nil {
 			fmt.Sscanf(out, "%d", &s.Commits)
 		}
 	}
-	if out, err := git(ctx, t.Path, "status", "--porcelain"); err == nil {
+	if out, err := gitx.Run(ctx, t.Path, nil, "status", "--porcelain"); err == nil {
 		s.Dirty = strings.TrimSpace(out) != ""
 	}
 	return s
@@ -161,7 +160,7 @@ func (s Summary) String() string {
 
 // worktreeAt reports whether git already has a worktree checked out at path.
 func worktreeAt(ctx context.Context, repo, path string) (bool, error) {
-	out, err := git(ctx, repo, "worktree", "list", "--porcelain")
+	out, err := gitx.Run(ctx, repo, nil, "worktree", "list", "--porcelain")
 	if err != nil {
 		return false, err
 	}
@@ -185,7 +184,7 @@ func resolve(p string) string {
 }
 
 func branchExists(ctx context.Context, repo, branch string) bool {
-	_, err := git(ctx, repo, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch)
+	_, err := gitx.Run(ctx, repo, nil, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch)
 	return err == nil
 }
 
@@ -193,11 +192,4 @@ func branchExists(ctx context.Context, repo, branch string) bool {
 // slashes would otherwise nest directories under the worktree root.
 func sanitize(branch string) string {
 	return strings.NewReplacer("/", "-", string(filepath.Separator), "-").Replace(branch)
-}
-
-func git(ctx context.Context, dir string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	return strings.TrimSpace(string(out)), err
 }

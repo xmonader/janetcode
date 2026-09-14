@@ -22,12 +22,13 @@ import (
 func (m *model) pinCommand(arg string) {
 	ag := m.opts.Agent
 	if arg == "" {
-		if len(ag.Pins) == 0 {
+		pins := ag.PinsSnapshot()
+		if len(pins) == 0 {
 			m.transcript.info("no pins: /pin <note> or /pin @path keeps something in the system prompt for the whole session")
 			return
 		}
 		var sb strings.Builder
-		for i, p := range ag.Pins {
+		for i, p := range pins {
 			fmt.Fprintf(&sb, "%d. %s\n", i+1, textfmt.Clip(strings.ReplaceAll(p, "\n", " "), 120))
 		}
 		sb.WriteString("/unpin <n> removes one")
@@ -40,9 +41,9 @@ func (m *model) pinCommand(arg string) {
 		return
 	}
 	arg = text
-	ag.Pin(arg)
+	n := ag.Pin(arg)
 	m.savePins()
-	m.note(fmt.Sprintf("pinned (%d): %s", len(ag.Pins), textfmt.Clip(strings.ReplaceAll(arg, "\n", " "), 100)))
+	m.note(fmt.Sprintf("pinned (%d): %s", n, textfmt.Clip(strings.ReplaceAll(arg, "\n", " "), 100)))
 }
 
 func (m *model) unpinCommand(args []string) {
@@ -63,7 +64,7 @@ func (m *model) savePins() {
 	if m.opts.Session == nil {
 		return
 	}
-	if err := m.opts.Session.SavePins(m.opts.Agent.Pins); err != nil {
+	if err := m.opts.Session.SavePins(m.opts.Agent.PinsSnapshot()); err != nil {
 		m.transcript.errorf("could not save pins: %v", err)
 	}
 }
@@ -84,7 +85,7 @@ func (m *model) autoTitle() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		title, err := session.GenerateTitle(ctx, ag.Provider, ag.Model, msgs)
+		title, err := session.GenerateTitle(ctx, ag.Provider, ag.Settings().Model, msgs)
 		if err != nil || title == "" {
 			title = session.AutoTitle(msgs)
 		}

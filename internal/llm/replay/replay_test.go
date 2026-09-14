@@ -19,13 +19,10 @@ const recording = `{"type":"meta","meta":{"id":"s1"}}
 {"type":"event","seq":6,"t":"turn/end","turn":1,"reason":"end_turn"}
 `
 
-func TestReadRecoversPromptsAndResponses(t *testing.T) {
+func TestReadRecoversResponses(t *testing.T) {
 	p, err := Read(strings.NewReader(recording))
 	if err != nil {
 		t.Fatal(err)
-	}
-	if got := p.Prompts(); len(got) != 1 || got[0] != "count the go files" {
-		t.Fatalf("prompts = %v", got)
 	}
 	if p.Remaining() != 2 {
 		t.Fatalf("remaining = %d, want 2", p.Remaining())

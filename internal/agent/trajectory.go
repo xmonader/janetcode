@@ -78,7 +78,7 @@ func FoldTrajectory(events []session.Event) map[string]float64 {
 			// Counted on the result, and only when it worked, so the
 			// features mean the same thing as the ones trained on.
 			switch {
-			case e.Name == "write_file" || e.Name == "edit_file":
+			case editTool(e.Name):
 				if !e.IsError {
 					edits++
 					editsSince++
@@ -205,7 +205,7 @@ func (a *Agent) Trajectory() map[string]float64 {
 				f["test_failures"]++
 			}
 			edits = 0
-		case s.name == "write_file" || s.name == "edit_file":
+		case editTool(s.name):
 			if !s.failed {
 				edits++
 			}

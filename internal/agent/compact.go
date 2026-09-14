@@ -6,16 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // DefaultCompactAt is the estimated input-token count at which the history
@@ -58,7 +55,7 @@ func (a *Agent) raiseCompactFloor(emit func(Event)) int {
 			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("compact_at is ~%d tokens, below the ~%d this model's system prompt, tools and one tool result need; compacting at ~%d instead", at, floor, floor)})
 		}
 	}
-	a.CompactAt = floor
+	a.UpdateSettings(func(s *Settings) { s.CompactAt = floor })
 	return floor
 }
 
@@ -88,228 +85,10 @@ const (
 	superseded = "[output omitted: the same call was repeated later, see its newer result]"
 )
 
-// Prune applies lossless-in-practice tiers to the history before a
-// summary is paid for: earlier results of read-only calls repeated with
-// identical input are stubbed out, and old tool outputs are trimmed to
-// their head and tail. The recent tail is untouched. It returns the
-// number of bytes removed. Pruning is only done here, on the way to
-// compaction, because rewriting old messages invalidates the cached
-// request prefix.
-func (a *Agent) Prune() int {
-	n := len(a.Messages)
-	tail := tailStart(a.Messages)
-	// Latest occurrence of every read-only call, by tool and canonical input.
-	latest := map[string]string{} // key → tool_use id
-	readOnly := map[string]bool{}
-	for _, m := range a.Messages {
-		for _, b := range m.Blocks {
-			if b.Type != llm.BlockToolUse {
-				continue
-			}
-			ro, seen := readOnly[b.Name]
-			if !seen {
-				t, ok := a.Tools.Get(b.Name)
-				ro = ok && !t.Mutating()
-				readOnly[b.Name] = ro
-			}
-			if ro {
-				latest[b.Name+"\x00"+canonical(b.Input)] = b.ID
-			}
-		}
-	}
-	keep := map[string]bool{}
-	for _, id := range latest {
-		keep[id] = true
-	}
-	useKey := map[string]string{}
-	label := map[string][2]string{} // tool_use id → name, subject
-	for _, m := range a.Messages {
-		for _, b := range m.Blocks {
-			if b.Type != llm.BlockToolUse {
-				continue
-			}
-			label[b.ID] = [2]string{b.Name, subjectOf(b.Name, b.Input)}
-			if readOnly[b.Name] {
-				useKey[b.ID] = b.Name + "\x00" + canonical(b.Input)
-			}
-		}
-	}
-	saved := 0
-	for i := 0; i < tail && i < n; i++ {
-		for j, b := range a.Messages[i].Blocks {
-			if b.Type != llm.BlockToolResult {
-				continue
-			}
-			before := len(b.Text)
-			switch {
-			case useKey[b.ToolUseID] != "" && !keep[b.ToolUseID] && len(b.Text) > len(superseded):
-				a.setBlockText(i, j, superseded)
-			case len(b.Text) > pruneKeep:
-				a.setBlockText(i, j, a.trimOld(b.ToolUseID, label[b.ToolUseID][0], label[b.ToolUseID][1], b.Text))
-			}
-			saved += before - len(a.Messages[i].Blocks[j].Text)
-		}
-	}
-	if saved > 0 {
-		a.lastInputTokens, a.lastInputMsgs = 0, 0
-		a.integ.shrunkOK, a.historyRewritten = true, true
-	}
-	return saved
-}
-
-// pruneTo replaces old tool results with one-line placeholders until the
-// estimate is at or under target tokens, or the recent tail is reached.
-// Results go in attention order, least attended first: a result the model
-// never referred to again (a grep it moved on from) goes before a file it
-// kept editing, and a command that was re-run later goes first of all
-// since its output is stale. Full outputs go to the archive first. It
-// returns how many results were replaced.
-func (a *Agent) pruneTo(target int) int {
-	if target <= 0 || a.EstimateTokens() <= target {
-		return 0
-	}
-	tail := tailStart(a.Messages)
-	uses := map[string]llm.Block{}
-	for _, m := range a.Messages[:min(tail, len(a.Messages))] {
-		for _, b := range m.Blocks {
-			if b.Type == llm.BlockToolUse {
-				uses[b.ID] = b
-			}
-		}
-	}
-	type candidate struct {
-		i, j    int
-		use     llm.Block
-		lastRef int
-	}
-	var cands []candidate
-	for i := 0; i < tail && i < len(a.Messages); i++ {
-		for j, b := range a.Messages[i].Blocks {
-			if b.Type != llm.BlockToolResult || strings.HasPrefix(b.Text, prunedPrefix) || b.Text == superseded {
-				continue
-			}
-			u, ok := uses[b.ToolUseID]
-			if !ok {
-				continue
-			}
-			cands = append(cands, candidate{i: i, j: j, use: u, lastRef: a.lastReference(i, u)})
-		}
-	}
-	sort.SliceStable(cands, func(x, y int) bool {
-		if cands[x].lastRef != cands[y].lastRef {
-			return cands[x].lastRef < cands[y].lastRef
-		}
-		return cands[x].i < cands[y].i
-	})
-	replaced := 0
-	for _, c := range cands {
-		b := a.Messages[c.i].Blocks[c.j]
-		id := ""
-		if a.Archive != nil {
-			if id = a.Archive.IDFor(b.ToolUseID); id == "" {
-				id, _ = a.Archive.PutSubject(b.ToolUseID, c.use.Name, subjectOf(c.use.Name, c.use.Input), b.Text)
-			}
-		}
-		ph := placeholder(c.use.Name, c.use.Input, b.Text, id)
-		if len(ph) >= len(b.Text) {
-			continue
-		}
-		a.setBlockText(c.i, c.j, ph)
-		replaced++
-		a.lastInputTokens, a.lastInputMsgs = 0, 0
-		a.integ.shrunkOK, a.historyRewritten = true, true
-		if a.EstimateTokens() <= target {
-			return replaced
-		}
-	}
-	return replaced
-}
-
-// lastReference is the index of the last message after at (the result's
-// position) whose assistant text or tool inputs mention what the call at
-// `use` was about: its path, pattern or command. A result nothing came
-// back to keeps its own index; a bash command repeated verbatim later
-// gets -1 because the earlier output is stale.
-func (a *Agent) lastReference(at int, use llm.Block) int {
-	subjects := subjectsOf(use.Name, use.Input)
-	if len(subjects) == 0 {
-		return at
-	}
-	last := at
-	for i := len(a.Messages) - 1; i > at; i-- {
-		m := a.Messages[i]
-		for _, b := range m.Blocks {
-			var text string
-			switch b.Type {
-			case llm.BlockToolUse:
-				if use.Name == "bash" && b.Name == "bash" && canonical(b.Input) == canonical(use.Input) {
-					return -1
-				}
-				text = string(b.Input)
-			case llm.BlockText:
-				if m.Role != llm.RoleAssistant {
-					continue
-				}
-				text = b.Text
-			default:
-				continue
-			}
-			for _, s := range subjects {
-				if strings.Contains(text, s) {
-					return i
-				}
-			}
-		}
-	}
-	return last
-}
-
-// subjectOf is the first subject of a call, or "": the label an archive
-// entry carries.
-func subjectOf(name string, input json.RawMessage) string {
-	if s := subjectsOf(name, input); len(s) > 0 {
-		return s[0]
-	}
-	return ""
-}
-
-// subjectsOf names what a tool call was about, for reference matching.
-func subjectsOf(name string, input json.RawMessage) []string {
-	var in map[string]any
-	json.Unmarshal(input, &in)
-	var out []string
-	for _, k := range []string{"path", "pattern", "command", "symbol", "query", "url"} {
-		v, _ := in[k].(string)
-		v = strings.TrimSpace(v)
-		if len(v) < 3 || v == "." {
-			continue
-		}
-		if k == "path" {
-			v = strings.TrimSuffix(v, "/")
-		}
-		out = append(out, v)
-	}
-	return out
-}
-
 // summaryCooldown is how long compaction stops asking the model for a
 // summary after a summary call failed (rate limit, outage): pruning alone
 // carries the session meanwhile instead of re-hitting the provider.
 const summaryCooldown = 10 * time.Minute
-
-// canonical normalises tool input JSON so formatting differences do not
-// defeat deduplication.
-func canonical(raw []byte) string {
-	var v any
-	if json.Unmarshal(raw, &v) != nil {
-		return string(raw)
-	}
-	out, err := json.Marshal(v)
-	if err != nil {
-		return string(raw)
-	}
-	return string(out)
-}
 
 // tailStart returns the index of the first message of the recent tail:
 // the latest assistant message such that the tail is within
@@ -660,12 +439,13 @@ func sortedKeys(m map[string]bool) []string {
 // the instruction as the system prompt and no tools.
 func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction string, schema *llm.Schema) (*llm.Response, error) {
 	msgs := append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, instruction+"\n\nReply with text only; do not call tools."))
+	s := a.Settings()
 	resp, err := a.Provider.Stream(ctx, llm.Request{
-		Model:     a.Model,
+		Model:     s.Model,
 		System:    a.systemPrompt(),
 		Messages:  msgs,
 		Tools:     a.Tools.Defs(),
-		MaxTokens: a.MaxTokens,
+		MaxTokens: s.MaxTokens,
 		Schema:    schema,
 	}, nil)
 	if err != nil {
@@ -675,10 +455,10 @@ func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction s
 		return resp, nil
 	}
 	cold, err := a.Provider.Stream(ctx, llm.Request{
-		Model:     a.Model,
+		Model:     s.Model,
 		System:    instruction,
 		Messages:  append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, "Now.")),
-		MaxTokens: a.MaxTokens,
+		MaxTokens: s.MaxTokens,
 	}, nil)
 	if err != nil {
 		return nil, err
@@ -731,103 +511,6 @@ func hasToolResult(m llm.Message) bool {
 		}
 	}
 	return false
-}
-
-// notOverflow are errors that mention tokens or length but mean the
-// request was refused for capacity, not size. They are checked first:
-// Bedrock's "ThrottlingException: Too many tokens" would otherwise be read
-// as an overflow, and the answer to a rate limit is to wait, not to throw
-// away history.
-var notOverflow = []string{
-	"throttl",
-	"rate limit",
-	"too many requests",
-	"service unavailable",
-	"try again later",
-	"overloaded",
-}
-
-// overflowPatterns are the ways providers say the prompt no longer fits.
-// Each is a real message from a real endpoint; they disagree about almost
-// every word, so the list is long and grows by observation rather than by
-// guessing at what a provider ought to say.
-var overflowPatterns = []string{
-	"prompt is too long",                // Anthropic
-	"request_too_large",                 // Anthropic
-	"context_length_exceeded",           // OpenAI
-	"maximum context length",            // OpenAI, OpenRouter
-	"exceeds the context window",        // OpenAI
-	"context window",                    // generic
-	"model_context_window_exceeded",     // generic
-	"input is too long",                 // generic
-	"exceeds the maximum",               // Google
-	"input token count",                 // Google
-	"maximum prompt length",             // xAI
-	"reduce the length of the messages", // Groq
-	"is longer than the model",          // Together
-	"available context size",            // llama.cpp
-	"greater than the context length",   // LM Studio
-	"context window exceeds limit",      // MiniMax
-	"exceeded model token limit",        // Kimi
-	"too large for model with",          // Mistral
-	"range of input length should be",   // DashScope
-	"exceeds the limit of",              // GitHub Copilot
-}
-
-// isContextOverflow recognises the provider errors that mean the prompt no
-// longer fits the model's window.
-func isContextOverflow(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	for _, needle := range notOverflow {
-		if strings.Contains(msg, needle) {
-			return false
-		}
-	}
-	for _, needle := range overflowPatterns {
-		if strings.Contains(msg, needle) {
-			return true
-		}
-	}
-	return false
-}
-
-var windowRe = regexp.MustCompile(`(?i)(?:>\s*|maximum context length is |context length of |limit of |window of )(\d{4,7})(?:\s*(?:tokens|maximum|max))?`)
-
-// windowFromError pulls the model's context limit out of an overflow error
-// such as "prompt is too long: 210000 tokens > 200000 maximum", or 0.
-func windowFromError(err error) int {
-	if err == nil {
-		return 0
-	}
-	m := windowRe.FindStringSubmatch(err.Error())
-	if m == nil {
-		return 0
-	}
-	n, _ := strconv.Atoi(m[1])
-	return n
-}
-
-// trimOld shortens an old tool result to pruneKeep bytes. The full text is
-// archived first (unless it already was) so the model can get it back.
-func (a *Agent) trimOld(toolUse, name, subject, text string) string {
-	if a.Archive == nil {
-		return tool.TruncateTo(text, pruneKeep)
-	}
-	if id := a.Archive.IDFor(toolUse); id != "" {
-		// Already archived: keep the note that names the id, trim the rest.
-		if i := strings.Index(text, "\n"); i > 0 && strings.HasPrefix(text, "[output is ") {
-			return text[:i+1] + tool.TruncateTo(text[i+1:], pruneKeep)
-		}
-		return archiveNote(id, len(text), pruneKeep, outputDigest(text)) + tool.EscapeDelimiters(tool.TruncateTo(text, pruneKeep))
-	}
-	id, err := a.Archive.PutSubject(toolUse, name, subject, text)
-	if err != nil {
-		return tool.TruncateTo(text, pruneKeep)
-	}
-	return archiveNote(id, len(text), pruneKeep, outputDigest(text)) + tool.EscapeDelimiters(tool.TruncateTo(text, pruneKeep))
 }
 
 // syncSurface records any message the harness rewrote in place — pruning

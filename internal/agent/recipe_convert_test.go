@@ -27,7 +27,7 @@ func newEditAgent(t *testing.T, f *fake, approver Approver) (*Agent, string) {
 // for the PANIC bug: a fresh Agent whose very first action is RunRecipe
 // (no RunBlocks ever ran, so a.allowed was never initialised there) with
 // an approver that answers AllowSession used to panic in authorize with
-// "assignment to entry in nil map". allowSession (agent.go) now
+// "assignment to entry in nil map". allowSession (exec.go) now
 // initialises the map at the point it is written, so this must succeed.
 func TestRunRecipeAllowSessionOnFreshAgentDoesNotPanic(t *testing.T) {
 	a, root := newAgent(t, nil, ApproverFunc(func(context.Context, ToolCall) (Decision, error) {

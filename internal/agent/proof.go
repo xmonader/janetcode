@@ -100,7 +100,7 @@ func (a *Agent) buildProof(ctx context.Context, repoRoot, commit string, committ
 			Mutation: foldMutation(events, tn),
 		}
 	}
-	return proof.Build(sessionID, a.Model, repoRoot, inputs, outcomes, versions), nil
+	return proof.Build(sessionID, a.Settings().Model, repoRoot, inputs, outcomes, versions), nil
 }
 
 // mutationExtra mirrors the Extra JSON internal/mutate's Report.Event
@@ -195,7 +195,7 @@ func looksLikeGitCommit(cmd string) bool {
 // not be read, e.g. an unborn branch); it costs one more `git rev-parse`
 // only for commands that matched looksLikeGitCommit in the first place.
 func (a *Agent) checkCommitAttach(ctx context.Context, preHead string, emit func(Event)) {
-	if a.Snapshots == nil || !a.ProofNotes {
+	if a.Snapshots == nil || !a.Settings().ProofNotes {
 		return
 	}
 	root := a.Snapshots.Root

@@ -41,15 +41,6 @@ func Open(configDir, projectKey string) *Store {
 	return &Store{path: filepath.Join(configDir, "hints", projectKey+".json")}
 }
 
-// Path is where the record is kept, or "" when there is nowhere to keep
-// it. Exported so /hints can say where it went.
-func (s *Store) Path() string {
-	if s == nil {
-		return ""
-	}
-	return s.path
-}
-
 // Load reads the ids already spent for this project, split into the ones
 // that were said and the ones that were silently skipped. A missing or
 // unreadable file means "none": a hint repeated once is a smaller
@@ -67,12 +58,6 @@ func (s *Store) Load() (shown, skipped []string) {
 		return nil, nil
 	}
 	return f.Shown, f.Skipped
-}
-
-// Shown reads the ids that were actually said for this project.
-func (s *Store) Shown() []string {
-	shown, _ := s.Load()
-	return shown
 }
 
 // Save records the whole set. It is called when a hint fires, so the

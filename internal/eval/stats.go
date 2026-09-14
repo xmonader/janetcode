@@ -54,7 +54,7 @@ func WriteFile(path string, f File) error {
 	return os.WriteFile(path, append(data, '\n'), 0o644)
 }
 
-// ReadFile loads a results file written by WriteFile or WriteJSON.
+// ReadFile loads a results file written by WriteFile.
 func ReadFile(path string) (File, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -232,7 +232,9 @@ func toolUse(rs []Result) []ToolUse {
 				byName[e.Name] = u
 			}
 			u.Calls++
-			if strings.HasPrefix(e.CallID, "script-") {
+			// Only a script's calls: their output never reaches the
+			// model, unlike run_code's steps, which it reads back.
+			if strings.HasPrefix(e.CallID, session.ScriptCallPrefix) {
 				u.Nested++
 			}
 			if !seen[e.Name] {

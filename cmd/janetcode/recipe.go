@@ -91,7 +91,7 @@ func runRecipeFlag(ctx context.Context, ag *agent.Agent, cwd string, r recipe.Re
 // function's business to report: RunRecipe (or its own caller) will hit
 // the same error and say so.
 func preflightRecipe(ag *agent.Agent, r recipe.Recipe, args map[string]string, stdin *os.File, stderr io.Writer) error {
-	if ag.AutoApprove || headless.StdinInteractive(stdin) {
+	if ag.Settings().AutoApprove || headless.StdinInteractive(stdin) {
 		return nil
 	}
 	steps, err := recipe.Expand(r, args)

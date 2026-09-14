@@ -111,7 +111,7 @@ func Run(ctx context.Context, opts Options) error {
 		opts.Opened(url)
 	} else {
 		fmt.Fprintf(os.Stderr, "janetcode %s serving %s (%s/%s in %s)\n",
-			opts.Version, url, opts.Provider, opts.Agent.Model, opts.Cwd)
+			opts.Version, url, opts.Provider, opts.Agent.Settings().Model, opts.Cwd)
 		if !Loopback(ln.Addr().String()) {
 			fmt.Fprintln(os.Stderr, "warning: bound off loopback; anyone who can reach this port can approve commands in this directory")
 		}
@@ -303,12 +303,13 @@ func (s *server) hello() helloPayload {
 		Version:  s.opts.Version,
 	}
 	if s.opts.Agent != nil {
-		h.Model = s.opts.Agent.Model
-		h.Yolo = s.opts.Agent.AutoApprove
-		h.Auto = s.opts.Agent.AutoMode
-		h.Edits = s.opts.Agent.AutoEdits
-		h.Plan = s.opts.Agent.PlanMode
-		h.ReadOnly = s.opts.Agent.ReadOnly
+		modes := s.opts.Agent.Settings()
+		h.Model = modes.Model
+		h.Yolo = modes.AutoApprove
+		h.Auto = modes.AutoMode
+		h.Edits = modes.AutoEdits
+		h.Plan = modes.PlanMode
+		h.ReadOnly = modes.ReadOnly
 		h.Mode = sessionMode(s.opts.Agent)
 	}
 	if s.opts.Session != nil {
@@ -646,11 +647,12 @@ func (s *server) statusLocked() statusPayload {
 		Status:  s.status,
 	}
 	if s.opts.Agent != nil {
-		st.Yolo = s.opts.Agent.AutoApprove
-		st.Auto = s.opts.Agent.AutoMode
-		st.Edits = s.opts.Agent.AutoEdits
-		st.Plan = s.opts.Agent.PlanMode
-		st.ReadOnly = s.opts.Agent.ReadOnly
+		modes := s.opts.Agent.Settings()
+		st.Yolo = modes.AutoApprove
+		st.Auto = modes.AutoMode
+		st.Edits = modes.AutoEdits
+		st.Plan = modes.PlanMode
+		st.ReadOnly = modes.ReadOnly
 		st.Mode = sessionMode(s.opts.Agent)
 		st.Verbose = s.verbose
 		if usd, ok := s.opts.Agent.UsageSnapshot().Cost(s.opts.Agent.Price); ok {

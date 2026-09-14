@@ -12,7 +12,6 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
-	"github.com/xmonader/janetcode/internal/eval"
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
@@ -79,7 +78,7 @@ func TestRecorderBuildsTheResultEnvelope(t *testing.T) {
 		agent.Event{Kind: agent.EvTurnDone, Usage: llm.Usage{InputTokens: 1000, OutputTokens: 500, CacheReadTokens: 20, CacheWriteTokens: 10}, StopReason: llm.StopEndTurn},
 	)
 	res := r.result(nil, nil)
-	if res.Type != eval.CLIResultType || res.Harness != "janetcode" {
+	if res.Type != CLIResultType || res.Harness != "janetcode" {
 		t.Fatalf("envelope identity = %+v", res)
 	}
 	if res.Result != "the answer" {
@@ -124,7 +123,7 @@ func TestJSONFormatPrintsOneObject(t *testing.T) {
 	replay(r, agent.Event{Kind: agent.EvText, Text: "hi"},
 		agent.Event{Kind: agent.EvTurnDone, Usage: llm.Usage{InputTokens: 3}})
 	r.finish(nil, nil)
-	var res eval.CLIResult
+	var res CLIResult
 	if err := json.Unmarshal([]byte(out.String()), &res); err != nil {
 		t.Fatalf("stdout is not one object: %v\n%s", err, out.String())
 	}
@@ -162,7 +161,7 @@ func TestStreamJSONPrintsOneObjectPerLine(t *testing.T) {
 		t.Fatalf("kinds = %v, want %s", kinds, want)
 	}
 	// The last line is the same envelope json mode prints.
-	var res eval.CLIResult
+	var res CLIResult
 	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &res); err != nil || res.Harness != "janetcode" {
 		t.Fatalf("last line = %q %v", lines[len(lines)-1], err)
 	}
@@ -189,7 +188,7 @@ func TestStreamJSONReportsARetry(t *testing.T) {
 	if first["type"] != "retry" || first["attempts"] != 2.0 || first["wait_ms"] != 1500.0 || first["text"] != "rate limited" {
 		t.Fatalf("retry line = %v", first)
 	}
-	var res eval.CLIResult
+	var res CLIResult
 	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &res); err != nil {
 		t.Fatal(err)
 	}

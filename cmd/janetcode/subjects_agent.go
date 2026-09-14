@@ -63,14 +63,15 @@ func providersReport(cfg *config.Config, a *agent.Agent) string {
 	if a.Provider != nil {
 		name = a.Provider.Name()
 	}
+	s := a.Settings()
 	fmt.Fprintf(&b, "provider   %s\n", name)
-	fmt.Fprintf(&b, "model      %s\n", a.Model)
-	fmt.Fprintf(&b, "max tokens %d\n", a.MaxTokens)
+	fmt.Fprintf(&b, "model      %s\n", s.Model)
+	fmt.Fprintf(&b, "max tokens %d\n", s.MaxTokens)
 	if cfg != nil {
-		if m := cfg.MetaFor(a.Model); m.ContextWindow > 0 {
+		if m := cfg.MetaFor(s.Model); m.ContextWindow > 0 {
 			fmt.Fprintf(&b, "window     %s\n", tokensOf(m.ContextWindow))
 		}
-		if p := cfg.PriceFor(a.Model); p != nil {
+		if p := cfg.PriceFor(s.Model); p != nil {
 			fmt.Fprintf(&b, "price      $%.2f in / $%.2f out per million\n", p.Input, p.Output)
 		}
 	}
@@ -233,20 +234,21 @@ func permissionsReport(a *agent.Agent, cfg *config.Config) string {
 		return "no agent"
 	}
 	var b strings.Builder
+	modes := a.Settings()
 	switch {
-	case a.ReadOnly:
+	case modes.ReadOnly:
 		b.WriteString("read-only: nothing that changes files or runs commands is offered\n")
-	case a.AutoApprove:
+	case modes.AutoApprove:
 		b.WriteString("auto-approve is ON: mutating tools run without asking\n")
-	case a.AutoMode:
+	case modes.AutoMode:
 		b.WriteString("auto mode: in-workspace edits and known-safe reads run; other commands ask\n")
 	default:
 		b.WriteString("edits and commands ask first\n")
 	}
-	if a.PlanMode {
+	if modes.PlanMode {
 		b.WriteString("plan mode: the model may look but not change\n")
 	}
-	rules := a.Rules
+	rules := a.RulesSnapshot()
 	if len(rules.Allow) == 0 && len(rules.Deny) == 0 {
 		b.WriteString("\nno standing rules; every mutating call is asked about\n")
 		return b.String()

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -82,7 +83,7 @@ func TestLoadFilterAndRun(t *testing.T) {
 		t.Fatalf("passed=%d report:\n%s", passed, buf.String())
 	}
 	out := filepath.Join(dir, "results.json")
-	if err := WriteJSON(out, results); err != nil {
+	if err := WriteFile(out, File{Results: results}); err != nil {
 		t.Fatal(err)
 	}
 	back, err := ReadFile(out)
@@ -305,9 +306,9 @@ func TestLoadRelativeDirResolvesPatchAbsolute(t *testing.T) {
 	runGit(t, repo, "add", "-A")
 	runGit(t, repo, "commit", "-q", "-m", "init")
 	head := runGit(t, repo, "rev-parse", "HEAD")
-	patch, err := emptyTreeDiff(context.Background(), repo, head)
+	patch, err := gitx.Diff(context.Background(), repo, "", head)
 	if err != nil {
-		t.Fatalf("emptyTreeDiff: %v", err)
+		t.Fatalf("gitx.Diff: %v", err)
 	}
 
 	parent := t.TempDir()

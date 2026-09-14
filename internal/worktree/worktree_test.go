@@ -94,20 +94,6 @@ func TestOpenCreatesReusesAndIsolates(t *testing.T) {
 	if again.Created || again.Path != wt.Path {
 		t.Fatalf("reopen = %+v, want the existing %s", again, wt.Path)
 	}
-
-	// Removing it leaves the branch and its commit.
-	if err := wt.Remove(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(wt.Path); err == nil {
-		t.Fatal("checkout still there after Remove")
-	}
-	cmd := exec.Command("git", "log", "--oneline", "feature/x")
-	cmd.Dir = repo
-	out, err := cmd.CombinedOutput()
-	if err != nil || !strings.Contains(string(out), "add b") {
-		t.Fatalf("branch lost: %v %s", err, out)
-	}
 }
 
 func TestOpenRejectsBadInput(t *testing.T) {
@@ -138,7 +124,6 @@ func TestOpenUsesAnExistingBranch(t *testing.T) {
 	if !wt.Created {
 		t.Fatal("a new checkout of an existing branch is still created")
 	}
-	defer wt.Remove(ctx)
 	if s := wt.Summarize(ctx); s.Commits != 0 || s.String() != "nothing was committed" {
 		t.Fatalf("summary = %+v", s)
 	}

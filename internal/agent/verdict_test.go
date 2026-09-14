@@ -334,7 +334,7 @@ func TestTestsEditedInTheSameTurn(t *testing.T) {
 	}
 }
 
-// A locked accept-test file (see accept.go) cannot be edited by any tool
+// A locked accept-test file (see accept_lock.go) cannot be edited by any tool
 // call while it is locked: the attempt is refused and logged as an
 // error result, never as a successful write. FoldOutcome only counts
 // successful edits toward TestsEdited, so a locked test's denied edit

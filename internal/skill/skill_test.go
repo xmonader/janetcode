@@ -44,7 +44,7 @@ func TestLoadShadowingAndFrontmatter(t *testing.T) {
 	if x := rel.Expand("v1.2"); !strings.Contains(x, "Run scripts/cut.sh v1.2") {
 		t.Fatalf("expand = %q", x)
 	}
-	if idx := Index(skills); strings.Contains(idx, "release") || !strings.Contains(idx, "- deploy:") {
+	if idx := IndexWithin(skills, 0); strings.Contains(idx, "release") || !strings.Contains(idx, "- deploy:") {
 		t.Fatalf("index lists a model-hidden skill: %q", idx)
 	}
 	if got := Select(skills, "how do I cut a release?", 5); len(got) != 0 {
@@ -118,7 +118,7 @@ func TestInjectorAttachesOncePerWindow(t *testing.T) {
 	if b, n := nilIn.Prepare([]llm.Block{{Type: llm.BlockText, Text: "deploy"}}); len(b) != 1 || n != nil {
 		t.Fatal("nil injector changed blocks")
 	}
-	if idx := Index(skills); !strings.Contains(idx, "- deploy: Ship a release") || Index(nil) != "" {
+	if idx := IndexWithin(skills, 0); !strings.Contains(idx, "- deploy: Ship a release") || IndexWithin(nil, 0) != "" {
 		t.Fatalf("index = %q", idx)
 	}
 }

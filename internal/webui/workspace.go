@@ -77,16 +77,16 @@ func sessionMode(ag *agent.Agent) string {
 	if ag == nil {
 		return "ask"
 	}
-	switch {
-	case ag.PlanMode:
+	switch modes := ag.Settings(); {
+	case modes.PlanMode:
 		return "PLAN"
-	case ag.ReadOnly:
+	case modes.ReadOnly:
 		return "READ-ONLY"
-	case ag.AutoApprove:
+	case modes.AutoApprove:
 		return "YOLO"
-	case ag.AutoMode:
+	case modes.AutoMode:
 		return "AUTO"
-	case ag.AutoEdits:
+	case modes.AutoEdits:
 		return "EDITS"
 	default:
 		return "ask"
@@ -165,11 +165,12 @@ func (s *server) workspace() workspace {
 		}
 	}
 	ws.CanUndo = len(ag.Checkpoints()) > 0
-	ws.Yolo = ag.AutoApprove
-	ws.Auto = ag.AutoMode
-	ws.Edits = ag.AutoEdits
-	ws.Plan = ag.PlanMode
-	ws.ReadOnly = ag.ReadOnly
+	modes := ag.Settings()
+	ws.Yolo = modes.AutoApprove
+	ws.Auto = modes.AutoMode
+	ws.Edits = modes.AutoEdits
+	ws.Plan = modes.PlanMode
+	ws.ReadOnly = modes.ReadOnly
 	ws.Mode = sessionMode(ag)
 	if terms := termsOf(ag); terms != nil {
 		for _, x := range terms.List() {
@@ -265,7 +266,7 @@ func (s *server) startNewSession() error {
 	}
 	model, provider := "", s.opts.Provider
 	if s.opts.Agent != nil {
-		model = s.opts.Agent.Model
+		model = s.opts.Agent.Settings().Model
 	}
 	sess, err := session.New(dir, s.opts.Cwd, provider, model)
 	if err != nil {

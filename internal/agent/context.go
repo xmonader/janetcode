@@ -18,22 +18,15 @@ const maxPinFile = 16 * 1024
 // prompt, the dynamic extra (memory and skill indexes), pins and modes.
 func (a *Agent) systemPrompt() string {
 	system := a.System + a.extra()
-	if len(a.Pins) > 0 {
+	if pins := a.PinsSnapshot(); len(pins) > 0 {
 		var sb strings.Builder
 		sb.WriteString("\n\n# Pinned by the user\nThese notes stay in context for the whole session, including after compaction.\n")
-		for i, p := range a.Pins {
+		for i, p := range pins {
 			fmt.Fprintf(&sb, "\n%d. %s\n", i+1, p)
 		}
 		system += sb.String()
 	}
-	if a.readOnly() {
-		system += readOnlySystem
-		if a.PlanMode {
-			system += planSystem
-		}
-	}
-	system += a.acceptSystemText()
-	return system
+	return system + a.modeSystem()
 }
 
 // extra returns the frozen SystemExtra text, evaluating it on first use.
@@ -96,13 +89,13 @@ type ContextItem struct {
 
 // Context computes the report from the current history.
 func (a *Agent) Context() ContextReport {
-	r := ContextReport{CompactAt: a.CompactAt}
+	r := ContextReport{CompactAt: a.Settings().CompactAt}
 	if r.CompactAt == 0 {
 		r.CompactAt = DefaultCompactAt
 	}
 	r.System = len(a.System) / 4
 	r.Extra = len(a.extra()) / 4
-	for _, p := range a.Pins {
+	for _, p := range a.PinsSnapshot() {
 		r.Pins += len(p)/4 + 4
 	}
 	for _, d := range a.Tools.Defs() {
@@ -187,22 +180,4 @@ func PinText(cwd, arg string) (string, error) {
 		body = body[:maxPinFile] + "\n… (truncated)"
 	}
 	return "File " + rel + " as of pinning:\n" + body, nil
-}
-
-// Pin keeps a note in the system prompt for the rest of the session.
-func (a *Agent) Pin(text string) {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return
-	}
-	a.Pins = append(a.Pins, text)
-}
-
-// Unpin removes the n-th pin (1-based); it reports whether one existed.
-func (a *Agent) Unpin(n int) bool {
-	if n < 1 || n > len(a.Pins) {
-		return false
-	}
-	a.Pins = append(a.Pins[:n-1], a.Pins[n:]...)
-	return true
 }

@@ -16,9 +16,8 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/eval"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/minimal"
 	"github.com/xmonader/janetcode/internal/prompt"
-	"github.com/xmonader/janetcode/internal/repomap"
-	"github.com/xmonader/janetcode/internal/session"
 )
 
 // promptRecord is what goes in the results file about the prompt: which
@@ -86,14 +85,9 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 			return fmt.Errorf("no tasks match %q", o.only)
 		}
 	}
-	off := map[string]bool{}
-	for _, f := range strings.Split(o.off, ",") {
-		if f = strings.TrimSpace(f); f != "" {
-			if !agent.KnownSwitch(f) {
-				return fmt.Errorf("--eval-off: unknown behaviour %q (%s)", f, strings.Join(agent.Switches(), ", "))
-			}
-			off[f] = true
-		}
+	off, err := agent.ParseSwitches(o.off)
+	if err != nil {
+		return fmt.Errorf("--eval-off: %w", err)
 	}
 	variant := evalVariant(o.label, o.off, o.route)
 	var baseline *eval.File
@@ -135,45 +129,14 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 	// feature exactly as a session would use it.
 	pool := newProviderPool(cfg, prov)
 	r := &eval.Runner{Jobs: o.jobs, Runs: runs, Keep: o.keep, Log: os.Stderr, Timeout: o.timeout, IgnoreToolLimit: o.noToolLimit, Facts: o.facts, FactsBlind: o.factsBlind, NewAgent: func(root string) (*agent.Agent, error) {
-		repo := &repomap.Cache{Root: root}
-		var prep func([]llm.Block) ([]llm.Block, string)
-		if !off["repomap"] {
-			prep = repomap.TurnPrep(repo, 0)
-		}
-		archive := agent.NewArchive(filepath.Join(archiveDir, filepath.Base(root)))
-		expand := &agent.ExpandOutput{Archive: archive}
 		// The eval agent carries the tools a real session does, minus the
 		// ones that need a terminal or the network. A benchmark run
 		// against a smaller agent measures something nobody uses.
-		ag := &agent.Agent{
-			Provider:      llm.ForTaskOr(prov),
-			Off:           off,
-			Prepare:       prep,
-			PlanCheck:     repo.CheckPlan,
-			Log:           &session.Memory{},
-			Archive:       archive,
-			Price:         cfg.PriceFor(cfg.Model),
-			Tools:         eval.Tools(root, repo, expand, off),
-			System:        prompt.SystemWith(root, o.prompt),
-			Model:         cfg.Model,
-			MaxTokens:     cfg.MaxTokens,
-			MaxIterations: maxIter,
-			CompactAt:     compactAt,
-			Route:         pool.For,
-			RouteCheap:    o.route,
-		}
-		expand.Log = ag.LogEvent // the archive's lookups go on the same trail
-		if !off["todo"] {
-			ag.Tools.Add(&agent.TodoTool{Parent: ag})
-		}
-		if !off["script"] {
-			ag.Tools.Add(&agent.Script{Parent: ag, Root: root})
-		}
-		// The eval agent follows the product default, so a measurement is
-		// of what users actually run; --eval-off intent forces it off.
-		ag.Tools.Intent = cfg.IntentEnabled() && !off["intent"]
-		if !off["oversized"] {
-		}
+		ag := minimal.New(root, cfg, llm.ForTaskOr(prov), off, o.prompt, filepath.Join(archiveDir, filepath.Base(root)))
+		ag.MaxIterations = maxIter
+		ag.CompactAt = compactAt
+		ag.Route = pool.For
+		ag.RouteCheap = o.route
 		evalToolsOnce.Do(func() { evalToolNames = ag.Tools.Names() })
 		return ag, nil
 	}}

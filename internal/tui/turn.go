@@ -149,7 +149,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		m.transcript.errorf("cancelled after %s", elapsed)
 		m.status = "cancelled"
 	case errors.Is(msg.err, agent.ErrMaxIterations):
-		m.transcript.errorf("stopped after %d tool rounds in one turn · send a message to continue", m.opts.Agent.MaxIterations)
+		m.transcript.errorf("stopped after %d tool rounds in one turn · send a message to continue", m.opts.Agent.Settings().MaxIterations)
 		m.status = "stopped"
 	case errors.Is(msg.err, agent.ErrStuck):
 		m.transcript.errorf("stopped: the model kept repeating the same tool call · its changes so far are kept; tell it what to do differently")

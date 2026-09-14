@@ -20,7 +20,7 @@ func (m *model) extractMemory() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		xs, err := memory.Extract(ctx, ag.Provider, ag.Model, msgs, store.Entries())
+		xs, err := memory.Extract(ctx, ag.Provider, ag.Settings().Model, msgs, store.Entries())
 		if err != nil {
 			return memoryMsg{err: err}
 		}

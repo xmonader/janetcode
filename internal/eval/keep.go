@@ -7,13 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/fsutil"
+	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/session"
@@ -117,22 +117,22 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 			return "", Task{}, nil, rerr
 		}
 		if opts.SelfContained {
-			patch, err = emptyTreeDiff(ctx, opts.Root, resolved)
+			patch, err = gitx.Diff(ctx, opts.Root, "", resolved)
 		} else {
 			baseSHA = resolved
 		}
 	case start != nil && start.Head != "":
 		if opts.SelfContained {
-			patch, err = emptyTreeDiff(ctx, opts.Root, start.Snap)
+			patch, err = gitx.Diff(ctx, opts.Root, "", start.Snap)
 		} else {
 			baseSHA = start.Head
-			patch, err = gitDiff(ctx, opts.Root, start.Head, start.Snap)
+			patch, err = gitx.Diff(ctx, opts.Root, start.Head, start.Snap)
 		}
 	case start != nil && start.Head == "":
 		// The repository was unborn (no commits) when the session began:
 		// there is no Base to record either way, so the whole starting
 		// tree travels as a patch against the empty tree.
-		patch, err = emptyTreeDiff(ctx, opts.Root, start.Snap)
+		patch, err = gitx.Diff(ctx, opts.Root, "", start.Snap)
 	default:
 		return "", Task{}, nil, fmt.Errorf("this session has no recorded start state, so there is nothing to replay it against: it began before this feature existed, before this repository had any commit, or outside a git repository; pass --base <rev> to choose a starting commit directly")
 	}
@@ -143,9 +143,9 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 	if baseSHA != "" {
 		ok, rerr := hasRemoteContaining(ctx, opts.Root, baseSHA)
 		if rerr != nil {
-			warnings = append(warnings, fmt.Sprintf("could not check whether %s is on a remote: %v", shortSHA(baseSHA), rerr))
+			warnings = append(warnings, fmt.Sprintf("could not check whether %s is on a remote: %v", gitx.Short(baseSHA), rerr))
 		} else if !ok {
-			warnings = append(warnings, fmt.Sprintf("base %s is only local: push it, or re-keep with --self-contained, so another clone can run this task", shortSHA(baseSHA)))
+			warnings = append(warnings, fmt.Sprintf("base %s is only local: push it, or re-keep with --self-contained, so another clone can run this task", gitx.Short(baseSHA)))
 		}
 	}
 
@@ -204,50 +204,6 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 		return "", Task{}, nil, err
 	}
 	return taskPath, t, warnings, nil
-}
-
-// PrepareStart reproduces a session's recorded start state (see
-// session.StartState, set on the session's first turn — /eval keep folds
-// it into Task.Base/Patch, and this is the same computation done directly
-// from the recording, with no kept Task or patch file in between) as a
-// working directory: repoRoot's tree at start.Head with whatever was
-// uncommitted at that moment applied on top. It is the primitive
-// --what-if (internal/whatif) needs to put a session's own worktree back
-// where the session's first turn found it, before replaying anything —
-// and it shares its git plumbing with Keep's own Task.Base/Patch path
-// (prepareEmptyDir, prepareWorktreeAt in eval.go) rather than
-// re-implementing "check out a commit and apply a patch" a second time.
-//
-// A session recorded before its repository had any commit (start.Head ==
-// "") gets a plain git-initialised directory with the whole start.Snap
-// tree applied as a patch from the empty tree, mirroring prepareWorkDir's
-// no-Base path for an unborn repository.
-func PrepareStart(ctx context.Context, repoRoot string, start session.StartState) (dir string, cleanup func(), err error) {
-	if start.Snap == "" {
-		return "", nil, fmt.Errorf("session has no recorded start state")
-	}
-	if repoRoot == "" {
-		return "", nil, fmt.Errorf("no repository to replay the session's start state against")
-	}
-	if start.Head == "" {
-		patch, derr := emptyTreeDiff(ctx, repoRoot, start.Snap)
-		if derr != nil {
-			return "", nil, fmt.Errorf("diff session start: %w", derr)
-		}
-		return prepareEmptyDir(ctx, "whatif", patch)
-	}
-	// Checked before diffing, not just before the worktree add: a missing
-	// Head fails `git diff` itself with a raw "bad object" error, which
-	// would reach the caller before prepareWorktreeAt's own check ever
-	// ran.
-	if out, cerr := exec.CommandContext(ctx, "git", "-C", repoRoot, "cat-file", "-e", start.Head+"^{commit}").CombinedOutput(); cerr != nil {
-		return "", nil, fmt.Errorf("%s: fetch it before replaying this session", (&errBaseMissing{base: start.Head, detail: strings.TrimSpace(string(out))}).Error())
-	}
-	patch, derr := gitDiff(ctx, repoRoot, start.Head, start.Snap)
-	if derr != nil {
-		return "", nil, fmt.Errorf("diff session start: %w", derr)
-	}
-	return prepareWorktreeAt(ctx, repoRoot, "whatif", start.Head, patch)
 }
 
 // ParseKeepArgs reads the argument to /eval keep: arg is the text after
@@ -343,74 +299,21 @@ func messageText(m *llm.Message) string {
 // it once, up front, so a Root that is not a repository fails with one
 // clear message instead of a misleading "no check command" or a raw
 // `git` fatal error surfacing from whichever git command happened to run
-// first (resolveRev for --base, gitDiff/emptyTreeDiff otherwise).
+// first (resolveRev for --base, the start-state diff otherwise).
 func isGitRepo(ctx context.Context, dir string) bool {
-	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--is-inside-work-tree")
-	cmd.Dir = dir
-	return cmd.Run() == nil
-}
-
-func gitDiff(ctx context.Context, dir, head, snap string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "git", "diff", "--binary", head, snap)
-	cmd.Dir = dir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		return nil, fmt.Errorf("git diff: %s", msg)
-	}
-	return stdout.Bytes(), nil
+	_, err := gitx.Run(ctx, dir, nil, "rev-parse", "--is-inside-work-tree")
+	return err == nil
 }
 
 // resolveRev turns --base's argument into a full commit sha, so Task.Base
 // is stable even if the rev given (a branch, a tag, a short hash) later
 // points somewhere else.
 func resolveRev(ctx context.Context, dir, rev string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--verify", rev+"^{commit}")
-	cmd.Dir = dir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		return "", fmt.Errorf("--base %s: %s", rev, msg)
-	}
-	return strings.TrimSpace(stdout.String()), nil
-}
-
-// emptyTreeHash is the hash of the empty tree, computed rather than
-// hardcoded so a sha256 repository gets its own value instead of git's
-// well-known sha1 constant.
-func emptyTreeHash(ctx context.Context, dir string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "hash-object", "-t", "tree", os.DevNull)
-	cmd.Dir = dir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		return "", fmt.Errorf("empty tree hash: %s", msg)
-	}
-	return strings.TrimSpace(stdout.String()), nil
-}
-
-// emptyTreeDiff is the whole tree at treeish, expressed as a patch from
-// nothing: how Keep represents a starting state with no base commit to
-// point at, whether because the repository was unborn at session start
-// or because SelfContained asked for one anyway.
-func emptyTreeDiff(ctx context.Context, dir, treeish string) ([]byte, error) {
-	empty, err := emptyTreeHash(ctx, dir)
+	out, err := gitx.Run(ctx, dir, nil, "rev-parse", "--verify", rev+"^{commit}")
 	if err != nil {
-		return nil, err
+		return "", fmt.Errorf("--base %s: %s", rev, gitx.Detail(err))
 	}
-	return gitDiff(ctx, dir, empty, treeish)
+	return strings.TrimSpace(out), nil
 }
 
 // hasRemoteContaining reports whether sha is reachable from any
@@ -418,24 +321,9 @@ func emptyTreeDiff(ctx context.Context, dir, treeish string) ([]byte, error) {
 // commit exists only in the local clone that made it, so another clone
 // running the task later would find no such commit to check out.
 func hasRemoteContaining(ctx context.Context, dir, sha string) (bool, error) {
-	cmd := exec.CommandContext(ctx, "git", "for-each-ref", "--contains", sha, "refs/remotes")
-	cmd.Dir = dir
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		return false, fmt.Errorf("check remote refs: %s", msg)
+	out, err := gitx.Run(ctx, dir, nil, "for-each-ref", "--contains", sha, "refs/remotes")
+	if err != nil {
+		return false, fmt.Errorf("check remote refs: %s", gitx.Detail(err))
 	}
-	return strings.TrimSpace(stdout.String()) != "", nil
-}
-
-// shortSHA is a commit hash shortened for a human-readable message.
-func shortSHA(sha string) string {
-	if len(sha) > 12 {
-		return sha[:12]
-	}
-	return sha
+	return strings.TrimSpace(out) != "", nil
 }

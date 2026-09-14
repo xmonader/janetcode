@@ -38,7 +38,7 @@ func TestLeannessTable(t *testing.T) {
 	mem := memory.Open(t.TempDir(), dir)
 	skills := func() []skill.Skill { return skill.Load(dir, cfgDir) }
 	memIndex := mem.Index()
-	skillIndex := skill.Index(skills())
+	skillIndex := skill.IndexWithin(skills(), 0)
 
 	var ruleBytes int
 	var ruleNames []string

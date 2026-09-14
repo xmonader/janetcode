@@ -99,12 +99,8 @@ func (t Glob) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	return Truncate(sb.String()), nil
 }
 
-// walk visits every entry under dir, skipping skipDirs, calling fn with the
-// slash-separated path relative to dir.
-func walk(ctx context.Context, dir string, fn func(rel string, d fs.DirEntry) error) error {
-	return walkOn(nil, ctx, dir, fn)
-}
-
+// walkOn visits every entry under dir, skipping skipDirs, calling fn with
+// the slash-separated path relative to dir.
 func walkOn(ws *Workspace, ctx context.Context, dir string, fn func(rel string, d fs.DirEntry) error) error {
 	return walkDirOf(ws, dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {

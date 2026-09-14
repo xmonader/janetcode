@@ -283,11 +283,9 @@ func headings(body string) string {
 	return sb.String()
 }
 
-// Index renders the skill list for the system prompt, or "" without
-// model-invocable skills.
-func Index(skills []Skill) string { return IndexWithin(skills, memory.IndexBudget) }
-
-// IndexWithin is Index with a byte budget. The list had none: a config
+// IndexWithin renders the skill list for the system prompt, or "" without
+// model-invocable skills, within a byte budget (memory.IndexBudget when
+// budget is not positive). The list had none: a config
 // directory with a hundred skills in it put all hundred lines in every
 // request, and the skill tool can find the rest by name, which is what
 // the paragraph above already tells the model to do.

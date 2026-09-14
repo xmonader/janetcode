@@ -412,12 +412,12 @@ func (m *model) welcome(resumed string) string {
 		fmt.Fprintf(&sb, " on %s", m.branch)
 	}
 	sb.WriteString("\n")
-	switch {
-	case m.opts.Agent.AutoApprove:
+	switch modes := m.opts.Agent.Settings(); {
+	case modes.AutoApprove:
 		sb.WriteString("auto-approve is on: tools run without asking · esc cancels the turn")
-	case m.opts.Agent.AutoMode:
+	case modes.AutoMode:
 		sb.WriteString("auto mode: in-workspace edits and known-safe reads run · other commands ask")
-	case m.opts.Agent.AutoEdits:
+	case modes.AutoEdits:
 		sb.WriteString("edits go through, commands ask (/edits) · esc denies")
 	default:
 		// esc at a prompt denies the one call; c stops the whole turn.

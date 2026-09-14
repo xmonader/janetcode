@@ -64,7 +64,7 @@ var wholeLine = []struct {
 // without them here neither Classify's workspace-escape check nor
 // WriteTargets' locked-file check ever look at what such a command
 // touches — exactly the gap a `sed -i ... locked_test.go` used to slip
-// through (see accept.go's lock).
+// through (see accept_lock.go).
 var mutators = map[string]bool{
 	"rm": true, "rmdir": true, "mv": true, "cp": true, "chmod": true, "chown": true, "chgrp": true,
 	"truncate": true, "tee": true, "ln": true, "install": true, "rsync": true, "shred": true, "mkdir": true, "touch": true,

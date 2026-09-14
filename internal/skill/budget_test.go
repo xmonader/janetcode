@@ -21,7 +21,7 @@ func TestSkillIndexStopsAtItsBudget(t *testing.T) {
 			ModelInvocable: true,
 		})
 	}
-	full := Index(skills)
+	full := IndexWithin(skills, 0)
 	if len(full) > memory.IndexBudget+200 {
 		t.Fatalf("the default index is %d bytes, over the %d-byte ceiling", len(full), memory.IndexBudget)
 	}

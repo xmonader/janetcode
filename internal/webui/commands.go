@@ -122,18 +122,26 @@ func (s *server) runCommand(text string) error {
 	case "/clear", "/new":
 		return s.startNewSession()
 	case "/yolo":
-		ag.AutoApprove = !ag.AutoApprove
-		if ag.AutoApprove {
-			ag.AutoMode = false
-		}
-		s.noteOnOff("auto-approve", ag.AutoApprove, "every tool runs without asking")
+		var on bool
+		ag.UpdateSettings(func(st *agent.Settings) {
+			st.AutoApprove = !st.AutoApprove
+			if on = st.AutoApprove; on {
+				st.AutoMode = false
+			}
+		})
+		s.noteOnOff("auto-approve", on, "every tool runs without asking")
 	case "/auto":
-		ag.AutoMode = !ag.AutoMode
-		if ag.AutoMode {
-			ag.AutoApprove = false
+		var on bool
+		ag.UpdateSettings(func(st *agent.Settings) {
+			st.AutoMode = !st.AutoMode
+			if on = st.AutoMode; on {
+				st.AutoApprove = false
+			}
+		})
+		if on {
 			ag.SetPlanMode(false)
 		}
-		s.noteOnOff("auto mode", ag.AutoMode, "in-workspace edits and known-safe reads run, other commands ask")
+		s.noteOnOff("auto mode", on, "in-workspace edits and known-safe reads run, other commands ask")
 	case "/sandbox":
 		s.sandbox(arg)
 	case "/review":
@@ -141,11 +149,13 @@ func (s *server) runCommand(text string) error {
 	case "/loop":
 		s.loop(arg)
 	case "/edits":
-		ag.AutoEdits = !ag.AutoEdits
-		s.noteOnOff("auto-accept edits", ag.AutoEdits, "file changes go through, commands still ask")
+		var on bool
+		ag.UpdateSettings(func(st *agent.Settings) { st.AutoEdits = !st.AutoEdits; on = st.AutoEdits })
+		s.noteOnOff("auto-accept edits", on, "file changes go through, commands still ask")
 	case "/readonly":
-		ag.ReadOnly = !ag.ReadOnly
-		s.noteOnOff("read-only", ag.ReadOnly, "the model can inspect but change nothing")
+		var on bool
+		ag.UpdateSettings(func(st *agent.Settings) { st.ReadOnly = !st.ReadOnly; on = st.ReadOnly })
+		s.noteOnOff("read-only", on, "the model can inspect but change nothing")
 	case "/plan":
 		s.plan(arg)
 	case "/accept":

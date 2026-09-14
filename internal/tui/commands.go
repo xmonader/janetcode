@@ -94,7 +94,7 @@ func (m *model) command(text string) tea.Cmd {
 		m.quitting = true
 		return tea.Quit
 	case "/clear", "/new":
-		sess, err := session.New(dirOf(m.opts.Session), m.opts.Cwd, m.opts.Provider, m.opts.Agent.Model)
+		sess, err := session.New(dirOf(m.opts.Session), m.opts.Cwd, m.opts.Provider, m.opts.Agent.Settings().Model)
 		if err != nil {
 			m.transcript.errorf("new session: %v", err)
 			break
@@ -111,15 +111,22 @@ func (m *model) command(text string) tea.Cmd {
 		m.lastTurn, m.lastVerdict, m.status = "", "", ""
 		m.pinned = true
 	case "/yolo":
-		m.opts.Agent.AutoApprove = !m.opts.Agent.AutoApprove
-		if m.opts.Agent.AutoApprove {
-			m.opts.Agent.AutoMode = false
-		}
+		m.opts.Agent.UpdateSettings(func(s *agent.Settings) {
+			s.AutoApprove = !s.AutoApprove
+			if s.AutoApprove {
+				s.AutoMode = false
+			}
+		})
 		m.noteMode()
 	case "/auto":
-		m.opts.Agent.AutoMode = !m.opts.Agent.AutoMode
-		if m.opts.Agent.AutoMode {
-			m.opts.Agent.AutoApprove = false
+		var on bool
+		m.opts.Agent.UpdateSettings(func(s *agent.Settings) {
+			s.AutoMode = !s.AutoMode
+			if on = s.AutoMode; on {
+				s.AutoApprove = false
+			}
+		})
+		if on {
 			m.opts.Agent.SetPlanMode(false)
 		}
 		m.noteMode()
@@ -130,7 +137,7 @@ func (m *model) command(text string) tea.Cmd {
 	case "/loop":
 		m.loopCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/edits":
-		m.opts.Agent.AutoEdits = !m.opts.Agent.AutoEdits
+		m.opts.Agent.UpdateSettings(func(s *agent.Settings) { s.AutoEdits = !s.AutoEdits })
 		m.noteMode()
 	case "/settle":
 		if m.opts.Session == nil {
@@ -146,7 +153,7 @@ func (m *model) command(text string) tea.Cmd {
 			m.note("session active again")
 		}
 	case "/readonly":
-		m.opts.Agent.ReadOnly = !m.opts.Agent.ReadOnly
+		m.opts.Agent.UpdateSettings(func(s *agent.Settings) { s.ReadOnly = !s.ReadOnly })
 		m.noteMode()
 	case "/plan":
 		return m.planCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
@@ -180,7 +187,7 @@ func (m *model) command(text string) tea.Cmd {
 	case "/model":
 		if len(fields) < 2 {
 			if m.opts.Config == nil {
-				m.note("model: " + m.opts.Agent.Model + " (" + m.opts.Provider + ")")
+				m.note("model: " + m.opts.Agent.Settings().Model + " (" + m.opts.Provider + ")")
 				break
 			}
 			return m.openConnect(stepModel)
@@ -200,7 +207,8 @@ func (m *model) command(text string) tea.Cmd {
 				m.note("switched to provider " + name + " for " + fields[1])
 			}
 		}
-		m.opts.Agent.Model = fields[1]
+		model := fields[1]
+		m.opts.Agent.UpdateSettings(func(s *agent.Settings) { s.Model = model })
 		m.applyModelMeta(fields[1])
 		if cfg := m.opts.Config; cfg != nil {
 			cfg.Model = fields[1]

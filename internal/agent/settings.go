@@ -1,0 +1,159 @@
+package agent
+
+import (
+	"slices"
+	"strings"
+
+	"github.com/xmonader/janetcode/internal/perm"
+)
+
+// Settings is the part of an Agent's configuration a front-end may change
+// while a turn is running: the approval and session modes (shift+tab,
+// /yolo, /auto, /edits, /readonly, /plan) and the keys /config and /model
+// set. Each field mirrors the Agent field of the same name.
+//
+// The Agent fields are what a caller fills in when it builds an agent,
+// before any turn runs. From then on they are read and written only under
+// settingsMu: front-ends change them with UpdateSettings (or SetPlanMode),
+// and the turn goroutine — and a subagent starting on a goroutine of its
+// own — reads a copy with Settings. Reading one of these fields directly
+// while a turn may be running is a data race.
+type Settings struct {
+	Model         string
+	MaxTokens     int
+	MaxIterations int
+	CompactAt     int
+	AutoApprove   bool
+	AutoEdits     bool
+	AutoMode      bool
+	ReadOnly      bool
+	PlanMode      bool
+	ProofNotes    bool
+}
+
+// Settings is a consistent copy of the live settings, safe to take from
+// any goroutine.
+func (a *Agent) Settings() Settings {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return a.settingsLocked()
+}
+
+func (a *Agent) settingsLocked() Settings {
+	return Settings{
+		Model:         a.Model,
+		MaxTokens:     a.MaxTokens,
+		MaxIterations: a.MaxIterations,
+		CompactAt:     a.CompactAt,
+		AutoApprove:   a.AutoApprove,
+		AutoEdits:     a.AutoEdits,
+		AutoMode:      a.AutoMode,
+		ReadOnly:      a.ReadOnly,
+		PlanMode:      a.PlanMode,
+		ProofNotes:    a.ProofNotes,
+	}
+}
+
+// UpdateSettings changes the live settings atomically: change sees the
+// current values and every field it sets takes effect together, so a mode
+// switch that turns one flag on and two off is never observed half done.
+// It is safe to call while a turn runs; the turn sees the change from its
+// next read. Plan mode should change through SetPlanMode, which also logs
+// it for resume.
+func (a *Agent) UpdateSettings(change func(*Settings)) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	s := a.settingsLocked()
+	change(&s)
+	a.Model = s.Model
+	a.MaxTokens = s.MaxTokens
+	a.MaxIterations = s.MaxIterations
+	a.CompactAt = s.CompactAt
+	a.AutoApprove = s.AutoApprove
+	a.AutoEdits = s.AutoEdits
+	a.AutoMode = s.AutoMode
+	a.ReadOnly = s.ReadOnly
+	a.PlanMode = s.PlanMode
+	a.ProofNotes = s.ProofNotes
+}
+
+// readOnly reports whether mutating tools are hidden and refused: in
+// read-only mode and in plan mode.
+func (s Settings) readOnly() bool { return s.ReadOnly || s.PlanMode }
+
+// modeName names the mode that makes the session read-only, for messages.
+func (s Settings) modeName() string {
+	if s.PlanMode {
+		return "plan mode"
+	}
+	return "read-only mode"
+}
+
+// RulesSnapshot is a copy of the permission rules, safe to take from any
+// goroutine.
+func (a *Agent) RulesSnapshot() perm.Rules {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return perm.Rules{Allow: slices.Clone(a.Rules.Allow), Deny: slices.Clone(a.Rules.Deny)}
+}
+
+// AddRule adds a permission rule to the live set (see perm.Rules.Add),
+// safe while a turn runs. It reports whether the rule was new.
+func (a *Agent) AddRule(v perm.Verdict, r perm.Rule) bool {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return a.Rules.Add(v, r)
+}
+
+// MergeRules adds every rule of extra to the live set (see perm.Merge),
+// safe while a turn runs: /permissions trust uses it for the project's
+// rules.
+func (a *Agent) MergeRules(extra perm.Rules) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	a.Rules = perm.Merge(a.Rules, extra)
+}
+
+// decideRule is Rules.Decide under the settings lock.
+func (a *Agent) decideRule(toolName, subject string) (perm.Verdict, perm.Rule) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return a.Rules.Decide(toolName, subject)
+}
+
+// PinsSnapshot is a copy of the pinned notes, safe to take from any
+// goroutine.
+func (a *Agent) PinsSnapshot() []string {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return slices.Clone(a.Pins)
+}
+
+// SetPins replaces the pinned notes, as when a different session opens.
+func (a *Agent) SetPins(pins []string) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	a.Pins = slices.Clone(pins)
+}
+
+// Pin keeps a note in the system prompt for the rest of the session. It
+// reports how many pins there are afterwards.
+func (a *Agent) Pin(text string) int {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	if text = strings.TrimSpace(text); text != "" {
+		a.Pins = append(a.Pins, text)
+	}
+	return len(a.Pins)
+}
+
+// Unpin removes the n-th pin (1-based); it reports whether one existed.
+func (a *Agent) Unpin(n int) bool {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	if n < 1 || n > len(a.Pins) {
+		return false
+	}
+	a.Pins = slices.Delete(a.Pins, n-1, n)
+	return true
+}

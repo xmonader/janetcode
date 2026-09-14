@@ -95,7 +95,7 @@ func errIsCancel(err error) bool {
 // session's model: the quota that just ran out will still be out on the
 // next call.
 func (a *Agent) fallback(ctx context.Context, cause error, emit func(Event)) (*llm.Response, error) {
-	chain := FallbackChain(a.Fallbacks, a.Model)
+	chain := FallbackChain(a.Fallbacks, a.Settings().Model)
 	if len(chain) == 0 || !worthFallback(cause) || ctx.Err() != nil {
 		return nil, cause
 	}
@@ -115,7 +115,8 @@ func (a *Agent) fallback(ctx context.Context, cause error, emit func(Event)) (*l
 		resp, err := a.callOn(ctx, prov, model, emit)
 		if err == nil {
 			a.stats.fellBack()
-			a.Provider, a.Model = prov, model
+			a.Provider = prov
+			a.UpdateSettings(func(s *Settings) { s.Model = model })
 			emit(Event{Kind: EvNotice, Text: "this session continues on " + model + "; /model switches back"})
 			return resp, nil
 		}

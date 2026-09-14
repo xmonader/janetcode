@@ -35,8 +35,6 @@ func builtin(name string) Theme {
 	return Theme{}
 }
 
-func gutter(n int) *int { return &n }
-
 var builtins = []Theme{
 	{
 		Name:    DefaultName,

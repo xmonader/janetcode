@@ -87,9 +87,9 @@ func promptReport(a *agent.Agent) string {
 			out += "\n\n" + e
 		}
 	}
-	if len(a.Pins) > 0 {
+	if pins := a.PinsSnapshot(); len(pins) > 0 {
 		out += "\n\n# Pins\n"
-		for _, p := range a.Pins {
+		for _, p := range pins {
 			out += "- " + p + "\n"
 		}
 	}

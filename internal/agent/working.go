@@ -284,7 +284,6 @@ func nonNil(s []string) []string {
 // as prose notes, when the answer is not the expected JSON object.
 func (w *WorkingMemory) merge(answer string) bool {
 	answer = strings.TrimSpace(answer)
-	start, end := strings.Index(answer, "{"), strings.LastIndex(answer, "}")
 	var got struct {
 		Goal      string   `json:"goal"`
 		Decisions []string `json:"decisions"`
@@ -293,7 +292,7 @@ func (w *WorkingMemory) merge(answer string) bool {
 		Open      []string `json:"open"`
 		Next      []string `json:"next"`
 	}
-	if start < 0 || end <= start || json.Unmarshal([]byte(answer[start:end+1]), &got) != nil {
+	if llm.ExtractJSONObject(answer, &got) != nil {
 		w.Notes = answer
 		return false
 	}

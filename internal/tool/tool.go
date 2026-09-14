@@ -36,7 +36,8 @@ type Registry struct {
 	deferred map[string]bool
 	// Intent adds a short "why this call" field to every tool's schema.
 	// It is set on the registry rather than per tool so that MCP tools and
-	// anything registered at runtime carry it too.
+	// anything registered at runtime carry it too. Set it before the
+	// registry is shared, or with SetIntent.
 	Intent bool
 	// version changes whenever the set of visible tools does. It exists
 	// so a caller that only wants the size of the definitions — the
@@ -44,6 +45,14 @@ type Registry struct {
 	// cache that instead of asking seventeen tools to describe
 	// themselves again (182µs and 434 allocations a time).
 	version uint64
+}
+
+// SetIntent switches the intent field on or off, safe while another
+// goroutine builds tool definitions (/config intent during a turn).
+func (r *Registry) SetIntent(on bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.Intent = on
 }
 
 // Version identifies the current set of visible tool definitions. It
@@ -160,12 +169,13 @@ func (r *Registry) DefsIf(keep func(Tool) bool) []llm.ToolDef {
 			kept = append(kept, t)
 		}
 	}
+	intent := r.Intent
 	r.mu.RUnlock()
 	sort.Slice(kept, func(i, j int) bool { return kept[i].Name() < kept[j].Name() })
 	defs := make([]llm.ToolDef, 0, len(kept))
 	for _, t := range kept {
 		schema := t.Schema()
-		if r.Intent {
+		if intent {
 			schema = WithIntent(schema)
 		}
 		defs = append(defs, llm.ToolDef{Name: t.Name(), Description: t.Description(), InputSchema: schema})

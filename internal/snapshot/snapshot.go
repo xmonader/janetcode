@@ -5,16 +5,16 @@
 package snapshot
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/gitx"
 )
 
 // RefPrefix is where snapshot commits are anchored so gc keeps them.
@@ -35,11 +35,11 @@ type Repo struct {
 
 // Open finds the repository containing dir, or ErrNotRepo.
 func Open(dir string) (*Repo, error) {
-	top, err := git(dir, nil, "rev-parse", "--show-toplevel")
+	top, err := gitx.Run(context.Background(), dir, nil, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return nil, ErrNotRepo
 	}
-	gd, err := git(dir, nil, "rev-parse", "--absolute-git-dir")
+	gd, err := gitx.Run(context.Background(), dir, nil, "rev-parse", "--absolute-git-dir")
 	if err != nil {
 		return nil, ErrNotRepo
 	}
@@ -97,7 +97,7 @@ func (r *Repo) Restore(ctx context.Context, s Snap) ([]string, error) {
 		return nil, ErrHeadMoved
 	}
 	if _, err := r.run(ctx, "", "cat-file", "-e", s.Commit+"^{commit}"); err != nil {
-		return nil, fmt.Errorf("snapshot %s is gone: %w", short(s.Commit), err)
+		return nil, fmt.Errorf("snapshot %s is gone: %w", gitx.Short(s.Commit), err)
 	}
 	idx, cleanup, err := r.tempIndex()
 	if err != nil {
@@ -201,7 +201,7 @@ func (r *Repo) Diff(ctx context.Context, s Snap) ([]string, error) {
 }
 
 func (r *Repo) head() string {
-	h, err := git(r.Root, nil, "rev-parse", "--verify", "-q", "HEAD")
+	h, err := gitx.Run(context.Background(), r.Root, nil, "rev-parse", "--verify", "-q", "HEAD")
 	if err != nil {
 		return ""
 	}
@@ -223,32 +223,5 @@ func (r *Repo) run(ctx context.Context, index string, args ...string) (string, e
 	if index != "" {
 		env = append(env, "GIT_INDEX_FILE="+index)
 	}
-	return gitCtx(ctx, r.Root, env, args...)
-}
-
-func git(dir string, env []string, args ...string) (string, error) {
-	return gitCtx(context.Background(), dir, env, args...)
-}
-
-func gitCtx(ctx context.Context, dir string, env []string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), env...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		return "", fmt.Errorf("git %s: %s", args[0], msg)
-	}
-	return strings.TrimRight(stdout.String(), "\n"), nil
-}
-
-func short(h string) string {
-	if len(h) > 12 {
-		return h[:12]
-	}
-	return h
+	return gitx.Run(ctx, r.Root, env, args...)
 }

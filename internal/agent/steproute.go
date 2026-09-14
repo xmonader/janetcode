@@ -2,7 +2,6 @@ package agent
 
 import (
 	"github.com/xmonader/janetcode/internal/llm"
-	"github.com/xmonader/janetcode/internal/session"
 )
 
 // Step-level model routing (experimental, off by default — see RouteCheap
@@ -204,10 +203,7 @@ func (a *Agent) RouteCheapName() string {
 // name to use and whether routing applies at all; when it does not, the
 // caller sends the call to Model exactly as it would with the feature off.
 func (a *Agent) routeStep(emit func(Event)) (llm.Provider, string, bool) {
-	if a.RouteCheapName() == "" || a.PlanMode {
-		return nil, "", false
-	}
-	if phase, on := a.acceptPhase(); on && phase == session.AcceptWriting {
+	if a.RouteCheapName() == "" || !a.routingAllowed() {
 		return nil, "", false
 	}
 	if a.stepN <= 1 {

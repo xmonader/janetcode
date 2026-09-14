@@ -29,16 +29,16 @@ func (m *model) headerView() string {
 		branch = " ⎇ " + m.branch
 	}
 	prefix := ""
-	switch {
-	case m.opts.Agent.PlanMode:
+	switch modes := m.opts.Agent.Settings(); {
+	case modes.PlanMode:
 		prefix = "PLAN · "
-	case m.opts.Agent.ReadOnly:
+	case modes.ReadOnly:
 		prefix = "READ-ONLY · "
-	case m.opts.Agent.AutoApprove:
+	case modes.AutoApprove:
 		prefix = "YOLO · "
-	case m.opts.Agent.AutoMode:
+	case modes.AutoMode:
 		prefix = "AUTO · "
-	case m.opts.Agent.AutoEdits:
+	case modes.AutoEdits:
 		prefix = "EDITS · "
 	}
 	// minPath is the shortest useful path: fitPath never goes below it.

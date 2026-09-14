@@ -12,7 +12,7 @@ import (
 // equivalents all switch through here.
 func (a *Agent) OpenSession(sess *session.Session, history []llm.Message) error {
 	a.setMessages(history)
-	a.Pins = append([]string(nil), sess.Meta.Pins...)
+	a.SetPins(sess.Meta.Pins)
 	a.SetLog(sess)
 	a.UndoPath = sess.UndoPath()
 	a.cp.mu.Lock()

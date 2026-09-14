@@ -10,63 +10,13 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
-	"github.com/xmonader/janetcode/internal/eval"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/llm/replay"
+	"github.com/xmonader/janetcode/internal/minimal"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
-	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/session"
 )
-
-// turnPrompt is one turn's driving text: what Run feeds to agent.Run to
-// reproduce it.
-type turnPrompt struct {
-	Turn int
-	Text string
-}
-
-// sessionTurns reads the session's turn boundaries and driving text
-// straight from its event log: session.TypeTurnStart marks each real call
-// to Agent.Run the session ever made (its Turn field is exactly
-// agent.Agent's own turn counter), and session.TypeUserMessage's first
-// event per turn is the text that call was given. Both matter for
-// replay's turn-count alignment: replay.Provider serves its recorded
-// responses strictly in order regardless of what Run feeds it (see
-// internal/llm/replay), so Run must call agent.Run exactly once per turn
-// the recording actually made — including a turn whose only "prompt" was
-// synthetic (a /goal round, an undo note) — or the response queue
-// desyncs from the turn after the skipped one on. This is why Run does
-// not use eval.Keep's userPrompts: that helper drops synthetic and
-// mid-turn entries on purpose, which is right for turning a session into
-// a fresh eval task (turn numbers there are irrelevant, only the prompts
-// spoken by a person matter) and wrong here, where turn numbers are load
-// bearing.
-func sessionTurns(events []session.Event) []turnPrompt {
-	maxTurn := 0
-	for _, e := range events {
-		if e.Type == session.TypeTurnStart && e.Turn > maxTurn {
-			maxTurn = e.Turn
-		}
-	}
-	if maxTurn == 0 {
-		return nil
-	}
-	text := make([]string, maxTurn+1)
-	seen := make([]bool, maxTurn+1)
-	for _, e := range events {
-		if e.Type != session.TypeUserMessage || e.Message == nil || e.Turn <= 0 || e.Turn > maxTurn || seen[e.Turn] {
-			continue
-		}
-		seen[e.Turn] = true
-		text[e.Turn] = e.Message.Text()
-	}
-	out := make([]turnPrompt, 0, maxTurn)
-	for t := 1; t <= maxTurn; t++ {
-		out = append(out, turnPrompt{Turn: t, Text: text[t]})
-	}
-	return out
-}
 
 // resolveSession turns --what-if's argument into a session file: arg is
 // either a path to a .jsonl file (anything containing a path separator,
@@ -101,58 +51,21 @@ func resolveSession(arg string) (path, dir, id string, err error) {
 	return p, d, arg, nil
 }
 
-// buildAgent wires the what-if agent: the real (not read-only) tool set
-// eval.Tools gives an eval run, rooted at workDir, plus the todo tool and
-// a code-execution tool the same way evals add them (see
-// cmd/janetcode/eval.go's runEval and internal/agent's buildAgent) — no
-// MCP, no hooks, no memory or skills, matching docs/manual/evals.md's
-// "minimal agent" convention. That convention is a deliberate choice, not
-// an oversight: the tools a real session carries beyond this (job
-// control, a terminal, fetch/web-search, memory, skills, subagents, a
-// cron) need wiring (config paths, a running process registry, a browser
-// or terminal) that has no meaning inside a throwaway worktree, and
-// reproducing main's full buildAgent here would mean carrying that
-// wiring into a package that has no session, no config directory and no
-// process of its own to hang it on. Run notes it in the report when the
-// original session actually used a tool outside this set, so the gap is
-// visible rather than silent.
+// buildAgent wires the what-if agent: minimal.New rooted at workDir, the
+// same agent an eval run gets (docs/manual/evals.md's "minimal agent") —
+// no MCP, no hooks, no memory or skills. That is deliberate: the tools a
+// real session carries beyond this (job control, a terminal,
+// fetch/web-search, memory, skills, subagents, a cron) need wiring that
+// has no meaning inside a throwaway worktree. Run notes it in the report
+// when the original session actually used a tool outside this set, so the
+// gap is visible rather than silent.
 func buildAgent(workDir string, off map[string]bool, cfg *config.Config) (*agent.Agent, []string) {
 	var notes []string
 	archiveDir, aerr := os.MkdirTemp("", "janetcode-whatif-archive-")
 	if aerr != nil {
 		notes = append(notes, "tool-output archive unavailable: "+aerr.Error())
 	}
-	archive := agent.NewArchive(archiveDir)
-	expand := &agent.ExpandOutput{Archive: archive}
-	repo := &repomap.Cache{Root: workDir}
-	ag := &agent.Agent{
-		Log:           &session.Memory{},
-		Archive:       archive,
-		Tools:         eval.Tools(workDir, repo, expand, off),
-		System:        prompt.System(workDir),
-		Off:           off,
-		Model:         cfg.Model,
-		MaxTokens:     cfg.MaxTokens,
-		MaxIterations: cfg.MaxIterations,
-		CompactAt:     cfg.CompactAt,
-		ContextWindow: cfg.MetaFor(cfg.Model).ContextWindow,
-		Price:         cfg.PriceFor(cfg.Model),
-	}
-	expand.Log = ag.LogEvent
-	if !off["todo"] {
-		ag.Tools.Add(&agent.TodoTool{Parent: ag})
-	}
-	if script := (&agent.Script{Parent: ag, Root: workDir}); !off["script"] && script.Available() {
-		ag.Tools.Add(script)
-	} else {
-		ag.Tools.Add(&agent.RunCode{Parent: ag})
-	}
-	if !off["repomap"] {
-		ag.Prepare = repomap.TurnPrep(repo, 0)
-	}
-	ag.PlanCheck = repo.CheckPlan
-	ag.Tools.Intent = cfg.IntentEnabled() && !off["intent"]
-	return ag, notes
+	return minimal.New(workDir, cfg, nil, off, prompt.Override{}, archiveDir), notes
 }
 
 // subUsage is a minus b, field by field; llm.Usage only ever accumulates
@@ -181,11 +94,10 @@ func foldUsage(events []session.Event) llm.Usage {
 
 // toolCallSeq is the ordinary tool calls at or after minTurn, in order,
 // named and with their raw arguments — the sequence Divergence compares.
-// A script/run_code call's synthetic sub-calls (CallID prefixed
-// "script-"/"runcode-") are excluded: their ids and order are that tool's
-// own implementation detail, not a decision comparable across two runs
-// the way an ordinary call is (cmd/janetcode/replay.go's recordedCalls
-// excludes them from its own comparison for the same reason).
+// Calls made by another tool rather than the model (session.IsNestedCall)
+// are excluded: their ids and order are that tool's own implementation
+// detail, not a decision comparable across two runs the way an ordinary
+// call is (cmd/janetcode/replay.go excludes them for the same reason).
 //
 // root is the directory the run worked in, so a call's target can be
 // written relative to it: the original ran in the user's checkout and the
@@ -196,7 +108,7 @@ func toolCallSeq(events []session.Event, minTurn int, root string) []CallInfo {
 		if e.Type != session.TypeToolCall || e.Turn < minTurn {
 			continue
 		}
-		if strings.HasPrefix(e.CallID, "script-") || strings.HasPrefix(e.CallID, "runcode-") {
+		if session.IsNestedCall(e.CallID) {
 			continue
 		}
 		out = append(out, CallInfo{Turn: e.Turn, Name: e.Name, Target: callTarget(e.Name, e.Arguments, root), Arguments: e.Arguments})
@@ -322,7 +234,7 @@ func usedTools(events []session.Event) []string {
 		if e.Type != session.TypeToolCall || e.Name == "" {
 			continue
 		}
-		if strings.HasPrefix(e.CallID, "script-") || strings.HasPrefix(e.CallID, "runcode-") {
+		if session.IsNestedCall(e.CallID) {
 			continue
 		}
 		seen[e.Name] = true

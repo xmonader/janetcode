@@ -162,16 +162,16 @@ func (m *model) statusMode() string {
 	if ag == nil {
 		return "ask"
 	}
-	switch {
-	case ag.PlanMode:
+	switch modes := ag.Settings(); {
+	case modes.PlanMode:
 		return "PLAN"
-	case ag.ReadOnly:
+	case modes.ReadOnly:
 		return "READ-ONLY"
-	case ag.AutoApprove:
+	case modes.AutoApprove:
 		return "YOLO"
-	case ag.AutoMode:
+	case modes.AutoMode:
 		return "AUTO"
-	case ag.AutoEdits:
+	case modes.AutoEdits:
 		return "EDITS"
 	default:
 		return "ask"
@@ -371,17 +371,17 @@ func (m *model) placeholder() string {
 			"Type to queue a message for when this turn ends · esc cancels",
 			"Type to queue a message · esc cancels",
 			"queue · esc cancels")
-	case m.opts.Agent.PlanMode:
+	case m.opts.Agent.Settings().PlanMode:
 		return fitPhrase(room,
 			"Plan mode: describe the change · /plan approve runs the plan",
 			"Plan mode · /plan approve runs it",
 			"Plan mode")
-	case m.opts.Agent.AutoMode:
+	case m.opts.Agent.Settings().AutoMode:
 		return fitPhrase(room,
 			"Auto: in-workspace edits and known-safe reads run · other commands ask",
 			"Auto · edits and known-safe reads run",
 			"Auto")
-	case m.opts.Agent.ReadOnly:
+	case m.opts.Agent.Settings().ReadOnly:
 		return fitPhrase(room,
 			"Read-only: the model can inspect but change nothing",
 			"Read-only · nothing is changed",

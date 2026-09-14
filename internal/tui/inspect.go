@@ -22,7 +22,7 @@ func (m *model) contextCommand() {
 		pct = r.Total * 100 / r.CompactAt
 	}
 	fmt.Fprintf(&sb, "context ~%s tokens · compaction at %s (%d%%) · %d messages, %d turns\n", textfmt.Tokens(r.Total), textfmt.Tokens(r.CompactAt), pct, r.Messages, r.Turns)
-	fmt.Fprintf(&sb, "  system prompt %6s   memory+skill index %6s   pins %6s (%d)\n", textfmt.Tokens(r.System), textfmt.Tokens(r.Extra), textfmt.Tokens(r.Pins), len(m.opts.Agent.Pins))
+	fmt.Fprintf(&sb, "  system prompt %6s   memory+skill index %6s   pins %6s (%d)\n", textfmt.Tokens(r.System), textfmt.Tokens(r.Extra), textfmt.Tokens(r.Pins), len(m.opts.Agent.PinsSnapshot()))
 	fmt.Fprintf(&sb, "  tools         %6s   (%d definitions", textfmt.Tokens(r.Tools), r.ToolCount)
 	if r.Deferred > 0 {
 		fmt.Fprintf(&sb, ", %d deferred", r.Deferred)

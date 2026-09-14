@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/xmonader/janetcode/internal/headless"
 )
 
 func janetEnvelope(t *testing.T) []byte {
 	t.Helper()
-	b, err := json.Marshal(CLIResult{
-		Type: CLIResultType, Harness: "janetcode",
+	b, err := json.Marshal(headless.CLIResult{
+		Type: headless.CLIResultType, Harness: "janetcode",
 		Result: "the answer", SessionID: "s1", Model: "m", Provider: "openai",
-		Usage:      CLIUsage{InputTokens: 1200, OutputTokens: 300, CacheReadTokens: 9000, CacheWriteTokens: 40},
+		Usage:      headless.CLIUsage{InputTokens: 1200, OutputTokens: 300, CacheReadTokens: 9000, CacheWriteTokens: 40},
 		CostUSD:    0.0123,
 		CostSource: "list price",
 		NumTurns:   4, ToolCalls: 7, PermissionDenials: 1,

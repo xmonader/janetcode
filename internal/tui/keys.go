@@ -18,21 +18,16 @@ func (m *model) cycleMode() {
 	if ag == nil {
 		return
 	}
-	switch {
-	case ag.PlanMode:
+	switch cur := ag.Settings(); {
+	case cur.PlanMode:
 		ag.SetPlanMode(false)
-		ag.ReadOnly = false
-		ag.AutoApprove = false
-		ag.AutoMode = true
-	case ag.AutoMode:
-		ag.AutoMode = false
-		ag.AutoApprove = true
-	case ag.AutoApprove:
-		ag.AutoApprove = false
-		ag.AutoMode = false
+		ag.UpdateSettings(func(s *agent.Settings) { s.ReadOnly, s.AutoApprove, s.AutoMode = false, false, true })
+	case cur.AutoMode:
+		ag.UpdateSettings(func(s *agent.Settings) { s.AutoMode, s.AutoApprove = false, true })
+	case cur.AutoApprove:
+		ag.UpdateSettings(func(s *agent.Settings) { s.AutoApprove, s.AutoMode = false, false })
 	default:
-		ag.AutoApprove = false
-		ag.AutoMode = false
+		ag.UpdateSettings(func(s *agent.Settings) { s.AutoApprove, s.AutoMode = false, false })
 		ag.SetPlanMode(true)
 	}
 	m.noteMode()
