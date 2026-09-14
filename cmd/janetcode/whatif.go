@@ -5,24 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/whatif"
 )
-
-// splitCSV splits a comma-separated flag value into trimmed, non-empty
-// parts: the shape --off, --deny and --eval-off all take.
-func splitCSV(s string) []string {
-	var out []string
-	for _, p := range strings.Split(s, ",") {
-		if p = strings.TrimSpace(p); p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
-}
 
 // whatIfOptions gathers --what-if's flags for runWhatIf.
 type whatIfOptions struct {
@@ -45,8 +33,8 @@ func runWhatIf(ctx context.Context, cfg *config.Config, prov llm.Provider, o wha
 		FromTurn:   o.fromTurn,
 		Config:     cfg,
 		Provider:   prov,
-		Off:        splitCSV(o.off),
-		Deny:       splitCSV(o.deny),
+		Off:        textfmt.SplitCSV(o.off),
+		Deny:       textfmt.SplitCSV(o.deny),
 		Prompt:     o.prompt,
 		Keep:       o.keep,
 		Log:        func(format string, args ...any) { fmt.Fprintf(os.Stderr, format+"\n", args...) },

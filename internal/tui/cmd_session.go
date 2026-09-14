@@ -85,7 +85,7 @@ func (m *model) autoTitle() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		title, err := session.GenerateTitle(ctx, ag.Provider, ag.Settings().Model, msgs)
+		title, err := session.GenerateTitle(ctx, ag.Settings().Provider, ag.Settings().Model, msgs)
 		if err != nil || title == "" {
 			title = session.AutoTitle(msgs)
 		}

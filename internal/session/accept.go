@@ -102,8 +102,5 @@ func (m *AcceptMeta) Clone() *AcceptMeta {
 // SetAccept stores accept mode's state and rewrites metadata; nil clears
 // it (see Agent.AcceptOff).
 func (s *Session) SetAccept(a *AcceptMeta) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Meta.Accept = a
-	return s.rewriteLocked()
+	return s.UpdateMeta(func(m *Meta) { m.Accept = a })
 }

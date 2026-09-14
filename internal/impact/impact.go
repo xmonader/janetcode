@@ -295,17 +295,13 @@ func sameFileUses(content, name string, defLine int) int {
 				break
 			}
 			end := at + len(name)
-			if (at == 0 || !isIdent(rest[at-1])) && (end == len(rest) || !isIdent(rest[end])) {
+			if (at == 0 || !repomap.IsIdentByte(rest[at-1])) && (end == len(rest) || !repomap.IsIdentByte(rest[end])) {
 				n++
 			}
 			rest = rest[end:]
 		}
 	}
 	return n
-}
-
-func isIdent(b byte) bool {
-	return b == '_' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
 }
 
 // intersecting returns the defs (in source order) whose approximated
@@ -368,12 +364,7 @@ func changedRange(before, after string) (fromLine, toLine int, ok bool) {
 // relPath makes path comparable with the slash-relative paths LSP and
 // repomap results carry.
 func relPath(cwd, path string) string {
-	if cwd != "" && filepath.IsAbs(path) {
-		if r, err := filepath.Rel(cwd, path); err == nil && !strings.HasPrefix(r, "..") {
-			path = r
-		}
-	}
-	return filepath.ToSlash(path)
+	return filepath.ToSlash(textfmt.RelTo(cwd, path))
 }
 
 // siblingTestFile names the file a test for rel would conventionally live

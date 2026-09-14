@@ -402,7 +402,7 @@ func (m *model) welcome(resumed string) string {
 	switch {
 	case resumed != "":
 		fmt.Fprintf(&sb, "janetcode %s · %s · ", m.opts.Version, resumed)
-	case m.opts.Agent.Provider == nil:
+	case m.opts.Agent.Settings().Provider == nil:
 		fmt.Fprintf(&sb, "janetcode %s · no provider configured yet: pick one below, or set ANTHROPIC_API_KEY / OPENAI_API_KEY\n", m.opts.Version)
 	default:
 		fmt.Fprintf(&sb, "janetcode %s · ", m.opts.Version)
@@ -773,9 +773,9 @@ func (m *model) applyEvent(ev agent.Event) {
 		m.lastUsage = u
 		in := u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
 		s := fmt.Sprintf("in %s · out %s", textfmt.Tokens(in), textfmt.Tokens(u.OutputTokens))
-		if usd, ok := u.Cost(m.opts.Agent.Price); ok {
+		if usd, ok := u.Cost(m.opts.Agent.Settings().Price); ok {
 			s += " · " + llm.FormatUSD(usd)
-			if u.CostSource(m.opts.Agent.Price) != "reported" {
+			if u.CostSource(m.opts.Agent.Settings().Price) != "reported" {
 				s += " est."
 			}
 		}

@@ -379,18 +379,17 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		// worked before there was any routing; it keeps the session's
 		// provider unless the caller asked for a model by name.
 		if profile.Model != "" && in.Model == "" {
-			model := profile.Model
+			model, prov := profile.Model, kid.agent.Settings().Provider
 			if t.Models != nil {
-				if prov, resolved, err := t.Models(profile.Model); err == nil {
-					kid.agent.Provider, model = prov, resolved
+				if p, resolved, err := t.Models(profile.Model); err == nil {
+					prov, model = p, resolved
 				}
 			}
-			kid.agent.UpdateSettings(func(s *Settings) { s.Model = model })
+			kid.agent.UpdateSettings(func(s *Settings) { s.Provider, s.Model = prov, model })
 		}
 	}
 	if routedProv != nil {
-		kid.agent.Provider = routedProv
-		kid.agent.UpdateSettings(func(s *Settings) { s.Model = routedModel })
+		kid.agent.UpdateSettings(func(s *Settings) { s.Provider, s.Model = routedProv, routedModel })
 	}
 	if childID == "" {
 		t.mu.Lock()

@@ -76,7 +76,7 @@ func run(args []string) error {
 		tasks = eval.Filter01to20(tasks)
 	}
 	if *only != "" {
-		tasks = eval.Filter(tasks, splitCSV(*only))
+		tasks = eval.Filter(tasks, textfmt.SplitCSV(*only))
 	}
 	if len(tasks) == 0 {
 		return fmt.Errorf("no tasks after filtering")
@@ -87,7 +87,7 @@ func run(args []string) error {
 	// over another sends the wrong key when both are set, which arrives
 	// as a 401 that looks like the model rejecting the work.
 	key := strings.TrimSpace(keyFor(*baseURL))
-	names := splitCSV(*harnesses)
+	names := textfmt.SplitCSV(*harnesses)
 	cfg := runConfig{
 		Model:       *model,
 		BaseURL:     strings.TrimRight(*baseURL, "/"),
@@ -382,17 +382,6 @@ func keyFor(baseURL string) string {
 		}
 	}
 	return firstEnv("OPENAI_API_KEY", "OPENROUTER_API_KEY", "DASHSCOPE_API_KEY", "ANTHROPIC_API_KEY")
-}
-
-func splitCSV(s string) []string {
-	var out []string
-	for _, p := range strings.Split(s, ",") {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
 }
 
 func firstEnv(names ...string) string {

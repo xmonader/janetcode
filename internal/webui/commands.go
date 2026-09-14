@@ -190,31 +190,20 @@ func (s *server) runCommand(text string) error {
 			return nil
 		case ua.About:
 			if ua.Description == "" {
-				s.errf("usage: /undo about <description>")
+				s.errf("%v", agent.ErrUndoAboutUsage)
 				return nil
 			}
 			s.runBusy("matching changes", func(ctx context.Context) {
-				ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-				defer cancel()
-				sel, err := ag.PreviewUndoAbout(ctx, ua.Description)
-				if err != nil {
-					s.errf("undo about: %v", err)
-					return
-				}
-				s.sheet("undo about", agent.FormatSelection(s.opts.Cwd, sel))
+				s.showResult(ag.UndoAbout(ctx, s.opts.Cwd, ua.Description))
 			})
 			return nil
 		case ua.Apply:
 			s.runBusy("applying undo", func(ctx context.Context) {
-				ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-				defer cancel()
-				rep, err := ag.ApplyPendingUndo(ctx, ua.Force)
-				if err != nil {
-					s.errf("undo apply: %v", err)
-					return
+				rep, res, err := ag.UndoApply(ctx, ua.Force)
+				s.showResult(res, err)
+				if err == nil {
+					ag.TellModelUndone(rep)
 				}
-				s.sheet("undo", agent.FormatUndoReport(rep))
-				ag.TellModelUndone(rep)
 			})
 			return nil
 		}

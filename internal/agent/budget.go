@@ -30,7 +30,7 @@ func (a *Agent) overBudget() (spent float64, over bool) {
 	if a.MaxCostUSD <= 0 {
 		return 0, false
 	}
-	usd, ok := a.UsageSnapshot().Cost(a.Price)
+	usd, ok := a.UsageSnapshot().Cost(a.Settings().Price)
 	if !ok {
 		return 0, false
 	}

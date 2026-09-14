@@ -9,6 +9,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
@@ -192,24 +193,23 @@ func (m *model) command(text string) tea.Cmd {
 			}
 			return m.openConnect(stepModel)
 		}
+		var prov llm.Provider
 		if cfg := m.opts.Config; cfg != nil && m.opts.Models != nil {
 			// The name may belong to a provider other than the one in
 			// use; follow it rather than sending it to the wrong endpoint.
 			if name, ok := cfg.RouteFor(fields[1]); ok && name != cfg.Provider {
-				prov, _, err := m.opts.Models(fields[1])
+				p, _, err := m.opts.Models(fields[1])
 				if err != nil {
 					m.transcript.errorf("%v", err)
 					break
 				}
-				m.opts.Agent.Provider = prov
+				prov = p
 				cfg.Provider = name
 				m.opts.Provider = name
 				m.note("switched to provider " + name + " for " + fields[1])
 			}
 		}
-		model := fields[1]
-		m.opts.Agent.UpdateSettings(func(s *agent.Settings) { s.Model = model })
-		m.applyModelMeta(fields[1])
+		m.opts.Agent.SwitchModel(fields[1], prov, m.opts.Config)
 		if cfg := m.opts.Config; cfg != nil {
 			cfg.Model = fields[1]
 			if m.opts.ConfigPath != "" {
@@ -356,7 +356,7 @@ func (m *model) command(text string) tea.Cmd {
 	case "/usage", "/cost":
 		u := m.opts.Agent.UsageSnapshot()
 		line := "session tokens · " + u.TokenLine() + " · context now ~" + textfmt.Tokens(m.opts.Agent.EstimateTokens()) +
-			"\n" + u.CostNote(m.opts.Agent.Price)
+			"\n" + u.CostNote(m.opts.Agent.Settings().Price)
 		m.transcript.info(line)
 	case "/budget":
 		m.budgetCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))

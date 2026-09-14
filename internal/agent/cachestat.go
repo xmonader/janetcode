@@ -118,7 +118,7 @@ func (a *Agent) CacheReport() string {
 	for _, c := range causes {
 		fmt.Fprintf(&b, "  %-9s %s\n", textfmt.Tokens(byCause[c]), c)
 	}
-	if p := a.Price; p != nil {
+	if p := a.Settings().Price; p != nil {
 		if usd, ok := (llm.Usage{InputTokens: l.total}).Cost(p); ok {
 			fmt.Fprintf(&b, "\nabout %s at this model's input price, had none of it been cached\n", llm.FormatUSD(usd))
 		}

@@ -41,8 +41,9 @@ const (
 // selectByModel asks the model to split candidates against description.
 func (a *Agent) selectByModel(ctx context.Context, description string, candidates []Change) (Selection, error) {
 	prompt := buildSelectPrompt(a.displayRoot(), description, candidates)
-	resp, err := a.Provider.Stream(ctx, llm.Request{
-		Model:     a.Settings().Model,
+	s := a.Settings()
+	resp, err := s.Provider.Stream(ctx, llm.Request{
+		Model:     s.Model,
 		System:    selectSystem,
 		Messages:  []llm.Message{llm.TextMessage(llm.RoleUser, prompt)},
 		MaxTokens: 1024,

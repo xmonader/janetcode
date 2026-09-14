@@ -5,27 +5,27 @@ import (
 	"time"
 )
 
-func TestVerbIsSeededAndStable(t *testing.T) {
+func TestPhraseIsSeededAndStable(t *testing.T) {
 	started := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
-	a := Verb(started, started)
-	b := Verb(started, started)
+	a := Phrase(started, started)
+	b := Phrase(started, started)
 	if a == "" || a != b {
-		t.Fatalf("Verb = %q, %q", a, b)
+		t.Fatalf("Phrase = %q, %q", a, b)
 	}
 	if !Known(a) {
 		t.Fatalf("%q is not in the seeded list", a)
 	}
 }
 
-func TestVerbRotatesWithElapsedTime(t *testing.T) {
+func TestPhraseRotatesWithElapsedTime(t *testing.T) {
 	started := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
-	first := Verb(started, started)
-	later := Verb(started.Add(Interval), started)
+	first := Phrase(started, started)
+	later := Phrase(started.Add(Interval), started)
 	if later == first {
-		t.Fatalf("verb did not rotate after %s: still %q", Interval, first)
+		t.Fatalf("phrase did not rotate after %s: still %q", Interval, first)
 	}
 	if !Known(later) {
-		t.Fatalf("rotated verb %q is not in the seeded list", later)
+		t.Fatalf("rotated phrase %q is not in the seeded list", later)
 	}
 }
 

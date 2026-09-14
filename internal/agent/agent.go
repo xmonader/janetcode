@@ -431,7 +431,7 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 // images).
 func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Event)) error {
 	emit = serialize(a.ledgered(a.traced(emit)))
-	if a.Provider == nil {
+	if a.Settings().Provider == nil {
 		return errors.New("agent: no provider")
 	}
 	a.stats.turn()
@@ -690,13 +690,13 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 // CompactThreshold is the effective token count at which compaction runs,
 // or 0 when disabled.
 func (a *Agent) CompactThreshold() int {
-	switch compactAt := a.Settings().CompactAt; {
-	case compactAt < 0:
+	switch s := a.Settings(); {
+	case s.CompactAt < 0:
 		return 0
-	case compactAt > 0:
-		return compactAt
-	case a.ContextWindow > 0:
-		t := a.ContextWindow * 3 / 4
+	case s.CompactAt > 0:
+		return s.CompactAt
+	case s.ContextWindow > 0:
+		t := s.ContextWindow * 3 / 4
 		if t > MaxAutoCompactAt {
 			t = MaxAutoCompactAt
 		}

@@ -12,11 +12,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/slash"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/verify"
 )
 
@@ -206,6 +209,28 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 	return taskPath, t, warnings, nil
 }
 
+// KeepCommand runs /eval keep for every front-end: arg is the text after
+// "/eval". opts carries the session and project root; the name, check,
+// base and self-contained choices come from arg (see ParseKeepArgs).
+// Keep's warnings come back as Result.Tips.
+func KeepCommand(opts KeepOptions, arg string) (cmdresult.Result, error) {
+	verb, rest := slash.CutWord(arg)
+	if verb != "keep" {
+		return cmdresult.Result{}, errors.New("usage: /eval keep [name] [--base <rev>] [--self-contained] [--check <command>]")
+	}
+	var err error
+	opts.Name, opts.Check, opts.Base, opts.SelfContained, err = ParseKeepArgs(rest)
+	if err != nil {
+		return cmdresult.Result{}, err
+	}
+	path, task, warnings, err := Keep(opts)
+	if err != nil {
+		return cmdresult.Result{}, fmt.Errorf("eval keep: %w", err)
+	}
+	note := textfmt.RelTo(opts.Root, path) + " · " + textfmt.Plural(len(task.Prompts), "prompt") + " · run it with: janetcode --eval .janetcode/evals"
+	return cmdresult.Result{Notes: []string{note}, Tips: warnings}, nil
+}
+
 // ParseKeepArgs reads the argument to /eval keep: arg is the text after
 // "keep". A bare word (or several, joined) names the task. --base <rev>
 // names a starting commit directly (see KeepOptions.Base) — the way to
@@ -214,35 +239,15 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 // --check takes the rest of the line as the check command, so it must
 // come last; --base and --self-contained may appear anywhere before it.
 func ParseKeepArgs(arg string) (name, check, base string, selfContained bool, err error) {
-	const usage = "usage: /eval keep [name] [--base <rev>] [--self-contained] [--check <command>]"
-	arg = strings.TrimSpace(arg)
-	if arg == "" {
-		return "", "", "", false, nil
+	usage := errors.New("usage: /eval keep [name] [--base <rev>] [--self-contained] [--check <command>]")
+	t, err := slash.Tokenize(arg, slash.ArgSpec{Bool: []string{"--self-contained"}, Value: []string{"--base"}, Rest: []string{"--check"}})
+	if err != nil {
+		return "", "", "", false, usage
 	}
-	if i := strings.Index(arg, "--check"); i >= 0 {
-		check = strings.TrimSpace(arg[i+len("--check"):])
-		if check == "" {
-			return "", "", "", false, fmt.Errorf(usage)
-		}
-		arg = strings.TrimSpace(arg[:i])
+	if t.Has("--check") && t.Flags["--check"] == "" {
+		return "", "", "", false, usage
 	}
-	fields := strings.Fields(arg)
-	var nameParts []string
-	for i := 0; i < len(fields); i++ {
-		switch fields[i] {
-		case "--base":
-			if i+1 >= len(fields) {
-				return "", "", "", false, fmt.Errorf(usage)
-			}
-			i++
-			base = fields[i]
-		case "--self-contained":
-			selfContained = true
-		default:
-			nameParts = append(nameParts, fields[i])
-		}
-	}
-	return strings.Join(nameParts, " "), check, base, selfContained, nil
+	return strings.Join(t.Positional, " "), t.Flags["--check"], t.Flags["--base"], t.Has("--self-contained"), nil
 }
 
 // userPrompts is the user prompts of a session, in order: what the user

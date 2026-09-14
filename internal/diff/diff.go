@@ -223,6 +223,23 @@ func Stats(before, after string) (added, removed int) {
 	return
 }
 
+// SplitLinesKeepEOL splits s into lines that keep their "\n", so joining
+// them gives s back exactly; a final newline does not produce a trailing
+// empty line. It is the splitter for callers that rebuild or compare file
+// content line by line (internal/agent's change tracking, internal/proof's
+// landed-change check).
+func SplitLinesKeepEOL(s string) []string {
+	if s == "" {
+		return nil
+	}
+	lines := strings.SplitAfter(s, "\n")
+	if lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
+}
+
+// splitLines is SplitLinesKeepEOL without the line endings.
 func splitLines(s string) []string {
 	if s == "" {
 		return nil

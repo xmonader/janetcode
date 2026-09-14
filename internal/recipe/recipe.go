@@ -20,11 +20,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -428,90 +430,67 @@ func List(root string) ([]Recipe, error) {
 }
 
 // CutDesc pulls "--desc <text>" out of /recipe save's argument text: like
-// /eval keep's --check, it takes the rest of the line, so both front-ends
-// call this before the simpler k=v tokenising ParseSaveArgs does, rather
-// than each cutting it out its own way.
+// /eval keep's --check, it takes the rest of the line, so it is cut out
+// before the k=v tokenising ParseSaveArgs does.
 func CutDesc(arg string) (rest, desc string) {
-	i := strings.Index(arg, "--desc")
-	if i < 0 {
-		return arg, ""
-	}
-	return strings.TrimSpace(arg[:i]), strings.TrimSpace(arg[i+len("--desc"):])
+	t, _ := slash.Tokenize(arg, slash.ArgSpec{Rest: []string{"--desc"}})
+	return strings.Join(t.Positional, " "), t.Flags["--desc"]
 }
 
 // ParseSaveArgs reads the argument to /recipe save: `<name> [--turn n]
 // [k=v ...]`. Params come back as a map ready for Parameterise.
 func ParseSaveArgs(arg string) (name string, turn int, params map[string]string, err error) {
 	const usage = "usage: /recipe save <name> [--turn n] [k=v ...]"
-	fields := strings.Fields(arg)
-	if len(fields) == 0 {
+	name, rest := slash.CutWord(arg)
+	if name == "" {
 		return "", 0, nil, errors.New(usage)
 	}
-	name = fields[0]
-	params = map[string]string{}
-	for i := 1; i < len(fields); i++ {
-		f := fields[i]
-		switch {
-		case f == "--turn":
-			i++
-			if i >= len(fields) {
-				return "", 0, nil, fmt.Errorf("--turn needs a number; %s", usage)
-			}
-			n, convErr := parsePositiveInt(fields[i])
-			if convErr != nil {
-				return "", 0, nil, fmt.Errorf("--turn: %q is not a turn number", fields[i])
-			}
-			turn = n
-		case strings.Contains(f, "="):
-			k, v, _ := strings.Cut(f, "=")
-			if k == "" {
-				return "", 0, nil, fmt.Errorf("bad parameter %q", f)
-			}
-			params[k] = v
-		default:
-			return "", 0, nil, fmt.Errorf("unexpected argument %q; %s", f, usage)
-		}
+	t, err := slash.Tokenize(rest, slash.ArgSpec{Value: []string{"--turn"}, KV: true})
+	if err != nil {
+		return "", 0, nil, argError(err, "parameter", usage)
 	}
-	return name, turn, params, nil
+	if len(t.Positional) > 0 {
+		return "", 0, nil, fmt.Errorf("unexpected argument %q; %s", t.Positional[0], usage)
+	}
+	if v, ok := t.Flags["--turn"]; ok {
+		n, convErr := strconv.ParseUint(v, 10, 0)
+		if convErr != nil {
+			return "", 0, nil, fmt.Errorf("--turn: %q is not a turn number", v)
+		}
+		turn = int(n)
+	}
+	return name, turn, t.KV, nil
 }
 
 // ParseRunArgs reads the argument to /recipe run: `<name> [--dry-run]
 // [k=v ...]`.
 func ParseRunArgs(arg string) (name string, args map[string]string, dryRun bool, err error) {
 	const usage = "usage: /recipe run <name> [--dry-run] [k=v ...]"
-	fields := strings.Fields(arg)
-	if len(fields) == 0 {
+	name, rest := slash.CutWord(arg)
+	if name == "" {
 		return "", nil, false, errors.New(usage)
 	}
-	name = fields[0]
-	args = map[string]string{}
-	for _, f := range fields[1:] {
-		switch {
-		case f == "--dry-run":
-			dryRun = true
-		case strings.Contains(f, "="):
-			k, v, _ := strings.Cut(f, "=")
-			if k == "" {
-				return "", nil, false, fmt.Errorf("bad argument %q", f)
-			}
-			args[k] = v
-		default:
-			return "", nil, false, fmt.Errorf("unexpected argument %q; %s", f, usage)
-		}
+	t, err := slash.Tokenize(rest, slash.ArgSpec{Bool: []string{"--dry-run"}, KV: true})
+	if err != nil {
+		return "", nil, false, argError(err, "argument", usage)
 	}
-	return name, args, dryRun, nil
+	if len(t.Positional) > 0 {
+		return "", nil, false, fmt.Errorf("unexpected argument %q; %s", t.Positional[0], usage)
+	}
+	return name, t.KV, t.Has("--dry-run"), nil
 }
 
-func parsePositiveInt(s string) (int, error) {
-	n := 0
-	if s == "" {
-		return 0, errors.New("empty")
+// argError words a slash.Tokenize error the way /recipe always has:
+// noun names what a k=v token is ("parameter" for save, "argument" for
+// run).
+func argError(err error, noun, usage string) error {
+	var mv *slash.MissingValueError
+	if errors.As(err, &mv) {
+		return fmt.Errorf("%s needs a number; %s", mv.Flag, usage)
 	}
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return 0, errors.New("not a number")
-		}
-		n = n*10 + int(r-'0')
+	var ek *slash.EmptyKeyError
+	if errors.As(err, &ek) {
+		return fmt.Errorf("bad %s %q", noun, ek.Token)
 	}
-	return n, nil
+	return err
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/diff"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -34,7 +35,7 @@ type Change struct {
 
 // Hunks is the change as a unified diff.
 func (c Change) Hunks() []Hunk {
-	return makeHunks(diffLines(splitLines(string(c.Before)), splitLines(string(c.After))))
+	return makeHunks(diffLines(diff.SplitLinesKeepEOL(string(c.Before)), diff.SplitLinesKeepEOL(string(c.After))))
 }
 
 // Stats counts the lines the change added and removed.
@@ -245,10 +246,10 @@ func (a *Agent) Blame(path string) (lines []BlameLine, note string, err error) {
 	if len(changes) == 0 {
 		return nil, "", fmt.Errorf("%w: %s", ErrNoChange, path)
 	}
-	cur := splitLines(string(changes[0].Before))
+	cur := diff.SplitLinesKeepEOL(string(changes[0].Before))
 	owners := make([]int, len(cur))
 	for _, c := range changes {
-		next := splitLines(string(c.After))
+		next := diff.SplitLinesKeepEOL(string(c.After))
 		var nextOwners []int
 		oi := 0
 		for _, e := range diffLines(cur, next) {
@@ -304,7 +305,7 @@ func (a *Agent) UndoChange(seq int) (string, error) {
 		if !exists {
 			return "", fmt.Errorf("#%d edited %s but the file is gone", seq, c.Path)
 		}
-		reverted, ok, badHunk := revertContent(splitLines(string(data)), c)
+		reverted, ok, badHunk := revertContent(diff.SplitLinesKeepEOL(string(data)), c)
 		if !ok {
 			h := c.Hunks()[badHunk-1]
 			return "", fmt.Errorf("hunk %d of #%d (%s) no longer applies: those lines were edited since", badHunk, seq, h.Header())

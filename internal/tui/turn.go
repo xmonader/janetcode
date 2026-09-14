@@ -27,7 +27,7 @@ func (m *model) submit(text string) tea.Cmd { return m.submitAs(text, "") }
 // plan...)".
 func (m *model) submitAs(text, note string) tea.Cmd {
 	text = m.inflatePastes(text)
-	if m.opts.Agent.Provider == nil {
+	if m.opts.Agent.Settings().Provider == nil {
 		m.transcript.errorf("not connected to a provider yet: run /connect")
 		m.refresh(false)
 		return nil
@@ -292,7 +292,7 @@ func (m *model) reportCacheWaste() {
 		head += " after " + textfmt.Duration(idle.Round(time.Minute)) + " idle"
 	}
 	line := fmt.Sprintf("%s: %s tokens re-billed", head, textfmt.Tokens(n))
-	if usd, ok := (llm.Usage{InputTokens: n}).Cost(m.opts.Agent.Price); ok {
+	if usd, ok := (llm.Usage{InputTokens: n}).Cost(m.opts.Agent.Settings().Price); ok {
 		line += " (~" + llm.FormatUSD(usd) + ")"
 	}
 	m.note(line + " · " + cause)

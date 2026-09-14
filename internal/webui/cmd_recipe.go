@@ -2,7 +2,6 @@ package webui
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -56,49 +55,13 @@ func (s *server) showRecipe(name string) {
 }
 
 // saveRecipe implements /recipe save <name> [--turn n] [--desc text]
-// [k=v...]. --desc, when given, takes the rest of the line, so it is cut
-// out before the simpler k=v tokenising recipe.ParseSaveArgs does.
+// [k=v...] through Agent.RecipeSave.
 func (s *server) saveRecipe(rest string) {
-	rest, desc := recipe.CutDesc(rest)
-	name, turn, params, err := recipe.ParseSaveArgs(rest)
-	if err != nil {
-		s.errf("%v", err)
-		return
-	}
-	ag := s.opts.Agent
-	if ag.Log == nil {
-		s.errf("no session log")
-		return
-	}
-	events := ag.Log.Events()
-	if turn == 0 {
-		turn = recipe.LatestToolTurn(events)
-	}
-	// RecipeSteps, not recipe.FromEvents directly: it converts any
-	// positional edit_file or write_file call into a content-anchored
-	// step using this session's own change provenance, so a saved recipe
-	// never carries a mutation whose replay could silently land on the
-	// wrong lines of a file that moved on. See its doc comment.
-	steps, err := ag.RecipeSteps(turn)
-	if err != nil {
-		s.errf("recipe save: %v", err)
-		return
-	}
-	steps, ps := recipe.Parameterise(steps, params)
-	if desc == "" {
-		desc = recipe.TurnSummary(events, turn)
-	}
-	r := recipe.Recipe{Name: name, Description: desc, Params: ps, Steps: steps}
+	sessionID := ""
 	if s.opts.Session != nil {
-		r.From.Session = s.opts.Session.Meta.ID
+		sessionID = s.opts.Session.Meta.ID
 	}
-	r.From.Turn = turn
-	path, err := recipe.Save(s.opts.Cwd, r)
-	if err != nil {
-		s.errf("recipe save: %v", err)
-		return
-	}
-	s.notice(fmt.Sprintf("%s · turn %d · run it with /recipe run %s", path, turn, name))
+	s.showResult(s.opts.Agent.RecipeSave(sessionID, s.opts.Cwd, rest))
 }
 
 // runRecipe implements /recipe run <name> [--dry-run] [k=v...]. A dry run
@@ -146,14 +109,10 @@ func (s *server) runRecipe(rest string) {
 	}()
 }
 
-// finishRecipe ends a background /recipe run: it prints the run's report
-// and, on a failed step, hands over to the model with
-// agent.RecipeHandover through s.startTurn — the same path a goal round
-// uses to start its next turn. A failure the harness itself denied
-// (failed.Denied — a permission rule, a "no" from the user, a failed
-// precondition) is never handed over: the model's own retry of the same
-// call would be refused the same way, so this reports it instead and
-// stops.
+// finishRecipe ends a background /recipe run: it shows the run's outcome
+// (see agent.RecipeOutcome) and, when that hands over to the model,
+// starts the handover through s.startTurn — the same path a goal round
+// uses to start its next turn.
 func (s *server) finishRecipe(r recipe.Recipe, report string, failed *agent.RecipeFailure, err error) {
 	s.mu.Lock()
 	s.running = false
@@ -163,30 +122,11 @@ func (s *server) finishRecipe(r recipe.Recipe, report string, failed *agent.Reci
 		s.cancel = nil
 	}
 	s.mu.Unlock()
-	if report != "" {
-		s.upsert(&entry{Kind: "sheet", Name: "recipe " + r.Name, Text: report})
-	}
-	switch {
-	case err != nil:
-		s.upsert(&entry{Kind: "error", Text: "recipe " + r.Name + ": " + err.Error(), Error: true})
-		s.statusSet("error")
-	case failed != nil && failed.Denied:
-		what := fmt.Sprintf("step %d (%s)", failed.Step, failed.Tool)
-		if failed.Verify {
-			what = "the project's checks"
-		}
-		s.upsert(&entry{Kind: "error", Text: fmt.Sprintf("recipe %s: %s was denied, not handed to the model: %s", r.Name, what, failed.Output), Error: true})
-		s.statusSet("denied")
-	case failed != nil && failed.Verify:
-		s.notice(fmt.Sprintf("recipe %s: steps all ran, but the project's checks failed; handing over to the model", r.Name))
-		s.startTurn(agent.RecipeHandover(r, *failed))
+	res := agent.RecipeOutcome(r, report, failed, err)
+	s.showResult(res, nil)
+	if res.Handover != "" {
+		s.startTurn(res.Handover)
 		return
-	case failed != nil:
-		s.notice(fmt.Sprintf("recipe %s stopped at step %d (%s); handing over to the model", r.Name, failed.Step, failed.Tool))
-		s.startTurn(agent.RecipeHandover(r, *failed))
-		return
-	default:
-		s.statusSet("recipe " + r.Name + " done")
 	}
 	s.emitStatus()
 }

@@ -50,35 +50,15 @@ var verbs = []string{
 	"Whisking", "Wibbling", "Wrangling", "Zesting", "Zigzagging",
 }
 
-// Verb picks the verb for this moment of a turn. started seeds the
-// first pick so consecutive turns do not all open on the same word;
-// elapsed time walks the list.
-func Verb(at, started time.Time) string {
-	return pick(verbs, at, started)
-}
+// pool is every phrase Phrase rotates through: the verbs, then the witty
+// lines.
+var pool = append(append([]string(nil), verbs...), witty...)
 
 // Phrase picks from the mixed pool: Claude verbs and Qwen loading lines.
+// started seeds the first pick so consecutive turns do not all open on
+// the same phrase; elapsed time walks the pool.
 func Phrase(at, started time.Time) string {
-	n := len(verbs) + len(witty)
-	if n == 0 {
-		return dress("Thinking")
-	}
-	if started.IsZero() {
-		started = at
-	}
-	off := int(started.UnixNano()/int64(time.Millisecond)) % n
-	if off < 0 {
-		off = 0
-	}
-	step := int(at.Sub(started) / Interval)
-	if step < 0 {
-		step = 0
-	}
-	i := (off + step) % n
-	if i < len(verbs) {
-		return dress(verbs[i])
-	}
-	return dress(witty[i-len(verbs)])
+	return dress(pick(pool, at, started))
 }
 
 // ForPhase leaves a specific wait (a tool, a retry, a compaction) as it

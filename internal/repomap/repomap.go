@@ -561,8 +561,8 @@ func containsWord(text, word string) bool {
 			return false
 		}
 		j += i
-		before := j == 0 || !isIdent(text[j-1])
-		after := j+len(word) == len(text) || !isIdent(text[j+len(word)])
+		before := j == 0 || !IsIdentByte(text[j-1])
+		after := j+len(word) == len(text) || !IsIdentByte(text[j+len(word)])
 		if before && after {
 			return true
 		}
@@ -570,7 +570,9 @@ func containsWord(text, word string) bool {
 	}
 }
 
-func isIdent(c byte) bool {
+// IsIdentByte reports whether c can be part of an ASCII identifier
+// (letters, digits, underscore).
+func IsIdentByte(c byte) bool {
 	return c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }
 

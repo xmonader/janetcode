@@ -27,7 +27,7 @@ func (m *model) statsCommand() {
 	if pct, ok := ag.CacheRate(); ok {
 		fmt.Fprintf(&sb, " · cache hit %d%%", pct)
 	}
-	if usd, ok := u.Cost(ag.Price); ok {
+	if usd, ok := u.Cost(ag.Settings().Price); ok {
 		sb.WriteString(" · cost " + llm.FormatUSD(usd))
 	}
 	if st.Saves() > 0 {

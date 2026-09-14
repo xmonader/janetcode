@@ -13,18 +13,6 @@ type edit struct {
 	line string
 }
 
-// splitLines keeps line endings so the join is exact.
-func splitLines(s string) []string {
-	if s == "" {
-		return nil
-	}
-	lines := strings.SplitAfter(s, "\n")
-	if lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-	return lines
-}
-
 // diffLines is a thin adapter over diff.Lines, the shared Myers line-diff
 // implementation: it just relabels diff.Op's ' ' (equal) as '=' to match
 // this package's edit type.

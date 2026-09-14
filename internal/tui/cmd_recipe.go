@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -61,50 +60,14 @@ func (m *model) showRecipe(name string) {
 }
 
 // saveRecipe implements /recipe save <name> [--turn n] [--desc text]
-// [k=v...]: it crystallises one turn's tool calls (see recipe.FromEvents)
-// into a saved file. --desc, when given, takes the rest of the line, so
-// it is cut out before the remaining arguments are parsed.
+// [k=v...] through Agent.RecipeSave: it crystallises one turn's tool
+// calls into a saved recipe file.
 func (m *model) saveRecipe(rest string) {
-	rest, desc := recipe.CutDesc(rest)
-	name, turn, params, err := recipe.ParseSaveArgs(rest)
-	if err != nil {
-		m.transcript.errorf("%v", err)
-		return
-	}
-	ag := m.opts.Agent
-	if ag.Log == nil {
-		m.transcript.errorf("no session log")
-		return
-	}
-	events := ag.Log.Events()
-	if turn == 0 {
-		turn = recipe.LatestToolTurn(events)
-	}
-	// RecipeSteps, not recipe.FromEvents directly: it converts any
-	// positional edit_file or write_file call into a content-anchored
-	// step using this session's own change provenance, so a saved recipe
-	// never carries a mutation whose replay could silently land on the
-	// wrong lines of a file that moved on. See its doc comment.
-	steps, err := ag.RecipeSteps(turn)
-	if err != nil {
-		m.transcript.errorf("recipe save: %v", err)
-		return
-	}
-	steps, ps := recipe.Parameterise(steps, params)
-	if desc == "" {
-		desc = recipe.TurnSummary(events, turn)
-	}
-	r := recipe.Recipe{Name: name, Description: desc, Params: ps, Steps: steps}
+	sessionID := ""
 	if m.opts.Session != nil {
-		r.From.Session = m.opts.Session.Meta.ID
+		sessionID = m.opts.Session.Meta.ID
 	}
-	r.From.Turn = turn
-	path, err := recipe.Save(m.opts.Cwd, r)
-	if err != nil {
-		m.transcript.errorf("recipe save: %v", err)
-		return
-	}
-	m.note(shortPath(path) + " · turn " + fmt.Sprint(turn) + " · " + "run it with /recipe run " + name)
+	m.showResult(m.opts.Agent.RecipeSave(sessionID, m.opts.Cwd, rest))
 }
 
 // runRecipe implements /recipe run <name> [--dry-run] [k=v...]. A dry run
@@ -153,13 +116,10 @@ type recipeDoneMsg struct {
 	err    error
 }
 
-// finishRecipe handles recipeDoneMsg: it prints the run's report and, on
-// a failed step, hands over to the model with agent.RecipeHandover — the
-// same submit path a queued prompt or a goal round uses to start its next
-// turn. A failure the harness itself denied (msg.failed.Denied — a
-// permission rule, a "no" from the user, a failed precondition) is never
-// handed over: the model's own retry of the same call would be refused
-// the same way, so this reports it instead and stops.
+// finishRecipe handles recipeDoneMsg: it shows the run's outcome (see
+// agent.RecipeOutcome) and, when that hands over to the model, submits
+// the handover — the same submit path a queued prompt or a goal round
+// uses to start its next turn.
 func (m *model) finishRecipe(msg recipeDoneMsg) tea.Cmd {
 	m.running = false
 	m.cancelling = false
@@ -168,34 +128,12 @@ func (m *model) finishRecipe(msg recipeDoneMsg) tea.Cmd {
 		m.cancel = nil
 	}
 	m.setPhase("")
-	if msg.report != "" {
-		m.transcript.code(msg.report)
-	}
-	switch {
-	case msg.err != nil:
-		m.transcript.errorf("recipe %s: %v", msg.recipe.Name, msg.err)
-		m.status = "error"
-	case msg.failed != nil && msg.failed.Denied:
-		what := fmt.Sprintf("step %d (%s)", msg.failed.Step, msg.failed.Tool)
-		if msg.failed.Verify {
-			what = "the project's checks"
-		}
-		m.transcript.errorf("recipe %s: %s was denied, not handed to the model: %s", msg.recipe.Name, what, msg.failed.Output)
-		m.status = "denied"
-	case msg.failed != nil && msg.failed.Verify:
-		m.note(fmt.Sprintf("recipe %s: steps all ran, but the project's checks failed; handing over to the model", msg.recipe.Name))
-		m.term.turnEnded(false, m.status)
-		m.refresh(false)
-		return m.submit(agent.RecipeHandover(msg.recipe, *msg.failed))
-	case msg.failed != nil:
-		m.note(fmt.Sprintf("recipe %s stopped at step %d (%s); handing over to the model", msg.recipe.Name, msg.failed.Step, msg.failed.Tool))
-		m.term.turnEnded(false, m.status)
-		m.refresh(false)
-		return m.submit(agent.RecipeHandover(msg.recipe, *msg.failed))
-	default:
-		m.status = "recipe " + msg.recipe.Name + " done"
-	}
-	m.term.turnEnded(msg.err == nil && msg.failed == nil, m.status)
+	res := agent.RecipeOutcome(msg.recipe, msg.report, msg.failed, msg.err)
+	m.showResult(res, nil)
+	m.term.turnEnded(res.Error == "" && res.Handover == "", m.status)
 	m.refresh(false)
+	if res.Handover != "" {
+		return m.submit(res.Handover)
+	}
 	return nil
 }

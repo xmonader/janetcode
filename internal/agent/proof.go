@@ -11,31 +11,27 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 )
 
-// Proof is the "show or attach" logic behind /proof and `janetcode
-// --proof`: it shows whatever machine-readable evidence (see
-// internal/proof) is already attached to commit — which session, turn
-// and stated intent wrote each of its files, and what actually
-// demonstrated the work — attaching one from this session's own tracked
-// changes first when the commit carries none yet. repoDir need not be
-// the repository's top level; every path is normalised against it.
+// Proof is the "show or attach" logic behind /proof: it shows whatever
+// machine-readable evidence (see internal/proof) is already attached to
+// commit — which session, turn and stated intent wrote each of its files,
+// and what actually demonstrated the work — attaching one from this
+// session's own tracked changes first (see AttachProof) when the commit
+// carries none yet. repoDir need not be the repository's top level; every
+// path is normalised against it.
 func (a *Agent) Proof(ctx context.Context, repoDir, commit string) (string, error) {
-	commit = strings.TrimSpace(commit)
-	if commit == "" {
-		commit = "HEAD"
-	}
 	root, err := proof.Root(ctx, repoDir)
 	if err != nil {
 		return "", err
 	}
-	sha, err := proof.Resolve(ctx, root, commit)
-	if err != nil {
-		return "", fmt.Errorf("%s does not resolve to a commit: %w", commit, err)
-	}
-	if r, ok, rerr := proof.Read(ctx, root, sha); rerr != nil {
-		return "", rerr
-	} else if ok {
-		return proof.Summary(r), nil
-	}
+	text, _, err := proof.Show(ctx, root, commit, a.AttachProof)
+	return text, err
+}
+
+// AttachProof builds a proof note for commit sha from this session's
+// tracked changes and attaches it, returning its summary; an error when
+// this session changed none of the commit's files. It is the
+// proof.AttachFunc a live session passes to proof.Exec.
+func (a *Agent) AttachProof(ctx context.Context, root, sha string) (string, error) {
 	committed, err := proof.CommittedFiles(ctx, root, sha)
 	if err != nil {
 		return "", err

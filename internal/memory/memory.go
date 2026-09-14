@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/md"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -593,17 +594,20 @@ func nameFor(desc string) string {
 	return strings.Join(parts, "-")
 }
 
+// oneLine flattens s to one line (see textfmt.Squash), dropping a leading
+// "- " list bullet, and cuts it to max bytes with "…" when max > 0.
 func oneLine(s string, max int) string {
-	s = strings.Join(strings.Fields(strings.TrimPrefix(strings.TrimSpace(s), "- ")), " ")
+	s = textfmt.Squash(strings.TrimPrefix(strings.TrimSpace(s), "- "))
 	if max > 0 && len(s) > max {
 		s = s[:max-1] + "…"
 	}
 	return s
 }
 
+// firstLine is s's first line without Markdown heading markers (see
+// textfmt.HeadingLine), flattened and capped as an index description.
 func firstLine(s string) string {
-	line, _, _ := strings.Cut(s, "\n")
-	return oneLine(strings.TrimLeft(line, "# "), MaxIndexLine)
+	return oneLine(textfmt.HeadingLine(s, 0), MaxIndexLine)
 }
 
 // Clean normalises free text into a one-line description.

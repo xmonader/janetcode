@@ -87,8 +87,9 @@ func TestFrontEndCallsDuringATurn(t *testing.T) {
 // TestSettingsChangesDuringATurn is a race-detector test for the settings
 // a front-end changes while a turn runs: the mode toggles (shift+tab,
 // /yolo, /auto, /edits, /readonly, /plan), the keys /config writes through
-// ApplyConfig, /pin and /unpin, and /permissions adding a rule — while a
-// subagent is built from the parent's settings on a goroutine of its own.
+// ApplyConfig, /model and /connect switching through SwitchModel, /pin and
+// /unpin, and /permissions adding a rule — while a subagent is built from
+// the parent's settings on a goroutine of its own.
 func TestSettingsChangesDuringATurn(t *testing.T) {
 	var responses []*llm.Response
 	for i := 0; i < 20; i++ {
@@ -100,6 +101,7 @@ func TestSettingsChangesDuringATurn(t *testing.T) {
 	a.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, tool.WriteFile{Root: root})
 	cfg := &config.Config{}
 	task := &Task{Parent: a}
+	prov := a.Settings().Provider
 
 	done := make(chan struct{})
 	var wg sync.WaitGroup
@@ -128,6 +130,13 @@ func TestSettingsChangesDuringATurn(t *testing.T) {
 					return
 				}
 			}
+			// /model and /connect: model, provider, price and window.
+			if on {
+				a.SwitchModel(fmt.Sprintf("m%d", i%3), prov, cfg)
+			} else {
+				a.SwitchModel("gpt-4o", nil, nil)
+			}
+			_ = a.CompactThreshold()
 			a.Pin(fmt.Sprintf("note %d", i))
 			a.Unpin(1)
 			_ = a.PinsSnapshot()

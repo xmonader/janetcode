@@ -166,7 +166,8 @@ func (a *Agent) resolveRouteCheap(emit func(Event)) (llm.Provider, string, bool,
 		st.disabled = true
 		notice = "route_cheap: cannot route to " + name + ": " + err.Error() + "; step routing is off for this session"
 	} else {
-		same := a.Provider != nil && prov != nil && prov.Name() == a.Provider.Name()
+		cur := a.Settings().Provider
+		same := cur != nil && prov != nil && prov.Name() == cur.Name()
 		st.prov, st.model, st.sameProvider = prov, model, same
 	}
 	a.routeMu.Lock()

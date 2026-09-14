@@ -60,8 +60,8 @@ func providersReport(cfg *config.Config, a *agent.Agent) string {
 	}
 	var b strings.Builder
 	name := "(none)"
-	if a.Provider != nil {
-		name = a.Provider.Name()
+	if a.Settings().Provider != nil {
+		name = a.Settings().Provider.Name()
 	}
 	s := a.Settings()
 	fmt.Fprintf(&b, "provider   %s\n", name)
@@ -69,7 +69,7 @@ func providersReport(cfg *config.Config, a *agent.Agent) string {
 	fmt.Fprintf(&b, "max tokens %d\n", s.MaxTokens)
 	if cfg != nil {
 		if m := cfg.MetaFor(s.Model); m.ContextWindow > 0 {
-			fmt.Fprintf(&b, "window     %s\n", tokensOf(m.ContextWindow))
+			fmt.Fprintf(&b, "window     %s\n", textfmt.Tokens(m.ContextWindow))
 		}
 		if p := cfg.PriceFor(s.Model); p != nil {
 			fmt.Fprintf(&b, "price      $%.2f in / $%.2f out per million\n", p.Input, p.Output)
@@ -79,7 +79,7 @@ func providersReport(cfg *config.Config, a *agent.Agent) string {
 	if pct, ok := a.CacheRate(); ok {
 		fmt.Fprintf(&b, "cache      %d%% of input served from cache\n", pct)
 	}
-	if usd, ok := u.Cost(a.Price); ok {
+	if usd, ok := u.Cost(a.Settings().Price); ok {
 		fmt.Fprintf(&b, "spent      %s\n", llm.FormatUSD(usd))
 	}
 	if cfg != nil {
@@ -152,13 +152,13 @@ func toolsReport(a *agent.Agent) string {
 	for _, d := range defs {
 		total += len(d.Description) + len(d.InputSchema)
 	}
-	fmt.Fprintf(&b, "%d tools, ~%s of schema in every request\n", len(defs), tokensOf(total/4))
+	fmt.Fprintf(&b, "%d tools, ~%s of schema in every request\n", len(defs), textfmt.Tokens(total/4))
 	for _, d := range defs {
 		mutating := ""
 		if t, ok := a.Tools.Get(d.Name); ok && t.Mutating() {
 			mutating = "  (asks first)"
 		}
-		fmt.Fprintf(&b, "  %-18s %6s%s\n", d.Name, tokensOf((len(d.Description)+len(d.InputSchema))/4), mutating)
+		fmt.Fprintf(&b, "  %-18s %6s%s\n", d.Name, textfmt.Tokens((len(d.Description)+len(d.InputSchema))/4), mutating)
 	}
 	return b.String()
 }
@@ -184,8 +184,8 @@ func statsReport(a *agent.Agent) string {
 	if u.InputTokens+u.OutputTokens > 0 {
 		fmt.Fprintf(&b, "tokens · in %d · out %d · cache read %d · cache write %d",
 			u.InputTokens, u.OutputTokens, u.CacheReadTokens, u.CacheWriteTokens)
-		if usd, ok := u.Cost(a.Price); ok {
-			b.WriteString(" · cost " + llm.FormatUSD(usd) + " (" + u.CostSource(a.Price) + ")")
+		if usd, ok := u.Cost(a.Settings().Price); ok {
+			b.WriteString(" · cost " + llm.FormatUSD(usd) + " (" + u.CostSource(a.Settings().Price) + ")")
 		} else {
 			b.WriteString(" · cost unknown: nothing prices this model")
 		}

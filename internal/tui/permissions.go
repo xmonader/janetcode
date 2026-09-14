@@ -133,15 +133,6 @@ func (m *model) answer(d agent.Decision, reason string) {
 	m.refresh(false)
 }
 
-// permissionKeys is the key line of the permission box, in the longest
-// wording that fits on one line: the box has a fixed height in the
-// layout, so a wrapped key line would run over the input. expandable says
-// whether there is more of the call to see: without that, the line used to
-// offer ctrl+o even for a two-line diff that was already shown whole.
-func (m *model) permissionKeys(tool, rule, learned string, expandable bool) string {
-	return m.formatPermissionKeys(tool, rule, learned, expandable, true)
-}
-
 // learnedHeadline shortens the ledger's note ("approved 4× before, never
 // refused") to what fits on the key line: the count.
 func learnedHeadline(s string) string {
@@ -151,34 +142,33 @@ func learnedHeadline(s string) string {
 	return strings.TrimSuffix(s, " before")
 }
 
-func (m *model) formatPermissionKeys(tool, rule, learned string, expandable, color bool) string {
+// pendingKeys is the key line for the pending permission prompt, shown as
+// the input box's placeholder (see placeholder).
+func (m *model) pendingKeys() string {
+	c := m.pending.call
+	return m.permissionKeys(c.Name, m.suggestedRule(c.Name, c.Input), c.Learned, pendingExpandable(c))
+}
+
+// permissionKeys is the key line of a permission prompt, in the longest
+// wording that fits on one line: it is the input box's placeholder, so a
+// wrapped key line would run over the box. expandable says whether there
+// is more of the call to see: without that, the line used to offer ctrl+o
+// even for a two-line diff that was already shown whole. It is plain
+// text; the placeholder style colours it.
+func (m *model) permissionKeys(tool, rule, learned string, expandable bool) string {
 	type seg struct{ key, text string }
 	// Box width minus its border and padding, with two columns to spare
 	// so a line measured at the limit never wraps inside the box.
 	room := m.width - 8
 	render := func(segs []seg, sep string) (string, int) {
-		var sb, plain strings.Builder
+		var sb strings.Builder
 		for i, s := range segs {
 			if i > 0 {
-				if color {
-					sb.WriteString(styleDim.Render(sep))
-				} else {
-					sb.WriteString(sep)
-				}
-				plain.WriteString(sep)
+				sb.WriteString(sep)
 			}
-			if color {
-				sb.WriteString(styleKey.Render(s.key) + styleDim.Render(s.text))
-			} else {
-				sb.WriteString(s.key + s.text)
-			}
-			plain.WriteString(s.key + s.text)
+			sb.WriteString(s.key + s.text)
 		}
-		out := sb.String()
-		if !color {
-			out = plain.String()
-		}
-		return out, lipgloss.Width(plain.String())
+		return sb.String(), lipgloss.Width(sb.String())
 	}
 	// The learned note rides along with the rule in the two widest
 	// layouts and is the first thing dropped when narrowing: it explains
@@ -267,15 +257,4 @@ func (m *model) permissionImpact() string {
 	}
 	room := m.width - 4
 	return fitLine("  "+styleDim.Render(sanitize(m.pending.call.Impact)), room)
-}
-
-func (m *model) permissionView() string {
-	if m.pending == nil {
-		return ""
-	}
-	view := m.permissionNotice()
-	if imp := m.permissionImpact(); imp != "" {
-		view += "\n" + imp
-	}
-	return view + "\n" + m.permissionKeys(m.pending.call.Name, m.suggestedRule(m.pending.call.Name, m.pending.call.Input), m.pending.call.Learned, pendingExpandable(m.pending.call))
 }

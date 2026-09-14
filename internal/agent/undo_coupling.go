@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/diff"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -134,7 +135,7 @@ func simulateUndoneContent(undo []Change) map[string][]string {
 		if err != nil {
 			continue
 		}
-		lines := splitLines(string(data))
+		lines := diff.SplitLinesKeepEOL(string(data))
 		ok := true
 		for _, c := range chs {
 			if !c.Existed {
@@ -183,7 +184,7 @@ func detectCoupling(cwd string, sel Selection) []string {
 			continue
 		}
 		if data, err := os.ReadFile(p); err == nil {
-			content[p] = splitLines(string(data))
+			content[p] = diff.SplitLinesKeepEOL(string(data))
 		}
 	}
 	var out []string
@@ -264,7 +265,7 @@ func partitionUndoable(cwd string, candidates []Change) (ok []Change, unavailabl
 		exists := rerr == nil
 		var lines []string
 		if exists {
-			lines = splitLines(string(data))
+			lines = diff.SplitLinesKeepEOL(string(data))
 		}
 		for _, c := range chs {
 			if !c.Existed {

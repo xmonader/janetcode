@@ -39,7 +39,7 @@ func configReport(cfg *config.Config, path, version, cwd string) string {
 	fmt.Fprintf(&b, "  auto approve    %v\n", cfg.AutoApprove)
 	fmt.Fprintf(&b, "  auto memory     %v\n", cfg.AutoMemory())
 	if m := cfg.MetaFor(cfg.Model); m.ContextWindow > 0 {
-		fmt.Fprintf(&b, "  context window  %s (from the model table)\n", tokensOf(m.ContextWindow))
+		fmt.Fprintf(&b, "  context window  %s (from the model table)\n", textfmt.Tokens(m.ContextWindow))
 	}
 	// Where a key came from matters more than what it is.
 	b.WriteString("\ncredentials:\n")
@@ -72,9 +72,9 @@ func compactAtText(n int) string {
 	case n < 0:
 		return "never (compaction is off)"
 	case n == 0:
-		return fmt.Sprintf("%s (the default)", tokensOf(agent.DefaultCompactAt))
+		return fmt.Sprintf("%s (the default)", textfmt.Tokens(agent.DefaultCompactAt))
 	}
-	return tokensOf(n)
+	return textfmt.Tokens(n)
 }
 
 func lspReport(m *lsp.Manager) string {
@@ -164,7 +164,7 @@ func subagentsReport(t *agent.Task) string {
 	u := t.Usage()
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d subagents can be continued · they have spent in %s · out %s\n",
-		len(ids), tokensOf(u.InputTokens+u.CacheReadTokens), tokensOf(u.OutputTokens))
+		len(ids), textfmt.Tokens(u.InputTokens+u.CacheReadTokens), textfmt.Tokens(u.OutputTokens))
 	for _, id := range ids {
 		fmt.Fprintf(&b, "  %s\n", id)
 	}

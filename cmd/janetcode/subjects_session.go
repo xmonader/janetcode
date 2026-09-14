@@ -72,7 +72,7 @@ func messagesReport(a *agent.Agent, arg string) string {
 				parts = append(parts, fmt.Sprintf("%d %s", kinds[k], k))
 			}
 		}
-		fmt.Fprintf(&b, "  %-4d %-9s %-28s %s\n", i+1, m.Role, strings.Join(parts, ", "), textfmt.Clip(strings.TrimSpace(oneLine(m.Text())), 60))
+		fmt.Fprintf(&b, "  %-4d %-9s %-28s %s\n", i+1, m.Role, strings.Join(parts, ", "), textfmt.Clip(strings.TrimSpace(textfmt.Squash(m.Text())), 60))
 	}
 	return b.String()
 }
@@ -102,7 +102,7 @@ func contextReport(a *agent.Agent) string {
 	}
 	c := a.Context()
 	var b strings.Builder
-	fmt.Fprintf(&b, "estimated %s of %s before compaction (%d%%)\n\n", tokensOf(c.Total), tokensOf(c.CompactAt), pct(c.Total, c.CompactAt))
+	fmt.Fprintf(&b, "estimated %s of %s before compaction (%d%%)\n\n", textfmt.Tokens(c.Total), textfmt.Tokens(c.CompactAt), pct(c.Total, c.CompactAt))
 	rows := []struct {
 		name string
 		n    int
@@ -114,20 +114,20 @@ func contextReport(a *agent.Agent) string {
 	}
 	for _, row := range rows {
 		if row.n > 0 {
-			fmt.Fprintf(&b, "  %-28s %8s  %3d%%\n", row.name, tokensOf(row.n), pct(row.n, c.Total))
+			fmt.Fprintf(&b, "  %-28s %8s  %3d%%\n", row.name, textfmt.Tokens(row.n), pct(row.n, c.Total))
 		}
 	}
 	fmt.Fprintf(&b, "\n%d messages over %d turns\n", c.Messages, c.Turns)
 	if len(c.ByTool) > 0 {
 		b.WriteString("\nby tool:\n")
 		for _, t := range c.ByTool {
-			fmt.Fprintf(&b, "  %-20s %3d calls  %8s\n", t.Name, t.Calls, tokensOf(t.Tokens))
+			fmt.Fprintf(&b, "  %-20s %3d calls  %8s\n", t.Name, t.Calls, textfmt.Tokens(t.Tokens))
 		}
 	}
 	if len(c.Largest) > 0 {
 		b.WriteString("\nlargest results still in context:\n")
 		for _, it := range c.Largest {
-			fmt.Fprintf(&b, "  %8s  %s %s (message %d)\n", tokensOf(it.Tokens), it.Tool, textfmt.Clip(strings.TrimSpace(it.Subject), 50), it.Index)
+			fmt.Fprintf(&b, "  %8s  %s %s (message %d)\n", textfmt.Tokens(it.Tokens), it.Tool, textfmt.Clip(strings.TrimSpace(it.Subject), 50), it.Index)
 		}
 	}
 	return b.String()
@@ -163,7 +163,7 @@ func sessionReport(s *session.Session, a *agent.Agent) string {
 	}
 	if a != nil {
 		u := a.UsageSnapshot()
-		fmt.Fprintf(&b, "usage    in %s · cache %s · out %s\n", tokensOf(u.InputTokens), tokensOf(u.CacheReadTokens), tokensOf(u.OutputTokens))
+		fmt.Fprintf(&b, "usage    in %s · cache %s · out %s\n", textfmt.Tokens(u.InputTokens), textfmt.Tokens(u.CacheReadTokens), textfmt.Tokens(u.OutputTokens))
 	}
 	return b.String()
 }
@@ -300,7 +300,7 @@ func retrievalReport(s *session.Session) string {
 		} else {
 			hits++
 		}
-		rows = append(rows, fmt.Sprintf("  %-5d %-6s %-7s %-52s %s", e.Seq, e.Name, mark, textfmt.Clip(strings.TrimSpace(e.Arguments), 52), tokensOf(e.Tokens/4)))
+		rows = append(rows, fmt.Sprintf("  %-5d %-6s %-7s %-52s %s", e.Seq, e.Name, mark, textfmt.Clip(strings.TrimSpace(e.Arguments), 52), textfmt.Tokens(e.Tokens/4)))
 	}
 	if len(rows) == 0 {
 		return "no archive lookups yet"
@@ -327,15 +327,15 @@ func compactionReport(s *session.Session) string {
 		}
 		cost := "no summary call (the record was carried forward)"
 		if in > 0 || out > 0 {
-			cost = fmt.Sprintf("summary cost %s in / %s out", tokensOf(in), tokensOf(out))
+			cost = fmt.Sprintf("summary cost %s in / %s out", textfmt.Tokens(in), textfmt.Tokens(out))
 		}
 		rows = append(rows, fmt.Sprintf("  seq %-5d turn %-3d was ~%s, replaced %d messages · %s",
-			e.Seq, e.Turn, tokensOf(e.Tokens), len(e.Shadowed), cost))
+			e.Seq, e.Turn, textfmt.Tokens(e.Tokens), len(e.Shadowed), cost))
 	}
 	if len(rows) == 0 {
 		return "the history has not been compacted in this session"
 	}
-	head := fmt.Sprintf("%d compactions · summaries cost %s in / %s out in total\n", len(rows), tokensOf(totalIn), tokensOf(totalOut))
+	head := fmt.Sprintf("%d compactions · summaries cost %s in / %s out in total\n", len(rows), textfmt.Tokens(totalIn), textfmt.Tokens(totalOut))
 	return head + strings.Join(rows, "\n")
 }
 

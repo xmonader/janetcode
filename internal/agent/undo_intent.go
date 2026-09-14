@@ -7,6 +7,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/xmonader/janetcode/internal/cmdresult"
+	"github.com/xmonader/janetcode/internal/slash"
 )
 
 // Selection is the answer to "which of this session's changes match a
@@ -131,7 +135,7 @@ func (a *Agent) SelectChanges(ctx context.Context, description string) (Selectio
 		return Selection{Unavailable: unavailable, Why: "every change left in this session was edited or reverted since"}, nil
 	}
 	sel, got := Selection{}, false
-	if a.Provider != nil {
+	if a.Settings().Provider != nil {
 		if s, err := a.selectByModel(ctx, description, candidates); err == nil {
 			sel, got = s, true
 		}
@@ -204,6 +208,45 @@ func (a *Agent) ApplyPendingUndo(ctx context.Context, force bool) (UndoReport, e
 	return a.UndoSelection(ctx, p.sel)
 }
 
+// UndoAboutTimeout and UndoApplyTimeout bound /undo about (a model call
+// matching the description) and /undo apply (which can run the project's
+// checks) in every front-end.
+const (
+	UndoAboutTimeout = 2 * time.Minute
+	UndoApplyTimeout = 5 * time.Minute
+)
+
+// ErrUndoAboutUsage is /undo about with no description.
+var ErrUndoAboutUsage = errors.New("usage: /undo about <description>")
+
+// UndoAbout runs /undo about <description> for every front-end: it
+// previews which of this session's changes match, under
+// UndoAboutTimeout, shown relative to root. Nothing is touched.
+func (a *Agent) UndoAbout(ctx context.Context, root, description string) (cmdresult.Result, error) {
+	ctx, cancel := context.WithTimeout(ctx, UndoAboutTimeout)
+	defer cancel()
+	sel, err := a.PreviewUndoAbout(ctx, description)
+	if err != nil {
+		return cmdresult.Result{}, fmt.Errorf("undo about: %w", err)
+	}
+	return cmdresult.Result{Sheet: FormatSelection(root, sel), SheetTitle: "undo about"}, nil
+}
+
+// UndoApply runs /undo apply [--force] for every front-end: it reverts
+// the selection from the last /undo about, under UndoApplyTimeout. The
+// caller must pass the returned report to TellModelUndone — at the point
+// where it owns the agent's history — so the model does not go on
+// believing the changes are still there.
+func (a *Agent) UndoApply(ctx context.Context, force bool) (UndoReport, cmdresult.Result, error) {
+	ctx, cancel := context.WithTimeout(ctx, UndoApplyTimeout)
+	defer cancel()
+	rep, err := a.ApplyPendingUndo(ctx, force)
+	if err != nil {
+		return UndoReport{}, cmdresult.Result{}, fmt.Errorf("undo apply: %w", err)
+	}
+	return rep, cmdresult.Result{Sheet: FormatUndoReport(rep), SheetTitle: "undo"}, nil
+}
+
 // fingerprintChanges identifies the set of undoable changes at a moment
 // in time, cheaply enough to call on every preview and apply: it changes
 // whenever a candidate is undone, added, or removed.
@@ -259,30 +302,30 @@ var errUndoArgsUsage = errors.New("usage: /undo [preview | n | about <descriptio
 // the terminal and the web UI dispatch through, so a spelling accepted by
 // one is accepted, and means the same thing, in the other.
 func ParseUndoArgs(rest string) (UndoArgs, error) {
-	rest = strings.TrimSpace(rest)
-	if rest == "" {
+	verb, after := slash.CutWord(rest)
+	switch verb {
+	case "":
 		return UndoArgs{}, nil
+	case "about":
+		return UndoArgs{About: true, Description: strings.TrimSpace(after)}, nil
 	}
-	fields := strings.Fields(rest)
-	switch fields[0] {
+	t, err := slash.Tokenize(after, slash.ArgSpec{Bool: []string{"--force"}})
+	if err != nil {
+		return UndoArgs{}, errUndoArgsUsage
+	}
+	switch verb {
 	case "preview":
-		if len(fields) != 1 {
+		if len(t.Positional) > 0 || len(t.Flags) > 0 {
 			return UndoArgs{}, errUndoArgsUsage
 		}
 		return UndoArgs{Preview: true}, nil
-	case "about":
-		return UndoArgs{About: true, Description: strings.TrimSpace(strings.TrimPrefix(rest, "about"))}, nil
 	case "apply":
-		a := UndoArgs{Apply: true}
-		for _, f := range fields[1:] {
-			if f != "--force" {
-				return UndoArgs{}, errUndoArgsUsage
-			}
-			a.Force = true
+		if len(t.Positional) > 0 {
+			return UndoArgs{}, errUndoArgsUsage
 		}
-		return a, nil
+		return UndoArgs{Apply: true, Force: t.Has("--force")}, nil
 	default:
-		if n, err := strconv.Atoi(fields[0]); err == nil && len(fields) == 1 {
+		if n, err := strconv.Atoi(verb); err == nil && len(t.Positional) == 0 && len(t.Flags) == 0 {
 			return UndoArgs{N: n}, nil
 		}
 		return UndoArgs{}, errUndoArgsUsage

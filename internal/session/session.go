@@ -351,19 +351,14 @@ func List(dir, cwd string) ([]Info, error) {
 
 // SetSettled marks the session done with, or active again.
 func (s *Session) SetSettled(v bool) error {
-	s.mu.Lock()
-	s.Meta.Settled = v
-	s.mu.Unlock()
-	return s.rewrite()
+	return s.UpdateMeta(func(m *Meta) { m.Settled = v })
 }
 
 // ToggleSettled flips Settled and returns the new value.
 func (s *Session) ToggleSettled() (bool, error) {
-	s.mu.Lock()
-	v := !s.Meta.Settled
-	s.Meta.Settled = v
-	s.mu.Unlock()
-	return v, s.rewrite()
+	var v bool
+	err := s.UpdateMeta(func(m *Meta) { v = !m.Settled; m.Settled = v })
+	return v, err
 }
 
 // UndoPath is where the session's undo checkpoints live.
@@ -461,10 +456,7 @@ func (s *Session) Sync() error {
 
 // SetTitle stores a title in the metadata line and rewrites the file.
 func (s *Session) SetTitle(title string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Meta.Title = strings.TrimSpace(title)
-	return s.rewriteLocked()
+	return s.UpdateMeta(func(m *Meta) { m.Title = strings.TrimSpace(title) })
 }
 
 // StayArg is the /fork stay form: copy the conversation but keep this
@@ -705,34 +697,22 @@ func snippetAround(text string, at int) string {
 
 // SavePins stores the pins in the metadata line and rewrites the file.
 func (s *Session) SavePins(pins []string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Meta.Pins = append([]string(nil), pins...)
-	return s.rewriteLocked()
+	return s.UpdateMeta(func(m *Meta) { m.Pins = append([]string(nil), pins...) })
 }
 
 // SetLoops stores armed session loops and rewrites the metadata line.
 func (s *Session) SetLoops(loops []LoopSpec) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Meta.Loops = append([]LoopSpec(nil), loops...)
-	return s.rewriteLocked()
+	return s.UpdateMeta(func(m *Meta) { m.Loops = append([]LoopSpec(nil), loops...) })
 }
 
 // SetExtraDirs stores additional file-tool roots and rewrites metadata.
 func (s *Session) SetExtraDirs(dirs []string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Meta.ExtraDirs = append([]string(nil), dirs...)
-	return s.rewriteLocked()
+	return s.UpdateMeta(func(m *Meta) { m.ExtraDirs = append([]string(nil), dirs...) })
 }
 
 // SetStart records the session's git start state and rewrites metadata.
 func (s *Session) SetStart(st StartState) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Meta.Start = &st
-	return s.rewriteLocked()
+	return s.UpdateMeta(func(m *Meta) { m.Start = &st })
 }
 
 // EnsureWritten creates the session file if the first event has not
@@ -777,6 +757,17 @@ func (s *Session) PID() (int, bool) {
 		return 0, false
 	}
 	return pid, true
+}
+
+// UpdateMeta applies fn to the session's metadata and rewrites the file,
+// both under the session lock, so a metadata change is never torn by a
+// concurrent Append or another update. Every Set* metadata setter is one
+// call to it.
+func (s *Session) UpdateMeta(fn func(*Meta)) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	fn(&s.Meta)
+	return s.rewriteLocked()
 }
 
 // rewrite replaces the file with the metadata line followed by every event

@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/proof"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -243,9 +244,8 @@ func (m *model) undoCommand(cmd string, preview bool) {
 // from the goroutine that ran it, the same way btwMsg and doctorMsg do
 // for their own side calls.
 type undoAboutMsg struct {
-	description string
-	sel         agent.Selection
-	err         error
+	res cmdresult.Result
+	err error
 }
 
 // undoAboutCommand previews which of this session's changes match
@@ -256,16 +256,14 @@ type undoAboutMsg struct {
 func (m *model) undoAboutCommand(description string) tea.Cmd {
 	description = strings.TrimSpace(description)
 	if description == "" {
-		m.transcript.errorf("usage: /undo about <description>")
+		m.transcript.errorf("%v", agent.ErrUndoAboutUsage)
 		return nil
 	}
 	ctx := m.startSideWork("matching changes")
-	ag, send := m.opts.Agent, m.send
+	ag, send, cwd := m.opts.Agent, m.send, m.opts.Cwd
 	go func() {
-		ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-		defer cancel()
-		sel, err := ag.PreviewUndoAbout(ctx, description)
-		send(undoAboutMsg{description: description, sel: sel, err: err})
+		res, err := ag.UndoAbout(ctx, cwd, description)
+		send(undoAboutMsg{res: res, err: err})
 	}()
 	m.note(fmt.Sprintf("matching %q against this session's changes…", description))
 	m.refresh(false)
@@ -307,17 +305,14 @@ func (m *model) endSideWork(ok bool) tea.Cmd {
 // finishUndoAbout shows the preview and, when it found anything to
 // revert, points at /undo apply.
 func (m *model) finishUndoAbout(msg undoAboutMsg) tea.Cmd {
-	if msg.err != nil {
-		m.transcript.errorf("undo about: %v", msg.err)
-	} else {
-		m.transcript.code(agent.FormatSelection(m.opts.Cwd, msg.sel))
-	}
+	m.showResult(msg.res, msg.err)
 	return m.endSideWork(msg.err == nil)
 }
 
 // undoApplyMsg carries the result of "/undo apply".
 type undoApplyMsg struct {
 	rep agent.UndoReport
+	res cmdresult.Result
 	err error
 }
 
@@ -329,10 +324,8 @@ func (m *model) undoApplyCommand(force bool) tea.Cmd {
 	ctx := m.startSideWork("applying undo")
 	ag, send := m.opts.Agent, m.send
 	go func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-		defer cancel()
-		rep, err := ag.ApplyPendingUndo(ctx, force)
-		send(undoApplyMsg{rep: rep, err: err})
+		rep, res, err := ag.UndoApply(ctx, force)
+		send(undoApplyMsg{rep: rep, res: res, err: err})
 	}()
 	m.note("applying the previewed undo…")
 	m.refresh(false)
@@ -342,10 +335,8 @@ func (m *model) undoApplyCommand(force bool) tea.Cmd {
 // finishUndoApply shows what was reverted and tells the model, so it
 // does not go on believing changes are still there.
 func (m *model) finishUndoApply(msg undoApplyMsg) tea.Cmd {
-	if msg.err != nil {
-		m.transcript.errorf("undo apply: %v", msg.err)
-	} else {
-		m.transcript.code(agent.FormatUndoReport(msg.rep))
+	m.showResult(msg.res, msg.err)
+	if msg.err == nil {
 		// Before endSideWork, which may start a queued turn: the note has
 		// to be in the history that turn sends.
 		m.opts.Agent.TellModelUndone(msg.rep)

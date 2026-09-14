@@ -136,24 +136,8 @@ func allReport(r *inspect.Registry) string {
 	return strings.TrimSpace(b.String())
 }
 
-func oneLine(s string) string {
-	return strings.Join(strings.Fields(s), " ")
-}
-
 // Shared formatting. Reports are read by people and by the model, so they
 // are plain text with aligned columns rather than JSON.
-
-func tokensOf(n int) string {
-	switch {
-	case n >= 1_000_000:
-		return fmt.Sprintf("%.1fM", float64(n)/1e6)
-	case n >= 10_000:
-		return fmt.Sprintf("%dk", n/1000)
-	case n >= 1000:
-		return fmt.Sprintf("%.1fk", float64(n)/1000)
-	}
-	return strconv.Itoa(n)
-}
 
 func pct(n, total int) int {
 	if total <= 0 {

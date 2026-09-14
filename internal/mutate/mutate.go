@@ -65,16 +65,6 @@ var operators = []operator{
 // sourceExt lists the files worth mutating.
 var sourceExt = map[string]bool{".go": true, ".py": true, ".ts": true, ".tsx": true, ".js": true, ".jsx": true, ".rs": true, ".c": true, ".cc": true, ".cpp": true, ".h": true, ".java": true, ".kt": true, ".rb": true, ".cs": true, ".swift": true, ".zig": true}
 
-// IsTestFile reports whether a path names tests rather than code.
-func IsTestFile(p string) bool {
-	base := filepath.Base(p)
-	dir := filepath.ToSlash(filepath.Dir(p))
-	if strings.Contains("/"+dir+"/", "/testdata/") || strings.Contains("/"+dir+"/", "/tests/") || strings.Contains("/"+dir+"/", "/__tests__/") {
-		return true
-	}
-	return strings.HasSuffix(base, "_test.go") || strings.HasPrefix(base, "test_") || strings.Contains(base, ".test.") || strings.Contains(base, ".spec.") || strings.HasSuffix(base, "_test.py") || strings.HasSuffix(base, "_spec.rb")
-}
-
 // Mutate lists every operator flip on one line, skipping comments and
 // the insides of string literals.
 func Mutate(path string, line int, text string) []Mutant {
@@ -148,7 +138,7 @@ func Changed(ctx context.Context, root string) (map[string][]int, error) {
 		return nil, err
 	}
 	for _, p := range strings.Split(strings.TrimSpace(untracked), "\n") {
-		if p == "" || !sourceExt[filepath.Ext(p)] || IsTestFile(p) {
+		if p == "" || !sourceExt[filepath.Ext(p)] || tool.IsTestFile(p) {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(root, p))
@@ -181,7 +171,7 @@ func parseDiff(diff string, out map[string][]int) {
 		switch {
 		case strings.HasPrefix(line, "+++ "):
 			path = strings.TrimPrefix(strings.TrimPrefix(line, "+++ "), "b/")
-			if path == "/dev/null" || !sourceExt[filepath.Ext(path)] || IsTestFile(path) {
+			if path == "/dev/null" || !sourceExt[filepath.Ext(path)] || tool.IsTestFile(path) {
 				path = ""
 			}
 		case strings.HasPrefix(line, "@@"):

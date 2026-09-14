@@ -181,3 +181,18 @@ func TestOneLine(t *testing.T) {
 		}
 	}
 }
+
+func TestSquashAndSplitCSV(t *testing.T) {
+	if got := Squash("  a\n\tb   c \r\n"); got != "a b c" {
+		t.Errorf("Squash = %q", got)
+	}
+	if got := SplitCSV(" a, ,b ,"); len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Errorf("SplitCSV = %q", got)
+	}
+	if got := SplitCSV(" , "); got != nil {
+		t.Errorf("SplitCSV of nothing = %q, want nil", got)
+	}
+	if got := HeadingLine("## a heading longer than a cap\nrest", 0); got != "a heading longer than a cap" {
+		t.Errorf("HeadingLine with no cap = %q", got)
+	}
+}

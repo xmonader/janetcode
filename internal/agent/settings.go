@@ -4,13 +4,16 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 )
 
 // Settings is the part of an Agent's configuration a front-end may change
 // while a turn is running: the approval and session modes (shift+tab,
-// /yolo, /auto, /edits, /readonly, /plan) and the keys /config and /model
-// set. Each field mirrors the Agent field of the same name.
+// /yolo, /auto, /edits, /readonly, /plan), the keys /config sets, and the
+// model, provider, price and context window /model and /connect switch
+// (see SwitchModel). Each field mirrors the Agent field of the same name.
 //
 // The Agent fields are what a caller fills in when it builds an agent,
 // before any turn runs. From then on they are read and written only under
@@ -20,6 +23,9 @@ import (
 // while a turn may be running is a data race.
 type Settings struct {
 	Model         string
+	Provider      llm.Provider
+	Price         *llm.Price
+	ContextWindow int
 	MaxTokens     int
 	MaxIterations int
 	CompactAt     int
@@ -42,6 +48,9 @@ func (a *Agent) Settings() Settings {
 func (a *Agent) settingsLocked() Settings {
 	return Settings{
 		Model:         a.Model,
+		Provider:      a.Provider,
+		Price:         a.Price,
+		ContextWindow: a.ContextWindow,
 		MaxTokens:     a.MaxTokens,
 		MaxIterations: a.MaxIterations,
 		CompactAt:     a.CompactAt,
@@ -66,6 +75,9 @@ func (a *Agent) UpdateSettings(change func(*Settings)) {
 	s := a.settingsLocked()
 	change(&s)
 	a.Model = s.Model
+	a.Provider = s.Provider
+	a.Price = s.Price
+	a.ContextWindow = s.ContextWindow
 	a.MaxTokens = s.MaxTokens
 	a.MaxIterations = s.MaxIterations
 	a.CompactAt = s.CompactAt
@@ -75,6 +87,26 @@ func (a *Agent) UpdateSettings(change func(*Settings)) {
 	a.ReadOnly = s.ReadOnly
 	a.PlanMode = s.PlanMode
 	a.ProofNotes = s.ProofNotes
+}
+
+// SwitchModel moves the live session to model, safe while a turn runs:
+// onto prov when it is not nil (the model routes to another provider),
+// with the price and context window cfg records for the model — or, with
+// no config, the window llm knows for it. /model and /connect in every
+// front-end switch through it, so the four change together.
+func (a *Agent) SwitchModel(model string, prov llm.Provider, cfg *config.Config) {
+	a.UpdateSettings(func(s *Settings) {
+		s.Model = model
+		if prov != nil {
+			s.Provider = prov
+		}
+		if cfg == nil {
+			s.ContextWindow = llm.KnownWindow(model)
+			return
+		}
+		s.Price = cfg.PriceFor(model)
+		s.ContextWindow = cfg.MetaFor(model).ContextWindow
+	})
 }
 
 // readOnly reports whether mutating tools are hidden and refused: in

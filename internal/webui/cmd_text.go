@@ -78,7 +78,7 @@ func (s *server) budget(arg string) {
 			return
 		}
 		u := ag.UsageSnapshot()
-		spent, _ := u.Cost(ag.Price)
+		spent, _ := u.Cost(ag.Settings().Price)
 		s.notice(fmt.Sprintf("budget %s · spent %s · %s left", llm.FormatUSD(ag.MaxCostUSD), llm.FormatUSD(spent), llm.FormatUSD(ag.MaxCostUSD-spent)))
 		return
 	}
@@ -199,7 +199,7 @@ func (s *server) statsText() string {
 		fmt.Fprintf(&sb, "waiting on the model %s (avg %s)\n", textfmt.Duration(st.ModelTime), textfmt.Duration(st.ModelTime/time.Duration(st.ModelCalls)))
 	}
 	sb.WriteString("tokens " + u.TokenLine() + "\n")
-	if usd, ok := u.Cost(ag.Price); ok {
+	if usd, ok := u.Cost(ag.Settings().Price); ok {
 		sb.WriteString("cost " + llm.FormatUSD(usd) + "\n")
 	}
 	if line := st.PromptLine(); line != "" {
@@ -222,7 +222,7 @@ func (s *server) usageText() string {
 	ag := s.opts.Agent
 	u := ag.UsageSnapshot()
 	var sb strings.Builder
-	sb.WriteString(u.TokenLine() + "\n" + u.CostNote(ag.Price))
+	sb.WriteString(u.TokenLine() + "\n" + u.CostNote(ag.Settings().Price))
 	if ag.MaxCostUSD > 0 {
 		sb.WriteString(" · ceiling " + llm.FormatUSD(ag.MaxCostUSD))
 	}

@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/diff"
 	"github.com/xmonader/janetcode/internal/gitx"
 )
 
@@ -259,7 +260,7 @@ func changeLandedIn(c ChangeInput, fv FileVersions) bool {
 // invent one).
 func lineSet(data []byte) map[string]bool {
 	set := map[string]bool{}
-	for _, l := range splitDataLines(data) {
+	for _, l := range diff.SplitLinesKeepEOL(string(data)) {
 		if strings.TrimSpace(l) == "" {
 			continue
 		}
@@ -298,21 +299,6 @@ func isSubset(a, b map[string]bool) bool {
 		}
 	}
 	return true
-}
-
-// splitDataLines splits data into lines, dropping a trailing empty element
-// caused by a final newline, mirroring how internal/agent's own line
-// splitter treats file content (this package does not import that one, to
-// avoid the dependency cycle Build's own doc comment explains).
-func splitDataLines(data []byte) []string {
-	if len(data) == 0 {
-		return nil
-	}
-	lines := strings.SplitAfter(string(data), "\n")
-	if n := len(lines); n > 0 && lines[n-1] == "" {
-		lines = lines[:n-1]
-	}
-	return lines
 }
 
 // commitParent returns commit's first parent, or "" when it has none (a

@@ -8,6 +8,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -19,25 +20,24 @@ func (s *server) model(arg string) {
 		return
 	}
 	cfg := s.opts.Config
+	var prov llm.Provider
 	if cfg != nil && s.opts.Models != nil {
 		// The name may belong to a provider other than the one in use;
 		// follow it rather than sending it to the wrong endpoint.
 		if name, ok := cfg.RouteFor(arg); ok && name != cfg.Provider {
-			prov, _, err := s.opts.Models(arg)
+			p, _, err := s.opts.Models(arg)
 			if err != nil {
 				s.errf("%v", err)
 				return
 			}
-			ag.Provider = prov
+			prov = p
 			cfg.Provider = name
 			s.opts.Provider = name
 			s.notice("switched to provider " + name + " for " + arg)
 		}
 	}
-	ag.UpdateSettings(func(st *agent.Settings) { st.Model = arg })
+	ag.SwitchModel(arg, prov, cfg)
 	if cfg != nil {
-		ag.Price = cfg.PriceFor(arg)
-		ag.ContextWindow = cfg.MetaFor(arg).ContextWindow
 		cfg.Model = arg
 		if s.opts.ConfigPath != "" {
 			if err := config.Update(s.opts.ConfigPath, cfg.Provider, cfg.Active(), arg); err != nil {

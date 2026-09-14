@@ -100,7 +100,7 @@ func (a *Agent) fallback(ctx context.Context, cause error, emit func(Event)) (*l
 		return nil, cause
 	}
 	for _, name := range chain {
-		prov, model := a.Provider, name
+		prov, model := a.Settings().Provider, name
 		if a.Route != nil {
 			p, resolved, err := a.Route(name)
 			if err != nil {
@@ -115,8 +115,7 @@ func (a *Agent) fallback(ctx context.Context, cause error, emit func(Event)) (*l
 		resp, err := a.callOn(ctx, prov, model, emit)
 		if err == nil {
 			a.stats.fellBack()
-			a.Provider = prov
-			a.UpdateSettings(func(s *Settings) { s.Model = model })
+			a.UpdateSettings(func(s *Settings) { s.Provider, s.Model = prov, model })
 			emit(Event{Kind: EvNotice, Text: "this session continues on " + model + "; /model switches back"})
 			return resp, nil
 		}

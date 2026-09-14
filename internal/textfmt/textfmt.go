@@ -116,11 +116,32 @@ func OneLine(s string) string {
 	return strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
 }
 
+// Squash collapses every run of whitespace in s, newlines included, to a
+// single space and trims both ends.
+func Squash(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
+// SplitCSV splits a comma-separated list, trimming each item and dropping
+// empty ones; nil when nothing is left.
+func SplitCSV(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // HeadingLine takes the first line of s, strips any leading Markdown
 // heading markers ("#" and spaces), and clips the result to at most max
-// runes (see Clip).
+// runes (see Clip). max<=0 means no cap.
 func HeadingLine(s string, max int) string {
 	line, _, _ := strings.Cut(s, "\n")
 	line = strings.TrimSpace(strings.TrimLeft(line, "# "))
+	if max <= 0 {
+		return line
+	}
 	return Clip(line, max)
 }

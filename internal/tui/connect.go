@@ -13,7 +13,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -164,7 +163,7 @@ func (m *model) providerRows() []row {
 			detail += fmt.Sprintf("  (%d keys)", k)
 		}
 		tag := ""
-		if n == cfg.Provider && m.opts.Agent.Provider != nil {
+		if n == cfg.Provider && m.opts.Agent.Settings().Provider != nil {
 			tag = "current"
 		}
 		rows = append(rows, row{section: "configured", key: n + " " + label, cells: []string{n, label, detail}, tag: tag, prov: p, name: n})
@@ -267,17 +266,6 @@ func (m *model) rememberModel(mi llm.ModelInfo) {
 			m.transcript.errorf("saving model details: %v", err)
 		}
 	}
-}
-
-// applyModelMeta sets the agent's price and context window for a model.
-func (m *model) applyModelMeta(modelID string) {
-	ag := m.opts.Agent
-	if m.opts.Config == nil {
-		ag.ContextWindow = llm.KnownWindow(modelID)
-		return
-	}
-	ag.Price = m.opts.Config.PriceFor(modelID)
-	ag.ContextWindow = m.opts.Config.MetaFor(modelID).ContextWindow
 }
 
 // modelDetails renders "128k ctx · $0.15/$0.60 per M" for a listing row.
@@ -512,15 +500,14 @@ func (m *model) applyConnect(modelID string) {
 		return
 	}
 	*m.opts.Config = *cfg
-	m.opts.Agent.Provider = prov
-	m.opts.Agent.UpdateSettings(func(s *agent.Settings) { s.Model = modelID })
 	m.opts.Provider = c.name
 	note := "connected to " + c.name + " · " + modelID
 	if mi, ok := c.meta[modelID]; ok {
 		m.rememberModel(mi)
 	}
-	m.applyModelMeta(modelID)
-	if d := modelDetails(llm.ModelInfo{ContextWindow: m.opts.Agent.ContextWindow, Price: m.opts.Agent.Price}); d != "" {
+	m.opts.Agent.SwitchModel(modelID, prov, m.opts.Config)
+	s := m.opts.Agent.Settings()
+	if d := modelDetails(llm.ModelInfo{ContextWindow: s.ContextWindow, Price: s.Price}); d != "" {
 		note += " · " + d
 	}
 	if m.opts.ConfigPath != "" {
@@ -843,7 +830,7 @@ func (m *model) dialogHelp() string {
 
 // headerModel labels the active backend in the header.
 func (m *model) headerModel() string {
-	if m.opts.Agent.Provider == nil {
+	if m.opts.Agent.Settings().Provider == nil {
 		return "not connected · /connect"
 	}
 	return m.opts.Provider + "/" + m.opts.Agent.Settings().Model

@@ -655,7 +655,7 @@ func (s *server) statusLocked() statusPayload {
 		st.ReadOnly = modes.ReadOnly
 		st.Mode = sessionMode(s.opts.Agent)
 		st.Verbose = s.verbose
-		if usd, ok := s.opts.Agent.UsageSnapshot().Cost(s.opts.Agent.Price); ok {
+		if usd, ok := s.opts.Agent.UsageSnapshot().Cost(s.opts.Agent.Settings().Price); ok {
 			st.Cost = llm.FormatUSD(usd)
 		}
 		est := s.opts.Agent.TokenEstimate()

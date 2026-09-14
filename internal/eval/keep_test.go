@@ -519,3 +519,18 @@ func TestKeptPromptExcludesInjectedContext(t *testing.T) {
 		t.Fatalf("userPrompts = %v, want [%q]", got, typed)
 	}
 }
+
+// TestParseKeepArgsCheckInsideName: --check is only the flag as a whole
+// word. It used to be found anywhere in the text, so a task name that
+// merely contained "--check" was cut in two and its tail taken as the
+// check command.
+func TestParseKeepArgsCheckInsideName(t *testing.T) {
+	name, check, _, _, err := ParseKeepArgs("fix--checkout --check go test ./...")
+	if err != nil || name != "fix--checkout" || check != "go test ./..." {
+		t.Fatalf("got name=%q check=%q err=%v", name, check, err)
+	}
+	name, check, _, _, err = ParseKeepArgs("fix--checkout")
+	if err != nil || name != "fix--checkout" || check != "" {
+		t.Fatalf("got name=%q check=%q err=%v", name, check, err)
+	}
+}

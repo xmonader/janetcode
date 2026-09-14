@@ -29,7 +29,7 @@ func (t *Task) editingChild(wt *worktree, profile *skill.Profile) *Agent {
 		maxIter = profile.MaxTurns
 	}
 	child := &Agent{
-		Provider:      p.Provider,
+		Provider:      ps.Provider,
 		Tools:         tool.NewRegistry(allowed(wt.tools(), profile)...),
 		System:        p.System + "\n\nYou are a subagent doing one delegated job for the main agent, in your own checkout of the project. Make the change requested, run the relevant build or tests, and finish with a short report of what you changed and how you verified it. Your edits are returned to the main agent as a patch; do not commit. Do not ask questions; make reasonable assumptions and state them.",
 		Model:         ps.Model,
@@ -38,7 +38,7 @@ func (t *Task) editingChild(wt *worktree, profile *skill.Profile) *Agent {
 		AutoApprove:   true,
 		Rules:         perm.Rules{Deny: p.RulesSnapshot().Deny},
 		CompactAt:     ps.CompactAt,
-		ContextWindow: p.ContextWindow,
+		ContextWindow: ps.ContextWindow,
 		Ledger:        p.Ledger,
 		Impact:        p.Impact,
 	}
@@ -146,7 +146,7 @@ func (t *Task) child(only []string, profile *skill.Profile) (*Agent, error) {
 		return nil, fmt.Errorf("the %s agent has no tools left once its disallowed_tools are removed", profile.Name)
 	}
 	return &Agent{
-		Provider:      p.Provider,
+		Provider:      ps.Provider,
 		Tools:         tool.NewRegistry(ro...),
 		System:        p.System + "\n\nYou are a subagent working on one delegated job for the main agent. You cannot edit files or run commands. Investigate with the tools you have, then reply with a complete, self-contained report of what you found: relevant file paths with line numbers, the facts requested, and anything surprising. Do not ask questions; make reasonable assumptions and state them.",
 		Model:         ps.Model,
@@ -198,7 +198,7 @@ func (t *Task) forkChild() (*Agent, error) {
 		maxIter = 50
 	}
 	child := &Agent{
-		Provider:      p.Provider,
+		Provider:      ps.Provider,
 		Tools:         tool.NewRegistry(ts...),
 		System:        p.System + "\n\nYou are a fork of the parent conversation and inherited its history. Complete the brief. You cannot spawn another fork.",
 		Model:         ps.Model,
@@ -214,7 +214,7 @@ func (t *Task) forkChild() (*Agent, error) {
 		PlanMode:      ps.PlanMode,
 		Rules:         p.RulesSnapshot(),
 		CompactAt:     ps.CompactAt,
-		ContextWindow: p.ContextWindow,
+		ContextWindow: ps.ContextWindow,
 		Archive:       p.Archive,
 		Debug:         p.Debug,
 		Forked:        true,

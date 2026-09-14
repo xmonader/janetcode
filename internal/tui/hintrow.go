@@ -59,7 +59,7 @@ func (m *model) refreshHintState() {
 	}
 	if ag := m.opts.Agent; ag != nil {
 		snap := ag.UsageSnapshot()
-		usd, ok := snap.Cost(ag.Price)
+		usd, ok := snap.Cost(ag.Settings().Price)
 		if ok {
 			s.CostUSD = usd
 		}

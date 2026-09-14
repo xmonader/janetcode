@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -222,5 +223,31 @@ func (s *server) dropOpen() {
 			continue
 		}
 		return
+	}
+}
+
+// showResult renders what a core command function returned: err as an
+// error entry, otherwise the Result's sheet, error, notes and tips as
+// entries and its status on the status line. A Result's Handover is left
+// to the caller, which decides when to start it.
+func (s *server) showResult(res cmdresult.Result, err error) {
+	if err != nil {
+		s.errf("%v", err)
+		return
+	}
+	if res.Sheet != "" {
+		s.sheet(res.SheetTitle, res.Sheet)
+	}
+	if res.Error != "" {
+		s.errf("%s", res.Error)
+	}
+	for _, n := range res.Notes {
+		s.notice(n)
+	}
+	for _, t := range res.Tips {
+		s.notice(t)
+	}
+	if res.Status != "" {
+		s.statusSet(res.Status)
 	}
 }

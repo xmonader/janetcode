@@ -59,15 +59,9 @@ func oldNewSummary(st Step) string {
 		return ""
 	}
 	half := stepLineMax / 2
-	old := textfmt.Clip(oneLine(in.OldString), half)
-	new := textfmt.Clip(oneLine(in.NewString), half)
+	old := textfmt.Clip(textfmt.Squash(in.OldString), half)
+	new := textfmt.Clip(textfmt.Squash(in.NewString), half)
 	return fmt.Sprintf("%s: %q → %q", in.Path, old, new)
-}
-
-// oneLine collapses newlines so a multi-line old_string/new_string still
-// prints as one line.
-func oneLine(s string) string {
-	return strings.Join(strings.Fields(s), " ")
 }
 
 func compactJSON(raw json.RawMessage) string {

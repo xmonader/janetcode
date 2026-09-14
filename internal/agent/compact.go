@@ -440,7 +440,7 @@ func sortedKeys(m map[string]bool) []string {
 func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction string, schema *llm.Schema) (*llm.Response, error) {
 	msgs := append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, instruction+"\n\nReply with text only; do not call tools."))
 	s := a.Settings()
-	resp, err := a.Provider.Stream(ctx, llm.Request{
+	resp, err := s.Provider.Stream(ctx, llm.Request{
 		Model:     s.Model,
 		System:    a.systemPrompt(),
 		Messages:  msgs,
@@ -454,7 +454,7 @@ func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction s
 	if strings.TrimSpace(resp.Message.Text()) != "" {
 		return resp, nil
 	}
-	cold, err := a.Provider.Stream(ctx, llm.Request{
+	cold, err := s.Provider.Stream(ctx, llm.Request{
 		Model:     s.Model,
 		System:    instruction,
 		Messages:  append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, "Now.")),

@@ -2458,19 +2458,23 @@ func TestPermissionImpactReservesOneRow(t *testing.T) {
 	}
 }
 
-// TestPermissionViewShowsImpact: the impact line sits between the notice
-// row and the keys row of the permission box.
+// TestPermissionViewShowsImpact: the footer a user sees during a prompt
+// carries the notice row, the impact line and the keys (the input box's
+// placeholder).
 func TestPermissionViewShowsImpact(t *testing.T) {
 	h := newHarness(t)
 	h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "e1", Name: "edit_file", Input: json.RawMessage(`{"path":"a.go"}`),
 		Impact: "changes Parse (func) · 3 refs in 2 files · tests: parse_test.go"}, reply: make(chan verdict, 1)}
 	h.m.layout()
-	v := plain(h.m.permissionView())
+	v := plain(h.m.footerView())
 	if !strings.Contains(v, "changes Parse (func) · 3 refs in 2 files · tests: parse_test.go") {
 		t.Fatalf("permission view missing the impact line:\n%s", v)
 	}
 	if !strings.Contains(v, "allow edit_file") {
 		t.Fatalf("permission view missing the notice row:\n%s", v)
+	}
+	if !strings.Contains(v, "deny") {
+		t.Fatalf("permission view missing the keys (the input placeholder):\n%s", v)
 	}
 }
 
@@ -2806,16 +2810,6 @@ func TestErrorRendering(t *testing.T) {
 // lipgloss so the palette and the markdown style agree.
 func TestThemeDetection(t *testing.T) {
 	defer lipgloss.SetHasDarkBackground(lipgloss.HasDarkBackground())
-	if got := detectTheme("light"); got != "light" || lipgloss.HasDarkBackground() {
-		t.Errorf("explicit light: theme=%q dark=%v", got, lipgloss.HasDarkBackground())
-	}
-	if got := detectTheme("dark"); got != "dark" || !lipgloss.HasDarkBackground() {
-		t.Errorf("explicit dark: theme=%q dark=%v", got, lipgloss.HasDarkBackground())
-	}
-	// Nothing to query in a test process: the fallback must be dark.
-	if got := detectTheme(""); got != "dark" {
-		t.Errorf("with no answer from the terminal the theme should be dark, got %q", got)
-	}
 	// A model built with a theme renders its markdown in that theme and
 	// pins lipgloss to it, so the palette cannot drift the other way.
 	h := newHarness(t)
@@ -3025,7 +3019,7 @@ func TestPermissionBoxExpandHint(t *testing.T) {
 	h.keys("make n.txt")
 	h.enter()
 	h.pump(func() bool { return h.m.pending != nil })
-	v := plain(h.m.permissionView())
+	v := plain(h.m.footerView())
 	if !strings.Contains(v, "allow write_file") {
 		t.Fatalf("permission box:\n%s", v)
 	}

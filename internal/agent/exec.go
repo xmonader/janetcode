@@ -352,7 +352,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	// withheld with its price rather than truncated: truncation bills the
 	// caller for a prefix that is rarely the answer.
 	if !isErr && !a.Off["oversized"] {
-		if msg := oversized(u.Name, subjectOf(u.Name, u.Input), out, a.EstimateTokens(), a.ContextWindow, accepted); msg != "" {
+		if msg := oversized(u.Name, subjectOf(u.Name, u.Input), out, a.EstimateTokens(), a.Settings().ContextWindow, accepted); msg != "" {
 			out, isErr = msg, true
 		}
 	}

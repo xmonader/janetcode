@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 func TestMutateFlipsOperatorsOutsideStringsAndComments(t *testing.T) {
@@ -39,11 +40,11 @@ func TestMutateFlipsOperatorsOutsideStringsAndComments(t *testing.T) {
 		t.Fatalf("python: %+v", ms)
 	}
 	for _, p := range []string{"x_test.go", "test_x.py", "a.spec.ts", "testdata/x.go", "pkg/tests/x.go"} {
-		if !IsTestFile(p) {
+		if !tool.IsTestFile(p) {
 			t.Errorf("%s should be a test file", p)
 		}
 	}
-	if IsTestFile("internal/x/x.go") {
+	if tool.IsTestFile("internal/x/x.go") {
 		t.Error("x.go is not a test file")
 	}
 }

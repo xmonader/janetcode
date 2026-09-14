@@ -20,6 +20,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/md"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Rule is one conditional instruction file.
@@ -89,7 +90,7 @@ func Load(cwd, configDir string) []Rule {
 				r.Name = n
 			}
 			if r.Description == "" {
-				r.Description = firstLine(body)
+				r.Description = textfmt.HeadingLine(body, 0)
 			}
 			if len(r.Paths) == 0 {
 				continue
@@ -184,12 +185,4 @@ func (i *Injector) Sent(name string) bool {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	return i.sent[name]
-}
-
-func firstLine(s string) string {
-	line := s
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		line = s[:i]
-	}
-	return strings.TrimSpace(strings.TrimLeft(line, "# "))
 }

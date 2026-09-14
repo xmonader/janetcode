@@ -261,66 +261,42 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		return runProofFlag(os.Stdout, cwd, strings.TrimSpace(strings.Join(fs.Args(), " ")))
 	}
 	initial := strings.TrimSpace(strings.Join(fs.Args(), " "))
-	if initial != "" && *promptText != "" {
-		return fmt.Errorf("%w: give the prompt either with -p or as an argument, not both", headless.ErrBadInput)
-	}
-	if *until != "" && *promptText == "" {
-		return fmt.Errorf("%w: --until needs a headless prompt (-p)", headless.ErrBadInput)
-	}
 	format, err := headless.ParseFormat(*outFormat)
 	if err != nil {
 		return fmt.Errorf("%w: %v", headless.ErrBadInput, err)
 	}
-	if format != headless.FormatText && *promptText == "" && *watchCmd == "" {
-		return fmt.Errorf("%w: --output-format applies to a headless run (-p)", headless.ErrBadInput)
-	}
-	if *watchCmd != "" && *until != "" {
-		return fmt.Errorf("%w: --watch and --until cannot be combined", headless.ErrBadInput)
-	}
-	if *web && *acpMode {
-		return fmt.Errorf("%w: --web and --acp cannot be combined", headless.ErrBadInput)
-	}
-	if *web && *promptText != "" {
-		return fmt.Errorf("%w: --web is a session, not a one-shot; drop -p", headless.ErrBadInput)
-	}
-	if *bg && *web {
-		return fmt.Errorf("%w: --bg and --web cannot be combined", headless.ErrBadInput)
-	}
-	if *bg && *acpMode {
-		return fmt.Errorf("%w: --bg and --acp cannot be combined", headless.ErrBadInput)
-	}
-	if *recipeName != "" {
-		switch {
-		case *promptText != "":
-			return fmt.Errorf("%w: --recipe and -p do not combine; a recipe hands over to the model on its own if a step fails", headless.ErrBadInput)
-		case *watchCmd != "":
-			return fmt.Errorf("%w: --recipe and --watch do not combine", headless.ErrBadInput)
-		case *web:
-			return fmt.Errorf("%w: --web is a session, not a one-shot; drop --recipe", headless.ErrBadInput)
-		case *acpMode:
-			return fmt.Errorf("%w: --recipe and --acp do not combine", headless.ErrBadInput)
-		case *bg:
-			return fmt.Errorf("%w: --recipe and --bg do not combine", headless.ErrBadInput)
-		}
-	}
-	if *whatIf != "" {
-		switch {
-		case *promptText != "":
-			return fmt.Errorf("%w: --what-if and -p do not combine", headless.ErrBadInput)
-		case *evalPath != "" || *evalReport != "":
-			return fmt.Errorf("%w: --what-if and --eval do not combine", headless.ErrBadInput)
-		case *replayPath != "":
-			return fmt.Errorf("%w: --what-if and --replay do not combine", headless.ErrBadInput)
-		case *recipeName != "":
-			return fmt.Errorf("%w: --what-if and --recipe do not combine", headless.ErrBadInput)
-		case *web:
-			return fmt.Errorf("%w: --web is a session, not a one-shot; drop --what-if", headless.ErrBadInput)
-		case *acpMode:
-			return fmt.Errorf("%w: --what-if and --acp do not combine", headless.ErrBadInput)
-		case *bg:
-			return fmt.Errorf("%w: --what-if and --bg do not combine", headless.ErrBadInput)
-		case *whatIfFrom <= 0:
-			return fmt.Errorf("%w: --what-if needs --from-turn <n> (1-based)", headless.ErrBadInput)
+	// Flags that do not combine, and flags that need another: the first
+	// row that holds is the error. A row's condition names the flags it is
+	// about, so adding a mode means adding its rows here.
+	recipeRun, whatIfRun := *recipeName != "", *whatIf != ""
+	for _, bad := range []struct {
+		holds bool
+		msg   string
+	}{
+		{initial != "" && *promptText != "", "give the prompt either with -p or as an argument, not both"},
+		{*until != "" && *promptText == "", "--until needs a headless prompt (-p)"},
+		{format != headless.FormatText && *promptText == "" && *watchCmd == "", "--output-format applies to a headless run (-p)"},
+		{*watchCmd != "" && *until != "", "--watch and --until cannot be combined"},
+		{*web && *acpMode, "--web and --acp cannot be combined"},
+		{*web && *promptText != "", "--web is a session, not a one-shot; drop -p"},
+		{*bg && *web, "--bg and --web cannot be combined"},
+		{*bg && *acpMode, "--bg and --acp cannot be combined"},
+		{recipeRun && *promptText != "", "--recipe and -p do not combine; a recipe hands over to the model on its own if a step fails"},
+		{recipeRun && *watchCmd != "", "--recipe and --watch do not combine"},
+		{recipeRun && *web, "--web is a session, not a one-shot; drop --recipe"},
+		{recipeRun && *acpMode, "--recipe and --acp do not combine"},
+		{recipeRun && *bg, "--recipe and --bg do not combine"},
+		{whatIfRun && *promptText != "", "--what-if and -p do not combine"},
+		{whatIfRun && (*evalPath != "" || *evalReport != ""), "--what-if and --eval do not combine"},
+		{whatIfRun && *replayPath != "", "--what-if and --replay do not combine"},
+		{whatIfRun && recipeRun, "--what-if and --recipe do not combine"},
+		{whatIfRun && *web, "--web is a session, not a one-shot; drop --what-if"},
+		{whatIfRun && *acpMode, "--what-if and --acp do not combine"},
+		{whatIfRun && *bg, "--what-if and --bg do not combine"},
+		{whatIfRun && *whatIfFrom <= 0, "--what-if needs --from-turn <n> (1-based)"},
+	} {
+		if bad.holds {
+			return fmt.Errorf("%w: %s", headless.ErrBadInput, bad.msg)
 		}
 	}
 

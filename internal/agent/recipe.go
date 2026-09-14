@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/diff"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/recipe"
@@ -284,7 +285,7 @@ func (a *Agent) checkExpect(st recipe.Step) string {
 // than risk turning an otherwise-successful recipe into an error over a
 // context-window nicety.
 func (a *Agent) maybeCompactAfterRecipe(ctx context.Context, emit func(Event)) {
-	if a.Provider == nil {
+	if a.Settings().Provider == nil {
 		return
 	}
 	compactAt := a.raiseCompactFloor(emit)
@@ -482,8 +483,8 @@ func (a *Agent) hunksToEditSteps(st recipe.Step, c Change) []recipe.Step {
 	if json.Unmarshal(st.Input, &in) != nil || in.Path == "" {
 		return []recipe.Step{st}
 	}
-	before := splitLines(string(c.Before))
-	after := splitLines(string(c.After))
+	before := diff.SplitLinesKeepEOL(string(c.Before))
+	after := diff.SplitLinesKeepEOL(string(c.After))
 	regions := rawChangeRegions(diffLines(before, after))
 	if len(regions) == 0 {
 		return []recipe.Step{st}

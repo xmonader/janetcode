@@ -363,8 +363,8 @@ func (m *model) placeholder() string {
 			"Why? enter sends · esc skips",
 			"Why?")
 	case m.pending != nil:
-		return m.formatPermissionKeys(m.pending.call.Name, m.suggestedRule(m.pending.call.Name, m.pending.call.Input), m.pending.call.Learned, pendingExpandable(m.pending.call), false)
-	case m.opts.Agent.Provider == nil:
+		return m.pendingKeys()
+	case m.opts.Agent.Settings().Provider == nil:
 		return fitPhrase(room, "No provider yet · /connect picks one", "/connect")
 	case m.running:
 		return fitPhrase(room,

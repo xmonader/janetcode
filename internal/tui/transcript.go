@@ -1214,8 +1214,6 @@ func moreNote(n int, expandable bool) string {
 	return fmt.Sprintf("… (%d more lines; the model received all of it)", n)
 }
 
-func clip(s string, lines int) string { return clipNote(s, lines, true) }
-
 func clipNote(s string, lines int, expandable bool) string {
 	parts := strings.Split(s, "\n")
 	if len(parts) <= lines {

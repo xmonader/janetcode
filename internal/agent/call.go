@@ -32,7 +32,7 @@ func (a *Agent) call(ctx context.Context, emit func(Event)) (*llm.Response, erro
 		emit(Event{Kind: EvNotice, Text: "routed call to " + model + " failed (" + textfmt.FirstLine(err.Error(), 70) + "); this step goes to " + s.Model})
 		a.stepRoute.taint("a routed call failed")
 	}
-	resp, err := a.callOn(ctx, a.Provider, s.Model, emit)
+	resp, err := a.callOn(ctx, s.Provider, s.Model, emit)
 	if err == nil {
 		return resp, nil
 	}
@@ -191,18 +191,18 @@ func (a *Agent) AskOnce(ctx context.Context, question string) (string, error) {
 	if question == "" {
 		return "", fmt.Errorf("empty question")
 	}
-	if a.Provider == nil {
+	s := a.Settings()
+	if s.Provider == nil {
 		return "", fmt.Errorf("no provider")
 	}
 	// /btw is asked while a turn may be running, so the history is copied
 	// under the lock rather than read from under the turn goroutine.
 	msgs := append(a.MessagesSnapshot(), llm.TextMessage(llm.RoleUser, question))
-	s := a.Settings()
 	max := s.MaxTokens
 	if max <= 0 || max > 2048 {
 		max = 2048
 	}
-	resp, err := a.Provider.Stream(ctx, llm.Request{
+	resp, err := s.Provider.Stream(ctx, llm.Request{
 		Model:     s.Model,
 		System:    a.systemPrompt(),
 		Messages:  msgs,

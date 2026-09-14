@@ -5,7 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -30,23 +32,65 @@ type AcceptArgs struct {
 // one of the fixed words is a request, the same way /plan's argument is
 // free text unless it names approve/off.
 func ParseAcceptArgs(rest string) AcceptArgs {
-	rest = strings.TrimSpace(rest)
-	switch rest {
-	case "":
-		return AcceptArgs{Status: true}
-	case "approve":
-		return AcceptArgs{Approve: true}
-	case "lock":
-		return AcceptArgs{Lock: true}
-	case "unlock":
-		return AcceptArgs{Unlock: true}
-	case "off", "cancel", "exit":
-		return AcceptArgs{Off: true}
+	t, _ := slash.Tokenize(rest, slash.ArgSpec{Rest: []string{"command"}})
+	if cmd, ok := t.Flags["command"]; ok && len(t.Positional) == 0 {
+		return AcceptArgs{SetCommand: true, Command: cmd}
 	}
-	if arg, ok := strings.CutPrefix(rest, "command"); ok && (arg == "" || arg[0] == ' ') {
-		return AcceptArgs{SetCommand: true, Command: strings.TrimSpace(arg)}
+	if len(t.Flags) == 0 && len(t.Positional) <= 1 {
+		switch strings.Join(t.Positional, "") {
+		case "":
+			return AcceptArgs{Status: true}
+		case "approve":
+			return AcceptArgs{Approve: true}
+		case "lock":
+			return AcceptArgs{Lock: true}
+		case "unlock":
+			return AcceptArgs{Unlock: true}
+		case "off", "cancel", "exit":
+			return AcceptArgs{Off: true}
+		}
 	}
-	return AcceptArgs{Request: rest}
+	return AcceptArgs{Request: strings.TrimSpace(rest)}
+}
+
+// AcceptCommand runs a parsed /accept for every front-end: it starts
+// test-writing mode (Result.Handover is the request, to submit as the
+// next turn), reports status, or resolves approve/lock/unlock/command/off.
+// root is the project directory accept mode's paths are relative to.
+func (a *Agent) AcceptCommand(args AcceptArgs, root string) (cmdresult.Result, error) {
+	note := func(s string) (cmdresult.Result, error) { return cmdresult.Result{Notes: []string{s}}, nil }
+	switch {
+	case args.Status:
+		return cmdresult.Result{Sheet: a.AcceptStatus(), SheetTitle: "accept", Plain: true}, nil
+	case args.Approve:
+		cmd, err := a.AcceptApprove()
+		if err != nil {
+			return cmdresult.Result{}, fmt.Errorf("accept: %w", err)
+		}
+		return note("accept: locked · verifies with: " + cmd)
+	case args.Lock:
+		if err := a.AcceptLock(); err != nil {
+			return cmdresult.Result{}, fmt.Errorf("accept: %w", err)
+		}
+		return note("accept: locked")
+	case args.Unlock:
+		if err := a.AcceptUnlock(); err != nil {
+			return cmdresult.Result{}, fmt.Errorf("accept: %w", err)
+		}
+		return note("accept: unlocked · edits to the test files are allowed until /accept lock")
+	case args.SetCommand:
+		cmd, err := a.AcceptSetCommand(args.Command)
+		if err != nil {
+			return cmdresult.Result{}, fmt.Errorf("accept: %w", err)
+		}
+		return note("accept: command set to " + cmd)
+	case args.Off:
+		a.AcceptOff()
+		return note("accept: off")
+	default:
+		a.AcceptStart(args.Request, root)
+		return cmdresult.Result{Status: "accept: writing tests for " + args.Request, Handover: args.Request}, nil
+	}
 }
 
 // AcceptStart puts the session in test-writing mode for request: until
