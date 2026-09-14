@@ -300,6 +300,15 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 	}
 
+	// Re-reading saved results and replaying a recording buy nothing, so
+	// they must not need a provider or a key: they run before the config
+	// is loaded, where a missing key would stop them.
+	if *evalReport != "" {
+		return reportEval(*evalReport, *evalCompare)
+	}
+	if *replayPath != "" {
+		return runReplay(*replayPath)
+	}
 	if *evalTrain != "" {
 		cfgPath, _ := config.Path()
 		return trainCritic(strings.Split(*evalTrain, ","), filepath.Join(filepath.Dir(cfgPath), "critic.json"), os.Stdout)
@@ -402,9 +411,6 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 		cwd = wt.Path
 	}
-	if *replayPath != "" {
-		return runReplay(*replayPath)
-	}
 	if *whatIf != "" {
 		if prov == nil {
 			return errors.New("--what-if needs a configured provider for the live part")
@@ -419,9 +425,6 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	// Re-reading saved results needs no provider and no money: the data is
 	// already on disk, and a comparison that was printed once should be
 	// printable again when the statistics behind it change.
-	if *evalReport != "" {
-		return reportEval(*evalReport, *evalCompare)
-	}
 	if *evalPath != "" {
 		if prov == nil {
 			return errors.New("--eval needs a configured provider")

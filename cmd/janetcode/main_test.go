@@ -304,3 +304,24 @@ func TestHeadlessAppliesThePromptOverride(t *testing.T) {
 		t.Fatalf("the environment section went missing with the base: %q", sys)
 	}
 }
+
+// TestOfflineModesNeedNoKey: --eval-report re-reads saved files and must
+// work with no provider configured and no key in the environment.
+func TestOfflineModesNeedNoKey(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	for _, k := range []string{"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "JANETCODE_MODEL", "JANETCODE_PROVIDER", "OPENAI_BASE_URL"} {
+		t.Setenv(k, "")
+	}
+	results := filepath.Join("..", "..", "docs", "benchmarks", "multistep", "session-refactor", "after-2704c9d.json")
+	stdout, _ := captureStd(t)
+	err := run([]string{"--eval-report", results})
+	out := stdout()
+	if err != nil {
+		t.Fatalf("--eval-report without a key: %v", err)
+	}
+	if !strings.Contains(out, "passed") {
+		t.Fatalf("no report printed:\n%s", out)
+	}
+}
