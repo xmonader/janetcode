@@ -34,6 +34,12 @@ import (
 // OnChange): the front end that built the agent wires the callback to
 // session.Session.SetAccept, so this package never needs its own
 // *session.Session reference.
+//
+// Accept is shared between goroutines: a front-end changes it (/accept
+// approve, lock, off) while a turn may be running tools that consult it.
+// acceptMu guards the pointer and everything under it. It is only ever
+// held for bookkeeping and file hashing — never across emit, a model call,
+// or the gate's test run — so it cannot stall an approval prompt.
 
 // acceptVerifyLine is the structured final line a test-writing turn ends
 // with to propose the command that runs the tests it wrote, e.g.
@@ -128,6 +134,8 @@ func ParseAcceptArgs(rest string) AcceptArgs {
 // tool call is refused except a write_file/edit_file on a test file (see
 // acceptWritingDenial).
 func (a *Agent) AcceptStart(request, root string) {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
 	a.Accept = &session.AcceptMeta{Phase: session.AcceptWriting, Request: strings.TrimSpace(request), Root: root}
 	a.persistAccept()
 }
@@ -135,6 +143,8 @@ func (a *Agent) AcceptStart(request, root string) {
 // AcceptOff ends accept mode outright: whatever was locked is unlocked
 // and the gate stops running.
 func (a *Agent) AcceptOff() {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
 	a.Accept = nil
 	a.persistAccept()
 }
@@ -144,6 +154,8 @@ func (a *Agent) AcceptOff() {
 // one inferred as a fallback — see InferTestCommand), records every
 // file's hash, and arms the gate. It returns the command now in effect.
 func (a *Agent) AcceptApprove() (string, error) {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
 	if a.Accept == nil || a.Accept.Phase != session.AcceptProposed {
 		return "", fmt.Errorf("nothing proposed yet: /accept <request> writes tests first")
 	}
@@ -172,6 +184,8 @@ func (a *Agent) AcceptApprove() (string, error) {
 // AcceptLock re-locks the files an earlier approval named, hashing their
 // current content, after /accept unlock let the model fix a wrong test.
 func (a *Agent) AcceptLock() error {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
 	if a.Accept == nil || (a.Accept.Phase != session.AcceptUnlocked && a.Accept.Phase != session.AcceptLocked) {
 		return fmt.Errorf("accept: nothing approved yet to lock")
 	}
@@ -193,6 +207,8 @@ func (a *Agent) AcceptLock() error {
 // locked files or their hashes/content, only which command gates the
 // session and gets approved.
 func (a *Agent) AcceptSetCommand(raw string) (string, error) {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
 	if a.Accept == nil {
 		return "", fmt.Errorf("accept: nothing started yet")
 	}
@@ -216,6 +232,8 @@ func (a *Agent) AcceptSetCommand(raw string) (string, error) {
 // test turned out wrong, and fixing it is a legitimate edit the user is
 // asking for by name, not one the model talked its way into.
 func (a *Agent) AcceptUnlock() error {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
 	if a.Accept == nil || a.Accept.Phase != session.AcceptLocked {
 		return fmt.Errorf("accept: tests are not locked")
 	}
@@ -227,6 +245,8 @@ func (a *Agent) AcceptUnlock() error {
 // AcceptStatus is the report for a bare /accept: the request, the locked
 // files, whether their hashes still match, and the last gate result.
 func (a *Agent) AcceptStatus() string {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
 	if a.Accept == nil {
 		return "accept mode is off: /accept <request> writes acceptance tests for it first"
 	}
@@ -269,11 +289,23 @@ func (a *Agent) AcceptStatus() string {
 }
 
 // persistAccept tells the front end accept state changed, so it can keep
-// the session record in step (see OnAcceptChange).
+// the session record in step (see OnAcceptChange). Called with acceptMu
+// held; the callback gets a copy, since the session keeps what it is
+// given and this agent goes on changing its own.
 func (a *Agent) persistAccept() {
 	if a.OnAcceptChange != nil {
-		a.OnAcceptChange(a.Accept)
+		a.OnAcceptChange(a.Accept.Clone())
 	}
+}
+
+// acceptPhase is the current phase, and false when accept mode is off.
+func (a *Agent) acceptPhase() (session.AcceptPhase, bool) {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
+	if a.Accept == nil {
+		return "", false
+	}
+	return a.Accept.Phase, true
 }
 
 func (a *Agent) verifyCommands() []string {
@@ -348,6 +380,16 @@ func (a *Agent) captureAcceptContents() {
 // reported here, and acceptIntegrityCheck fails the verification gate
 // over it regardless.
 func (a *Agent) acceptRestoreTampered(toolName string, emit func(Event)) string {
+	msg := a.acceptRestoreTamperedLocked(toolName)
+	if msg != "" {
+		emit(Event{Kind: EvNotice, Text: "accept: " + msg, IsError: true})
+	}
+	return msg
+}
+
+func (a *Agent) acceptRestoreTamperedLocked(toolName string) string {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
 	if a.Accept == nil || a.Accept.Phase != session.AcceptLocked {
 		return ""
 	}
@@ -387,13 +429,11 @@ func (a *Agent) acceptRestoreTampered(toolName string, emit func(Event)) string 
 	for _, name := range unrestorable {
 		fmt.Fprintf(&b, "%s is a locked acceptance test and changed, but is too large to restore automatically; tell the user it needs manual attention.\n", name)
 	}
-	msg := strings.TrimRight(b.String(), "\n")
-	emit(Event{Kind: EvNotice, Text: "accept: " + msg, IsError: true})
-	return msg
+	return strings.TrimRight(b.String(), "\n")
 }
 
 // isLockedPath reports whether abs (already resolved) names a file
-// currently locked against tool-call writes.
+// currently locked against tool-call writes. Called with acceptMu held.
 func (a *Agent) isLockedPath(abs string) bool {
 	if a.Accept == nil || a.Accept.Phase != session.AcceptLocked {
 		return false
@@ -433,6 +473,8 @@ func resolvedTouches(t tool.Tool, input json.RawMessage) []string {
 // write targets (tool.WriteTargets, built on the same path-escape
 // analysis Classify uses for the workspace guard).
 func (a *Agent) acceptDenial(t tool.Tool, input json.RawMessage) string {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
 	if a.Accept == nil || a.Accept.Phase != session.AcceptLocked {
 		return ""
 	}
@@ -476,6 +518,8 @@ func (a *Agent) acceptDenial(t tool.Tool, input json.RawMessage) string {
 // and runNested (script/execute_code/run_code calls), so a script cannot
 // reach past it either.
 func (a *Agent) acceptWritingDenial(t tool.Tool, input json.RawMessage) string {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
 	if a.Accept == nil {
 		return ""
 	}
@@ -508,6 +552,8 @@ func (a *Agent) acceptWritingDenial(t tool.Tool, input json.RawMessage) string {
 // the only way a locked file's content may legitimately move, so the
 // next integrity check sees it as expected rather than as tampering.
 func (a *Agent) acceptTrackEdit(t tool.Tool, input json.RawMessage) {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
 	if a.Accept == nil {
 		return
 	}
@@ -559,6 +605,7 @@ func containsStr(list []string, s string) bool {
 // mismatch means the file moved some other way — a bash trick the lock
 // check did not catch, an external editor, anything — and is reported
 // rather than silently trusted, whatever the test command itself says.
+// Called with acceptMu held.
 func (a *Agent) acceptIntegrityCheck() []string {
 	if a.Accept == nil {
 		return nil
@@ -587,25 +634,39 @@ func (a *Agent) acceptIntegrityCheck() []string {
 // rather than nudging forever. It reports whether the turn should
 // continue for another model call.
 func (a *Agent) acceptCapture(text string, nudged *bool, emit func(Event)) bool {
-	if a.Accept == nil || a.Accept.Phase != session.AcceptWriting {
+	notice, harness := a.acceptCaptureLocked(text, nudged)
+	if notice != "" {
+		emit(Event{Kind: EvNotice, Text: notice})
+	}
+	if harness == "" {
 		return false
+	}
+	a.appendHarnessText(harness)
+	return true
+}
+
+// acceptCaptureLocked is acceptCapture's decision, made under acceptMu: the
+// notice to show, and the harness text to send the model back with ("" to
+// end the turn).
+func (a *Agent) acceptCaptureLocked(text string, nudged *bool) (notice, harness string) {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
+	if a.Accept == nil || a.Accept.Phase != session.AcceptWriting {
+		return "", ""
 	}
 	if len(a.Accept.Files) == 0 {
 		if *nudged {
-			return false // said once; a model that will not write tests is not made to by looping
+			return "", "" // said once; a model that will not write tests is not made to by looping
 		}
 		*nudged = true
-		emit(Event{Kind: EvNotice, Text: "accept: no test files written yet"})
-		a.appendHarnessText("[accept] You have not written any test files yet. Write acceptance tests for the request, touching only test files, then end your message with a line \"ACCEPT-VERIFY: <command to run them>\".")
-		return true
+		return "accept: no test files written yet", "[accept] You have not written any test files yet. Write acceptance tests for the request, touching only test files, then end your message with a line \"ACCEPT-VERIFY: <command to run them>\"."
 	}
 	if m := acceptVerifyLine.FindStringSubmatch(text); m != nil {
 		if cmd := cleanVerifyCommand(m[1]); cmd != "" {
 			a.Accept.Proposed = cmd
 			a.Accept.Phase = session.AcceptProposed
 			a.persistAccept()
-			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("accept: %d test file(s) proposed · verifies with: %s · review, then /accept approve", len(a.Accept.Files), a.Accept.Proposed)})
-			return false
+			return fmt.Sprintf("accept: %d test file(s) proposed · verifies with: %s · review, then /accept approve", len(a.Accept.Files), a.Accept.Proposed), ""
 		}
 		// Captured something, but it is not usable as one literal shell
 		// command as stated — empty once any wrapping backticks/quotes
@@ -618,25 +679,19 @@ func (a *Agent) acceptCapture(text string, nudged *bool, emit func(Event)) bool 
 			a.Accept.Proposed = InferTestCommand(a.Accept.Files, a.Accept.Root, a.verifyCommands())
 			a.Accept.Phase = session.AcceptProposed
 			a.persistAccept()
-			emit(Event{Kind: EvNotice, Text: "accept: the stated ACCEPT-VERIFY command was not usable as a single command; using an inferred one — check it before approving: " + a.Accept.Proposed})
-			return false
+			return "accept: the stated ACCEPT-VERIFY command was not usable as a single command; using an inferred one — check it before approving: " + a.Accept.Proposed, ""
 		}
 		*nudged = true
-		emit(Event{Kind: EvNotice, Text: "accept: ACCEPT-VERIFY command was not usable"})
-		a.appendHarnessText("[accept] The ACCEPT-VERIFY line must name exactly one single-line shell command, with nothing else on that line — no wrapping quotes or backticks needed. State it again.")
-		return true
+		return "accept: ACCEPT-VERIFY command was not usable", "[accept] The ACCEPT-VERIFY line must name exactly one single-line shell command, with nothing else on that line — no wrapping quotes or backticks needed. State it again."
 	}
 	if *nudged {
 		a.Accept.Proposed = InferTestCommand(a.Accept.Files, a.Accept.Root, a.verifyCommands())
 		a.Accept.Phase = session.AcceptProposed
 		a.persistAccept()
-		emit(Event{Kind: EvNotice, Text: "accept: no command was stated; using an inferred one — check it before approving: " + a.Accept.Proposed})
-		return false
+		return "accept: no command was stated; using an inferred one — check it before approving: " + a.Accept.Proposed, ""
 	}
 	*nudged = true
-	emit(Event{Kind: EvNotice, Text: "accept: no verification command stated"})
-	a.appendHarnessText("[accept] End your message with a line of the exact form \"ACCEPT-VERIFY: <command>\" naming how to run the tests you just wrote.")
-	return true
+	return "accept: no verification command stated", "[accept] End your message with a line of the exact form \"ACCEPT-VERIFY: <command>\" naming how to run the tests you just wrote."
 }
 
 // acceptVerifyGate is the locked tests' run command as an extra
@@ -648,20 +703,29 @@ func (a *Agent) acceptCapture(text string, nudged *bool, emit func(Event)) bool 
 // command, since a passing result over changed tests would prove
 // nothing.
 func (a *Agent) acceptVerifyGate(ctx context.Context, g *gateState, emit func(Event)) bool {
-	if a.Accept == nil || a.Accept.Command == "" {
-		return false
-	}
-	if a.Accept.Phase != session.AcceptLocked && a.Accept.Phase != session.AcceptUnlocked {
+	// The state is read under the lock and the command run without it:
+	// the tests can take minutes, and a front-end must still be able to
+	// run /accept off or /accept status meanwhile.
+	a.acceptMu.Lock()
+	acc := a.Accept
+	if acc == nil || acc.Command == "" || (acc.Phase != session.AcceptLocked && acc.Phase != session.AcceptUnlocked) {
+		a.acceptMu.Unlock()
 		return false
 	}
 	if a.mutations == 0 || a.mutations == g.seen {
+		a.acceptMu.Unlock()
 		return false
 	}
 	g.seen = a.mutations
+	command, root := acc.Command, acc.Root
+	var reason string
 	if bad := a.acceptIntegrityCheck(); len(bad) > 0 {
-		reason := strings.Join(bad, "; ")
-		a.Accept.Tamper = reason
+		reason = strings.Join(bad, "; ")
+		acc.Tamper = reason
 		a.persistAccept()
+	}
+	a.acceptMu.Unlock()
+	if reason != "" {
 		msg := "accept: integrity check failed — " + reason
 		emit(Event{Kind: EvNotice, Text: msg, IsError: true})
 		g.rounds++
@@ -672,14 +736,20 @@ func (a *Agent) acceptVerifyGate(ctx context.Context, g *gateState, emit func(Ev
 		a.appendHarnessText("[accept] " + msg + ". A locked acceptance test changed outside a tool call, which is reported instead of trusted. Restore the locked test files exactly as approved, or tell the user the tests need /accept unlock.")
 		return true
 	}
-	emit(Event{Kind: EvNotice, Text: "accept: verifying locked tests · " + a.Accept.Command})
-	r := &verify.Runner{Config: verify.Config{Commands: []string{a.Accept.Command}}, Cwd: a.Accept.Root}
+	emit(Event{Kind: EvNotice, Text: "accept: verifying locked tests · " + command})
+	r := &verify.Runner{Config: verify.Config{Commands: []string{command}}, Cwd: root}
 	res := r.Run(ctx)
 	if ctx.Err() != nil {
 		return false
 	}
-	a.Accept.Gate = &session.AcceptGateResult{At: time.Now(), Passed: res.OK(), Summary: res.Summary()}
-	a.persistAccept()
+	a.acceptMu.Lock()
+	// Only the mode this gate ran for records its result: an /accept off
+	// or a new /accept <request> while the tests ran has replaced it.
+	if a.Accept == acc {
+		acc.Gate = &session.AcceptGateResult{At: time.Now(), Passed: res.OK(), Summary: res.Summary()}
+		a.persistAccept()
+	}
+	a.acceptMu.Unlock()
 	if res.OK() {
 		emit(Event{Kind: EvNotice, Text: "accept: " + res.Summary()})
 		return false
@@ -708,6 +778,8 @@ func (a *Agent) acceptVerifyGate(ctx context.Context, g *gateState, emit func(Ev
 // on, so the model is told the rules without paying for them once the
 // mode ends (see systemPrompt in context.go).
 func (a *Agent) acceptSystemText() string {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
 	if a.Accept == nil {
 		return ""
 	}

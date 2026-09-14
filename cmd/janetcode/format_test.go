@@ -42,7 +42,7 @@ func TestOutputFormatJSONEndToEnd(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	t.Setenv("OPENAI_BASE_URL", srv.URL+"/v1")
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	os.Chdir(work)
+	t.Chdir(work)
 
 	stdout, stderr := captureStd(t)
 	err := run([]string{"-p", "what does hello.txt say", "--provider", "openai", "--model", "test-model", "--yolo", "--output-format", "json"})
@@ -102,7 +102,7 @@ func TestOutputFormatStreamJSONEndToEnd(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	t.Setenv("OPENAI_BASE_URL", srv.URL+"/v1")
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	os.Chdir(work)
+	t.Chdir(work)
 
 	stdout, stderr := captureStd(t)
 	err := run([]string{"-p", "hi", "--provider", "openai", "--model", "test-model", "--output-format", "stream-json"})
@@ -172,7 +172,7 @@ func TestJSONEnvelopeReportsRecoveries(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	t.Setenv("OPENAI_BASE_URL", srv.URL+"/v1")
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	os.Chdir(work)
+	t.Chdir(work)
 
 	stdout, stderr := captureStd(t)
 	err := run([]string{"-p", "what does hello.txt say", "--provider", "openai", "--model", "test-model", "--yolo", "--output-format", "json"})

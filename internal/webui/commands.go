@@ -58,6 +58,49 @@ func (s *server) commandsAPI(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, commandSpecs)
 }
 
+// runBusy runs fn on its own goroutine with the session marked running,
+// the way a turn or a recipe run is, for a command that works on the
+// agent's history or undo stack and may take a while (a model call, the
+// project's checks). Meanwhile a prompt is queued and an idle-only command
+// refused, so fn never shares the agent with a turn — TellModelUndone and
+// Compact both rewrite Messages, which a turn owns while it runs. esc
+// cancels ctx. When fn returns, the first queued prompt starts.
+func (s *server) runBusy(phase string, fn func(ctx context.Context)) {
+	s.mu.Lock()
+	if s.running {
+		s.mu.Unlock()
+		s.errf("%s waits for the turn to finish (esc cancels it)", phase)
+		return
+	}
+	s.running = true
+	s.phase = phase
+	s.started = time.Now()
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+	s.mu.Unlock()
+	s.emitStatus()
+	go func() {
+		fn(ctx)
+		s.mu.Lock()
+		s.running = false
+		s.phase = ""
+		if s.cancel != nil {
+			s.cancel()
+			s.cancel = nil
+		}
+		var next string
+		if len(s.queued) > 0 {
+			next = s.queued[0]
+			s.queued = s.queued[1:]
+		}
+		s.mu.Unlock()
+		s.emitStatus()
+		if next != "" {
+			s.startTurn(next)
+		}
+	}()
+}
+
 func (s *server) runCommand(text string) error {
 	fields := strings.Fields(text)
 	if len(fields) == 0 {
@@ -114,7 +157,7 @@ func (s *server) runCommand(text string) error {
 		s.mu.Unlock()
 		s.noteOnOff("verbose tool output", v, "every tool result is shown whole")
 	case "/compact":
-		go func() { _ = ag.Compact(context.Background(), s.apply) }()
+		s.runBusy("compacting context", func(ctx context.Context) { _ = ag.Compact(ctx, s.apply) })
 	case "/undo":
 		// One shared parser (agent.ParseUndoArgs) decides what "/undo
 		// ..." means, so the terminal and the web UI agree; the web UI
@@ -140,8 +183,8 @@ func (s *server) runCommand(text string) error {
 				s.errf("usage: /undo about <description>")
 				return nil
 			}
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			s.runBusy("matching changes", func(ctx context.Context) {
+				ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 				defer cancel()
 				sel, err := ag.PreviewUndoAbout(ctx, ua.Description)
 				if err != nil {
@@ -149,11 +192,11 @@ func (s *server) runCommand(text string) error {
 					return
 				}
 				s.sheet("undo about", agent.FormatSelection(s.opts.Cwd, sel))
-			}()
+			})
 			return nil
 		case ua.Apply:
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			s.runBusy("applying undo", func(ctx context.Context) {
+				ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 				defer cancel()
 				rep, err := ag.ApplyPendingUndo(ctx, ua.Force)
 				if err != nil {
@@ -162,7 +205,7 @@ func (s *server) runCommand(text string) error {
 				}
 				s.sheet("undo", agent.FormatUndoReport(rep))
 				ag.TellModelUndone(rep)
-			}()
+			})
 			return nil
 		}
 		done, err := ag.Undo()

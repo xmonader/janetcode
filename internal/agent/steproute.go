@@ -150,25 +150,53 @@ type routeCheapState struct {
 // key's doc promises, rather than retrying — and failing the same way —
 // on every step.
 func (a *Agent) resolveRouteCheap(emit func(Event)) (llm.Provider, string, bool, bool) {
-	if a.routeCheapState.resolved {
-		s := a.routeCheapState
-		return s.prov, s.model, s.sameProvider, !s.disabled
+	a.routeMu.Lock()
+	name, st := a.RouteCheap, a.routeCheapState
+	a.routeMu.Unlock()
+	if st.resolved {
+		return st.prov, st.model, st.sameProvider, !st.disabled
 	}
-	a.routeCheapState.resolved = true
+	// Route runs without the lock; only the turn goroutine resolves, and a
+	// /config that changed the name meanwhile wins over this result.
+	st = routeCheapState{resolved: true}
+	var notice string
 	if a.Route == nil {
-		a.routeCheapState.disabled = true
-		emit(Event{Kind: EvNotice, Text: "route_cheap is set to " + a.RouteCheap + " but no model router is configured; step routing is off for this session"})
+		st.disabled = true
+		notice = "route_cheap is set to " + name + " but no model router is configured; step routing is off for this session"
+	} else if prov, model, err := a.Route(name); err != nil {
+		st.disabled = true
+		notice = "route_cheap: cannot route to " + name + ": " + err.Error() + "; step routing is off for this session"
+	} else {
+		same := a.Provider != nil && prov != nil && prov.Name() == a.Provider.Name()
+		st.prov, st.model, st.sameProvider = prov, model, same
+	}
+	a.routeMu.Lock()
+	if a.RouteCheap == name {
+		a.routeCheapState = st
+	}
+	a.routeMu.Unlock()
+	if notice != "" {
+		emit(Event{Kind: EvNotice, Text: notice})
 		return nil, "", false, false
 	}
-	prov, model, err := a.Route(a.RouteCheap)
-	if err != nil {
-		a.routeCheapState.disabled = true
-		emit(Event{Kind: EvNotice, Text: "route_cheap: cannot route to " + a.RouteCheap + ": " + err.Error() + "; step routing is off for this session"})
-		return nil, "", false, false
-	}
-	same := a.Provider != nil && prov != nil && prov.Name() == a.Provider.Name()
-	a.routeCheapState.prov, a.routeCheapState.model, a.routeCheapState.sameProvider = prov, model, same
-	return prov, model, same, true
+	return st.prov, st.model, st.sameProvider, true
+}
+
+// SetRouteCheap changes RouteCheap mid-session, for /config route_cheap.
+// A new value invalidates whatever resolveRouteCheap cached (a stale
+// provider, or a stale "cannot be routed" notice that no longer applies).
+func (a *Agent) SetRouteCheap(name string) {
+	a.routeMu.Lock()
+	a.RouteCheap = name
+	a.routeCheapState = routeCheapState{}
+	a.routeMu.Unlock()
+}
+
+// RouteCheapName is RouteCheap, safe to read while a turn runs.
+func (a *Agent) RouteCheapName() string {
+	a.routeMu.Lock()
+	defer a.routeMu.Unlock()
+	return a.RouteCheap
 }
 
 // routeStep decides, for the call about to be made, whether it goes to
@@ -176,10 +204,10 @@ func (a *Agent) resolveRouteCheap(emit func(Event)) (llm.Provider, string, bool,
 // name to use and whether routing applies at all; when it does not, the
 // caller sends the call to Model exactly as it would with the feature off.
 func (a *Agent) routeStep(emit func(Event)) (llm.Provider, string, bool) {
-	if a.RouteCheap == "" || a.PlanMode {
+	if a.RouteCheapName() == "" || a.PlanMode {
 		return nil, "", false
 	}
-	if a.Accept != nil && a.Accept.Phase == session.AcceptWriting {
+	if phase, on := a.acceptPhase(); on && phase == session.AcceptWriting {
 		return nil, "", false
 	}
 	if a.stepN <= 1 {

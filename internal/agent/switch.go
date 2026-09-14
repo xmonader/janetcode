@@ -11,7 +11,7 @@ import (
 // all — is carried into the new one. /clear, /resume and their web
 // equivalents all switch through here.
 func (a *Agent) OpenSession(sess *session.Session, history []llm.Message) error {
-	a.Messages = history
+	a.setMessages(history)
 	a.Pins = append([]string(nil), sess.Meta.Pins...)
 	a.SetLog(sess)
 	a.UndoPath = sess.UndoPath()

@@ -143,9 +143,9 @@ func (a *Agent) Prune() int {
 			before := len(b.Text)
 			switch {
 			case useKey[b.ToolUseID] != "" && !keep[b.ToolUseID] && len(b.Text) > len(superseded):
-				a.Messages[i].Blocks[j].Text = superseded
+				a.setBlockText(i, j, superseded)
 			case len(b.Text) > pruneKeep:
-				a.Messages[i].Blocks[j].Text = a.trimOld(b.ToolUseID, label[b.ToolUseID][0], label[b.ToolUseID][1], b.Text)
+				a.setBlockText(i, j, a.trimOld(b.ToolUseID, label[b.ToolUseID][0], label[b.ToolUseID][1], b.Text))
 			}
 			saved += before - len(a.Messages[i].Blocks[j].Text)
 		}
@@ -214,7 +214,7 @@ func (a *Agent) pruneTo(target int) int {
 		if len(ph) >= len(b.Text) {
 			continue
 		}
-		a.Messages[c.i].Blocks[c.j].Text = ph
+		a.setBlockText(c.i, c.j, ph)
 		replaced++
 		a.lastInputTokens, a.lastInputMsgs = 0, 0
 		a.integ.shrunkOK, a.historyRewritten = true, true
@@ -539,7 +539,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 			note += fmt.Sprintf("\n\nThe full text of the compacted conversation is archived as %s: expand_output {\"id\":%q,\"query\":\"<what you are looking for>\"} finds passages in it, offset/limit reads it in order.", id, id)
 		}
 	}
-	a.Messages = append([]llm.Message{llm.HarnessMessage(llm.RoleUser, note)}, tail...)
+	a.setMessages(append([]llm.Message{llm.HarnessMessage(llm.RoleUser, note)}, tail...))
 	a.RefreshExtra() // the prefix is rebuilt anyway; pick up new memory and skills
 	mergedPending := false
 	if pending != nil {

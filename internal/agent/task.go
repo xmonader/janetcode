@@ -95,7 +95,7 @@ func (t *Task) Children() []ChildInfo {
 func childInfoLocked(id string, c *subagent) ChildInfo {
 	return ChildInfo{
 		ID: id, Description: c.desc, Started: c.started, Done: c.done,
-		Last: c.last, Editing: c.wt != nil, Fork: c.fork, Usage: c.agent.Usage,
+		Last: c.last, Editing: c.wt != nil, Fork: c.fork, Usage: c.agent.UsageSnapshot(),
 	}
 }
 
@@ -125,10 +125,9 @@ func (t *Task) ChildLog(id string) (ChildLog, bool) {
 	if c == nil {
 		return ChildLog{}, false
 	}
-	msgs := c.agent.Messages
-	cp := make([]llm.Message, len(msgs))
-	copy(cp, msgs)
-	return ChildLog{ChildInfo: childInfoLocked(id, c), Messages: cp}, true
+	// A fork is still running on its own goroutine: its history is taken
+	// through the agent's own lock, not read from under it.
+	return ChildLog{ChildInfo: childInfoLocked(id, c), Messages: c.agent.MessagesSnapshot()}, true
 }
 
 // Steps walks the child's messages into display order: the brief, each
@@ -688,7 +687,9 @@ func (t *Task) forkChild() (*Agent, error) {
 		Model:         p.Model,
 		MaxTokens:     p.MaxTokens,
 		MaxIterations: maxIter,
-		Messages:      copyMessages(p.Messages),
+		// /agents fork starts this from a front-end goroutine while the
+		// parent's turn may still be appending; copy under its lock.
+		Messages:      copyMessages(p.MessagesSnapshot()),
 		AutoApprove:   p.AutoApprove,
 		AutoEdits:     p.AutoEdits,
 		AutoMode:      p.AutoMode,

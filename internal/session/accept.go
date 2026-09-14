@@ -72,6 +72,33 @@ type AcceptMeta struct {
 	Tamper string `json:"tamper,omitempty"`
 }
 
+// Clone is a deep copy, so a snapshot handed to the session file cannot be
+// changed under it by the agent that keeps mutating its own copy.
+func (m *AcceptMeta) Clone() *AcceptMeta {
+	if m == nil {
+		return nil
+	}
+	c := *m
+	c.Files = append([]string(nil), m.Files...)
+	if m.Hashes != nil {
+		c.Hashes = make(map[string]string, len(m.Hashes))
+		for k, v := range m.Hashes {
+			c.Hashes[k] = v
+		}
+	}
+	if m.Contents != nil {
+		c.Contents = make(map[string][]byte, len(m.Contents))
+		for k, v := range m.Contents {
+			c.Contents[k] = v // the bytes are never written in place
+		}
+	}
+	if m.Gate != nil {
+		g := *m.Gate
+		c.Gate = &g
+	}
+	return &c
+}
+
 // SetAccept stores accept mode's state and rewrites metadata; nil clears
 // it (see Agent.AcceptOff).
 func (s *Session) SetAccept(a *AcceptMeta) error {

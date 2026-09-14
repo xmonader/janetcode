@@ -601,14 +601,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case undoAboutMsg:
-		m.finishUndoAbout(msg)
+		cmd := m.finishUndoAbout(msg)
 		m.refresh(false)
-		return m, nil
+		return m, cmd
 
 	case undoApplyMsg:
-		m.finishUndoApply(msg)
+		cmd := m.finishUndoApply(msg)
 		m.refresh(false)
-		return m, nil
+		return m, cmd
 
 	case cronFireMsg:
 		if m.running {

@@ -60,7 +60,7 @@ func (a *Agent) stopForBudget(spent float64, uses []llm.Block, emit func(Event))
 			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
 		}
 		tr := llm.ToolResultMessage(results...)
-		a.Messages = append(a.Messages, tr)
+		a.appendMessage(tr)
 	}
 	emit(Event{Kind: EvNotice, Text: err.Error()})
 	emit(Event{Kind: EvVerdict, Text: "stopped on the cost budget · " + err.Error(), IsError: true})

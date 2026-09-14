@@ -53,7 +53,7 @@ func (a *Agent) faultNeeds(text string, rounds *int, emit func(Event)) bool {
 	}
 	sb.WriteString("\nContinue with these. Quote exact values from the excerpts; if a value is truly absent from them, say UNKNOWN for it rather than guessing. You may also call expand_output with an id and offset/limit to read around a match.")
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("archive fault (%d/%d): %s", *rounds, maxNeedRounds, strings.Join(needs, "; "))})
-	a.Messages = append(a.Messages, llm.HarnessMessage(llm.RoleUser, sb.String()))
+	a.appendMessage(llm.HarnessMessage(llm.RoleUser, sb.String()))
 	a.logUserMessage(false)
 	return true
 }

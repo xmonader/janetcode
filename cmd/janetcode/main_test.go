@@ -65,7 +65,7 @@ func TestHeadlessEndToEnd(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	t.Setenv("OPENAI_BASE_URL", srv.URL+"/v1")
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	os.Chdir(work)
+	t.Chdir(work)
 
 	stdout, stderr := captureStd(t)
 	err := run([]string{"-p", "uppercase hello.txt into out.txt", "--provider", "openai", "--model", "test-model", "--yolo"})
@@ -206,7 +206,7 @@ func TestTheRateRefreshDoesNotOutliveTheRun(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	t.Setenv("OPENAI_BASE_URL", srv.URL+"/v1")
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	os.Chdir(work)
+	t.Chdir(work)
 
 	stdout, stderr := captureStd(t)
 	err := run([]string{"-p", "hello", "--provider", "openai", "--model", "test-model"})
@@ -266,7 +266,7 @@ func TestHeadlessAppliesThePromptOverride(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	t.Setenv("OPENAI_BASE_URL", srv.URL+"/v1")
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	os.Chdir(work)
+	t.Chdir(work)
 
 	sysOf := func() string {
 		return lastReq["messages"].([]any)[0].(map[string]any)["content"].(string)

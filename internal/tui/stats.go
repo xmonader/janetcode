@@ -53,7 +53,7 @@ func (m *model) statsCommand() {
 	if line := st.PromptLine(); line != "" {
 		sb.WriteString("\n" + line)
 	}
-	if line := st.RouteLine(ag.RouteCheap); line != "" {
+	if line := st.RouteLine(ag.RouteCheapName()); line != "" {
 		sb.WriteString("\n" + line)
 	}
 	if m.opts.Jobs != nil {

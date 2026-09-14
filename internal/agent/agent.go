@@ -183,6 +183,9 @@ type Agent struct {
 	// provider, its resolved model name, and whether that provider is
 	// the one Model already runs on.
 	routeCheapState routeCheapState
+	// routeMu guards RouteCheap and routeCheapState: /config route_cheap
+	// changes them from a front-end while the turn goroutine routes.
+	routeMu sync.Mutex
 
 	Provider llm.Provider
 	Tools    *tool.Registry
@@ -342,6 +345,10 @@ type Agent struct {
 	// and reused until compaction or RefreshExtra, so the cached prompt
 	// prefix stays valid while memory and skills change underneath.
 	SystemExtra func() string
+	// extraMu guards extraText/extraFrozen: a front-end refreshes them
+	// (/remember, /skills) and /btw builds a system prompt off the turn
+	// goroutine.
+	extraMu     sync.Mutex
 	extraText   string
 	extraFrozen bool
 	// PathRules, when set, is asked after each tool call which project
@@ -385,12 +392,16 @@ type Agent struct {
 	loops   loopDetector
 	loopMu  sync.Mutex
 	usageMu sync.Mutex  // the status bar reads Usage while a turn runs
+	msgMu   sync.Mutex  // guards Messages writes against off-turn readers (see MessagesSnapshot)
 	steerMu sync.Mutex  // guards steer, written from the UI goroutine
 	steer   []string    // notes for the running turn (see Steer)
 	harness []string    // harness text for the running turn (path rules)
 	turnUse llm.Usage   // what the turn in progress has cost so far
 	cache   cacheLedger // prefix paid for twice, and why
 	prefix  prefixWatch // where the cached prefix stopped matching
+	// acceptMu guards Accept, which a front-end changes while tools read
+	// it (see accept.go).
+	acceptMu sync.Mutex
 	// historyRewritten says a prune or compaction edited messages since
 	// the last model call, so the next cache miss is expected and is not
 	// counted as waste. It is separate from integ.shrunkOK, which the
@@ -561,7 +572,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		normalizeCallIDs(&resp.Message, a.callIDs, a.turnN, a.stepN)
 		a.lastInputTokens = resp.Usage.InputTokens + resp.Usage.CacheReadTokens + resp.Usage.CacheWriteTokens
 		a.lastInputMsgs = len(a.Messages)
-		a.Messages = append(a.Messages, resp.Message)
+		a.appendMessage(resp.Message)
 		a.integ.lastLen = len(a.Messages)
 		a.addUsage(resp.Usage)
 		msg := resp.Message
@@ -611,7 +622,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 					a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
 				}
 				tr := llm.ToolResultMessage(results...)
-				a.Messages = append(a.Messages, tr)
+				a.appendMessage(tr)
 				a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &tr})
 				a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
 				a.stepRoute.prevMechanical = false
@@ -685,7 +696,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			emit(Event{Kind: EvNotice, Text: planNote})
 		}
 		tr := llm.ToolResultMessage(results...)
-		a.Messages = append(a.Messages, tr)
+		a.appendMessage(tr)
 		a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &tr})
 		a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
 		if err != nil {
@@ -1068,8 +1079,9 @@ func (a *Agent) AskOnce(ctx context.Context, question string) (string, error) {
 	if a.Provider == nil {
 		return "", fmt.Errorf("no provider")
 	}
-	msgs := append([]llm.Message(nil), a.Messages...)
-	msgs = append(msgs, llm.TextMessage(llm.RoleUser, question))
+	// /btw is asked while a turn may be running, so the history is copied
+	// under the lock rather than read from under the turn goroutine.
+	msgs := append(a.MessagesSnapshot(), llm.TextMessage(llm.RoleUser, question))
 	max := a.MaxTokens
 	if max <= 0 || max > 2048 {
 		max = 2048
@@ -1124,11 +1136,7 @@ func ApplyConfig(cfg *config.Config, a *Agent, path, key, val string) (any, erro
 	case "proof_notes":
 		a.ProofNotes = cfg.ProofNotesEnabled()
 	case "route_cheap":
-		a.RouteCheap = cfg.RouteCheap
-		// A value changed mid-session invalidates whatever resolveRouteCheap
-		// cached (a stale provider, or a stale "cannot be routed" notice
-		// that no longer applies).
-		a.routeCheapState = routeCheapState{}
+		a.SetRouteCheap(cfg.RouteCheap)
 	}
 	return applied, nil
 }
@@ -1193,7 +1201,7 @@ func (a *Agent) deliverSteering(emit func(Event)) {
 func (a *Agent) deliverText(text string, synthetic bool) {
 	n := len(a.Messages)
 	if n > 0 && a.Messages[n-1].Role == llm.RoleUser {
-		a.Messages[n-1].Blocks = append(a.Messages[n-1].Blocks, llm.Block{Type: llm.BlockText, Text: text, Synthetic: synthetic})
+		a.appendToLast(llm.Block{Type: llm.BlockText, Text: text, Synthetic: synthetic})
 		a.logUserMessage(true)
 		return
 	}
@@ -1282,6 +1290,50 @@ func (a *Agent) logUserMessage(merged bool) {
 	a.logEvent(e)
 }
 
+// appendMessage, appendToLast, setMessages and setBlockText are the only
+// ways Messages changes. The turn goroutine is the only writer and reads
+// it freely; they take msgMu so a reader on another goroutine — a
+// subagent transcript view, /btw — can take a consistent copy with
+// MessagesSnapshot while a turn runs.
+func (a *Agent) appendMessage(m llm.Message) {
+	a.msgMu.Lock()
+	a.Messages = append(a.Messages, m)
+	a.msgMu.Unlock()
+}
+
+func (a *Agent) appendToLast(blocks ...llm.Block) {
+	a.msgMu.Lock()
+	n := len(a.Messages)
+	a.Messages[n-1].Blocks = append(a.Messages[n-1].Blocks, blocks...)
+	a.msgMu.Unlock()
+}
+
+func (a *Agent) setMessages(msgs []llm.Message) {
+	a.msgMu.Lock()
+	a.Messages = msgs
+	a.msgMu.Unlock()
+}
+
+func (a *Agent) setBlockText(i, j int, text string) {
+	a.msgMu.Lock()
+	a.Messages[i].Blocks[j].Text = text
+	a.msgMu.Unlock()
+}
+
+// MessagesSnapshot is a copy of the conversation, safe to take from any
+// goroutine while a turn runs. Each message's blocks are copied too, since
+// pruning rewrites a block's text in place.
+func (a *Agent) MessagesSnapshot() []llm.Message {
+	a.msgMu.Lock()
+	defer a.msgMu.Unlock()
+	out := make([]llm.Message, len(a.Messages))
+	for i, m := range a.Messages {
+		m.Blocks = append([]llm.Block(nil), m.Blocks...)
+		out[i] = m
+	}
+	return out
+}
+
 // appendUserBlocks adds a user turn, reporting whether it merged into the
 // trailing message rather than making a new one.
 func (a *Agent) appendUserBlocks(blocks ...llm.Block) bool {
@@ -1293,10 +1345,10 @@ func (a *Agent) appendUserBlocks(blocks ...llm.Block) bool {
 	// the first model call). Tool-result messages have already gone over
 	// the wire; appending to them would change bytes the prompt cache keyed on.
 	if n > 0 && a.Messages[n-1].Role == llm.RoleUser && !hasToolResult(a.Messages[n-1]) {
-		a.Messages[n-1].Blocks = append(a.Messages[n-1].Blocks, blocks...)
+		a.appendToLast(blocks...)
 		return true
 	}
-	a.Messages = append(a.Messages, llm.Message{Role: llm.RoleUser, Blocks: blocks})
+	a.appendMessage(llm.Message{Role: llm.RoleUser, Blocks: blocks})
 	return false
 }
 
@@ -1544,7 +1596,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	} else if t.Mutating() {
 		a.mutated = true
 		a.mutations++
-		if a.Accept != nil && (u.Name == "write_file" || u.Name == "edit_file") {
+		if u.Name == "write_file" || u.Name == "edit_file" {
 			a.acceptTrackEdit(t, u.Input)
 		}
 		// The content guarantee behind the lock: whatever just ran, and
@@ -1632,7 +1684,7 @@ func (a *Agent) stopHook(ctx context.Context, text string, stops *int, emit func
 	}
 	*stops++
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("stop hook sent the model back to work (%d/%d): %s", *stops, maxStopContinues, res.Continue)})
-	a.Messages = append(a.Messages, llm.HarnessMessage(llm.RoleUser, "[A stop hook did not accept this as done]\n"+res.Continue))
+	a.appendMessage(llm.HarnessMessage(llm.RoleUser, "[A stop hook did not accept this as done]\n"+res.Continue))
 	return true
 }
 
@@ -1695,7 +1747,7 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 		return false
 	}
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("%s · sending the model back to fix it (%d/%d)", res.Summary(), g.rounds, verify.MaxRounds)})
-	a.Messages = append(a.Messages, llm.HarnessMessage(llm.RoleUser, res.Feedback()))
+	a.appendMessage(llm.HarnessMessage(llm.RoleUser, res.Feedback()))
 	return true
 }
 

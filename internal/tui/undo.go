@@ -250,33 +250,69 @@ type undoAboutMsg struct {
 
 // undoAboutCommand previews which of this session's changes match
 // description, without touching anything. The match can call a model, so
-// it runs off the UI goroutine like /btw does.
+// it runs off the UI goroutine — as a turn does, with the session marked
+// running, so no turn or cron round starts on the agent meanwhile and
+// what it types is queued (see startSideWork).
 func (m *model) undoAboutCommand(description string) tea.Cmd {
 	description = strings.TrimSpace(description)
 	if description == "" {
 		m.transcript.errorf("usage: /undo about <description>")
 		return nil
 	}
+	ctx := m.startSideWork("matching changes")
 	ag, send := m.opts.Agent, m.send
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
 		sel, err := ag.PreviewUndoAbout(ctx, description)
 		send(undoAboutMsg{description: description, sel: sel, err: err})
 	}()
 	m.note(fmt.Sprintf("matching %q against this session's changes…", description))
 	m.refresh(false)
-	return nil
+	return m.spinner.Tick
+}
+
+// startSideWork marks the session running for work that is not a model
+// turn but uses the agent's history or undo stack off the UI goroutine
+// (/undo about, /undo apply): prompts typed meanwhile are queued, cron
+// rounds skipped, idle-only commands refused, and esc cancels the
+// returned context. endSideWork undoes it when the result arrives.
+func (m *model) startSideWork(phase string) context.Context {
+	m.startTurn(phase)
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+	return ctx
+}
+
+// endSideWork ends what startSideWork began and sends the first queued
+// prompt, the way the end of a turn does. ok is whether the work
+// succeeded, for the terminal's command-zone mark.
+func (m *model) endSideWork(ok bool) tea.Cmd {
+	m.running = false
+	m.cancelling = false
+	if m.cancel != nil {
+		m.cancel()
+		m.cancel = nil
+	}
+	m.setPhase("")
+	m.term.turnEnded(ok, m.status)
+	if len(m.queued) == 0 {
+		return nil
+	}
+	next := m.queued[0]
+	m.queued = m.queued[1:]
+	return m.submit(next)
 }
 
 // finishUndoAbout shows the preview and, when it found anything to
 // revert, points at /undo apply.
-func (m *model) finishUndoAbout(msg undoAboutMsg) {
+func (m *model) finishUndoAbout(msg undoAboutMsg) tea.Cmd {
 	if msg.err != nil {
 		m.transcript.errorf("undo about: %v", msg.err)
-		return
+	} else {
+		m.transcript.code(agent.FormatSelection(m.opts.Cwd, msg.sel))
 	}
-	m.transcript.code(agent.FormatSelection(m.opts.Cwd, msg.sel))
+	return m.endSideWork(msg.err == nil)
 }
 
 // undoApplyMsg carries the result of "/undo apply".
@@ -290,25 +326,29 @@ type undoApplyMsg struct {
 // checks, which may take a while. force is --force: proceed even though
 // the selection has a mixed change or a coupling warning.
 func (m *model) undoApplyCommand(force bool) tea.Cmd {
+	ctx := m.startSideWork("applying undo")
 	ag, send := m.opts.Agent, m.send
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer cancel()
 		rep, err := ag.ApplyPendingUndo(ctx, force)
 		send(undoApplyMsg{rep: rep, err: err})
 	}()
 	m.note("applying the previewed undo…")
 	m.refresh(false)
-	return nil
+	return m.spinner.Tick
 }
 
 // finishUndoApply shows what was reverted and tells the model, so it
 // does not go on believing changes are still there.
-func (m *model) finishUndoApply(msg undoApplyMsg) {
+func (m *model) finishUndoApply(msg undoApplyMsg) tea.Cmd {
 	if msg.err != nil {
 		m.transcript.errorf("undo apply: %v", msg.err)
-		return
+	} else {
+		m.transcript.code(agent.FormatUndoReport(msg.rep))
+		// Before endSideWork, which may start a queued turn: the note has
+		// to be in the history that turn sends.
+		m.opts.Agent.TellModelUndone(msg.rep)
 	}
-	m.transcript.code(agent.FormatUndoReport(msg.rep))
-	m.opts.Agent.TellModelUndone(msg.rep)
+	return m.endSideWork(msg.err == nil)
 }

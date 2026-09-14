@@ -416,7 +416,7 @@ func (a *Agent) rollbackConversation(cp Checkpoint) {
 	}
 	removed := len(a.Messages) - cp.Messages
 	note := llm.HarnessMessage(llm.RoleUser, fmt.Sprintf("The user undid the previous turn: its file changes were reverted and its %d message(s) removed from this conversation. The files are as they were before it; read them again before relying on their contents.", removed))
-	a.Messages = append(a.Messages[:cp.Messages:cp.Messages], note)
+	a.setMessages(append(a.Messages[:cp.Messages:cp.Messages], note))
 	a.undoRemoved = removed
 	if a.Log == nil {
 		return

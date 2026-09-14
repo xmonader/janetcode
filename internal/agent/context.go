@@ -41,6 +41,8 @@ func (a *Agent) extra() string {
 	if a.SystemExtra == nil {
 		return ""
 	}
+	a.extraMu.Lock()
+	defer a.extraMu.Unlock()
 	if !a.extraFrozen {
 		a.extraText, a.extraFrozen = a.SystemExtra(), true
 	}
@@ -51,7 +53,11 @@ func (a *Agent) extra() string {
 // this itself, since the history is rewritten anyway; call it after
 // editing skills or memory when the model should see the change now, at
 // the cost of one cache miss.
-func (a *Agent) RefreshExtra() { a.extraFrozen = false }
+func (a *Agent) RefreshExtra() {
+	a.extraMu.Lock()
+	a.extraFrozen = false
+	a.extraMu.Unlock()
+}
 
 // CacheRate is the share of session input tokens served from the
 // provider's prompt cache, and whether the provider reported any.

@@ -205,7 +205,7 @@ func (s *server) statsText() string {
 	if line := st.PromptLine(); line != "" {
 		sb.WriteString(line + "\n")
 	}
-	if line := st.RouteLine(ag.RouteCheap); line != "" {
+	if line := st.RouteLine(ag.RouteCheapName()); line != "" {
 		sb.WriteString(line + "\n")
 	}
 	for _, t := range st.Tools {
