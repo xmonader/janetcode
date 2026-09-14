@@ -628,7 +628,7 @@ func (a *Agent) StepsNeedingApproval(steps []recipe.Step) []string {
 				mustAsk = true
 			}
 		}
-		verdict, _ := a.decideRule(st.Tool, perm.Subject(st.Tool, st.Input))
+		verdict, _ := a.decideRule(st.Tool, perm.SubjectIn(st.Tool, st.Input, a.displayRoot()))
 		if !mustAsk {
 			switch {
 			case verdict == perm.Denied:

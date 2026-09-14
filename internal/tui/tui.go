@@ -606,6 +606,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refresh(false)
 		return m, cmd
 
+	case evalKeepMsg:
+		cmd := m.finishEvalKeep(msg)
+		m.refresh(false)
+		return m, cmd
+
 	case undoApplyMsg:
 		cmd := m.finishUndoApply(msg)
 		m.refresh(false)

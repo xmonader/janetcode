@@ -636,3 +636,28 @@ func TestSelectChangesAllUnavailableIsNotNothingToUndo(t *testing.T) {
 		t.Fatalf("unavailable changes not shown:\n%s", rendered)
 	}
 }
+
+// The note telling the model what /undo apply reverted is the harness's,
+// not the user's: its own synthetic block, with paths relative to the
+// session root, so it neither runs into the next prompt ("...stayed.Re-add
+// a TestClipBytes...") nor spells out the machine's directories.
+func TestTellModelUndoneIsASeparateHarnessNoteWithRelativePaths(t *testing.T) {
+	a, root, _ := setupUndoIntentAgent(t)
+	a.Root = root
+	rep, err := a.UndoSelection(context.Background(), Selection{Undo: []Change{a.Changes()[1]}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.TellModelUndone(rep)
+	last := a.Messages[len(a.Messages)-1]
+	b := last.Blocks[len(last.Blocks)-1]
+	if last.Role != llm.RoleUser || !b.Synthetic || !strings.HasPrefix(b.Text, "[harness]") {
+		t.Fatalf("note = %+v, want a synthetic [harness] block", b)
+	}
+	if strings.Contains(b.Text, root) || !strings.Contains(b.Text, "app.go") {
+		t.Fatalf("note = %q, want app.go relative to the root", b.Text)
+	}
+	if !strings.HasSuffix(b.Text, "\n") {
+		t.Fatalf("note = %q, want it to end its own paragraph", b.Text)
+	}
+}

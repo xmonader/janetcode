@@ -148,33 +148,30 @@ func (EditFile) RenderResult(_ json.RawMessage, out string, o RenderContext) []s
 }
 
 // StripEditWindow removes the numbered window at the end of an edit's
-// result, when there is one.
+// result, when there is one: a blank line, then either a run of numbered
+// lines or the "(the change spans lines …)" line that stands in for one.
+// Whatever follows it — the language server's verdict, a hook's note, a
+// harness note that brings its own blank line — is kept, and anything
+// that is not such a window leaves the result exactly as it was.
 func StripEditWindow(out string) string {
-	i := strings.LastIndex(out, "\n\n")
-	if i < 0 {
-		return out
-	}
-	tail := out[i+2:]
-	if strings.HasPrefix(tail, "(the change spans lines ") {
-		return out[:i]
-	}
-	// The window may be followed by a note the harness appended — the
-	// language server's verdict, or why there was none. That note is kept;
-	// anything else means this is not a window and nothing is dropped.
-	var keep []string
-	numbered := false
-	for _, l := range strings.Split(tail, "\n") {
-		switch {
-		case numberedLine.MatchString(l):
-			numbered = true
-		case strings.HasPrefix(l, "["), strings.TrimSpace(l) == "":
-			keep = append(keep, l)
-		default:
-			return out
+	lines := strings.Split(out, "\n")
+	for i := len(lines) - 1; i > 0; i-- {
+		if strings.TrimSpace(lines[i-1]) != "" {
+			continue
 		}
+		end := i
+		if strings.HasPrefix(lines[i], "(the change spans lines ") {
+			end = i + 1
+		} else {
+			for end < len(lines) && numberedLine.MatchString(lines[end]) {
+				end++
+			}
+		}
+		if end == i {
+			continue
+		}
+		kept := append(append([]string(nil), lines[:i-1]...), lines[end:]...)
+		return strings.TrimRight(strings.Join(kept, "\n"), "\n")
 	}
-	if !numbered {
-		return out
-	}
-	return strings.TrimRight(strings.TrimRight(out[:i], "\n")+"\n"+strings.Join(keep, "\n"), "\n")
+	return out
 }

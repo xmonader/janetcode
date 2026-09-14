@@ -127,7 +127,7 @@ func makeTarget(cwd string) string {
 func (p Project) Line(onPath func(string) bool) string {
 	var parts []string
 	if p.Verify != "" {
-		parts = append(parts, `/verify set "`+p.Verify+`" runs it after every change and hands failures back to the model`)
+		parts = append(parts, "/verify set "+p.Verify+" runs it after every change and hands failures back to the model")
 	}
 	if p.Server != "" && onPath != nil && !onPath(p.Server) {
 		parts = append(parts, p.Server+" is not on PATH ("+p.Install+") for diagnostics after edits")

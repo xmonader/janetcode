@@ -183,11 +183,14 @@ func gitInfo(cwd string) string {
 
 // GitBranch reports the checked-out branch of the repository at cwd. ok is
 // false when cwd is not a git work tree; a detached HEAD yields a short hash.
+// It reads HEAD from disk rather than running git, since the header asks
+// on every refresh.
 func GitBranch(cwd string) (branch string, ok bool) {
-	if _, err := os.Stat(filepath.Join(cwd, ".git")); err != nil {
+	gitDir, ok := resolveGitDir(filepath.Join(cwd, ".git"))
+	if !ok {
 		return "", false
 	}
-	head, err := os.ReadFile(filepath.Join(cwd, ".git", "HEAD"))
+	head, err := os.ReadFile(filepath.Join(gitDir, "HEAD"))
 	if err != nil {
 		return "", true
 	}
@@ -199,4 +202,32 @@ func GitBranch(cwd string) (branch string, ok bool) {
 		return ref[:7], true
 	}
 	return ref, true
+}
+
+// resolveGitDir is the git directory a work tree's .git names. In the
+// main work tree .git is that directory; in a linked worktree (git
+// worktree add) or a submodule it is a file, "gitdir: <path>", pointing
+// at the directory holding that work tree's own HEAD — which is why
+// reading .git/HEAD directly showed no branch in a worktree.
+func resolveGitDir(dotGit string) (string, bool) {
+	st, err := os.Stat(dotGit)
+	if err != nil {
+		return "", false
+	}
+	if st.IsDir() {
+		return dotGit, true
+	}
+	data, err := os.ReadFile(dotGit)
+	if err != nil {
+		return "", true
+	}
+	dir, found := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir:")
+	if !found {
+		return "", true
+	}
+	dir = strings.TrimSpace(dir)
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(filepath.Dir(dotGit), dir)
+	}
+	return dir, true
 }

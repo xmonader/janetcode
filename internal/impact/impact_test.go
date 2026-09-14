@@ -226,3 +226,60 @@ func TestSameFileUsesCountsUnexportedCallers(t *testing.T) {
 		t.Fatalf("uses = %d, want 1 (the call, not the definition or helpers)", got)
 	}
 }
+
+// TestAnalyzeNewFunctionBetweenDefinitions is the regression test for an
+// impact line on an edit that only added a function: it named the
+// function's neighbours (and, with an import added at the top, every
+// function between the two changes) as changed, with all their refs. A
+// definition the edit adds is reported as added, with no refs, and the
+// definitions around it are not touched at all.
+func TestAnalyzeNewFunctionBetweenDefinitions(t *testing.T) {
+	before := "package p\n\nimport \"fmt\"\n\n// A is a.\nfunc A() string {\n\treturn fmt.Sprint(1)\n}\n\n// B is b.\nfunc B() string {\n\treturn \"b\"\n}\n\n// C is c.\nfunc C() string {\n\treturn \"c\"\n}\n"
+	added := "// N is new.\nfunc N() string {\n\treturn strings.ToUpper(\"n\")\n}\n\n"
+	insert := func(s, at, text string) string {
+		i := strings.Index(s, at)
+		return s[:i] + text + s[i:]
+	}
+	src := fakeSource{
+		outline: []lsp.Symbol{
+			{Name: "A", Kind: "func", Loc: lsp.Location{Path: "p.go", Line: 6}},
+			{Name: "B", Kind: "func", Loc: lsp.Location{Path: "p.go", Line: 11}},
+			{Name: "C", Kind: "func", Loc: lsp.Location{Path: "p.go", Line: 16}},
+		},
+		refs: []lsp.Location{{Path: "x.go", Line: 1}, {Path: "y.go", Line: 2}},
+	}
+	for name, after := range map[string]string{
+		"between":        insert(before, "// C is c.", added),
+		"after first":    insert(before, "// B is b.", added),
+		"with an import": insert(strings.Replace(before, "import \"fmt\"", "import (\n\t\"fmt\"\n\t\"strings\"\n)", 1), "// C is c.", added),
+	} {
+		got := Analyze(context.Background(), Input{Path: "p.go", Old: before, New: after, LSP: src})
+		if len(got.Symbols) != 0 {
+			t.Errorf("%s: symbols = %+v, want none changed", name, got.Symbols)
+		}
+		if len(got.Added) != 1 || got.Added[0].Name != "N" || got.Added[0].Refs != 0 {
+			t.Errorf("%s: added = %+v, want N", name, got.Added)
+		}
+		if line := got.Line(); line != "adds N (func)" {
+			t.Errorf("%s: line = %q, want %q", name, line, "adds N (func)")
+		}
+	}
+
+	// A change inside an existing function next to the added one still
+	// names that function.
+	after := insert(strings.Replace(before, "return \"b\"", "return \"bb\"", 1), "// C is c.", added)
+	got := Analyze(context.Background(), Input{Path: "p.go", Old: before, New: after, LSP: src})
+	if len(got.Symbols) != 1 || got.Symbols[0].Name != "B" || len(got.Added) != 1 {
+		t.Fatalf("symbols = %+v added = %+v, want B changed and N added", got.Symbols, got.Added)
+	}
+	if line := got.Line(); !strings.HasPrefix(line, "changes B (func) · 2 refs in 2 files · adds N (func)") {
+		t.Fatalf("line = %q", line)
+	}
+
+	// A line added at the end of an existing body is a change to it.
+	after = strings.Replace(before, "\treturn \"b\"\n", "\tx := 1\n\t_ = x\n\treturn \"b\"\n", 1)
+	got = Analyze(context.Background(), Input{Path: "p.go", Old: before, New: after, LSP: src})
+	if len(got.Symbols) != 1 || got.Symbols[0].Name != "B" || len(got.Added) != 0 {
+		t.Fatalf("body insertion: symbols = %+v added = %+v, want B", got.Symbols, got.Added)
+	}
+}

@@ -550,3 +550,31 @@ func shellWords(s string) []string {
 	flush()
 	return words
 }
+
+// cdPrefix matches a leading `cd <dir> &&` or `cd <dir>;` segment.
+var cdPrefix = regexp.MustCompile(`^\s*cd\s+("[^"]*"|'[^']*'|[^\s;&|]+)\s*(?:&&|;)\s*`)
+
+// TrimWorkspaceCd removes a leading `cd <dir> &&` (or `;`) segment from
+// command when dir is root itself — the shape many models put in front
+// of every command, which changes nothing about what runs, since bash
+// already starts in root. A cd anywhere else is part of what the command
+// does and is left alone.
+func TrimWorkspaceCd(command, root string) string {
+	m := cdPrefix.FindStringSubmatch(command)
+	if m == nil {
+		return command
+	}
+	dir := strings.Trim(m[1], `"'`)
+	if dir != "." && dir != "./" {
+		if root == "" {
+			return command
+		}
+		if !filepath.IsAbs(dir) {
+			dir = filepath.Join(root, dir)
+		}
+		if filepath.Clean(dir) != filepath.Clean(root) {
+			return command
+		}
+	}
+	return strings.TrimSpace(command[len(m[0]):])
+}

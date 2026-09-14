@@ -14,6 +14,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 func TestLooksLikeGitCommit(t *testing.T) {
@@ -357,5 +358,44 @@ func commitAll(t *testing.T, root, msg string) {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}
+	}
+}
+
+// TestAutomaticProofIncludesTheTurnsGateRuns: the note attached on a
+// commit made mid-turn used to be built before the turn-end verify gate
+// ran, so the green gate that demonstrated the work was missing from it.
+// The note is brought up to date once the turn's gates have run.
+func TestAutomaticProofIncludesTheTurnsGateRuns(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"foo.go","content":"package foo\n"}`),
+		toolCall("t2", "bash", `{"command":"git add -A && git commit -q -m 'add foo'"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	gitInit(t, root)
+	repo, err := snapshot.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Snapshots = repo
+	a.AutoApprove = true
+	a.ProofNotes = true
+	a.Root = root
+	a.Verify = &verify.Runner{Config: verify.Config{Commands: []string{"true"}}, Cwd: root}
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root})
+	sess, err := session.New(t.TempDir(), root, "p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Log = sess
+	if err := a.Run(context.Background(), "add foo", nil); err != nil {
+		t.Fatal(err)
+	}
+	r, ok, err := proof.Read(context.Background(), root, headOf(t, root))
+	if err != nil || !ok {
+		t.Fatalf("proof.Read: ok=%v err=%v", ok, err)
+	}
+	if len(r.Turns) != 1 || r.Turns[0].Passed != 1 || strings.Join(r.Turns[0].Checks, "|") != "true" {
+		t.Fatalf("turns = %+v, want the verify gate's green run recorded", r.Turns)
 	}
 }

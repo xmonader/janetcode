@@ -635,7 +635,7 @@ func (t *transcript) renderMarkdown(e *entry, width int) string {
 			sb.WriteString(e.chunks[i].out)
 			continue
 		}
-		out, err := t.renderer.Render(src)
+		out, err := t.renderer.Render(joinListSoftBreaks(src))
 		if err != nil {
 			out = lipgloss.NewStyle().Width(width - 2).Render(src)
 		}
@@ -652,6 +652,39 @@ func (t *transcript) renderMarkdown(e *entry, width int) string {
 		out += styleFaint.Render(" ▍")
 	}
 	return out
+}
+
+// listMarker matches the start of a list item: a bullet or a number.
+var listMarker = regexp.MustCompile(`^\s*([-*+]|\d{1,9}[.)])\s`)
+
+// joinListSoftBreaks joins the soft line breaks inside the list items of
+// one markdown block. glamour reflows a paragraph's soft breaks but keeps
+// a list item's as hard ones, so a line break in the model's source landed
+// mid-sentence in the transcript — "…multi-byte characters" on one line,
+// "when truncating…" on the next — however wide the window. A line that
+// starts another item, a heading, a quote, a table row or a fence is not
+// a continuation, and a hard break (two trailing spaces or a backslash)
+// is kept. Blocks that are not lists, or that hold a fence, are returned
+// as they are.
+func joinListSoftBreaks(block string) string {
+	lines := strings.Split(block, "\n")
+	if !listMarker.MatchString(lines[0]) || strings.Contains(block, "```") || strings.Contains(block, "~~~") {
+		return block
+	}
+	out := []string{lines[0]}
+	for _, l := range lines[1:] {
+		prev := out[len(out)-1]
+		trimmed := strings.TrimSpace(l)
+		hard := strings.HasSuffix(prev, "  ") || strings.HasSuffix(prev, "\\")
+		starts := trimmed == "" || listMarker.MatchString(l) || strings.HasPrefix(trimmed, "#") ||
+			strings.HasPrefix(trimmed, ">") || strings.HasPrefix(trimmed, "|") || strings.HasPrefix(strings.TrimSpace(prev), "|")
+		if hard || starts {
+			out = append(out, l)
+			continue
+		}
+		out[len(out)-1] = strings.TrimRight(prev, " ") + " " + trimmed
+	}
+	return strings.Join(out, "\n")
 }
 
 // splitMarkdownBlocks splits markdown at blank lines that are outside fenced

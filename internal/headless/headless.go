@@ -17,7 +17,6 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
-	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -312,7 +311,11 @@ func (a *stdinApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 	if call.Warning != "" {
 		fmt.Fprintf(a.out, "\nWARNING: %s\n", call.Warning)
 	}
-	fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways this session / [r]ule %s saved for good / [n]o (add a reason after n): ", call.Name, textfmt.Clip(textfmt.OneLine(string(call.Input)), 200), perm.Suggest(call.Name, perm.Subject(call.Name, call.Input)))
+	rule := ""
+	if call.Rule != "" {
+		rule = fmt.Sprintf(" / [r]ule %s saved for good", call.Rule)
+	}
+	fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways this session%s / [n]o (add a reason after n): ", call.Name, textfmt.Clip(textfmt.OneLine(string(call.Input)), 200), rule)
 	type res struct {
 		s   string
 		err error

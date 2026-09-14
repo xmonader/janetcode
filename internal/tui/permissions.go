@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"encoding/json"
 	"path/filepath"
 	"strings"
 	"time"
@@ -123,7 +122,7 @@ func (m *model) answer(d agent.Decision, reason string) {
 	m.setPhase("thinking")
 	// Named by the rule the r key would save, because that is the shape
 	// both hints below are about.
-	shape := perm.Suggest(call.Name, perm.Subject(call.Name, call.Input)).String()
+	shape := call.Rule
 	switch d {
 	case agent.Deny:
 		m.observeDenial(shape)
@@ -146,7 +145,7 @@ func learnedHeadline(s string) string {
 // the input box's placeholder (see placeholder).
 func (m *model) pendingKeys() string {
 	c := m.pending.call
-	return m.permissionKeys(c.Name, m.suggestedRule(c.Name, c.Input), c.Learned, pendingExpandable(c))
+	return m.permissionKeys(c.Name, m.suggestedRule(c.Rule), c.Learned, pendingExpandable(c))
 }
 
 // permissionKeys is the key line of a permission prompt, in the longest
@@ -162,8 +161,11 @@ func (m *model) permissionKeys(tool, rule, learned string, expandable bool) stri
 	room := m.width - 8
 	render := func(segs []seg, sep string) (string, int) {
 		var sb strings.Builder
-		for i, s := range segs {
-			if i > 0 {
+		for _, s := range segs {
+			if s.key == "r" && rule == "" {
+				continue // nothing for r to save: see perm.Suggest
+			}
+			if sb.Len() > 0 {
 				sb.WriteString(sep)
 			}
 			sb.WriteString(s.key + s.text)
@@ -219,8 +221,11 @@ func (m *model) permissionKeys(tool, rule, learned string, expandable bool) stri
 // with the home directory as ~. The rule saved to disk stays absolute;
 // only the prompt is shortened, because an absolute path truncated in
 // the middle told the user nothing about what they were about to allow.
-func (m *model) suggestedRule(name string, input json.RawMessage) string {
-	r := perm.Suggest(name, perm.Subject(name, input))
+func (m *model) suggestedRule(rule string) string {
+	r, err := perm.Parse(rule)
+	if err != nil {
+		return rule
+	}
 	if dir, ok := strings.CutSuffix(r.Pattern, "/*"); ok && filepath.IsAbs(dir) {
 		r.Pattern = relTo(m.opts.Cwd, dir) + "/*"
 	}

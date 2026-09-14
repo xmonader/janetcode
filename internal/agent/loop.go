@@ -48,7 +48,7 @@ const (
 )
 
 // ErrStuck ends a turn that keeps repeating the same tool call.
-var ErrStuck = errors.New("agent: stuck repeating the same tool call")
+var ErrStuck = errors.New("stuck repeating the same tool call")
 
 // EvNotice carries a harness note for the UI (a nudge, an integrity
 // warning). Text holds the message.

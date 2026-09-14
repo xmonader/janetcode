@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/md"
+	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -67,6 +68,12 @@ type Entry struct {
 	Updated     time.Time
 	Uses        int
 	Path        string
+	// Ecosystems are the languages or toolchains a global entry is about
+	// ("go", "python"), recorded when it is written and inferred again
+	// from its text when it is read, so one written before tagging existed
+	// is still recognised. A global entry about one ecosystem is never
+	// recalled in a project of another (see Store.hidden).
+	Ecosystems []string
 }
 
 // Key returns the project identity: the marker file's content, else the
@@ -126,6 +133,10 @@ type Store struct {
 	Key  string // project key
 	// Embed, when set, adds semantic ranking to recall (see EmbedFunc).
 	Embed EmbedFunc
+	// Ecosystem is the current project's language or toolchain, as
+	// project.Detect names it in lower case ("go", "python"), or "" when
+	// it is not recognised.
+	Ecosystem string
 
 	mu        sync.Mutex
 	embedMu   sync.Mutex
@@ -137,6 +148,9 @@ type Store struct {
 // migrates the flat file an earlier version kept.
 func Open(dataDir, cwd string) *Store {
 	s := &Store{Root: filepath.Join(dataDir, "memory"), Key: Key(cwd)}
+	if p, ok := project.Detect(cwd); ok {
+		s.Ecosystem = strings.ToLower(p.Kind)
+	}
 	s.migrate()
 	return s
 }
@@ -196,6 +210,9 @@ func readEntry(p, scope string) (Entry, bool) {
 	e.Created, _ = time.Parse(time.RFC3339, meta["created"])
 	e.Updated, _ = time.Parse(time.RFC3339, meta["updated"])
 	e.Uses, _ = strconv.Atoi(meta["uses"])
+	if scope == "global" {
+		e.Ecosystems = ecosystemsOf(e, meta["ecosystem"])
+	}
 	return e, true
 }
 
@@ -209,6 +226,9 @@ func (s *Store) write(e Entry) error {
 	}
 	if e.Uses > 0 {
 		meta["uses"] = strconv.Itoa(e.Uses)
+	}
+	if len(e.Ecosystems) > 0 {
+		meta["ecosystem"] = strings.Join(e.Ecosystems, ",")
 	}
 	return tool.AtomicWrite(e.Path, []byte(md.Render(meta, e.Body)))
 }
@@ -271,6 +291,11 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 	if e.Source == "" {
 		e.Source = "user"
 	}
+	if e.Scope == "global" {
+		e.Ecosystems = ecosystemsOf(e, strings.Join(e.Ecosystems, ","))
+	} else {
+		e.Ecosystems = nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	existing := s.read()
@@ -281,7 +306,7 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 				// Merge into the older entry; keep its name and history.
 				e.Name = old.Name
 			}
-			if strings.EqualFold(old.Body, e.Body) && strings.EqualFold(old.Description, e.Description) && old.Type == e.Type {
+			if strings.EqualFold(old.Body, e.Body) && strings.EqualFold(old.Description, e.Description) && old.Type == e.Type && strings.Join(old.Ecosystems, ",") == strings.Join(e.Ecosystems, ",") {
 				return old, Unchanged, nil
 			}
 			e.Created, e.Uses, e.Updated, e.Path = old.Created, old.Uses, now, old.Path
@@ -391,6 +416,19 @@ func (s *Store) IndexWithin(budget int) string {
 	}
 	var sb strings.Builder
 	sb.WriteString("\n# Memory\nWhat you learned in earlier sessions, as name (type): description. Feedback and user entries say how the user wants you to work: follow them. Relevant entries are attached to a request automatically; for any other, call memory {\"action\":\"recall\"} before relying on it. When the user tells you something worth keeping (a preference, a correction, a decision, a fact about the project), save it with memory {\"action\":\"remember\"}.\n")
+	visible := entries[:0:0]
+	for _, e := range entries {
+		// An automatic global entry nobody tagged may be one project's
+		// rule; it waits for a strong match instead of sitting in every
+		// project's prompt.
+		if h, strong := s.hidden(e); !h && !strong {
+			visible = append(visible, e)
+		}
+	}
+	entries = visible
+	if len(entries) == 0 {
+		return ""
+	}
 	shown := 0
 	for _, e := range entries {
 		line := fmt.Sprintf("- %s (%s%s): %s\n", e.Name, e.Type, scopeTag(e), e.Description)
@@ -439,6 +477,14 @@ func (s *Store) rank(text string, max, min int) []Entry {
 	}
 	var hits []scored
 	for _, e := range s.Entries() {
+		hide, strong := s.hidden(e)
+		if hide {
+			continue
+		}
+		need := min
+		if strong && need < strongRecall {
+			need = strongRecall
+		}
 		score := 0
 		seen := map[string]bool{}
 		for _, w := range Words(e.Name + " " + e.Description) {
@@ -453,7 +499,7 @@ func (s *Store) rank(text string, max, min int) []Entry {
 				score++
 			}
 		}
-		if score >= min {
+		if score >= need {
 			hits = append(hits, scored{e, score})
 		}
 	}
@@ -465,6 +511,67 @@ func (s *Store) rank(text string, max, min int) []Entry {
 	for i, h := range hits {
 		out[i] = h.e
 	}
+	return out
+}
+
+// strongRecall is the word score an untagged automatic global entry needs
+// to be recalled: two words of its name or description, not one.
+const strongRecall = 6
+
+// hidden reports whether e must not reach this project at all — a global
+// entry about another ecosystem (a Python project's rule in a Go project)
+// — and, when it may, whether it needs a strong match first: a global
+// entry that names no ecosystem and was not written by the user, which
+// could as easily be one project's rule as a preference. Project entries
+// and globals the user wrote with /remember -g are neither.
+func (s *Store) hidden(e Entry) (hide, strong bool) {
+	if e.Scope != "global" {
+		return false, false
+	}
+	if len(e.Ecosystems) > 0 {
+		for _, eco := range e.Ecosystems {
+			if eco == s.Ecosystem {
+				return false, false
+			}
+		}
+		return true, false
+	}
+	return false, e.Source != "user"
+}
+
+// ecosystemPatterns recognise the languages and toolchains a memory is
+// about by the words it uses. "go" alone is English, so Go needs its
+// toolchain's words.
+var ecosystemPatterns = map[string]*regexp.Regexp{
+	"go":     regexp.MustCompile(`(?i)\b(golang|gofmt|gopls|goroutines?|go\.mod|go (test|build|vet|run|mod|generate|install))\b`),
+	"python": regexp.MustCompile(`(?i)\b(python3?|pip|pytest|poetry|pipenv|virtualenv|venv|pyproject|mypy|ruff|django|flask)\b`),
+	"node":   regexp.MustCompile(`(?i)\b(node(\.js|js)?|npm|npx|yarn|pnpm|javascript|typescript|eslint|jest|package\.json)\b`),
+	"rust":   regexp.MustCompile(`(?i)\b(rust|cargo|rustc|clippy|rustfmt|crates?\.io)\b`),
+}
+
+// ecosystemsOf is the sorted union of the comma-separated tag recorded on
+// an entry and the ecosystems its text names.
+func ecosystemsOf(e Entry, tag string) []string {
+	set := map[string]bool{}
+	for _, t := range strings.Split(tag, ",") {
+		if t = strings.ToLower(strings.TrimSpace(t)); t != "" {
+			set[t] = true
+		}
+	}
+	text := e.Name + " " + e.Description + " " + e.Body
+	for eco, re := range ecosystemPatterns {
+		if re.MatchString(text) {
+			set[eco] = true
+		}
+	}
+	if len(set) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(set))
+	for eco := range set {
+		out = append(out, eco)
+	}
+	sort.Strings(out)
 	return out
 }
 

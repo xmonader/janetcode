@@ -453,6 +453,15 @@ func (e *APIError) Error() string {
 
 // --- request building ---
 
+// trailingNewlines counts s's trailing newlines, up to two.
+func trailingNewlines(s string) int {
+	n := 0
+	for n < 2 && strings.HasSuffix(s[:len(s)-n], "\n") {
+		n++
+	}
+	return n
+}
+
 func buildRequest(req llm.Request) (wireRequest, error) {
 	if err := req.Validate(); err != nil {
 		return wireRequest{}, err
@@ -488,6 +497,11 @@ func buildRequest(req llm.Request) (wireRequest, error) {
 					}
 					w.Messages = append(w.Messages, wireMessage{Role: "tool", ToolCallID: b.ToolUseID, Content: content})
 				case llm.BlockText:
+					// Each block is its own paragraph: a harness note and the
+					// prompt typed after it must not run together.
+					if text.Len() > 0 && b.Text != "" {
+						text.WriteString(strings.Repeat("\n", 2-trailingNewlines(text.String())))
+					}
 					text.WriteString(b.Text)
 				case llm.BlockImage:
 					part := wirePart{Type: "image_url"}

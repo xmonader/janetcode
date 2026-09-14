@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -142,7 +143,8 @@ func (a *Agent) record(c Change) {
 //  4. The last text of the previous assistant message earlier in the same
 //     turn (bounded by a.cp.turnStart so an earlier turn's chatter is
 //     never borrowed), for a model that explains itself once and then
-//     just calls tools on later steps.
+//     just calls tools on later steps — unless that message's own calls
+//     changed a file, in which case the text was that change's reason.
 //
 // Anything found is clipped to one line; finding nothing returns "".
 func (a *Agent) intentFor(callID, explicitIntent string) string {
@@ -191,19 +193,80 @@ func (a *Agent) intentFor(callID, explicitIntent string) string {
 			continue
 		}
 		if s := strings.TrimSpace(m.Text()); s != "" {
+			if a.changedByMessage(m) {
+				// That text already explains the change its own call made;
+				// borrowing it would put one change's reason on another.
+				return ""
+			}
 			return intentLine(s, 120)
 		}
 	}
 	return ""
 }
 
-// intentLine is the first line of s with any Markdown heading or list
-// marker taken off, clipped to n runes. It differs from textfmt.HeadingLine
-// in also dropping "*" and "-" bullets, which is how a model often opens
-// the sentence explaining a call.
+// changedByMessage reports whether any tool call in m recorded a change.
+func (a *Agent) changedByMessage(m llm.Message) bool {
+	calls := map[string]bool{}
+	for _, b := range m.Blocks {
+		if b.Type == llm.BlockToolUse {
+			calls[b.ID] = true
+		}
+	}
+	a.cp.mu.Lock()
+	defer a.cp.mu.Unlock()
+	for _, c := range a.cp.changes {
+		if calls[c.Call] {
+			return true
+		}
+	}
+	return false
+}
+
+// intentLine is the first substantive line of s with any Markdown heading
+// or list marker taken off, clipped to n runes. It differs from
+// textfmt.HeadingLine in also dropping "*", "-" and "1." markers, which is
+// how a model often opens the sentence explaining a call, and in skipping
+// the openers a model writes before it says anything (see
+// boilerplateOpener): "The user wants me to:" labelled every change of a
+// real session. When every line is an opener, the first line is kept.
 func intentLine(s string, n int) string {
-	s = textfmt.FirstLine(strings.TrimSpace(s), 0)
-	return textfmt.Clip(strings.TrimSpace(strings.TrimLeft(s, "#*- ")), n)
+	first := ""
+	for _, line := range strings.Split(strings.TrimSpace(s), "\n") {
+		line = strings.TrimSpace(listMarker.ReplaceAllString(strings.TrimSpace(line), ""))
+		if line == "" {
+			continue
+		}
+		if first == "" {
+			first = line
+		}
+		if !boilerplateOpener(line) {
+			return textfmt.Clip(line, n)
+		}
+	}
+	return textfmt.Clip(first, n)
+}
+
+// listMarker is a leading Markdown heading, bullet or numbered-list marker.
+var listMarker = regexp.MustCompile(`^(?:[#*-]+\s*|\d+[.)]\s+)`)
+
+// openerPrefixes begin the lines a model writes before saying anything:
+// restating the request, or announcing that it is about to act.
+var openerPrefixes = []string{"the user wants", "the user is asking", "the user asked", "let me", "i'll", "i will", "i need to", "okay", "ok,", "alright"}
+
+// boilerplateOpener reports whether a line says nothing about the change:
+// one that ends in ":" introducing what follows, or one that opens the
+// way a model announces itself.
+func boilerplateOpener(line string) bool {
+	if strings.HasSuffix(line, ":") {
+		return true
+	}
+	lower := strings.ToLower(line)
+	for _, p := range openerPrefixes {
+		if strings.HasPrefix(lower, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // Changes lists the session's file changes, oldest first, with content.
@@ -327,7 +390,9 @@ func (a *Agent) UndoChange(seq int) (string, error) {
 	a.cp.mu.Unlock()
 	now, _ := os.ReadFile(c.Path)
 	a.record(Change{Turn: a.Stats().Turns, Tool: "undo", Intent: fmt.Sprintf("undo #%d: %s", seq, c.Intent), Path: c.Path, Existed: exists, Before: data, After: now})
-	return verb + " " + c.Path, nil
+	// Relative to the session's root: the line is shown to the user and
+	// handed to the model, and an absolute path is noise to both.
+	return verb + " " + textfmt.RelTo(a.displayRoot(), c.Path), nil
 }
 
 // revertContent computes what an existing file's content would be if

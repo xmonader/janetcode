@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -100,5 +101,39 @@ func TestLoadOverrideRefusesAMissingOrEmptyFile(t *testing.T) {
 	}
 	if _, err := LoadOverride(func(string) string { return "" }, "@/no/such/file"); err == nil {
 		t.Fatal("a missing append file must be an error")
+	}
+}
+
+// TestGitBranchInWorktree: in a linked git worktree .git is a file
+// ("gitdir: …") rather than a directory, so reading .git/HEAD failed and
+// the header showed "⎇ git" instead of the branch.
+func TestGitBranchInWorktree(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	root := t.TempDir()
+	main := filepath.Join(root, "main")
+	run := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	if err := os.MkdirAll(main, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run(main, "init", "-q", "-b", "trunk")
+	run(main, "commit", "-q", "--allow-empty", "-m", "init")
+	wt := filepath.Join(root, "wt")
+	run(main, "worktree", "add", "-q", "-b", "feature/x", wt)
+
+	if b, ok := GitBranch(main); !ok || b != "trunk" {
+		t.Fatalf("main: GitBranch = %q, %v", b, ok)
+	}
+	if b, ok := GitBranch(wt); !ok || b != "feature/x" {
+		t.Fatalf("worktree: GitBranch = %q, %v, want feature/x", b, ok)
 	}
 }

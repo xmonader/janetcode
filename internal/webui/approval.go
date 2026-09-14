@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/xmonader/janetcode/internal/agent"
-	"github.com/xmonader/janetcode/internal/perm"
 )
 
 type askReq struct {
@@ -188,7 +187,7 @@ func (s *server) ApproveWithReason(ctx context.Context, call agent.ToolCall) (ag
 }
 
 func (s *server) permOf(c agent.ToolCall) permPayload {
-	rule := perm.Suggest(c.Name, perm.Subject(c.Name, c.Input)).String()
+	rule := c.Rule
 	return permPayload{
 		ID:      c.ID,
 		Name:    c.Name,

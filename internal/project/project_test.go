@@ -87,7 +87,7 @@ func TestTheLineIsOneLineAndNamesBothThings(t *testing.T) {
 	if strings.Contains(line, "\n") {
 		t.Fatalf("more than one line:\n%s", line)
 	}
-	for _, want := range []string{"Go project", `/verify set "go test ./..."`, "gopls is not on PATH"} {
+	for _, want := range []string{"Go project", `/verify set go test ./...`, "gopls is not on PATH"} {
 		if !strings.Contains(line, want) {
 			t.Errorf("line is missing %q:\n%s", want, line)
 		}

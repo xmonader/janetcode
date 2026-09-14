@@ -68,7 +68,7 @@ const compactSystem = `You are compacting a coding-agent conversation so work ca
 Be precise and complete rather than brief. Do not add commentary; output only the note.`
 
 // ErrNothingToCompact is returned by Compact when the history is empty.
-var ErrNothingToCompact = errors.New("agent: nothing to compact")
+var ErrNothingToCompact = errors.New("nothing to compact")
 
 const (
 	// tailMessages and tailTokens bound the recent history kept verbatim

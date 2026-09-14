@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 func TestAcceptLockDeniesEditFile(t *testing.T) {
@@ -380,11 +382,12 @@ func TestAcceptProposedPhaseRefusesNonTestFileEdits(t *testing.T) {
 }
 
 // TestAcceptProposedPhaseRefusesBash covers the same gap for bash: the
-// writing phase already refuses every bash call outright (it is not a
-// file tool that could touch only test files), and proposed must too.
+// writing phase refuses every bash call that is not a read or a test run
+// (it is not a file tool that could touch only test files), and proposed
+// must too.
 func TestAcceptProposedPhaseRefusesBash(t *testing.T) {
 	f := &fake{responses: []*llm.Response{
-		toolCall("t1", "bash", `{"command":"echo hi"}`),
+		toolCall("t1", "bash", `{"command":"touch impl.go"}`),
 		text("done"),
 	}}
 	a, root := newAgent(t, f, nil)
@@ -564,4 +567,117 @@ func anyDenied(evs []Event, substr string) bool {
 		}
 	}
 	return false
+}
+
+// /accept approve is answered in the transcript with the command it
+// locked, for the user to confirm, and a second approve says the tests
+// are already locked rather than "nothing proposed yet".
+func TestAcceptApproveShowsTheCommandAndASecondApproveSaysLocked(t *testing.T) {
+	root := t.TempDir()
+	testPath := filepath.Join(root, "clip_test.go")
+	if err := os.WriteFile(testPath, []byte("package clip\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &Agent{Accept: &session.AcceptMeta{
+		Phase: session.AcceptProposed, Request: "clip", Root: root,
+		Files: []string{testPath}, Proposed: "go test -run TestClip ./...",
+	}}
+	res, err := a.AcceptCommand(AcceptArgs{Approve: true}, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.Sheet, "locked") || !strings.Contains(res.Sheet, "go test -run TestClip ./...") || !strings.Contains(res.Sheet, "clip_test.go") {
+		t.Fatalf("approve result = %+v, want a sheet naming the files and the locked command", res)
+	}
+	res, err = a.AcceptCommand(AcceptArgs{Approve: true}, root)
+	if err != nil || !strings.Contains(res.Sheet, "already locked") || !strings.Contains(res.Sheet, "go test -run TestClip ./...") {
+		t.Fatalf("second approve = %+v, %v, want already locked with the command", res, err)
+	}
+}
+
+// Tests revised after the command was proposed make that command stale
+// (it named a test the model had since dropped): the mode goes back to
+// writing, so the turn ends by stating the command again.
+func TestAcceptRevisingProposedTestsRecapturesTheCommand(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"clip_test.go","content":"package clip\n\nfunc TestClipBytes(t *testing.T) {}\n"}`),
+		text("Dropped TestOneLineExactBoundary.\n\nACCEPT-VERIFY: go test -run TestClipBytes ./..."),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	testPath := filepath.Join(root, "clip_test.go")
+	a.Accept = &session.AcceptMeta{
+		Phase: session.AcceptProposed, Request: "clip", Root: root,
+		Files: []string{testPath}, Proposed: "go test -run 'TestClipBytes|TestOneLineExactBoundary' ./...",
+	}
+	if err := a.Run(context.Background(), "drop the boundary test", nil); err != nil {
+		t.Fatal(err)
+	}
+	if a.Accept.Phase != session.AcceptProposed || a.Accept.Proposed != "go test -run TestClipBytes ./..." {
+		t.Fatalf("accept = %+v, want the revised command proposed", a.Accept)
+	}
+}
+
+// While tests are written, reading the tree and running the tests are
+// what the model needs: read-only shell and a test run pass the mode gate
+// (the approval prompt still applies); anything else is still refused.
+func TestAcceptWritingPhaseAllowsReadsAndTestRuns(t *testing.T) {
+	a := &Agent{Root: "/work/repo", Accept: &session.AcceptMeta{Phase: session.AcceptWriting, Request: "clip", Root: "/work/repo"}}
+	bash := tool.Bash{Root: "/work/repo"}
+	for cmd, allowed := range map[string]bool{
+		"find . -name '*_test.go'":                    true,
+		"cd /work/repo && grep -rn Clip internal":     true,
+		"go test ./internal/textfmt -run TestClip":    true,
+		"cd /work/repo && go test ./internal/textfmt": true,
+		"touch impl.go":                       false,
+		"sed -i s/a/b/ clip_test.go":          false,
+		"go test ./... && rm -rf internal":    false,
+		"cat > /tmp/trace.go <<'EOF'\nx\nEOF": false,
+	} {
+		in, _ := json.Marshal(map[string]string{"command": cmd})
+		if _, denied := a.toolGate(bash, in); denied == allowed {
+			t.Errorf("%q: denied=%v, want allowed=%v", cmd, denied, allowed)
+		}
+	}
+	// Proposed: the proposed command itself runs too.
+	a.Accept.Phase, a.Accept.Proposed = session.AcceptProposed, "make acceptance"
+	in, _ := json.Marshal(map[string]string{"command": "make acceptance"})
+	if _, denied := a.toolGate(bash, in); denied {
+		t.Error("the proposed command was refused in the proposed phase")
+	}
+}
+
+// The writing phase's red tests are its expected end state: the project's
+// verify gate does not send the model back to "fix" them, and the turn's
+// verdict says the tests were written rather than that a check failed.
+func TestAcceptWritingTurnIsNotSentBackOrJudgedFailed(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"clip_test.go","content":"package clip\n"}`),
+		toolCall("t2", "bash", `{"command":"go test ./nonexistent-package-xyz"}`),
+		text("Tests written; they fail until ClipBytes exists.\n\nACCEPT-VERIFY: go test ./..."),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Root = root
+	a.Log = &session.Memory{}
+	a.Verify = &verify.Runner{Config: verify.Config{Commands: []string{"false"}}, Cwd: root}
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root}, tool.Bash{Root: root})
+	a.AcceptStart("clip bytes", root)
+	evs, emit := collect()
+	if err := a.Run(context.Background(), "write acceptance tests", emit); err != nil {
+		t.Fatal(err)
+	}
+	var verdict string
+	for _, e := range *evs {
+		if e.Kind == EvNotice && strings.Contains(e.Text, "sending the model back") {
+			t.Fatalf("the writing phase was sent back to fix its red tests: %s", e.Text)
+		}
+		if e.Kind == EvVerdict {
+			verdict = e.Text
+		}
+	}
+	if !strings.Contains(verdict, string(VerdictTestsWritten)) || strings.Contains(verdict, "✗") {
+		t.Fatalf("verdict = %q, want tests written", verdict)
+	}
 }

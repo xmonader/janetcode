@@ -43,6 +43,10 @@ func Parse(s string) (Rule, error) {
 	return Rule{Tool: strings.TrimSpace(s[:i]), Pattern: strings.TrimSpace(s[i+1 : len(s)-1])}, nil
 }
 
+// IsZero reports whether r is no rule at all: what Suggest returns for a
+// call it cannot capture safely.
+func (r Rule) IsZero() bool { return r.Tool == "" }
+
 func (r Rule) String() string {
 	if r.Pattern == "" {
 		return r.Tool
@@ -142,6 +146,11 @@ func (r Rule) matches(tool, subject string) bool {
 // Match is a wildcard match where * spans anything (including / and
 // spaces) and ? one character. A pattern without wildcards must equal the
 // subject; commands are compared after whitespace normalisation.
+//
+// * spans shell operators too: `bash(go test *)` matches
+// `go test ./... && rm -rf y`. A rule is a prefix the user trusts, not a
+// parse of the command, which is why Suggest never proposes one for a
+// command whose leading words do not decide everything that runs.
 func Match(pattern, subject string) bool {
 	pattern = strings.Join(strings.Fields(pattern), " ")
 	subject = strings.Join(strings.Fields(subject), " ")
@@ -212,15 +221,35 @@ func Subject(tool string, input json.RawMessage) string {
 	return ""
 }
 
+// SubjectIn is Subject for a session working in root: a bash command's
+// leading `cd <root> &&` is dropped (see tools.TrimWorkspaceCd), since it
+// changes nothing about what runs and would otherwise make every command
+// a model prefixes that way look like a `cd` to rules and to Suggest.
+func SubjectIn(tool string, input json.RawMessage, root string) string {
+	s := Subject(tool, input)
+	if tool == "bash" {
+		s = tools.TrimWorkspaceCd(s, root)
+	}
+	return s
+}
+
 // Suggest proposes the rule to save when the user says "always allow
 // this": the command's leading words for bash, the host for URLs, the
-// directory for file tools, the bare tool otherwise.
+// directory for file tools, the bare tool otherwise. For a bash command it
+// cannot capture safely — a compound command (&&, ;, |, $( ), backticks),
+// or one led by a builtin or a wrapper that runs something else (cd, sudo,
+// sh -c, env, xargs, ...) — it returns the zero Rule: a pattern ending in
+// * would allow whatever follows the leading words (see Match).
 func Suggest(tool, subject string) Rule {
 	switch tool {
 	case "bash":
 		words := strings.Fields(subject)
 		if len(words) == 0 {
 			return Rule{Tool: tool}
+		}
+		// 2>&1 joins two outputs; it is not a second command.
+		if bare := strings.ReplaceAll(subject, "2>&1", ""); strings.ContainsAny(bare, ";|&`\n") || strings.Contains(bare, "$(") || notCapturable[words[0]] {
+			return Rule{}
 		}
 		if len(words) == 1 {
 			return Rule{Tool: tool, Pattern: words[0]}
@@ -245,6 +274,15 @@ func Suggest(tool, subject string) Rule {
 		return Rule{Tool: tool, Pattern: dir + "/*"}
 	}
 	return Rule{Tool: tool}
+}
+
+// notCapturable are leading words a rule must not be made of: navigation
+// and environment builtins, and wrappers that run another command, so
+// their "leading words" say nothing about what the command does.
+var notCapturable = map[string]bool{
+	"cd": true, "pushd": true, "popd": true, "export": true, "env": true, "sudo": true, "doas": true,
+	"sh": true, "bash": true, "zsh": true, "dash": true, "eval": true, "exec": true, "xargs": true,
+	"time": true, "nohup": true, "nice": true, "timeout": true, "command": true, "builtin": true, "source": true, ".": true,
 }
 
 // runners are commands whose first argument is a subcommand.

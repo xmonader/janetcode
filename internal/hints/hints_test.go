@@ -31,7 +31,7 @@ func TestTheVerifyHintWaitsForTheThirdChangingTurn(t *testing.T) {
 func TestRunningTheSameTestCommandTwiceIsEnough(t *testing.T) {
 	e := New(nil, nil)
 	got := e.Eval(&State{RepeatedBangCommand: "go test ./..."})
-	if !strings.Contains(got, `/verify set "go test ./..."`) {
+	if !strings.Contains(got, `/verify set go test ./...`) {
 		t.Fatalf("hint did not offer the command the user ran twice: %q", got)
 	}
 }

@@ -124,6 +124,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		case "a", "A":
 			m.answer(agent.AllowSession, "")
 		case "r", "R":
+			if m.pending.call.Rule == "" {
+				break // no rule is offered for this call
+			}
 			m.noteUse("r")
 			m.answer(agent.AllowAlways, "")
 		case "n", "N":

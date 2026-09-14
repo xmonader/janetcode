@@ -88,11 +88,11 @@ type UndoReport struct {
 // ErrNoChangesToUndo is returned by SelectChanges when this session has no
 // change left that a description could match (everything is already
 // undone, or nothing was ever changed).
-var ErrNoChangesToUndo = errors.New("agent: no changes to undo in this session")
+var ErrNoChangesToUndo = errors.New("no changes to undo in this session")
 
 // ErrNothingSelected is returned by UndoSelection when the selection's
 // Undo side is empty: there is nothing to revert.
-var ErrNothingSelected = errors.New("agent: nothing selected to undo")
+var ErrNothingSelected = errors.New("nothing selected to undo")
 
 // undoCandidates are this session's changes eligible for description
 // matching: still in effect, and not themselves the record of an earlier
@@ -164,19 +164,19 @@ type pendingUndo struct {
 
 // ErrNoPendingUndo is returned by ApplyPendingUndo when no "/undo about"
 // has been previewed yet this session (or it was already applied).
-var ErrNoPendingUndo = errors.New("agent: no previewed undo to apply; run /undo about <description> first")
+var ErrNoPendingUndo = errors.New("no previewed undo to apply; run /undo about <description> first")
 
 // ErrUndoSelectionStale is returned by ApplyPendingUndo when the
 // session's undoable changes moved since the preview: something was
 // undone, reverted, or added.
-var ErrUndoSelectionStale = errors.New("agent: the session's changes moved since /undo about; run it again")
+var ErrUndoSelectionStale = errors.New("the session's changes moved since /undo about; run it again")
 
 // ErrUndoNeedsForce is returned by ApplyPendingUndo when the previewed
 // selection has a change the model flagged as Mixed, or the deterministic
 // coupling guard raised a Warning, and force was not passed: acting on
 // either without a deliberate override risks leaving the tree half
 // consistent, so the caller must re-run as "/undo apply --force".
-var ErrUndoNeedsForce = errors.New("agent: this selection has mixed changes or coupling warnings; rerun as /undo apply --force to proceed anyway")
+var ErrUndoNeedsForce = errors.New("this selection has mixed changes or coupling warnings; rerun as /undo apply --force to proceed anyway")
 
 // PreviewUndoAbout selects changes matching description and remembers the
 // selection as the session's pending undo, for a later ApplyPendingUndo.

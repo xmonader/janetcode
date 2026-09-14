@@ -427,3 +427,113 @@ func TestInlineAssertionsAreSelfChecked(t *testing.T) {
 		t.Fatalf("verdict = %q", o.Verdict)
 	}
 }
+
+// A call the harness refused never ran, so it is not a check that failed.
+// A dogfooding session had turns 1-4 all read "check failed" because an
+// accept-mode refusal of `find`, a denied heredoc and a cancelled prompt
+// were each counted as a red check. Old logs carry no Denied flag, so the
+// refusal text itself is recognised too.
+func TestRefusedCallsAreNotFailedChecks(t *testing.T) {
+	pass := "ok  \texample.com/x\t0.02s\n[exit code 0]"
+	refused := func(args, out string, flag bool) session.Event {
+		e := result(1, "bash", args, out, true)
+		e.Denied = flag
+		return e
+	}
+	got := FoldOutcome([]session.Event{
+		result(1, "edit_file", `{"path":"a.go"}`, "ok", false),
+		refused(`{"command":"go test ./internal/x"}`, "this session is writing acceptance tests", true),
+		refused(`{"command":"cat > /tmp/trace_test.go <<'EOF'\npackage x\nEOF"}`, DeniedMessage, false),
+		refused(`{"command":"go vet ./..."}`, DeniedMessage+" The user said: "+CancelledReason, false),
+		result(1, "bash", `{"command":"go test ./..."}`, pass, false),
+	}, 1)
+	if got.Verdict != VerdictVerified || got.Failed != 0 || got.Ran != 1 {
+		t.Fatalf("outcome = %+v, want verified with the one real run counted", got)
+	}
+}
+
+// A gate the harness ran at the end of the turn is a check the turn ran:
+// green after an earlier red run of the same command, the turn is not
+// "check failed", and a claim that the tests pass is not an overclaim.
+// The model's `cd <root> &&` prefix does not make it a different command.
+func TestGateRunSupersedesEarlierRedRunOfTheSameCommand(t *testing.T) {
+	root := "/work/repo"
+	gate := session.Event{Type: session.TypeGate, Turn: 1, Name: "go test ./internal/x", Source: session.GateAccept}
+	events := []session.Event{
+		result(1, "edit_file", `{"path":"a.go"}`, "ok", false),
+		result(1, "bash", `{"command":"cd /work/repo && go test ./internal/x"}`, "FAIL\n[exit code 1]", true),
+		say(1, "Done — the tests pass now."),
+		gate,
+	}
+	got := FoldOutcomeIn(events, 1, root)
+	if got.Verdict != VerdictVerified || got.Failed != 0 || got.Overclaimed() {
+		t.Fatalf("outcome = %+v, want verified: the latest run of the command was green", got)
+	}
+	if len(got.Checks) != 1 || got.Checks[0] != "go test ./internal/x" {
+		t.Fatalf("checks = %q, want the command without the cd prefix, once", got.Checks)
+	}
+	// Still red at the end: the latest result is what counts.
+	red := append(append([]session.Event(nil), events[:2]...),
+		result(1, "bash", `{"command":"go test ./internal/x"}`, "FAIL\n[exit code 1]", true))
+	if o := FoldOutcomeIn(red, 1, root); o.Verdict != VerdictCheckFailed {
+		t.Fatalf("outcome = %+v, want check failed", o)
+	}
+}
+
+// A check's command is kept whole enough to read: the dogfooding proof
+// showed `cd /tmp/claude-1000/...-4e0c-…`, which hid the command itself.
+func TestCheckCommandsKeepTheCommand(t *testing.T) {
+	long := "go test ./internal/agent -run 'TestRefusedCallsAreNotFailedChecks|TestGateRunSupersedesEarlierRedRunOfTheSameCommand|TestCheckCommandsKeepTheCommand' -count=1"
+	got := FoldOutcomeIn([]session.Event{
+		result(1, "edit_file", `{"path":"a.go"}`, "ok", false),
+		result(1, "bash", `{"command":"cd /tmp/claude-1000/-home-driver-wspace-janetcode/9d6e14c9-d4e6-4e0c-a3e5-cd6a99729461 && `+long+`"}`, "ok  \tx\t0.1s", false),
+	}, 1, "/tmp/claude-1000/-home-driver-wspace-janetcode/9d6e14c9-d4e6-4e0c-a3e5-cd6a99729461")
+	if len(got.Checks) != 1 || got.Checks[0] != long {
+		t.Fatalf("checks = %q, want %q", got.Checks, long)
+	}
+}
+
+// In the /accept writing phase the new tests are supposed to fail: a turn
+// that wrote only tests and saw them red has done exactly its job.
+func TestAcceptWritingTurnWithRedTestsIsTestsWritten(t *testing.T) {
+	start := session.Event{Type: session.TypeTurnStart, Turn: 1, Reason: session.TurnStartAccept + string(session.AcceptWriting)}
+	got := FoldOutcome([]session.Event{
+		start,
+		result(1, "write_file", `{"path":"clip_test.go"}`, "ok", false),
+		result(1, "bash", `{"command":"go test ./..."}`, "--- FAIL: TestClip\nFAIL\n[exit code 1]", true),
+	}, 1)
+	if got.Verdict != VerdictTestsWritten || !got.OK() || !strings.Contains(got.Why, "failing as expected") {
+		t.Fatalf("outcome = %+v, want tests written (failing as expected)", got)
+	}
+	// An implementation file edited in the same turn is not the writing
+	// phase's expected state, and neither is a turn outside accept mode.
+	for name, ev := range map[string][]session.Event{
+		"implementation edited": {start, result(1, "write_file", `{"path":"clip.go"}`, "ok", false), result(1, "bash", `{"command":"go test ./..."}`, "FAIL", true)},
+		"not in accept mode":    {result(1, "write_file", `{"path":"clip_test.go"}`, "ok", false), result(1, "bash", `{"command":"go test ./..."}`, "FAIL", true)},
+	} {
+		if o := FoldOutcome(ev, 1); o.Verdict != VerdictCheckFailed {
+			t.Fatalf("%s: verdict = %q, want check failed", name, o.Verdict)
+		}
+	}
+}
+
+// The bash tool does not mark a non-zero exit as an error; the
+// "[exit code N]" line it appends is what the model reads, and so must
+// the verdict — otherwise a red test run is counted as a pass.
+func TestExitCodeLineMakesACheckRed(t *testing.T) {
+	got := FoldOutcome([]session.Event{
+		result(1, "edit_file", `{"path":"a.go"}`, "ok", false),
+		result(1, "bash", `{"command":"go test ./..."}`, "--- FAIL: TestX\nFAIL\n[exit code 1]", false),
+	}, 1)
+	if got.Verdict != VerdictCheckFailed {
+		t.Fatalf("verdict = %q, want check failed", got.Verdict)
+	}
+	// grep's exit 1 is an answer, not a failure, and the tool says so.
+	got = FoldOutcome([]session.Event{
+		result(1, "edit_file", `{"path":"a.go"}`, "ok", false),
+		result(1, "bash", `{"command":"grep -rn TODO ./internal/check"}`, "(no output)\n[exit code 1] nothing matched; for this command that is an answer, not a failure", false),
+	}, 1)
+	if got.Failed != 0 {
+		t.Fatalf("grep finding nothing counted as a failed check: %+v", got)
+	}
+}

@@ -75,7 +75,7 @@ func (a *Agent) acceptSystemText() string {
 	}
 	switch a.Accept.Phase {
 	case session.AcceptWriting:
-		return fmt.Sprintf("\n\n# Acceptance tests (writing)\nThe user wants acceptance tests for this request, approved before any implementation:\n\n%s\n\nWrite only test files: ones that fail against the code as it stands and would pass once the request is done. No implementation changes — every other mutating tool is refused while this phase lasts. When the tests are ready, end your final message with one line of the exact form:\nACCEPT-VERIFY: <command that runs the tests you wrote>\nThe user reviews the tests as a diff and runs /accept approve; only then does work on the implementation start.", a.Accept.Request)
+		return fmt.Sprintf("\n\n# Acceptance tests (writing)\nThe user wants acceptance tests for this request, approved before any implementation:\n\n%s\n\nWrite only test files: ones that fail against the code as it stands and would pass once the request is done. No implementation changes — every other mutating tool is refused while this phase lasts, except read-only shell commands and running the tests. When the tests are ready, end your final message with one line of the exact form:\nACCEPT-VERIFY: <command that runs the tests you wrote>\nThe user reviews the tests as a diff and runs /accept approve; only then does work on the implementation start.", a.Accept.Request)
 	case session.AcceptProposed:
 		return fmt.Sprintf("\n\n# Acceptance tests (proposed)\nAcceptance tests for %q are written and awaiting the user's /accept approve (proposed verification command: %s). Do not start implementing until it is approved.", a.Accept.Request, a.Accept.Proposed)
 	case session.AcceptLocked:

@@ -362,7 +362,7 @@ func (m *model) command(text string) tea.Cmd {
 	case "/budget":
 		m.budgetCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/eval":
-		m.evalCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
+		return m.evalCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/proof":
 		m.proofCommand(strings.TrimSpace(strings.TrimPrefix(text, fields[0])))
 	case "/recipe":

@@ -12,7 +12,7 @@ import (
 
 const extractSystem = `You maintain the long-term memory of a coding agent. It is read at the start of every future session, so it must hold only durable knowledge a future session would need and could not learn in a minute from the code or git history. Record what this conversation ESTABLISHED, never what it did or the state of the task.
 
-Worth keeping: preferences and corrections the user expressed (type "feedback": how they want work done, what not to do), facts about the user (type "user"), decisions and the reasons behind them (type "decision"), facts about this project that are not obvious from the code, such as commands that work or fail and environment quirks (type "project"), and pointers to external resources (type "reference"). Anything about the user personally or how they like to work in general goes in scope "global"; everything tied to this codebase goes in scope "project".
+Worth keeping: preferences and corrections the user expressed (type "feedback": how they want work done, what not to do), facts about the user (type "user"), decisions and the reasons behind them (type "decision"), facts about this project that are not obvious from the code, such as commands that work or fail and environment quirks (type "project"), and pointers to external resources (type "reference"). Every entry you write is scoped to this project ("scope":"project"): a rule for every project is the user's to make, with /remember -g, never yours. Record a preference only when the user stated it as lasting ("always", "never", "from now on", a correction of how you work); an instruction for the task at hand ("commit this", "use a conventional commit message here") is not a preference. Record a project fact only when the conversation established it, not when you inferred it from one action.
 
 Output one JSON object per line, nothing else:
 {"type":"feedback","scope":"project","name":"short-kebab-slug","description":"one line, under 120 characters","body":"the fact, plus why and how to apply it when useful (a few sentences)","replaces":"name-of-an-existing-entry-this-supersedes-or-empty"}
@@ -108,13 +108,16 @@ func ParseExtracted(text string) []Extracted {
 	return out
 }
 
-// Apply stores extracted candidates and returns the entries that were
-// created or changed.
+// Apply stores extracted candidates, all in project scope whatever scope
+// the extractor asked for, and returns the entries that were created or
+// changed.
 func (s *Store) Apply(xs []Extracted) ([]Entry, error) {
 	var changed []Entry
 	var errs []string
 	for _, x := range xs {
-		e := Entry{Name: x.Name, Description: x.Description, Type: x.Type, Scope: x.Scope, Body: x.Body, Source: "auto"}
+		// Always project scope: an extractor's guess at what applies to
+		// every project turned one-off phrasings into global rules.
+		e := Entry{Name: x.Name, Description: x.Description, Type: x.Type, Scope: "project", Body: x.Body, Source: "auto"}
 		if x.Replaces != "" {
 			if old, ok := s.Get(x.Replaces); ok && old.Scope == e.Scope {
 				e.Name = old.Name

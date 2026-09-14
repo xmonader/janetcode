@@ -27,7 +27,7 @@ func TestSetupReportsAFileItCouldNotWrite(t *testing.T) {
 		Name:  "setup",
 		Files: map[string]string{"a/b.txt": "x", "a": "y"},
 		Check: "true",
-	})
+	}, "setup")
 	if res.Passed {
 		t.Fatal("a task whose files could not be written passed")
 	}

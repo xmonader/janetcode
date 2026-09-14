@@ -769,3 +769,32 @@ func TestCommandSummaryShortensPaths(t *testing.T) {
 		t.Fatalf("summary = %q", got)
 	}
 }
+
+// TestListItemSoftBreaksReflow: glamour keeps a soft line break inside a
+// list item as a hard one, so a model's source line break came out as a
+// ragged paragraph ("…multi-byte characters" / "when truncating…") in a
+// window wide enough for both. Soft breaks inside a list item now reflow
+// like a paragraph's; a new item, a nested list and a hard break stay.
+func TestListItemSoftBreaksReflow(t *testing.T) {
+	text := "- **Clip** now counts display width, so it no longer splits multi-byte characters\n  when truncating long lines.\n  - nested item\n- second item ends in a hard break  \n  kept on its own line"
+	tr := newTranscriptStyled("dark")
+	tr.apply(agent.Event{Kind: agent.EvText, Text: text})
+	tr.apply(agent.Event{Kind: agent.EvTurnDone})
+	out := plain(tr.render(renderOpts{width: 140}))
+	if !strings.Contains(out, "multi-byte characters when truncating long lines.") {
+		t.Fatalf("the soft break was kept:\n%s", out)
+	}
+	for _, want := range []string{"nested item", "second item ends in a hard break"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q:\n%s", want, out)
+		}
+	}
+	for _, l := range strings.Split(out, "\n") {
+		if strings.Contains(l, "hard break") && strings.Contains(l, "kept on its own line") {
+			t.Fatalf("a hard break was joined:\n%s", out)
+		}
+		if strings.Contains(l, "long lines.") && strings.Contains(l, "nested") {
+			t.Fatalf("the nested list was joined:\n%s", out)
+		}
+	}
+}

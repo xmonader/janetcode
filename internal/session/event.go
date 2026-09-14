@@ -45,7 +45,26 @@ const (
 	// command}. A proof record folds the latest one per turn into
 	// proof.Turn.Mutation.
 	TypeMutation = "verify/mutation"
+	// TypeGate records one command a turn-end gate ran on the harness's
+	// own initiative — the project's verify commands, or the locked
+	// /accept tests. Name is the command, IsError whether it failed,
+	// Output what it printed when that was kept, and Source which gate
+	// ran it (GateVerify or GateAccept). The verdict fold counts it as a
+	// check the turn ran, so a green gate after a red run is not lost.
+	TypeGate = "verify/gate"
 )
+
+// Gate sources on a TypeGate event.
+const (
+	GateVerify = "verify"
+	GateAccept = "accept"
+)
+
+// TurnStartAccept prefixes a TypeTurnStart event's Reason when the turn
+// began with /accept mode on, followed by the phase ("accept:writing"),
+// so a fold read back later knows red tests in the writing phase were
+// the expected state rather than a failure.
+const TurnStartAccept = "accept:"
 
 const (
 	SurfaceOpReplace = "replace"
@@ -79,9 +98,14 @@ type Event struct {
 	Name      string       `json:"name,omitempty"`
 	Arguments string       `json:"arguments,omitempty"`
 	// Intent is the model's own one-line reason for a tool call.
-	Intent     string `json:"intent,omitempty"`
-	Output     string `json:"output,omitempty"`
-	IsError    bool   `json:"is_error,omitempty"`
+	Intent  string `json:"intent,omitempty"`
+	Output  string `json:"output,omitempty"`
+	IsError bool   `json:"is_error,omitempty"`
+	// Denied marks a tool/result that is the harness refusing the call —
+	// a permission rule, a mode, a hook, the user saying no or cancelling
+	// — rather than the tool running. Nothing ran, so nothing that reads
+	// the log for what a turn did may count it as a run.
+	Denied     bool   `json:"denied,omitempty"`
 	DurationMs int64  `json:"duration_ms,omitempty"`
 	Reason     string `json:"reason,omitempty"`
 	Active     *bool  `json:"active,omitempty"`

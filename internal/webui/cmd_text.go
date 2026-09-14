@@ -303,17 +303,13 @@ func (s *server) changesText(arg string) string {
 		if err != nil {
 			return err.Error()
 		}
-		return fmt.Sprintf("#%d %s %s\n%s", c.Seq, c.Tool, c.Path, c.After)
+		return agent.FormatChange(c, s.opts.Cwd)
 	}
-	changes := s.opts.Agent.Changes()
-	if len(changes) == 0 {
+	groups := s.opts.Agent.ChangeGroups()
+	if len(groups) == 0 {
 		return "no file changes in this session yet"
 	}
-	var sb strings.Builder
-	for _, c := range changes {
-		fmt.Fprintf(&sb, "  #%-3d %-10s %s\n", c.Seq, c.Tool, c.Path)
-	}
-	return sb.String()
+	return agent.FormatChangeGroups(groups, s.opts.Cwd)
 }
 
 func (s *server) diffText(path string) string {

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/gitx"
@@ -97,13 +98,22 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 		return "", Task{}, nil, fmt.Errorf("not a git repository: /eval keep needs one (%s)", opts.Root)
 	}
 
+	accepted, acceptWarnings := acceptTests(sess.Meta.Accept)
+	warnings = append(warnings, acceptWarnings...)
 	check := strings.TrimSpace(opts.Check)
 	if check == "" {
 		cfg, _, verr := verify.Load(opts.Root)
 		if verr != nil {
 			return "", Task{}, nil, fmt.Errorf("load %s: %w", verify.ProjectFile, verr)
 		}
-		check = strings.Join(cfg.Commands, " && ")
+		cmds := cfg.Commands
+		if accepted.command != "" {
+			// The locked acceptance tests go first: verify.json's commands
+			// usually pass at the base commit already, so on their own they
+			// make a task that cannot fail.
+			cmds = append([]string{accepted.command}, cmds...)
+		}
+		check = strings.Join(cmds, " && ")
 	}
 	if check == "" {
 		return "", Task{}, nil, fmt.Errorf("no check command: pass --check <command>, or add commands to %s", verify.ProjectFile)
@@ -180,9 +190,18 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 		repo = opts.Root
 	}
 
+	if n := deniedReasons(sess.Events()); n > 0 {
+		warnings = append(warnings, textfmt.Plural(n, "denial reason")+" given mid-turn when denying tool calls left out of the task: its prompts are per turn, with no mid-turn follow-ups")
+	}
+	if accepted.command != "" {
+		prompts = acceptPrompts(prompts, sess.Meta.Accept.Request, accepted)
+	}
+
 	t := Task{
 		Name:    name,
 		Prompts: prompts,
+		Files:   accepted.files,
+		Locked:  accepted.locked,
 		Check:   check,
 		Timeout: 900,
 		Tags:    []string{"kept"},
@@ -212,8 +231,11 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 // KeepCommand runs /eval keep for every front-end: arg is the text after
 // "/eval". opts carries the session and project root; the name, check,
 // base and self-contained choices come from arg (see ParseKeepArgs).
-// Keep's warnings come back as Result.Tips.
-func KeepCommand(opts KeepOptions, arg string) (cmdresult.Result, error) {
+// Keep's warnings come back as Result.Tips, and so does CheckAtBase's
+// finding that the kept check already passes before any work — it can
+// take as long as the check does, so front-ends call this off their UI
+// goroutine and ctx cancels it.
+func KeepCommand(ctx context.Context, opts KeepOptions, arg string) (cmdresult.Result, error) {
 	verb, rest := slash.CutWord(arg)
 	if verb != "keep" {
 		return cmdresult.Result{}, errors.New("usage: /eval keep [name] [--base <rev>] [--self-contained] [--check <command>]")
@@ -226,6 +248,11 @@ func KeepCommand(opts KeepOptions, arg string) (cmdresult.Result, error) {
 	path, task, warnings, err := Keep(opts)
 	if err != nil {
 		return cmdresult.Result{}, fmt.Errorf("eval keep: %w", err)
+	}
+	if passed, cerr := CheckAtBase(ctx, task); cerr != nil {
+		warnings = append(warnings, "could not run the check at the task's start state: "+cerr.Error())
+	} else if passed {
+		warnings = append(warnings, fmt.Sprintf("this check passes before any work — the eval cannot fail: pass a --check that fails at the start (%s)", task.Check))
 	}
 	note := textfmt.RelTo(opts.Root, path) + " · " + textfmt.Plural(len(task.Prompts), "prompt") + " · run it with: janetcode --eval .janetcode/evals"
 	return cmdresult.Result{Notes: []string{note}, Tips: warnings}, nil
@@ -298,6 +325,112 @@ func messageText(m *llm.Message) string {
 		}
 	}
 	return sb.String()
+}
+
+// keptAccept is what an /accept session contributes to a kept task: its
+// locked acceptance tests as task files relative to the project root, and
+// the approved command that runs them.
+type keptAccept struct {
+	files   map[string]string
+	locked  []string
+	command string
+}
+
+// acceptTests reads the locked acceptance tests out of a session's accept
+// state. Only an approved state (locked, or unlocked after approval) has
+// a command; a session still writing or proposing its tests contributes
+// nothing. A file outside the accept root, or one too large for its
+// content to have been kept, cannot travel with the task and is reported.
+func acceptTests(acc *session.AcceptMeta) (keptAccept, []string) {
+	if acc == nil || strings.TrimSpace(acc.Command) == "" || (acc.Phase != session.AcceptLocked && acc.Phase != session.AcceptUnlocked) {
+		return keptAccept{}, nil
+	}
+	var warnings []string
+	k := keptAccept{files: map[string]string{}, command: strings.TrimSpace(acc.Command)}
+	for _, f := range acc.Files {
+		rel, err := filepath.Rel(acc.Root, f)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			warnings = append(warnings, fmt.Sprintf("acceptance test %s is outside the project and is not in the task", f))
+			continue
+		}
+		content, ok := acc.Contents[f]
+		if !ok {
+			warnings = append(warnings, fmt.Sprintf("acceptance test %s was too large to keep its content and is not in the task", rel))
+			continue
+		}
+		rel = filepath.ToSlash(rel)
+		k.files[rel] = string(content)
+		k.locked = append(k.locked, rel)
+	}
+	sort.Strings(k.locked)
+	if len(k.files) == 0 {
+		k.files = nil
+	}
+	return k, warnings
+}
+
+// acceptPrompts restores the /accept step a kept prompt loses: the prompt
+// that was the accept request (the first, when none matches it exactly)
+// says the approved tests already exist and must pass unchanged, as they
+// did for the session once they were locked.
+func acceptPrompts(prompts []string, request string, k keptAccept) []string {
+	at := 0
+	for i, p := range prompts {
+		if p == strings.TrimSpace(request) {
+			at = i
+			break
+		}
+	}
+	out := append([]string(nil), prompts...)
+	note := fmt.Sprintf("Acceptance tests for this request are already written and approved: %s. Do not change them; make them pass. They run with: %s", strings.Join(k.locked, ", "), k.command)
+	if len(k.locked) == 0 {
+		note = "Approved acceptance tests for this request run with: " + k.command
+	}
+	out[at] += "\n\n" + note
+	return out
+}
+
+// deniedReasons counts the tool calls in a session the user denied with
+// a reason (see agent.DeniedMessage): guidance given mid-turn, which a
+// task's per-turn prompts have nowhere to put.
+func deniedReasons(events []session.Event) int {
+	n := 0
+	for _, e := range events {
+		if e.Type != session.TypeToolResult || e.Message == nil {
+			continue
+		}
+		for _, b := range e.Message.Blocks {
+			if b.Type == llm.BlockToolResult && strings.HasPrefix(b.Text, agent.DeniedMessage+" The user said: ") {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// CheckAtBase prepares a task's work dir at its start state — the base
+// commit and patch, plus its files — and runs its check once, before any
+// work: a check that passes there proves nothing when the task runs.
+func CheckAtBase(ctx context.Context, t Task) (bool, error) {
+	dir, cleanup, err := prepareWorkDir(ctx, t)
+	if err != nil {
+		return false, err
+	}
+	defer cleanup()
+	if err := writeFiles(dir, t.Files); err != nil {
+		return false, err
+	}
+	outPath := filepath.Join(dir, ".eval-output.txt")
+	if err := os.WriteFile(outPath, nil, 0o644); err != nil {
+		return false, err
+	}
+	if _, err := runCheck(ctx, t, dir, outPath); err != nil {
+		if ctx.Err() != nil {
+			return false, ctx.Err()
+		}
+		return false, nil
+	}
+	return true, nil
 }
 
 // isGitRepo reports whether dir is inside a git working tree. Keep calls

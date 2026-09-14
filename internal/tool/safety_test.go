@@ -157,3 +157,20 @@ func TestSafeRead(t *testing.T) {
 		}
 	}
 }
+
+func TestTrimWorkspaceCd(t *testing.T) {
+	root := filepath.FromSlash("/work/repo")
+	for in, want := range map[string]string{
+		"cd /work/repo && go test ./...":   "go test ./...",
+		"cd '/work/repo'; go vet ./...":    "go vet ./...",
+		"cd . && ls":                       "ls",
+		"cd /work/repo/sub && go test ./x": "cd /work/repo/sub && go test ./x",
+		"cd /elsewhere && rm -rf y":        "cd /elsewhere && rm -rf y",
+		"go test ./...":                    "go test ./...",
+		"cd /work/repo":                    "cd /work/repo",
+	} {
+		if got := TrimWorkspaceCd(in, root); got != want {
+			t.Errorf("TrimWorkspaceCd(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

@@ -223,7 +223,9 @@ func TestExtractParsesAppliesAndReplaces(t *testing.T) {
 	if e, _ := s.Get("commit-size"); e.Description != "Commits must stay under 50 lines" || e.Body != "The user asked for commits under 50 lines." {
 		t.Fatalf("replace failed: %+v", e)
 	}
-	if e, _ := s.Get("terse"); e.Scope != "global" || e.Type != TypeUser || e.Source != "auto" {
+	// The extractor asked for global; automatic extraction only writes
+	// project scope (see TestAutoExtractionNeverWritesGlobal).
+	if e, _ := s.Get("terse"); e.Scope != "project" || e.Type != TypeUser || e.Source != "auto" {
 		t.Fatalf("global entry = %+v", e)
 	}
 	if changed, _ := s.Apply(xs); len(changed) != 0 {
@@ -305,5 +307,86 @@ func TestSemanticRecallFallsBackAndCachesVectors(t *testing.T) {
 	s2.SearchCtx(ctx, "make ship", 4)
 	if fails != 1 {
 		t.Fatalf("embedder retried immediately: %d calls", fails)
+	}
+}
+
+// TestAutoExtractionNeverWritesGlobal: the extractor turned one-off
+// phrasings into global rules every project then inherited ("use
+// conventional commits for all commits"). What it keeps is project
+// scoped; only the user's own /remember -g writes global.
+func TestAutoExtractionNeverWritesGlobal(t *testing.T) {
+	s := Open(t.TempDir(), t.TempDir())
+	changed, err := s.Apply([]Extracted{{Type: TypeFeedback, Scope: "global", Name: "conventional-commits", Description: "Use conventional commits for all commits", Body: "Asked once."}})
+	if err != nil || len(changed) != 1 {
+		t.Fatalf("apply: %+v %v", changed, err)
+	}
+	if e, _ := s.Get("conventional-commits"); e.Scope != "project" {
+		t.Fatalf("auto-extracted entry scope = %q, want project", e.Scope)
+	}
+	if strings.Contains(extractSystem, `goes in scope "global"`) {
+		t.Fatal("the extractor is still told to write global entries")
+	}
+	// The model's own memory tool cannot write global either.
+	out, err := (&Tool{Store: s}).Run(context.Background(), []byte(`{"action":"remember","description":"The user prefers tabs","scope":"global","type":"user"}`))
+	if err != nil || !strings.Contains(out, "project") || !strings.Contains(out, "/remember -g") {
+		t.Fatalf("tool remember global = %q %v", out, err)
+	}
+	for _, e := range s.Entries() {
+		if e.Scope == "global" {
+			t.Fatalf("a global entry was written without the user: %+v", e)
+		}
+	}
+}
+
+// TestGlobalMemoryFromAnotherEcosystemIsNotRecalled: a global memory
+// written in a Python project ("run pytest with -x") was recalled, and
+// listed in the index, in a Go project.
+func TestGlobalMemoryFromAnotherEcosystemIsNotRecalled(t *testing.T) {
+	data := t.TempDir()
+	pyProj, goProj := t.TempDir(), t.TempDir()
+	os.WriteFile(filepath.Join(pyProj, "pyproject.toml"), []byte("[project]\n"), 0o644)
+	os.WriteFile(filepath.Join(goProj, "go.mod"), []byte("module m\n"), 0o644)
+
+	py := Open(data, pyProj)
+	e, _, err := py.Put(Entry{Name: "tests-stop-early", Description: "Run the tests with pytest -x so they stop at the first failure", Scope: "global", Type: TypeFeedback, Source: "user"})
+	if err != nil || len(e.Ecosystems) != 1 || e.Ecosystems[0] != "python" {
+		t.Fatalf("put = %+v %v, want tagged python", e, err)
+	}
+	// An older, untagged global the extractor wrote.
+	py.Put(Entry{Name: "commit-style", Description: "Use conventional commits for all commits", Scope: "global", Type: TypeFeedback, Source: "user"})
+	legacy := filepath.Join(data, "memory", GlobalKey, "old-rule.md")
+	os.WriteFile(legacy, []byte("---\nname: old-rule\ndescription: Keep the tests fast\ntype: feedback\nsource: auto\n---\nKeep the tests fast.\n"), 0o644)
+
+	if got := py.Recall("run the tests and stop at the first failure", 4); len(got) == 0 || got[0].Name != "tests-stop-early" {
+		t.Fatalf("python project recall = %+v", got)
+	}
+	g := Open(data, goProj)
+	for _, e := range g.Recall("run the tests and stop at the first failure", 4) {
+		if e.Name == "tests-stop-early" {
+			t.Fatalf("a python memory was recalled in a go project: %+v", e)
+		}
+	}
+	for _, e := range g.Search("pytest failure", 8) {
+		if e.Name == "tests-stop-early" {
+			t.Fatalf("a python memory was found in a go project: %+v", e)
+		}
+	}
+	idx := g.Index()
+	if strings.Contains(idx, "tests-stop-early") {
+		t.Fatalf("a python memory is in a go project's index:\n%s", idx)
+	}
+	if !strings.Contains(idx, "commit-style") {
+		t.Fatalf("an untagged global the user wrote is missing from the index:\n%s", idx)
+	}
+	// An untagged global the user never wrote stays out of the index and
+	// needs a strong match to be recalled.
+	if strings.Contains(idx, "old-rule") {
+		t.Fatalf("an untagged automatic global is in the index:\n%s", idx)
+	}
+	if got := g.Recall("the tests", 4); len(got) != 0 {
+		t.Fatalf("weak match recalled %+v", got)
+	}
+	if got := g.Recall("keep the tests fast", 4); len(got) != 1 || got[0].Name != "old-rule" {
+		t.Fatalf("strong match recall = %+v", got)
 	}
 }

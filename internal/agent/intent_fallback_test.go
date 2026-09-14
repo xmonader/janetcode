@@ -148,3 +148,52 @@ func TestIntentFallbackNoTurnBleed(t *testing.T) {
 		t.Fatalf("intent = %q, want empty: it must not borrow the previous turn's text", changes[0].Intent)
 	}
 }
+
+// TestIntentSkipsBoilerplateOpeners: a thinking block that opens by
+// restating the request ("The user wants me to:") labelled every change
+// with that line. The first line that says something is the intent.
+func TestIntentSkipsBoilerplateOpeners(t *testing.T) {
+	for in, want := range map[string]string{
+		"The user wants me to:\n1. Clip long lines in the status bar\n2. Add a test":             "Clip long lines in the status bar",
+		"Let me look at this.\nI'll start by reading clip.go.\nFix the off-by-one in ClipBytes.": "Fix the off-by-one in ClipBytes.",
+		"I need to understand the request:\n- rename compute to calculate":                       "rename compute to calculate",
+		"Create the config file.\nMore detail.":                                                  "Create the config file.",
+		// Nothing but openers: the first line is still better than nothing.
+		"Let me fix the parser.": "Let me fix the parser.",
+		"Now I understand:":      "Now I understand:",
+	} {
+		if got := intentLine(in, 120); got != want {
+			t.Errorf("intentLine(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// TestIntentFallbackDoesNotBorrowAnotherChangesLabel: level 4 borrows an
+// earlier message's explanation only when that message changed nothing
+// itself. When its own call made a change, the text was that change's
+// label, and reusing it put one change's reason on another in /changes.
+func TestIntentFallbackDoesNotBorrowAnotherChangesLabel(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "Rename compute to calculate in a.txt."},
+			{Type: llm.BlockToolUse, ID: "c1", Name: "write_file", Input: json.RawMessage(`{"path":"a.txt","content":"calculate\n"}`)},
+		}}, StopReason: llm.StopToolUse},
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "c2", Name: "write_file", Input: json.RawMessage(`{"path":"foo.txt","content":"hi\n"}`)},
+		}}, StopReason: llm.StopToolUse},
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	if err := a.Run(context.Background(), "go", nil); err != nil {
+		t.Fatal(err)
+	}
+	changes := a.Changes()
+	if len(changes) != 2 || changes[0].Intent != "Rename compute to calculate in a.txt." {
+		t.Fatalf("changes = %+v", changes)
+	}
+	if changes[1].Intent != "" {
+		t.Fatalf("intent of the second change = %q, want empty: that text was the first change's label", changes[1].Intent)
+	}
+}

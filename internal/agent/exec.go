@@ -165,7 +165,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 			return nil, reason, nil
 		}
 	}
-	subject := perm.Subject(u.Name, u.Input)
+	subject := perm.SubjectIn(u.Name, u.Input, a.displayRoot())
 	verdict, rule := a.decideRule(u.Name, subject)
 	if verdict == perm.Denied {
 		return nil, fmt.Sprintf("Denied by permission rule %s. Do not retry this call; choose another approach or ask the user to change the rule.", rule), nil
@@ -189,9 +189,12 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		// suggested is the rule AllowAlways would save, and its string
 		// form is the shape the ledger tracks approvals and refusals
 		// under (see perm.Suggest): computed once and reused for both.
+		// A zero rule is a command no rule can capture safely: nothing is
+		// offered, learned or recorded for it.
 		suggested := perm.Suggest(u.Name, subject)
 		shape := suggested.String()
-		if tally := a.Ledger.Get(shape); tally.Allowed >= perm.LearnAfter && tally.Denied == 0 && !mustAsk && call.Warning == "" {
+		call.Rule = shape
+		if tally := a.Ledger.Get(shape); shape != "" && tally.Allowed >= perm.LearnAfter && tally.Denied == 0 && !mustAsk && call.Warning == "" {
 			call.Learned = fmt.Sprintf("approved %d× before, never refused", tally.Allowed)
 		}
 		var (
@@ -211,10 +214,10 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		// denial: the ledger has to see a refusal too, not only the
 		// allow variants.
 		a.stats.approval(d == Deny)
-		if d != Deny || reason != CancelledReason {
+		if shape != "" && (d != Deny || reason != CancelledReason) {
 			a.Ledger.Record(shape, d != Deny)
 		}
-		if call.Warning != "" && d != Deny {
+		if shape != "" && call.Warning != "" && d != Deny {
 			a.Ledger.MarkWarned(shape)
 		}
 		switch d {
@@ -223,7 +226,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 				a.allowSession(u.Name)
 			}
 		case AllowAlways:
-			if !mustAsk {
+			if !mustAsk && !suggested.IsZero() {
 				a.AddRule(perm.Allowed, suggested)
 				if a.SaveRule != nil {
 					if err := a.SaveRule(suggested); err != nil {
@@ -235,6 +238,9 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 			}
 		case Allow:
 		default:
+			if reason == CancelledReason {
+				return nil, CancelledMessage, nil
+			}
 			msg := DeniedMessage
 			if reason = strings.TrimSpace(reason); reason != "" {
 				msg += " The user said: " + reason

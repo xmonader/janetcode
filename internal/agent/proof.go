@@ -89,7 +89,7 @@ func (a *Agent) buildProof(ctx context.Context, repoRoot, commit string, committ
 	}
 	outcomes := make(map[int]proof.TurnOutcomeInput, len(turnsUsed))
 	for tn := range turnsUsed {
-		o := FoldOutcome(events, tn)
+		o := FoldOutcomeIn(events, tn, repoRoot)
 		outcomes[tn] = proof.TurnOutcomeInput{
 			Verdict: string(o.Verdict), Why: o.Why, Checks: o.Checks,
 			Passed: o.Passed, Failed: o.Failed, Tested: o.Tested, TestsEdited: o.TestsEdited,
@@ -199,26 +199,50 @@ func (a *Agent) checkCommitAttach(ctx context.Context, preHead string, emit func
 	if err != nil || postHead == "" || postHead == preHead {
 		return
 	}
-	committed, err := proof.CommittedFiles(ctx, root, postHead)
-	if err != nil {
-		return
+	if a.attachCommitProof(ctx, postHead, emit) {
+		a.proofCommits = append(a.proofCommits, postHead)
+		emit(Event{Kind: EvNotice, Text: ProofAttachedNotice + proof.Short(postHead) + " · /proof shows it"})
 	}
-	r, err := a.buildProof(ctx, root, postHead, committed)
+}
+
+// attachCommitProof builds and attaches the proof note for sha from this
+// session's changes, reporting whether one was attached. A failure is told
+// to the user; a commit carrying none of this session's changes is not an
+// error — it may be someone else's work, a merge, or files never touched
+// with the tracked tools — and attaches nothing.
+func (a *Agent) attachCommitProof(ctx context.Context, sha string, emit func(Event)) bool {
+	root := a.Snapshots.Root
+	committed, err := proof.CommittedFiles(ctx, root, sha)
 	if err != nil {
-		emit(Event{Kind: EvNotice, Text: "proof: could not read " + proof.Short(postHead) + "'s content to attach evidence: " + err.Error()})
-		return
+		return false
+	}
+	r, err := a.buildProof(ctx, root, sha, committed)
+	if err != nil {
+		emit(Event{Kind: EvNotice, Text: "proof: could not read " + proof.Short(sha) + "'s content to attach evidence: " + err.Error()})
+		return false
 	}
 	if r.Empty() {
-		// Not an error: the commit may be entirely someone else's changes,
-		// a merge, or files this session never touched with the tracked
-		// tools. Nothing to say.
+		return false
+	}
+	if err := proof.Attach(ctx, root, sha, r); err != nil {
+		emit(Event{Kind: EvNotice, Text: "proof: could not attach evidence to " + proof.Short(sha) + ": " + err.Error()})
+		return false
+	}
+	return true
+}
+
+// refreshProofNotes re-attaches the notes this turn put on its own commits
+// once the turn is over: a commit made mid-turn was noted before the
+// turn-end gates ran, and their runs belong in its evidence. Attach merges
+// by session and turn, so the refreshed turn replaces the earlier one.
+func (a *Agent) refreshProofNotes(ctx context.Context, emit func(Event)) {
+	if a.Snapshots == nil {
 		return
 	}
-	if err := proof.Attach(ctx, root, postHead, r); err != nil {
-		emit(Event{Kind: EvNotice, Text: "proof: could not attach evidence to " + proof.Short(postHead) + ": " + err.Error()})
-		return
+	for _, sha := range a.proofCommits {
+		a.attachCommitProof(ctx, sha, emit)
 	}
-	emit(Event{Kind: EvNotice, Text: ProofAttachedNotice + proof.Short(postHead) + " · /proof shows it"})
+	a.proofCommits = nil
 }
 
 // ProofAttachedNotice begins the notice emitted when the session's own

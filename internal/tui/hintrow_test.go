@@ -37,7 +37,7 @@ func TestARepeatedTestCommandOffersTheGate(t *testing.T) {
 	}
 	h.m.observeBang("go test ./...")
 	v := plain(h.m.View())
-	if !strings.Contains(v, `/verify set "go test ./..."`) {
+	if !strings.Contains(v, `/verify set go test ./...`) {
 		t.Fatalf("second run did not offer the gate:\n%s", v)
 	}
 }
@@ -270,7 +270,7 @@ func TestTheFirstSessionInAGoProjectProposesTheCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	line := h.m.firstRunLine()
-	if !strings.Contains(line, `/verify set "go test ./..."`) {
+	if !strings.Contains(line, `/verify set go test ./...`) {
 		t.Fatalf("first run in a Go project said %q", line)
 	}
 	if strings.Contains(line, "\n") {
@@ -385,7 +385,7 @@ func TestUsingACommandIsCountedAndStopsTheHintForIt(t *testing.T) {
 	// user has met it.
 	h.m.observeBang("go test ./...")
 	h.m.observeBang("go test ./...")
-	if v := plain(h.m.View()); strings.Contains(v, "/verify set \"go test") {
+	if v := plain(h.m.View()); strings.Contains(v, "/verify set go test") {
 		t.Fatalf("introduced a command the user had just used:\n%s", v)
 	}
 }

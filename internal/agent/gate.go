@@ -7,6 +7,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/verify"
 )
 
@@ -27,12 +28,19 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 	if !a.Verify.Enabled() || a.mutations == 0 || a.mutations == g.seen {
 		return false
 	}
+	// While /accept tests are being written or await approval they are
+	// meant to fail; a project check running them would send the model
+	// back to "fix" the one state the phase is supposed to end in.
+	if phase, on := a.acceptPhase(); on && (phase == session.AcceptWriting || phase == session.AcceptProposed) {
+		return false
+	}
 	g.seen = a.mutations
 	emit(Event{Kind: EvNotice, Text: "verifying: " + strings.Join(a.Verify.Config.Commands, " · ")})
 	res := a.Verify.Run(ctx)
 	if ctx.Err() != nil {
 		return false
 	}
+	a.logGate(session.GateVerify, res)
 	a.working.Verify = res.Summary()
 	if res.Mutation != nil && res.Mutation.Skipped == "" {
 		a.logEvent(res.Mutation.Event())
@@ -49,6 +57,19 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("%s · sending the model back to fix it (%d/%d)", res.Summary(), g.rounds, verify.MaxRounds)})
 	a.appendMessage(llm.HarnessMessage(llm.RoleUser, res.Feedback()))
 	return true
+}
+
+// logGate records each command a gate ran as a session.TypeGate event,
+// so the verdict fold (see FoldOutcomeIn) counts a gate's runs as checks
+// the turn ran. A passing command's output is not kept by verify.Runner,
+// so only a failure carries one.
+func (a *Agent) logGate(source string, res verify.Result) {
+	for _, c := range res.Passed {
+		a.logEvent(session.Event{Type: session.TypeGate, Turn: a.turnN, Name: c, Source: source})
+	}
+	if res.Failed != "" {
+		a.logEvent(session.Event{Type: session.TypeGate, Turn: a.turnN, Name: res.Failed, Output: res.Output, IsError: true, Source: source})
+	}
 }
 
 // stopHook gives stop hooks a chance to send the model back to work. It

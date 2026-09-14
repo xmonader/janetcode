@@ -52,6 +52,11 @@ type ToolCall struct {
 	// Intent is the model's own one-line reason for making this call,
 	// when the registry asks for one. Shown to the user as it runs.
 	Intent string
+	// Rule is the permission rule AllowAlways would save for this call
+	// (see perm.Suggest), or "" when none can be offered safely — a
+	// front-end offers its r key only when it is set. Set only when the
+	// call is about to ask.
+	Rule string
 	// Learned notes that the ledger has seen this call's shape (see
 	// perm.Suggest) approved perm.LearnAfter times with no refusal, e.g.
 	// "approved 4× before, never refused". Set only when the call is
@@ -89,6 +94,11 @@ const DeniedMessage = "The user denied permission for this tool call. Ask before
 // answers a prompt by cancelling the whole turn. It is not a verdict on the
 // call, so the permission ledger does not count it as a refusal.
 const CancelledReason = "the user cancelled the turn"
+
+// CancelledMessage is the tool result the model sees for a call whose
+// permission prompt was answered by cancelling the turn: not a refusal of
+// the call, so none of DeniedMessage's advice about asking before retrying.
+const CancelledMessage = "The user cancelled the turn."
 
 // ApproverFunc adapts a function to Approver.
 type ApproverFunc func(ctx context.Context, call ToolCall) (Decision, error)
@@ -251,6 +261,9 @@ type Agent struct {
 	settingsMu sync.Mutex
 	// mutations counts successful mutating tool calls this turn.
 	mutations int
+	// proofCommits are the commits this turn attached a proof note to
+	// (see checkCommitAttach), refreshed once the turn's gates have run.
+	proofCommits []string
 	// SaveRule, when set, persists a rule the user created with AllowAlways.
 	SaveRule func(perm.Rule) error
 	// Ledger, when set, remembers how permission prompts of each rule
@@ -412,14 +425,19 @@ func (a *Agent) beginTurn(blocks ...llm.Block) {
 	if a.turnN == 1 {
 		a.recordStart()
 	}
-	a.logEvent(session.Event{Type: session.TypeTurnStart, Turn: a.turnN})
+	start := session.Event{Type: session.TypeTurnStart, Turn: a.turnN}
+	if phase, on := a.acceptPhase(); on {
+		start.Reason = session.TurnStartAccept + string(phase)
+	}
+	a.logEvent(start)
 	a.logUserMessage(merged)
 	a.cp.beginTurn(a.turnN, before)
 	a.mutated, a.mutations = false, 0
+	a.proofCommits = nil
 }
 
 // ErrMaxIterations is returned when a turn exceeds MaxIterations model calls.
-var ErrMaxIterations = errors.New("agent: turn exceeded maximum tool iterations")
+var ErrMaxIterations = errors.New("turn exceeded maximum tool iterations")
 
 // Run sends userText and drives the loop until the model ends its turn or
 // an error occurs. History stays consistent on every return path.
@@ -432,7 +450,7 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Event)) error {
 	emit = serialize(a.ledgered(a.traced(emit)))
 	if a.Settings().Provider == nil {
-		return errors.New("agent: no provider")
+		return errors.New("no provider")
 	}
 	a.stats.turn()
 	a.startTurn()
@@ -631,6 +649,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 				continue
 			}
 			a.logOutcome(outcome)
+			a.refreshProofNotes(ctx, emit)
 			if !a.Off["verdict"] && outcome.Verdict != VerdictNoChanges {
 				emit(Event{Kind: EvVerdict, Text: outcome.Line(), IsError: !outcome.OK()})
 			}

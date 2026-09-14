@@ -47,3 +47,29 @@ func TestHeadTailKeepsBothEnds(t *testing.T) {
 		t.Fatalf("short input folded: %q", got)
 	}
 }
+
+// TestEditResultDropsTheWindowBeforeLaterNotes: a harness note appended
+// after the window with its own blank line ("\n\n[harness] …", a hook
+// note, a coaching note) made the window search look only past that
+// blank line, find no window, and leave the whole after-snippet under the
+// diff the transcript had already shown.
+func TestEditResultDropsTheWindowBeforeLaterNotes(t *testing.T) {
+	out := "Edited main.go (1 replacement, +1 -1 lines)\n\n" +
+		"     1\tpackage main\n     2\t\n     3\tfunc Add(a, b int) int { return a + b + 1 }\n" +
+		"[diagnostics: no problems (gopls)]\n[hook: formatted]\n\n" +
+		"[harness] You have gone round the same loop 3 times."
+	got := strings.Join(EditFile{}.RenderResult(json.RawMessage(`{}`), out, RenderContext{}), "\n")
+	if strings.Contains(got, "package main") {
+		t.Fatalf("the numbered window survived:\n%s", got)
+	}
+	for _, want := range []string{"Edited main.go", "no problems", "[hook: formatted]", "[harness] You have gone round"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("lost %q:\n%s", want, got)
+		}
+	}
+	spans := "Edited a.go (1 replacement, +90 -90 lines)\n\n(the change spans lines 1-200, too much to quote)\n\n[harness] note"
+	got = strings.Join(EditFile{}.RenderResult(json.RawMessage(`{}`), spans, RenderContext{}), "\n")
+	if strings.Contains(got, "spans lines") || !strings.Contains(got, "[harness] note") {
+		t.Fatalf("spans result:\n%s", got)
+	}
+}

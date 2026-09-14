@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
@@ -40,6 +41,10 @@ type Task struct {
 	Prompts []string `json:"prompts,omitempty"`
 	// Files are written into the work directory before the run.
 	Files map[string]string `json:"files,omitempty"`
+	// Locked names Files entries that are written again, from Files, just
+	// before Check runs, so a run cannot pass by editing them: /eval keep
+	// stores a session's locked /accept acceptance tests this way.
+	Locked []string `json:"locked,omitempty"`
 	// Check is a shell command run in the work directory afterwards; exit
 	// 0 passes. EVAL_OUTPUT names a file holding the model's final text.
 	Check string `json:"check"`
@@ -125,6 +130,11 @@ func Load(path string) ([]Task, error) {
 		}
 		if len(t.Steps()) == 0 || strings.TrimSpace(t.Check) == "" {
 			return nil, fmt.Errorf("%s: prompt and check are required (prompts may stand in for prompt)", f)
+		}
+		for _, name := range t.Locked {
+			if _, ok := t.Files[name]; !ok {
+				return nil, fmt.Errorf("%s: locked file %q is not in files", f, name)
+			}
 		}
 		if seen[t.Name] {
 			return nil, fmt.Errorf("%s: duplicate task name %q", f, t.Name)
@@ -310,8 +320,14 @@ type Runner struct {
 	NewAgent func(dir string) (*agent.Agent, error)
 	// Keep leaves work directories on disk and records them in Result.Dir.
 	Keep bool
-	// Log receives one line per event; nil is quiet.
+	// Log receives one line per event — a task starting, its progress
+	// while it runs, its result; nil is quiet.
 	Log io.Writer
+	// ProgressEvery is how often a running task reports its elapsed time
+	// and tool calls to Log; zero means every 30 seconds. A real model can
+	// take minutes over one task, and a runner that says nothing until
+	// the task ends looks hung.
+	ProgressEvery time.Duration
 	// Jobs is how many tasks run at once; zero means 1.
 	Jobs int
 	// Runs repeats every task this many times; zero means 1. Repeats
@@ -352,13 +368,14 @@ func (r *Runner) Run(ctx context.Context, tasks []Task) []Result {
 				defer wg.Done()
 				sem <- struct{}{}
 				defer func() { <-sem }()
-				res := r.one(ctx, t)
-				res.Run = run
-				results[idx] = res
 				label := t.Name
 				if runs > 1 {
 					label = fmt.Sprintf("%s #%d", t.Name, run+1)
 				}
+				r.logf("start %s", label)
+				res := r.one(ctx, t, label)
+				res.Run = run
+				results[idx] = res
 				r.logf("%s %s (%s, %d tool calls, %s)", mark(res.Passed), label, res.Duration.Round(100*time.Millisecond), res.ToolCalls, costString(res))
 				if !res.Passed {
 					r.logf("    %s", textfmt.FirstLine(res.Reason, 0))
@@ -455,10 +472,67 @@ func writeFiles(dir string, files map[string]string) error {
 	return nil
 }
 
-func (r *Runner) one(ctx context.Context, t Task) (res Result) {
+// restoreLocked writes a task's Locked files back into dir from Files,
+// undoing whatever the run did to them before the check reads them.
+func restoreLocked(dir string, t Task) error {
+	locked := make(map[string]string, len(t.Locked))
+	for _, name := range t.Locked {
+		locked[name] = t.Files[name]
+	}
+	return writeFiles(dir, locked)
+}
+
+// runCheck runs a task's Check in dir, with EVAL_OUTPUT naming outPath.
+func runCheck(ctx context.Context, t Task, dir, outPath string) (string, error) {
+	cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer ccancel()
+	cmd := tool.ShellCommand(cctx, t.Check)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir)
+	out, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(out)), err
+}
+
+// progress logs label's elapsed time and tool calls every ProgressEvery
+// until the returned stop is called.
+func (r *Runner) progress(label string, start time.Time, calls *atomic.Int64) (stop func()) {
+	if r.Log == nil {
+		return func() {}
+	}
+	every := r.ProgressEvery
+	if every <= 0 {
+		every = 30 * time.Second
+	}
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		tick := time.NewTicker(every)
+		defer tick.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-tick.C:
+				r.logf("  … %s: %s elapsed, %s", label, textfmt.Duration(time.Since(start)), textfmt.Plural(int(calls.Load()), "tool call"))
+			}
+		}
+	}()
+	return func() {
+		close(done)
+		wg.Wait()
+	}
+}
+
+// one runs a task once; label names it in progress lines.
+func (r *Runner) one(ctx context.Context, t Task, label string) (res Result) {
 	res = Result{Name: t.Name}
 	start := time.Now()
 	defer func() { res.Duration = time.Since(start) }()
+	var calls atomic.Int64
+	stopProgress := r.progress(label, start, &calls)
+	defer stopProgress()
 	dir, cleanup, err := prepareWorkDir(ctx, t)
 	if err != nil {
 		res.Reason = "mkdir: " + err.Error()
@@ -505,6 +579,7 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 				out.WriteString(e.Text)
 			case agent.EvToolRun:
 				res.ToolCalls++
+				calls.Add(1)
 			case agent.EvTextBlockDone:
 				res.Turns++
 			}
@@ -554,13 +629,12 @@ func (r *Runner) one(ctx context.Context, t Task) (res Result) {
 		res.Reason = "write output: " + err.Error()
 		return res
 	}
-	cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer ccancel()
-	cmd := tool.ShellCommand(cctx, t.Check)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir)
-	cout, cerr := cmd.CombinedOutput()
-	res.CheckOut = strings.TrimSpace(string(cout))
+	if err := restoreLocked(dir, t); err != nil {
+		res.Reason = "restore locked files: " + err.Error()
+		return res
+	}
+	var cerr error
+	res.CheckOut, cerr = runCheck(ctx, t, dir, outPath)
 	if cerr != nil {
 		res.Reason = "check failed: " + cerr.Error()
 		if res.CheckOut != "" {
@@ -620,9 +694,10 @@ func Report(w io.Writer, results []Result) (passed int) {
 				fmt.Fprintf(w, "      %s\n", textfmt.Clip(why, 100))
 			}
 		}
-		fmt.Fprintf(w, "\n%s\n", summaryLine(s))
+		fmt.Fprintf(w, "\n%s\n%s\n", summaryLine(s), costLegend)
 		return s.Passed
 	}
+	defer fmt.Fprintf(w, "context = tokens the model read · cmp = compactions (times the history was summarised) · %s\n", costLegend)
 	fmt.Fprintf(w, "%-4s %-28s %8s %6s %8s %4s %10s\n", "", "task", "time", "tools", "context", "cmp", "cost")
 	for _, r := range results {
 		fmt.Fprintf(w, "%-4s %-28s %8s %6d %8s %4d %10s\n", mark(r.Passed), textfmt.Clip(r.Name, 28), r.Duration.Round(100*time.Millisecond), r.ToolCalls, textfmt.Tokens(contextTokens(r.Usage)), r.Compaction.Count, costString(r))
@@ -633,6 +708,9 @@ func Report(w io.Writer, results []Result) (passed int) {
 	fmt.Fprintf(w, "\n%s\n", summaryLine(s))
 	return s.Passed
 }
+
+// costLegend explains a "?" in a report's cost column.
+const costLegend = "cost ? = model has no price, so the run could not be costed"
 
 func (r *Runner) logf(format string, args ...any) {
 	if r.Log != nil {

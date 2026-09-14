@@ -14,6 +14,14 @@ FAIL 03-fix-failing-test            31.0s      9    $0.0031
 18/20 passed · 71 tool calls · 4m12s · cost $0.06
 ```
 
+While it runs, every task prints `start <task>` to stderr when it begins
+and, every thirty seconds until it ends, a progress line —
+`… <task>: 2m30s elapsed, 14 tool calls` — so a slow model is not
+mistaken for a hung run. Under the single-run table a legend explains its
+terse columns: `cmp` is how many times the history was compacted
+(summarised), and a cost of `?` means the model has no price, so the run
+could not be costed.
+
 A task is a prompt, optional setup files, and a shell `check` that must
 exit 0 in the work directory (`EVAL_OUTPUT` names a file with the model's
 final text); `max_tool_calls` fails tasks that flail. `EVAL_ONLY=go,files`
@@ -106,7 +114,30 @@ but the tree it was said over:
   when `--base` was given without `--self-contained`.
 - **Check** — `--check <cmd>`, or, when that is left off, the project's
   `.janetcode/verify.json` commands joined with `&&`. Neither present is
-  an error: a kept session needs some definition of done.
+  an error: a kept session needs some definition of done. A session that
+  ran `/accept` and got its tests approved puts the approved command
+  first (`<accept command> && <verify.json commands>`), since
+  `verify.json` alone usually passes at the base commit already.
+- **Files and locked** — an approved `/accept` session's acceptance test
+  files, relative to the project. They are written into the work
+  directory before the run and written again just before the check, so a
+  run cannot pass by weakening them; the prompt that was the `/accept`
+  request says they exist and must pass unchanged, which is the step a
+  plain replay of the request would otherwise lose. A test file too large
+  for accept mode to have kept its content is left out, with a warning.
+
+Once the task is written, `/eval keep` prepares its work directory at
+the start state and runs the check once. A check that already passes
+there cannot fail when the task runs, and is reported as
+"this check passes before any work — the eval cannot fail"; the task is
+still kept. This runs as long as the check does, so the session shows as
+busy meanwhile and esc cancels it.
+
+Harness notes merged into a user turn (an `/undo` notice, a recalled
+memory, a background job update) are not part of the kept prompts. A
+reason you gave when denying a tool call is guidance delivered mid-turn;
+a task's prompts are per turn and have nowhere to put it, so it is left
+out and `/eval keep` says how many were dropped.
 
 The task is written to `.janetcode/evals/<name>.json` (plus a
 `<name>.patch` beside it when there is one), where `<name>` defaults to a

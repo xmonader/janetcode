@@ -15,7 +15,7 @@ type Tool struct {
 
 func (*Tool) Name() string { return "memory" }
 func (*Tool) Description() string {
-	return "Long-term memory across sessions. action \"recall\" returns the entries relevant to query (or every entry when query is empty). action \"remember\" saves knowledge worth keeping for future sessions: a user preference or correction (type feedback), a fact about the user (user), a decision and its reason (decision), a project fact that is not obvious from the code (project), or a pointer (reference); scope \"global\" for things about the user or their way of working, \"project\" (default) for this codebase. Give the same name to update an entry. action \"forget\" removes one by name. Do not record task progress or anything already in the index."
+	return "Long-term memory across sessions. action \"recall\" returns the entries relevant to query (or every entry when query is empty). action \"remember\" saves knowledge worth keeping for future sessions: a user preference or correction (type feedback), a fact about the user (user), a decision and its reason (decision), a project fact that is not obvious from the code (project), or a pointer (reference); entries are kept for this project; a rule for every project is the user's to make with /remember -g, so suggest that when they state one. Give the same name to update an entry. action \"forget\" removes one by name. Do not record task progress or anything already in the index."
 }
 func (*Tool) Mutating() bool { return false }
 func (*Tool) Schema() json.RawMessage {
@@ -26,7 +26,7 @@ func (*Tool) Schema() json.RawMessage {
 "description":{"type":"string","description":"remember: one line shown in the index"},
 "body":{"type":"string","description":"remember: the knowledge, with why and how to apply it"},
 "type":{"type":"string","enum":["user","feedback","project","decision","reference"]},
-"scope":{"type":"string","enum":["project","global"]}},
+"scope":{"type":"string","enum":["project","global"],"description":"always stored as project; global needs the user's /remember -g"}},
 "required":["action"],"additionalProperties":false}`)
 }
 
@@ -58,12 +58,18 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		}
 		return strings.TrimRight(sb.String(), "\n"), nil
 	case "remember":
-		e, status, err := t.Store.Put(Entry{Name: in.Name, Description: in.Description, Body: in.Body, Type: in.Type, Scope: in.Scope, Source: "model"})
+		// The model never writes global memory: a rule every project
+		// inherits is the user's call (/remember -g), not an inference.
+		e, status, err := t.Store.Put(Entry{Name: in.Name, Description: in.Description, Body: in.Body, Type: in.Type, Scope: "project", Source: "model"})
 		if err != nil {
 			return "", err
 		}
 		verb := map[Status]string{Created: "Remembered", Updated: "Updated", Unchanged: "Already remembered"}[status]
-		return fmt.Sprintf("%s %s (%s, %s): %s", verb, e.Name, e.Type, e.Scope, e.Description), nil
+		out := fmt.Sprintf("%s %s (%s, %s): %s", verb, e.Name, e.Type, e.Scope, e.Description)
+		if in.Scope == "global" {
+			out += "\nKept for this project only: memory for every project is written by the user with /remember -g. If this is meant for all projects, tell the user that."
+		}
+		return out, nil
 	case "forget":
 		e, err := t.Store.Remove(in.Name)
 		if err != nil {

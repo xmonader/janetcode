@@ -84,5 +84,5 @@ func (a *Agent) routingAllowed() bool {
 func (a *Agent) refuseCall(call *ToolCall, msg string, denied bool, emit func(Event)) {
 	emit(Event{Kind: EvToolResult, Call: call, Output: msg, IsError: true, Denied: denied})
 	a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN,
-		CallID: call.ID, Name: call.Name, Arguments: string(call.Input), Output: msg, IsError: true})
+		CallID: call.ID, Name: call.Name, Arguments: string(call.Input), Output: msg, IsError: true, Denied: denied})
 }

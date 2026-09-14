@@ -181,3 +181,76 @@ func TestCancelIsNotRecordedAsRefusal(t *testing.T) {
 		t.Fatalf("cancel recorded in the ledger as %+v", got)
 	}
 }
+
+// Cancelling the turn at a permission prompt is not a refusal of the call:
+// the model is told the turn was cancelled, without the denial's advice
+// or a "The user said:" wrapped around the harness's own reason.
+func TestCancelTellsTheModelTheTurnWasCancelled(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"a.txt","content":"x"}`),
+		text("done"),
+	}}
+	a, _ := newAgent(t, f, cancelApprover{})
+	evs, emit := collect()
+	_ = a.Run(context.Background(), "write", emit)
+	for _, e := range *evs {
+		if e.Kind == EvToolResult {
+			if e.Output != CancelledMessage || !e.Denied {
+				t.Fatalf("tool result = %q (denied=%v), want %q", e.Output, e.Denied, CancelledMessage)
+			}
+			return
+		}
+	}
+	t.Fatal("no tool result")
+}
+
+// bashRecorder stands in for bash without running anything.
+type bashRecorder struct{}
+
+func (bashRecorder) Name() string                                         { return "bash" }
+func (bashRecorder) Description() string                                  { return "bash" }
+func (bashRecorder) Schema() json.RawMessage                              { return json.RawMessage(`{"type":"object"}`) }
+func (bashRecorder) Mutating() bool                                       { return true }
+func (bashRecorder) Run(context.Context, json.RawMessage) (string, error) { return "ran", nil }
+
+// The rule a prompt offers is decided once, by the agent, from the command
+// with the model's `cd <workspace> &&` taken off: `go test` for that
+// shape, nothing at all for a compound command no prefix rule can capture
+// — no r option, no ledger shape, and AllowAlways saves nothing. A rule
+// saved for `go test` then matches the model's next cd-prefixed call.
+func TestPromptRuleIgnoresWorkspaceCdAndRefusesCompoundCommands(t *testing.T) {
+	cmd := func(c string) string {
+		b, _ := json.Marshal(map[string]string{"command": c})
+		return string(b)
+	}
+	f := &fake{}
+	var rules []string
+	approver := ApproverFunc(func(ctx context.Context, call ToolCall) (Decision, error) {
+		rules = append(rules, call.Rule)
+		return AllowAlways, nil
+	})
+	a, root := newAgent(t, f, approver)
+	a.Root = root
+	f.responses = []*llm.Response{
+		toolCall("t1", "bash", cmd("cd "+root+" && go test ./internal/x")),
+		toolCall("t2", "bash", cmd("cd x && rm -rf y")),
+		toolCall("t3", "bash", cmd("cd "+root+" && go test ./...")),
+		text("done"),
+	}
+	a.Tools.Add(bashRecorder{})
+	a.Ledger = perm.OpenLedger(t.TempDir(), "proj")
+	var saved []string
+	a.SaveRule = func(r perm.Rule) error { saved = append(saved, r.String()); return nil }
+	if err := a.Run(context.Background(), "run", nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(rules) != 2 || rules[0] != "bash(go test *)" || rules[1] != "" {
+		t.Fatalf("offered rules = %q, want [bash(go test *) \"\"]: the third call is covered by the saved rule", rules)
+	}
+	if len(saved) != 1 || saved[0] != "bash(go test *)" {
+		t.Fatalf("saved = %q", saved)
+	}
+	if tally := a.Ledger.Get(""); tally.Allowed != 0 {
+		t.Fatalf("a call with no rule was recorded under an empty shape: %+v", tally)
+	}
+}

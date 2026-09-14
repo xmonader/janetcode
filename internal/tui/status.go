@@ -271,15 +271,18 @@ func (m *model) statusView() string {
 		parts = append(parts[:len(parts)-2], parts[len(parts)-1])
 	}
 	right := strings.Join(parts, "  ")
-	// The status text yields to the gauge, however little is left of it.
-	if avail := m.width - lipgloss.Width(right) - 3; lipgloss.Width(left) > avail {
-		left = fitLine(left, avail)
-	}
 	// The status line shares the gutter: its left margin is the gutter, or
 	// the single space it has always had when the gutter has collapsed.
 	lead := m.gutter()
 	if lead < 1 {
 		lead = 1
+	}
+	// The status text yields to the gauge, however little is left of it.
+	// Its room counts the margin, the gap and the trailing space: leaving
+	// the margin out let the line overflow by the gutter, and the final
+	// fit below cut the gauge's figure to "45…".
+	if avail := m.width - lipgloss.Width(right) - lead - 2; lipgloss.Width(left) > avail {
+		left = fitLine(left, avail)
 	}
 	gap := m.width - lipgloss.Width(left) - lipgloss.Width(right) - lead - 1
 	if gap < 1 {

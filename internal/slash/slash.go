@@ -39,7 +39,7 @@ var Commands = []Command{
 	{Name: "/mcp", Args: "[trust|auth <server>|logout <server>]", Help: "MCP servers and their tools; trust starts the project's .mcp.json servers; auth logs in to a remote server with OAuth"},
 	{Name: "/hooks", Args: "[trust]", Help: "hooks in effect; trust enables the project's .janetcode/hooks.json"},
 	{Name: "/permissions", Args: "[allow|deny <rule>|trust]", Help: "permission rules; add one, or trust the project's .janetcode/permissions.json"},
-	{Name: "/verify", Args: "[set <cmd>|mutate <test cmd>|clear|trust]", Help: "run the project's checks now; set adds one to .janetcode/verify.json; mutate requires tests to catch mutations of changed lines"},
+	{Name: "/verify", Args: "[set <cmd>|add <cmd>|mutate <test cmd>|clear|trust]", Help: "run the project's checks now; set replaces .janetcode/verify.json's commands with one, add appends one; mutate requires tests to catch mutations of changed lines"},
 	{Name: "/lsp", Args: "", Help: "language servers and the diagnostics they reported"},
 	{Name: "/jobs", Args: "[id|kill <n>|stdin <n> <text>]", Help: "live overlay of background jobs; enter tails the log, k kills, stdin writes a line to a running job"},
 	{Name: "/context", Args: "", Help: "what fills the context window: prompt, tools, messages, largest tool results"},

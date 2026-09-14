@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 // AcceptArgs is what "/accept ..." asks for, parsed once in
@@ -64,10 +66,15 @@ func (a *Agent) AcceptCommand(args AcceptArgs, root string) (cmdresult.Result, e
 		return cmdresult.Result{Sheet: a.AcceptStatus(), SheetTitle: "accept", Plain: true}, nil
 	case args.Approve:
 		cmd, err := a.AcceptApprove()
+		if errors.Is(err, ErrAcceptAlreadyLocked) {
+			return cmdresult.Result{Sheet: "accept: already locked · verifies with: " + cmd, Plain: true}, nil
+		}
 		if err != nil {
 			return cmdresult.Result{}, fmt.Errorf("accept: %w", err)
 		}
-		return note("accept: locked · verifies with: " + cmd)
+		// In the transcript, not a status line that the next frame
+		// replaces: the command is what the user is agreeing to be gated by.
+		return cmdresult.Result{Sheet: a.acceptApprovedSheet(cmd), Plain: true}, nil
 	case args.Lock:
 		if err := a.AcceptLock(); err != nil {
 			return cmdresult.Result{}, fmt.Errorf("accept: %w", err)
@@ -113,6 +120,26 @@ func (a *Agent) AcceptOff() {
 	a.persistAccept()
 }
 
+// ErrAcceptAlreadyLocked is AcceptApprove's answer when the tests are
+// already approved and locked; the command it returns is the one in effect.
+var ErrAcceptAlreadyLocked = errors.New("already locked")
+
+// acceptApprovedSheet is what /accept approve shows: the files locked and
+// the command that now gates the session, for the user to confirm.
+func (a *Agent) acceptApprovedSheet(cmd string) string {
+	a.acceptMu.Lock()
+	defer a.acceptMu.Unlock()
+	var b strings.Builder
+	b.WriteString("accept: locked\n")
+	if a.Accept != nil {
+		for _, f := range relFiles(a.Accept.Files, a.Accept.Root) {
+			b.WriteString("  " + f + "\n")
+		}
+	}
+	fmt.Fprintf(&b, "verifies with: %s\n/accept command <cmd> changes it; /accept unlock lets a wrong test be fixed", cmd)
+	return b.String()
+}
+
 // AcceptApprove locks in what the writing phase produced: it requires at
 // least one test file and a verification command (the model's own, or
 // one inferred as a fallback — see InferTestCommand), records every
@@ -120,13 +147,19 @@ func (a *Agent) AcceptOff() {
 func (a *Agent) AcceptApprove() (string, error) {
 	a.acceptMu.Lock()
 	defer a.acceptMu.Unlock()
+	if a.Accept != nil && a.Accept.Phase == session.AcceptLocked {
+		return a.Accept.Command, ErrAcceptAlreadyLocked
+	}
+	if a.Accept != nil && a.Accept.Phase == session.AcceptUnlocked {
+		return "", fmt.Errorf("already approved and unlocked for a test fix: /accept lock locks it again")
+	}
 	if a.Accept == nil || a.Accept.Phase != session.AcceptProposed {
 		return "", fmt.Errorf("nothing proposed yet: /accept <request> writes tests first")
 	}
 	if len(a.Accept.Files) == 0 {
 		return "", fmt.Errorf("no test files were written")
 	}
-	cmd := cleanVerifyCommand(a.Accept.Proposed)
+	cmd := verify.CleanCommand(a.Accept.Proposed)
 	if cmd == "" {
 		cmd = InferTestCommand(a.Accept.Files, a.Accept.Root, a.verifyCommands())
 	}
@@ -151,7 +184,7 @@ func (a *Agent) AcceptLock() error {
 	a.acceptMu.Lock()
 	defer a.acceptMu.Unlock()
 	if a.Accept == nil || (a.Accept.Phase != session.AcceptUnlocked && a.Accept.Phase != session.AcceptLocked) {
-		return fmt.Errorf("accept: nothing approved yet to lock")
+		return fmt.Errorf("nothing approved yet to lock")
 	}
 	if err := a.rehashAccept(); err != nil {
 		return err
@@ -174,11 +207,11 @@ func (a *Agent) AcceptSetCommand(raw string) (string, error) {
 	a.acceptMu.Lock()
 	defer a.acceptMu.Unlock()
 	if a.Accept == nil {
-		return "", fmt.Errorf("accept: nothing started yet")
+		return "", fmt.Errorf("nothing started yet")
 	}
-	cmd := cleanVerifyCommand(raw)
+	cmd := verify.CleanCommand(raw)
 	if cmd == "" {
-		return "", fmt.Errorf("accept: command is empty, or is not a single line")
+		return "", fmt.Errorf("command is empty, or is not a single line")
 	}
 	switch a.Accept.Phase {
 	case session.AcceptProposed:
@@ -186,7 +219,7 @@ func (a *Agent) AcceptSetCommand(raw string) (string, error) {
 	case session.AcceptLocked, session.AcceptUnlocked:
 		a.Accept.Command = cmd
 	default:
-		return "", fmt.Errorf("accept: nothing proposed or locked yet to set a command for")
+		return "", fmt.Errorf("nothing proposed or locked yet to set a command for")
 	}
 	a.persistAccept()
 	return cmd, nil
@@ -199,7 +232,7 @@ func (a *Agent) AcceptUnlock() error {
 	a.acceptMu.Lock()
 	defer a.acceptMu.Unlock()
 	if a.Accept == nil || a.Accept.Phase != session.AcceptLocked {
-		return fmt.Errorf("accept: tests are not locked")
+		return fmt.Errorf("tests are not locked")
 	}
 	a.Accept.Phase = session.AcceptUnlocked
 	a.persistAccept()
@@ -231,7 +264,7 @@ func (a *Agent) AcceptStatus() string {
 	if a.Accept.Command != "" {
 		// %q rather than %s: the exact command as it will be run, quotes
 		// and any stray wrapping visible rather than swallowed, so a bad
-		// one (see cleanVerifyCommand) is obvious before it burns a gate
+		// one (see verify.CleanCommand) is obvious before it burns a gate
 		// round.
 		fmt.Fprintf(&b, "command: %q\n", a.Accept.Command)
 	}
@@ -250,44 +283,4 @@ func (a *Agent) AcceptStatus() string {
 		fmt.Fprintf(&b, "last gate: %s at %s — %s\n", state, a.Accept.Gate.At.Format(time.Kitchen), a.Accept.Gate.Summary)
 	}
 	return strings.TrimRight(b.String(), "\n")
-}
-
-// cleanVerifyCommand takes the raw text after "ACCEPT-VERIFY:" (or a
-// user's /accept command argument) down to the one literal shell command
-// it names, or "" if it cannot be made into one. It exists because a
-// model likes to wrap the command in backticks or quotes — and a stated
-// command wrapped in backticks, like `cd pkg && go test -run TestSlug`
-// run literally does not run go test at all: the shell performs command substitution first,
-// runs the test suite to build a new command line out of its stdout,
-// then tries to execute that output's first line as a command — which is
-// how a QA run's gate failed with exit 127 and "===: command not found"
-// on a command that worked fine typed by hand. Only the text on the line
-// itself, trimmed of that wrapping, is ever stored; anything left
-// spanning more than one line, or empty once unwrapped, is rejected
-// rather than run.
-func cleanVerifyCommand(s string) string {
-	s = strings.TrimSpace(s)
-	for {
-		trimmed := stripMatchingWrap(s)
-		if trimmed == s {
-			break
-		}
-		s = strings.TrimSpace(trimmed)
-	}
-	if s == "" || strings.ContainsAny(s, "\n\r") {
-		return ""
-	}
-	return s
-}
-
-// stripMatchingWrap removes one layer of wrapping that spans the whole
-// string: a triple or single backtick pair, or a matching pair of
-// double or single quotes.
-func stripMatchingWrap(s string) string {
-	for _, wrap := range []string{"```", "`", `"`, "'"} {
-		if len(s) >= 2*len(wrap) && strings.HasPrefix(s, wrap) && strings.HasSuffix(s, wrap) {
-			return s[len(wrap) : len(s)-len(wrap)]
-		}
-	}
-	return s
 }

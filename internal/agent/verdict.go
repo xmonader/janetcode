@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -48,6 +49,11 @@ const (
 	// regression test required it, and the shape of marking your own
 	// homework otherwise; the harness cannot tell which, so it says so.
 	VerdictSelfChecked Verdict = "self-checked"
+	// VerdictTestsWritten: an /accept writing-phase turn wrote only test
+	// files and saw them fail. Acceptance tests are red until the
+	// implementation exists, so this is the phase doing its job, not a
+	// failed check.
+	VerdictTestsWritten Verdict = "tests written"
 )
 
 // TurnOutcome is the verdict with what it was decided from, so the user
@@ -80,7 +86,7 @@ type TurnOutcome struct {
 // not in an alarm. Only Verdict == VerdictVerified is the strong claim.
 func (o TurnOutcome) OK() bool {
 	switch o.Verdict {
-	case VerdictVerified, VerdictSelfChecked, VerdictNoChanges:
+	case VerdictVerified, VerdictSelfChecked, VerdictNoChanges, VerdictTestsWritten:
 		return true
 	}
 	return false
@@ -138,6 +144,55 @@ var checkRe = regexp.MustCompile(`(?i)(test|spec|pytest|jest|vitest|mocha|rspec|
 // isCheck reports whether a shell command is checking something.
 func isCheck(cmd string) bool { return cmd != "" && checkRe.MatchString(cmd) }
 
+// testRunRe recognises a command that runs tests, as opposed to one that
+// only builds or lints: what a passing verify gate, which keeps no output,
+// is taken to have exercised.
+var testRunRe = regexp.MustCompile(`(?i)\b(test|tests|pytest|jest|vitest|mocha|rspec|ctest|tox|nox)\b`)
+
+// refusalPrefixes begin the tool results of calls the harness refused
+// without running them (see authorize and toolGate). A log written before
+// session.Event.Denied existed is recognised by these.
+var refusalPrefixes = []string{DeniedMessage, CancelledMessage, "Denied by permission rule ", "Blocked by a hook: ", "Permission denied: no approver"}
+
+// runFailed reports whether a bash result is a failed run. The bash tool
+// does not mark a non-zero exit as an error — the model reads the
+// "[exit code N]" line it appends — so the line is what says a check came
+// back red, unless the tool noted that for this command exit 1 is an
+// answer (grep finding nothing), not a failure.
+func runFailed(e session.Event) bool {
+	if e.IsError {
+		return true
+	}
+	m := reExitCode.FindAllStringSubmatchIndex(e.Output, -1)
+	if len(m) == 0 {
+		return false
+	}
+	last := m[len(m)-1]
+	switch code := e.Output[last[2]:last[3]]; {
+	case code == "0":
+		return false
+	case code == "1" && tool.NoMatchMeaning(commandOf(e.Arguments), 1) != "":
+		return false
+	}
+	return true
+}
+
+// refused reports whether a tool result is a refusal rather than a run.
+func refused(e session.Event) bool {
+	if e.Denied {
+		return true
+	}
+	if !e.IsError {
+		return false
+	}
+	for _, p := range refusalPrefixes {
+		if strings.HasPrefix(e.Output, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // inlineAssertRe matches a command that carries its own assertions — a
 // `python -c "... assert ..."` or a `node -e` written for the occasion.
 // Passing, it is evidence of the same kind as a test file written in the
@@ -186,8 +241,30 @@ var claimRe = regexp.MustCompile(`(?i)\b(tests? (now )?(pass|passes|passing|are 
 
 // FoldOutcome decides the verdict for one turn from its events. It reads
 // only what the harness observed: which files were written, which
-// commands ran, and how they exited.
+// commands ran, and how they exited. It is FoldOutcomeIn without a
+// workspace root, for a caller that has none to give.
 func FoldOutcome(events []session.Event, turn int) TurnOutcome {
+	return FoldOutcomeIn(events, turn, "")
+}
+
+// maxCheckLen bounds a check command kept on the outcome: long enough to
+// show a `go test -run 'A|B|C'` whole, short enough for a proof note.
+const maxCheckLen = 240
+
+// checkRun is one run of a check command within the turn being folded.
+type checkRun struct {
+	isErr  bool
+	output string
+	gate   string // the gate that ran it (session.GateVerify/GateAccept), "" for a model's bash call
+}
+
+// FoldOutcomeIn is FoldOutcome for a session working in root: a model's
+// leading `cd <root> &&` is not part of the command, so the same command
+// run by the model and by a gate is recognised as one. Each command is
+// judged by its latest run in the turn — a red run fixed and re-run green
+// (by the model or by a turn-end gate) is not a failure — and a call the
+// harness refused never ran, so it is not a check at all.
+func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 	o := TurnOutcome{Verdict: VerdictNoChanges, Why: "nothing here edited code"}
 	edited := map[string]bool{}
 	// Commands that failed earlier in the session, so a pass now is a
@@ -195,29 +272,56 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 	failedBefore := map[string]bool{}
 	var lastText string
 	testsEdited := map[string]bool{}
-	ranTests, foundNothing, ranTheCode, selfAsserted := false, false, false, false
+	acceptWriting := false
+	// The latest run of each check command in this turn, in the order
+	// each command last ran.
+	latest := map[string]checkRun{}
+	var order []string
 	// Commands seen in this turn, replayed once the edits are known so a
 	// command naming an edited file counts however the two were ordered.
 	var turnCmds []struct {
 		cmd   string
 		isErr bool
 	}
+	see := func(cmd string, run checkRun) {
+		if _, ok := latest[cmd]; ok {
+			order = slices.DeleteFunc(order, func(c string) bool { return c == cmd })
+		}
+		order = append(order, cmd)
+		latest[cmd] = run
+	}
 
 	for _, e := range events {
-		if e.Type == session.TypeAssistant && e.Turn == turn && e.Message != nil {
+		switch {
+		case e.Type == session.TypeTurnStart && e.Turn == turn:
+			phase := strings.TrimPrefix(e.Reason, session.TurnStartAccept)
+			acceptWriting = phase != e.Reason && (phase == string(session.AcceptWriting) || phase == string(session.AcceptProposed))
+			continue
+		case e.Type == session.TypeAssistant && e.Turn == turn && e.Message != nil:
 			if t := strings.TrimSpace(e.Message.Text()); t != "" {
 				lastText = t
 			}
-		}
-		if e.Type != session.TypeToolResult || e.CallID == "" {
+			continue
+		case e.Type == session.TypeGate:
+			cmd := tool.TrimWorkspaceCd(strings.TrimSpace(e.Name), root)
+			if e.Turn != turn {
+				if e.IsError {
+					failedBefore[cmd] = true
+				}
+				continue
+			}
+			see(cmd, checkRun{isErr: e.IsError, output: e.Output, gate: e.Source})
 			continue
 		}
-		cmd := commandOf(e.Arguments)
+		if e.Type != session.TypeToolResult || e.CallID == "" || refused(e) {
+			continue
+		}
+		cmd := tool.TrimWorkspaceCd(commandOf(e.Arguments), root)
 		check := e.Name == "bash" && isCheck(cmd)
 		if e.Turn != turn {
 			// Earlier in the session: remember what was red, so a pass in
 			// this turn can be told from a check that was always green.
-			if check && e.IsError {
+			if check && runFailed(e) {
 				failedBefore[cmd] = true
 			}
 			continue
@@ -236,29 +340,38 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 			turnCmds = append(turnCmds, struct {
 				cmd   string
 				isErr bool
-			}{cmd, e.IsError})
-			if !check {
-				continue
+			}{cmd, runFailed(e)})
+			if check {
+				see(cmd, checkRun{isErr: runFailed(e), output: e.Output})
 			}
-			o.Ran++
-			o.Checks = append(o.Checks, textfmt.FirstLine(cmd, 70))
-			switch {
-			case e.IsError:
-				o.Failed++
-				failedBefore[cmd] = true
-			default:
-				o.Passed++
-				if ran, nothing := exercised(e.Output); ran {
-					ranTests = true
-				} else if nothing {
-					foundNothing = true
-				} else if inlineAssertRe.MatchString(cmd) {
-					selfAsserted = true
-				}
-				if failedBefore[cmd] {
-					o.Flipped = true
-				}
-			}
+		}
+	}
+	ranTests, foundNothing, ranTheCode, selfAsserted := false, false, false, false
+	for _, cmd := range order {
+		run := latest[cmd]
+		o.Ran++
+		o.Checks = append(o.Checks, textfmt.FirstLine(cmd, maxCheckLen))
+		if run.isErr {
+			o.Failed++
+			continue
+		}
+		o.Passed++
+		switch ran, nothing := exercised(run.output); {
+		case ran, run.gate == session.GateAccept:
+			// The locked acceptance tests passing is tests running, whether
+			// or not the gate kept what they printed.
+			ranTests = true
+		case nothing:
+			foundNothing = true
+		case run.gate == session.GateVerify && run.output == "" && testRunRe.MatchString(cmd):
+			// A passing verify gate keeps no output; a test command in it
+			// ran tests all the same.
+			ranTests = true
+		case inlineAssertRe.MatchString(cmd):
+			selfAsserted = true
+		}
+		if failedBefore[cmd] {
+			o.Flipped = true
 		}
 	}
 	// A command that runs a file edited in this turn shows the code at
@@ -281,6 +394,9 @@ func FoldOutcome(events []session.Event, turn int) TurnOutcome {
 		o.Verdict, o.Why = VerdictNoChanges, "nothing here edited code"
 	case o.Edited == 0:
 		o.Verdict, o.Why = VerdictNoChanges, fmt.Sprintf("nothing was edited; %d check(s) ran", o.Ran)
+	case o.Failed > 0 && acceptWriting && len(o.TestsEdited) == o.Edited:
+		o.Verdict = VerdictTestsWritten
+		o.Why = fmt.Sprintf("%d acceptance test file(s) written and failing as expected until the implementation exists", o.Edited)
 	case o.Failed > 0:
 		o.Verdict = VerdictCheckFailed
 		o.Why = fmt.Sprintf("%d file(s) edited and a check came back red", o.Edited)
@@ -360,7 +476,7 @@ func (a *Agent) Outcome() TurnOutcome {
 	if a.Log == nil {
 		return TurnOutcome{Verdict: VerdictNoChanges, Why: "no session log to judge from"}
 	}
-	return FoldOutcome(a.Log.Events(), a.turnN)
+	return FoldOutcomeIn(a.Log.Events(), a.turnN, a.displayRoot())
 }
 
 // logOutcome records the verdict so it is on the same trail as the turn

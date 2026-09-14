@@ -14,6 +14,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 func (a *Agent) rehashAccept() error {
@@ -21,7 +22,7 @@ func (a *Agent) rehashAccept() error {
 	for _, p := range a.Accept.Files {
 		sum, err := hashFile(p)
 		if err != nil {
-			return fmt.Errorf("accept: hash %s: %w", textfmt.RelTo(a.Accept.Root, p), err)
+			return fmt.Errorf("hash %s: %w", textfmt.RelTo(a.Accept.Root, p), err)
 		}
 		hashes[p] = sum
 	}
@@ -242,10 +243,36 @@ func (a *Agent) acceptWritingDenial(t tool.Tool, input json.RawMessage) string {
 			return ""
 		}
 	}
+	if t.Name() == "bash" && a.acceptPhaseAllowsCommand(commandOf(string(input))) {
+		return ""
+	}
 	if a.Accept.Phase == session.AcceptProposed {
 		return fmt.Sprintf("this session proposed acceptance tests for %q and is waiting on the user to run /accept approve: only test files may be written until then, or until /accept off. Wait for the user rather than starting the implementation.", a.Accept.Request)
 	}
-	return fmt.Sprintf("this session is writing acceptance tests for %q: only test files may be written, and no other tool is available until the user reviews them and runs /accept approve. End your final message with a line \"ACCEPT-VERIFY: <command>\" naming how to run the tests you wrote.", a.Accept.Request)
+	return fmt.Sprintf("this session is writing acceptance tests for %q: only test files may be written, and besides read-only commands and running the tests no other tool is available until the user reviews them and runs /accept approve. End your final message with a line \"ACCEPT-VERIFY: <command>\" naming how to run the tests you wrote.", a.Accept.Request)
+}
+
+// acceptPhaseAllowsCommand reports whether a bash command may pass the
+// writing/proposed phase's gate: a read-only command (tool.SafeRead) — the
+// model has to look at the code to test it — or a run of the tests: the
+// proposed command itself, or one simple command whose leading words run
+// tests and that writes nothing it names. It only passes the mode gate;
+// the command still needs approval like any other. Called with acceptMu
+// held.
+func (a *Agent) acceptPhaseAllowsCommand(cmd string) bool {
+	cmd = tool.TrimWorkspaceCd(cmd, a.Accept.Root)
+	if cmd == "" {
+		return false
+	}
+	if tool.SafeRead(cmd) || cmd == verify.CleanCommand(a.Accept.Proposed) {
+		return true
+	}
+	if strings.ContainsAny(strings.ReplaceAll(cmd, "2>&1", ""), ";|&`<>\n") || strings.Contains(cmd, "$(") {
+		return false
+	}
+	words := strings.Fields(cmd)
+	lead := strings.Join(words[:min(len(words), 3)], " ")
+	return testRunRe.MatchString(lead) && len(tool.WriteTargets(cmd, a.Accept.Root)) == 0
 }
 
 // acceptTrackEdit records a test file the writing phase just wrote, or
@@ -264,6 +291,15 @@ func (a *Agent) acceptTrackEdit(t tool.Tool, input json.RawMessage) {
 	}
 	changed := false
 	switch a.Accept.Phase {
+	case session.AcceptProposed:
+		// The proposed command was stated for the tests as they were; a
+		// revision can drop or rename what it runs. Back to writing, so
+		// the turn ends by stating the command again (see acceptCapture).
+		if slices.ContainsFunc(paths, tool.IsTestFile) {
+			a.Accept.Phase = session.AcceptWriting
+			changed = true
+		}
+		fallthrough
 	case session.AcceptWriting:
 		for _, p := range paths {
 			if !tool.IsTestFile(p) || slices.Contains(a.Accept.Files, p) {

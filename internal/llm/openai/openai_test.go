@@ -1005,3 +1005,25 @@ func TestStreamLifetimeWatchdog(t *testing.T) {
 		t.Fatalf("err = %v, want the lifetime cap", err)
 	}
 }
+
+// Text blocks of one user message are separate paragraphs: a harness note
+// followed by the user's next prompt reached the model as
+// "...stayed.Re-add a TestClipBytes...".
+func TestBuildRequestSeparatesUserTextBlocks(t *testing.T) {
+	w, err := buildRequest(llm.Request{Model: "m", Messages: []llm.Message{
+		{Role: llm.RoleUser, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "[harness] Later changes to the same files stayed.", Synthetic: true},
+			{Type: llm.BlockText, Text: "Re-add a TestClipBytes"},
+			{Type: llm.BlockText, Text: "ends in a newline\n"},
+			{Type: llm.BlockText, Text: "last"},
+		}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(w.Messages)
+	want := `[{"role":"user","content":"[harness] Later changes to the same files stayed.\n\nRe-add a TestClipBytes\n\nends in a newline\n\nlast"}]`
+	if string(raw) != want {
+		t.Fatalf("messages = %s", raw)
+	}
+}

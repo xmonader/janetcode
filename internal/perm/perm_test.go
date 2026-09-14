@@ -75,6 +75,7 @@ func TestSubjectAndSuggest(t *testing.T) {
 	}
 	for _, c := range []struct{ tool, subject, want string }{
 		{"bash", "go test ./...", "bash(go test *)"},
+		{"bash", "go test ./... 2>&1", "bash(go test *)"},
 		{"bash", "make", "bash(make)"},
 		{"bash", "ls -la /tmp", "bash(ls *)"},
 		{"bash", "make build", "bash(make *)"},
@@ -181,5 +182,65 @@ func TestAddDeduplicatesAllowAndDeny(t *testing.T) {
 	}
 	if rs.Add(Denied, r) {
 		t.Fatal("the same deny rule was added twice")
+	}
+}
+
+// A saved rule's * spans everything that follows, && and ; included, so
+// Suggest must never offer one for a command whose leading words are not
+// the command that decides what runs. A model that prefixes every call
+// with `cd <workspace> &&` had `bash(cd *)` offered, which allows anything.
+func TestSuggestNeverCapturesCompoundOrWrapperCommands(t *testing.T) {
+	for _, subject := range []string{
+		"cd x && rm -rf y",
+		"cd /work/repo && go test ./... && rm -rf ~",
+		"go test ./... ; rm -rf y",
+		"cat a.txt | sh",
+		"echo $(rm -rf y)",
+		"echo `rm -rf y`",
+		"cd internal",
+		"sudo go test ./...",
+		"env FOO=1 go test ./...",
+		"sh -c 'go test ./...'",
+		"bash -c 'rm -rf y'",
+		"xargs rm",
+		"eval go test",
+		"export X=1",
+		"time go test ./...",
+		"nohup ./server",
+	} {
+		r := Suggest("bash", subject)
+		if !r.IsZero() {
+			t.Errorf("Suggest(bash, %q) = %s, want no rule", subject, r)
+		}
+	}
+	if r := Suggest("bash", "cd x && rm -rf y"); r.String() == "bash(go test *)" || Match("go test *", "cd x && rm -rf y") {
+		t.Fatalf("bash(go test *) must not cover cd x && rm -rf y: %s", r)
+	}
+	// A simple command still gets its rule.
+	if r := Suggest("bash", "go test ./..."); r.String() != "bash(go test *)" {
+		t.Fatalf("simple command = %s", r)
+	}
+	// And * really does span operators, which is why the above matters.
+	if !Match("go test *", "go test ./... && rm -rf y") {
+		t.Fatal("Match documents * as spanning everything")
+	}
+}
+
+// The subject a rule is matched against drops a leading `cd <workspace>
+// &&`, so the rule saved for `go test` matches the model's next
+// `cd <workspace> && go test` too, and the suggestion is for `go test`.
+func TestSubjectInDropsWorkspaceCd(t *testing.T) {
+	root := t.TempDir()
+	in, _ := json.Marshal(map[string]string{"command": "cd " + root + " && go test ./internal/x"})
+	s := SubjectIn("bash", in, root)
+	if s != "go test ./internal/x" {
+		t.Fatalf("subject = %q", s)
+	}
+	if r := Suggest("bash", s); r.String() != "bash(go test *)" {
+		t.Fatalf("suggest = %s", r)
+	}
+	other, _ := json.Marshal(map[string]string{"command": "cd /elsewhere && go test ./x"})
+	if s := SubjectIn("bash", other, root); s != "cd /elsewhere && go test ./x" {
+		t.Fatalf("a cd elsewhere is part of the command: %q", s)
 	}
 }

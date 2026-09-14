@@ -751,3 +751,10 @@ func ChangedFiles(ctx context.Context, root string) []string {
 	}
 	return paths
 }
+
+// Defs parses one file's definitions from content, the way Build indexes
+// a file on disk: for a caller that has content not yet written, such as
+// the planned result of an edit.
+func Defs(path string, content []byte) []Symbol {
+	return parse(path, content).Defs
+}

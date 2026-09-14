@@ -273,7 +273,13 @@ config file:
 
 A rule is `tool` or `tool(pattern)`; `*` spans anything and `?` one
 character, matched against the command for `bash`, the path for file
-tools and the URL for `fetch_url`. Deny wins over allow; a denied call is
+tools and the URL for `fetch_url`. `*` spans shell operators too, so
+`bash(go test *)` also matches `go test ./... && rm -rf x`; for that
+reason `r` offers no rule for a compound command (`&&`, `;`, `|`, `$( )`)
+or one led by `cd`, `sudo`, `env`, `sh -c` and similar wrappers. A leading
+`cd <project> &&`, which changes nothing, is ignored when matching and
+suggesting, so `go test` rules cover a model that prefixes every command
+that way. Deny wins over allow; a denied call is
 refused without a prompt and the model is told which rule did it.
 Guarded commands (ones that reach outside the workspace) still ask.
 `/permissions` lists rules, `/permissions allow <rule>` and `/permissions
@@ -310,12 +316,14 @@ everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
   see `memory recalled: …`. Recalled entries count as used, and the least
   used, oldest entries are the ones trimmed past 200 per scope.
 - **The model has a `memory` tool**: `recall` by query, `remember` when
-  you tell it something worth keeping (it picks type and scope), `forget`.
+  you tell it something worth keeping (it picks the type; the entry is
+  kept for this project), `forget`.
 - **Automatic extraction.** After a turn that changed something, or one
   where you gave feedback ("never…", "always…", "prefer…"), a cheap extra
   call asks what the conversation *established*, as typed JSON entries
   that may also replace an entry that became wrong. Duplicates and
-  near-duplicates merge instead of piling up. `"memory": false` turns it
+  near-duplicates merge instead of piling up. It records a preference only
+  when you stated it as lasting, not an instruction for the task at hand. `"memory": false` turns it
   off; `/remember` and the tool still work.
 - **A credential is never remembered.** An entry whose text holds
   something API-key-shaped — a vendor key, a private-key block, a JWT, a
@@ -323,6 +331,22 @@ everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
   with a note saying why: memory is written to disk and read back into
   every later prompt, which is the last place a key should be. Where the
   value lives is worth remembering; the value is not.
+- **Only you write global memory.** Automatic extraction and the model's
+  `memory` tool write project-scoped entries only; a rule for every project
+  takes an explicit `/remember -g`. When the model is asked to remember
+  something for all projects, it keeps it for this one and tells you to
+  use `/remember -g`. Phrase a global entry as a preference about how you
+  work ("I prefer small commits"), not as one project's rule.
+- **Global memory stays in its ecosystem.** A global entry that names a
+  language or toolchain — `pytest`, `cargo`, `npm`, `gofmt`, `go test` —
+  is tagged with it (`ecosystem:` in its frontmatter, and inferred from
+  its text for entries written before tagging), and is neither listed in
+  the prompt's index nor recalled in a project of another ecosystem: a
+  Python project's rule does not follow you into a Go project. A global
+  entry that names no ecosystem and was not written by you (one extracted
+  automatically by an earlier version) is left out of the index and
+  recalled only on a strong match — two words of its name or description,
+  not one. `/memory` still lists every entry.
 - `/memory` lists entries, `/memory <words>` recalls, `/memory show <name>`
   prints one, `/remember [-g] <fact>` adds (`-g` global), `/forget
   <name|number>` removes. Files are plain markdown you can edit by hand.
@@ -662,8 +686,9 @@ parser either way, which is more accurate than a grammar for Go.
 Every file change is recorded per tool call with the model's stated
 reason (the text it wrote just before the call), so the session's work
 can be read and unpicked one decision at a time rather than one turn at
-a time. `/changes` lists the changes grouped by turn and intent with
-line counts; `/changes 4` shows that change's hunks. `/blame path`
+a time. `/changes` lists the changes under one header per turn, grouped
+by intent beneath it, with line counts and paths relative to the project;
+`/changes 4` shows that change's hunks (in the web UI too). `/blame path`
 attributes each line of a file to the change that wrote it (lines from
 before the session are unmarked) and says so when the file was edited
 outside the session since. `/undo 4` reverts one change on its own,
@@ -1190,7 +1215,7 @@ what the directory holds — `go.mod`, `package.json`, `pyproject.toml`,
 target — and prints one line:
 
 ```
-tip · Go project · /verify set "go test ./..." runs it after every change and hands
+tip · Go project · /verify set go test ./... runs it after every change and hands
       failures back to the model · gopls is not on PATH (go install
       golang.org/x/tools/gopls@latest) for diagnostics after edits
 ```
@@ -1347,6 +1372,15 @@ stderr.
 | **unverified** | code was edited and nothing was run against it |
 | **check failed** | something ran and came back red |
 | **vacuous** | a check exited 0 having found no tests to run |
+| **tests written** | an `/accept` writing-phase turn wrote only test files and they fail, as they should until the implementation exists |
+
+Each check command counts by its latest run in the turn, including the
+runs of the turn-end verify and `/accept` gates, so a red run fixed and
+re-run green is not a failure; a leading `cd <project> &&` does not make
+it a different command. A call that was refused — by a rule, a mode, a
+hook, or you — never ran and is not counted as a check. A proof note
+attached to a commit the turn made is brought up to date once the turn's
+gates have run.
 
 When the answer claims something the turn does not show — and only then —
 the model is told once, with what was observed, and asked to run the check
@@ -1393,7 +1427,8 @@ sets a catalogued setting; `/doctor` prints the same checkup as
 `/accept <request>` puts the session in a test-first mode: the model's
 only job is to write acceptance tests for the request — tests that fail
 against the code as it stands and would pass once the request is done.
-Every other mutating tool is refused while this lasts; a `write_file` or
+Every other mutating tool is refused while this lasts — except read-only
+shell commands and running the tests, which still ask as usual; a `write_file` or
 `edit_file` on anything but a test file is turned down the same way
 read-only mode turns down an edit, and the model is told to touch only
 test files. This restriction holds through both the writing phase and
@@ -1403,7 +1438,8 @@ files may still be written, whatever the model tries next; approval is
 the only thing that hands the implementation tools back. When it is
 done writing tests it ends its final message with one line of the fixed
 form `ACCEPT-VERIFY: <command>`, naming how to run the tests it just
-wrote — one literal shell command on that line, with no wrapping needed
+wrote (revising the tests after that sends it back to state the command
+again, so a dropped test does not stay in it) — one literal shell command on that line, with no wrapping needed
 around it (a backtick or quote pair wrapping the whole command is
 stripped automatically, but content spanning more than one line is
 rejected rather than run literally); the harness nudges it once for a
@@ -1413,7 +1449,8 @@ command already in `.janetcode/verify.json`).
 
 Review the tests with `/diff <path>` for each file `/accept` lists (they
 are new, untracked files, so `/diff` shows them in full), then run
-`/accept approve`. From that point the files are **locked**: any
+`/accept approve`, which prints the locked files and the command that
+will gate the session for you to confirm. From that point the files are **locked**: any
 `edit_file`/`write_file` call on one, or a bash command that would write
 to one (`echo > path`, `sed -i`/`perl -i`, `mv`, `cp`, `rm`, and the
 like — the same path-escape analysis the workspace guard uses), is
@@ -1522,8 +1559,8 @@ three failed rounds it stops and tells you. A pass shows as
 rerun until something changes again.
 
 Passing tests prove little when the change is not covered. With
-`"mutate": "go test ./..."` in the file (or `/verify mutate "go test
-./..."`), once the commands pass janetcode takes the lines the turn
+`"mutate": "go test ./..."` in the file (or `/verify mutate go test
+./...`), once the commands pass janetcode takes the lines the turn
 changed, flips one operator at a time (`==`/`!=`, `<`/`<=`, `&&`/`||`,
 `+`/`-`, `true`/`false`), runs the test command against each mutant in
 a throwaway git worktree of the current tree, and treats a mutant the
@@ -1535,11 +1572,15 @@ Test files and comments are never mutated. Every run's score is logged
 against the turn it tested, so `/proof` shows it too (see "Proof in the
 commit", above).
 
-`/verify` runs the checks now, `/verify set "make test"` adds a command to
-the file, `/verify clear` removes them all. Like hooks, a verify file that
+`/verify` runs the checks now, `/verify set make test` replaces the
+file's commands with that one, `/verify add go vet ./...` appends another,
+`/verify clear` removes them all. The command is taken as typed, without
+quotes: one pair of quotes or backticks wrapped around the whole command
+(`/verify set "go test ./..."`) is taken off, since the shell would
+otherwise look for a program named `go test ./...`. Like hooks, a verify file that
 came with a clone needs a one-time `/verify trust` before it runs, because
 it executes commands on your machine; files you write through `/verify
-set` are trusted as you write them. In headless mode `--until` remains the
+set` or `/verify add` are trusted as you write them. In headless mode `--until` remains the
 one-off equivalent.
 
 ### Diagnostics from language servers
@@ -1612,7 +1653,10 @@ already exists, the prompt names what it reaches: the symbols whose
 definitions the change touches, how many places reference each one, which
 test files already cover them, and which verify commands will run —
 `changes Parse (func) · 14 refs in 6 files · tests: parse_test.go,
-cli_test.go · checks: go test ./...`. There is nothing to show for a new
+cli_test.go · checks: go test ./...`. Only the lines the edit actually
+inserts, removes or replaces count, and a definition the edit adds is named
+as `adds parseAll (func)`, with no refs — nothing uses it yet — rather than
+as a change to the functions on either side of it. There is nothing to show for a new
 file (there is no "reach" for code that does not exist yet) or a non-code
 file, and the line is silent then.
 

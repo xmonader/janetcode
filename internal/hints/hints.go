@@ -290,7 +290,7 @@ func Rules() []Rule {
 				if cmd == "" {
 					cmd = "go test ./..."
 				}
-				return fmt.Sprintf("/verify set %q runs it after every turn that changes code and hands failures straight back to the model, so you do not have to", cmd)
+				return fmt.Sprintf("/verify set %s runs it after every turn that changes code and hands failures straight back to the model, so you do not have to", cmd)
 			},
 		},
 		{

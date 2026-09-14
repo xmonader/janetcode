@@ -22,7 +22,8 @@ type VerifyOptions struct {
 // verifyDoneMsg reports a manual /verify run.
 type verifyDoneMsg struct{ res verify.Result }
 
-// verifyCommand implements /verify [set <cmd>|clear|trust].
+// verifyCommand implements /verify [set <cmd>|add <cmd>|mutate <cmd>|clear|trust];
+// the edits to the project file are verify.Edit's.
 func (m *model) verifyCommand(args []string) tea.Cmd {
 	o := m.opts.Verify
 	if o == nil {
@@ -41,26 +42,13 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 	ag := m.opts.Agent
 	if len(args) > 0 {
 		switch args[0] {
-		case "set":
-			cmd := strings.TrimSpace(strings.Join(args[1:], " "))
-			if cmd == "" {
-				m.transcript.errorf("usage: /verify set <command>")
+		case "set", "add", "mutate", "clear":
+			c, done, err := verify.Edit(o.Config, args[0], strings.Join(args[1:], " "))
+			if err != nil {
+				m.transcript.errorf("%v", err)
 				return nil
 			}
-			c := o.Config
-			c.Commands = append(append([]string(nil), c.Commands...), cmd)
-			return m.saveVerify(c, "added: "+cmd)
-		case "mutate":
-			cmd := strings.TrimSpace(strings.Join(args[1:], " "))
-			c := o.Config
-			if cmd == "" || cmd == "off" {
-				c.Mutate = ""
-				return m.saveVerify(c, "mutation testing off")
-			}
-			c.Mutate = cmd
-			return m.saveVerify(c, "mutation testing with: "+cmd+" (small mutations of changed lines must make it fail)")
-		case "clear":
-			return m.saveVerify(verify.Config{}, "cleared "+verify.ProjectFile)
+			return m.saveVerify(c, done)
 		case "trust":
 			switch {
 			case len(o.Config.Commands) == 0:
@@ -78,12 +66,12 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 			}
 			return nil
 		default:
-			m.transcript.errorf("usage: /verify [set <command>|mutate <test command>|mutate off|clear|trust]")
+			m.transcript.errorf("%s", verify.Usage)
 			return nil
 		}
 	}
 	if len(o.Config.Commands) == 0 && o.Config.Mutate == "" {
-		m.transcript.info("no verification commands: /verify set \"make test\" writes " + verify.ProjectFile + "; its commands run after every turn that changes something")
+		m.transcript.info("no verification commands: /verify set make test writes " + verify.ProjectFile + "; its commands run after every turn that changes something")
 		return nil
 	}
 	if !o.ProjectTrusted {

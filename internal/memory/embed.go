@@ -116,6 +116,11 @@ func (s *Store) semantic(ctx context.Context, text string, max int) ([]Entry, bo
 	}
 	var hits []scored
 	for _, e := range entries {
+		// Meaning alone never recalls a global entry that is hidden here
+		// or needs a strong word match (see Store.hidden).
+		if hide, strong := s.hidden(e); hide || strong {
+			continue
+		}
 		v := s.vecs[e.Scope+"/"+e.Name]
 		if sim := cosine(query, v.Vec); sim >= SemanticMin {
 			hits = append(hits, scored{e, sim})

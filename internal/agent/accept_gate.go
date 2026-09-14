@@ -54,7 +54,7 @@ func (a *Agent) acceptCaptureLocked(text string, nudged *bool) (notice, harness 
 		return "accept: no test files written yet", "[accept] You have not written any test files yet. Write acceptance tests for the request, touching only test files, then end your message with a line \"ACCEPT-VERIFY: <command to run them>\"."
 	}
 	if m := acceptVerifyLine.FindStringSubmatch(text); m != nil {
-		if cmd := cleanVerifyCommand(m[1]); cmd != "" {
+		if cmd := verify.CleanCommand(m[1]); cmd != "" {
 			a.Accept.Proposed = cmd
 			a.Accept.Phase = session.AcceptProposed
 			a.persistAccept()
@@ -64,7 +64,7 @@ func (a *Agent) acceptCaptureLocked(text string, nudged *bool) (notice, harness 
 		// command as stated — empty once any wrapping backticks/quotes
 		// are stripped, or it spans more than one line. Running it
 		// as-is is exactly how a backtick-wrapped command turned into a
-		// command-substitution bug (see cleanVerifyCommand), so this
+		// command-substitution bug (see verify.CleanCommand), so this
 		// falls back the same way a missing command does rather than
 		// storing something unsafe to run.
 		if *nudged {
@@ -134,6 +134,7 @@ func (a *Agent) acceptVerifyGate(ctx context.Context, g *gateState, emit func(Ev
 	if ctx.Err() != nil {
 		return false
 	}
+	a.logGate(session.GateAccept, res)
 	a.acceptMu.Lock()
 	// Only the mode this gate ran for records its result: an /accept off
 	// or a new /accept <request> while the tests ran has replaced it.

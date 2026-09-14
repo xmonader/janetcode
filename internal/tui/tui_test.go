@@ -2220,10 +2220,13 @@ func TestChangesBlameAndUndoOne(t *testing.T) {
 	h.keys("/changes")
 	h.enter()
 	v := plain(h.m.View())
-	for _, want := range []string{"turn 1 · Write the list.", "#1   write_file l.txt  +8 -0", "turn 1 · Capitalise b.", "#2   edit_file  l.txt  +1 -1", "#3   edit_file  l.txt  +1 -1"} {
+	for _, want := range []string{"turn 1", "  Write the list.", "#1   write_file l.txt  +8 -0", "  Capitalise b.", "#2   edit_file  l.txt  +1 -1", "#3   edit_file  l.txt  +1 -1"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("missing %q in view:\n%s", want, v)
 		}
+	}
+	if strings.Contains(v, "turn 1 ·") {
+		t.Fatalf("the turn header repeats per intent:\n%s", v)
 	}
 	h.keys("/changes 3")
 	h.enter()
@@ -2673,9 +2676,10 @@ func TestStatusBarFitsWidth(t *testing.T) {
 			if got := lipgloss.Width(line); got > w {
 				t.Errorf("width %d, %s: status line is %d columns:\n%s", w, st.name, got, plain(line))
 			}
-			// The gauge is the one thing that never yields.
-			if !strings.Contains(plain(line), "ctx ") {
-				t.Errorf("width %d, %s: the gauge was dropped:\n%s", w, st.name, plain(line))
+			// The gauge is the one thing that never yields — not even its
+			// last characters: a figure cut to "45…" reads as a number.
+			if gauge := plain(h.m.contextGauge()); !strings.Contains(plain(line), gauge) {
+				t.Errorf("width %d, %s: the gauge %q was cut:\n%s", w, st.name, gauge, plain(line))
 			}
 		}
 		h.m.pinned = true
@@ -3855,17 +3859,21 @@ func TestTypedWordsInPickerSearch(t *testing.T) {
 func TestSuggestedRuleUsesShortPaths(t *testing.T) {
 	h := newHarness(t)
 	cwd := h.m.opts.Cwd
-	got := h.m.suggestedRule("edit_file", json.RawMessage(`{"path":`+strconv.Quote(filepath.Join(cwd, "main.go"))+`}`))
+	got := h.m.suggestedRule("edit_file(" + cwd + "/*)")
 	if got != "edit_file(./*)" {
 		t.Fatalf("rule in the working directory = %q", got)
 	}
-	got = h.m.suggestedRule("edit_file", json.RawMessage(`{"path":`+strconv.Quote(filepath.Join(cwd, "internal", "tui", "x.go"))+`}`))
+	got = h.m.suggestedRule("edit_file(" + filepath.Join(cwd, "internal", "tui") + "/*)")
 	if got != "edit_file(internal/tui/*)" {
 		t.Fatalf("rule under the working directory = %q", got)
 	}
 	// A bash rule is a command, not a path, and is left alone.
-	if got := h.m.suggestedRule("bash", json.RawMessage(`{"command":"go test ./..."}`)); got != "bash(go test *)" {
+	if got := h.m.suggestedRule("bash(go test *)"); got != "bash(go test *)" {
 		t.Fatalf("bash rule = %q", got)
+	}
+	// No rule offered: no r key either.
+	if line := plain(h.m.permissionKeys("bash", "", "", false)); strings.Contains(line, "rule") || strings.Contains(line, "   r ") {
+		t.Fatalf("keys offer a rule when there is none: %q", line)
 	}
 }
 
@@ -4307,5 +4315,19 @@ func TestSSHCommandStatusAndOff(t *testing.T) {
 	h.enter()
 	if v := plain(h.m.View()); !strings.Contains(v, "workspace local") {
 		t.Fatalf("off:\n%s", v)
+	}
+}
+
+// TestSideWorkLeavesNoStaleStatus: /undo apply said "applying the
+// previewed undo…" as the status, and a result that set no status of its
+// own (an error, a sheet) left that line up after the work had finished.
+func TestSideWorkLeavesNoStaleStatus(t *testing.T) {
+	h := newHarness(t)
+	h.update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	h.keys("/undo apply")
+	h.enter()
+	h.pump(func() bool { return !h.m.running })
+	if v := plain(h.m.statusView()); strings.Contains(v, "applying") || strings.Contains(v, "matching") {
+		t.Fatalf("status after /undo apply finished:\n%s", v)
 	}
 }

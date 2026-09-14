@@ -49,19 +49,7 @@ func (m *model) changesCommand(args []string) {
 			m.transcript.errorf("%v", err)
 			return
 		}
-		var sb strings.Builder
-		fmt.Fprintf(&sb, "#%d  %s  %s", c.Seq, c.Tool, m.relPath(c.Path))
-		if c.Intent != "" {
-			sb.WriteString("  · " + c.Intent)
-		}
-		if c.Undone {
-			sb.WriteString("  (undone)")
-		}
-		sb.WriteString("\n")
-		for _, h := range c.Hunks() {
-			sb.WriteString(h.String())
-		}
-		m.transcript.code(strings.TrimRight(sb.String(), "\n"))
+		m.transcript.code(agent.FormatChange(c, m.opts.Cwd))
 		return
 	}
 	groups := m.opts.Agent.ChangeGroups()
@@ -69,24 +57,7 @@ func (m *model) changesCommand(args []string) {
 		m.transcript.info("no file changes in this session yet")
 		return
 	}
-	var sb strings.Builder
-	for _, g := range groups {
-		fmt.Fprintf(&sb, "turn %d", g.Turn)
-		if g.Intent != "" {
-			fmt.Fprintf(&sb, " · %s", g.Intent)
-		}
-		sb.WriteString("\n")
-		for _, c := range g.Changes {
-			add, del := c.Stats()
-			fmt.Fprintf(&sb, "  #%-3d %-10s %s  +%d -%d", c.Seq, c.Tool, m.relPath(c.Path), add, del)
-			if c.Undone {
-				sb.WriteString("  (undone)")
-			}
-			sb.WriteString("\n")
-		}
-	}
-	sb.WriteString("/changes <n> shows the hunks; /undo <n> reverts one change; /blame <path> attributes lines")
-	m.transcript.code(sb.String())
+	m.transcript.code(agent.FormatChangeGroups(groups, m.opts.Cwd) + "\n/changes <n> shows the hunks; /undo <n> reverts one change; /blame <path> attributes lines")
 }
 
 // blameCommand attributes each line of a file to the change that wrote it.
@@ -263,13 +234,12 @@ func (m *model) undoAboutCommand(description string) tea.Cmd {
 		m.transcript.errorf("%v", agent.ErrUndoAboutUsage)
 		return nil
 	}
-	ctx := m.startSideWork("matching changes")
+	ctx := m.startSideWork(fmt.Sprintf("matching %q against this session's changes", description))
 	ag, send, cwd := m.opts.Agent, m.send, m.opts.Cwd
 	go func() {
 		res, err := ag.UndoAbout(ctx, cwd, description)
 		send(undoAboutMsg{res: res, err: err})
 	}()
-	m.note(fmt.Sprintf("matching %q against this session's changes…", description))
 	m.refresh(false)
 	return m.spinner.Tick
 }
@@ -278,7 +248,9 @@ func (m *model) undoAboutCommand(description string) tea.Cmd {
 // turn but uses the agent's history or undo stack off the UI goroutine
 // (/undo about, /undo apply): prompts typed meanwhile are queued, cron
 // rounds skipped, idle-only commands refused, and esc cancels the
-// returned context. endSideWork undoes it when the result arrives.
+// returned context. endSideWork undoes it when the result arrives. phase
+// is what the status line says while the work runs; it goes with the
+// work, where a status note set here would outlive it.
 func (m *model) startSideWork(phase string) context.Context {
 	m.startTurn(phase)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -325,13 +297,12 @@ type undoApplyMsg struct {
 // checks, which may take a while. force is --force: proceed even though
 // the selection has a mixed change or a coupling warning.
 func (m *model) undoApplyCommand(force bool) tea.Cmd {
-	ctx := m.startSideWork("applying undo")
+	ctx := m.startSideWork("applying the previewed undo")
 	ag, send := m.opts.Agent, m.send
 	go func() {
 		rep, res, err := ag.UndoApply(ctx, force)
 		send(undoApplyMsg{rep: rep, res: res, err: err})
 	}()
-	m.note("applying the previewed undo…")
 	m.refresh(false)
 	return m.spinner.Tick
 }
