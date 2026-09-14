@@ -137,7 +137,8 @@ func TestClipBytes(t *testing.T) {
 		{"hello", 10, "hello"},    // no truncation
 		{"hello", 5, "hello"},     // exact fit
 		{"hello world", 5, "he…"}, // ASCII truncation
-		{"hello", 1, "…"},         // max below ellipsis length
+		{"hello", 1, "h"},         // max below ellipsis length: no room for it
+		{"中文", 2, ""},             // max below ellipsis length, no whole rune fits
 		{"hello", 0, ""},          // max=0
 		{"aé", 3, "aé"},           // exact fit with 2-byte char
 		{"a中b", 4, "a…"},          // truncate before 3-byte char

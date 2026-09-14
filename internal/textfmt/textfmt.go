@@ -122,10 +122,15 @@ func ClipBytes(s string, max int) string {
 		return s
 	}
 	const ellipsis = "…"
-	cut := max - len(ellipsis)
-	if cut < 0 {
-		cut = 0
+	if max < len(ellipsis) {
+		// No room for the ellipsis: keep what fits, still whole runes.
+		cut := max
+		for cut > 0 && !utf8.RuneStart(s[cut]) {
+			cut--
+		}
+		return s[:cut]
 	}
+	cut := max - len(ellipsis)
 	for cut > 0 && !utf8.RuneStart(s[cut]) {
 		cut--
 	}
