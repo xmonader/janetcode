@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/xmonader/janetcode/internal/mutate"
 	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/verify"
 )
@@ -61,7 +62,7 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 					return nil
 				}
 				o.ProjectTrusted = true
-				ag.Verify = &verify.Runner{Config: o.Config, Cwd: m.opts.Cwd}
+				ag.Verify = &verify.Runner{Config: o.Config, Cwd: m.opts.Cwd, Mutate: mutate.ForVerify}
 				m.note("trusted " + verify.ProjectFile + " · its checks run after every change")
 			}
 			return nil
@@ -85,7 +86,7 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 	m.startTurn("verifying")
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	r, send := &verify.Runner{Config: o.Config, Cwd: m.opts.Cwd}, m.send
+	r, send := &verify.Runner{Config: o.Config, Cwd: m.opts.Cwd, Mutate: mutate.ForVerify}, m.send
 	m.note("verifying: " + strings.Join(o.Config.Commands, " · "))
 	m.refresh(false)
 	go func() { send(verifyDoneMsg{res: r.Run(ctx)}) }()
@@ -110,7 +111,7 @@ func (m *model) reloadVerify(o *VerifyOptions) error {
 	o.ProjectTrusted = defined && o.Trust.Trusted(trust.VerifyKey(m.opts.Cwd), hash)
 	ag := m.opts.Agent
 	if o.ProjectTrusted {
-		ag.Verify = &verify.Runner{Config: cfg, Cwd: m.opts.Cwd}
+		ag.Verify = &verify.Runner{Config: cfg, Cwd: m.opts.Cwd, Mutate: mutate.ForVerify}
 		ag.VerifyUntrusted = false
 	} else {
 		ag.Verify = nil
@@ -140,7 +141,7 @@ func (m *model) saveVerify(c verify.Config, done string) tea.Cmd {
 	if len(cfg.Commands) == 0 {
 		m.opts.Agent.Verify = nil
 	} else {
-		m.opts.Agent.Verify = &verify.Runner{Config: cfg, Cwd: m.opts.Cwd}
+		m.opts.Agent.Verify = &verify.Runner{Config: cfg, Cwd: m.opts.Cwd, Mutate: mutate.ForVerify}
 	}
 	m.note(done + " · " + verifyLine(cfg))
 	return nil
@@ -161,7 +162,7 @@ func (m *model) finishVerify(msg verifyDoneMsg) {
 		m.cancel()
 		m.cancel = nil
 	}
-	if msg.res.Mutation != nil && msg.res.Mutation.Skipped == "" {
+	if msg.res.Mutation != nil && msg.res.Mutation.Scored() {
 		m.opts.Agent.LogEvent(msg.res.Mutation.Event())
 	}
 	if msg.res.OK() {

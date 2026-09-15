@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"github.com/xmonader/janetcode/internal/settingsapply"
 	"net/url"
 	"sort"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/settingsapply"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 

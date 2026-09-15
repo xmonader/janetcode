@@ -42,7 +42,7 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 	}
 	a.logGate(session.GateVerify, res)
 	a.working.Verify = res.Summary()
-	if res.Mutation != nil && res.Mutation.Skipped == "" {
+	if res.Mutation != nil && res.Mutation.Scored() {
 		a.logEvent(res.Mutation.Event())
 	}
 	if res.OK() {

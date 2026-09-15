@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"github.com/xmonader/janetcode/internal/settingsapply"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,6 +9,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/hook"
+	"github.com/xmonader/janetcode/internal/settingsapply"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/trust"

@@ -2,7 +2,6 @@ package webui
 
 import (
 	"fmt"
-	"github.com/xmonader/janetcode/internal/settingsapply"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/settingsapply"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 

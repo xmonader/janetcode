@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/fsutil"
-	"github.com/xmonader/janetcode/internal/mutate"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -36,7 +36,7 @@ type Config struct {
 	// of the lines the agent changed once the commands pass; mutants the
 	// tests do not catch are sent back like a failure.
 	Mutate string `json:"mutate,omitempty"`
-	// MaxMutants bounds mutants per run; zero means mutate.DefaultMax.
+	// MaxMutants bounds mutants per run; zero means the mutation runner's default.
 	MaxMutants int `json:"max_mutants,omitempty"`
 }
 
@@ -88,7 +88,7 @@ type Result struct {
 	Duration time.Duration
 	// Mutation is the mutation-testing report when Config.Mutate is set
 	// and the commands passed.
-	Mutation *mutate.Report
+	Mutation Mutation
 	// MutationErr is why mutation testing could not run (not a failure).
 	MutationErr error
 }
@@ -123,12 +123,45 @@ func (r Result) Feedback() string {
 		r.Failed, r.Exit, textfmt.TruncateTo(strings.TrimSpace(r.Output), 6000))
 }
 
+// Mutation is a mutation-testing report (internal/mutate.Report): verify
+// only needs to judge and describe it, so it does not import the runner.
+type Mutation interface {
+	// OK reports whether every mutant was caught.
+	OK() bool
+	Summary() string
+	Feedback() string
+	// Scored reports whether mutants actually ran (the run was not
+	// skipped), so there is a score for Event to record.
+	Scored() bool
+	Event() session.Event
+}
+
+// MutationRun is what a MutateFunc is asked to do: mutate the changed
+// lines under Root and run Command against each mutant.
+type MutationRun struct {
+	Root    string
+	Command string
+	Timeout time.Duration
+	Max     int
+	Log     func(string)
+}
+
+// MutateFunc runs mutation testing; internal/mutate.ForVerify is the one
+// janetcode uses.
+type MutateFunc func(ctx context.Context, run MutationRun) (Mutation, error)
+
+// errNoMutator is reported when a config asks for mutation testing but
+// the runner was built without a MutateFunc.
+var errNoMutator = errors.New("no mutation runner configured")
+
 // Runner runs the commands in a directory.
 type Runner struct {
 	Config Config
 	Cwd    string
 	// Log receives mutation progress lines when set.
 	Log func(string)
+	// Mutate runs Config.Mutate once the commands pass.
+	Mutate MutateFunc
 }
 
 // Enabled reports whether there is anything to run.
@@ -169,12 +202,12 @@ func (r *Runner) Run(ctx context.Context) Result {
 		break
 	}
 	if res.Failed == "" && strings.TrimSpace(r.Config.Mutate) != "" && ctx.Err() == nil {
-		mr := &mutate.Runner{Root: r.Cwd, Command: r.Config.Mutate, Timeout: timeout, Max: r.Config.MaxMutants, Log: r.Log}
-		rep, err := mr.Run(ctx)
-		if err != nil {
+		if r.Mutate == nil {
+			res.MutationErr = errNoMutator
+		} else if rep, err := r.Mutate(ctx, MutationRun{Root: r.Cwd, Command: r.Config.Mutate, Timeout: timeout, Max: r.Config.MaxMutants, Log: r.Log}); err != nil {
 			res.MutationErr = err
 		} else {
-			res.Mutation = &rep
+			res.Mutation = rep
 		}
 	}
 	res.Duration = time.Since(start)

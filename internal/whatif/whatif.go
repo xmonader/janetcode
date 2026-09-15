@@ -26,6 +26,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/mutate"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/replay"
 	"github.com/xmonader/janetcode/internal/session"
@@ -432,7 +433,7 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 	} else if len(vcfg.Commands) == 0 {
 		notes = append(notes, "no project verify commands (.janetcode/verify.json) in the worktree; nothing was checked at the end")
 	} else {
-		vr := (&verify.Runner{Config: vcfg, Cwd: workDir}).Run(ctx)
+		vr := (&verify.Runner{Config: vcfg, Cwd: workDir, Mutate: mutate.ForVerify}).Run(ctx)
 		check = &CheckResult{Passed: vr.OK(), Failed: vr.Failed, Output: vr.Output, Duration: vr.Duration}
 	}
 

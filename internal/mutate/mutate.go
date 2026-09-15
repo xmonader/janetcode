@@ -285,6 +285,9 @@ func (r Report) Event() session.Event {
 	return session.Event{Type: session.TypeMutation, Extra: extra}
 }
 
+// Scored reports whether mutants ran, so Event has a score to record.
+func (r Report) Scored() bool { return r.Skipped == "" }
+
 // Feedback tells the model which changed lines the tests do not pin down.
 func (r Report) Feedback() string {
 	var sb strings.Builder
