@@ -1,0 +1,399 @@
+// The model's Update half: the Bubble Tea message loop, the routing to
+// whichever sub-model owns the key, and folding an agent event into the
+// transcript. The model itself and its View are in tui.go.
+package tui
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/textfmt"
+)
+
+// Update is the loop. A window resize, a key and a spinner tick are
+// handled here because they are the three that can fall through to the
+// textarea and the viewport at the bottom of this function; everything
+// else is a message from somewhere that finished, and is routed to one
+// of the three handlers below.
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		return m, m.resize(msg)
+
+	case tea.KeyMsg:
+		// A word that spells a key name is text, not that key. It is
+		// delivered one character at a time, which is what was typed, so
+		// neither this model nor the textarea can mistake it. Not at a
+		// permission prompt: there a run of characters is still ignored
+		// as a whole rather than answering with its first letter.
+		if typedAsKey(msg) && m.pending == nil {
+			var cmds []tea.Cmd
+			var mm tea.Model = m
+			for _, r := range msg.Runes {
+				var cmd tea.Cmd
+				mm, cmd = mm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}, Paste: msg.Paste})
+				cmds = append(cmds, cmd)
+			}
+			return mm, tea.Batch(cmds...)
+		}
+		if cmd, handled := m.handleKey(msg); handled {
+			return m, cmd
+		}
+
+	case spinner.TickMsg:
+		if m.turn.running || (m.connect != nil && m.connect.loading) {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			cmds = append(cmds, cmd)
+			m.refresh(false)
+		}
+
+	default:
+		for _, h := range []func(tea.Msg) (tea.Cmd, bool){m.updateTerminal, m.updateTurn, m.updateBackground} {
+			if cmd, handled := h(msg); handled {
+				return m, cmd
+			}
+		}
+	}
+
+	var cmd tea.Cmd
+	// The footer height is reserved except for the completion menu; the
+	// viewport has to be told when the menu opens or closes, or the view
+	// is taller than the terminal and the transcript scrolls under it.
+	before := m.footerHeight()
+	m.input, cmd = m.input.Update(msg)
+	cmds = append(cmds, cmd)
+	if m.footerHeight() != before {
+		m.layout()
+		m.refresh(false)
+	}
+	// Typed letters must not move the transcript: the viewport's default
+	// keymap treats h/j/k/l/b/f/u/d and space as pager keys, so typing
+	// "/history …" used to scroll (and unpin) one line at a time.
+	if _, isKey := msg.(tea.KeyMsg); !isKey {
+		cmds = append(cmds, m.scroll(msg))
+	}
+	return m, tea.Batch(cmds...)
+}
+
+// resize relays out for a new terminal size. The first one is also when
+// the window exists at last, which is when a dialog or a prompt handed
+// in on the command line can finally be put up.
+func (m *model) resize(msg tea.WindowSizeMsg) tea.Cmd {
+	first := !m.ready
+	m.width, m.height = msg.Width, msg.Height
+	m.layout()
+	m.refresh(true)
+	if first && m.opts.Connect {
+		m.opts.Connect = false
+		return m.openConnect(stepPick)
+	}
+	if first && m.opts.InitialPrompt != "" {
+		text := m.opts.InitialPrompt
+		m.opts.InitialPrompt = ""
+		m.hist.remember(text)
+		return m.submit(text)
+	}
+	return nil
+}
+
+// updateTerminal handles what the terminal and the clock say: focus,
+// the mouse, and the half-second tick that keeps elapsed timers and
+// throttled live markdown moving when no event arrives.
+func (m *model) updateTerminal(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case tea.FocusMsg:
+		m.term.focused = true
+		return nil, true
+
+	case tea.BlurMsg:
+		m.term.focused = false
+		return nil, true
+
+	case tea.MouseMsg:
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			if m.clickTranscript(msg.Y) {
+				return nil, true
+			}
+		}
+		return m.scroll(msg), true
+
+	case tickMsg:
+		// Keeps elapsed timers and throttled live markdown moving even when
+		// no event arrives.
+		m.ticks++
+		expired := m.notice.expire()
+		if m.ticks%10 == 0 && !m.turn.running {
+			// Someone may have checked out another branch in this tree
+			// (or in the session's worktree) from outside; follow it.
+			m.followBranch()
+		}
+		if m.turn.running || m.ov.kind != "" {
+			m.refresh(false)
+		} else if notes := m.opts.Jobs.Finished(); len(notes) > 0 {
+			for _, n := range notes {
+				m.note(strings.SplitN(n, "\n", 2)[0])
+				m.opts.Agent.AddHarnessContext("[background job update]\n" + n)
+			}
+			m.refresh(false)
+		} else if expired {
+			m.refresh(false)
+		}
+		return tick(), true
+	}
+	return nil, false
+}
+
+// updateTurn handles the messages the running turn produces: its
+// events, the prompts it puts to the user, and its end.
+func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case agentEventMsg:
+		m.applyEvent(msg.ev)
+		m.refresh(false)
+		return nil, true
+
+	case flushMsg:
+		m.drainEvents()
+		m.refresh(false)
+		return nil, true
+
+	case permissionMsg:
+		m.drainEvents() // the tool entry must exist before the prompt shows
+		m.pending = &msg
+		m.turn.setPhase("waiting for your approval")
+		m.term.announce("janetcode", "approval needed: "+msg.call.Name)
+		m.refresh(false)
+		return nil, true
+
+	case askMsg:
+		m.drainEvents()
+		m.openAsk(msg)
+		m.term.announce("janetcode", "a question for you")
+		return nil, true
+
+	case agentDoneMsg:
+		m.drainEvents()
+		cmd := m.finishTurn(msg)
+		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && (m.opts.Agent.LastTurnMutated() || memory.LooksLikeFeedback(m.hist.lastUser)) {
+			cmd = tea.Batch(cmd, m.extractMemory())
+		}
+		if msg.err == nil && m.opts.AutoTitle && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && len(m.opts.Agent.Messages) >= 2 {
+			cmd = tea.Batch(cmd, m.autoTitle())
+		}
+		m.refresh(false)
+		return cmd, true
+
+	case titleMsg:
+		if msg.gen == m.titleGen && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && msg.title != "" {
+			if err := m.opts.Session.SetTitle(msg.title); err != nil {
+				m.transcript.errorf("could not save the title: %v", err)
+			}
+			m.refresh(false)
+			return tea.SetWindowTitle(m.windowTitle()), true
+		}
+		return nil, true
+
+	case cronFireMsg:
+		if m.turn.running {
+			m.note("loop " + msg.id + " skipped · a turn is running")
+			m.refresh(false)
+			return nil, true
+		}
+		m.note("loop " + msg.id)
+		return m.submitAs(msg.prompt, "loop "+msg.id+" · "+msg.prompt), true
+
+	case mcpPromptMsg:
+		m.turn.running = false
+		m.turn.setPhase("")
+		if msg.err != nil {
+			m.transcript.errorf("%s: %v", msg.command, msg.err)
+			m.refresh(false)
+			return nil, true
+		}
+		return m.submit(msg.text), true
+
+	case memoryMsg:
+		if msg.err != nil {
+			m.note("memory: extraction failed: " + msg.err.Error())
+		}
+		for _, e := range msg.added {
+			m.note("remembered: " + memoryLine(e))
+		}
+		m.refresh(false)
+		return nil, true
+	}
+	return nil, false
+}
+
+// updateBackground handles work that was started and left to finish on
+// its own: subagents, recipes, /verify, MCP, shell commands, and the
+// commands that answer with a report.
+func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case modelsMsg:
+		m.handleModels(msg)
+		return nil, true
+
+	case subagentDoneMsg:
+		if msg.err != nil {
+			m.transcript.errorf("subagent %s: %v", msg.desc, msg.err)
+		} else {
+			m.note("subagent finished · " + msg.desc + " · /agents to read it")
+		}
+		m.refresh(false)
+		return nil, true
+
+	case recipeDoneMsg:
+		return m.finishRecipe(msg), true
+
+	case btwMsg:
+		if msg.err != nil {
+			m.transcript.errorf("btw: %v", msg.err)
+		} else {
+			m.transcript.info("btw " + msg.q + "\n" + msg.a)
+		}
+		m.refresh(false)
+		return nil, true
+
+	case doctorMsg:
+		if msg.report != "" {
+			m.transcript.info(msg.report)
+		}
+		if msg.err != nil {
+			m.transcript.errorf("doctor: %v", msg.err)
+		}
+		m.refresh(false)
+		return nil, true
+
+	case undoAboutMsg:
+		cmd := m.finishUndoAbout(msg)
+		m.refresh(false)
+		return cmd, true
+
+	case evalKeepMsg:
+		cmd := m.finishEvalKeep(msg)
+		m.refresh(false)
+		return cmd, true
+
+	case undoApplyMsg:
+		cmd := m.finishUndoApply(msg)
+		m.refresh(false)
+		return cmd, true
+
+	case verifyDoneMsg:
+		m.finishVerify(msg)
+		m.refresh(false)
+		return nil, true
+
+	case mcpAuthMsg:
+		switch {
+		case !msg.done:
+			m.transcript.info(noteNotice + "mcp " + msg.name + ": " + msg.text)
+		case msg.err != nil:
+			m.transcript.errorf("mcp %s: authorization failed: %v", msg.name, msg.err)
+		default:
+			m.note("mcp " + msg.name + ": authorized · restarting the server")
+			m.restartMCP(msg.name)
+		}
+		m.refresh(false)
+		return nil, true
+
+	case mcpDoneMsg:
+		if msg.err != nil {
+			m.transcript.errorf("mcp %s: %s", msg.name, strings.TrimPrefix(msg.err.Error(), "mcp "+msg.name+": "))
+		} else {
+			line := fmt.Sprintf("mcp %s ready · %d tools", msg.name, msg.tools)
+			if n := len(m.mcpPrompts(msg.name)); n > 0 {
+				line += fmt.Sprintf(" · %d prompts as /mcp__%s__<name>", n, msg.name)
+			}
+			m.note(line + " · /mcp")
+		}
+		if m.status == "starting MCP servers…" {
+			m.status = ""
+		}
+		m.refresh(false)
+		return nil, true
+
+	case shellDoneMsg:
+		m.finishShell(msg)
+		var cmd tea.Cmd
+		if next, ok := m.turn.dequeue(); ok {
+			cmd = m.submit(next)
+		}
+		m.refresh(false)
+		return cmd, true
+	}
+	return nil, false
+}
+
+func (m *model) drainEvents() {
+	for _, ev := range m.queue.drain() {
+		m.applyEvent(ev)
+	}
+}
+
+func (m *model) applyEvent(ev agent.Event) {
+	m.transcript.apply(ev)
+	m.observeEvent(ev)
+	switch ev.Kind {
+	case agent.EvThinking:
+		m.turn.setPhase("thinking")
+	case agent.EvText:
+		m.turn.setPhase("writing")
+	case agent.EvToolStart:
+		m.turn.setPhase("preparing " + ev.Call.Name)
+	case agent.EvToolInput:
+		// Streamed input: the status says what is being written and how
+		// much, instead of "preparing write_file" for a minute.
+		if e := m.transcript.lastTool(ev.Call); e != nil && e.call.Name != "" {
+			if s := streamingSummary(e.call.Name, e.input.String(), m.opts.Cwd); s != "" && s != "…" {
+				m.turn.setPhase(e.call.Name + " " + s)
+			}
+		}
+	case agent.EvPhase:
+		// The provider or the loop said what it is waiting on: a retry
+		// countdown, a compaction, a subagent.
+		m.turn.setPhase(ev.Text)
+	case agent.EvToolRun:
+		m.turn.setPhase("running " + ev.Call.Name)
+		if ev.Call.Name == "task" {
+			m.turn.setPhase("waiting on subagent")
+		}
+	case agent.EvToolResult:
+		m.turn.setPhase("thinking")
+		if ev.Call != nil && ev.Call.Name == "goal_status" && !ev.IsError {
+			m.status = strings.TrimSpace(ev.Output)
+		}
+	case agent.EvCompacted:
+		m.turn.setPhase("thinking")
+	case agent.EvVerdict:
+		m.lastVerdict = shortenPaths(m.opts.Cwd, ev.Text)
+	case agent.EvTurnDone:
+		u := ev.Usage
+		m.lastUsage = u
+		in := u.InputTokens + u.CacheReadTokens + u.CacheWriteTokens
+		s := fmt.Sprintf("in %s · out %s", textfmt.Tokens(in), textfmt.Tokens(u.OutputTokens))
+		if usd, ok := u.Cost(m.opts.Agent.Settings().Price); ok {
+			s += " · " + llm.FormatUSD(usd)
+			if u.CostSource(m.opts.Agent.Settings().Price) != "reported" {
+				s += " est."
+			}
+		}
+		// A ceiling the session will stop on belongs where the spend is,
+		// not only in the message that announces it has been reached.
+		if m.opts.Agent.MaxCost() > 0 {
+			s += " · budget " + m.budgetStatus()
+		}
+		if ev.StopReason != "" && ev.StopReason != "end_turn" {
+			s += " · stopped: " + string(ev.StopReason)
+		}
+		m.lastTurn = s
+	}
+}
