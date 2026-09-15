@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -105,6 +106,50 @@ func TestSearchAnswersLineOfFile(t *testing.T) {
 	// A line that is not there falls back to ranking rather than lying.
 	if o := searchArchive(ar, nil, "line 99 of ledger/parse.py", 0); strings.Contains(o, "> 99") {
 		t.Fatalf("invented a line:\n%s", o)
+	}
+}
+
+// A "line N" query with no file still resolves when only one numbered
+// read is archived — the model's own words after compaction often drop
+// the path.
+func TestLineLookupWithNoPathWhenOnlyOneFile(t *testing.T) {
+	ar := NewArchive(t.TempDir())
+	read := "1\timport csv\n2\t\n3\tdef parse_row(row):\n4\t    tags = [t.strip() for t in row]\n5\t    return tags\n"
+	if _, err := ar.PutSubject("r1", "read_file", "ledger/parse.py", read); err != nil {
+		t.Fatal(err)
+	}
+	out := searchArchive(ar, nil, "what was on line 4", 0)
+	if !strings.Contains(out, "tags = [t.strip()") {
+		t.Fatalf("line 4 not returned without a path:\n%s", out)
+	}
+	if !strings.Contains(out, "> 4\t") {
+		t.Fatalf("the wanted line is not marked:\n%s", out)
+	}
+	// Two numbered files: do not guess which line 4.
+	if _, err := ar.PutSubject("r2", "read_file", "ledger/cli.py", "1\ta\n2\tb\n3\tc\n4\tOTHER four\n"); err != nil {
+		t.Fatal(err)
+	}
+	if o := searchArchive(ar, nil, "what was on line 4", 0); strings.Contains(o, "> 4\t") {
+		t.Fatalf("guessed a line with two files archived:\n%s", o)
+	}
+}
+
+func TestNumberedOutputIsScoredALineAtATime(t *testing.T) {
+	ar := NewArchive(t.TempDir())
+	var b strings.Builder
+	for i := 1; i <= 40; i++ {
+		fmt.Fprintf(&b, "%d\tfmt.Println(%d)\n", i, i)
+	}
+	b.WriteString("41\tconst peculiarToken = 7\n")
+	for i := 42; i <= 60; i++ {
+		fmt.Fprintf(&b, "%d\tfmt.Println(%d)\n", i, i)
+	}
+	if _, err := ar.PutSubject("r1", "read_file", "main.go", b.String()); err != nil {
+		t.Fatal(err)
+	}
+	out := searchArchive(ar, nil, "the line that mentions peculiarToken", 0)
+	if !strings.Contains(out, "const peculiarToken = 7") {
+		t.Fatalf("distinctive numbered line not found:\n%s", out)
 	}
 }
 

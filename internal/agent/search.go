@@ -24,9 +24,9 @@ import (
 // neighbouring lines, and returns the best windows within a token budget.
 
 const (
-	searchWindow  = 6     // lines per scored window
-	searchStride  = 3     // windows overlap by half
-	searchContext = 2     // extra lines shown around a hit
+	searchWindow  = 6     // lines per scored window of unnumbered output
+	searchStride  = 3     // those windows overlap by half
+	searchContext = 3     // extra lines shown around a hit
 	searchBudget  = 6_000 // bytes of output, about 1.5k tokens
 	searchTopK    = 12
 )
@@ -75,10 +75,15 @@ func lineLookup(ar *Archive, ids []string, query string) string {
 			break
 		}
 	}
-	if path == "" {
-		return ""
-	}
 	entries := entriesFor(ar, ids)
+	// A query that names a line but not a file ("what was on line 4")
+	// still has an exact answer when only one numbered read is archived.
+	if path == "" {
+		path = soleNumberedPath(ar, entries)
+		if path == "" {
+			return ""
+		}
+	}
 	var b strings.Builder
 	for _, e := range entries {
 		// The entry must be about this file: either the call's subject is
@@ -102,7 +107,7 @@ func lineLookup(ar *Archive, ids []string, query string) string {
 			if m == nil || m[1] != lm[1] {
 				continue
 			}
-			lo, hi := max(i-2, from), min(i+3, to)
+			lo, hi := max(i-searchContext, from), min(i+searchContext+1, to)
 			fmt.Fprintf(&b, "%s (%s) — line %d of %s:\n", e.ID, e.Name, want, path)
 			for j := lo; j < hi; j++ {
 				marker := "  "
@@ -150,6 +155,86 @@ func blockFor(lines []string, path string, subjectMatch bool) (int, int) {
 		}
 	}
 	return start, end
+}
+
+// soleNumberedPath is the subject of the only archived read whose body is
+// numbered like read_file, or "". A "line N" query with no file still
+// has an exact answer when there is only one such file.
+func soleNumberedPath(ar *Archive, entries []Entry) string {
+	path := ""
+	for _, e := range entries {
+		_, body, err := ar.Get(e.ID)
+		if err != nil || !numberedOutput(strings.Split(strings.TrimSuffix(body, "\n"), "\n")) {
+			continue
+		}
+		if e.Subject == "" || path != "" && path != e.Subject {
+			return ""
+		}
+		path = e.Subject
+	}
+	return path
+}
+
+// numberedOutput reports whether lines look like a read_file result, so
+// they should be scored a line at a time rather than in six-line windows
+// that dilute a distinctive identifier.
+func numberedOutput(lines []string) bool {
+	if len(lines) < 2 {
+		return false
+	}
+	n := 0
+	for _, l := range lines {
+		if numbered.MatchString(l + "\n") {
+			n++
+		}
+	}
+	return n*2 >= len(lines)
+}
+
+// subjectFallback is the second pass when ranking scored nothing: if the
+// query names a file an entry is about, return the start of that entry
+// rather than "no matches". The model often remembers the path and not
+// the words on the line.
+func subjectFallback(ar *Archive, ids []string, q []string) string {
+	var hit Entry
+	found := false
+	for _, e := range entriesFor(ar, ids) {
+		if e.Subject == "" {
+			continue
+		}
+		subj := strings.ToLower(e.Subject)
+		for _, t := range q {
+			if len(t) < 3 {
+				continue
+			}
+			if subj == t || strings.HasSuffix(subj, t) || strings.Contains(subj, t) && (strings.ContainsAny(t, "/.") || anchor(t)) {
+				if found && hit.ID != e.ID {
+					return "" // two files, do not guess
+				}
+				hit, found = e, true
+				break
+			}
+		}
+	}
+	if !found {
+		return ""
+	}
+	_, body, err := ar.Get(hit.ID)
+	if err != nil || body == "" {
+		return ""
+	}
+	lines := strings.Split(strings.TrimSuffix(body, "\n"), "\n")
+	to := min(len(lines), searchWindow+2*searchContext)
+	var sb strings.Builder
+	label := hit.Name
+	if hit.Subject != "" {
+		label += " " + hit.Subject
+	}
+	fmt.Fprintf(&sb, "Best matches for the file %s, ranked:\n\n%s (%s) lines 1-%d:\n", hit.Subject, hit.ID, label, to)
+	for i := 0; i < to; i++ {
+		fmt.Fprintf(&sb, "%d\t%s\n", i+1, lines[i])
+	}
+	return strings.TrimRight(sb.String(), "\n")
 }
 
 // entriesFor is the entries to search: the named ones, or all of them.
@@ -202,8 +287,12 @@ func searchArchive(ar *Archive, ids []string, query string, budget int) string {
 			continue
 		}
 		lines := strings.Split(strings.TrimSuffix(body, "\n"), "\n")
-		for start := 0; start < len(lines); start += searchStride {
-			end := min(start+searchWindow, len(lines))
+		win, stride := searchWindow, searchStride
+		if numberedOutput(lines) {
+			win, stride = 1, 1
+		}
+		for start := 0; start < len(lines); start += stride {
+			end := min(start+win, len(lines))
 			w := window{entry: e.ID, name: e.Name, subject: e.Subject, start: start, lines: lines[start:end]}
 			seen := map[string]bool{}
 			n := 0
@@ -292,6 +381,9 @@ func searchArchive(ar *Archive, ids []string, query string, budget int) string {
 		shown++
 	}
 	if shown == 0 {
+		if out := subjectFallback(ar, ids, q); out != "" {
+			return out
+		}
 		return fmt.Sprintf("No archived output mentions any of: %s.", strings.Join(q, ", "))
 	}
 	if sb.Len() > budget {
