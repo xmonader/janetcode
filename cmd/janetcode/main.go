@@ -2,47 +2,23 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
-	"path/filepath"
 	"regexp"
 	"runtime/debug"
 	"strings"
-	"syscall"
 
 	"golang.org/x/term"
 
-	"github.com/xmonader/janetcode/internal/acp"
-	"github.com/xmonader/janetcode/internal/agent"
-	"github.com/xmonader/janetcode/internal/config"
-	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/headless"
-	"github.com/xmonader/janetcode/internal/hints"
-	"github.com/xmonader/janetcode/internal/hook"
-	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/llm/anthropic"
 	"github.com/xmonader/janetcode/internal/llm/openai"
-	"github.com/xmonader/janetcode/internal/mcp"
-	"github.com/xmonader/janetcode/internal/mcp/mcptool"
-	"github.com/xmonader/janetcode/internal/memory"
-	"github.com/xmonader/janetcode/internal/mutate"
-	"github.com/xmonader/janetcode/internal/perm"
-	"github.com/xmonader/janetcode/internal/prompt"
-	"github.com/xmonader/janetcode/internal/recipe"
 	"github.com/xmonader/janetcode/internal/session"
-	"github.com/xmonader/janetcode/internal/tool"
 	_ "github.com/xmonader/janetcode/internal/treesitter" // registers the grammar parser when built with -tags treesitter
-	"github.com/xmonader/janetcode/internal/trust"
-	"github.com/xmonader/janetcode/internal/tui"
-	"github.com/xmonader/janetcode/internal/verify"
-	"github.com/xmonader/janetcode/internal/webui"
-	"github.com/xmonader/janetcode/internal/weburl"
 )
 
 // version is set at build time via -ldflags "-X main.version=...". A
@@ -215,381 +191,22 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	if o.bg {
-		prompt := strings.TrimSpace(o.promptText)
-		if prompt == "" {
-			prompt = initial
-		}
-		if prompt == "" {
-			return fmt.Errorf("%w: --bg needs a prompt (-p or an argument)", headless.ErrBadInput)
-		}
-		return launchBackground(sess, prompt, o.addDir)
+	if done, berr := bgMode(o, sess, initial); done {
+		return berr
 	}
 
-	cfgPath, _ := config.Path()
-	cfgDir := filepath.Dir(cfgPath)
-	jobs := &tool.Jobs{}
-	defer jobs.KillAll()
-	mem := memory.Open(filepath.Dir(sessDir), cwd)
-	if em, ok := prov.(llm.Embedder); ok && cfg.EmbeddingModel != "" {
-		model := cfg.EmbeddingModel
-		mem.Embed = func(ctx context.Context, texts []string) ([][]float32, error) { return em.Embed(ctx, model, texts) }
-	}
-	pool := newProviderPool(cfg, prov)
-	promptOv, err := prompt.LoadOverride(os.Getenv, o.appendSystem)
+	r, err := newRoot(fs, o, cfg, prov, needsConnect, cwd, sessDir, initial, format, sess, history)
+	defer r.close()
 	if err != nil {
 		return err
 	}
-	typed := &weburl.Set{}
-	typed.Note(initial)
-	typed.Note(o.promptText)
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir}
-	built, err := buildAgent(deps, sess, history)
-	if err != nil {
-		return err
-	}
-	defer built.close()
-	ag, task, diag, repo := built.agent, built.task, built.diag, built.repo
-	archive, skills := built.archive, built.skills
-	_ = task
-	_ = repo
-
-	servers := mcptool.Manager{Options: mcp.Options{Root: cwd, Version: version}, Registry: ag.Tools}
-	defer servers.Close()
-	projectServers, projectHash, err := mcp.LoadProject(cwd)
-	if err != nil {
-		return err
-	}
-	ts := trust.Store{Path: filepath.Join(cfgDir, "mcp-trust.json")}
-	tokens := &mcp.TokenStore{Path: filepath.Join(cfgDir, "mcp-auth.json")}
-	servers.Options.Tokens = tokens
 	if o.mcpAuth != "" {
-		return authorizeMCP(o.mcpAuth, cfg.MCPServers, projectServers, tokens)
+		return authorizeMCP(o.mcpAuth, cfg.MCPServers, r.projectServers, r.tokens)
 	}
-	hooksCfg, hooksHash, err := hook.LoadProject(cwd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: %v (project hooks ignored)\n", err)
+	if err := r.wireProject(); err != nil {
+		return err
 	}
-	hooksTrusted := hooksCfg.Len() > 0 && ts.Trusted(trust.HooksKey(cwd), hooksHash)
-	ag.Hooks = &hook.Runner{Config: cfg.Hooks, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[hook] %s\n", s) }}
-	if hooksTrusted {
-		var hookNotes []string
-		ag.Hooks.Config, hookNotes = hook.MergeScoped(cfg.Hooks, hooksCfg)
-		for _, n := range hookNotes {
-			fmt.Fprintf(os.Stderr, "[hooks] %s\n", n)
-		}
-	} else if hooksCfg.Len() > 0 && o.promptText != "" {
-		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
-	}
-	verifyCfg, verifyHash, err := verify.Load(cwd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: %v (project verification ignored)\n", err)
-	}
-	verifyDefined := len(verifyCfg.Commands) > 0 || verifyCfg.Mutate != ""
-	verifyTrusted := verifyDefined && ts.Trusted(trust.VerifyKey(cwd), verifyHash)
-	if verifyTrusted {
-		ag.Verify = &verify.Runner{Config: verifyCfg, Cwd: cwd, Mutate: mutate.ForVerify, Log: func(s string) { fmt.Fprintf(os.Stderr, "[verify] %s\n", s) }}
-	} else if verifyDefined {
-		ag.VerifyUntrusted = true
-		if o.promptText != "" {
-			fmt.Fprintf(os.Stderr, "[verify] %s is not trusted yet; open the TUI and run /verify trust\n", verify.ProjectFile)
-		}
-	}
-	rules, _ := cfg.Permissions.Rules() // validated by config.Load
-	projRules, permHash, err := perm.LoadProject(cwd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: %v (project permissions ignored)\n", err)
-	}
-	permTrusted := len(projRules.Allow) > 0 && ts.Trusted(trust.PermissionsKey(cwd), permHash)
-	if permTrusted {
-		rules = perm.Merge(rules, projRules)
-	} else {
-		rules = perm.Merge(rules, perm.Rules{Deny: projRules.Deny}) // deny rules need no trust
-		if len(projRules.Allow) > 0 && o.promptText != "" {
-			fmt.Fprintf(os.Stderr, "[permissions] %s has allow rules that are not trusted yet; open the TUI and run /permissions trust\n", perm.ProjectFile)
-		}
-	}
-	for _, spec := range []struct {
-		flag string
-		v    perm.Verdict
-	}{{o.allow, perm.Allowed}, {o.deny, perm.Denied}} {
-		for _, part := range strings.Split(spec.flag, ",") {
-			if strings.TrimSpace(part) == "" {
-				continue
-			}
-			r, err := perm.Parse(part)
-			if err != nil {
-				return err
-			}
-			rules.Add(spec.v, r)
-		}
-	}
-	ag.Rules = rules
-	ag.SaveRule = func(r perm.Rule) error { return config.AddPermission(cfgPath, "allow", r) }
-	// The ledger is keyed like the hint store below: per project, in the
-	// config directory, never in the project itself.
-	ag.Ledger = perm.OpenLedger(cfgDir, memory.Key(cwd))
-	projectTrusted := len(projectServers) > 0 && ts.Trusted(cwd, projectHash)
-
-	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-		if err != nil {
-			return fmt.Errorf("JANETCODE_DEBUG: %w", err)
-		}
-		defer f.Close()
-		ag.Debug = f
-		servers.Options.Debug = f
-	}
-
-	subjects := inspect.New()
-	registerSubjects(subjects, subjectDeps{
-		agent: ag, session: sess, cfg: cfg, cfgPath: cfgPath, cwd: cwd, version: version,
-		archive: archive, mem: mem, repo: repo, diag: diag, mcp: &servers, jobs: jobs,
-		task: task, skills: skills, rules: built.rules, ruleInjector: built.ruleInjector,
-	})
-	ag.Tools.Add(inspect.Tool{Registry: subjects})
-	// The feature catalogue is built from the tables this run is already
-	// holding: the flag set, the tool registry, the command table and the
-	// Config struct. It costs a few hundred small structs and no I/O.
-	catalog := buildCatalog(fs, ag.Tools)
-	registerFeatureSubject(subjects, catalog)
-	registerThemeSubject(subjects, cfg)
-	// Deferred: the model gets the schema only after asking for it, so a
-	// session that never wonders about the harness never pays for it.
-	ag.Tools.AddDeferred(feature.Introspect{Catalog: catalog})
-	if o.inspectWhat != "" {
-		return inspectOnce(subjects, o.inspectWhat, os.Stdout)
-	}
-
-	if o.recipeName != "" {
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-		if sess != nil {
-			defer func() { _ = sess.Sync() }()
-		}
-		r, err := recipe.Load(cwd, o.recipeName)
-		if err != nil {
-			return fmt.Errorf("--recipe: %w", err)
-		}
-		// A recipe is built through the same agent the normal headless
-		// run (-p) uses, so its steps see the same tools — including a
-		// configured MCP server's, when the recipe actually calls one.
-		// Starting every server for a recipe that never touches one would
-		// slow down the common case (plain file and shell steps) for
-		// nothing, so this only starts them when a step's tool name says
-		// otherwise; servers.Close is already deferred above, so whatever
-		// gets started here still shuts down on exit either way.
-		if agent.NeedsMCP(r) {
-			toStart := map[string]mcp.ServerConfig{}
-			for n, c := range cfg.MCPServers {
-				toStart[n] = c
-			}
-			if projectTrusted {
-				for n, c := range projectServers {
-					toStart[n] = c
-				}
-			} else if len(projectServers) > 0 {
-				fmt.Fprintf(os.Stderr, "[mcp] %s lists servers that are not trusted yet; open the TUI and run /mcp trust\n", mcp.ProjectFile)
-			}
-			servers.StartAll(ctx, toStart, func(name string, c *mcp.Client, err error) {
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "[mcp] %s failed: %v\n", name, err)
-					return
-				}
-				fmt.Fprintf(os.Stderr, "[mcp] %s ready: %d tools\n", name, len(c.Tools()))
-			})
-		}
-		return runRecipeFlag(ctx, ag, cwd, r, fs.Args(), os.Stdout, os.Stderr, os.Stdin)
-	}
-
-	// The hint engine remembers what it has already said, per project,
-	// in the config directory — never in the project itself. The record
-	// is read once, here; it is written only when a hint fires.
-	hintStore := hints.Open(cfgDir, memory.Key(cwd))
-	hintEngine := hints.New(hintStore.Load())
-	hintEngine.Off = !cfg.ShowHints()
-	hintEngine.Record = func(string) { _ = hintStore.Save(hintEngine.Shown(), hintEngine.Skipped()) }
-
-	// Which features this user has reached for, counted in memory and
-	// written once when the session ends. It stays on this machine:
-	// there is no endpoint and nothing in janetcode reads it but the
-	// hint rules and /stats.
-	usage := feature.OpenUsage(cfgDir)
-	defer func() { _ = usage.Flush() }()
-	fs.Visit(func(f *flag.Flag) { usage.Note(f.Name) })
-
-	if o.acpMode {
-		// The editor owns stdout: only ACP frames may go there, so every
-		// other message in this mode is already on stderr.
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-		first := built
-		used := false
-		srv := acp.New(acp.Options{
-			In: os.Stdin, Out: os.Stdout, Log: os.Stderr, Version: version,
-			NewAgent: func(sessionCwd, resume string) (acp.TurnRunner, *session.Session, error) {
-				// The editor says which directory the session is for, and
-				// it is not necessarily the one janetcode was launched
-				// from — an editor opens a workspace, not a terminal. Every
-				// tool is rooted at that directory, so it has to be the one
-				// the agent is built for.
-				root := cwd
-				if sessionCwd != "" {
-					if abs, err := filepath.Abs(sessionCwd); err == nil {
-						root = abs
-					}
-				}
-				s, hist := sess, history
-				if resume != "" {
-					var err error
-					if s, hist, err = session.Open(sessDir, resume); err != nil {
-						return nil, nil, err
-					}
-					if s.Meta.Cwd != "" {
-						root = s.Meta.Cwd
-					}
-				} else if used || root != cwd {
-					var err error
-					if s, err = session.New(sessDir, root, cfg.Provider, cfg.Model); err != nil {
-						return nil, nil, err
-					}
-					hist = nil
-				}
-				// The agent this process already built is only right when
-				// the session is for the directory it was built for.
-				if !used && resume == "" && root == cwd {
-					used = true
-					return acp.Wrap(first.agent), s, nil
-				}
-				used = true
-				d := deps
-				d.cwd = root
-				b, err := buildAgent(d, s, hist)
-				if err != nil {
-					return nil, nil, err
-				}
-				return acp.Wrap(b.agent), s, nil
-			},
-		})
-		fmt.Fprintf(os.Stderr, "janetcode %s serving ACP on stdio (%s/%s in %s)\n", version, cfg.Provider, cfg.Model, cwd)
-		return srv.Serve(ctx)
-	}
-
-	if o.promptText != "" || o.watchCmd != "" {
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-		text, atts := prompt.ExpandMentions(cwd, o.promptText)
-		for _, a := range atts {
-			fmt.Fprintf(os.Stderr, "[attached] %s\n", a.Path)
-		}
-		if extra := pipedStdin(); extra != "" {
-			text += "\n\n<stdin>\n" + extra + "\n</stdin>"
-		}
-		toStart := map[string]mcp.ServerConfig{}
-		for n, c := range cfg.MCPServers {
-			toStart[n] = c
-		}
-		if projectTrusted {
-			for n, c := range projectServers {
-				toStart[n] = c
-			}
-		} else if len(projectServers) > 0 {
-			fmt.Fprintf(os.Stderr, "[mcp] %s lists servers that are not trusted yet; open the TUI and run /mcp trust\n", mcp.ProjectFile)
-		}
-		servers.StartAll(ctx, toStart, func(name string, c *mcp.Client, err error) {
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "[mcp] %s failed: %v\n", name, err)
-				return
-			}
-			fmt.Fprintf(os.Stderr, "[mcp] %s ready: %d tools\n", name, len(c.Tools()))
-		})
-		// Appending syncs on a timer, not per event; a headless run has no
-		// settling step to force the last of it out, so it does that here.
-		if sess != nil {
-			defer func() { _ = sess.Sync() }()
-		}
-		return headless.Run(ctx, headless.Options{
-			Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
-			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
-			Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
-			Format: format, MaxCostUSD: o.maxCost,
-		})
-	}
-	if o.web {
-		if needsConnect {
-			return fmt.Errorf("no credentials yet: run janetcode without --web and use /connect, or set a key")
-		}
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-		toStart := map[string]mcp.ServerConfig{}
-		for n, c := range cfg.MCPServers {
-			toStart[n] = c
-		}
-		if projectTrusted {
-			for n, c := range projectServers {
-				toStart[n] = c
-			}
-		}
-		servers.StartAll(ctx, toStart, func(name string, c *mcp.Client, err error) {
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "[mcp] %s failed: %v\n", name, err)
-				return
-			}
-			fmt.Fprintf(os.Stderr, "[mcp] %s ready: %d tools\n", name, len(c.Tools()))
-		})
-		if sess != nil {
-			defer func() { _ = sess.Sync() }()
-		}
-		return webui.Run(ctx, webui.Options{
-			Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
-			Version: version, Addr: o.webAddr,
-			Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
-			Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For,
-			Workspace: built.ws,
-			Doctor: func(w io.Writer) error {
-				return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme})
-			},
-		})
-	}
-	return tui.Run(tui.Options{
-		Notes: cfg.Notes,
-		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: cfgDir,
-		Workspace: built.ws,
-		Memory:    mem, AutoMemory: cfg.AutoMemory(),
-		Config: cfg, ConfigPath: cfgPath, Build: buildProvider, Connect: needsConnect,
-		Resumed: len(history), Version: version, Theme: cfg.Theme, Themes: cfg.ThemeSet,
-		InitialPrompt: initial,
-		MCP: &tui.MCPOptions{
-			Manager: &servers, Global: cfg.MCPServers,
-			Project: projectServers, ProjectHash: projectHash, ProjectTrusted: projectTrusted, Trust: ts,
-			Tokens: tokens,
-		},
-		Hooks:    &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: ts},
-		LSP:      diag,
-		Inspect:  subjects,
-		Features: catalog,
-		Hints:    hintEngine,
-		Usage:    usage,
-		Untrusted: untrustedProjectFiles(untrustedInput{
-			mcp:       len(projectServers) > 0 && !projectTrusted,
-			hooks:     hooksCfg.Len() > 0 && !hooksTrusted,
-			perms:     len(projRules.Allow) > 0 && !permTrusted,
-			verifying: verifyDefined && !verifyTrusted,
-		}),
-		UnpricedModel: unpricedModel(cfg, os.Getenv),
-		Rules:         built.ruleInjector,
-		Models:        pool.For,
-		Jobs:          jobs,
-		Running:       deps.running,
-		Typed:         typed,
-		AutoTitle:     true,
-		Doctor: func(w io.Writer) error {
-			return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme})
-		},
-		Verify: &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: ts},
-		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: ts,
-			Save: func(kind string, r perm.Rule) error { return config.AddPermission(cfgPath, kind, r) }},
-	})
+	return r.dispatch()
 }
 
 // pipedStdin returns piped input (e.g. `git diff | janetcode -p "review"`),

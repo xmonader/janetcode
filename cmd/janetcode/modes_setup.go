@@ -8,12 +8,14 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"golang.org/x/term"
 
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/prompt"
@@ -185,4 +187,20 @@ func openSession(o *options, cfg *config.Config, sessDir, cwd string) (*session.
 		return nil, nil, fmt.Errorf("create session: %w", err)
 	}
 	return sess, nil, nil
+}
+
+// bgMode detaches the run: --bg starts the prompt in a background
+// process, prints the session id and returns.
+func bgMode(o *options, sess *session.Session, initial string) (bool, error) {
+	if !o.bg {
+		return false, nil
+	}
+	text := strings.TrimSpace(o.promptText)
+	if text == "" {
+		text = initial
+	}
+	if text == "" {
+		return true, fmt.Errorf("%w: --bg needs a prompt (-p or an argument)", headless.ErrBadInput)
+	}
+	return true, launchBackground(sess, text, o.addDir)
 }
