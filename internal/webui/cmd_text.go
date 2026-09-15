@@ -310,7 +310,7 @@ func (s *server) changesText(arg string) string {
 	if len(groups) == 0 {
 		return "no file changes in this session yet"
 	}
-	return agent.FormatChangeGroups(groups, s.opts.Cwd)
+	return agent.FormatChangeGroups(groups, s.opts.Cwd, s.opts.Agent.RestorableTurns())
 }
 
 func (s *server) diffText(path string) string {

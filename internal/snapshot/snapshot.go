@@ -153,6 +153,18 @@ func (r *Repo) Restore(ctx context.Context, s Snap) ([]string, error) {
 	return done, errors.Join(errs...)
 }
 
+// Moved reports whether HEAD is no longer where the snapshot was taken,
+// which is exactly what makes Restore refuse with ErrHeadMoved. A caller
+// that wants to say so before touching anything (see /undo turn) asks
+// here rather than finding out halfway through a restore.
+func (r *Repo) Moved(ctx context.Context, s Snap) (bool, error) {
+	head, err := r.head(ctx)
+	if err != nil {
+		return false, err
+	}
+	return head != s.Head, nil
+}
+
 // Drop deletes the ref anchoring a snapshot so gc can reclaim it.
 func (r *Repo) Drop(ctx context.Context, s Snap) {
 	if s.Commit != "" {

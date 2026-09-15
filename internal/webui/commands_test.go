@@ -2,10 +2,18 @@ package webui
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/slash"
+	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // TestDispatchCoversWebCommands checks webCommands, the slash table and
@@ -59,5 +67,96 @@ func TestAliasesObeyTheIdleGate(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "waits for the turn to finish") {
 			t.Errorf("%s during a running turn: err = %v, want a refusal", name, err)
 		}
+	}
+}
+
+// TestWebUndoTurnPreviewsThenApplies: the web UI gets "restore to before
+// a turn" through the same shared parser and core the terminal uses —
+// /undo turn n previews, /undo apply carries it out and tells the model.
+func TestWebUndoTurnPreviewsThenApplies(t *testing.T) {
+	root := t.TempDir()
+	sess, err := session.New(t.TempDir(), root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ag := &agent.Agent{
+		Provider: &scripted{responses: []*llm.Response{
+			{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+				{Type: llm.BlockText, Text: "first"},
+				{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"one.go","content":"package one\n"}`)},
+			}}, StopReason: llm.StopToolUse},
+			{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+			{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+				{Type: llm.BlockText, Text: "second"},
+				{Type: llm.BlockToolUse, ID: "w2", Name: "write_file", Input: json.RawMessage(`{"path":"two.go","content":"package two\n"}`)},
+			}}, StopReason: llm.StopToolUse},
+			{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+		}},
+		Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", Log: sess, AutoApprove: true,
+	}
+	s := newServer(context.Background(), Options{Agent: ag, Session: sess, Cwd: root, Version: "test"})
+	for _, p := range []string{"write one", "write two"} {
+		if err := ag.Run(context.Background(), p, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	idle := func() {
+		t.Helper()
+		for i := 0; i < 500; i++ {
+			s.mu.Lock()
+			running := s.running
+			s.mu.Unlock()
+			if !running {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatal("the command never finished")
+	}
+	text := func() string {
+		var sb strings.Builder
+		for _, e := range s.snapshotEntries() {
+			sb.WriteString(e.Name + " " + e.Text + "\n")
+		}
+		return sb.String()
+	}
+
+	if err := s.runCommand("/undo turn 2"); err != nil {
+		t.Fatal(err)
+	}
+	idle()
+	if out := text(); !strings.Contains(out, "before turn 2") || !strings.Contains(out, "two.go") {
+		t.Fatalf("preview:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "two.go")); err != nil {
+		t.Fatalf("the preview touched the tree: %v", err)
+	}
+
+	if err := s.runCommand("/undo apply"); err != nil {
+		t.Fatal(err)
+	}
+	idle()
+	if _, err := os.Stat(filepath.Join(root, "two.go")); !os.IsNotExist(err) {
+		t.Fatalf("turn 2's file survived: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "one.go")); err != nil {
+		t.Fatalf("turn 1's file went too: %v", err)
+	}
+	var told bool
+	for _, m := range ag.Messages {
+		if strings.Contains(m.Text(), "reverted some of your earlier changes") && strings.Contains(m.Text(), "two.go") {
+			told = true
+		}
+	}
+	if !told {
+		t.Fatal("the model was not told what the restore reverted")
+	}
+	// A turn with no snapshot is refused, not half-applied.
+	if err := s.runCommand("/undo turn 9"); err != nil {
+		t.Fatal(err)
+	}
+	idle()
+	if out := text(); !strings.Contains(out, "no snapshot for that turn") {
+		t.Fatalf("no refusal for a turn that cannot be restored:\n%s", out)
 	}
 }

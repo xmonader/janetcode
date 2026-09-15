@@ -507,6 +507,8 @@ func (m *model) cmdUndo(text string, fields []string) (tea.Cmd, bool) {
 	switch {
 	case ua.Apply:
 		return m.undoApplyCommand(ua.Force), true
+	case ua.Turn != 0:
+		return m.undoTurnCommand(ua.Turn), true
 	case ua.About:
 		if ua.Description == "" {
 			m.transcript.errorf("usage: /undo about <description>")

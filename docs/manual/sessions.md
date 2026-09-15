@@ -39,6 +39,35 @@ janetcode --bg "fix the tests"
 Inside the TUI, `/resume` lists the sessions for the directory and
 `/resume 2` reopens one.
 
+## Fork lineage in the listing
+
+Because `/fork` records which session a copy came from, every listing of
+sessions — the `/resume` picker, `janetcode --sessions`, the web UI's
+session list — draws the branches instead of a flat run of rows:
+
+```
+20250915-101500-ab12  the parser rewrite
+└ 20250915-112000-cd34  the lexer branch
+  └ 20250915-131000-ef56  the lexer branch, without the cache
+20250915-090000-7788  a stray fork   (fork of 20250901-120000-9900, not listed here)
+```
+
+The rules are the same everywhere:
+
+- Sessions that are nobody's fork keep the order the listing already
+  used — most recent activity first, settled ones last. A fork follows
+  the session it came from, and forks of one session keep that same
+  order among themselves.
+- The session you are in is marked `current`, a settled one `settled`.
+- Indenting stops after three levels: a longer chain is still listed, at
+  that depth, with a `…` instead of the branch mark.
+- A fork whose parent is not in this listing — deleted, or made in
+  another directory — is listed at top level and says where its parent
+  went, rather than looking like a conversation that started on its own.
+- Typing in the `/resume` picker filters the list and keeps a match's
+  parents on screen, marked `parent of a match`, so a fork is never shown
+  adrift from the conversation it branched off.
+
 When the context grows past `compact_at` tokens (80k by default: far below
 any modern window, because a smaller working context is cheaper, caches
 better and is attended to better), or the model reports the prompt is too

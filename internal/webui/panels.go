@@ -55,13 +55,22 @@ func (s *server) sessionsAPI(w http.ResponseWriter, r *http.Request) {
 		Updated  string `json:"updated"`
 		Current  bool   `json:"current"`
 		Settled  bool   `json:"settled"`
+		// Depth, Prefix and Note carry the fork lineage (see
+		// session.Lineage): a fork is listed under the session it was
+		// copied from, and one whose parent is not in this listing says so.
+		Depth  int    `json:"depth"`
+		Prefix string `json:"prefix"`
+		Note   string `json:"note,omitempty"`
 	}
-	out := make([]row, 0, len(infos))
-	for _, in := range infos {
+	nodes := session.Lineage(infos, cur)
+	out := make([]row, 0, len(nodes))
+	for _, n := range nodes {
+		in := n.Info
 		out = append(out, row{
 			ID: in.Meta.ID, Label: in.Label(), Title: in.Meta.Title,
 			Messages: in.Messages, Updated: in.Updated.Format(time.RFC3339),
-			Current: in.Meta.ID == cur, Settled: in.Meta.Settled,
+			Current: n.Current, Settled: in.Meta.Settled,
+			Depth: n.Depth, Prefix: n.Prefix(), Note: n.Note(),
 		})
 	}
 	writeJSON(w, out)

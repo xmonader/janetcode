@@ -4444,3 +4444,113 @@ func TestPermissionKeysShowTheLadderHint(t *testing.T) {
 		}
 	}
 }
+
+// TestResumePickerShowsForkLineage: the fork /fork stay made is listed
+// indented under the conversation it was copied from, and searching for
+// the fork keeps the parent on screen for context.
+func TestResumePickerShowsForkLineage(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "the original answer"), StopReason: llm.StopEndTurn})
+	h.keys("about the parser")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	h.keys("/fork stay the lexer branch")
+	h.enter()
+	h.keys("/clear")
+	h.enter()
+	h.keys("/resume")
+	h.enter()
+	if h.m.picker == nil {
+		t.Fatal("/resume should open the picker")
+	}
+	v := plain(h.m.View())
+	var forkLine, parentLine string
+	for _, l := range strings.Split(v, "\n") {
+		if strings.Contains(l, "the lexer branch") {
+			forkLine = l
+		}
+		if strings.Contains(l, "about the parser") {
+			parentLine = l
+		}
+	}
+	if parentLine == "" || forkLine == "" {
+		t.Fatalf("listing lacks the pair:\n%s", v)
+	}
+	if !strings.Contains(forkLine, "└ ") {
+		t.Fatalf("the fork is not drawn under its parent:\n%s", v)
+	}
+	if strings.Contains(parentLine, "└ ") {
+		t.Fatalf("the parent is indented:\n%s", v)
+	}
+	// Searching for the fork keeps its parent, marked as context.
+	h.keys("lexer")
+	v = plain(h.m.View())
+	if !strings.Contains(v, "the lexer branch") || !strings.Contains(v, "about the parser") {
+		t.Fatalf("filtering dropped the match's parent:\n%s", v)
+	}
+	if !strings.Contains(v, "parent of a match") {
+		t.Fatalf("the parent is not marked as context:\n%s", v)
+	}
+}
+
+// TestUndoTurnPreviewThenApply drives "restore to before a turn" through
+// the terminal: /undo turn 2 lists what it would change and touches
+// nothing, and the same /undo apply that carries out /undo about carries
+// this out too.
+func TestUndoTurnPreviewThenApply(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "Add the first file."},
+			{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"one.go","content":"package one\n"}`)},
+		}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "Add the second file."},
+			{Type: llm.BlockToolUse, ID: "w2", Name: "write_file", Input: json.RawMessage(`{"path":"two.go","content":"package two\n"}`)},
+		}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+	)
+	h.m.opts.Agent.AutoApprove = true
+	h.m.opts.Agent.Tools = tool.NewRegistry(tool.WriteFile{Root: h.m.opts.Cwd})
+	for _, p := range []string{"write one", "write two"} {
+		h.keys(p)
+		h.enter()
+		h.pump(func() bool { return !h.m.turn.running })
+	}
+	// /changes says which turn can be restored to.
+	h.keys("/changes")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "[restorable]") || !strings.Contains(v, "/undo turn") {
+		t.Fatalf("/changes does not offer a turn to restore to:\n%s", v)
+	}
+
+	h.keys("/undo turn 2")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	v := plain(h.m.View())
+	if !strings.Contains(v, "before turn 2") {
+		t.Fatalf("preview does not say what it would restore to:\n%s", v)
+	}
+	if !strings.Contains(v, "two.go") || !strings.Contains(v, "/undo apply") {
+		t.Fatalf("preview:\n%s", v)
+	}
+	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "two.go")); err != nil {
+		t.Fatalf("the preview must not touch anything: %v", err)
+	}
+
+	h.keys("/undo apply")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "two.go")); !os.IsNotExist(err) {
+		t.Fatalf("turn 2's file should be gone: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "one.go")); err != nil {
+		t.Fatalf("turn 1's file should have stayed: %v", err)
+	}
+	// A turn with no snapshot left is refused, in as many words.
+	h.keys("/undo turn 9")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	if v := plain(h.m.View()); !strings.Contains(v, "no snapshot for that turn") {
+		t.Fatalf("a turn with no snapshot was not refused:\n%s", v)
+	}
+}

@@ -139,9 +139,9 @@ var configWhen = map[string][2]string{
 // the harness has already done.
 var harnessFeatures = []feature.Feature{
 	{Name: "undo checkpoints", Kind: feature.KindBehave, Invoke: "/undo", Manual: "interface",
-		What:   "every turn that changes files is checkpointed first, in git where there is a repository and by file copy where there is not",
-		When:   "you never have to ask for a backup before letting the model edit",
-		Topics: []string{"backup", "revert", "safety", "checkpoint", "snapshot"}},
+		What:   "every turn that changes files is checkpointed first, in git where there is a repository and by file copy where there is not; /undo turn <n> goes back to any of them at once",
+		When:   "you never have to ask for a backup before letting the model edit, and a whole run of turns can be rolled back as one",
+		Topics: []string{"backup", "revert", "safety", "checkpoint", "snapshot", "restore", "rollback", "turn"}},
 	{Name: "verify gate", Kind: feature.KindBehave, Invoke: "/verify set <cmd>", Manual: "interface",
 		What:   "configured check commands run after a turn that changed code, and failures go back to the model to fix",
 		When:   "you want the loop closed without watching it",

@@ -142,11 +142,14 @@ func (m *model) completeUndo(partial string) []command {
 	out := []command{
 		{name: "/undo preview", help: "list what would be reverted"},
 		{name: "/undo about", help: "preview only the changes matching a description"},
-		{name: "/undo apply", help: "revert the selection from the last /undo about"},
+		{name: "/undo apply", help: "carry out the last /undo about or /undo turn preview"},
 		{name: "/undo apply --force", help: "same, even if the preview has mixed changes or a coupling warning"},
 	}
 	if m.opts.Agent == nil {
 		return out
+	}
+	for _, t := range m.opts.Agent.RestorableTurns() {
+		out = append(out, command{name: fmt.Sprintf("/undo turn %d", t), help: "put the whole work tree back to before that turn"})
 	}
 	for i, c := range m.opts.Agent.Changes() {
 		if c.Undone {
