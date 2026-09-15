@@ -4444,3 +4444,50 @@ func TestPermissionKeysShowTheLadderHint(t *testing.T) {
 		}
 	}
 }
+
+// TestResumePickerShowsForkLineage: the fork /fork stay made is listed
+// indented under the conversation it was copied from, and searching for
+// the fork keeps the parent on screen for context.
+func TestResumePickerShowsForkLineage(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "the original answer"), StopReason: llm.StopEndTurn})
+	h.keys("about the parser")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	h.keys("/fork stay the lexer branch")
+	h.enter()
+	h.keys("/clear")
+	h.enter()
+	h.keys("/resume")
+	h.enter()
+	if h.m.picker == nil {
+		t.Fatal("/resume should open the picker")
+	}
+	v := plain(h.m.View())
+	var forkLine, parentLine string
+	for _, l := range strings.Split(v, "\n") {
+		if strings.Contains(l, "the lexer branch") {
+			forkLine = l
+		}
+		if strings.Contains(l, "about the parser") {
+			parentLine = l
+		}
+	}
+	if parentLine == "" || forkLine == "" {
+		t.Fatalf("listing lacks the pair:\n%s", v)
+	}
+	if !strings.Contains(forkLine, "└ ") {
+		t.Fatalf("the fork is not drawn under its parent:\n%s", v)
+	}
+	if strings.Contains(parentLine, "└ ") {
+		t.Fatalf("the parent is indented:\n%s", v)
+	}
+	// Searching for the fork keeps its parent, marked as context.
+	h.keys("lexer")
+	v = plain(h.m.View())
+	if !strings.Contains(v, "the lexer branch") || !strings.Contains(v, "about the parser") {
+		t.Fatalf("filtering dropped the match's parent:\n%s", v)
+	}
+	if !strings.Contains(v, "parent of a match") {
+		t.Fatalf("the parent is not marked as context:\n%s", v)
+	}
+}

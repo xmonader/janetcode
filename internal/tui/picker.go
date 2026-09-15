@@ -34,6 +34,11 @@ type picker struct {
 	// choose is called with the highlighted row, or with a zero row and
 	// the typed text when nothing matches and free text is allowed.
 	choose func(r row, typed string) tea.Cmd
+	// filter replaces the plain word match when the list is more than a
+	// flat list: the session picker keeps a match's parents so a fork is
+	// never shown adrift from what it branched off (see
+	// session.FilterLineage).
+	filter func(rows []row, query string) []row
 	// freeText allows enter with no match, handing over the typed text.
 	freeText bool
 }
@@ -58,7 +63,11 @@ func (m *model) closePicker() {
 // pickerRows are the rows matching the search field, and the highlight.
 func (m *model) pickerRows() ([]row, int) {
 	p := m.picker
-	out := matchRows(p.rows, p.field.Value())
+	match := matchRows
+	if p.filter != nil {
+		match = p.filter
+	}
+	out := match(p.rows, p.field.Value())
 	if v := p.field.Value(); v != p.idxFor {
 		p.idxFor, p.idx = v, 0
 	}
@@ -155,7 +164,10 @@ func (m *model) pickerView(height int) string {
 
 // openSessionPicker lists the sessions recorded for this directory in a
 // searchable list, with the title, how long ago it was touched and how
-// many messages it holds. /resume <n|id> still works without it.
+// many messages it holds. Forks are indented under the session they were
+// copied from (see session.Lineage), so the list shows where a
+// conversation came from; searching keeps a match's parents for that
+// same reason. /resume <n|id> still works without it.
 func (m *model) openSessionPicker() tea.Cmd {
 	infos, err := session.List(dirOf(m.opts.Session), m.opts.Cwd)
 	if err != nil {
@@ -163,37 +175,70 @@ func (m *model) openSessionPicker() tea.Cmd {
 		m.refresh(false)
 		return nil
 	}
-	var rows []row
+	cur := m.opts.Session.Meta.ID
+	// A session with nothing in it is not worth reopening; this one is
+	// listed, marked, so its own forks hang under it rather than reading
+	// as forks of something that is not here.
+	var keep []session.Info
 	for _, in := range infos {
-		if in.Meta.ID == m.opts.Session.Meta.ID || in.Messages == 0 {
-			continue
+		if in.Messages > 0 || in.Meta.ID == cur {
+			keep = append(keep, in)
 		}
-		label := in.Label()
-		mark := ""
-		if in.Meta.Settled {
-			mark = "settled"
+	}
+	nodes := session.Lineage(keep, cur)
+	var rows []row
+	for _, n := range nodes {
+		in := n.Info
+		tag := n.Mark()
+		if note := n.Note(); note != "" {
+			tag = note
 		}
 		rows = append(rows, row{
-			key:   in.Meta.ID + " " + label,
-			cells: []string{in.Meta.ID, textfmt.Age(time.Since(in.Updated)), textfmt.Plural(in.Messages, "msg"), label},
-			tag:   mark,
+			key:   n.SearchKey(),
+			cells: []string{in.Meta.ID, textfmt.Age(time.Since(in.Updated)), textfmt.Plural(in.Messages, "msg"), n.Prefix() + in.Label()},
+			tag:   tag,
 			name:  in.Meta.ID,
 		})
 	}
-	if len(rows) == 0 {
+	if len(rows) == 0 || (len(rows) == 1 && rows[0].name == cur) {
 		m.transcript.info("no earlier sessions in " + shortPath(m.opts.Cwd))
 		m.refresh(false)
 		return nil
 	}
 	return m.openPicker(&picker{
 		title:    "Reopen a session",
-		hint:     "most recent activity first · type to search titles and ids",
+		hint:     "most recent activity first, forks under what they branched off · type to search titles and ids",
 		rows:     rows,
 		freeText: true,
+		filter: func(rs []row, query string) []row {
+			kept := session.FilterLineage(nodes, query)
+			keep := make(map[string]bool, len(kept))
+			context := make(map[string]bool, len(kept))
+			for _, n := range kept {
+				keep[n.Info.Meta.ID] = true
+				context[n.Info.Meta.ID] = n.Context
+			}
+			var out []row
+			for _, r := range rs {
+				if !keep[r.name] {
+					continue
+				}
+				if context[r.name] && r.tag == "" {
+					r.tag = "parent of a match"
+				}
+				out = append(out, r)
+			}
+			return out
+		},
 		choose: func(r row, typed string) tea.Cmd {
 			id := r.name
 			if id == "" {
 				id = typed
+			}
+			if id == cur {
+				m.note("already in this session")
+				m.refresh(false)
+				return nil
 			}
 			m.resume(id)
 			m.refresh(false)

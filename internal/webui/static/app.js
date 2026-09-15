@@ -567,7 +567,7 @@
       const ul = document.getElementById("sessions");
       if (!rows.length) { ul.innerHTML = `<li class="quiet">No other sessions</li>`; return; }
       ul.innerHTML = rows.slice(0, 40).map((r) =>
-        `<li class="${r.current ? "on" : ""}" data-id="${esc(r.id)}" title="Resume this conversation"><span>${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}</span></li>`
+        `<li class="${r.current ? "on" : ""}" data-id="${esc(r.id)}" title="${esc(r.note || "Resume this conversation")}" style="padding-left:${8 + (r.depth || 0) * 10}px"><span>${esc(r.prefix || "")}${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}${r.note ? " · parent elsewhere" : ""}</span></li>`
       ).join("");
     } catch (_) {}
   }

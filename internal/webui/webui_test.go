@@ -758,3 +758,74 @@ func TestPermissionLadderPayloadAndChoice(t *testing.T) {
 		}
 	}
 }
+
+// TestWebSessionListCarriesForkLineage: the web UI's session list gets
+// the same shape the terminal picker draws — a fork under the session it
+// was copied from, and a fork whose parent is not listed saying so.
+func TestWebSessionListCarriesForkLineage(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	root := t.TempDir()
+	dir, err := session.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(s *session.Session, text string) {
+		msg := llm.Message{Role: llm.RoleUser, Blocks: []llm.Block{{Text: text}}}
+		if _, err := s.Append(session.Event{Type: session.TypeUserMessage, Message: &msg}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	parent, err := session.New(dir, root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(parent, "the original")
+	child, err := session.Fork(dir, parent, "the fork")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stray, err := session.New(dir, root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(stray, "a stray fork")
+	stray.Meta.ForkOf = "20000101-000000-dead"
+	if err := stray.SetTitle("a stray fork"); err != nil {
+		t.Fatal(err)
+	}
+
+	ag := &agent.Agent{Provider: &scripted{}, Model: "m", Log: parent}
+	ts := httptest.NewServer(testHandler(Options{Agent: ag, Session: parent, Cwd: root, Version: "test"}))
+	defer ts.Close()
+	res, err := http.Get(ts.URL + "/api/sessions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var rows []struct {
+		ID      string `json:"id"`
+		Depth   int    `json:"depth"`
+		Prefix  string `json:"prefix"`
+		Note    string `json:"note"`
+		Current bool   `json:"current"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&rows); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]int{}
+	for i, r := range rows {
+		byID[r.ID] = i
+	}
+	pi, ci, si := byID[parent.Meta.ID], byID[child.Meta.ID], byID[stray.Meta.ID]
+	if rows[pi].Depth != 0 || !rows[pi].Current {
+		t.Fatalf("parent row = %+v", rows[pi])
+	}
+	if rows[ci].Depth != 1 || ci != pi+1 || rows[ci].Prefix == "" {
+		t.Fatalf("fork row = %+v (parent at %d, fork at %d)", rows[ci], pi, ci)
+	}
+	if rows[si].Depth != 0 || !strings.Contains(rows[si].Note, "not listed here") {
+		t.Fatalf("stray row = %+v", rows[si])
+	}
+}
