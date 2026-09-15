@@ -23,7 +23,7 @@ var webCommands = []string{
 	"/stats", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills",
 	"/pin", "/unpin", "/title", "/model", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/ssh", "/docker", "/reload",
-	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe",
+	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp",
 }
 
 var webArgs = map[string]string{
@@ -37,6 +37,7 @@ var webArgs = map[string]string{
 	"/remember":    "[-g] <fact>",
 	"/permissions": "",
 	"/eval":        "keep [name] [--check cmd]",
+	"/mcp":         "[add <name> <command|url> | add --from <repo> --yes | remove <name> --yes]",
 }
 
 var commandSpecs = func() []slash.Command {
@@ -270,6 +271,10 @@ var webDispatch = map[string]webHandler{
 	},
 	"/recipe": func(s *server, arg string) (bool, error) {
 		s.recipeCommand(arg)
+		return false, nil
+	},
+	"/mcp": func(s *server, arg string) (bool, error) {
+		s.mcpCommand(arg)
 		return false, nil
 	},
 	"/feedback": func(s *server, arg string) (bool, error) {
