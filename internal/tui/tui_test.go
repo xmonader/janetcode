@@ -4336,3 +4336,28 @@ func TestSideWorkLeavesNoStaleStatus(t *testing.T) {
 		t.Fatalf("status after /undo apply finished:\n%s", v)
 	}
 }
+
+// TestAliasesObeyTheIdleGate: an alias of an idle-only command is
+// refused mid-turn exactly as the canonical name is. The gate used to
+// look the typed name up in the slash table, which lists canonical names
+// only, so /new started a new session out from under a running turn
+// while /clear was correctly refused.
+func TestAliasesObeyTheIdleGate(t *testing.T) {
+	if slash.Canonical("/new") != "/clear" {
+		t.Fatal("/new should be an alias of /clear")
+	}
+	for _, name := range []string{"/clear", "/new"} {
+		block := make(chan struct{})
+		h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+		h.m.opts.Agent.Provider = &heldOpen{until: block, inner: h.m.opts.Agent.Provider}
+		h.keys("go")
+		h.enter()
+		h.keys(name)
+		h.enter()
+		if v := plain(h.m.View()); !strings.Contains(v, name+" waits for the turn to finish") {
+			t.Errorf("%s during a running turn was not refused:\n%s", name, v)
+		}
+		close(block)
+		h.pump(func() bool { return !h.m.turn.running })
+	}
+}

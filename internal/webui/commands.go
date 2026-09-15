@@ -287,8 +287,11 @@ func (s *server) runCommand(text string) error {
 	s.mu.Lock()
 	running := s.running
 	s.mu.Unlock()
+	// The idle-only check is on the canonical name: /new is /clear, and
+	// matching only the table names let every alias straight past it.
+	canon := slash.Canonical(name)
 	for _, c := range commandSpecs {
-		if c.Name == name && c.Idle && running {
+		if c.Name == canon && c.Idle && running {
 			return fmt.Errorf("%s waits for the turn to finish (esc cancels it)", name)
 		}
 	}
