@@ -1,10 +1,10 @@
-package slash
+package feature
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/xmonader/janetcode/internal/feature"
+	"github.com/xmonader/janetcode/internal/slash"
 )
 
 // TestEveryCommandIsCatalogued is the drift gate. A command the user can
@@ -13,10 +13,10 @@ import (
 // list it, and the model will not know it exists. Adding a command
 // therefore has to mean adding a line saying when it helps.
 func TestEveryCommandIsCatalogued(t *testing.T) {
-	cat := feature.New()
-	cat.AddAll(Features())
-	for _, c := range Commands {
-		f, ok := cat.Get(feature.KindCommand, c.Name)
+	cat := New()
+	cat.AddAll(Commands())
+	for _, c := range slash.Commands {
+		f, ok := cat.Get(KindCommand, c.Name)
 		if !ok {
 			t.Errorf("%s is in the command table but not in the catalogue", c.Name)
 			continue
@@ -25,7 +25,7 @@ func TestEveryCommandIsCatalogued(t *testing.T) {
 			t.Errorf("%s has no description", c.Name)
 		}
 		if strings.TrimSpace(f.When) == "" {
-			t.Errorf("%s has no \"when it helps\" line: add one to When in features.go", c.Name)
+			t.Errorf("%s has no \"when it helps\" line: add one to commandWhen in commands.go", c.Name)
 		}
 	}
 }

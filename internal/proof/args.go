@@ -1,6 +1,6 @@
 package proof
 
-import "github.com/xmonader/janetcode/internal/slash"
+import "github.com/xmonader/janetcode/internal/slash/args"
 
 // Action is what a /proof invocation (or `janetcode --proof`) asks for.
 type Action string
@@ -36,7 +36,7 @@ type Args struct {
 // [remote]" for the other two. Shared by every front end (the terminal,
 // the web UI, and the CLI flag) so the shape is defined once.
 func ParseArgs(s string) Args {
-	t, _ := slash.Tokenize(s, slash.ArgSpec{})
+	t, _ := args.Tokenize(s, args.Spec{})
 	fields := t.Positional
 	if len(fields) == 0 {
 		return Args{Action: ActionShow}

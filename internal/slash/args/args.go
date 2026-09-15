@@ -1,4 +1,8 @@
-package slash
+// Package args tokenizes the argument text of a slash command into
+// positional arguments, flags and key=value pairs. It imports only the
+// standard library, so any package that parses a command's arguments can
+// use it without pulling in the command table.
+package args
 
 import (
 	"fmt"
@@ -7,10 +11,10 @@ import (
 	"unicode"
 )
 
-// ArgSpec describes the flags one command's argument text may carry, for
+// Spec describes the flags one command's argument text may carry, for
 // Tokenize. Every flag is matched as a whole whitespace-separated token,
 // so a flag's name inside a longer word ("fix--checker") is not a flag.
-type ArgSpec struct {
+type Spec struct {
 	// Bool flags take no value: "--dry-run".
 	Bool []string
 	// Value flags take the next token as their value: "--turn 4".
@@ -26,13 +30,13 @@ type ArgSpec struct {
 // Args is argument text split by Tokenize.
 type Args struct {
 	// Positional is every token that is not a flag, flag value, or
-	// (with ArgSpec.KV) key=value pair, in order.
+	// (with Spec.KV) key=value pair, in order.
 	Positional []string
 	// Flags maps each flag present to its value ("" for a Bool flag, or
 	// a Rest flag with nothing after it). A later repeat wins.
 	Flags map[string]string
 	// KV maps each key=value token's key to its value. A later repeat
-	// wins. Nil unless ArgSpec.KV.
+	// wins. Nil unless Spec.KV.
 	KV map[string]string
 }
 
@@ -57,7 +61,7 @@ func (e *EmptyKeyError) Error() string { return fmt.Sprintf("bad parameter %q", 
 // flags and key=value pairs as spec describes. It is the one tokenizer
 // the per-command parsers (/eval keep, /recipe, /undo, /proof, /accept)
 // build on, so a flag means the same thing wherever it appears.
-func Tokenize(arg string, spec ArgSpec) (Args, error) {
+func Tokenize(arg string, spec Spec) (Args, error) {
 	out := Args{Flags: map[string]string{}}
 	if spec.KV {
 		out.KV = map[string]string{}

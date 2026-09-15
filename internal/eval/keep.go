@@ -19,7 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/session"
-	"github.com/xmonader/janetcode/internal/slash"
+	"github.com/xmonader/janetcode/internal/slash/args"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/verify"
 )
@@ -236,7 +236,7 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 // take as long as the check does, so front-ends call this off their UI
 // goroutine and ctx cancels it.
 func KeepCommand(ctx context.Context, opts KeepOptions, arg string) (cmdresult.Result, error) {
-	verb, rest := slash.CutWord(arg)
+	verb, rest := args.CutWord(arg)
 	if verb != "keep" {
 		return cmdresult.Result{}, errors.New("usage: /eval keep [name] [--base <rev>] [--self-contained] [--check <command>]")
 	}
@@ -267,7 +267,7 @@ func KeepCommand(ctx context.Context, opts KeepOptions, arg string) (cmdresult.R
 // come last; --base and --self-contained may appear anywhere before it.
 func ParseKeepArgs(arg string) (name, check, base string, selfContained bool, err error) {
 	usage := errors.New("usage: /eval keep [name] [--base <rev>] [--self-contained] [--check <command>]")
-	t, err := slash.Tokenize(arg, slash.ArgSpec{Bool: []string{"--self-contained"}, Value: []string{"--base"}, Rest: []string{"--check"}})
+	t, err := args.Tokenize(arg, args.Spec{Bool: []string{"--self-contained"}, Value: []string{"--base"}, Rest: []string{"--check"}})
 	if err != nil {
 		return "", "", "", false, usage
 	}

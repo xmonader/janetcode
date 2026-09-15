@@ -26,7 +26,7 @@ import (
 	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
-	"github.com/xmonader/janetcode/internal/slash"
+	"github.com/xmonader/janetcode/internal/slash/args"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -432,7 +432,7 @@ func List(root string) ([]Recipe, error) {
 // /eval keep's --check, it takes the rest of the line, so it is cut out
 // before the k=v tokenising ParseSaveArgs does.
 func CutDesc(arg string) (rest, desc string) {
-	t, _ := slash.Tokenize(arg, slash.ArgSpec{Rest: []string{"--desc"}})
+	t, _ := args.Tokenize(arg, args.Spec{Rest: []string{"--desc"}})
 	return strings.Join(t.Positional, " "), t.Flags["--desc"]
 }
 
@@ -440,11 +440,11 @@ func CutDesc(arg string) (rest, desc string) {
 // [k=v ...]`. Params come back as a map ready for Parameterise.
 func ParseSaveArgs(arg string) (name string, turn int, params map[string]string, err error) {
 	const usage = "usage: /recipe save <name> [--turn n] [k=v ...]"
-	name, rest := slash.CutWord(arg)
+	name, rest := args.CutWord(arg)
 	if name == "" {
 		return "", 0, nil, errors.New(usage)
 	}
-	t, err := slash.Tokenize(rest, slash.ArgSpec{Value: []string{"--turn"}, KV: true})
+	t, err := args.Tokenize(rest, args.Spec{Value: []string{"--turn"}, KV: true})
 	if err != nil {
 		return "", 0, nil, argError(err, "parameter", usage)
 	}
@@ -463,13 +463,13 @@ func ParseSaveArgs(arg string) (name string, turn int, params map[string]string,
 
 // ParseRunArgs reads the argument to /recipe run: `<name> [--dry-run]
 // [k=v ...]`.
-func ParseRunArgs(arg string) (name string, args map[string]string, dryRun bool, err error) {
+func ParseRunArgs(arg string) (name string, params map[string]string, dryRun bool, err error) {
 	const usage = "usage: /recipe run <name> [--dry-run] [k=v ...]"
-	name, rest := slash.CutWord(arg)
+	name, rest := args.CutWord(arg)
 	if name == "" {
 		return "", nil, false, errors.New(usage)
 	}
-	t, err := slash.Tokenize(rest, slash.ArgSpec{Bool: []string{"--dry-run"}, KV: true})
+	t, err := args.Tokenize(rest, args.Spec{Bool: []string{"--dry-run"}, KV: true})
 	if err != nil {
 		return "", nil, false, argError(err, "argument", usage)
 	}
@@ -479,15 +479,15 @@ func ParseRunArgs(arg string) (name string, args map[string]string, dryRun bool,
 	return name, t.KV, t.Has("--dry-run"), nil
 }
 
-// argError words a slash.Tokenize error the way /recipe always has:
+// argError words an args.Tokenize error the way /recipe always has:
 // noun names what a k=v token is ("parameter" for save, "argument" for
 // run).
 func argError(err error, noun, usage string) error {
-	var mv *slash.MissingValueError
+	var mv *args.MissingValueError
 	if errors.As(err, &mv) {
 		return fmt.Errorf("%s needs a number; %s", mv.Flag, usage)
 	}
-	var ek *slash.EmptyKeyError
+	var ek *args.EmptyKeyError
 	if errors.As(err, &ek) {
 		return fmt.Errorf("bad %s %q", noun, ek.Token)
 	}

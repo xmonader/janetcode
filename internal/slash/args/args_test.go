@@ -1,4 +1,4 @@
-package slash
+package args
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestTokenize(t *testing.T) {
-	spec := ArgSpec{Bool: []string{"--dry"}, Value: []string{"--turn"}, Rest: []string{"--desc"}, KV: true}
+	spec := Spec{Bool: []string{"--dry"}, Value: []string{"--turn"}, Rest: []string{"--desc"}, KV: true}
 	got, err := Tokenize("  deploy --turn 4 env=prod --dry extra --desc  the rest --turn 9 ", spec)
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +36,7 @@ func TestTokenize(t *testing.T) {
 	if _, err := Tokenize("=v", spec); !errors.As(err, &ek) {
 		t.Fatalf("empty key: got %v", err)
 	}
-	if got, _ := Tokenize("a=b", ArgSpec{}); !reflect.DeepEqual(got.Positional, []string{"a=b"}) {
+	if got, _ := Tokenize("a=b", Spec{}); !reflect.DeepEqual(got.Positional, []string{"a=b"}) {
 		t.Fatalf("KV off: got %+v", got)
 	}
 }

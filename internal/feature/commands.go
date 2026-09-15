@@ -1,9 +1,9 @@
-package slash
+package feature
 
-import "github.com/xmonader/janetcode/internal/feature"
+import "github.com/xmonader/janetcode/internal/slash"
 
-// When is the "when it helps" line for each built-in command.
-var When = map[string]string{
+// commandWhen is the "when it helps" line for each built-in command.
+var commandWhen = map[string]string{
 	"/help":        "you want the keys, or what a feature is called: /help <topic> searches the catalogue and the manual",
 	"/compact":     "the context gauge is high and you would rather summarise now than mid-task",
 	"/clear":       "the next thing you want is unrelated to this conversation",
@@ -72,18 +72,18 @@ var When = map[string]string{
 	"/recipe":      "a turn's tool calls worked and you would rather replay them for free next time than pay a model to redo the same steps",
 }
 
-// Invoke overrides what the catalogue says to type, for the few
+// commandInvoke overrides what the catalogue says to type, for the few
 // commands whose argument is not in the table. /help takes a topic but
 // carries no args, so that enter on it in the command menu prints the
 // sheet instead of waiting for one.
-var Invoke = map[string]string{
+var commandInvoke = map[string]string{
 	"/help": "/help [topic]",
 }
 
-// Topics adds search words for commands whose name does not
+// commandTopics adds search words for commands whose name does not
 // contain the word a user would search for. It is deliberately short:
 // the description already carries most of the vocabulary.
-var Topics = map[string][]string{
+var commandTopics = map[string][]string{
 	"/compact":     {"context", "full", "window", "summarise", "shrink", "long", "output", "forgot", "forget", "lost"},
 	"/context":     {"window", "full", "tokens", "gauge", "budget"},
 	"/undo":        {"revert", "checkpoint", "snapshot", "mistake", "restore"},
@@ -120,27 +120,27 @@ var Topics = map[string][]string{
 	"/recipe":      {"replay", "script", "automation", "macro", "save", "run", "no model", "tokens"},
 }
 
-// Features renders the commands as catalogue entries. It reads the
+// Commands renders the slash command table as catalogue entries. It reads the
 // tables and nothing else, so it is safe to call before a session exists
 // (--inspect features does). TestEveryCommandIsCatalogued fails when a
 // command has no When line.
-func Features() []feature.Feature {
-	out := make([]feature.Feature, 0, len(Commands))
-	for _, c := range Commands {
+func Commands() []Feature {
+	out := make([]Feature, 0, len(slash.Commands))
+	for _, c := range slash.Commands {
 		invoke := c.Name
 		switch {
-		case Invoke[c.Name] != "":
-			invoke = Invoke[c.Name]
+		case commandInvoke[c.Name] != "":
+			invoke = commandInvoke[c.Name]
 		case c.Args != "":
 			invoke += " " + c.Args
 		}
-		out = append(out, feature.Feature{
+		out = append(out, Feature{
 			Name:   c.Name,
-			Kind:   feature.KindCommand,
+			Kind:   KindCommand,
 			What:   firstClause(c.Help),
-			When:   When[c.Name],
+			When:   commandWhen[c.Name],
 			Invoke: invoke,
-			Topics: Topics[c.Name],
+			Topics: commandTopics[c.Name],
 			Manual: "interface",
 		})
 	}
@@ -150,5 +150,5 @@ func Features() []feature.Feature {
 // firstClause keeps a command's description to one line. A few entries
 // in the table explain two things separated by a semicolon; the
 // catalogue wants the first, and the manual has the rest. The cut is
-// feature.Headline's, which will not break a line inside a bracket.
-func firstClause(help string) string { return feature.Headline(help, 31) }
+// Headline's, which will not break a line inside a bracket.
+func firstClause(help string) string { return Headline(help, 31) }

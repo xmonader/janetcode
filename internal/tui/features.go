@@ -2,7 +2,6 @@ package tui
 
 import (
 	"github.com/xmonader/janetcode/internal/feature"
-	"github.com/xmonader/janetcode/internal/slash"
 )
 
 // The slash commands are catalogued by internal/slash, which the web UI
@@ -11,7 +10,7 @@ import (
 // Features renders the commands and the terminal's keys as catalogue
 // entries.
 func Features() []feature.Feature {
-	return append(slash.Features(), keyFeatures...)
+	return append(feature.Commands(), keyFeatures...)
 }
 
 // keyFeatures are the keys worth naming in the catalogue: the ones that

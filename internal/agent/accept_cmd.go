@@ -8,7 +8,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/session"
-	"github.com/xmonader/janetcode/internal/slash"
+	"github.com/xmonader/janetcode/internal/slash/args"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/verify"
 )
@@ -34,7 +34,7 @@ type AcceptArgs struct {
 // one of the fixed words is a request, the same way /plan's argument is
 // free text unless it names approve/off.
 func ParseAcceptArgs(rest string) AcceptArgs {
-	t, _ := slash.Tokenize(rest, slash.ArgSpec{Rest: []string{"command"}})
+	t, _ := args.Tokenize(rest, args.Spec{Rest: []string{"command"}})
 	if cmd, ok := t.Flags["command"]; ok && len(t.Positional) == 0 {
 		return AcceptArgs{SetCommand: true, Command: cmd}
 	}

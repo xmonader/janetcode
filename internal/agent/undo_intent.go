@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/cmdresult"
-	"github.com/xmonader/janetcode/internal/slash"
+	"github.com/xmonader/janetcode/internal/slash/args"
 )
 
 // Selection is the answer to "which of this session's changes match a
@@ -302,14 +302,14 @@ var errUndoArgsUsage = errors.New("usage: /undo [preview | n | about <descriptio
 // the terminal and the web UI dispatch through, so a spelling accepted by
 // one is accepted, and means the same thing, in the other.
 func ParseUndoArgs(rest string) (UndoArgs, error) {
-	verb, after := slash.CutWord(rest)
+	verb, after := args.CutWord(rest)
 	switch verb {
 	case "":
 		return UndoArgs{}, nil
 	case "about":
 		return UndoArgs{About: true, Description: strings.TrimSpace(after)}, nil
 	}
-	t, err := slash.Tokenize(after, slash.ArgSpec{Bool: []string{"--force"}})
+	t, err := args.Tokenize(after, args.Spec{Bool: []string{"--force"}})
 	if err != nil {
 		return UndoArgs{}, errUndoArgsUsage
 	}
