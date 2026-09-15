@@ -128,28 +128,28 @@ func (m *model) pickerView(height int) string {
 	p.field.Width = inner - 3
 	var lines []string
 	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
-	add(styleKey.Render(p.title))
+	add(m.styles.key.Render(p.title))
 	if p.hint != "" {
-		add(styleDim.Render(p.hint))
+		add(m.styles.dim.Render(p.hint))
 	}
 	add("")
-	add(styleAccent.Render("› ") + p.field.View())
-	add(styleFaint.Render(strings.Repeat("─", inner)))
+	add(m.styles.accent.Render("› ") + p.field.View())
+	add(m.styles.faint.Render(strings.Repeat("─", inner)))
 	rows, idx := m.pickerRows()
 	if len(rows) == 0 {
-		add("  " + styleDim.Render("nothing matches"))
+		add("  " + m.styles.dim.Render("nothing matches"))
 	} else {
 		budget := fitRows(height, len(lines)+5)
 		p.winRows = budget
-		lines = append(lines, renderRows(rows, idx, inner, budget)...)
+		lines = append(lines, renderRows(m.styles, rows, idx, inner, budget)...)
 	}
 	add("")
 	help := "↑↓ move · enter select · esc close"
 	if len(rows) == 0 && p.freeText && strings.TrimSpace(p.field.Value()) != "" {
 		help = "enter uses what you typed · esc close"
 	}
-	add(styleFaint.Render(help))
-	box := styleDialog.Width(w - 2).Render(strings.Join(lines, "\n"))
+	add(m.styles.faint.Render(help))
+	box := m.styles.dialog.Width(w - 2).Render(strings.Join(lines, "\n"))
 	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
 

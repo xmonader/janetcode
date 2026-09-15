@@ -23,6 +23,9 @@ import (
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
+// testHandler is the HTTP API and the embedded UI for one server.
+func testHandler(opts Options) http.Handler { return newServer(opts).handler() }
+
 func TestListenAddr(t *testing.T) {
 	for _, c := range []struct{ in, want string }{
 		{"", "127.0.0.1:8787"},
@@ -86,7 +89,7 @@ func testApp(t *testing.T, responses ...*llm.Response) (*httptest.Server, *agent
 		Model:    "m",
 		Log:      sess,
 	}
-	h := Handler(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"})
+	h := testHandler(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"})
 	return httptest.NewServer(h), ag
 }
 
@@ -523,7 +526,7 @@ func TestAgentTranscriptAPI(t *testing.T) {
 	ag := &agent.Agent{Provider: exploreProv{}, Model: "m", System: "sys", AutoApprove: true, Log: sess}
 	task := &agent.Task{Parent: ag, Root: root}
 	ag.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
-	ts := httptest.NewServer(Handler(Options{Agent: ag, Session: sess, Cwd: root, Version: "test"}))
+	ts := httptest.NewServer(testHandler(Options{Agent: ag, Session: sess, Cwd: root, Version: "test"}))
 	defer ts.Close()
 	out, err := task.Run(context.Background(), json.RawMessage(`{"description":"one","prompt":"explore one"}`))
 	if err != nil {
@@ -570,7 +573,7 @@ func TestJobLogAPI(t *testing.T) {
 	}
 	jobs := &tool.Jobs{Dir: t.TempDir()}
 	ag := &agent.Agent{Model: "m", Log: sess, Tools: tool.NewRegistry()}
-	ts := httptest.NewServer(Handler(Options{Agent: ag, Session: sess, Jobs: jobs, Cwd: root, Version: "test"}))
+	ts := httptest.NewServer(testHandler(Options{Agent: ag, Session: sess, Jobs: jobs, Cwd: root, Version: "test"}))
 	defer ts.Close()
 	job, err := jobs.Start(root, "echo hello-from-job")
 	if err != nil {
@@ -604,7 +607,7 @@ func TestPTCRunAPI(t *testing.T) {
 	ag := &agent.Agent{Model: "m", Log: sess, AutoApprove: true}
 	rc := &agent.RunCode{Parent: ag}
 	ag.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, rc)
-	ts := httptest.NewServer(Handler(Options{Agent: ag, Session: sess, Cwd: root, Version: "test"}))
+	ts := httptest.NewServer(testHandler(Options{Agent: ag, Session: sess, Cwd: root, Version: "test"}))
 	defer ts.Close()
 	out, err := rc.Run(context.Background(), json.RawMessage(`{"description":"read it","code":[{"name":"read_file","input":{"path":"a.txt"}}]}`))
 	if err != nil {

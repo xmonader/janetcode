@@ -17,9 +17,9 @@ func (m *model) headerView() string {
 	// header's own width arithmetic (which measures left) absorbs it.
 	lead := ""
 	if g := m.gutter(); g > 0 {
-		lead = styleHeader.Render(strings.Repeat(" ", g))
+		lead = m.styles.header.Render(strings.Repeat(" ", g))
 	}
-	left := lead + styleHeaderHi.Render(" ◆ janetcode ") + styleHeader.Render(m.headerModel())
+	left := lead + m.styles.headerHi.Render(" ◆ janetcode ") + m.styles.header.Render(m.headerModel())
 	title := ""
 	if m.opts.Session != nil && m.opts.Session.Meta.Title != "" {
 		title = " · " + truncateLine(m.opts.Session.Meta.Title, max(12, m.width/3))
@@ -65,8 +65,8 @@ func (m *model) headerView() string {
 		if gap < 1 {
 			return "", false
 		}
-		return styleHeader.Width(m.width).MaxHeight(1).Render(
-			left + styleHeader.Render(t+strings.Repeat(" ", gap)+prefix+p+b+" ")), true
+		return m.styles.header.Width(m.width).MaxHeight(1).Render(
+			left + m.styles.header.Render(t+strings.Repeat(" ", gap)+prefix+p+b+" ")), true
 	}
 	for _, drop := range [][2]bool{{true, true}, {false, true}, {false, false}} {
 		if s, ok := line(drop[0], drop[1]); ok {
@@ -79,7 +79,7 @@ func (m *model) headerView() string {
 	if mode != "" {
 		mode = " " + mode
 	}
-	return styleHeader.Width(m.width).MaxHeight(1).Render(fitLine(left+styleHeader.Render(mode), m.width))
+	return m.styles.header.Width(m.width).MaxHeight(1).Render(fitLine(left+m.styles.header.Render(mode), m.width))
 }
 
 // fitPath shows a path in max columns by dropping leading components:

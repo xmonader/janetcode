@@ -37,7 +37,9 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/verify"
@@ -2618,30 +2620,30 @@ func TestInputBoxStates(t *testing.T) {
 			t.Errorf("%s: placeholder = %q, want it to mention %q", what, h.m.placeholder(), wantHint)
 		}
 	}
-	check("idle", styleBoxIdle, defaultPlaceholder)
+	check("idle", h.m.styles.boxIdle, defaultPlaceholder)
 	h.keys("make n.txt")
 	h.enter()
 	h.pump(func() bool { return h.m.pending != nil })
-	check("permission", styleBoxWarn, "always")
-	if stylePermBox.GetBorderTopForeground() != styleBoxWarn.GetBorderTopForeground() {
+	check("permission", h.m.styles.boxWarn, "always")
+	if h.m.styles.permBox.GetBorderTopForeground() != h.m.styles.boxWarn.GetBorderTopForeground() {
 		t.Error("the permission box does not match the warning palette")
 	}
 	h.keys("n")
 	if !h.m.denying {
 		t.Fatal("n opens the reason prompt")
 	}
-	check("denial reason", styleBoxWarn, "Why?")
+	check("denial reason", h.m.styles.boxWarn, "Why?")
 	h.enter()
 	h.pump(func() bool { return !h.m.running })
-	check("back to idle", styleBoxIdle, defaultPlaceholder)
+	check("back to idle", h.m.styles.boxIdle, defaultPlaceholder)
 	h.m.opts.Agent.SetPlanMode(true)
-	check("plan mode", styleBoxIdle, "Plan mode")
+	check("plan mode", h.m.styles.boxIdle, "Plan mode")
 	h.m.opts.Agent.SetPlanMode(false)
 	h.m.running = true
-	check("running", styleBoxBusy, "queue")
+	check("running", h.m.styles.boxBusy, "queue")
 	h.m.running = false
 	// The connect dialog is another box you type into: same accent border.
-	if styleDialog.GetBorderTopForeground() != styleBoxIdle.GetBorderTopForeground() {
+	if h.m.styles.dialog.GetBorderTopForeground() != h.m.styles.boxIdle.GetBorderTopForeground() {
 		t.Error("the connect dialog border does not match an idle input box")
 	}
 }
@@ -2835,9 +2837,9 @@ func TestLightPaletteContrast(t *testing.T) {
 		col  lipgloss.AdaptiveColor
 		min  float64
 	}{
-		{"faint", colFaint, 3.5}, {"dim", colDim, 4.0}, {"accent", colAccent, 4.0},
-		{"warn", colWarn, 4.0}, {"err", colErr, 4.0}, {"ok", colOK, 4.0},
-		{"user", colUser, 4.0}, {"tool", colTool, 4.0}, {"border", colBorder, 2.5},
+		{"faint", defaultPalette.faint, 3.5}, {"dim", defaultPalette.dim, 4.0}, {"accent", defaultPalette.accent, 4.0},
+		{"warn", defaultPalette.warn, 4.0}, {"err", defaultPalette.err, 4.0}, {"ok", defaultPalette.ok, 4.0},
+		{"user", defaultPalette.user, 4.0}, {"tool", defaultPalette.tool, 4.0}, {"border", defaultPalette.border, 2.5},
 	} {
 		if got := contrast(c.col.Light, "#ffffff"); got < c.min {
 			t.Errorf("light %s (%s) on white is %.2f:1, want at least %.1f", c.name, c.col.Light, got, c.min)
@@ -3034,9 +3036,9 @@ func TestPermissionBoxExpandHint(t *testing.T) {
 		t.Errorf("a one-line write offered ctrl+o:\n%s", v)
 	}
 	// The box border and the status word are the same warning colour.
-	if stylePermBox.GetBorderTopForeground() != styleWarn.GetForeground() {
+	if h.m.styles.permBox.GetBorderTopForeground() != h.m.styles.warn.GetForeground() {
 		t.Errorf("permission box border %v, warning text %v",
-			stylePermBox.GetBorderTopForeground(), styleWarn.GetForeground())
+			h.m.styles.permBox.GetBorderTopForeground(), h.m.styles.warn.GetForeground())
 	}
 	h.keys("y")
 	h.pump(func() bool { return !h.m.running })
@@ -3426,10 +3428,10 @@ func (b *heldOpen) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 // enumerated are offered; and fuzzy matching finds a command from its
 // letters.
 func TestCommandAvailabilityAndArgumentCompletion(t *testing.T) {
-	if c, ok := lookup("/compact"); !ok || c.avail != availIdle {
+	if c, ok := slash.Lookup("/compact"); !ok || !c.Idle {
 		t.Fatal("/compact should be idle-only")
 	}
-	if c, ok := lookup("/help"); !ok || c.avail != availAlways {
+	if c, ok := slash.Lookup("/help"); !ok || c.Idle {
 		t.Fatal("/help should always be available")
 	}
 	block := make(chan struct{})
@@ -3587,32 +3589,28 @@ func TestPromptDoesNotJump(t *testing.T) {
 // sixteen-colour terminal gets ANSI slots instead of truecolor hex
 // quantised down to black.
 func TestColourFallbacks(t *testing.T) {
-	saved := []lipgloss.AdaptiveColor{colAccent, colDim, colFaint, colWarn, colErr, colOK, colUser, colTool, colHeadBg, colHeadFg, colBorder, colBorderA, colDiffAdd, colDiffDel}
 	profile := lipgloss.ColorProfile()
-	defer func() {
-		colAccent, colDim, colFaint, colWarn, colErr, colOK = saved[0], saved[1], saved[2], saved[3], saved[4], saved[5]
-		colUser, colTool, colHeadBg, colHeadFg = saved[6], saved[7], saved[8], saved[9]
-		colBorder, colBorderA, colDiffAdd, colDiffDel = saved[10], saved[11], saved[12], saved[13]
-		buildStyles()
-		lipgloss.SetColorProfile(profile)
-	}()
+	defer lipgloss.SetColorProfile(profile)
+	def := theme.Builtins()[0]
 
 	// Truecolor: the palette is hex and the styles carry SGR colours.
 	lipgloss.SetColorProfile(termenv.TrueColor)
-	buildStyles()
-	if !strings.Contains(styleErr.Render("x"), "\x1b[38;2;") {
-		t.Fatalf("truecolor error style = %q", styleErr.Render("x"))
+	st := newStyles(def, false)
+	if !strings.Contains(st.err.Render("x"), "\x1b[38;2;") {
+		t.Fatalf("truecolor error style = %q", st.err.Render("x"))
 	}
 
 	// Sixteen colours: ANSI slots, never a dark hex quantised to black.
 	lipgloss.SetColorProfile(termenv.ANSI)
-	if got := applyColorProfile(func(string) string { return "" }); got != termenv.ANSI {
-		t.Fatalf("profile = %v", got)
+	got, ansi := applyColorProfile(func(string) string { return "" })
+	if got != termenv.ANSI || !ansi {
+		t.Fatalf("profile = %v, ansi-only = %v", got, ansi)
 	}
-	if colErr.Dark != "9" || colAccent.Dark != "12" {
-		t.Fatalf("palette not switched: %+v %+v", colErr, colAccent)
+	st = newStyles(def, ansi)
+	if st.col.err.Dark != "9" || st.col.accent.Dark != "12" {
+		t.Fatalf("palette not switched: %+v %+v", st.col.err, st.col.accent)
 	}
-	out := styleErr.Render("x")
+	out := st.err.Render("x")
 	if !strings.Contains(out, "\x1b[9") && !strings.Contains(out, "\x1b[3") {
 		t.Fatalf("ansi error style = %q", out)
 	}
@@ -3621,15 +3619,17 @@ func TestColourFallbacks(t *testing.T) {
 	}
 
 	// NO_COLOR: nothing at all.
-	if got := applyColorProfile(func(k string) string {
+	got, ansi = applyColorProfile(func(k string) string {
 		if k == "NO_COLOR" {
 			return "1"
 		}
 		return ""
-	}); got != termenv.Ascii {
-		t.Fatalf("NO_COLOR profile = %v", got)
+	})
+	if got != termenv.Ascii || ansi {
+		t.Fatalf("NO_COLOR profile = %v, ansi-only = %v", got, ansi)
 	}
-	for _, s := range []lipgloss.Style{styleErr, styleAccent, styleWarn, styleKey, styleHeader} {
+	st = newStyles(def, ansi)
+	for _, s := range []lipgloss.Style{st.err, st.accent, st.warn, st.key, st.header} {
 		if got := s.Render("x"); strings.Contains(got, "\x1b[3") || strings.Contains(got, "\x1b[4") {
 			t.Fatalf("NO_COLOR left colour behind: %q", got)
 		}
@@ -4207,7 +4207,7 @@ func TestFitPhrase(t *testing.T) {
 // /open and /changes ended in "……".
 func TestCodeLinesEndInOneEllipsis(t *testing.T) {
 	long := "/diff <path> shows the hunks · /diff revert <path>:<n> reverts one · /undo reverts a whole turn"
-	out := plain(renderCode(long, 40))
+	out := plain(renderCode(defaultStyles(), long, 40))
 	if strings.Contains(out, "……") {
 		t.Fatalf("two ellipses: %q", out)
 	}

@@ -170,6 +170,8 @@ type PermOptions struct {
 
 type model struct {
 	opts Options
+	// styles is what every view draws with; a theme switch replaces it.
+	styles *styles
 	// quitArmedAt is when ctrl+c was last pressed while idle.
 	quitArmedAt time.Time
 	// pendingClosedAt is when the last permission prompt closed.
@@ -298,9 +300,9 @@ func newModel(opts Options) *model {
 	ta.BlurredStyle.CursorLine = lipgloss.NewStyle()
 	ta.Focus()
 
-	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(styleAccent))
+	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(defaultStyles().accent))
 
-	applyColorProfile(os.Getenv)
+	_, ansi := applyColorProfile(os.Getenv)
 	// The terminal background is probed exactly once, here, before any
 	// theme pins lipgloss to a mode: a live /theme switch to a single-mode
 	// theme changes what lipgloss reports, so auto and adaptive themes must
@@ -309,7 +311,7 @@ func newModel(opts Options) *model {
 	bgDark := lipgloss.HasDarkBackground()
 	th, dark := resolveTheme(opts.Theme, opts.Themes, bgDark)
 	lipgloss.SetHasDarkBackground(dark)
-	applyTheme(th)
+	st := newStyles(th, ansi)
 	style := "light"
 	if dark {
 		style = "dark"
@@ -320,7 +322,8 @@ func newModel(opts Options) *model {
 		pinned:     true,
 		approver:   &tuiApprover{},
 		asker:      &tuiAsker{},
-		transcript: newTranscriptStyled(style),
+		styles:     st,
+		transcript: newTranscriptStyled(style, st),
 		queue:      &eventQueue{},
 		input:      ta,
 		spinner:    sp,

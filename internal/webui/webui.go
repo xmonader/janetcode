@@ -95,11 +95,6 @@ func Loopback(addr string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// Handler is the HTTP API and the embedded UI, for tests and Run.
-func Handler(opts Options) http.Handler {
-	return newServer(opts).handler()
-}
-
 // Run listens on opts.Addr and serves until ctx ends.
 func Run(ctx context.Context, opts Options) error {
 	addr := ListenAddr(opts.Addr)

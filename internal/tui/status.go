@@ -96,17 +96,17 @@ func (m *model) footerNotice() string {
 	room := m.width - 4
 	switch {
 	case m.denying && m.pending != nil:
-		return "  " + styleWarn.Bold(true).Render("denied "+m.pending.call.Name) + styleDim.Render(" · tell the model why (optional) · enter sends · esc skips")
+		return "  " + m.styles.warn.Bold(true).Render("denied "+m.pending.call.Name) + m.styles.dim.Render(" · tell the model why (optional) · enter sends · esc skips")
 	case m.pending != nil:
 		return m.permissionNotice()
 	case len(m.steering) > 0 && len(m.queued) > 0:
-		return fitLine("  "+styleWarn.Render(fmt.Sprintf("steering %d", len(m.steering)))+styleFaint.Render(fmt.Sprintf(" · queued %d · ", len(m.queued)))+styleDim.Render(textfmt.OneLine(m.queued[len(m.queued)-1])), room)
+		return fitLine("  "+m.styles.warn.Render(fmt.Sprintf("steering %d", len(m.steering)))+m.styles.faint.Render(fmt.Sprintf(" · queued %d · ", len(m.queued)))+m.styles.dim.Render(textfmt.OneLine(m.queued[len(m.queued)-1])), room)
 	case len(m.steering) > 0:
-		return fitLine("  "+styleWarn.Render("steering ")+styleDim.Render(textfmt.OneLine(m.steering[len(m.steering)-1])), room)
+		return fitLine("  "+m.styles.warn.Render("steering ")+m.styles.dim.Render(textfmt.OneLine(m.steering[len(m.steering)-1])), room)
 	case len(m.queued) > 0:
-		return fitLine("  "+styleFaint.Render(fmt.Sprintf("queued %d · ", len(m.queued)))+styleDim.Render(textfmt.OneLine(m.queued[len(m.queued)-1]))+styleFaint.Render(" · up takes it back"), room)
+		return fitLine("  "+m.styles.faint.Render(fmt.Sprintf("queued %d · ", len(m.queued)))+m.styles.dim.Render(textfmt.OneLine(m.queued[len(m.queued)-1]))+m.styles.faint.Render(" · up takes it back"), room)
 	case m.notice != "" && time.Since(m.noticeAt) < noticeFor:
-		return fitLine("  "+styleDim.Render(m.notice), room)
+		return fitLine("  "+m.styles.dim.Render(m.notice), room)
 	}
 	return ""
 }
@@ -214,27 +214,27 @@ func (m *model) note(s string) {
 // print into the conversation.
 func (m *model) statusState() string {
 	mode := m.statusMode()
-	st := styleFaint
+	st := m.styles.faint
 	if mode != "ask" {
-		st = styleKey
+		st = m.styles.key
 	}
 	s := st.Render(mode)
 	if ag := m.opts.Agent; ag != nil && ag.Sandbox != nil && ag.Sandbox.Enabled() {
-		s += styleFaint.Render(" · sandbox")
+		s += m.styles.faint.Render(" · sandbox")
 	}
 	if ws := m.opts.Workspace; ws != nil && !ws.Local() {
-		s += styleFaint.Render(" · " + ws.Kind())
+		s += m.styles.faint.Render(" · " + ws.Kind())
 	}
-	return s + styleFaint.Render(" · ")
+	return s + m.styles.faint.Render(" · ")
 }
 
 func (m *model) statusView() string {
 	var left string
 	switch {
 	case m.pending != nil:
-		left = styleWarn.Render("● approval needed")
+		left = m.styles.warn.Render("● approval needed")
 	case m.running && m.tight():
-		left = m.spinner.View() + " " + styleDim.Render(m.phaseText())
+		left = m.spinner.View() + " " + m.styles.dim.Render(m.phaseText())
 	case m.running:
 		el := textfmt.Duration(time.Since(m.startedAt))
 		hint := " · esc to cancel"
@@ -243,27 +243,27 @@ func (m *model) statusView() string {
 		if len(m.opts.Running.List()) > 0 {
 			hint += " · ctrl+g backgrounds it"
 		}
-		left = m.spinner.View() + " " + styleDim.Render(m.phaseText()+" · "+el+hint)
+		left = m.spinner.View() + " " + m.styles.dim.Render(m.phaseText()+" · "+el+hint)
 	case m.status != "":
-		left = styleDim.Render(m.status)
+		left = m.styles.dim.Render(m.status)
 	default:
-		left = styleFaint.Render("ready")
+		left = m.styles.faint.Render("ready")
 	}
 	left = m.statusState() + left
 	if live := m.liveWork(); live != "" {
-		left += styleWarn.Render(" · " + live)
+		left += m.styles.warn.Render(" · " + live)
 	}
 	// The gauge keeps its place whatever else happens. The scroll hint and
 	// the cache rate are next to it only while the status text still has
 	// room to say something; the cache rate goes first, then the hint.
 	parts := []string{}
 	if !m.pinned {
-		parts = append(parts, styleWarn.Render("↓ pgdn for latest"))
+		parts = append(parts, m.styles.warn.Render("↓ pgdn for latest"))
 	}
 	// In a short window the cache rate is the first thing to go: the
 	// scroll hint and the gauge both say something you must act on.
 	if pct, ok := m.opts.Agent.CacheRate(); ok && !m.tight() {
-		parts = append(parts, styleFaint.Render(fmt.Sprintf("cache %d%%", pct)))
+		parts = append(parts, m.styles.faint.Render(fmt.Sprintf("cache %d%%", pct)))
 	}
 	parts = append(parts, m.contextGauge())
 	const leastStatus = 12
@@ -303,18 +303,18 @@ func (m *model) contextGauge() string {
 	}
 	limit := m.opts.Agent.CompactThreshold()
 	if limit <= 0 {
-		return styleFaint.Render("ctx " + textfmt.Tokens(est))
+		return m.styles.faint.Render("ctx " + textfmt.Tokens(est))
 	}
 	pct := est * 100 / limit
 	if pct > 100 {
 		pct = 100
 	}
-	style := styleFaint
+	style := m.styles.faint
 	switch {
 	case pct >= 85:
-		style = styleErr
+		style = m.styles.err
 	case pct >= 60:
-		style = styleWarn
+		style = m.styles.warn
 	}
 	if m.width < 50 {
 		return style.Render(fmt.Sprintf("ctx %d%%", pct))
@@ -330,11 +330,11 @@ func (m *model) contextGauge() string {
 func (m *model) inputBox() lipgloss.Style {
 	switch {
 	case m.denying, m.pending != nil:
-		return styleBoxWarn
+		return m.styles.boxWarn
 	case m.running:
-		return styleBoxBusy
+		return m.styles.boxBusy
 	}
-	return styleBoxIdle
+	return m.styles.boxIdle
 }
 
 // placeholder is the hint shown in an empty input box. It names the same
@@ -417,25 +417,25 @@ func (m *model) footerView() string {
 			end := min(len(c), start+rows)
 			for i := start; i < end; i++ {
 				cmd := c[i]
-				mark, name, help := "  ", styleKey.Render(cmd.name), styleFaint.Render(cmd.help)
+				mark, name, help := "  ", m.styles.key.Render(cmd.name), m.styles.faint.Render(cmd.help)
 				if i == idx {
-					mark, name, help = styleAccent.Render("▸ "), styleKey.Bold(true).Render(cmd.name), styleDim.Render(cmd.help)
+					mark, name, help = m.styles.accent.Render("▸ "), m.styles.key.Bold(true).Render(cmd.name), m.styles.dim.Render(cmd.help)
 				}
-				parts = append(parts, fitLine(mark+name+" "+styleDim.Render(cmd.args)+"  "+help, m.width-1-m.gutter()))
+				parts = append(parts, fitLine(mark+name+" "+m.styles.dim.Render(cmd.args)+"  "+help, m.width-1-m.gutter()))
 			}
 			for i := end - start; i < rows; i++ {
 				parts = append(parts, "")
 			}
-			parts = append(parts, styleFaint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))
+			parts = append(parts, m.styles.faint.Render(fmt.Sprintf("  ↑↓ choose · %d of %d · tab or enter accepts", idx+1, len(c))))
 		}
 	}
 	box := m.inputBox()
-	prompt := styleAccent.Render("❯ ")
+	prompt := m.styles.accent.Render("❯ ")
 	switch {
 	case m.denying, m.pending != nil:
-		prompt = styleWarn.Render("❯ ")
+		prompt = m.styles.warn.Render("❯ ")
 	case m.running:
-		prompt = styleFaint.Render("❯ ")
+		prompt = m.styles.faint.Render("❯ ")
 	}
 	m.input.Placeholder = m.placeholder()
 	lines := strings.Split(m.input.View(), "\n")

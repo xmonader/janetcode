@@ -257,7 +257,7 @@ func (m *model) resume(arg string) {
 		m.transcript.errorf("%v", err)
 	}
 	m.titleGen++ // a title generated for the session we just left must not land here
-	m.transcript = newTranscriptStyled(m.transcript.styleName)
+	m.transcript = newTranscriptStyled(m.transcript.styleName, m.styles)
 	m.transcript.banner(m.welcome(resumedLine(sess.Meta.ID, len(history))))
 	m.transcript.loadHistory(history)
 	m.lastTurn = ""

@@ -19,7 +19,7 @@ import (
 )
 
 // Roles are the colour slots every theme fills. The names match the
-// json keys a user writes and the colXxx variables styles.go keeps, so a
+// json keys a user writes and the palette fields styles.go keeps, so a
 // theme file reads the way the palette comment in styles.go describes it.
 //
 // A change here is a change to the palette the whole interface draws, so

@@ -44,7 +44,7 @@ var commandSpecs = func() []slash.Command {
 	for _, name := range webCommands {
 		c, ok := slash.Lookup(name)
 		if !ok {
-			panic("webui: " + name + " is not in the slash table")
+			continue // TestDispatchCoversWebCommands reports it
 		}
 		if args, ok := webArgs[name]; ok {
 			c.Args = args
@@ -101,13 +101,189 @@ func (s *server) runBusy(phase string, fn func(ctx context.Context)) {
 	}()
 }
 
+// webHandler runs one command with arg, the line after its name, trimmed.
+// When done is true, err is runCommand's answer as it stands; otherwise the
+// status is re-sent and runCommand returns nil.
+type webHandler func(s *server, arg string) (done bool, err error)
+
+// webDispatch maps every name runCommand answers to, aliases included, to
+// its handler. TestDispatchCoversWebCommands checks it against webCommands.
+var webDispatch = map[string]webHandler{
+	"/help": func(s *server, arg string) (bool, error) {
+		s.help(arg)
+		return false, nil
+	},
+	"/clear": (*server).cmdClear, "/new": (*server).cmdClear,
+	"/yolo": (*server).cmdYolo,
+	"/auto": (*server).cmdAuto,
+	"/sandbox": func(s *server, arg string) (bool, error) {
+		s.sandbox(arg)
+		return false, nil
+	},
+	"/review": func(s *server, arg string) (bool, error) {
+		s.review(arg)
+		return false, nil
+	},
+	"/loop": func(s *server, arg string) (bool, error) {
+		s.loop(arg)
+		return false, nil
+	},
+	"/edits":    (*server).cmdEdits,
+	"/readonly": (*server).cmdReadonly,
+	"/plan": func(s *server, arg string) (bool, error) {
+		s.plan(arg)
+		return false, nil
+	},
+	"/accept": func(s *server, arg string) (bool, error) {
+		s.accept(arg)
+		return false, nil
+	},
+	"/verbose": (*server).cmdVerbose,
+	"/compact": (*server).cmdCompact,
+	"/undo":    (*server).cmdUndo,
+	"/redo":    (*server).cmdRedo,
+	"/changes": func(s *server, arg string) (bool, error) {
+		s.sheet("changes", s.changesText(arg))
+		return false, nil
+	},
+	"/diff": func(s *server, arg string) (bool, error) {
+		s.sheet("diff", s.diffText(arg))
+		return false, nil
+	},
+	"/open": func(s *server, arg string) (bool, error) {
+		s.sheet("open", s.openText(arg))
+		return false, nil
+	},
+	"/context": func(s *server, arg string) (bool, error) {
+		s.sheet("context", s.contextText())
+		return false, nil
+	},
+	"/stats": func(s *server, arg string) (bool, error) {
+		s.sheet("stats", s.statsText())
+		return false, nil
+	},
+	"/usage": func(s *server, arg string) (bool, error) {
+		s.sheet("usage", s.usageText())
+		return false, nil
+	},
+	"/budget": func(s *server, arg string) (bool, error) {
+		s.budget(arg)
+		return false, nil
+	},
+	"/todos": func(s *server, arg string) (bool, error) {
+		s.sheet("todos", s.todosText())
+		return false, nil
+	},
+	"/jobs": func(s *server, arg string) (bool, error) {
+		s.jobs(arg)
+		return false, nil
+	},
+	"/memory": func(s *server, arg string) (bool, error) {
+		s.memory("/memory", arg)
+		return false, nil
+	},
+	"/remember": func(s *server, arg string) (bool, error) {
+		s.memory("/remember", arg)
+		return false, nil
+	},
+	"/forget": func(s *server, arg string) (bool, error) {
+		s.memory("/forget", arg)
+		return false, nil
+	},
+	"/skills": func(s *server, arg string) (bool, error) {
+		s.sheet("skills", s.skillsText())
+		return false, nil
+	},
+	"/pin": func(s *server, arg string) (bool, error) {
+		s.pin(arg)
+		return false, nil
+	},
+	"/unpin": (*server).cmdUnpin,
+	"/title": (*server).cmdTitle,
+	"/inspect": func(s *server, arg string) (bool, error) {
+		s.inspect(arg)
+		return false, nil
+	},
+	"/model": func(s *server, arg string) (bool, error) {
+		s.model(arg)
+		return false, nil
+	},
+	"/fork": (*server).cmdFork,
+	"/add-dir": func(s *server, arg string) (bool, error) {
+		s.addDir(arg)
+		return false, nil
+	},
+	"/btw": func(s *server, arg string) (bool, error) {
+		s.btw(arg)
+		return false, nil
+	},
+	"/copy": func(s *server, arg string) (bool, error) {
+		s.copyLast()
+		return false, nil
+	},
+	"/config": func(s *server, arg string) (bool, error) {
+		s.configKV(arg)
+		return false, nil
+	},
+	"/doctor": func(s *server, arg string) (bool, error) {
+		s.doctor()
+		return false, nil
+	},
+	"/settle": (*server).cmdSettle,
+	"/goal": func(s *server, arg string) (bool, error) {
+		s.goal(arg)
+		return false, nil
+	},
+	"/why": (*server).cmdWhy,
+	"/trajectory": func(s *server, arg string) (bool, error) {
+		s.trajectory(arg)
+		return false, nil
+	},
+	"/agents": func(s *server, arg string) (bool, error) {
+		s.agents(arg)
+		return false, nil
+	},
+	"/ssh": func(s *server, arg string) (bool, error) {
+		s.retarget("ssh", arg, tool.DialSSH)
+		return false, nil
+	},
+	"/docker": func(s *server, arg string) (bool, error) {
+		s.retarget("docker", arg, tool.DialDocker)
+		return false, nil
+	},
+	"/reload": (*server).cmdReload,
+	"/permissions": func(s *server, arg string) (bool, error) {
+		s.sheet("permissions", s.permissionsText())
+		return false, nil
+	},
+	"/export": func(s *server, arg string) (bool, error) {
+		s.export(arg)
+		return false, nil
+	},
+	"/eval": func(s *server, arg string) (bool, error) {
+		s.evalKeep(arg)
+		return false, nil
+	},
+	"/proof": func(s *server, arg string) (bool, error) {
+		s.proofCommand(arg)
+		return false, nil
+	},
+	"/recipe": func(s *server, arg string) (bool, error) {
+		s.recipeCommand(arg)
+		return false, nil
+	},
+	"/feedback": func(s *server, arg string) (bool, error) {
+		s.notice("recorded " + arg + " (not sent to the model)")
+		return false, nil
+	},
+}
+
 func (s *server) runCommand(text string) error {
 	fields := strings.Fields(text)
 	if len(fields) == 0 {
 		return fmt.Errorf("empty command")
 	}
 	name, arg := fields[0], strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
-	ag := s.opts.Agent
 	s.mu.Lock()
 	running := s.running
 	s.mu.Unlock()
@@ -116,233 +292,215 @@ func (s *server) runCommand(text string) error {
 			return fmt.Errorf("%s waits for the turn to finish (esc cancels it)", name)
 		}
 	}
-	switch name {
-	case "/help":
-		s.help(arg)
-	case "/clear", "/new":
-		return s.startNewSession()
-	case "/yolo":
-		var on bool
-		ag.UpdateSettings(func(st *agent.Settings) {
-			st.AutoApprove = !st.AutoApprove
-			if on = st.AutoApprove; on {
-				st.AutoMode = false
-			}
-		})
-		s.noteOnOff("auto-approve", on, "every tool runs without asking")
-	case "/auto":
-		var on bool
-		ag.UpdateSettings(func(st *agent.Settings) {
-			st.AutoMode = !st.AutoMode
-			if on = st.AutoMode; on {
-				st.AutoApprove = false
-			}
-		})
-		if on {
-			ag.SetPlanMode(false)
-		}
-		s.noteOnOff("auto mode", on, "in-workspace edits and known-safe reads run, other commands ask")
-	case "/sandbox":
-		s.sandbox(arg)
-	case "/review":
-		s.review(arg)
-	case "/loop":
-		s.loop(arg)
-	case "/edits":
-		var on bool
-		ag.UpdateSettings(func(st *agent.Settings) { st.AutoEdits = !st.AutoEdits; on = st.AutoEdits })
-		s.noteOnOff("auto-accept edits", on, "file changes go through, commands still ask")
-	case "/readonly":
-		var on bool
-		ag.UpdateSettings(func(st *agent.Settings) { st.ReadOnly = !st.ReadOnly; on = st.ReadOnly })
-		s.noteOnOff("read-only", on, "the model can inspect but change nothing")
-	case "/plan":
-		s.plan(arg)
-	case "/accept":
-		s.accept(arg)
-	case "/verbose":
-		s.mu.Lock()
-		s.verbose = !s.verbose
-		v := s.verbose
-		s.mu.Unlock()
-		s.noteOnOff("verbose tool output", v, "every tool result is shown whole")
-	case "/compact":
-		s.runBusy("compacting context", func(ctx context.Context) { _ = ag.Compact(ctx, s.apply) })
-	case "/undo":
-		// One shared parser (agent.ParseUndoArgs) decides what "/undo
-		// ..." means, so the terminal and the web UI agree; the web UI
-		// just does not expose "/undo n" as its own command (webArgs
-		// narrows it out), so ua.N falls through to a bare undo below,
-		// same as an unrecognized argument always has.
-		ua, perr := agent.ParseUndoArgs(arg)
-		if perr != nil {
-			s.errf("%v", perr)
-			return nil
-		}
-		switch {
-		case ua.Preview:
-			list, err := ag.UndoPreview(context.Background())
-			if err != nil {
-				s.errf("undo: %v", err)
-				return nil
-			}
-			s.sheet("undo preview", strings.Join(list, "\n"))
-			return nil
-		case ua.About:
-			if ua.Description == "" {
-				s.errf("%v", agent.ErrUndoAboutUsage)
-				return nil
-			}
-			s.runBusy("matching changes", func(ctx context.Context) {
-				s.showResult(ag.UndoAbout(ctx, s.opts.Cwd, ua.Description))
-			})
-			return nil
-		case ua.Apply:
-			s.runBusy("applying undo", func(ctx context.Context) {
-				rep, res, err := ag.UndoApply(ctx, ua.Force)
-				s.showResult(res, err)
-				if err == nil {
-					ag.TellModelUndone(rep)
-				}
-			})
-			return nil
-		}
-		done, err := ag.Undo(context.Background())
-		if err != nil {
-			s.errf("undo: %v", err)
-			return nil
-		}
-		s.notice("↶ " + strings.Join(done, ", "))
-	case "/redo":
-		done, err := ag.Redo(context.Background())
-		if err != nil {
-			s.errf("redo: %v", err)
-			return nil
-		}
-		s.notice("↷ " + strings.Join(done, ", "))
-	case "/changes":
-		s.sheet("changes", s.changesText(arg))
-	case "/diff":
-		s.sheet("diff", s.diffText(arg))
-	case "/open":
-		s.sheet("open", s.openText(arg))
-	case "/context":
-		s.sheet("context", s.contextText())
-	case "/stats":
-		s.sheet("stats", s.statsText())
-	case "/usage":
-		s.sheet("usage", s.usageText())
-	case "/budget":
-		s.budget(arg)
-	case "/todos":
-		s.sheet("todos", s.todosText())
-	case "/jobs":
-		s.jobs(arg)
-	case "/memory":
-		s.memory("/memory", arg)
-	case "/remember":
-		s.memory("/remember", arg)
-	case "/forget":
-		s.memory("/forget", arg)
-	case "/skills":
-		s.sheet("skills", s.skillsText())
-	case "/pin":
-		s.pin(arg)
-	case "/unpin":
-		n, err := strconv.Atoi(arg)
-		if err != nil || !ag.Unpin(n) {
-			s.errf("no pin %s; /pin lists them", arg)
-			return nil
-		}
-		s.notice("unpinned")
-	case "/title":
-		if arg == "" || s.opts.Session == nil {
-			s.errf("usage: /title <text>")
-			return nil
-		}
-		if err := s.opts.Session.SetTitle(arg); err != nil {
-			s.errf("title: %v", err)
-			return nil
-		}
-		s.notice("titled: " + arg)
-		s.emit(envelope{Type: "hello", Hello: ptr(s.hello())})
-	case "/inspect":
-		s.inspect(arg)
-	case "/model":
-		s.model(arg)
-	case "/fork":
-		if err := s.fork(arg); err != nil {
-			s.errf("fork: %v", err)
-			return nil
-		}
-	case "/add-dir":
-		s.addDir(arg)
-	case "/btw":
-		s.btw(arg)
-	case "/copy":
-		s.copyLast()
-	case "/config":
-		s.configKV(arg)
-	case "/doctor":
-		s.doctor()
-	case "/settle":
-		if s.opts.Session == nil {
-			s.errf("no session to settle")
-			return nil
-		}
-		settled, err := s.opts.Session.ToggleSettled()
-		if err != nil {
-			s.errf("settle: %v", err)
-			return nil
-		}
-		if settled {
-			s.notice("session settled: it lists after the active ones in the sidebar until something happens in it")
-		} else {
-			s.notice("session active again")
-		}
-	case "/goal":
-		s.goal(arg)
-	case "/why":
-		n := 1
-		if arg != "" {
-			v, err := strconv.Atoi(arg)
-			if err != nil || v < 1 {
-				s.errf("usage: /why [n] · n counts back from the most recent")
-				return nil
-			}
-			n = v
-		}
-		if s.opts.Session == nil {
-			s.errf("no session")
-			return nil
-		}
-		s.sheet("why", agent.WhyLast(s.opts.Session.Events(), n))
-	case "/trajectory":
-		s.trajectory(arg)
-	case "/agents":
-		s.agents(arg)
-	case "/ssh":
-		s.retarget("ssh", arg, tool.DialSSH)
-	case "/docker":
-		s.retarget("docker", arg, tool.DialDocker)
-	case "/reload":
-		ag.RefreshExtra()
-		s.notice("memory and skill indexes will be rebuilt for the next call (one cache miss); they also refresh at compaction")
-	case "/permissions":
-		s.sheet("permissions", s.permissionsText())
-	case "/export":
-		s.export(arg)
-	case "/eval":
-		s.evalKeep(arg)
-	case "/proof":
-		s.proofCommand(arg)
-	case "/recipe":
-		s.recipeCommand(arg)
-	case "/feedback":
-		s.notice("recorded " + arg + " (not sent to the model)")
-	default:
+	h, ok := webDispatch[name]
+	if !ok {
 		s.errf("unknown command %s (try /help)", name)
+		s.emitStatus()
+		return nil
+	}
+	if done, err := h(s, arg); done {
+		return err
 	}
 	s.emitStatus()
 	return nil
+}
+
+func (s *server) cmdClear(arg string) (bool, error) {
+	return true, s.startNewSession()
+}
+
+func (s *server) cmdYolo(arg string) (bool, error) {
+	ag := s.opts.Agent
+	var on bool
+	ag.UpdateSettings(func(st *agent.Settings) {
+		st.AutoApprove = !st.AutoApprove
+		if on = st.AutoApprove; on {
+			st.AutoMode = false
+		}
+	})
+	s.noteOnOff("auto-approve", on, "every tool runs without asking")
+	return false, nil
+}
+
+func (s *server) cmdAuto(arg string) (bool, error) {
+	ag := s.opts.Agent
+	var on bool
+	ag.UpdateSettings(func(st *agent.Settings) {
+		st.AutoMode = !st.AutoMode
+		if on = st.AutoMode; on {
+			st.AutoApprove = false
+		}
+	})
+	if on {
+		ag.SetPlanMode(false)
+	}
+	s.noteOnOff("auto mode", on, "in-workspace edits and known-safe reads run, other commands ask")
+	return false, nil
+}
+
+func (s *server) cmdEdits(arg string) (bool, error) {
+	ag := s.opts.Agent
+	var on bool
+	ag.UpdateSettings(func(st *agent.Settings) { st.AutoEdits = !st.AutoEdits; on = st.AutoEdits })
+	s.noteOnOff("auto-accept edits", on, "file changes go through, commands still ask")
+	return false, nil
+}
+
+func (s *server) cmdReadonly(arg string) (bool, error) {
+	ag := s.opts.Agent
+	var on bool
+	ag.UpdateSettings(func(st *agent.Settings) { st.ReadOnly = !st.ReadOnly; on = st.ReadOnly })
+	s.noteOnOff("read-only", on, "the model can inspect but change nothing")
+	return false, nil
+}
+
+func (s *server) cmdVerbose(arg string) (bool, error) {
+	s.mu.Lock()
+	s.verbose = !s.verbose
+	v := s.verbose
+	s.mu.Unlock()
+	s.noteOnOff("verbose tool output", v, "every tool result is shown whole")
+	return false, nil
+}
+
+func (s *server) cmdCompact(arg string) (bool, error) {
+	ag := s.opts.Agent
+	s.runBusy("compacting context", func(ctx context.Context) { _ = ag.Compact(ctx, s.apply) })
+	return false, nil
+}
+
+func (s *server) cmdUndo(arg string) (bool, error) {
+	ag := s.opts.Agent
+	// One shared parser (agent.ParseUndoArgs) decides what "/undo
+	// ..." means, so the terminal and the web UI agree; the web UI
+	// just does not expose "/undo n" as its own command (webArgs
+	// narrows it out), so ua.N falls through to a bare undo below,
+	// same as an unrecognized argument always has.
+	ua, perr := agent.ParseUndoArgs(arg)
+	if perr != nil {
+		s.errf("%v", perr)
+		return true, nil
+	}
+	switch {
+	case ua.Preview:
+		list, err := ag.UndoPreview(context.Background())
+		if err != nil {
+			s.errf("undo: %v", err)
+			return true, nil
+		}
+		s.sheet("undo preview", strings.Join(list, "\n"))
+		return true, nil
+	case ua.About:
+		if ua.Description == "" {
+			s.errf("%v", agent.ErrUndoAboutUsage)
+			return true, nil
+		}
+		s.runBusy("matching changes", func(ctx context.Context) {
+			s.showResult(ag.UndoAbout(ctx, s.opts.Cwd, ua.Description))
+		})
+		return true, nil
+	case ua.Apply:
+		s.runBusy("applying undo", func(ctx context.Context) {
+			rep, res, err := ag.UndoApply(ctx, ua.Force)
+			s.showResult(res, err)
+			if err == nil {
+				ag.TellModelUndone(rep)
+			}
+		})
+		return true, nil
+	}
+	done, err := ag.Undo(context.Background())
+	if err != nil {
+		s.errf("undo: %v", err)
+		return true, nil
+	}
+	s.notice("↶ " + strings.Join(done, ", "))
+	return false, nil
+}
+
+func (s *server) cmdRedo(arg string) (bool, error) {
+	ag := s.opts.Agent
+	done, err := ag.Redo(context.Background())
+	if err != nil {
+		s.errf("redo: %v", err)
+		return true, nil
+	}
+	s.notice("↷ " + strings.Join(done, ", "))
+	return false, nil
+}
+
+func (s *server) cmdUnpin(arg string) (bool, error) {
+	ag := s.opts.Agent
+	n, err := strconv.Atoi(arg)
+	if err != nil || !ag.Unpin(n) {
+		s.errf("no pin %s; /pin lists them", arg)
+		return true, nil
+	}
+	s.notice("unpinned")
+	return false, nil
+}
+
+func (s *server) cmdTitle(arg string) (bool, error) {
+	if arg == "" || s.opts.Session == nil {
+		s.errf("usage: /title <text>")
+		return true, nil
+	}
+	if err := s.opts.Session.SetTitle(arg); err != nil {
+		s.errf("title: %v", err)
+		return true, nil
+	}
+	s.notice("titled: " + arg)
+	s.emit(envelope{Type: "hello", Hello: ptr(s.hello())})
+	return false, nil
+}
+
+func (s *server) cmdFork(arg string) (bool, error) {
+	if err := s.fork(arg); err != nil {
+		s.errf("fork: %v", err)
+		return true, nil
+	}
+	return false, nil
+}
+
+func (s *server) cmdSettle(arg string) (bool, error) {
+	if s.opts.Session == nil {
+		s.errf("no session to settle")
+		return true, nil
+	}
+	settled, err := s.opts.Session.ToggleSettled()
+	if err != nil {
+		s.errf("settle: %v", err)
+		return true, nil
+	}
+	if settled {
+		s.notice("session settled: it lists after the active ones in the sidebar until something happens in it")
+	} else {
+		s.notice("session active again")
+	}
+	return false, nil
+}
+
+func (s *server) cmdWhy(arg string) (bool, error) {
+	n := 1
+	if arg != "" {
+		v, err := strconv.Atoi(arg)
+		if err != nil || v < 1 {
+			s.errf("usage: /why [n] · n counts back from the most recent")
+			return true, nil
+		}
+		n = v
+	}
+	if s.opts.Session == nil {
+		s.errf("no session")
+		return true, nil
+	}
+	s.sheet("why", agent.WhyLast(s.opts.Session.Events(), n))
+	return false, nil
+}
+
+func (s *server) cmdReload(arg string) (bool, error) {
+	ag := s.opts.Agent
+	ag.RefreshExtra()
+	s.notice("memory and skill indexes will be rebuilt for the next call (one cache miss); they also refresh at compaction")
+	return false, nil
 }

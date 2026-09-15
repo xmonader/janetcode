@@ -14,7 +14,7 @@ import (
 // themeCommand implements /theme: alone it opens the searchable picker,
 // "list" prints the themes, and a name switches to it live and saves the
 // choice. The switch rebuilds the palette and every style through the same
-// path startup uses (applyTheme → buildStyles) and re-renders the whole
+// path startup uses (newStyles → buildStyles) and re-renders the whole
 // transcript in place; the terminal background is never re-probed, so no
 // keystroke is eaten.
 func (m *model) themeCommand(args []string) tea.Cmd {
@@ -66,17 +66,17 @@ func (m *model) applyThemeChoice(name string, persist bool) {
 	}
 	th, dark := resolveTheme(name, set, m.bgDark)
 	lipgloss.SetHasDarkBackground(dark)
-	applyTheme(th)
+	m.styles = newStyles(th, m.styles.ansiOnly)
 	mode := "light"
 	if dark {
 		mode = "dark"
 	}
-	m.transcript.restyle(mode)
+	m.transcript.restyle(mode, m.styles)
 	m.opts.Theme = name
 	if cfg := m.opts.Config; cfg != nil {
 		cfg.Theme = name
 	}
-	m.spinner.Style = styleAccent
+	m.spinner.Style = m.styles.accent
 	m.note(m.themeApplied(name, th, mode))
 	if persist && m.opts.ConfigPath != "" {
 		if err := config.UpdateKey(m.opts.ConfigPath, "theme", name); err != nil {

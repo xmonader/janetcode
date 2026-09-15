@@ -179,6 +179,7 @@ type transcript struct {
 	renderer  *glamour.TermRenderer
 	rWidth    int
 	styleName string // glamour standard style: "dark" or "light"
+	styles    *styles
 	// cwd shortens the absolute paths the agent writes into notices and
 	// verdicts, the way tool lines already shorten theirs.
 	cwd string
@@ -190,18 +191,19 @@ type transcript struct {
 // liveRenderInterval throttles markdown rendering of streaming text.
 const liveRenderInterval = 80 * time.Millisecond
 
-func newTranscript() *transcript { return newTranscriptStyled("dark") }
-
-func newTranscriptStyled(style string) *transcript { return &transcript{styleName: style} }
+func newTranscriptStyled(style string, sty *styles) *transcript {
+	return &transcript{styleName: style, styles: sty}
+}
 
 // restyle switches the transcript to a new display mode ("dark"/"light")
-// and drops every cached render so the next frame redraws every entry with
-// the palette the theme just installed. It keeps the entries themselves,
+// and styles, and drops every cached render so the next frame redraws every
+// entry with the palette the theme just built. It keeps the entries themselves,
 // so a live /theme switch recolours the whole conversation in place with no
 // restart. Cheap: rendering is per-entry and the tail is what usually
 // re-renders anyway.
-func (t *transcript) restyle(style string) {
+func (t *transcript) restyle(style string, sty *styles) {
 	t.styleName = style
+	t.styles = sty
 	t.renderer = nil
 	t.rWidth = 0
 	for _, e := range t.entries {
@@ -453,7 +455,7 @@ func (t *transcript) render(o renderOpts) string {
 	// carries it so needsRender's width comparison and renderEntry agree.
 	o.width = width
 	if t.renderer == nil || t.rWidth != width {
-		r, err := glamour.NewTermRenderer(glamour.WithStyles(markdownStyle(t.styleName == "dark")), glamour.WithWordWrap(width-2))
+		r, err := glamour.NewTermRenderer(glamour.WithStyles(markdownStyle(t.styles.col, t.styleName == "dark")), glamour.WithWordWrap(width-2))
 		if err == nil {
 			t.renderer = r
 			t.rWidth = width
@@ -492,7 +494,7 @@ func (t *transcript) render(o renderOpts) string {
 		} else if e.kind == entryTool && e.running && e.toolBody != "" {
 			// Spinner and elapsed are chrome: splice them onto the cached
 			// body rather than rebuilding the result.
-			e.rendered = applyToolChrome(e.toolBody, toolIcon(e, o), toolElapsed(e))
+			e.rendered = applyToolChrome(e.toolBody, toolIcon(t.styles, e, o), toolElapsed(t.styles, e))
 		}
 		// The gutter is applied on the way out, not baked into the cached
 		// render, so it costs nothing when it collapses to zero and the
@@ -568,34 +570,34 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 	wrap := func(s string) string { return unpad(lipgloss.NewStyle().Width(width - 2).Render(s)) }
 	switch e.kind {
 	case entryBanner:
-		return styleDim.Render(wrap(e.text))
+		return t.styles.dim.Render(wrap(e.text))
 	case entryInfo:
-		return styleDim.Render(wrap(e.text))
+		return t.styles.dim.Render(wrap(e.text))
 	case entryTip:
-		return styleFaint.Render(wrap("tip · " + e.text))
+		return t.styles.faint.Render(wrap("tip · " + e.text))
 	case entryCode:
-		return renderCode(e.text, width)
+		return renderCode(t.styles, e.text, width)
 	case entryError:
-		return styleErr.Render(errorBlock(e.text, width))
+		return t.styles.err.Render(errorBlock(e.text, width))
 	case entryVerdict:
-		style := styleWarn
+		style := t.styles.warn
 		switch {
 		case strings.HasPrefix(e.text, "✓"):
-			style = styleOK
+			style = t.styles.ok
 		case strings.HasPrefix(e.text, "✗"):
-			style = styleErr
+			style = t.styles.err
 		}
 		return style.Render(wrap(e.text))
 	case entryUser:
 		body := unpad(lipgloss.NewStyle().Width(width - 4).Render(e.text))
-		return styleUser.Render("❯ ") + styleUserBody.Render(strings.ReplaceAll(body, "\n", "\n  "))
+		return t.styles.user.Render("❯ ") + t.styles.userBody.Render(strings.ReplaceAll(body, "\n", "\n  "))
 	case entryThinking:
 		// Faint, never italic: many terminals have no italic face and
 		// draw SGR italic as reverse video.
 		if o.expand(e) && e.done {
-			return styleFaint.Render(wrap("· thought: " + strings.TrimSpace(e.text)))
+			return t.styles.faint.Render(wrap("· thought: " + strings.TrimSpace(e.text)))
 		}
-		return styleFaint.Render(wrap(thinkingView(e.text, e.done, e.thoughtFor(), e.started)))
+		return t.styles.faint.Render(wrap(thinkingView(e.text, e.done, e.thoughtFor(), e.started)))
 	case entryAssistant:
 		return t.renderMarkdown(e, width)
 	case entryTool:
@@ -614,7 +616,7 @@ func (t *transcript) renderMarkdown(e *entry, width int) string {
 		if e.done {
 			return ""
 		}
-		return styleFaint.Render("▍")
+		return t.styles.faint.Render("▍")
 	}
 	if t.renderer == nil {
 		return lipgloss.NewStyle().Width(width - 2).Render(text)
@@ -649,7 +651,7 @@ func (t *transcript) renderMarkdown(e *entry, width int) string {
 	}
 	out := strings.TrimRight(sb.String(), "\n")
 	if !e.done {
-		out += styleFaint.Render(" ▍")
+		out += t.styles.faint.Render(" ▍")
 	}
 	return out
 }
@@ -733,34 +735,34 @@ func toolStamp(e *entry, o renderOpts) string {
 	return b.String()
 }
 
-func toolIcon(e *entry, o renderOpts) string {
-	icon := styleTool.Render("⚙")
+func toolIcon(sty *styles, e *entry, o renderOpts) string {
+	icon := sty.tool.Render("⚙")
 	switch {
 	case e.denied:
-		icon = styleErr.Render("⊘")
+		icon = sty.err.Render("⊘")
 	case e.done && e.isError:
-		icon = styleErr.Render("✗")
+		icon = sty.err.Render("✗")
 	case e.done && !e.ended.IsZero() && time.Since(e.ended) < flashFor:
 		// A call that has just finished flashes for a moment, so a glance
 		// away and back still says which line moved.
-		icon = styleAccent.Bold(true).Render("✓")
+		icon = sty.accent.Bold(true).Render("✓")
 	case e.done:
-		icon = styleOK.Render("✓")
+		icon = sty.ok.Render("✓")
 	case e.running && o.spinner != "":
-		icon = styleAccent.Render(o.spinner)
+		icon = sty.accent.Render(o.spinner)
 	case e.running:
-		icon = styleAccent.Render("▶")
+		icon = sty.accent.Render("▶")
 	}
 	return icon
 }
 
-func toolElapsed(e *entry) string {
+func toolElapsed(sty *styles, e *entry) string {
 	switch {
 	case e.dur != "":
-		return styleFaint.Render(" " + e.dur)
+		return sty.faint.Render(" " + e.dur)
 	case e.running && !e.started.IsZero():
 		if el := time.Since(e.started); el > time.Second {
-			return styleFaint.Render(" " + textfmt.Duration(el))
+			return sty.faint.Render(" " + textfmt.Duration(el))
 		}
 	}
 	return ""
@@ -778,7 +780,7 @@ func applyToolChrome(body, icon, elapsed string) string {
 
 func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 	var sb strings.Builder
-	name := styleTool.Bold(true).Render(e.call.Name)
+	name := t.styles.tool.Bold(true).Render(e.call.Name)
 	summary := summarizeInput(e.call.Name, e.inputJSON(), width-len(e.call.Name)-14, o.cwd)
 	if o.renderer != nil {
 		if r, ok := o.renderer(e.call.Name); ok {
@@ -796,7 +798,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 			summary = s
 		}
 	}
-	sb.WriteString(name + " " + styleDim.Render(summary))
+	sb.WriteString(name + " " + t.styles.dim.Render(summary))
 	if !e.done && !e.running && !pendingHere && o.preview != nil && (e.call.Name == "edit_file" || e.call.Name == "write_file") {
 		// The arguments are complete but the call has not run: show what
 		// it would do now, while the model is still writing the rest of
@@ -806,7 +808,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 				e.livePreview, e.livePreviewFor = o.preview(e.call.Name, []byte(raw)), raw
 			}
 			if e.livePreview != "" {
-				sb.WriteString("\n" + renderPreview(e.livePreview, width, o.lines(12), !o.expand(e)))
+				sb.WriteString("\n" + renderPreview(t.styles, e.livePreview, width, o.lines(12), !o.expand(e)))
 			}
 		}
 	}
@@ -816,9 +818,9 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 			previewMax, inputMax = 400, 400
 		}
 		if o.pending.call.Preview != "" {
-			sb.WriteString("\n" + renderPreview(o.pending.call.Preview, width, previewMax, !o.expand(e)))
+			sb.WriteString("\n" + renderPreview(t.styles, o.pending.call.Preview, width, previewMax, !o.expand(e)))
 		} else if full := prettyInput(e.inputJSON()); full != "" && e.call.Name != "bash" {
-			sb.WriteString("\n" + styleDim.Render(indent(clipTool(full, inputMax, !o.expand(e)), "  ")))
+			sb.WriteString("\n" + t.styles.dim.Render(indent(clipTool(full, inputMax, !o.expand(e)), "  ")))
 		}
 		return t.finishTool(e, sb.String(), o)
 	}
@@ -827,7 +829,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		if o.expand(e) {
 			max = 200
 		}
-		sb.WriteString("\n" + renderPreview(e.call.Preview, width, max, !o.expand(e)))
+		sb.WriteString("\n" + renderPreview(t.styles, e.call.Preview, width, max, !o.expand(e)))
 	}
 	if e.done && e.output != "" {
 		max := o.lines(8)
@@ -847,9 +849,9 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		default:
 			out = clipTool(body, max, !o.expand(e))
 		}
-		style := styleFaint
+		style := t.styles.faint
 		if e.isError {
-			style = styleErr
+			style = t.styles.err
 		}
 		if out != "" {
 			sb.WriteString("\n" + style.Render(indent(lipgloss.NewStyle().Width(width-4).Render(out), "  ")))
@@ -857,7 +859,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		if diag != "" {
 			// Language-server problems after an edit are never clipped
 			// and never faint: they are the thing to read next.
-			sb.WriteString("\n" + styleErr.Render(indent(lipgloss.NewStyle().Width(width-4).Render(clipNote(diag, 12, false)), "  ")))
+			sb.WriteString("\n" + t.styles.err.Render(indent(lipgloss.NewStyle().Width(width-4).Render(clipNote(diag, 12, false)), "  ")))
 		}
 	}
 	return t.finishTool(e, sb.String(), o)
@@ -865,7 +867,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 
 func (t *transcript) finishTool(e *entry, body string, o renderOpts) string {
 	e.toolBody = body
-	return applyToolChrome(body, toolIcon(e, o), toolElapsed(e))
+	return applyToolChrome(body, toolIcon(t.styles, e, o), toolElapsed(t.styles, e))
 }
 
 // streamingSummary describes a tool call whose input is still arriving:
@@ -1054,9 +1056,9 @@ func previewLines(preview string) int {
 // renderPreview draws a unified diff with line numbers, elided gaps and
 // word-level highlighting (see diff.go), or shows plain preview text as
 // it is when the preview is not a diff.
-func renderPreview(preview string, width, maxLines int, expandable bool) string {
+func renderPreview(sty *styles, preview string, width, maxLines int, expandable bool) string {
 	if hunks, ok := parseUnifiedDiff(preview); ok {
-		return renderDiff(hunks, width, maxLines, expandable)
+		return renderDiff(sty, hunks, width, maxLines, expandable)
 	}
 	var lines []string
 	for _, l := range strings.Split(strings.TrimRight(preview, "\n"), "\n") {
@@ -1076,17 +1078,17 @@ func renderPreview(preview string, width, maxLines int, expandable bool) string 
 		l = fitLine(l, width-4)
 		switch {
 		case strings.HasPrefix(l, "+"):
-			out = append(out, "  "+styleDiffAdd.Render(l))
+			out = append(out, "  "+sty.diffAdd.Render(l))
 		case strings.HasPrefix(l, "-"):
-			out = append(out, "  "+styleDiffDel.Render(l))
+			out = append(out, "  "+sty.diffDel.Render(l))
 		case strings.HasPrefix(l, "@@"):
-			out = append(out, "  "+styleAccent.Render(l))
+			out = append(out, "  "+sty.accent.Render(l))
 		default:
-			out = append(out, "  "+styleDim.Render(l))
+			out = append(out, "  "+sty.dim.Render(l))
 		}
 	}
 	if hidden > 0 {
-		out = append(out, styleFaint.Render("  "+moreNote(hidden, expandable)))
+		out = append(out, sty.faint.Render("  "+moreNote(hidden, expandable)))
 	}
 	return strings.Join(out, "\n")
 }
@@ -1261,7 +1263,7 @@ func indent(s, prefix string) string {
 
 // renderCode shows lines verbatim with diff colouring by prefix and no
 // wrapping; long lines are cut at the width.
-func renderCode(text string, width int) string {
+func renderCode(sty *styles, text string, width int) string {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
 	out := make([]string, 0, len(lines))
 	for _, l := range lines {
@@ -1272,17 +1274,17 @@ func renderCode(text string, width int) string {
 		}
 		switch {
 		case strings.HasPrefix(l, "+++ ") || strings.HasPrefix(l, "--- "):
-			out = append(out, styleDim.Render(l))
+			out = append(out, sty.dim.Render(l))
 		case strings.HasPrefix(l, "+"):
-			out = append(out, styleDiffAdd.Render(l))
+			out = append(out, sty.diffAdd.Render(l))
 		case strings.HasPrefix(l, "-"):
-			out = append(out, styleDiffDel.Render(l))
+			out = append(out, sty.diffDel.Render(l))
 		case strings.HasPrefix(l, "@@"):
-			out = append(out, styleAccent.Render(l))
+			out = append(out, sty.accent.Render(l))
 		case strings.HasPrefix(l, "▶"):
-			out = append(out, styleAccent.Render(l))
+			out = append(out, sty.accent.Render(l))
 		case strings.HasPrefix(l, "#"):
-			out = append(out, styleKey.Bold(true).Render(l))
+			out = append(out, sty.key.Bold(true).Render(l))
 		default:
 			out = append(out, l)
 		}

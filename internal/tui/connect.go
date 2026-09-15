@@ -541,15 +541,15 @@ func (m *model) connectView(height int) string {
 	var lines []string
 	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
 
-	add(styleKey.Render(m.dialogTitle()) + "  " + m.breadcrumb())
+	add(m.styles.key.Render(m.dialogTitle()) + "  " + m.breadcrumb())
 	if ctx := m.dialogContext(); ctx != "" {
-		add(styleDim.Render(ctx))
+		add(m.styles.dim.Render(ctx))
 	}
 	add("")
-	add(styleAccent.Render("› ") + c.field.View())
-	add(styleFaint.Render(strings.Repeat("─", inner)))
+	add(m.styles.accent.Render("› ") + c.field.View())
+	add(m.styles.faint.Render(strings.Repeat("─", inner)))
 	if c.problem != "" {
-		add(styleErr.Render("✗ " + c.problem))
+		add(m.styles.err.Render("✗ " + c.problem))
 	}
 	switch c.step {
 	case stepPick, stepModel:
@@ -559,24 +559,24 @@ func (m *model) connectView(height int) string {
 		m.connect.rows = budget
 		lines = append(lines, m.listLines(inner, budget)...)
 	case stepName:
-		add(styleDim.Render("Used as the provider's name in the config file and in --provider."))
+		add(m.styles.dim.Render("Used as the provider's name in the config file and in --provider."))
 	case stepURL:
-		add(styleDim.Render("Edit the URL if your server lives elsewhere; enter keeps it."))
+		add(m.styles.dim.Render("Edit the URL if your server lives elsewhere; enter keeps it."))
 	case stepKeys:
 		n := len(splitKeys(c.field.Value()))
 		have := len(c.prov.Keys())
 		switch {
 		case n > 0:
-			add(styleDim.Render(fmt.Sprintf("%s entered · several keys are rotated when one is rate limited", textfmt.Plural(n, "key"))))
+			add(m.styles.dim.Render(fmt.Sprintf("%s entered · several keys are rotated when one is rate limited", textfmt.Plural(n, "key"))))
 		case have > 0:
-			add(styleDim.Render(fmt.Sprintf("%s already configured · enter keeps them, or paste new ones", textfmt.Plural(have, "key"))))
+			add(m.styles.dim.Render(fmt.Sprintf("%s already configured · enter keeps them, or paste new ones", textfmt.Plural(have, "key"))))
 		default:
-			add(styleDim.Render("Keys are hidden while typing and stored in " + shortPath(m.opts.ConfigPath)))
+			add(m.styles.dim.Render("Keys are hidden while typing and stored in " + shortPath(m.opts.ConfigPath)))
 		}
 	}
 	add("")
-	add(styleFaint.Render(m.dialogHelp()))
-	box := styleDialog.Width(w - 2).Render(strings.Join(lines, "\n"))
+	add(m.styles.faint.Render(m.dialogHelp()))
+	box := m.styles.dialog.Width(w - 2).Render(strings.Join(lines, "\n"))
 	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
 
@@ -605,12 +605,12 @@ func (m *model) breadcrumb() string {
 	for _, st := range steps {
 		cur := st.s == c.step || (st.s == stepPick && c.step == stepName)
 		if cur {
-			parts = append(parts, styleAccent.Bold(true).Render(st.l))
+			parts = append(parts, m.styles.accent.Bold(true).Render(st.l))
 		} else {
-			parts = append(parts, styleFaint.Render(st.l))
+			parts = append(parts, m.styles.faint.Render(st.l))
 		}
 	}
-	return strings.Join(parts, styleFaint.Render(" › "))
+	return strings.Join(parts, m.styles.faint.Render(" › "))
 }
 
 // dialogContext summarises what has been chosen so far.
@@ -643,16 +643,16 @@ func (m *model) listLines(inner, budget int) []string {
 	if len(rows) == 0 {
 		switch {
 		case c.step == stepModel && c.loading:
-			out = append(out, "  "+styleDim.Render(m.spinner.View()+" fetching models from "+hostOf(c.prov.BaseURL)+"…"))
+			out = append(out, "  "+m.styles.dim.Render(m.spinner.View()+" fetching models from "+hostOf(c.prov.BaseURL)+"…"))
 		case c.step == stepModel && c.loadErr != "":
-			out = append(out, "  "+styleWarn.Render(truncateLine(c.loadErr, inner-2)))
-			out = append(out, "  "+styleDim.Render("type the model id and press enter"))
+			out = append(out, "  "+m.styles.warn.Render(truncateLine(c.loadErr, inner-2)))
+			out = append(out, "  "+m.styles.dim.Render("type the model id and press enter"))
 		case c.field.Value() != "":
-			out = append(out, "  "+styleDim.Render("nothing matches"))
+			out = append(out, "  "+m.styles.dim.Render("nothing matches"))
 		}
 		return out
 	}
-	return renderRows(rows, idx, inner, budget)
+	return renderRows(m.styles, rows, idx, inner, budget)
 }
 
 // matchRows keeps the rows whose key contains every word of the query, so
@@ -704,7 +704,7 @@ func fits(rows []row, start, idx, budget int) bool {
 // budget is the number of screen lines the window may occupy, section
 // headings included, so a short terminal gets a shorter list rather than
 // a box taller than the screen.
-func renderRows(rows []row, idx, inner, budget int) []string {
+func renderRows(sty *styles, rows []row, idx, inner, budget int) []string {
 	if budget <= 0 {
 		budget = dialogRows
 	}
@@ -731,7 +731,7 @@ func renderRows(rows []row, idx, inner, budget int) []string {
 				break // a heading with no row under it says nothing
 			}
 			section = r.section
-			out = append(out, styleSection.Render(strings.ToUpper(section)))
+			out = append(out, sty.section.Render(strings.ToUpper(section)))
 		}
 		shown++
 		// The last column takes what is left after the tag.
@@ -751,27 +751,27 @@ func renderRows(rows []row, idx, inner, budget int) []string {
 			}
 			switch {
 			case i == idx && j == 0:
-				cell = styleSelected.Render(cell)
+				cell = sty.selected.Render(cell)
 			case j == 0:
-				cell = styleKey.Render(cell)
+				cell = sty.key.Render(cell)
 			case j == len(r.cells)-1:
-				cell = styleFaint.Render(cell)
+				cell = sty.faint.Render(cell)
 			}
 			cells = append(cells, cell)
 		}
 		line := strings.Join(cells, "  ")
 		if r.tag != "" {
-			line += "  " + styleTag.Render(r.tag)
+			line += "  " + sty.tag.Render(r.tag)
 		}
 		if i == idx {
-			line = styleAccent.Render("▸ ") + line
+			line = sty.accent.Render("▸ ") + line
 		} else {
 			line = "  " + line
 		}
 		out = append(out, truncateLine(line, inner))
 	}
 	if shown < len(rows) {
-		out = append(out, styleFaint.Render(fmt.Sprintf("  %d of %d", idx+1, len(rows))))
+		out = append(out, sty.faint.Render(fmt.Sprintf("  %d of %d", idx+1, len(rows))))
 	}
 	return out
 }

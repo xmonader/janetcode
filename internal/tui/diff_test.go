@@ -14,7 +14,7 @@ func TestDiffGutterAndElision(t *testing.T) {
 	if !ok || len(hunks) != 2 {
 		t.Fatalf("parse: ok=%v hunks=%d", ok, len(hunks))
 	}
-	out := plain(renderDiff(hunks, 70, 40, true))
+	out := plain(renderDiff(defaultStyles(), hunks, 70, 40, true))
 	if strings.Contains(out, "one") {
 		t.Fatalf("context was not trimmed to three lines:\n%s", out)
 	}
@@ -60,7 +60,7 @@ func TestNonDiffPreviewStillRenders(t *testing.T) {
 	if _, ok := parseUnifiedDiff("would delete 3 files\n  a.txt\n"); ok {
 		t.Fatal("plain text parsed as a diff")
 	}
-	if out := plain(renderPreview("would delete 3 files\n  a.txt\n", 60, 10, true)); !strings.Contains(out, "would delete 3 files") {
+	if out := plain(renderPreview(defaultStyles(), "would delete 3 files\n  a.txt\n", 60, 10, true)); !strings.Contains(out, "would delete 3 files") {
 		t.Fatalf("plain preview lost:\n%s", out)
 	}
 }
