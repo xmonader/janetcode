@@ -41,6 +41,7 @@ func New(deps Deps, s Settings) (*Agent, error) {
 		Model:         s.Model,
 		Price:         s.Price,
 		MaxTokens:     s.MaxTokens,
+		Effort:        s.Effort,
 		MaxIterations: s.MaxIterations,
 		AutoApprove:   s.AutoApprove,
 		AutoEdits:     s.AutoEdits,

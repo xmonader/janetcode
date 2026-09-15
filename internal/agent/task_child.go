@@ -34,6 +34,7 @@ func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) (*Agent
 	}, Settings{
 		Model:         ps.Model,
 		MaxTokens:     ps.MaxTokens,
+		Effort:        ps.Effort,
 		MaxIterations: maxIter,
 		AutoApprove:   true,
 		CompactAt:     ps.CompactAt,
@@ -155,6 +156,7 @@ func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, erro
 	}, Settings{
 		Model:         ps.Model,
 		MaxTokens:     ps.MaxTokens,
+		Effort:        ps.Effort,
 		MaxIterations: maxIter,
 		CompactAt:     ps.CompactAt,
 		AutoApprove:   false,
@@ -211,6 +213,7 @@ func (t *Task) forkChild() (*Agent, error) {
 	}, Settings{
 		Model:         ps.Model,
 		MaxTokens:     ps.MaxTokens,
+		Effort:        ps.Effort,
 		MaxIterations: maxIter,
 		AutoApprove:   ps.AutoApprove,
 		AutoEdits:     ps.AutoEdits,

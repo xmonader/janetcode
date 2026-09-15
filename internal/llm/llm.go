@@ -148,6 +148,11 @@ type Request struct {
 	Messages  []Message
 	Tools     []ToolDef
 	MaxTokens int
+	// Effort asks for a reasoning tier from EffortTiers for this one
+	// call; empty leaves the provider's default (or, where the provider
+	// was configured with one, that). A provider whose request shape has
+	// no such field ignores it, so setting it is always safe.
+	Effort string
 	// Schema, when set, constrains the reply to JSON matching it. A
 	// provider that cannot do this ignores it and the caller parses as
 	// before, so setting it is always safe; ask for it where a malformed

@@ -53,6 +53,7 @@ func (a *Agent) callOn(ctx context.Context, prov llm.Provider, model string, emi
 		Messages:  a.Messages,
 		Tools:     defs,
 		MaxTokens: a.Settings().MaxTokens,
+		Effort:    a.Settings().Effort,
 	}, func(e llm.Event) {
 		if e.Type == llm.EventRetried && e.Retry != nil {
 			a.stats.retried(e.Retry.Attempts)
@@ -207,6 +208,7 @@ func (a *Agent) AskOnce(ctx context.Context, question string) (string, error) {
 		System:    a.systemPrompt(),
 		Messages:  msgs,
 		MaxTokens: max,
+		Effort:    s.Effort,
 	}, nil)
 	if err != nil {
 		return "", err
