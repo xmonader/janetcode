@@ -174,3 +174,18 @@ func TestLedgerKeysParamRules(t *testing.T) {
 		t.Fatal("already-saved parameter rule still offered")
 	}
 }
+
+// TestDriveLetterIsAPath: a Windows path in a rule names a file, not a
+// field called "C".
+func TestDriveLetterIsAPath(t *testing.T) {
+	for _, in := range []string{`read_file(C:/Users/me/x.go)`, `read_file(D:\src\x.go)`} {
+		r, err := Parse(in)
+		if err != nil {
+			t.Fatalf("Parse(%q) = %v", in, err)
+		}
+		ps, isParam, perr := Params(r.Pattern)
+		if perr != nil || isParam {
+			t.Fatalf("Parse(%q) read parameters %+v (err %v); want a path pattern", in, ps, perr)
+		}
+	}
+}

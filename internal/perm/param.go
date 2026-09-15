@@ -84,8 +84,10 @@ func splitParams(pattern string) []string {
 	return strings.Split(pattern, ",")
 }
 
-// paramClause reads one "name:pattern" clause. A URL is not one: the
-// colon of a scheme is followed by "//", which no field name is.
+// paramClause reads one "name:pattern" clause. Two things that look like
+// one are not: a URL, whose scheme colon is followed by "//", and a
+// Windows path, whose drive letter is a single letter followed by a
+// separator (read_file(C:/x) names a file, not a field "C").
 func paramClause(seg string) (name, pattern string, ok bool) {
 	i := strings.IndexByte(seg, ':')
 	if i < 0 {
@@ -95,6 +97,9 @@ func paramClause(seg string) (name, pattern string, ok bool) {
 	pattern = strings.TrimSpace(seg[i+1:])
 	if !paramName.MatchString(name) || strings.HasPrefix(pattern, "//") {
 		return "", "", false
+	}
+	if len(name) == 1 && (strings.HasPrefix(pattern, "/") || strings.HasPrefix(pattern, `\`)) {
+		return "", "", false // a drive letter, not a field
 	}
 	return name, pattern, true
 }
