@@ -67,7 +67,6 @@ func (m *model) applyThemeChoice(name string, persist bool) {
 	th, dark := resolveTheme(name, set, m.bgDark)
 	lipgloss.SetHasDarkBackground(dark)
 	m.styles = newStyles(th, m.styles.ansiOnly)
-	install(m.styles)
 	mode := "light"
 	if dark {
 		mode = "dark"

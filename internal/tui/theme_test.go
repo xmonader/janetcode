@@ -15,8 +15,6 @@ import (
 // applied to the live palette, the transcript is restyled, and the choice
 // is written to the config file touching only the theme key.
 func TestThemeSwitchLiveAndPersisted(t *testing.T) {
-	defer applyTheme(theme.Builtins()[0]) // restore the default global palette
-
 	h := newHarness(t)
 	set, err := theme.Build(nil)
 	if err != nil {
@@ -32,8 +30,8 @@ func TestThemeSwitchLiveAndPersisted(t *testing.T) {
 
 	h.m.applyThemeChoice("gruvbox", true)
 
-	if activeThemeName != "gruvbox" {
-		t.Errorf("active theme = %q, want gruvbox", activeThemeName)
+	if h.m.styles.themeName != "gruvbox" {
+		t.Errorf("active theme = %q, want gruvbox", h.m.styles.themeName)
 	}
 	if h.m.transcript.styleName != "dark" {
 		t.Errorf("gruvbox is a dark theme; transcript style = %q", h.m.transcript.styleName)
@@ -54,8 +52,8 @@ func TestThemeSwitchLiveAndPersisted(t *testing.T) {
 
 	// An unknown name is refused, not applied.
 	h.m.applyThemeChoice("does-not-exist", true)
-	if activeThemeName != "gruvbox" {
-		t.Errorf("unknown theme changed the palette to %q", activeThemeName)
+	if h.m.styles.themeName != "gruvbox" {
+		t.Errorf("unknown theme changed the palette to %q", h.m.styles.themeName)
 	}
 }
 
@@ -88,10 +86,7 @@ func TestResolveThemeModes(t *testing.T) {
 // TestGutterCollapsesUnderThreshold covers part B: the shared left margin
 // is present on a wide terminal and gone on a narrow one.
 func TestGutterCollapsesUnderThreshold(t *testing.T) {
-	defer applyTheme(theme.Builtins()[0])
-	applyTheme(theme.Builtins()[0]) // default theme, gutter 2
-
-	h := newHarness(t)
+	h := newHarness(t) // default theme, gutter 2
 	h.m.width = 100
 	if g := h.m.gutter(); g != 2 {
 		t.Errorf("wide terminal gutter = %d, want 2", g)

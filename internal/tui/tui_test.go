@@ -2619,30 +2619,30 @@ func TestInputBoxStates(t *testing.T) {
 			t.Errorf("%s: placeholder = %q, want it to mention %q", what, h.m.placeholder(), wantHint)
 		}
 	}
-	check("idle", styleBoxIdle, defaultPlaceholder)
+	check("idle", h.m.styles.boxIdle, defaultPlaceholder)
 	h.keys("make n.txt")
 	h.enter()
 	h.pump(func() bool { return h.m.pending != nil })
-	check("permission", styleBoxWarn, "always")
-	if stylePermBox.GetBorderTopForeground() != styleBoxWarn.GetBorderTopForeground() {
+	check("permission", h.m.styles.boxWarn, "always")
+	if h.m.styles.permBox.GetBorderTopForeground() != h.m.styles.boxWarn.GetBorderTopForeground() {
 		t.Error("the permission box does not match the warning palette")
 	}
 	h.keys("n")
 	if !h.m.denying {
 		t.Fatal("n opens the reason prompt")
 	}
-	check("denial reason", styleBoxWarn, "Why?")
+	check("denial reason", h.m.styles.boxWarn, "Why?")
 	h.enter()
 	h.pump(func() bool { return !h.m.running })
-	check("back to idle", styleBoxIdle, defaultPlaceholder)
+	check("back to idle", h.m.styles.boxIdle, defaultPlaceholder)
 	h.m.opts.Agent.SetPlanMode(true)
-	check("plan mode", styleBoxIdle, "Plan mode")
+	check("plan mode", h.m.styles.boxIdle, "Plan mode")
 	h.m.opts.Agent.SetPlanMode(false)
 	h.m.running = true
-	check("running", styleBoxBusy, "queue")
+	check("running", h.m.styles.boxBusy, "queue")
 	h.m.running = false
 	// The connect dialog is another box you type into: same accent border.
-	if styleDialog.GetBorderTopForeground() != styleBoxIdle.GetBorderTopForeground() {
+	if h.m.styles.dialog.GetBorderTopForeground() != h.m.styles.boxIdle.GetBorderTopForeground() {
 		t.Error("the connect dialog border does not match an idle input box")
 	}
 }
@@ -2836,9 +2836,9 @@ func TestLightPaletteContrast(t *testing.T) {
 		col  lipgloss.AdaptiveColor
 		min  float64
 	}{
-		{"faint", colFaint, 3.5}, {"dim", colDim, 4.0}, {"accent", colAccent, 4.0},
-		{"warn", colWarn, 4.0}, {"err", colErr, 4.0}, {"ok", colOK, 4.0},
-		{"user", colUser, 4.0}, {"tool", colTool, 4.0}, {"border", colBorder, 2.5},
+		{"faint", defaultPalette.faint, 3.5}, {"dim", defaultPalette.dim, 4.0}, {"accent", defaultPalette.accent, 4.0},
+		{"warn", defaultPalette.warn, 4.0}, {"err", defaultPalette.err, 4.0}, {"ok", defaultPalette.ok, 4.0},
+		{"user", defaultPalette.user, 4.0}, {"tool", defaultPalette.tool, 4.0}, {"border", defaultPalette.border, 2.5},
 	} {
 		if got := contrast(c.col.Light, "#ffffff"); got < c.min {
 			t.Errorf("light %s (%s) on white is %.2f:1, want at least %.1f", c.name, c.col.Light, got, c.min)
@@ -3035,9 +3035,9 @@ func TestPermissionBoxExpandHint(t *testing.T) {
 		t.Errorf("a one-line write offered ctrl+o:\n%s", v)
 	}
 	// The box border and the status word are the same warning colour.
-	if stylePermBox.GetBorderTopForeground() != styleWarn.GetForeground() {
+	if h.m.styles.permBox.GetBorderTopForeground() != h.m.styles.warn.GetForeground() {
 		t.Errorf("permission box border %v, warning text %v",
-			stylePermBox.GetBorderTopForeground(), styleWarn.GetForeground())
+			h.m.styles.permBox.GetBorderTopForeground(), h.m.styles.warn.GetForeground())
 	}
 	h.keys("y")
 	h.pump(func() bool { return !h.m.running })

@@ -302,7 +302,6 @@ func newModel(opts Options) *model {
 	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(defaultStyles().accent))
 
 	_, ansi := applyColorProfile(os.Getenv)
-	ansiOnly = ansi
 	// The terminal background is probed exactly once, here, before any
 	// theme pins lipgloss to a mode: a live /theme switch to a single-mode
 	// theme changes what lipgloss reports, so auto and adaptive themes must
@@ -312,7 +311,6 @@ func newModel(opts Options) *model {
 	th, dark := resolveTheme(opts.Theme, opts.Themes, bgDark)
 	lipgloss.SetHasDarkBackground(dark)
 	st := newStyles(th, ansi)
-	install(st)
 	style := "light"
 	if dark {
 		style = "dark"
