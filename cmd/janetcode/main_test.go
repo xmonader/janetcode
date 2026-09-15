@@ -128,7 +128,7 @@ func TestHeadlessEndToEnd(t *testing.T) {
 	stdout, stderr = captureStd(t)
 	err = run([]string{"-p", "thanks", "--provider", "openai", "--model", "test-model", "--continue"})
 	os.Stdin = oldIn
-	out, errOut = stdout(), stderr()
+	_, errOut = stdout(), stderr()
 	if err != nil {
 		t.Fatalf("resume run: %v\nstderr: %s", err, errOut)
 	}
