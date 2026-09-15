@@ -1645,7 +1645,10 @@ the copy; `/fork stay [title]` lists the copy and stays here. `/add-dir <path>` 
 another local root for this session. `/btw` asks a side question that is
 not stored as a user turn; `/copy` copies the last reply; `/config key=value`
 sets a catalogued setting; `/doctor` prints the same checkup as
-`janetcode --doctor` without changing files.
+`janetcode --doctor` without changing files — including the `would fix:`
+lines, which say what `janetcode --doctor --fix` would repair. Repairing
+is the command line's job, so a running session never changes files
+behind you.
 
 ### The sandbox
 

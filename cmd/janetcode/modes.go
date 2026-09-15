@@ -230,7 +230,9 @@ func (r *root) webMode() error {
 		Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For,
 		Workspace: built.ws, MCP: mcpOpts, Skills: built.skillInjector,
 		Doctor: func(w io.Writer) error {
-			return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme})
+			// The front-ends report; --fix is the command line's, so a
+			// running session never changes files behind the user.
+			return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme}, false)
 		},
 	})
 }
@@ -281,7 +283,9 @@ func (r *root) tuiMode() error {
 		Typed:         typed,
 		AutoTitle:     true,
 		Doctor: func(w io.Writer) error {
-			return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme})
+			// The front-ends report; --fix is the command line's, so a
+			// running session never changes files behind the user.
+			return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme}, false)
 		},
 		Verify: &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: ts},
 		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: ts,

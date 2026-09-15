@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -79,6 +78,7 @@ var flagWhen = map[string]string{
 	"mcp-auth":             "a remote MCP server needs an OAuth login once",
 	"append-system-prompt": "an experiment that adds instructions, recorded so the A/B is traceable",
 	"doctor":               "something is not working and you want to know which part",
+	"fix":                  "the doctor listed repairs you want carried out: the safe, obvious ones only",
 	"proof":                "code review, or months later: which session and turn wrote a committed file and what actually demonstrated it worked",
 	"theme":                "one run in a different colour scheme without changing the config",
 	"web":                  "you want the session in a browser, on another screen or from a phone on the same machine",
@@ -228,19 +228,7 @@ func buildCatalog(fs *flag.FlagSet, tools *tool.Registry) *feature.Catalog {
 
 // configKeys lists the json keys of the Config struct, which is the only
 // list of them that cannot be out of date.
-func configKeys() []string {
-	t := reflect.TypeOf(config.Config{})
-	var out []string
-	for i := 0; i < t.NumField(); i++ {
-		tag := t.Field(i).Tag.Get("json")
-		name, _, _ := strings.Cut(tag, ",")
-		if name == "" || name == "-" {
-			continue
-		}
-		out = append(out, name)
-	}
-	return out
-}
+func configKeys() []string { return config.Keys() }
 
 // firstSentence trims a usage or description string to its first
 // sentence, so a catalogue row stays one line.

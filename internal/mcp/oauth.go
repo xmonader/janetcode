@@ -104,6 +104,17 @@ func (s *TokenStore) Get(serverURL string) (Token, bool) {
 	return t, ok && t.AccessToken != ""
 }
 
+// All returns every stored token by server URL. The doctor reads it to
+// find logins that have expired with no way to renew themselves.
+func (s *TokenStore) All() (map[string]Token, error) {
+	if s == nil {
+		return nil, nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.load()
+}
+
 // Put stores a token for a server URL.
 func (s *TokenStore) Put(serverURL string, t Token) error {
 	s.mu.Lock()
