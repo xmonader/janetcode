@@ -18,7 +18,7 @@ import (
 // pre-feature behaviour rather than a degraded one.
 var newSwitches = []string{
 	"accept", "recipe", "proof", "impact", "routing",
-	"protected", "ladder", "undoabout", "mermaid",
+	"protected", "ladder", "undoabout", "mermaid", "keeprevert",
 }
 
 func TestNewSwitchesAreKnown(t *testing.T) {

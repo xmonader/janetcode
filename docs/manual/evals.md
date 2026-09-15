@@ -77,10 +77,10 @@ checked against its own published data.
 `EVAL_OFF=coach,prune` runs an ablation with named behaviours disabled.
 The names are the list `--eval-off` prints on a misspelling (and the
 usage string of the flag): `accept`, `coach`, `critic`, `extratools`,
-`faults`, `impact`, `intent`, `ladder`, `lineedit`, `loops`, `mermaid`,
-`oversized`, `plan`, `proof`, `protected`, `prune`, `recipe`, `repomap`,
-`richskip`, `routing`, `script`, `syntax`, `todo`, `undoabout`, `verdict`,
-`verify`, `working`. The variant name is recorded in the results file so
+`faults`, `impact`, `intent`, `keeprevert`, `ladder`, `lineedit`, `loops`,
+`mermaid`, `oversized`, `plan`, `proof`, `protected`, `prune`, `recipe`,
+`repomap`, `richskip`, `routing`, `script`, `syntax`, `todo`, `undoabout`,
+`verdict`, `verify`, `working`. The variant name is recorded in the results file so
 a comparison says what it compared. The same names work as
 `JANETCODE_OFF=script` for a real session.
 

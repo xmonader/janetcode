@@ -36,6 +36,7 @@ func (a *Agent) deliverSteering(emit func(Event)) {
 	if len(notes) == 0 {
 		return
 	}
+	a.steeredThisTurn = true
 	// A note the user typed mid-turn is a decision landing that the
 	// mechanical-streak policy cannot see coming, so the rest of the
 	// turn stays on Model rather than risk a cheap model missing what

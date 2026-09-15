@@ -194,6 +194,14 @@ type Agent struct {
 	// routing never leaves Model, undo-about uses keyword overlap
 	// instead of the model, and mermaid is drawn as source.
 	Off map[string]bool
+	// keepReverts is how many times this goal has had a round put back
+	// in a row; lastGoalOut is the previous round's verdict, for the
+	// comparison; steeredThisTurn is set when the user steered, so a
+	// turn they directed is never reverted (see keepOrRevert).
+	keepReverts     int
+	lastGoalOut     TurnOutcome
+	goalOutSet      bool
+	steeredThisTurn bool
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
@@ -328,6 +336,7 @@ func (a *Agent) beginTurn(ctx context.Context, blocks ...llm.Block) {
 	a.running.Store(true)
 	a.mutated, a.mutations = false, 0
 	a.proofCommits = nil
+	a.steeredThisTurn = false
 }
 
 // ErrMaxIterations is returned when a turn exceeds MaxIterations model calls.
@@ -540,6 +549,10 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 				continue
 			}
 			a.logOutcome(outcome)
+			if more := a.keepOrRevert(ctx, outcome, emit); more {
+				a.stepRoute.taint("a goal round was reverted because it made things worse")
+				continue
+			}
 			a.refreshProofNotes(ctx, emit)
 			if !a.Off["verdict"] && outcome.Verdict != VerdictNoChanges {
 				emit(Event{Kind: EvVerdict, Text: outcome.Line(), IsError: !outcome.OK()})
