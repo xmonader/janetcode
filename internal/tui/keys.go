@@ -151,6 +151,15 @@ func (m *model) handlePendingKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		m.noteUse("r")
 		m.answer(agent.AllowAlways, "")
+	case "left", "shift+tab":
+		// Along the ladder of rules r could save (see perm.SuggestLadder):
+		// left narrows, right widens. Both are free here — the prompt has
+		// the whole keyboard — and neither answers anything by itself.
+		m.moveRung(-1)
+		m.refresh(false)
+	case "right", "tab":
+		m.moveRung(1)
+		m.refresh(false)
 	case "n", "N":
 		// Ask why so the model can adapt; enter with nothing skips.
 		m.denying = true

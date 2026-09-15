@@ -172,6 +172,7 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 	case permissionMsg:
 		m.drainEvents() // the tool entry must exist before the prompt shows
 		m.pending = &msg
+		m.rung = msg.call.RuleIndex
 		m.turn.setPhase("waiting for your approval")
 		m.term.announce("janetcode", "approval needed: "+msg.call.Name)
 		m.refresh(false)

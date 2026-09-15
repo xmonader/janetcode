@@ -149,6 +149,8 @@ janetcode tells the terminal what is happening, so the terminal can help:
   generated, and the working directory before that.
 
 At a permission prompt: `y` allow once, `a` allow that tool for the session,
+`r` save the rule shown on the key line, `←`/`→` (or `shift+tab`/`tab`)
+widen and narrow that rule before saving it,
 `n` deny and type why (the reason goes to the model, enter skips it), `esc`
 deny silently, `c` cancel the whole turn. Destructive shell commands (recursive deletes, force pushes,
 sudo, piping downloads into a shell) are flagged in the prompt.
@@ -270,6 +272,21 @@ config file:
   "deny":  ["bash(git push*)", "bash(rm -rf *)"]
 }
 ```
+
+That rule is one rung of a short ladder, and `←` and `→` move along it
+before `r` saves anything — narrower to the left, wider to the right, with
+`2/3` on the key line saying where you stand. For `go test ./internal/...`
+the rungs are `bash(go test ./internal/...)`, `bash(go test *)` and
+`bash(go *)`; for `internal/agent/x.go` they are the file itself,
+`edit_file(internal/agent/*)` and `edit_file(internal/*)`; for a URL, the
+page, its section of the site, then the whole host. The prompt starts on
+the rung it has always proposed, so pressing `r` straight away saves
+exactly what it used to, and a call with only one rung shows no ladder at
+all. The ends are a floor and a ceiling: the widest rung is never broader
+than the tool's leading word, so `bash(*)` is not reachable, the tree rung
+never climbs to the filesystem root, and a call `r` refuses to capture (see
+below) has no ladder either. The ledger counts the rung you actually
+saved, and the "approved N×" note beside it counts that same rule.
 
 A rule is `tool` or `tool(pattern)`; `*` spans anything and `?` one
 character, matched against the command for `bash`, the path for file

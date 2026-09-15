@@ -4375,3 +4375,72 @@ func TestAliasesObeyTheIdleGate(t *testing.T) {
 		h.pump(func() bool { return !h.m.turn.running })
 	}
 }
+
+// TestPermissionPromptLadderMovesAndSaves: ← and → move along the rules
+// the prompt offers, and r saves the one that is highlighted, not the
+// one the prompt opened on.
+func TestPermissionPromptLadderMovesAndSaves(t *testing.T) {
+	save := func(t *testing.T, move []tea.KeyMsg) []string {
+		t.Helper()
+		h := newHarness(t,
+			&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(`{"path":"docs/a.md","content":"1"}`)}}}, StopReason: llm.StopToolUse},
+			&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "wrote"), StopReason: llm.StopEndTurn},
+		)
+		var saved []string
+		h.m.opts.Agent.SaveRule = func(r perm.Rule) error { saved = append(saved, r.String()); return nil }
+		h.keys("write it")
+		h.enter()
+		h.pump(func() bool { return h.m.pending != nil })
+		// The prompt opens on what r has always saved, and says where
+		// that stands on the ladder.
+		if v := plain(h.m.View()); !strings.Contains(v, "write_file(docs/*)") || !strings.Contains(v, "2/2") {
+			t.Fatalf("prompt view:\n%s", v)
+		}
+		for _, k := range move {
+			h.update(k)
+		}
+		h.keys("r")
+		h.pump(func() bool { return !h.m.turn.running })
+		return saved
+	}
+	left := tea.KeyMsg{Type: tea.KeyLeft}
+	right := tea.KeyMsg{Type: tea.KeyRight}
+	for _, c := range []struct {
+		name string
+		move []tea.KeyMsg
+		want string
+	}{
+		{"default", nil, "write_file(docs/*)"},
+		{"narrowed", []tea.KeyMsg{left}, "write_file(docs/a.md)"},
+		{"back again", []tea.KeyMsg{left, right}, "write_file(docs/*)"},
+		{"clamped at the narrow end", []tea.KeyMsg{left, left, left}, "write_file(docs/a.md)"},
+		{"clamped at the wide end", []tea.KeyMsg{right, right}, "write_file(docs/*)"},
+		{"shift+tab narrows too", []tea.KeyMsg{{Type: tea.KeyShiftTab}}, "write_file(docs/a.md)"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if saved := save(t, c.move); len(saved) != 1 || saved[0] != c.want {
+				t.Fatalf("saved = %v, want [%s]", saved, c.want)
+			}
+		})
+	}
+}
+
+// TestPermissionKeysShowTheLadderHint: the key line says the rule can be
+// moved and where it stands, still fits the widths the prompt has to fit,
+// and says nothing at all when there is only one rule to save.
+func TestPermissionKeysShowTheLadderHint(t *testing.T) {
+	h := newHarness(t)
+	for _, w := range []int{60, 80, 160} {
+		h.m.width = w
+		line := plain(h.m.permissionKeysAt("bash", "bash(go test *)", "", false, 1, 3))
+		if lipgloss.Width(line) > w-6 {
+			t.Fatalf("width %d: %d cols: %q", w, lipgloss.Width(line), line)
+		}
+		if w >= 80 && (!strings.Contains(line, "←→") || !strings.Contains(line, "2/3")) {
+			t.Fatalf("width %d dropped the ladder hint: %q", w, line)
+		}
+		if one := plain(h.m.permissionKeysAt("bash", "bash(go test *)", "", false, 0, 1)); strings.Contains(one, "←→") || strings.Contains(one, "1/1") {
+			t.Fatalf("width %d: a single rung got ladder chrome: %q", w, one)
+		}
+	}
+}
