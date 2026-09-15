@@ -88,7 +88,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		// lines to scroll past. It becomes a chip; submit puts it back.
 		m.input.InsertString(m.storePaste(string(msg.Runes)))
 		m.layout()
-		m.flashNotice(fmt.Sprintf("pasted %s as a chip · it is sent in full", textfmt.Plural(strings.Count(string(msg.Runes), "\n")+1, "line")))
+		m.notice.flash(fmt.Sprintf("pasted %s as a chip · it is sent in full", textfmt.Plural(strings.Count(string(msg.Runes), "\n")+1, "line")))
 		// A bracketed paste is one event, not a keystroke: the whole
 		// text arrives at once, which is the moment @path is worth
 		// knowing about.

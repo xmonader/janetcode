@@ -61,7 +61,7 @@ func (m *model) followBranch() {
 	if !ok || b == "" || b == m.branch {
 		return
 	}
-	m.flashNotice("branch changed: " + m.branch + " → " + b)
+	m.notice.flash("branch changed: " + m.branch + " → " + b)
 	m.branch = b
 	m.refresh(false)
 }

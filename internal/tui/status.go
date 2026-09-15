@@ -105,16 +105,10 @@ func (m *model) footerNotice() string {
 		return fitLine("  "+m.styles.warn.Render("steering ")+m.styles.dim.Render(textfmt.OneLine(m.steering[len(m.steering)-1])), room)
 	case len(m.queued) > 0:
 		return fitLine("  "+m.styles.faint.Render(fmt.Sprintf("queued %d · ", len(m.queued)))+m.styles.dim.Render(textfmt.OneLine(m.queued[len(m.queued)-1]))+m.styles.faint.Render(" · up takes it back"), room)
-	case m.notice != "" && time.Since(m.noticeAt) < noticeFor:
-		return fitLine("  "+m.styles.dim.Render(m.notice), room)
+	case m.notice.live():
+		return fitLine("  "+m.styles.dim.Render(m.notice.text), room)
 	}
 	return ""
-}
-
-// flashNotice puts a one-shot line in the reserved row above the input.
-// Queue, steering and a permission prompt take the row while they apply.
-func (m *model) flashNotice(s string) {
-	m.notice, m.noticeAt = s, time.Now()
 }
 
 // waitRe matches the "in 12s" a provider puts at the end of a phase to

@@ -3281,7 +3281,7 @@ func TestEphemeralNoticeRow(t *testing.T) {
 	h.m.queued = nil
 	h.m.input.Reset()
 
-	h.m.noticeAt = time.Now().Add(-noticeFor - time.Second)
+	h.m.notice.at = time.Now().Add(-noticeFor - time.Second)
 	h.update(tickMsg(time.Now()))
 	if strings.Contains(plain(h.m.View()), "pasted 41 lines") {
 		t.Fatalf("expired paste notice still on screen:\n%s", plain(h.m.View()))
@@ -3306,7 +3306,7 @@ func TestEphemeralNoticeRow(t *testing.T) {
 	if len(h.m.transcript.entries) != nEntries {
 		t.Fatalf("branch change added a transcript line: %+v", h.m.transcript.entries[nEntries:])
 	}
-	h.m.noticeAt = time.Now().Add(-noticeFor - time.Second)
+	h.m.notice.at = time.Now().Add(-noticeFor - time.Second)
 	h.update(tickMsg(time.Now()))
 	if strings.Contains(plain(h.m.View()), "branch changed") {
 		t.Fatalf("expired branch notice still on screen:\n%s", plain(h.m.View()))

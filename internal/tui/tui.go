@@ -267,11 +267,7 @@ type model struct {
 	// terminal is at least gutterRestoreWidth, so resizing around 88
 	// does not slam the margin on and off.
 	gutterOff bool
-	// notice is a one-shot line for the reserved row above the input
-	// (paste-chip confirmation, outside branch change). It yields to a
-	// live queue or steering notice and expires after noticeFor.
-	notice   string
-	noticeAt time.Time
+	notice    noticeState
 	// term writes the escape sequences that let the terminal take part:
 	// OSC 133 zones, desktop notifications, the window title.
 	term *termIntegration
@@ -522,10 +518,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Keeps elapsed timers and throttled live markdown moving even when
 		// no event arrives.
 		m.ticks++
-		expired := m.notice != "" && time.Since(m.noticeAt) >= noticeFor
-		if expired {
-			m.notice = ""
-		}
+		expired := m.notice.expire()
 		if m.ticks%10 == 0 && !m.running {
 			// Someone may have checked out another branch in this tree
 			// (or in the session's worktree) from outside; follow it.
