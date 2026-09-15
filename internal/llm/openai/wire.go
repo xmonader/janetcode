@@ -65,6 +65,16 @@ type wireRequest struct {
 	StreamOptions       *struct {
 		IncludeUsage bool `json:"include_usage"`
 	} `json:"stream_options,omitempty"`
+	// There is deliberately no reasoning_effort here, and llm.Request's
+	// Effort is ignored (this provider does not implement
+	// llm.EffortAware). The field is OpenAI's own, its values are a
+	// shorter ladder than llm.EffortTiers, and the servers this one
+	// talks to — local runtimes, DashScope, OpenRouter, Ollama — variously
+	// do not know it, spell it differently (OpenRouter nests it under
+	// "reasoning") or reject the whole request for an unknown field, the
+	// way response_format has to be retried without below. Wiring it
+	// would need per-dialect detection and a rejection retry of its own;
+	// until then the tier applies to Anthropic models and /effort says so.
 	ResponseFormat *wireResponseFormat `json:"response_format,omitempty"`
 	// PromptCacheKey routes the request to a cache shard. Without a stable
 	// key an agent loop's growing prefix can be load-balanced onto a

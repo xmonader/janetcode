@@ -38,6 +38,8 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.UpdateSettings(func(s *agent.Settings) { s.AutoApprove = cfg.AutoApprove })
 	case "compact_at":
 		a.UpdateSettings(func(s *agent.Settings) { s.CompactAt = cfg.CompactAt })
+	case "effort":
+		a.UpdateSettings(func(s *agent.Settings) { s.Effort = cfg.Effort })
 	case "max_tokens":
 		a.UpdateSettings(func(s *agent.Settings) { s.MaxTokens = cfg.MaxTokens })
 	case "max_iterations":

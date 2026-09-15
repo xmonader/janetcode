@@ -502,10 +502,8 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	default:
 		return nil, badf("provider %q has type %q (want anthropic or openai)", cfg.Provider, active.Type)
 	}
-	switch cfg.Effort {
-	case "", "low", "medium", "high", "xhigh", "max":
-	default:
-		return nil, badf("invalid effort %q (want low, medium, high, xhigh or max)", cfg.Effort)
+	if !llm.ValidEffort(cfg.Effort) {
+		return nil, badf("invalid effort %q (want %s)", cfg.Effort, llm.EffortList())
 	}
 	// Build the theme set from the builtins, the config "themes" object and
 	// any theme files in <cfgDir>/themes. A bad user theme is a config

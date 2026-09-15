@@ -282,6 +282,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		Price:         d.cfg.PriceFor(d.cfg.Model),
 		ContextWindow: d.cfg.MetaFor(d.cfg.Model).ContextWindow,
 		MaxTokens:     d.cfg.MaxTokens,
+		Effort:        d.cfg.Effort,
 		MaxIterations: d.cfg.MaxIterations,
 		CompactAt:     d.cfg.CompactAt,
 		AutoApprove:   d.cfg.AutoApprove,

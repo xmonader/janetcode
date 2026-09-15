@@ -174,6 +174,14 @@ func (m *model) statusState() string {
 		st = m.styles.key
 	}
 	s := st.Render(mode)
+	// A tier above the provider's own default is a standing choice about
+	// what every call costs, so it sits with the mode rather than being
+	// something you have to run /effort to remember.
+	if ag := m.opts.Agent; ag != nil {
+		if e := ag.Settings().Effort; e != "" {
+			s += m.styles.faint.Render(" · effort:" + e)
+		}
+	}
 	if ag := m.opts.Agent; ag != nil && ag.Sandbox != nil && ag.Sandbox.Enabled() {
 		// The profile is the part that says what is actually confined,
 		// so the chrome names it rather than only that there is a box.

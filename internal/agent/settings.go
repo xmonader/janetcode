@@ -28,6 +28,7 @@ type Settings struct {
 	Price         *llm.Price
 	ContextWindow int
 	MaxTokens     int
+	Effort        string
 	MaxIterations int
 	CompactAt     int
 	AutoApprove   bool
@@ -53,6 +54,7 @@ func (a *Agent) settingsLocked() Settings {
 		Price:         a.Price,
 		ContextWindow: a.ContextWindow,
 		MaxTokens:     a.MaxTokens,
+		Effort:        a.Effort,
 		MaxIterations: a.MaxIterations,
 		CompactAt:     a.CompactAt,
 		AutoApprove:   a.AutoApprove,
@@ -80,6 +82,7 @@ func (a *Agent) UpdateSettings(change func(*Settings)) {
 	a.Price = s.Price
 	a.ContextWindow = s.ContextWindow
 	a.MaxTokens = s.MaxTokens
+	a.Effort = s.Effort
 	a.MaxIterations = s.MaxIterations
 	a.CompactAt = s.CompactAt
 	a.AutoApprove = s.AutoApprove

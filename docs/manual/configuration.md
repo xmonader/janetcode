@@ -48,7 +48,20 @@ Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `OPENAI_API_KEY`,
 `JANETCODE_MODEL`, `JANETCODE_EFFORT`, `JANETCODE_THEME`. Keys from the
 environment are never copied into the config file.
 
-`effort` (Anthropic only) is `low`, `medium`, `high`, `xhigh` or `max`.
+`effort` is how hard the model thinks: `low`, `medium`, `high`, `xhigh` or
+`max`, in that order, or absent for whatever the provider does on its own.
+Anything else is a config error, both in the file and through `/config`.
+Only Anthropic models take a reasoning tier today; with another provider
+the setting is remembered and not sent, and `/effort` says so.
+
+It is a live setting. `/effort <tier>` changes the running session from
+the next model call onward and writes nothing; `/config effort=<tier>`
+does the same **and** saves it here for the next session, the way the
+other live keys (`model`, `max_tokens`, `compact_at`, `auto_approve`) do.
+`--effort` and `JANETCODE_EFFORT` set the tier a session starts at. A
+model that refuses the tier asked for is served the one below it, and the
+session shows any tier above the default on its status line.
+
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
 

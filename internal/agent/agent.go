@@ -153,7 +153,7 @@ type Agent struct {
 	// Embedded for the same reason.
 	turnMonitor
 
-	// Model, MaxTokens, MaxIterations, CompactAt, AutoApprove, AutoEdits,
+	// Model, MaxTokens, Effort, MaxIterations, CompactAt, AutoApprove, AutoEdits,
 	// AutoMode, ReadOnly, PlanMode, ProofNotes, Rules and Pins are filled
 	// in when the agent is built. Once a turn may be running they change
 	// and are read only through settings.go (Settings, UpdateSettings,
@@ -165,6 +165,10 @@ type Agent struct {
 	Model    string
 	// MaxTokens per model call. Zero lets the provider choose.
 	MaxTokens int
+	// Effort is the reasoning tier every model call asks for, one of
+	// llm.EffortTiers; empty lets the provider choose. It rides on each
+	// llm.Request, so /effort changes what the very next call asks for.
+	Effort string
 	// MaxIterations caps model calls per user turn. Zero means 50.
 	MaxIterations int
 	// AutoApprove skips the Approver for every tool.

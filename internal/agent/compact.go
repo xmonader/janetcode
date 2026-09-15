@@ -439,6 +439,7 @@ func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction s
 		Messages:  msgs,
 		Tools:     a.Tools.Defs(),
 		MaxTokens: s.MaxTokens,
+		Effort:    s.Effort,
 		Schema:    schema,
 	}, nil)
 	if err != nil {
@@ -452,6 +453,7 @@ func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction s
 		System:    instruction,
 		Messages:  append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, "Now.")),
 		MaxTokens: s.MaxTokens,
+		Effort:    s.Effort,
 	}, nil)
 	if err != nil {
 		return nil, err

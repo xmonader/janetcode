@@ -48,11 +48,14 @@ type Config struct {
 
 // Provider is the Anthropic Messages API backend.
 type Provider struct {
-	// mu guards effort, the tier learned from a provider that refused
-	// the one configured; it is kept for the provider's lifetime so the
-	// refusal is paid for once.
-	mu     sync.Mutex
-	effort string
+	// mu guards the clamp: the tier a provider refused (asked) and what
+	// was used instead (clamped). It is kept for the provider's lifetime
+	// so the refusal is paid for once — but only for the tier it was
+	// learned about, so asking for another tier tries it honestly.
+	mu       sync.Mutex
+	asked    string
+	clamped  string
+	hasClamp bool
 
 	cfg     Config
 	client  sdk.Client // first key's client; kept for tests
@@ -71,9 +74,7 @@ func New(cfg Config) (*Provider, error) {
 	if cfg.MaxRetries == 0 {
 		cfg.MaxRetries = 2
 	}
-	switch cfg.Effort {
-	case "", "low", "medium", "high", "xhigh", "max":
-	default:
+	if !llm.ValidEffort(cfg.Effort) {
 		return nil, fmt.Errorf("anthropic: invalid effort %q", cfg.Effort)
 	}
 	p := &Provider{cfg: cfg, ring: ring}
@@ -98,6 +99,10 @@ func New(cfg Config) (*Provider, error) {
 
 // Name implements llm.Provider.
 func (p *Provider) Name() string { return "anthropic" }
+
+// SupportsEffort implements llm.EffortAware: the Messages API takes a
+// reasoning tier on output_config, so llm.Request.Effort is sent.
+func (p *Provider) SupportsEffort() bool { return true }
 
 // Keys is the number of distinct API keys configured.
 func (p *Provider) Keys() int { return p.ring.Len() }
@@ -285,7 +290,11 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	ctx, wd := llm.Watch(ctx, p.cfg.Limits)
 	defer wd.Stop()
 	for rotations := 0; ; rotations++ {
-		params, err := buildParams(req, p.config())
+		cfg := p.config()
+		// The tier is read per request, not per provider: /effort changes
+		// the agent's live setting and the very next call carries it.
+		cfg.Effort = p.effortFor(req.Effort)
+		params, err := buildParams(req, cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -309,21 +318,33 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	}
 }
 
-// efforts are the reasoning tiers, weakest first. Rank order is what
-// makes a refusal recoverable: a model that will not take "max" will
-// usually take the tier below it, and the difference between tiers is
-// how hard it thinks, not whether the request is valid.
-var efforts = []string{"low", "medium", "high", "xhigh", "max"}
-
-// config is the configuration as it stands, with any clamped effort.
+// config is the configuration as it stands. The effort tier is not part
+// of it: it is resolved per request by effortFor.
 func (p *Provider) config() Config {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	cfg := p.cfg
-	if p.effort != "" {
-		cfg.Effort = p.effort
+	return p.cfg
+}
+
+// effortFor resolves the tier one request will actually ask for: the
+// request's own tier, or the configured one when it names none, lowered
+// to whatever this model was last willing to take. A different tier from
+// the one the clamp was learned about discards the clamp, so a person who
+// asks for another tier after a refusal is asking honestly and gets it
+// tried — a manual change always wins over the automatic downgrade.
+func (p *Provider) effortFor(want string) string {
+	if want == "" {
+		want = p.cfg.Effort
 	}
-	return cfg
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if want != p.asked {
+		p.asked, p.clamped, p.hasClamp = want, "", false
+	}
+	if p.hasClamp {
+		return p.clamped
+	}
+	return want
 }
 
 // clampEffort lowers the reasoning tier by one rank when the provider
@@ -340,27 +361,25 @@ func (p *Provider) clampEffort(err error) bool {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	current := p.effort
-	if current == "" {
+	current := p.asked
+	switch {
+	case p.hasClamp:
+		current = p.clamped
+	case current == "":
+		// No request has resolved a tier yet (a refusal on the very
+		// first call is answered before effortFor ran in a test): the
+		// configured tier is what was asked for.
 		current = p.cfg.Effort
+		p.asked = current
 	}
 	if current == "" {
 		return false // nothing was asked for; the complaint is about something else
 	}
-	rank := -1
-	for i, e := range efforts {
-		if e == current {
-			rank = i
-		}
+	p.clamped, p.hasClamp = "", true
+	if rank := llm.EffortRank(current); rank > 0 {
+		p.clamped = llm.EffortTiers[rank-1]
 	}
-	switch {
-	case rank <= 0:
-		p.effort, p.cfg.Effort = "", ""
-		return current != ""
-	default:
-		p.effort = efforts[rank-1]
-		return true
-	}
+	return true
 }
 
 func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.MessageNewParams, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Response, error) {

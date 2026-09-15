@@ -18,7 +18,7 @@ func (m *model) helpText() string {
 	sb.WriteString("  typing while the model works queues the message; it is sent when the turn ends · ctrl+s hands it to the running turn instead · up takes the last queued one back · esc cancels and gives them all back\n")
 	sb.WriteString("  @path attaches a file, image or directory listing to the prompt · tab completes the path · ctrl+v pastes a clipboard image\n")
 	sb.WriteString("  !command runs a shell command here and shares its output with the model\n")
-	sb.WriteString("  shift+tab cycles ask → plan → auto → yolo · ctrl+t opens the subagents overlay (/agents)\n")
+	sb.WriteString("  shift+tab cycles ask → plan → auto → yolo · ctrl+r cycles how hard the model thinks (/effort) · ctrl+t opens the subagents overlay (/agents)\n")
 	sb.WriteString("permission prompt: y allow once · a allow this tool for the session · r save a rule so matching calls never ask again · n deny (then type why, or enter to skip) · esc deny · c cancel the whole turn\n")
 	all := m.allCommands()
 	byName := map[string]command{}
