@@ -86,6 +86,42 @@ func TestCompactKeepsPendingUserText(t *testing.T) {
 	}
 }
 
+func TestCompactFastDropsOldThinkingWithoutASummary(t *testing.T) {
+	f := &fake{}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Messages: []llm.Message{
+		llm.TextMessage(llm.RoleUser, "one"),
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockThinking, Text: strings.Repeat("reason ", 80)},
+			{Type: llm.BlockText, Text: "did one"},
+		}},
+		llm.TextMessage(llm.RoleUser, "two"),
+		{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockThinking, Text: "keep me"},
+			{Type: llm.BlockText, Text: "did two"},
+		}},
+	}}
+	var note string
+	if err := a.CompactFast(context.Background(), func(e Event) {
+		if e.Kind == EvCompacted {
+			note = e.Text
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.requests) != 0 {
+		t.Fatalf("compact-fast paid for a summary: %d calls", len(f.requests))
+	}
+	if !strings.Contains(note, "no summary") || !strings.Contains(note, "1 thinking") {
+		t.Fatalf("note = %q", note)
+	}
+	if n := len(a.Messages[1].Blocks); n != 1 || a.Messages[1].Blocks[0].Text != "did one" {
+		t.Fatalf("old thinking still there: %+v", a.Messages[1].Blocks)
+	}
+	if n := len(a.Messages[3].Blocks); n != 2 || a.Messages[3].Blocks[0].Text != "keep me" {
+		t.Fatalf("last thinking should stay: %+v", a.Messages[3].Blocks)
+	}
+}
+
 func TestAutoCompactBeforeCallAndOnOverflow(t *testing.T) {
 	big := strings.Repeat("x", 40_000) // ~10k tokens
 	f := &fake{responses: []*llm.Response{

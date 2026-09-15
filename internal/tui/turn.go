@@ -229,6 +229,24 @@ func (m *model) compact() tea.Cmd {
 	return m.spinner.Tick
 }
 
+func (m *model) compactFast() tea.Cmd {
+	m.startTurn("pruning context")
+	m.turn.compacting = true
+	ctx, cancel := context.WithCancel(m.life)
+	m.turn.cancel = cancel
+	ag, send, queue := m.opts.Agent, m.send, m.queue
+	m.note(fmt.Sprintf("pruning ~%s tokens of context…", textfmt.Tokens(ag.EstimateTokens())))
+	m.refresh(false)
+	go func() {
+		err := ag.CompactFast(ctx, queue.push)
+		if errors.Is(err, agent.ErrNothingToCompact) {
+			err = nil
+		}
+		send(agentDoneMsg{err: err})
+	}()
+	return m.spinner.Tick
+}
+
 func (m *model) cancelTurn() {
 	m.turn.stop()
 	m.turn.setPhase("cancelling")
@@ -285,6 +303,9 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	m.term.turnEnded(msg.err == nil, m.status)
 	if msg.err == nil && len(m.turn.queued) == 0 {
 		if cmd := m.goalRound(); cmd != nil {
+			return cmd
+		}
+		if cmd := m.suggestFollowup(); cmd != nil {
 			return cmd
 		}
 	}

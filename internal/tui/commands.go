@@ -138,6 +138,10 @@ var dispatch = map[string]cmdHandler{
 		m.hintsCommand(fields[1:])
 		return nil, false
 	},
+	"/followup": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.followupCommand(fields[1:])
+		return nil, false
+	},
 	"/verbose": (*model).cmdVerbose,
 	"/connect": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		return m.openConnect(stepPick), true
@@ -220,6 +224,7 @@ var dispatch = map[string]cmdHandler{
 	},
 	"/init":     (*model).cmdInit,
 	"/skills":   (*model).cmdSkills,
+	"/curator":  (*model).cmdCurator,
 	"/rules":    (*model).cmdRules,
 	"/memory":   (*model).cmdMemory,
 	"/remember": (*model).cmdMemory,
@@ -236,8 +241,9 @@ var dispatch = map[string]cmdHandler{
 	},
 	"/find": (*model).cmdFind, "/search": (*model).cmdFind,
 	"/resume": (*model).cmdResume, "/sessions": (*model).cmdResume,
-	"/compact": (*model).cmdCompact,
-	"/export":  (*model).cmdExport,
+	"/compact":      (*model).cmdCompact,
+	"/compact-fast": (*model).cmdCompactFast, "/compress-fast": (*model).cmdCompactFast,
+	"/export": (*model).cmdExport,
 	"/stats": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.statsCommand()
 		return nil, false
@@ -297,7 +303,7 @@ func (m *model) runUserCommand(text string, fields []string) (tea.Cmd, bool) {
 		args := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
 		return m.submit(c.Expand(args)), true
 	}
-	for _, sk := range skill.Load(m.opts.Cwd, m.opts.ConfigDir) {
+	for _, sk := range skill.WithBuiltins(skill.Load(m.opts.Cwd, m.opts.ConfigDir)) {
 		if sk.UserInvocable && "/"+sk.Name == fields[0] {
 			m.note("running skill " + sk.Name + " (" + shortPath(sk.Path) + ")")
 			return m.submit(sk.Expand(strings.TrimPrefix(text, fields[0]))), true
@@ -479,7 +485,7 @@ func (m *model) cmdInit(text string, fields []string) (tea.Cmd, bool) {
 
 func (m *model) cmdSkills(text string, fields []string) (tea.Cmd, bool) {
 	where := "add .janetcode/skills/<name>/SKILL.md (or <name>.md) to the project, or skills/ under " + shortPath(m.opts.ConfigDir) + "; .claude/skills is read too"
-	m.showResult(skill.Report(skill.Load(m.opts.Cwd, m.opts.ConfigDir), m.opts.Skills.Stats(), m.prefixTokens(), where), nil)
+	m.showResult(skill.Report(skill.WithBuiltins(skill.Load(m.opts.Cwd, m.opts.ConfigDir)), m.opts.Skills.Stats(), m.prefixTokens(), where), nil)
 	return nil, false
 }
 
@@ -574,6 +580,28 @@ func (m *model) cmdCompact(text string, fields []string) (tea.Cmd, bool) {
 		return nil, false
 	}
 	return m.compact(), true
+}
+
+func (m *model) cmdCompactFast(text string, fields []string) (tea.Cmd, bool) {
+	if m.turn.running {
+		m.transcript.errorf("wait for the current turn to finish before compacting")
+		return nil, false
+	}
+	return m.compactFast(), true
+}
+
+func (m *model) cmdCurator(text string, fields []string) (tea.Cmd, bool) {
+	var stats map[string]skill.Stat
+	if m.opts.Skills != nil {
+		stats = m.opts.Skills.Stats()
+	}
+	out, err := skill.Curate(m.opts.Cwd, stats, cmdArg(text, fields))
+	if err != nil {
+		m.transcript.errorf("%v", err)
+		return nil, false
+	}
+	m.transcript.info(out)
+	return nil, false
 }
 
 func (m *model) cmdExport(text string, fields []string) (tea.Cmd, bool) {

@@ -13,6 +13,7 @@ var SettableKeys = []string{
 	"thinking", "show_thinking", "lean_tools", "intent", "auto_approve",
 	"compact_at", "max_tokens", "max_iterations", "model", "effort",
 	"theme", "hints", "memory", "proof_notes", "route_cheap", "sandbox",
+	"followup",
 }
 
 // ApplyKV sets a catalogued config key on cfg and returns the stored value.
@@ -64,6 +65,13 @@ func ApplyKV(cfg *Config, key, val string) (any, error) {
 			return nil, err
 		}
 		cfg.Hints = &b
+		return b, nil
+	case "followup":
+		b, err := parseBool(val)
+		if err != nil {
+			return nil, err
+		}
+		cfg.Followup = &b
 		return b, nil
 	case "memory":
 		b, err := parseBool(val)

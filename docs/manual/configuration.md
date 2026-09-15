@@ -133,6 +133,11 @@ is the session log, which is also local and which `/history` and
 
 ### Hints
 
+`"followup": true` turns on ghost-text next-prompt suggestions after a
+turn. They are off by default. A cheap side query (no system prompt, no
+tools) proposes 2–12 words; Tab accepts them in the terminal. `/followup
+on|off` toggles the running session; `/config followup=true` saves it.
+
 `"hints": false` turns off the one-time notes about features a session
 could have used. They are on by default, and there are nine of them: the
 verification gate after the third changing turn or the second time you run

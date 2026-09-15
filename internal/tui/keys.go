@@ -386,6 +386,11 @@ func (m *model) keyPasteImage(tea.KeyMsg) (tea.Cmd, bool) {
 }
 
 func (m *model) keyComplete(tea.KeyMsg) (tea.Cmd, bool) {
+	if m.acceptFollowup() {
+		m.layout()
+		m.refresh(false)
+		return nil, true
+	}
 	if !m.complete() {
 		return nil, false
 	}

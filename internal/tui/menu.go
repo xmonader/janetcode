@@ -64,7 +64,7 @@ func (m *model) allCommands() []command {
 		c := m.custom[n]
 		out = append(out, command{name: n, args: "[args]", help: sanitize(c.Help) + " · " + shortPath(c.Path)})
 	}
-	for _, sk := range skill.Load(m.opts.Cwd, m.opts.ConfigDir) {
+	for _, sk := range skill.WithBuiltins(skill.Load(m.opts.Cwd, m.opts.ConfigDir)) {
 		if sk.UserInvocable && m.custom["/"+sk.Name].Name == "" {
 			out = append(out, command{name: "/" + sanitize(sk.Name), args: "[args]", help: sanitize(sk.Description) + " · skill"})
 		}

@@ -228,6 +228,13 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 		m.refresh(false)
 		return cmd, true
 
+	case followupMsg:
+		if msg.gen == m.followupGen && m.followupOn && !m.turn.running && strings.TrimSpace(m.input.Value()) == "" {
+			m.followup = msg.text
+			m.refresh(false)
+		}
+		return nil, true
+
 	case titleMsg:
 		if msg.gen == m.titleGen && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && msg.title != "" {
 			if err := m.opts.Session.SetTitle(msg.title); err != nil {

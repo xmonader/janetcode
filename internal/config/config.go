@@ -172,6 +172,9 @@ type Config struct {
 	// is off by default until an eval run says that bet pays off; see
 	// docs/manual/evals.md, "Measuring step routing".
 	RouteCheap string `json:"route_cheap,omitempty"`
+	// Followup enables a cheap next-prompt suggestion as ghost text
+	// after a turn; tab accepts it. Nil means off.
+	Followup *bool `json:"followup,omitempty"`
 }
 
 // StreamLimits are the watchdog bounds for one streamed model call.
@@ -637,6 +640,11 @@ func (c *Config) IntentEnabled() bool {
 		return *c.Intent
 	}
 	return false
+}
+
+// FollowupEnabled reports whether ghost-text next-prompt suggestions run.
+func (c *Config) FollowupEnabled() bool {
+	return c != nil && c.Followup != nil && *c.Followup
 }
 
 // LeanTools reports whether the search tools are deferred.

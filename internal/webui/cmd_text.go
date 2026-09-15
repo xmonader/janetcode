@@ -293,7 +293,20 @@ func (s *server) skillsText() string {
 		c := s.opts.Agent.Context()
 		prefix = c.System + c.Extra + c.Pins + c.Tools
 	}
-	return skill.Report(skill.Load(s.cwd(), s.opts.ConfigDir), s.opts.Skills.Stats(), prefix, where).Sheet
+	return skill.Report(skill.WithBuiltins(skill.Load(s.cwd(), s.opts.ConfigDir)), s.opts.Skills.Stats(), prefix, where).Sheet
+}
+
+func (s *server) curator(arg string) {
+	var stats map[string]skill.Stat
+	if s.opts.Skills != nil {
+		stats = s.opts.Skills.Stats()
+	}
+	out, err := skill.Curate(s.cwd(), stats, arg)
+	if err != nil {
+		s.errf("%v", err)
+		return
+	}
+	s.sheet("curator", out)
 }
 
 func (s *server) changesText(arg string) string {

@@ -19,9 +19,9 @@ import (
 // webArgs only narrows the argument shape where the web version accepts
 // less than the terminal's.
 var webCommands = []string{
-	"/help", "/clear", "/compact", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/loop",
+	"/help", "/clear", "/compact", "/compact-fast", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/loop",
 	"/readonly", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/diff", "/open", "/context",
-	"/stats", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/init",
+	"/stats", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/curator", "/init",
 	"/pin", "/unpin", "/title", "/model", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
 	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp",
@@ -141,10 +141,11 @@ var webDispatch = map[string]webHandler{
 		s.accept(arg)
 		return false, nil
 	},
-	"/verbose": (*server).cmdVerbose,
-	"/compact": (*server).cmdCompact,
-	"/undo":    (*server).cmdUndo,
-	"/redo":    (*server).cmdRedo,
+	"/verbose":      (*server).cmdVerbose,
+	"/compact":      (*server).cmdCompact,
+	"/compact-fast": (*server).cmdCompactFast, "/compress-fast": (*server).cmdCompactFast,
+	"/undo": (*server).cmdUndo,
+	"/redo": (*server).cmdRedo,
 	"/changes": func(s *server, arg string) (bool, error) {
 		s.sheet("changes", s.changesText(arg))
 		return false, nil
@@ -199,6 +200,10 @@ var webDispatch = map[string]webHandler{
 	},
 	"/skills": func(s *server, arg string) (bool, error) {
 		s.sheet("skills", s.skillsText())
+		return false, nil
+	},
+	"/curator": func(s *server, arg string) (bool, error) {
+		s.curator(arg)
 		return false, nil
 	},
 	"/init": func(s *server, arg string) (bool, error) {
@@ -388,6 +393,12 @@ func (s *server) cmdVerbose(arg string) (bool, error) {
 func (s *server) cmdCompact(arg string) (bool, error) {
 	ag := s.opts.Agent
 	s.runBusy("compacting context", func(ctx context.Context) { _ = ag.Compact(ctx, s.apply) })
+	return false, nil
+}
+
+func (s *server) cmdCompactFast(arg string) (bool, error) {
+	ag := s.opts.Agent
+	s.runBusy("pruning context", func(ctx context.Context) { _ = ag.CompactFast(ctx, s.apply) })
 	return false, nil
 }
 

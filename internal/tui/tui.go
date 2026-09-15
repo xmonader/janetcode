@@ -113,6 +113,12 @@ type model struct {
 	// term writes the escape sequences that let the terminal take part:
 	// OSC 133 zones, desktop notifications, the window title.
 	term *termIntegration
+	// followupOn is the session toggle for ghost-text next-prompt
+	// suggestions; followup is the last suggestion, followupGen
+	// invalidates a stale one.
+	followupOn  bool
+	followup    string
+	followupGen int
 }
 
 const (
@@ -166,6 +172,9 @@ func newModel(opts Options) *model {
 		input:      ta,
 		spinner:    sp,
 		term:       newTermIntegration(),
+	}
+	if opts.Config != nil {
+		m.followupOn = opts.Config.FollowupEnabled()
 	}
 	m.life, m.endLife = context.WithCancel(context.Background())
 	if b, ok := prompt.GitBranch(opts.Cwd); ok {

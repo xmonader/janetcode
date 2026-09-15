@@ -113,6 +113,15 @@ func (m *model) configCommand(arg string) {
 		m.transcript.errorf("config: %v", err)
 		return
 	}
+	if key == "followup" {
+		if b, ok := applied.(bool); ok {
+			m.followupOn = b
+			if !b {
+				m.followup = ""
+				m.followupGen++
+			}
+		}
+	}
 	m.note("config " + key + "=" + fmt.Sprint(applied))
 }
 

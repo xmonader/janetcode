@@ -334,7 +334,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		ag.Tools.Add(&agent.RunCode{Parent: ag})
 	}
 	ag.Tools.Add(&agent.Workflow{Parent: ag})
-	skills := func() []skill.Skill { return skill.Load(cd.Dir(), cfgDir) }
+	skills := func() []skill.Skill { return skill.WithBuiltins(skill.Load(cd.Dir(), cfgDir)) }
 	skillInj := &skill.Injector{Skills: skills}
 	// Path-scoped rules: nothing is sent until a call touches a path a
 	// rule names, and then once for the session.
@@ -381,6 +381,10 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 			ag.Tools.Add(t)
 		}
 	}
+	// Extra retrieval and desktop tools stay behind tool_search so they
+	// cannot eat the prefix the leanness ceiling is guarding.
+	ag.Tools.AddDeferred(tool.ReadManyFiles{Root: d.cwd, WS: ws, Seen: seen})
+	ag.Tools.AddDeferred(tool.Computer{Root: d.cwd})
 	ag.PlanCheck = repo.CheckPlan
 	// ag.Verify is not wired up yet at this point (main.go sets it once it
 	// knows whether the project's verify config is trusted), so the

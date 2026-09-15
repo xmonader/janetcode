@@ -171,6 +171,62 @@ func (a *Agent) ForceCompact(ctx context.Context, emit func(Event)) error {
 	return a.compact(ctx, emit, true)
 }
 
+// CompactFast prunes old tool results and drops thinking from earlier
+// turns. It never asks the model for a summary.
+func (a *Agent) CompactFast(ctx context.Context, emit func(Event)) error {
+	if emit == nil {
+		emit = func(Event) {}
+	}
+	if len(a.Messages) == 0 {
+		return ErrNothingToCompact
+	}
+	emit(Event{Kind: EvPhase, Text: "compacting"})
+	before := a.EstimateTokens()
+	saved, replaced := 0, 0
+	if !a.Off["prune"] {
+		saved = a.Prune()
+		if limit := a.CompactThreshold(); limit > 0 {
+			replaced = a.pruneTo(limit / 2)
+		}
+	}
+	stripped := a.stripOldThinking()
+	if saved > 0 || replaced > 0 || stripped > 0 {
+		a.syncSurface()
+	}
+	after := a.EstimateTokens()
+	emit(Event{Kind: EvCompacted, Text: fmt.Sprintf("context pruned: ~%d → ~%d tokens (%d old results condensed, %d thinking blocks dropped, no summary)", before, after, replaced, stripped)})
+	return nil
+}
+
+// stripOldThinking removes thinking blocks from every message before the
+// last assistant turn, which some providers still need as a signature.
+func (a *Agent) stripOldThinking() int {
+	keepFrom := lastAssistantStart(a.Messages)
+	if keepFrom < 0 {
+		keepFrom = len(a.Messages)
+	}
+	n := 0
+	a.msgMu.Lock()
+	defer a.msgMu.Unlock()
+	for i := 0; i < keepFrom && i < len(a.Messages); i++ {
+		var kept []llm.Block
+		dropped := 0
+		for _, b := range a.Messages[i].Blocks {
+			if b.Type == llm.BlockThinking {
+				dropped++
+				continue
+			}
+			kept = append(kept, b)
+		}
+		if dropped == 0 {
+			continue
+		}
+		n += dropped
+		a.Messages[i].Blocks = kept
+	}
+	return n
+}
+
 func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error {
 	if emit == nil {
 		emit = func(Event) {}

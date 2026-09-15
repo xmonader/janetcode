@@ -19,6 +19,7 @@ var Commands = withIdle([]Command{
 	// the sheet, not wait for a topic. /help <topic> still works typed.
 	{Name: "/help", Args: "", Help: "keys and commands, or /help <topic> to search every feature and the manual"},
 	{Name: "/compact", Args: "", Help: "summarise the conversation to free context"},
+	{Name: "/compact-fast", Args: "", Help: "prune old tool results and thinking without a summary call"},
 	{Name: "/clear", Args: "", Help: "start a new session"},
 	{Name: "/resume", Args: "[n|id]", Help: "reopen an earlier session here: alone opens a searchable list, or name one"},
 	{Name: "/open", Args: "<path[:line]>", Help: "show a file inline, centred on a line"},
@@ -63,6 +64,8 @@ var Commands = withIdle([]Command{
 	{Name: "/memory", Args: "", Help: "what janetcode remembers about this project"},
 	{Name: "/init", Args: "[force]", Help: "write the project's starter instruction file from what this repository shows: languages, declared commands, layout; force overwrites an existing one"},
 	{Name: "/skills", Args: "", Help: "skill files available to the model, what each costs in tokens and which have fired this session"},
+	{Name: "/curator", Args: "[list | pin <name> | archive <name> | restore <name>]", Help: "pin, archive or restore auto-generated skills"},
+	{Name: "/followup", Args: "[on|off]", Help: "ghost-text next-prompt after a turn; tab accepts"},
 	{Name: "/rules", Args: "", Help: "path-scoped project rules: what brings each in, and which have been sent this session"},
 	{Name: "/remember", Args: "<fact>", Help: "add a fact to the project memory"},
 	{Name: "/forget", Args: "<n>", Help: "remove memory entry n"},
@@ -94,7 +97,7 @@ var Commands = withIdle([]Command{
 // /budget is here for a different reason from the rest: the ceiling is
 // read by the turn that is running, so writing it from the key handler
 // while a turn is in flight would be a data race on the agent.
-var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/cd", "/ssh", "/docker", "/eval", "/recipe"}
+var idleOnly = []string{"/compact", "/compact-fast", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/cd", "/ssh", "/docker", "/eval", "/recipe"}
 
 // withIdle sets Idle on every command idleOnly names. It runs as part of
 // initialising Commands, so no reader ever sees the table without it.
@@ -133,5 +136,5 @@ var Aliases = map[string]string{
 	"/?": "/help", "/exit": "/quit", "/q": "/quit", "/new": "/clear",
 	"/perms": "/permissions", "/ctx": "/context", "/todo": "/todos",
 	"/i": "/inspect", "/search": "/find", "/sessions": "/resume",
-	"/cost": "/usage",
+	"/cost": "/usage", "/compress-fast": "/compact-fast",
 }

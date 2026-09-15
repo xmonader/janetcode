@@ -32,7 +32,11 @@ type Skill struct {
 	Keywords    []string
 	Body        string
 	Path        string
-	Source      string // "project", "agents", "global" or "claude"
+	Source      string // "project", "agents", "global", "claude" or "builtin"
+	// Origin is the frontmatter source/origin of a generated skill
+	// ("auto-skill", "learned"), distinct from Source which is where it
+	// was loaded from.
+	Origin string
 	// Files are the supporting files of a directory skill (scripts,
 	// references), relative to Dir; the model reads or runs them by path.
 	Dir   string
@@ -115,6 +119,7 @@ func readDir(dir, source string) []Skill {
 			name = n
 		}
 		s := Skill{Name: name, Description: strings.TrimSpace(meta["description"]), Body: body, Path: p, Source: source, Dir: sdir,
+			Origin:         skillOrigin(name, meta),
 			UserInvocable:  !isTrue(meta["disable-user-invocation"]) && meta["user-invocable"] != "false",
 			ModelInvocable: !isTrue(meta["disable-model-invocation"]),
 			Paths:          md.List(meta["paths"])}
@@ -136,6 +141,21 @@ func readDir(dir, source string) []Skill {
 }
 
 func isTrue(v string) bool { return v == "true" || v == "yes" || v == "1" }
+
+func skillOrigin(name string, meta map[string]string) string {
+	o := strings.ToLower(strings.TrimSpace(meta["origin"]))
+	if o == "" {
+		o = strings.ToLower(strings.TrimSpace(meta["source"]))
+	}
+	switch o {
+	case "project", "global", "claude", "agents", "builtin":
+		o = ""
+	}
+	if o == "" && (strings.HasPrefix(name, "auto-skill-") || strings.HasPrefix(name, "learned-")) {
+		return "auto-skill"
+	}
+	return o
+}
 
 // supportingFiles lists the files under a skill directory besides
 // SKILL.md, relative to it, hidden files skipped.
@@ -298,6 +318,11 @@ func IndexWithin(skills []Skill, budget int) string {
 	shown, total := 0, 0
 	for _, s := range skills {
 		if !s.ModelInvocable {
+			continue
+		}
+		// Builtin skills are reachable by name and by Select; listing
+		// them here would put a line in every empty project's prefix.
+		if s.Source == "builtin" {
 			continue
 		}
 		total++

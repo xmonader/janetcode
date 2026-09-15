@@ -3435,6 +3435,9 @@ func TestCommandAvailabilityAndArgumentCompletion(t *testing.T) {
 	if c, ok := slash.Lookup("/compact"); !ok || !c.Idle {
 		t.Fatal("/compact should be idle-only")
 	}
+	if c, ok := slash.Lookup("/compact-fast"); !ok || !c.Idle {
+		t.Fatal("/compact-fast should be idle-only")
+	}
 	if c, ok := slash.Lookup("/help"); !ok || c.Idle {
 		t.Fatal("/help should always be available")
 	}

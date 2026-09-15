@@ -133,6 +133,7 @@ var configWhen = map[string][2]string{
 	"proof_notes":         {"attach evidence of this session's changes to a commit it makes, as a git note", "you review commits without the session that made them, or want the write skipped"},
 	"sandbox":             {"the sandbox profile a session in this project starts under: off, workspace, read-only or strict", "this project's commands should always be confined, not only when you remember to type /sandbox"},
 	"route_cheap":         {"experimental: send a turn's mechanical steps (reads, greps, checks that already passed) to this model instead", "an eval run showed it saves cost without moving the pass rate; empty is off"},
+	"followup":            {"cheap next-prompt ghost text after a turn; tab accepts", "you want a suggested next prompt in the input box without another full turn"},
 }
 
 // harnessFeatures are the things janetcode does without being asked.

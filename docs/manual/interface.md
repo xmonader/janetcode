@@ -261,6 +261,9 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /ssh [user@host[:/path]|off]  (file tools and bash on a remote host; off returns here)
 /docker [container[:/path]|off]  (the same, in a running container)
 /connect   /model     /compact (summarise the context to free the window)
+/compact-fast (also /compress-fast: prune old results and thinking, no summary call)
+/followup [on|off]  (ghost-text next prompt after a turn; tab accepts; off by default)
+/curator [list | pin <name> | archive <name> | restore <name>]  (auto-generated skills)
 /effort [tier|up|down]  (how hard the model thinks: low, medium, high, xhigh, max)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost, what the harness had to recover)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
@@ -588,6 +591,12 @@ been sent this session — matched by the injector, brought in by a `paths`
 glob, or read with the `skill` tool. The heaviest come first, and the
 last line totals the index lines against the request prefix, which is
 what a directory of a hundred unused skills actually costs you.
+
+`/curator` manages auto-generated skills (`auto-skill-*`, or frontmatter
+`source: auto-skill` / `learned`). `/curator` lists them with how often
+they have fired; `pin` keeps one, `archive` moves it to
+`.janetcode/archived-skills/`, `restore` puts it back. Usage is stored in
+`.janetcode/skill-usage.json`. Hand-written skills are left alone.
 
 ### Changing janetcode's own settings always asks
 
@@ -1544,6 +1553,24 @@ Thirty-one subjects in all; `inspect list` names them. They report the live
 state, and each is reachable the same way from the terminal, the command
 line and the model, so "why did it do that" is one question rather than
 three different ones.
+
+`/compact-fast` (alias `/compress-fast`) is the no-LLM form: it prunes old
+tool results the way automatic compaction does first, and drops thinking
+blocks from earlier turns, then stops. There is no summary call and no
+handoff note. Use it when the window is full and you would rather keep
+working than pay for a rewrite.
+
+A follow-up suggestion is off by default. `/followup on` (or
+`"followup": true` in the config) asks a cheap side query after a turn —
+not the session system prompt, not the tool schemas — and puts 2–12 words
+in the input box as ghost text. Tab accepts it. `/followup off` silences
+it for the session.
+
+`read_many_files` concatenates several text files (or a glob) in one
+call. It stays behind `tool_search` so it does not sit on every request.
+`computer` drives the local desktop (screenshot, click, type, key) the
+same way; every call is permissioned, and a `computer-use` skill ships
+with the binary.
 
 `/context` remains a shortcut for the first. `/pin <note>` or `/pin @path`
 keeps a note (or a file's content, up to 16 KB) in the system prompt for the

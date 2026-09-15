@@ -362,6 +362,8 @@ func (m *model) placeholder() string {
 			"Read-only: the model can inspect but change nothing",
 			"Read-only · nothing is changed",
 			"Read-only")
+	case m.followup != "":
+		return fitPhrase(room, m.followup+" · tab accepts", m.followup)
 	}
 	return fitPhrase(room, defaultPlaceholder,
 		"Ask for a change or a fix · / for commands",

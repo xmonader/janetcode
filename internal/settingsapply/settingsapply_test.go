@@ -81,6 +81,7 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 		"theme":         "read from cfg.Theme by the front-end's theme picker",
 		"hints":         "read via cfg.ShowHints() by the hint engine",
 		"memory":        "read via cfg.AutoMemory() where memory extraction is scheduled",
+		"followup":      "read via cfg.FollowupEnabled() by the terminal after a turn",
 	}
 
 	seen := map[string]bool{}
