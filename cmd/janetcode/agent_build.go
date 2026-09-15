@@ -303,6 +303,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	}
 	ag.Archive = archive
 	ag.Root = d.cwd
+	ag.Off = envOff()
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
 	ag.Sandbox = sb
 	ag.Cron = cron
@@ -394,7 +395,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
 	}
 	ag.Prepare = chainPrep(skill.TurnPrep(skillInj, mem), repomap.TurnPrep(repo, 0))
-	ag.Tools.Intent = d.cfg.IntentEnabled()
+	ag.Tools.Intent = d.cfg.IntentEnabled() && !envOff()["intent"]
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow})
 	ag.UndoPath = sess.UndoPath()
 	if snaps, serr := snapshot.Open(context.Background(), d.cwd); serr == nil {

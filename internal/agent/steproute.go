@@ -187,7 +187,7 @@ func (r *modelRouter) resolveCheap(cur llm.Provider, emit func(Event)) (llm.Prov
 // name to use and whether routing applies at all; when it does not, the
 // caller sends the call to Model exactly as it would with the feature off.
 func (a *Agent) routeStep(emit func(Event)) (llm.Provider, string, bool) {
-	if a.RouteCheapName() == "" || !a.routingAllowed() {
+	if a.Off["routing"] || a.RouteCheapName() == "" || !a.routingAllowed() {
 		return nil, "", false
 	}
 	if a.stepN <= 1 {

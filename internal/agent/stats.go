@@ -221,7 +221,14 @@ func (c *statsCounter) tool(name string, d time.Duration, failed bool) {
 }
 
 // switches are the behaviours Agent.Off can disable.
-var switches = map[string]bool{"coach": true, "syntax": true, "loops": true, "prune": true, "verify": true, "repomap": true, "working": true, "richskip": true, "faults": true, "verdict": true, "todo": true, "script": true, "lineedit": true, "extratools": true, "intent": true, "oversized": true, "plan": true, "critic": true}
+var switches = map[string]bool{
+	"coach": true, "syntax": true, "loops": true, "prune": true, "verify": true,
+	"repomap": true, "working": true, "richskip": true, "faults": true, "verdict": true,
+	"todo": true, "script": true, "lineedit": true, "extratools": true, "intent": true,
+	"oversized": true, "plan": true, "critic": true,
+	"accept": true, "recipe": true, "proof": true, "impact": true, "routing": true,
+	"protected": true, "ladder": true, "undoabout": true, "mermaid": true,
+}
 
 // Switches names every behaviour Off understands, in order. The error for
 // a misspelled one lists these rather than a copy that drifts: a switch

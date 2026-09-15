@@ -30,7 +30,13 @@ func (a *Agent) undoCandidates() []Change {
 // guard and the unavailable-candidate partition.
 func (a *Agent) SelectChanges(ctx context.Context, description string) (Selection, error) {
 	st := a.Settings()
-	return undoabout.Select(ctx, st.Provider, st.Model, a.displayRoot(), description, a.undoCandidates())
+	prov, model := st.Provider, st.Model
+	if a.Off["undoabout"] {
+		// Keyword overlap is what Select did before the model-driven
+		// split existed; passing no provider is that path.
+		prov, model = nil, ""
+	}
+	return undoabout.Select(ctx, prov, model, a.displayRoot(), description, a.undoCandidates())
 }
 
 // pendingUndo is the last selection shown by "/undo about", kept so

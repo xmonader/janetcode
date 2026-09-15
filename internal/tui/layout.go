@@ -187,18 +187,19 @@ func (m *model) refresh(resized bool) {
 		m.layout()
 	}
 	content := m.transcript.render(renderOpts{
-		cwd:      m.opts.Cwd,
-		width:    m.width,
-		gutter:   m.gutter(),
-		resized:  resized,
-		pending:  m.pending,
-		spinner:  m.spinner.View(),
-		verbose:  m.verbose,
-		cap:      outputCap(m.viewport.Height),
-		preview:  m.previewCall,
-		renderer: m.toolRenderer,
-		tight:    m.tight(),
-		compact:  m.compactMode(),
+		cwd:       m.opts.Cwd,
+		width:     m.width,
+		gutter:    m.gutter(),
+		resized:   resized,
+		pending:   m.pending,
+		spinner:   m.spinner.View(),
+		verbose:   m.verbose,
+		cap:       outputCap(m.viewport.Height),
+		preview:   m.previewCall,
+		renderer:  m.toolRenderer,
+		tight:     m.tight(),
+		compact:   m.compactMode(),
+		noMermaid: m.opts.Agent != nil && m.opts.Agent.Off["mermaid"],
 	})
 	if content != m.lastContent || resized {
 		// SetContent re-parses every line; skip it when nothing changed

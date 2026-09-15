@@ -185,15 +185,14 @@ type Agent struct {
 	// an ask for commands that leave the workspace or touch janetcode's
 	// own settings.
 	AutoMode bool
-	// Off disables named behaviours for ablation runs: "coach" (edit
-	// coaching), "syntax" (syntax check and covering-test pointer after
-	// edits), "loops" (loop nudges and stuck detection), "prune"
-	// (condensing old tool results before a summary), "verify" (the
-	// verification gate), "repomap" (honoured by the caller that installs
-	// the Prepare hook), "working" (the typed working-memory record; off
-	// means a prose handoff note), "plan" (checking the names in the
-	// model's plan against the repository), "critic" (the trajectory
-	// predictor's notes). Unknown names are ignored.
+	// Off disables named behaviours for ablation runs. The names
+	// Switches reports are the list; unknown names are ignored. A
+	// switch that is off restores the pre-feature behaviour, not a
+	// degraded one: accept and recipe commands refuse, proof does not
+	// attach notes, impact and protected-path prompting stay quiet,
+	// the permission ladder collapses to Suggest's single rule,
+	// routing never leaves Model, undo-about uses keyword overlap
+	// instead of the model, and mermaid is drawn as source.
 	Off map[string]bool
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the

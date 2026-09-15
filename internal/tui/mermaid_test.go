@@ -107,6 +107,20 @@ func TestMermaidWhileStreaming(t *testing.T) {
 	}
 }
 
+// TestMermaidOffKeepsTheSource: Off["mermaid"] restores the pre-feature
+// transcript, where a fenced mermaid block is shown as source, not drawn.
+func TestMermaidOffKeepsTheSource(t *testing.T) {
+	tr := newTranscript()
+	assistantSaid(tr, mermaidMsg)
+	out := plain(tr.render(renderOpts{width: 90, renderer: builtinRenderers, noMermaid: true}))
+	if !strings.Contains(out, "flowchart TD") {
+		t.Fatalf("mermaid off should keep the source:\n%s", out)
+	}
+	if strings.Contains(out, "┌") || strings.Contains(out, "ctrl+o shows the mermaid source") {
+		t.Fatalf("mermaid off must not draw the diagram:\n%s", out)
+	}
+}
+
 // TestMermaidFitsTheWidth: a diagram never draws past the transcript.
 func TestMermaidFitsTheWidth(t *testing.T) {
 	for _, w := range []int{46, 60, 100} {

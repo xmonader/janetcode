@@ -57,7 +57,10 @@ func (a *Agent) modeSystem() string {
 			text += planSystem
 		}
 	}
-	return text + a.accept.SystemText()
+	if !a.Off["accept"] {
+		text += a.accept.SystemText()
+	}
+	return text
 }
 
 // routingAllowed reports whether the active modes let a step be routed to

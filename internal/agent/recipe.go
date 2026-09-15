@@ -69,6 +69,9 @@ func (a *Agent) Execute(ctx context.Context, id, name string, input json.RawMess
 //
 // emit is the live event sink, as for RunBlocks; nil discards events.
 func (a *Agent) RunRecipe(ctx context.Context, r recipe.Recipe, args map[string]string, emit func(Event)) (report string, failed *RecipeFailure, err error) {
+	if a.Off["recipe"] {
+		return "", nil, errors.New("recipe is off")
+	}
 	steps, err := recipe.Expand(r, args)
 	if err != nil {
 		return "", nil, err
@@ -511,7 +514,7 @@ func (a *Agent) StepsNeedingApproval(steps []recipe.Step) []string {
 		if hard != "" {
 			continue // refused outright by authorize; no prompt involved
 		}
-		if a.Protected.Reason(a.permCall(st.Tool, st.Input, subject)) != "" {
+		if !a.Off["protected"] && a.Protected.Reason(a.permCall(st.Tool, st.Input, subject)) != "" {
 			mustAsk = true // a protected path asks under every mode
 		}
 		if !mustAsk {

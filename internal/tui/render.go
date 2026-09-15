@@ -48,6 +48,10 @@ type renderOpts struct {
 	// preview computes what a call would do, for a call whose arguments
 	// have finished streaming but which has not run yet.
 	preview func(name string, input []byte) string
+	// noMermaid keeps ```mermaid blocks as source instead of drawing
+	// them: Off["mermaid"] / JANETCODE_OFF=mermaid, the pre-feature
+	// behaviour.
+	noMermaid bool
 	// renderer finds a tool that knows how to present itself.
 	renderer func(name string) (tool.Renderer, bool)
 	// now is the frame's clock, so every entry in one frame agrees about
@@ -296,7 +300,7 @@ func (t *transcript) renderMarkdown(e *entry, width int, o renderOpts) string {
 		partial := last && !e.done
 		diagram := ""
 		if !partial {
-			diagram = t.renderDiagram(src, width, expanded)
+			diagram = t.renderDiagram(src, width, expanded, o.noMermaid)
 		}
 		if partial && strings.Count(src, "```")%2 == 1 {
 			// Close an unterminated fence so the partial code block still
@@ -338,9 +342,9 @@ func (t *transcript) renderMarkdown(e *entry, width int, o renderOpts) string {
 // entry the reader has expanded — ctrl+o (and /verbose) swap the picture
 // for the source it was drawn from, the same way they open a folded tool
 // result, so the source is never lost.
-func (t *transcript) renderDiagram(block string, width int, expanded bool) string {
+func (t *transcript) renderDiagram(block string, width int, expanded, off bool) string {
 	body, ok := mermaidFence(block)
-	if !ok || expanded || t.styles.ansiOnly {
+	if !ok || expanded || off || t.styles.ansiOnly {
 		return ""
 	}
 	// The two columns glamour indents a document by, on both sides.

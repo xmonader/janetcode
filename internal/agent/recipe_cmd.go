@@ -16,6 +16,9 @@ import (
 // are parsed. sessionID, when not empty, is recorded as the recipe's
 // origin.
 func (a *Agent) RecipeSave(sessionID, cwd, rest string) (cmdresult.Result, error) {
+	if a.Off["recipe"] {
+		return cmdresult.Result{}, errors.New("recipe is off")
+	}
 	rest, desc := recipe.CutDesc(rest)
 	name, turn, params, err := recipe.ParseSaveArgs(rest)
 	if err != nil {

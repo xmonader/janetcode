@@ -32,6 +32,9 @@ func (a *Agent) Proof(ctx context.Context, repoDir, commit string) (string, erro
 // this session changed none of the commit's files. It is the
 // proof.AttachFunc a live session passes to proof.Exec.
 func (a *Agent) AttachProof(ctx context.Context, root, sha string) (string, error) {
+	if a.Off["proof"] {
+		return "", nil
+	}
 	committed, err := proof.CommittedFiles(ctx, root, sha)
 	if err != nil {
 		return "", err
@@ -191,7 +194,7 @@ func looksLikeGitCommit(cmd string) bool {
 // not be read, e.g. an unborn branch); it costs one more `git rev-parse`
 // only for commands that matched looksLikeGitCommit in the first place.
 func (a *Agent) checkCommitAttach(ctx context.Context, preHead string, emit func(Event)) {
-	if a.Snapshots == nil || !a.Settings().ProofNotes {
+	if a.Off["proof"] || a.Snapshots == nil || !a.Settings().ProofNotes {
 		return
 	}
 	root := a.Snapshots.Root

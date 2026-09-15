@@ -119,7 +119,7 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	// allow rule and --yolo alike, and the prompt says which path it is
 	// asking about. It rides on the warning line the prompt already has,
 	// so both front-ends show it without knowing about any of this.
-	if t.Mutating() {
+	if t.Mutating() && !a.Off["protected"] {
 		if why := a.Protected.Reason(perm.Call{Tool: u.Name, Input: u.Input, Root: a.displayRoot()}); why != "" {
 			mustAsk = true
 			if !strings.Contains(call.Warning, why) {
@@ -246,7 +246,7 @@ func (a *Agent) mustPrompt(t tool.Tool, u *llm.Block, mustAsk bool, verdict perm
 // ask puts the call to the user and records what came back. suggested is
 // the rule AllowAlways would save, which applyDecision needs.
 func (a *Agent) ask(ctx context.Context, u *llm.Block, call *ToolCall, subject string, mustAsk bool) (Decision, string, perm.Rule, error) {
-	if a.Impact != nil && editTool(u.Name) {
+	if a.Impact != nil && editTool(u.Name) && !a.Off["impact"] {
 		call.Impact = a.Impact(ctx, *call)
 	}
 	// suggested is the rule AllowAlways would save, and its string
@@ -257,16 +257,27 @@ func (a *Agent) ask(ctx context.Context, u *llm.Block, call *ToolCall, subject s
 	suggested := perm.Suggest(u.Name, subject)
 	shape := suggested.String()
 	call.Rule = shape
+	call.Learned = a.learnedNote(shape, mustAsk, call.Warning)
 	// The ladder the user may move along before saving: each rung with
 	// the ledger's note about that exact rule, so the "approved N×" note
-	// always counts the rule shown beside it.
-	rungs := perm.SuggestLadder(u.Name, subject)
-	call.RuleIndex = perm.DefaultRung(rungs, suggested)
-	call.Rungs = nil
-	for _, r := range rungs {
-		call.Rungs = append(call.Rungs, RuleRung{Rule: r.String(), Learned: a.learnedNote(r.String(), mustAsk, call.Warning)})
+	// always counts the rule shown beside it. Off["ladder"] keeps the
+	// single rule Suggest proposes and nothing to walk — the prompt
+	// looks as it did before rungs existed.
+	var rungs []perm.Rule
+	if a.Off["ladder"] {
+		if !suggested.IsZero() {
+			rungs = []perm.Rule{suggested}
+			call.Rungs = []RuleRung{{Rule: shape, Learned: call.Learned}}
+		}
+		call.RuleIndex = 0
+	} else {
+		rungs = perm.SuggestLadder(u.Name, subject)
+		call.RuleIndex = perm.DefaultRung(rungs, suggested)
+		call.Rungs = nil
+		for _, r := range rungs {
+			call.Rungs = append(call.Rungs, RuleRung{Rule: r.String(), Learned: a.learnedNote(r.String(), mustAsk, call.Warning)})
+		}
 	}
-	call.Learned = a.learnedNote(shape, mustAsk, call.Warning)
 	var (
 		d      Decision
 		reason string

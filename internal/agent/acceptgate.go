@@ -66,8 +66,12 @@ func (a *Agent) acceptMode() *accept.Mode {
 }
 
 // AcceptCommand runs a parsed /accept for every front-end; see
-// accept.Mode.Command.
+// accept.Mode.Command. Off["accept"] restores a session that has no
+// accept mode: the command itself is refused, so nothing can start it.
 func (a *Agent) AcceptCommand(args AcceptArgs, root string) (cmdresult.Result, error) {
+	if a.Off["accept"] {
+		return cmdresult.Result{}, fmt.Errorf("accept is off")
+	}
 	return a.acceptMode().Command(args, root, a.verifyCommands())
 }
 
@@ -101,6 +105,9 @@ func (a *Agent) acceptRestoreTampered(toolName string, emit func(Event)) string 
 // accept.Mode.Capture) and reports whether the turn should continue for
 // another model call.
 func (a *Agent) acceptCapture(text string, nudged *bool, emit func(Event)) bool {
+	if a.Off["accept"] {
+		return false
+	}
 	notice, harness := a.accept.Capture(text, nudged, a.verifyCommands())
 	if notice != "" {
 		emit(Event{Kind: EvNotice, Text: notice})
@@ -121,6 +128,9 @@ func (a *Agent) acceptCapture(text string, nudged *bool, emit func(Event)) bool 
 // command, since a passing result over changed tests would prove
 // nothing.
 func (a *Agent) acceptVerifyGate(ctx context.Context, g *gateState, emit func(Event)) bool {
+	if a.Off["accept"] {
+		return false
+	}
 	command, root, ok := a.accept.GateTarget()
 	if !ok {
 		return false
@@ -185,7 +195,12 @@ var _ Locks = (*accept.Mode)(nil)
 
 // locks is the accept-mode lock the tool path consults. A nil *accept.Mode
 // is a working value, so this never has to create one just to be asked.
-func (a *Agent) locks() Locks { return a.accept }
+func (a *Agent) locks() Locks {
+	if a.Off["accept"] {
+		return (*accept.Mode)(nil)
+	}
+	return a.accept
+}
 
 // AcceptStart puts the session in test-writing mode for request; see
 // accept.Mode.Start.
