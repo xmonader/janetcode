@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/llm"
 )
 
 // SettableKeys are the catalogued config.json keys /config can set.
@@ -105,6 +107,12 @@ func ApplyKV(cfg *Config, key, val string) (any, error) {
 		cfg.Model = val
 		return val, nil
 	case "effort":
+		// Refused here as well as at load: a tier that only fails on the
+		// next start would be written to the file and silently ignored
+		// for the rest of the session that set it.
+		if !llm.ValidEffort(val) {
+			return nil, fmt.Errorf("effort wants one of %s (or empty for the provider's own)", llm.EffortList())
+		}
 		cfg.Effort = val
 		return val, nil
 	case "route_cheap":
