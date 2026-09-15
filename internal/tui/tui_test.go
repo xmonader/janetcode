@@ -36,6 +36,7 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/trust"
@@ -3425,10 +3426,10 @@ func (b *heldOpen) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 // enumerated are offered; and fuzzy matching finds a command from its
 // letters.
 func TestCommandAvailabilityAndArgumentCompletion(t *testing.T) {
-	if c, ok := lookup("/compact"); !ok || c.avail != availIdle {
+	if c, ok := slash.Lookup("/compact"); !ok || !c.Idle {
 		t.Fatal("/compact should be idle-only")
 	}
-	if c, ok := lookup("/help"); !ok || c.avail != availAlways {
+	if c, ok := slash.Lookup("/help"); !ok || c.Idle {
 		t.Fatal("/help should always be available")
 	}
 	block := make(chan struct{})

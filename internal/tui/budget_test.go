@@ -5,15 +5,16 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/slash"
 )
 
 // A cost ceiling existed only as a headless flag, so an interactive
 // session — the one that runs long enough to want one — could not set it.
 func TestBudgetCommandSetsTheSessionCeiling(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
-	if c, ok := lookup("/budget"); !ok {
+	if _, ok := lookup("/budget"); !ok {
 		t.Fatal("/budget is not a command")
-	} else if c.avail != availIdle {
+	} else if c, _ := slash.Lookup("/budget"); !c.Idle {
 		t.Fatal("/budget writes a field the running turn reads, so it must wait for the turn")
 	}
 	h.m.opts.Agent.Price = &llm.Price{Input: 3, Output: 15}
