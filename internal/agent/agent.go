@@ -18,7 +18,6 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
-	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/verify"
@@ -118,6 +117,9 @@ type Agent struct {
 	// how big it is believed to be, and what happens when it fills up
 	// (see contextmgr.go). Embedded for the same reason.
 	contextManager
+	// checkpoints owns undo, redo and the provenance record (see
+	// checkpoints.go). Embedded for the same reason.
+	checkpoints
 
 	stats statsCounter
 	// Predictor, when set, scores the running turn from its trajectory
@@ -248,25 +250,13 @@ type Agent struct {
 	// results, not only between turns; see budget.go. Zero means no
 	// ceiling, and a model with no price cannot be held to one.
 	MaxCostUSD float64
-	// UndoPath, when set, persists undo checkpoints next to the session so
-	// /undo survives a resume.
-	UndoPath string
-	// pendingUndo is the selection last shown by "/undo about", for a
-	// following "/undo apply" (see undo_intent.go). Not persisted: it does
-	// not survive a resume, the way turn-level undo checkpoints do.
-	pendingUndo *pendingUndo
 	// Log, when set, is the append-only trajectory of this conversation.
 	// Resume reconstructs counts by folding it. Nil means in-memory stats only.
 	Log          session.Log
 	turnN, stepN int
-	// undoRemoved is how many messages the last Undo removed.
-	undoRemoved int
 	// Archive, when set, keeps full tool outputs longer than InlineOutput
 	// on disk so the model can page through them with expand_output.
 	Archive *Archive
-	// Snapshots, when set, snapshots the git work tree before the first
-	// mutating tool of each turn so Undo also reverts shell changes.
-	Snapshots *snapshot.Repo
 	// Hooks, when set, runs user commands around tool calls, compaction
 	// and turn end (see package hook). Nil means no hooks.
 	Hooks *hook.Runner
@@ -296,7 +286,6 @@ type Agent struct {
 	// callIDs is every tool-call id handed out this conversation, so a
 	// provider that repeats or omits one cannot collide with it.
 	callIDs map[string]bool
-	cp      checkpointer
 	coach   coach
 	coachMu sync.Mutex // read_file runs in parallel goroutines
 	loops   loopDetector

@@ -159,7 +159,8 @@ func TestProvenanceBlameAndUndoOneChange(t *testing.T) {
 	if err := a.SaveUndo(); err != nil {
 		t.Fatal(err)
 	}
-	b := &Agent{UndoPath: a.UndoPath}
+	b := &Agent{}
+	b.UndoPath = a.UndoPath
 	if err := b.LoadUndo(); err != nil {
 		t.Fatal(err)
 	}

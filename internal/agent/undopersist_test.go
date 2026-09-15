@@ -21,7 +21,8 @@ func TestFailedCaptureSurvivesTheUndoSidecar(t *testing.T) {
 	victim := filepath.Join(dir, "unreadable.txt")
 	os.WriteFile(victim, []byte("the real content"), 0o644)
 
-	a := &Agent{UndoPath: filepath.Join(dir, "s.undo.json")}
+	a := &Agent{}
+	a.UndoPath = filepath.Join(dir, "s.undo.json")
 	a.cp.all = []Checkpoint{{
 		When:  time.Now(),
 		Turn:  1,
@@ -32,7 +33,8 @@ func TestFailedCaptureSurvivesTheUndoSidecar(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	b := &Agent{UndoPath: a.UndoPath}
+	b := &Agent{}
+	b.UndoPath = a.UndoPath
 	if err := b.LoadUndo(); err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +54,8 @@ func TestFailedCaptureSurvivesTheUndoSidecar(t *testing.T) {
 // error, and neither may be turned into one by a stricter read: a session
 // that cannot load its undo file refuses to start.
 func TestUndoSidecarAbsentOrUnset(t *testing.T) {
-	missing := &Agent{UndoPath: filepath.Join(t.TempDir(), "never-written.json")}
+	missing := &Agent{}
+	missing.UndoPath = filepath.Join(t.TempDir(), "never-written.json")
 	if err := missing.LoadUndo(); err != nil {
 		t.Fatalf("a sidecar that does not exist yet is not an error: %v", err)
 	}
@@ -76,7 +79,8 @@ func TestUndoSidecarReadsTheLegacyBareArray(t *testing.T) {
 	legacy, _ := json.Marshal([]Checkpoint{{When: time.Now(), Turn: 4, Files: []Snapshot{{Path: "a.go", Existed: true, Data: []byte("x")}}}})
 	os.WriteFile(path, legacy, 0o600)
 
-	a := &Agent{UndoPath: path}
+	a := &Agent{}
+	a.UndoPath = path
 	if err := a.LoadUndo(); err != nil {
 		t.Fatal(err)
 	}

@@ -15,10 +15,7 @@ func (a *Agent) OpenSession(sess *session.Session, history []llm.Message) error 
 	a.SetPins(sess.Meta.Pins)
 	a.SetLog(sess)
 	a.UndoPath = sess.UndoPath()
-	a.cp.mu.Lock()
-	a.cp.all, a.cp.redo, a.cp.open, a.cp.dirty = nil, nil, false, false
-	a.cp.changes, a.cp.seq = nil, 0
-	a.cp.mu.Unlock()
+	a.checkpoints.reset()
 	return a.LoadUndo()
 }
 

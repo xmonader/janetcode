@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -107,24 +106,6 @@ func (a *Agent) after(u llm.Block, explicitIntent string, pend []pending) {
 			continue
 		}
 		a.record(Change{Turn: a.Stats().Turns, Call: u.ID, Tool: u.Name, Intent: a.intentFor(u.ID, explicitIntent), Path: p.path, Existed: p.existed, Before: p.data, After: data})
-	}
-}
-
-func (a *Agent) record(c Change) {
-	a.cp.mu.Lock()
-	defer a.cp.mu.Unlock()
-	a.cp.seq++
-	c.Seq = a.cp.seq
-	c.When = time.Now()
-	a.cp.changes = append(a.cp.changes, c)
-	a.cp.dirty = true
-	total := 0
-	for _, x := range a.cp.changes {
-		total += len(x.Before) + len(x.After)
-	}
-	for len(a.cp.changes) > maxChanges || total > maxChangesBytes && len(a.cp.changes) > 1 {
-		total -= len(a.cp.changes[0].Before) + len(a.cp.changes[0].After)
-		a.cp.changes = a.cp.changes[1:]
 	}
 }
 
@@ -270,25 +251,6 @@ func boilerplateOpener(line string) bool {
 	return false
 }
 
-// Changes lists the session's file changes, oldest first, with content.
-func (a *Agent) Changes() []Change {
-	a.cp.mu.Lock()
-	defer a.cp.mu.Unlock()
-	return append([]Change(nil), a.cp.changes...)
-}
-
-// Change finds one change by number.
-func (a *Agent) Change(seq int) (Change, error) {
-	a.cp.mu.Lock()
-	defer a.cp.mu.Unlock()
-	for _, c := range a.cp.changes {
-		if c.Seq == seq {
-			return c, nil
-		}
-	}
-	return Change{}, fmt.Errorf("%w: #%d", ErrNoSuchChange, seq)
-}
-
 // BlameLine attributes one line of a file to the change that wrote it;
 // Seq 0 means the line predates the session's changes.
 type BlameLine struct {
@@ -382,13 +344,7 @@ func (a *Agent) UndoChange(seq int) (string, error) {
 			verb = fmt.Sprintf("reverted %d hunk(s) of", len(hunks))
 		}
 	}
-	a.cp.mu.Lock()
-	for i := range a.cp.changes {
-		if a.cp.changes[i].Seq == seq {
-			a.cp.changes[i].Undone = true
-		}
-	}
-	a.cp.mu.Unlock()
+	a.markUndone(seq)
 	now, _ := os.ReadFile(c.Path)
 	a.record(Change{Turn: a.Stats().Turns, Tool: "undo", Intent: fmt.Sprintf("undo #%d: %s", seq, c.Intent), Path: c.Path, Existed: exists, Before: data, After: now})
 	// Relative to the session's root: the line is shown to the user and
@@ -454,19 +410,4 @@ type ChangeGroup struct {
 	Turn    int
 	Intent  string
 	Changes []Change
-}
-
-// ChangeGroups lists the session's changes grouped by turn and intent,
-// oldest first.
-func (a *Agent) ChangeGroups() []ChangeGroup {
-	var groups []ChangeGroup
-	for _, c := range a.Changes() {
-		if n := len(groups); n > 0 && groups[n-1].Turn == c.Turn && groups[n-1].Intent == c.Intent {
-			groups[n-1].Changes = append(groups[n-1].Changes, c)
-			continue
-		}
-		groups = append(groups, ChangeGroup{Turn: c.Turn, Intent: c.Intent, Changes: []Change{c}})
-	}
-	sort.SliceStable(groups, func(i, j int) bool { return groups[i].Turn < groups[j].Turn })
-	return groups
 }

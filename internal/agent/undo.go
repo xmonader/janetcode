@@ -1,9 +1,7 @@
 package agent
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -94,7 +92,7 @@ func (c *checkpointer) turnStart() int {
 // snapshot records the state before a mutating tool runs: a git snapshot
 // of the work tree on the first mutating call of the turn, and a copy of
 // every path a file tool will touch, once per turn per path.
-func (c *checkpointer) snapshot(ctx context.Context, repo *snapshot.Repo, t tool.Tool, input []byte) {
+func (c *checkpointer) snapshot(ctx context.Context, repo Snapshotter, t tool.Tool, input []byte) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if repo != nil && !c.gitTried {
@@ -143,7 +141,7 @@ func (c *checkpointer) snapshot(ctx context.Context, repo *snapshot.Repo, t tool
 
 // openCheckpoint starts a checkpoint for the running turn. A new change
 // makes the redo states unreachable, so they are dropped.
-func (c *checkpointer) openCheckpoint(ctx context.Context, repo *snapshot.Repo) {
+func (c *checkpointer) openCheckpoint(ctx context.Context, repo Snapshotter) {
 	c.all = append(c.all, Checkpoint{When: time.Now(), Turn: c.turn, Messages: c.messages})
 	c.open = true
 	c.dropRedo(ctx, repo)
@@ -151,7 +149,7 @@ func (c *checkpointer) openCheckpoint(ctx context.Context, repo *snapshot.Repo) 
 
 // dropRedo forgets the redo states. Dropping their refs is cleanup that
 // should happen even when ctx was cancelled just before.
-func (c *checkpointer) dropRedo(ctx context.Context, repo *snapshot.Repo) {
+func (c *checkpointer) dropRedo(ctx context.Context, repo Snapshotter) {
 	ctx = context.WithoutCancel(ctx)
 	for _, r := range c.redo {
 		if repo != nil && r.Snap != nil {
@@ -188,9 +186,9 @@ func (a *Agent) UndoPreview(ctx context.Context) ([]string, error) {
 	cp := a.cp.all[n-1]
 	var out []string
 	seen := map[string]bool{}
-	if cp.Snap != nil && a.Snapshots != nil {
+	if repo := a.snaps(); cp.Snap != nil && repo != nil {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		diff, err := a.Snapshots.Diff(ctx, *cp.Snap)
+		diff, err := repo.Diff(ctx, *cp.Snap)
 		cancel()
 		if err != nil {
 			return nil, err
@@ -252,101 +250,6 @@ func (a *Agent) Redo(ctx context.Context) ([]string, error) {
 	return done, err
 }
 
-// captureState records the current tree as a checkpoint covering what
-// the given one covers, so the restore can be reversed. Called with the
-// lock held.
-func (a *Agent) captureState(ctx context.Context, like Checkpoint, label string) (Checkpoint, bool) {
-	cp := Checkpoint{When: time.Now()}
-	if a.Snapshots != nil {
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		snap, err := a.Snapshots.Take(ctx, label)
-		cancel()
-		if err == nil {
-			cp.Snap = &snap
-		}
-	}
-	for _, f := range like.Files {
-		s := Snapshot{Path: f.Path}
-		if data, err := os.ReadFile(f.Path); err == nil {
-			s.Data, s.Existed = data, true
-		} else if !errors.Is(err, os.ErrNotExist) {
-			s.Failed = true
-		}
-		cp.Files = append(cp.Files, s)
-	}
-	return cp, cp.Snap != nil || len(cp.Files) > 0
-}
-
-// SaveUndo persists the checkpoints to UndoPath so /undo works after a
-// resume. Without a path it does nothing.
-func (a *Agent) SaveUndo() error {
-	if a.UndoPath == "" {
-		return nil
-	}
-	a.cp.mu.Lock()
-	defer a.cp.mu.Unlock()
-	a.cp.dirty = false
-	if len(a.cp.all) == 0 && len(a.cp.redo) == 0 && len(a.cp.changes) == 0 {
-		err := os.Remove(a.UndoPath)
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return err
-	}
-	data, err := json.Marshal(undoFile{Checkpoints: a.cp.all, Redo: a.cp.redo, Changes: a.cp.changes, Seq: a.cp.seq})
-	if err != nil {
-		return err
-	}
-	return fsutil.AtomicWrite(a.UndoPath, data)
-}
-
-// undoFile is the on-disk shape of UndoPath. Older files hold a bare
-// checkpoint array.
-type undoFile struct {
-	Checkpoints []Checkpoint `json:"checkpoints"`
-	Redo        []Checkpoint `json:"redo,omitempty"`
-	Changes     []Change     `json:"changes,omitempty"`
-	Seq         int          `json:"seq,omitempty"`
-}
-
-// LoadChanges reads the file changes a session's undo file (see UndoPath)
-// records, without an agent to restore them into.
-func LoadChanges(undoPath string) ([]Change, error) {
-	a := &Agent{UndoPath: undoPath}
-	if err := a.LoadUndo(); err != nil {
-		return nil, err
-	}
-	return a.Changes(), nil
-}
-
-// LoadUndo restores checkpoints saved by SaveUndo. A missing file is fine.
-func (a *Agent) LoadUndo() error {
-	if a.UndoPath == "" {
-		return nil
-	}
-	data, err := os.ReadFile(a.UndoPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	var f undoFile
-	if bytes.HasPrefix(bytes.TrimSpace(data), []byte("[")) {
-		err = json.Unmarshal(data, &f.Checkpoints)
-	} else {
-		err = json.Unmarshal(data, &f)
-	}
-	if err != nil {
-		return fmt.Errorf("%s: %w", a.UndoPath, err)
-	}
-	a.cp.mu.Lock()
-	a.cp.all, a.cp.redo, a.cp.open, a.cp.dirty = f.Checkpoints, f.Redo, false, false
-	a.cp.changes, a.cp.seq = f.Changes, f.Seq
-	a.cp.mu.Unlock()
-	return nil
-}
-
 // endTurn drops the turn's checkpoint when its git snapshot shows nothing
 // changed (a shell command that only read), trims old checkpoints and
 // persists the rest. It runs as the turn ends, cancelled or not, so its git
@@ -354,22 +257,23 @@ func (a *Agent) LoadUndo() error {
 func (a *Agent) endTurn(ctx context.Context) {
 	ctx = context.WithoutCancel(ctx)
 	a.cp.mu.Lock()
-	if a.cp.open && a.Snapshots != nil {
+	repo := a.snaps()
+	if a.cp.open && repo != nil {
 		cur := &a.cp.all[len(a.cp.all)-1]
 		if cur.Snap != nil && len(cur.Files) == 0 {
 			cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			changed, err := a.Snapshots.Changed(cctx, *cur.Snap)
+			changed, err := repo.Changed(cctx, *cur.Snap)
 			cancel()
 			if err == nil && !changed {
-				a.Snapshots.Drop(ctx, *cur.Snap)
+				repo.Drop(ctx, *cur.Snap)
 				a.cp.all = a.cp.all[:len(a.cp.all)-1]
 				a.cp.open = false
 			}
 		}
 	}
 	for len(a.cp.all) > maxCheckpoints {
-		if a.Snapshots != nil && a.cp.all[0].Snap != nil {
-			a.Snapshots.Drop(ctx, *a.cp.all[0].Snap)
+		if repo != nil && a.cp.all[0].Snap != nil {
+			repo.Drop(ctx, *a.cp.all[0].Snap)
 		}
 		a.cp.all = a.cp.all[1:]
 		a.cp.dirty = true
@@ -390,13 +294,6 @@ func (cp *Checkpoint) has(p string) bool {
 		}
 	}
 	return false
-}
-
-// Checkpoints lists the turns that changed files, oldest first.
-func (a *Agent) Checkpoints() []Checkpoint {
-	a.cp.mu.Lock()
-	defer a.cp.mu.Unlock()
-	return append([]Checkpoint(nil), a.cp.all...)
 }
 
 // Undo restores the files changed by the most recent turn that touched any
@@ -458,10 +355,6 @@ func (a *Agent) rollbackConversation(cp Checkpoint) {
 	a.logEvent(session.Event{Type: session.TypeUserMessage, Turn: a.turnN, Surface: true, SurfaceOp: session.SurfaceOpReplace, Replaces: seqs, Message: &note})
 }
 
-// LastUndoRemoved is how many messages the last Undo took out of the
-// conversation, for the UI to say so.
-func (a *Agent) LastUndoRemoved() int { return a.undoRemoved }
-
 // restore puts the tree back to a checkpoint: through git when it holds a
 // snapshot, else (or as a fallback) from the file copies. Called with the
 // lock held.
@@ -470,19 +363,19 @@ func (a *Agent) restore(ctx context.Context, cp Checkpoint) ([]string, error) {
 		done []string
 		errs []error
 	)
-	if cp.Snap != nil && a.Snapshots != nil {
+	if repo := a.snaps(); cp.Snap != nil && repo != nil {
 		rctx, cancel := context.WithTimeout(ctx, 60*time.Second)
-		done, err := a.Snapshots.Restore(rctx, *cp.Snap)
+		done, err := repo.Restore(rctx, *cp.Snap)
 		cancel()
 		if err == nil || !errors.Is(err, snapshot.ErrHeadMoved) {
-			a.Snapshots.Drop(context.WithoutCancel(ctx), *cp.Snap)
+			repo.Drop(context.WithoutCancel(ctx), *cp.Snap)
 			return done, err
 		}
 		if len(cp.Files) == 0 {
 			return nil, fmt.Errorf("%w: undo only knows how to revert this turn's shell changes through git, and HEAD is no longer where the snapshot was taken", err)
 		}
 		errs = append(errs, fmt.Errorf("%w; only the changes made through file tools were reverted", err))
-		a.Snapshots.Drop(context.WithoutCancel(ctx), *cp.Snap)
+		repo.Drop(context.WithoutCancel(ctx), *cp.Snap)
 	}
 	// Restore in reverse so a file created then edited ends up removed.
 	files := append([]Snapshot(nil), cp.Files...)

@@ -84,7 +84,8 @@ func TestUndoPersistsAcrossAgents(t *testing.T) {
 		t.Fatal("undo file not written after the turn")
 	}
 	// A fresh agent (a resumed session) picks the checkpoints up.
-	b := &Agent{UndoPath: a.UndoPath}
+	b := &Agent{}
+	b.UndoPath = a.UndoPath
 	if err := b.LoadUndo(); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +99,8 @@ func TestUndoPersistsAcrossAgents(t *testing.T) {
 		t.Fatal("undo from the resumed agent did not remove x")
 	}
 	// The undone state stays on disk so a later resume can redo it.
-	c := &Agent{UndoPath: a.UndoPath}
+	c := &Agent{}
+	c.UndoPath = a.UndoPath
 	if err := c.LoadUndo(); err != nil {
 		t.Fatal(err)
 	}
