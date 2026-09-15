@@ -133,7 +133,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			// Ask why so the model can adapt; enter with nothing skips.
 			m.denying = true
 			m.input.Reset()
-			m.setPhase("waiting for your reason")
+			m.turn.setPhase("waiting for your reason")
 			m.layout()
 			m.refresh(false)
 		case "esc":
@@ -157,11 +157,11 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	case "ctrl+c":
 		// Three stages: cancel a running turn, else clear typed text, else
 		// quit. A second press while a cancel is pending forces the quit.
-		if m.running && !m.cancelling {
+		if m.turn.running && !m.turn.cancelling {
 			m.cancelTurn()
 			return nil, true
 		}
-		if !m.running && m.input.Value() != "" {
+		if !m.turn.running && m.input.Value() != "" {
 			m.input.Reset()
 			m.status = "input cleared · ctrl+c again to quit"
 			m.quitArmedAt = time.Now()
@@ -171,7 +171,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		// One press when idle arms the quit; a second within a couple of
 		// seconds does it. An accidental ctrl+c must not close a session.
-		if !m.running && time.Since(m.quitArmedAt) > quitArmWindow {
+		if !m.turn.running && time.Since(m.quitArmedAt) > quitArmWindow {
 			m.quitArmedAt = time.Now()
 			m.status = "ctrl+c again to quit"
 			m.refresh(false)
@@ -185,7 +185,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			return tea.Quit, true
 		}
 	case "esc":
-		if m.running {
+		if m.turn.running {
 			m.cancelTurn()
 			m.restoreQueued()
 			return nil, true
@@ -244,7 +244,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		// the model before its next call.
 		text := strings.TrimSpace(m.input.Value())
 		switch {
-		case !m.running:
+		case !m.turn.running:
 			m.status = "ctrl+s steers a running turn; there is none · enter sends"
 		case text == "":
 			m.status = "type what the model should do differently, then ctrl+s"
@@ -252,7 +252,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.noteUse("ctrl+s")
 			m.opts.Typed.Note(text)
 			m.opts.Agent.Steer(m.inflatePastes(text))
-			m.steering = append(m.steering, text)
+			m.turn.steering = append(m.turn.steering, text)
 			m.hist.remember(text)
 			m.input.Reset()
 			m.layout()
@@ -286,11 +286,11 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		if m.moveMenu(-1) {
 			return nil, true
 		}
-		if m.running && len(m.queued) > 0 && m.input.Value() == "" {
+		if m.turn.running && len(m.turn.queued) > 0 && m.input.Value() == "" {
 			// Take the last queued message back to edit it: queued text
 			// was unreachable until the turn ended.
-			m.input.SetValue(m.queued[len(m.queued)-1])
-			m.queued = m.queued[:len(m.queued)-1]
+			m.input.SetValue(m.turn.queued[len(m.turn.queued)-1])
+			m.turn.queued = m.turn.queued[:len(m.turn.queued)-1]
 			m.input.CursorEnd()
 			m.layout()
 			m.status = "took the queued message back · enter queues it again, ctrl+s steers this turn"
@@ -345,13 +345,13 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.refresh(false)
 			return nil, true
 		}
-		if m.running && !strings.HasPrefix(text, "/") {
+		if m.turn.running && !strings.HasPrefix(text, "/") {
 			// Queue it; finishTurn sends it once the model is done.
-			m.queued = append(m.queued, text)
+			m.turn.queued = append(m.turn.queued, text)
 			m.hist.remember(text)
 			m.input.Reset()
 			m.layout()
-			m.status = fmt.Sprintf("queued %d · sends when this turn ends · esc cancels the turn and restores it", len(m.queued))
+			m.status = fmt.Sprintf("queued %d · sends when this turn ends · esc cancels the turn and restores it", len(m.turn.queued))
 			m.refresh(false)
 			return nil, true
 		}

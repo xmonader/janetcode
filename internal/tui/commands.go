@@ -255,7 +255,7 @@ func (m *model) command(text string) tea.Cmd {
 	fields := strings.Fields(text)
 	// Idle-only is decided by the slash table alone. Only table names are
 	// gated: an alias resolves to its handler below without this check.
-	if m.running {
+	if m.turn.running {
 		if c, ok := slash.Lookup(fields[0]); ok && c.Idle {
 			m.transcript.errorf("%s waits for the turn to finish (esc cancels it, ctrl+s steers it)", fields[0])
 			m.refresh(false)
@@ -543,7 +543,7 @@ func (m *model) cmdResume(text string, fields []string) (tea.Cmd, bool) {
 }
 
 func (m *model) cmdCompact(text string, fields []string) (tea.Cmd, bool) {
-	if m.running {
+	if m.turn.running {
 		m.transcript.errorf("wait for the current turn to finish before compacting")
 		return nil, false
 	}

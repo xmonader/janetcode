@@ -125,7 +125,7 @@ func (m *model) openConnect(step connectStep) tea.Cmd {
 		m.transcript.errorf("provider switching is not available in this build")
 		return nil
 	}
-	if m.running || m.pending != nil {
+	if m.turn.running || m.pending != nil {
 		m.transcript.errorf("wait for the current turn to finish first")
 		return nil
 	}

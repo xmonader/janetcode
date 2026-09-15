@@ -66,7 +66,7 @@ func (m *model) goalCommand(arg string) tea.Cmd {
 // is idle. Setting a goal and seeing nothing happen was the alternative:
 // the loop only advanced when a turn ended, and there was no turn.
 func (m *model) startGoalRound() tea.Cmd {
-	if m.running {
+	if m.turn.running {
 		m.note("the goal continues when this turn ends")
 		return nil
 	}

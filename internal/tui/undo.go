@@ -19,7 +19,7 @@ import (
 
 // undoChange reverts one change from /changes on its own.
 func (m *model) undoChange(n int) {
-	if m.running {
+	if m.turn.running {
 		m.transcript.errorf("wait for the current turn to finish before undoing")
 		return
 	}
@@ -134,7 +134,7 @@ func (m *model) relPath(path string) string {
 
 // undoCommand handles /undo, /undo preview and /redo.
 func (m *model) undoCommand(cmd string, preview bool) {
-	if m.running {
+	if m.turn.running {
 		m.transcript.errorf("wait for the current turn to finish before %s", strings.TrimPrefix(cmd, "/")+"ing")
 		return
 	}
@@ -254,7 +254,7 @@ func (m *model) undoAboutCommand(description string) tea.Cmd {
 func (m *model) startSideWork(phase string) context.Context {
 	m.startTurn(phase)
 	ctx, cancel := context.WithCancel(context.Background())
-	m.cancel = cancel
+	m.turn.cancel = cancel
 	return ctx
 }
 
@@ -262,19 +262,19 @@ func (m *model) startSideWork(phase string) context.Context {
 // prompt, the way the end of a turn does. ok is whether the work
 // succeeded, for the terminal's command-zone mark.
 func (m *model) endSideWork(ok bool) tea.Cmd {
-	m.running = false
-	m.cancelling = false
-	if m.cancel != nil {
-		m.cancel()
-		m.cancel = nil
+	m.turn.running = false
+	m.turn.cancelling = false
+	if m.turn.cancel != nil {
+		m.turn.cancel()
+		m.turn.cancel = nil
 	}
-	m.setPhase("")
+	m.turn.setPhase("")
 	m.term.turnEnded(ok, m.status)
-	if len(m.queued) == 0 {
+	if len(m.turn.queued) == 0 {
 		return nil
 	}
-	next := m.queued[0]
-	m.queued = m.queued[1:]
+	next := m.turn.queued[0]
+	m.turn.queued = m.turn.queued[1:]
 	return m.submit(next)
 }
 

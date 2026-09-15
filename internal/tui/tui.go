@@ -2,7 +2,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -211,14 +210,9 @@ type model struct {
 	// appended to a file per working directory (see history.go).
 	hist historyState
 
-	running    bool
-	cancelling bool
-	compacting bool
-	cancel     context.CancelFunc
-	startedAt  time.Time // when the running turn began
-	// phaseUntil is when the thing the phase names is due, so a wait the
-	// provider announced once counts down instead of standing still.
-	phaseUntil time.Time
+	// turn is the running turn: whether there is one, how to stop it,
+	// what it is doing, and what is waiting behind it.
+	turn turnState
 	// openedAt is when this window opened. /stats used startedAt, which
 	// is the turn clock: before the first turn it was the zero time and
 	// the session was reported as up for 2562047h47m16.854775807s.
@@ -501,12 +495,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// no event arrives.
 		m.ticks++
 		expired := m.notice.expire()
-		if m.ticks%10 == 0 && !m.running {
+		if m.ticks%10 == 0 && !m.turn.running {
 			// Someone may have checked out another branch in this tree
 			// (or in the session's worktree) from outside; follow it.
 			m.followBranch()
 		}
-		if m.running || m.ov.kind != "" {
+		if m.turn.running || m.ov.kind != "" {
 			m.refresh(false)
 		} else if notes := m.opts.Jobs.Finished(); len(notes) > 0 {
 			for _, n := range notes {
@@ -520,7 +514,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tick()
 
 	case spinner.TickMsg:
-		if m.running || (m.connect != nil && m.connect.loading) {
+		if m.turn.running || (m.connect != nil && m.connect.loading) {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			cmds = append(cmds, cmd)
@@ -540,7 +534,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case permissionMsg:
 		m.drainEvents() // the tool entry must exist before the prompt shows
 		m.pending = &msg
-		m.setPhase("waiting for your approval")
+		m.turn.setPhase("waiting for your approval")
 		m.term.announce("janetcode", "approval needed: "+msg.call.Name)
 		m.refresh(false)
 		return m, nil
@@ -598,7 +592,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case cronFireMsg:
-		if m.running {
+		if m.turn.running {
 			m.note("loop " + msg.id + " skipped · a turn is running")
 			m.refresh(false)
 			return m, nil
@@ -612,8 +606,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case mcpPromptMsg:
-		m.running = false
-		m.setPhase("")
+		m.turn.running = false
+		m.turn.setPhase("")
 		if msg.err != nil {
 			m.transcript.errorf("%s: %v", msg.command, msg.err)
 			m.refresh(false)
@@ -653,9 +647,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case shellDoneMsg:
 		m.finishShell(msg)
 		var cmd tea.Cmd
-		if len(m.queued) > 0 {
-			next := m.queued[0]
-			m.queued = m.queued[1:]
+		if len(m.turn.queued) > 0 {
+			next := m.turn.queued[0]
+			m.turn.queued = m.turn.queued[1:]
 			cmd = m.submit(next)
 		}
 		m.refresh(false)
@@ -724,35 +718,35 @@ func (m *model) applyEvent(ev agent.Event) {
 	m.observeEvent(ev)
 	switch ev.Kind {
 	case agent.EvThinking:
-		m.setPhase("thinking")
+		m.turn.setPhase("thinking")
 	case agent.EvText:
-		m.setPhase("writing")
+		m.turn.setPhase("writing")
 	case agent.EvToolStart:
-		m.setPhase("preparing " + ev.Call.Name)
+		m.turn.setPhase("preparing " + ev.Call.Name)
 	case agent.EvToolInput:
 		// Streamed input: the status says what is being written and how
 		// much, instead of "preparing write_file" for a minute.
 		if e := m.transcript.lastTool(ev.Call); e != nil && e.call.Name != "" {
 			if s := streamingSummary(e.call.Name, e.input.String(), m.opts.Cwd); s != "" && s != "…" {
-				m.setPhase(e.call.Name + " " + s)
+				m.turn.setPhase(e.call.Name + " " + s)
 			}
 		}
 	case agent.EvPhase:
 		// The provider or the loop said what it is waiting on: a retry
 		// countdown, a compaction, a subagent.
-		m.setPhase(ev.Text)
+		m.turn.setPhase(ev.Text)
 	case agent.EvToolRun:
-		m.setPhase("running " + ev.Call.Name)
+		m.turn.setPhase("running " + ev.Call.Name)
 		if ev.Call.Name == "task" {
-			m.setPhase("waiting on subagent")
+			m.turn.setPhase("waiting on subagent")
 		}
 	case agent.EvToolResult:
-		m.setPhase("thinking")
+		m.turn.setPhase("thinking")
 		if ev.Call != nil && ev.Call.Name == "goal_status" && !ev.IsError {
 			m.status = strings.TrimSpace(ev.Output)
 		}
 	case agent.EvCompacted:
-		m.setPhase("thinking")
+		m.turn.setPhase("thinking")
 	case agent.EvVerdict:
 		m.lastVerdict = shortenPaths(m.opts.Cwd, ev.Text)
 	case agent.EvTurnDone:

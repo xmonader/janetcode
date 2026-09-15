@@ -455,7 +455,7 @@ func flat(view string) string { return strings.Join(strings.Fields(plain(view)),
 func runPrompt(h *harness, text string) {
 	h.keys(text)
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 }
 
 // Two turns that change the same files in the same order are a procedure,

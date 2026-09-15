@@ -95,7 +95,7 @@ func (m *model) refreshHintState() {
 		// history again.
 		if limit := ag.CompactThreshold(); limit > 0 {
 			est := ag.TokenEstimate()
-			if !m.running {
+			if !m.turn.running {
 				est = ag.EstimateTokens()
 			}
 			s.ContextPct = est * 100 / limit

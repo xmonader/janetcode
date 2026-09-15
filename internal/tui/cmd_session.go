@@ -100,7 +100,7 @@ func (m *model) forkSession(arg string) {
 		m.transcript.errorf("no session to fork")
 		return
 	}
-	if m.running {
+	if m.turn.running {
 		m.transcript.errorf("wait for the current turn to finish before forking")
 		return
 	}

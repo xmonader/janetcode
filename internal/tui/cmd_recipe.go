@@ -98,7 +98,7 @@ func (m *model) runRecipe(rest string) tea.Cmd {
 	}
 	m.startTurn("running recipe " + name)
 	ctx, cancel := context.WithCancel(context.Background())
-	m.cancel = cancel
+	m.turn.cancel = cancel
 	ag, send, queue := m.opts.Agent, m.send, m.queue
 	m.refresh(false)
 	go func() {
@@ -121,13 +121,13 @@ type recipeDoneMsg struct {
 // the handover — the same submit path a queued prompt or a goal round
 // uses to start its next turn.
 func (m *model) finishRecipe(msg recipeDoneMsg) tea.Cmd {
-	m.running = false
-	m.cancelling = false
-	if m.cancel != nil {
-		m.cancel()
-		m.cancel = nil
+	m.turn.running = false
+	m.turn.cancelling = false
+	if m.turn.cancel != nil {
+		m.turn.cancel()
+		m.turn.cancel = nil
 	}
-	m.setPhase("")
+	m.turn.setPhase("")
 	res := agent.RecipeOutcome(msg.recipe, msg.report, msg.failed, msg.err)
 	m.showResult(res, nil)
 	m.term.turnEnded(res.Error == "" && res.Handover == "", m.status)

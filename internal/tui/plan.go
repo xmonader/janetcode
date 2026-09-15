@@ -138,7 +138,7 @@ func (m *model) planCommand(arg string) tea.Cmd {
 			m.refresh(false)
 			return nil
 		}
-		if m.running {
+		if m.turn.running {
 			m.transcript.errorf("wait for the plan to finish")
 			m.refresh(false)
 			return nil
