@@ -16,7 +16,13 @@ func localShell(ctx context.Context, ws *Workspace, sb *shell.Sandbox, root, com
 		return ws.Host().Command(ctx, command)
 	}
 	if sb != nil && sb.Enabled() {
-		return sb.Command(ctx, root, command)
+		// The directories granted with /add-dir are write roots of the
+		// active profile too, so a sandboxed command can work in them.
+		var extra []string
+		if ws != nil {
+			extra = ws.ExtraDirs()
+		}
+		return sb.CommandIn(ctx, root, extra, command)
 	}
 	cmd := shell.Command(ctx, command)
 	cmd.Dir = root
