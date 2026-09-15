@@ -89,6 +89,7 @@ func testApp(t *testing.T, responses ...*llm.Response) (*httptest.Server, *agent
 		Tools:    tool.NewRegistry(tool.WriteFile{Root: root}),
 		Model:    "m",
 		Log:      sess,
+		Root:     root,
 	}
 	h := testHandler(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"})
 	return httptest.NewServer(h), ag

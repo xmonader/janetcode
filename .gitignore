@@ -3,3 +3,5 @@ bin/
 .env
 evals/last-results.json
 /janetcode
+/.janetcode/plan.md
+/.janetcode/plan.md.prev
