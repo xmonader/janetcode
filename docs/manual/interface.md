@@ -324,9 +324,10 @@ never climbs to the filesystem root, and a call `r` refuses to capture (see
 below) has no ladder either. The ledger counts the rung you actually
 saved, and the "approved N×" note beside it counts that same rule.
 
-A rule is `tool` or `tool(pattern)`; `*` spans anything and `?` one
-character, matched against the command for `bash`, the path for file
-tools and the URL for `fetch_url`. `*` spans shell operators too, so
+A rule is `tool`, `tool(pattern)` or `tool(param:pattern, ...)`; `*`
+spans anything and `?` one character. A bare pattern is matched against
+the call's subject: the command for `bash`, the path for file tools and
+the URL for `fetch_url`. `*` spans shell operators too, so
 `bash(go test *)` also matches `go test ./... && rm -rf x`; for that
 reason `r` offers no rule for a compound command (`&&`, `;`, `|`, `$( )`)
 or one led by `cd`, `sudo`, `env`, `sh -c` and similar wrappers. A leading
@@ -335,6 +336,37 @@ suggesting, so `go test` rules cover a model that prefixes every command
 that way. Deny wins over allow; a denied call is
 refused without a prompt and the model is told which rule did it.
 Guarded commands (ones that reach outside the workspace) still ask.
+A parameter clause names a field of the call instead of the subject, for
+the things the subject cannot say:
+
+```
+task(model:opus)                   the task tool, but only on opus
+task(agent:explore, model:haiku*)  both clauses must match
+fetch_url(domain:*.example.com)    the host, not the whole URL
+edit_file(path:internal/**)        the path field, cleaned, with / as the separator
+```
+
+Clauses are separated by commas and every one of them must match; a name
+may be a dotted path into a nested object (`opts.model:opus`). The value
+is matched with the same wildcards as any other pattern, against the
+field as it reads: a number or a boolean as it is written, a list when
+any of its elements matches, and nothing at all when the field is absent,
+so `task(model:opus)` never matches a call that named no model.
+`fetch_url(domain:…)` is the one field computed rather than read — the
+host of the URL, with and without its port, because a host is what people
+mean when they trust a site. A pattern with no `name:` prefix keeps its
+old meaning exactly, so `bash(npm run *)`, `bash(git log --format=%h,%s)`
+and `fetch_url(https://pkg.go.dev/*)` are all still subject patterns, and
+no rule written before parameters existed changes behaviour. A malformed
+clause (`task(model:)`, `task(agent:explore, model)`, the same name
+twice) is refused when the rule is parsed rather than quietly matching
+nothing.
+
+The `r` key never proposes a parameter rule: the ladder is about breadth
+— this path, its directory, the tree above it — and a field is not a
+wider or narrower version of anything. Parameter rules are written by
+hand, in the config file or with `/permissions allow <rule>`.
+
 `/permissions` lists rules, `/permissions allow <rule>` and `/permissions
 deny <rule>` add one. A project can ship `.janetcode/permissions.json`
 with the same shape: its deny rules always apply, its allow rules only

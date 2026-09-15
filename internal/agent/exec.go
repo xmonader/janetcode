@@ -200,8 +200,13 @@ func (a *Agent) describeCall(ctx context.Context, t tool.Tool, u *llm.Block, cal
 // call, with the subject they matched on (which the ask step needs too).
 func (a *Agent) ruleDecision(u *llm.Block) (subject string, verdict perm.Verdict, rule perm.Rule) {
 	subject = perm.SubjectIn(u.Name, u.Input, a.displayRoot())
-	verdict, rule = a.decideRule(u.Name, subject)
+	verdict, rule = a.decideCall(a.permCall(u.Name, u.Input, subject))
 	return subject, verdict, rule
+}
+
+// permCall is one call as the permission rules see it.
+func (a *Agent) permCall(name string, input json.RawMessage, subject string) perm.Call {
+	return perm.Call{Tool: name, Subject: subject, Input: input, Root: a.displayRoot()}
 }
 
 // mustPrompt reports whether the user still has to be asked: only for a

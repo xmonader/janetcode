@@ -1,8 +1,10 @@
 // Package perm holds persistent permission rules: which tool calls run
-// without asking and which are refused outright. A rule is "tool" or
-// "tool(pattern)", where the pattern is matched against the call's
-// subject: the command for bash, the path for file tools, the URL for
-// fetch_url. Deny rules win over allow rules; anything unmatched asks.
+// without asking and which are refused outright. A rule is "tool",
+// "tool(pattern)" or "tool(param:pattern, ...)". A bare pattern is
+// matched against the call's subject: the command for bash, the path for
+// file tools, the URL for fetch_url. A parameter clause names a field of
+// the call instead (see param.go), and every clause of a rule must match.
+// Deny rules win over allow rules; anything unmatched asks.
 package perm
 
 import (
@@ -42,7 +44,28 @@ func Parse(s string) (Rule, error) {
 	if !strings.HasSuffix(s, ")") || i == 0 {
 		return Rule{}, fmt.Errorf("bad rule %q: want tool(pattern)", s)
 	}
-	return Rule{Tool: strings.TrimSpace(s[:i]), Pattern: strings.TrimSpace(s[i+1 : len(s)-1])}, nil
+	r := Rule{Tool: strings.TrimSpace(s[:i]), Pattern: strings.TrimSpace(s[i+1 : len(s)-1])}
+	// A parameter rule is validated here rather than at match time, so a
+	// typo is reported to whoever wrote it instead of quietly matching
+	// nothing. Its spacing is canonicalised so the same rule written two
+	// ways is one rule to Add, to the ledger and to the eye.
+	ps, isParam, err := Params(r.Pattern)
+	if err != nil {
+		return Rule{}, err
+	}
+	if isParam {
+		r.Pattern = FormatParams(ps)
+	}
+	return r, nil
+}
+
+// FormatParams writes parameter clauses the canonical way.
+func FormatParams(ps []Param) string {
+	parts := make([]string, 0, len(ps))
+	for _, p := range ps {
+		parts = append(parts, p.Name+":"+p.Pattern)
+	}
+	return strings.Join(parts, ", ")
 }
 
 // IsZero reports whether r is no rule at all: what Suggest returns for a
@@ -86,15 +109,39 @@ func ParseAll(ss []string) ([]Rule, error) {
 	return out, nil
 }
 
-// Decide matches a call. Deny wins; the matching rule is returned.
+// Call is one tool call as the rules see it: the tool's name, the subject
+// a bare pattern is matched against (see Subject), and the raw input a
+// parameter clause reads its fields from. Root is the workspace, used by
+// the checks that judge what a command would write.
+//
+// A Call with no Input still matches every rule that existed before
+// parameters did; a parameter rule simply never matches one, because
+// nothing was given for it to look at.
+type Call struct {
+	Tool    string
+	Subject string
+	Input   json.RawMessage
+	Root    string
+}
+
+// Decide matches a call by tool and subject alone. Deny wins; the
+// matching rule is returned. Parameter rules cannot match here — use
+// DecideCall, which carries the call's input.
 func (rs Rules) Decide(tool, subject string) (Verdict, Rule) {
+	return rs.DecideCall(Call{Tool: tool, Subject: subject})
+}
+
+// DecideCall matches a whole call: deny rules first, so a deny always
+// outranks an allow however the two were written, then allow rules;
+// anything unmatched asks.
+func (rs Rules) DecideCall(c Call) (Verdict, Rule) {
 	for _, r := range rs.Deny {
-		if r.matches(tool, subject) {
+		if r.matchesCall(c) {
 			return Denied, r
 		}
 	}
 	for _, r := range rs.Allow {
-		if r.matches(tool, subject) {
+		if r.matchesCall(c) {
 			return Allowed, r
 		}
 	}
@@ -139,10 +186,43 @@ func Merge(a, b Rules) Rules {
 }
 
 func (r Rule) matches(tool, subject string) bool {
-	if r.Tool != tool && r.Tool != "*" {
+	return r.matchesCall(Call{Tool: tool, Subject: subject})
+}
+
+// matchesCall is the whole matcher: the tool has to be the call's (or
+// "*"), and then either the bare pattern matches the subject or every
+// parameter clause matches its field.
+func (r Rule) matchesCall(c Call) bool {
+	if r.Tool != c.Tool && r.Tool != "*" {
 		return false
 	}
-	return r.Pattern == "" || Match(r.Pattern, subject)
+	if r.Pattern == "" {
+		return true
+	}
+	ps, isParam, err := Params(r.Pattern)
+	if err != nil || !isParam {
+		return Match(r.Pattern, c.Subject)
+	}
+	if len(c.Input) == 0 {
+		return false
+	}
+	for _, p := range ps {
+		if !matchAny(p.Pattern, FieldValues(c.Tool, c.Input, p.Name)) {
+			return false
+		}
+	}
+	return true
+}
+
+// matchAny reports whether the pattern matches any of a field's values;
+// a field that is absent has none, so a clause naming it never matches.
+func matchAny(pattern string, vals []string) bool {
+	for _, v := range vals {
+		if Match(pattern, v) {
+			return true
+		}
+	}
+	return false
 }
 
 // Match is a wildcard match where * spans anything (including / and
