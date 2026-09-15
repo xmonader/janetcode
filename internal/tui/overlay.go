@@ -142,6 +142,10 @@ func (m *model) handleOverlayKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.ov.openChild(kids[m.ov.idx].ID)
 			m.refresh(false)
 		}
+	case k == "k":
+		if len(kids) > 0 {
+			m.cancelOverlayChild(kids[m.ov.idx].ID)
+		}
 	}
 	return nil, true
 }
@@ -155,8 +159,23 @@ func (m *model) handleAgentDetailKey(msg tea.KeyMsg) tea.Cmd {
 		m.closeOverlay()
 	case m.ov.paneKey(k, m.paneHeight()):
 		m.refresh(false)
+	case k == "k":
+		m.cancelOverlayChild(m.ov.child)
 	}
 	return nil
+}
+
+func (m *model) cancelOverlayChild(id string) {
+	task := m.taskTool()
+	if task == nil {
+		return
+	}
+	if err := task.Cancel(id); err != nil {
+		m.note(err.Error())
+	} else {
+		m.note("cancelled " + id)
+	}
+	m.refresh(false)
 }
 
 func (m *model) overlayView(height int) string {
@@ -285,7 +304,7 @@ func (m *model) agentsListView(height int) string {
 			add("")
 		}
 	}
-	add(m.styles.faint.Render(`↑↓ choose · enter open · esc close · /agents new <brief> starts one · /agents <id> jumps`))
+	add(m.styles.faint.Render(`↑↓ choose · enter open · k cancel · esc close · /agents cancel <id>`))
 	box := m.styles.dialog.Width(w - 2).Render(strings.Join(lines, "\n"))
 	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
@@ -311,7 +330,7 @@ func (m *model) agentDetailView(height int) string {
 		stateStyle.Render(state),
 		m.styles.faint.Render(textfmt.Duration(time.Since(log.Started))),
 		log.Description)
-	help := m.styles.faint.Render("esc back to the list · ↑↓ / pgup pgdn scroll · ctrl+c close")
+	help := m.styles.faint.Render("esc back to the list · k cancel · ↑↓ / pgup pgdn scroll · ctrl+c close")
 	body := m.renderChildSteps(log, w)
 	viewH := height - 3
 	if viewH < 1 {

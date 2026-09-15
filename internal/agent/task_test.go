@@ -605,6 +605,35 @@ func TestContinueRunningForkReportsBusy(t *testing.T) {
 	}
 }
 
+func TestCancelStopsARunningFork(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha"), 0o644)
+	block := make(chan struct{})
+	parent := &Agent{Provider: &blockUntil{ch: block}, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"slow","prompt":"explore","fork":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	id := task.ChildIDs()[0]
+	out, err := task.Run(context.Background(), json.RawMessage(`{"cancel":"`+id+`"}`))
+	if err != nil || out != "cancelled "+id {
+		t.Fatalf("cancel = %q %v", out, err)
+	}
+	ctx, stop := context.WithTimeout(context.Background(), 2*time.Second)
+	defer stop()
+	if !task.Wait(ctx) {
+		t.Fatal("cancelled fork did not return")
+	}
+	log, ok := task.ChildLog(id)
+	if !ok || !log.Done {
+		t.Fatalf("after cancel: %+v ok=%v", log.ChildInfo, ok)
+	}
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"cancel":"`+id+`"}`)); err == nil {
+		t.Fatal("cancel of a finished child should fail")
+	}
+}
+
 type blockUntil struct{ ch chan struct{} }
 
 func (b *blockUntil) Name() string { return "fake" }

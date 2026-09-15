@@ -850,7 +850,10 @@ Make the failing test pass. Do not weaken the test.
 (read-only, like `task` without `edit:true`) and opens the overlay so you
 can watch it; `/agents fork <brief>` starts a `task` fork that inherits
 this conversation. `ctrl+t`
-opens the overlay from the keyboard.
+opens the overlay from the keyboard. `k` in the overlay, `/agents cancel
+<id>`, or the parent calling `task {"cancel":"<id>"}` stops that child
+without ending the session. A blocking `task` still dies with the parent
+turn; a fork no longer has to wait for quit.
 
 A subagent that finished is not gone: `/agents` opens a live overlay of
 the continuable subagents this session started with the `task` tool.
@@ -864,6 +867,8 @@ yet, the overlay says so rather than a one-line notice. When one has
 found something and the answer it wrote back is not the whole of it,
 carry on by asking ("tell task-2 to also check …") or with
 `task continue=<id>`, rather than starting again from an empty context.
+Tell the parent to cancel a runaway child and it should call
+`task cancel=<id>`.
 
 ### Prompt caching
 

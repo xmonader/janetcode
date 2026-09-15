@@ -57,7 +57,7 @@ var Commands = withIdle([]Command{
 	{Name: "/why", Args: "[n]", Help: "explain the last thing the harness did on its own, in plain words; n goes further back"},
 	{Name: "/feedback", Args: "up|down [note]", Help: "rate the last assistant message (not sent to the model)"},
 	{Name: "/goal", Args: "[objective|pause|resume|done]", Help: "set a goal and start on it now; the model keeps going round after round until it is complete or blocked"},
-	{Name: "/agents", Args: "[id|new <brief>|fork <brief>]", Help: "live overlay of continuable subagents; enter (or /agents <id>) opens one child's transcript; new starts a general subagent, fork one that inherits this conversation"},
+	{Name: "/agents", Args: "[id|new <brief>|fork <brief>|cancel <id>]", Help: "live overlay of continuable subagents; enter (or /agents <id>) opens one child's transcript; new starts a general subagent, fork inherits this conversation, cancel <id> stops a running one"},
 	{Name: "/cd", Args: "[path]", Help: "move this session's working directory without restarting; no argument says where it is"},
 	{Name: "/ssh", Args: "[user@host[:/path]|off]", Help: "run file tools and bash on a remote host over ssh; off returns here"},
 	{Name: "/docker", Args: "[container[:/path]|off]", Help: "run file tools and bash in a docker container; off returns here"},

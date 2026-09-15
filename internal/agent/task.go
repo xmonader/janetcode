@@ -64,6 +64,8 @@ type subagent struct {
 	// UI can answer "what is it up to" without waiting for the report.
 	last string
 	fork bool
+	// cancel stops this child's Run. Nil until the run has a context.
+	cancel context.CancelFunc
 }
 
 // ChildInfo is a live snapshot of one subagent for status lines, /agents
@@ -210,8 +212,9 @@ func (*Task) Schema() json.RawMessage {
 "edit":{"type":"boolean","description":"Optional: let the subagent edit files and run commands in an isolated git worktree of the project. Its changes come back as a patch (also saved to a file) for you to review and apply with git apply; the real tree is untouched."},
 "model":{"type":"string","description":"Optional: run the job on this model instead of the session's, by name (e.g. glm-5). Use a cheaper or faster model for wide reading, or a stronger one for a job that has to be right."},
 "continue":{"type":"string","description":"Optional: id of a previous subagent to send another prompt. Omit prompt to list ids."},
+"cancel":{"type":"string","description":"Optional: id of a running subagent to stop. The parent should use this when the user says to cancel that child."},
 "fork":{"type":"boolean","description":"Optional: inherit this conversation's history and tools, run in the background, and return an id immediately. Cannot nest, and cannot be combined with edit."}},
-"required":["description","prompt"],"additionalProperties":false}`)
+"additionalProperties":false}`)
 }
 
 // ChildIDs lists continuable subagents started from this parent.
@@ -274,6 +277,53 @@ func (t *Task) sessionCtx() context.Context {
 	return t.life
 }
 
+// Cancel stops one running subagent. The parent model uses task
+// cancel=<id>; the user uses /agents cancel <id>.
+func (t *Task) Cancel(id string) error {
+	if t == nil {
+		return fmt.Errorf("no task tool")
+	}
+	t.mu.Lock()
+	kid := t.children[id]
+	var cancel context.CancelFunc
+	if kid != nil {
+		cancel = kid.cancel
+	}
+	t.mu.Unlock()
+	if kid == nil {
+		return fmt.Errorf("no subagent %q", id)
+	}
+	if kid.done {
+		return fmt.Errorf("subagent %s already finished", id)
+	}
+	if cancel == nil {
+		return fmt.Errorf("subagent %s is not running", id)
+	}
+	cancel()
+	return nil
+}
+
+func (t *Task) bindChildCtx(parent context.Context, kid *subagent, minutes int) context.Context {
+	ctx, cancel := context.WithCancel(parent)
+	if minutes > 0 {
+		ctx, _ = context.WithTimeout(ctx, time.Duration(minutes)*time.Minute)
+	}
+	t.mu.Lock()
+	kid.cancel = cancel
+	t.mu.Unlock()
+	return ctx
+}
+
+func (t *Task) releaseChild(kid *subagent) {
+	t.mu.Lock()
+	cancel := kid.cancel
+	kid.cancel = nil
+	t.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
 // remember registers a continuable subagent, evicting the oldest (and its
 // worktree) once there are too many.
 func (t *Task) remember(id string, c *subagent) {
@@ -307,6 +357,12 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in TaskInput
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", fmt.Errorf("bad input: %w", err)
+	}
+	if id := strings.TrimSpace(in.Cancel); id != "" {
+		if err := t.Cancel(id); err != nil {
+			return "", err
+		}
+		return "cancelled " + id, nil
 	}
 	if strings.TrimSpace(in.Prompt) == "" {
 		return "", fmt.Errorf("prompt must not be empty")
@@ -433,15 +489,6 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	child, wt := kid.agent, kid.wt
 	start := time.Now()
-	// A profile's time budget bounds the job, not the session: the
-	// parent's turn is held open for as long as the subagent runs, so a
-	// subagent that will not finish has to be finished for it.
-	runCtx := ctx
-	if profile != nil && profile.MaxMinutes > 0 {
-		var cancel context.CancelFunc
-		runCtx, cancel = context.WithTimeout(ctx, time.Duration(profile.MaxMinutes)*time.Minute)
-		defer cancel()
-	}
 	t.mu.Lock()
 	kid.desc = in.Description
 	kid.started = start
@@ -460,46 +507,48 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			kid.last = ev.Text
 		}
 	}
+	minutes := 0
+	if profile != nil {
+		minutes = profile.MaxMinutes
+	}
 	if kid.fork && in.Continue == "" {
 		// A fork must outlive this tool call: the parent turn continues
 		// and the child is watched with /agents. The session context is
-		// cancelled from Close, so quitting the TUI stops it.
-		bg := t.sessionCtx()
-		var cancel context.CancelFunc
-		if profile != nil && profile.MaxMinutes > 0 {
-			bg, cancel = context.WithTimeout(bg, time.Duration(profile.MaxMinutes)*time.Minute)
-		}
+		// cancelled from Close, so quitting the TUI stops it. Cancel(id)
+		// stops just this child.
+		runCtx := t.bindChildCtx(t.sessionCtx(), kid, minutes)
 		t.running.Add(1)
 		go func() {
 			defer t.running.Done()
-			if cancel != nil {
-				defer cancel()
-			}
-			_ = child.Run(bg, in.Prompt, emit)
+			defer t.releaseChild(kid)
+			_ = child.Run(runCtx, in.Prompt, emit)
 			t.mu.Lock()
 			kid.done = true
 			t.usage.Add(usageSince(kid.seen, child.Usage))
 			kid.seen = child.Usage
 			t.mu.Unlock()
 		}()
-		return fmt.Sprintf("started fork %q id=%s in the background; watch with /agents, continue with task continue=%s", in.Description, childID, childID), nil
+		return fmt.Sprintf("started fork %q id=%s in the background; watch with /agents, continue with task continue=%s, cancel with task cancel=%s", in.Description, childID, childID, childID), nil
 	}
+	runCtx := t.bindChildCtx(ctx, kid, minutes)
+	defer t.releaseChild(kid)
 	err = child.Run(runCtx, in.Prompt, emit)
 	t.mu.Lock()
 	kid.done = true
 	t.mu.Unlock()
 	if err != nil && ctx.Err() == nil && runCtx.Err() != nil {
-		// Out of time rather than cancelled: whatever it found so far is
-		// worth more to the parent than an error with nothing in it.
-		report := lastAssistantText(child.Messages)
-		if strings.TrimSpace(report) == "" {
-			report = "(the subagent ran out of time before reporting anything)"
-		}
 		t.mu.Lock()
 		t.usage.Add(usageSince(kid.seen, child.Usage))
 		kid.seen = child.Usage
 		t.mu.Unlock()
-		return fmt.Sprintf("%s\n\n[subagent %q id=%s stopped after its %d-minute budget; continue it with task continue=%s]", report, in.Description, childID, profile.MaxMinutes, childID), nil
+		if runCtx.Err() == context.DeadlineExceeded && minutes > 0 {
+			report := lastAssistantText(child.Messages)
+			if strings.TrimSpace(report) == "" {
+				report = "(the subagent ran out of time before reporting anything)"
+			}
+			return fmt.Sprintf("%s\n\n[subagent %q id=%s stopped after its %d-minute budget; continue it with task continue=%s]", report, in.Description, childID, minutes, childID), nil
+		}
+		return fmt.Sprintf("cancelled %s", childID), nil
 	}
 	// Usage is cumulative over the subagent's life, so only what this
 	// exchange added is billed to the parent.

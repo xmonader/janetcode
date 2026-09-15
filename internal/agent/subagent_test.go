@@ -16,10 +16,14 @@ func TestAgentsArg(t *testing.T) {
 			t.Fatalf("AgentsArg(%q) should name a child, not start one", arg)
 		}
 	}
-	for _, arg := range []string{"new", "fork", "  fork  "} {
+	for _, arg := range []string{"new", "fork", "  fork  ", "cancel", "  cancel  "} {
 		if _, _, err := AgentsArg(arg); err == nil {
 			t.Fatalf("AgentsArg(%q) wants a brief", arg)
 		}
+	}
+	in, start, err = AgentsArg("cancel task-2")
+	if err != nil || start || in.Cancel != "task-2" {
+		t.Fatalf("cancel = %#v %v %v", in, start, err)
 	}
 }
 

@@ -173,6 +173,14 @@ func (s *server) agents(id string) {
 		s.errf("%v", err)
 		return
 	}
+	if in.Cancel != "" {
+		if err := task.Cancel(in.Cancel); err != nil {
+			s.errf("%v", err)
+			return
+		}
+		s.notice("cancelled " + in.Cancel)
+		return
+	}
 	if start {
 		s.notice("started " + in.Kind() + " · " + in.Description)
 		s.startTask(task, in.Kind(), in)
@@ -206,7 +214,7 @@ func (s *server) agents(id string) {
 			fmt.Fprintf(&sb, "    tokens in=%d out=%d\n", k.Usage.InputTokens, k.Usage.OutputTokens)
 		}
 	}
-	sb.WriteString("\n/agents <id> shows that child's transcript · steer one by asking: \"tell task-2 to also check …\"")
+	sb.WriteString("\n/agents <id> shows that child's transcript · /agents cancel <id> stops a running one")
 	s.sheet("subagents", strings.TrimRight(sb.String(), "\n"))
 }
 

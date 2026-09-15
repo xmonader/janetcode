@@ -64,6 +64,15 @@ func (m *model) completeJobs(partial string) []command {
 func (m *model) completeAgents(partial string) []command {
 	p := strings.ToLower(partial)
 	var out []command
+	for _, v := range []command{
+		{name: "new", help: "start a general subagent"},
+		{name: "fork", help: "inherit this conversation"},
+		{name: "cancel", help: "stop a running subagent"},
+	} {
+		if p == "" || strings.HasPrefix(v.name, p) {
+			out = append(out, v)
+		}
+	}
 	for _, k := range m.overlayKids() {
 		if p != "" && !strings.Contains(strings.ToLower(k.ID+" "+k.Description), p) {
 			continue

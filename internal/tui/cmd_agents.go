@@ -100,6 +100,19 @@ func (m *model) agentsCommand(arg string) {
 		m.transcript.info(err.Error())
 		return
 	}
+	if in.Cancel != "" {
+		task := m.taskTool()
+		if task == nil {
+			m.transcript.errorf("no task tool in this session")
+			return
+		}
+		if err := task.Cancel(in.Cancel); err != nil {
+			m.transcript.errorf("%v", err)
+			return
+		}
+		m.note("cancelled " + in.Cancel)
+		return
+	}
 	if start {
 		task := m.taskTool()
 		if task == nil {

@@ -23,6 +23,7 @@ type TaskInput struct {
 	Edit        bool     `json:"edit,omitempty"`
 	Model       string   `json:"model,omitempty"`
 	Continue    string   `json:"continue,omitempty"`
+	Cancel      string   `json:"cancel,omitempty"`
 	Fork        bool     `json:"fork,omitempty"`
 }
 
@@ -56,13 +57,21 @@ func (a *Agent) TaskTool() *Task {
 	return task
 }
 
-// AgentsArg reads /agents [id | new <brief> | fork <brief>]. start is
-// true when the argument asks for a new subagent, which is then the task
-// tool started by hand: new runs the general profile, fork inherits this
-// conversation. Otherwise arg, if any, names a child to open.
+// AgentsArg reads /agents [id | new <brief> | fork <brief> | cancel <id>].
+// start is true when the argument asks for a new subagent, which is then
+// the task tool started by hand: new runs the general profile, fork
+// inherits this conversation. Cancel is a TaskInput with Cancel set.
+// Otherwise arg, if any, names a child to open.
 func AgentsArg(arg string) (in TaskInput, start bool, err error) {
 	arg = strings.TrimSpace(arg)
 	verb, brief, _ := strings.Cut(arg, " ")
+	if verb == "cancel" {
+		id := strings.TrimSpace(brief)
+		if id == "" {
+			return TaskInput{}, false, fmt.Errorf("usage: /agents cancel <id>")
+		}
+		return TaskInput{Cancel: id}, false, nil
+	}
 	if verb != "new" && verb != "fork" {
 		return TaskInput{}, false, nil
 	}
