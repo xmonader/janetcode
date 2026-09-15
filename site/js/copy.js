@@ -10,6 +10,11 @@
       var codeEl = blocks[i];
       var pre = codeEl.parentElement;
       if (!pre || pre.dataset.copyReady) continue;
+      // the hero terminal and the per-feature example terminals are
+      // illustrative transcripts, not something meant to be copied
+      // verbatim
+      if (pre.classList.contains("terminal-body")) continue;
+      if (pre.classList.contains("xterm-body")) continue;
       pre.dataset.copyReady = "1";
 
       var btn = document.createElement("button");

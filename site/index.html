@@ -6,9 +6,11 @@
 <title>janetcode</title>
 <meta name="description" content="janetcode is a terminal coding agent in a single Go binary: it reads and edits code, runs commands, and shows every mutating action as a diff before it happens.">
 <link rel="stylesheet" href="css/style.css">
+<script>(function(){try{var t=localStorage.getItem("janetcode-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
 </head>
 <body>
 <header class="site-header">
+<div class="header-left">
   <a class="brand" href="index.html">janetcode</a>
   <nav class="site-nav" aria-label="Primary">
     <a href="index.html" aria-current="page">Home</a>
@@ -17,13 +19,60 @@
     <a href="reference.html">Reference</a>
     <a href="https://github.com/xmonader/janetcode">GitHub</a>
   </nav>
+</div>
+<div class="header-right">
+<button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">&#9789;</button>
+</div>
 </header>
 
 <main>
-  <h1>janetcode</h1>
-  <p class="lede">A terminal coding agent in a single Go binary. It reads and
-  edits code, runs commands, and iterates on the result, with every
-  mutating action shown to you as a diff before it happens.</p>
+  <section class="hero" aria-labelledby="hero-heading">
+    <p class="eyebrow">Terminal coding agent</p>
+    <h1 id="hero-heading">janetcode</h1>
+    <p class="lede">A terminal coding agent in a single Go binary. It reads and
+    edits code, runs commands, and iterates on the result, with every
+    mutating action shown to you as a diff before it happens.</p>
+
+    <div class="hero-terminal-wrap">
+      <span class="sr-only">Example janetcode session, showing a prompt, an edit proposed as a diff, the permission prompt, and the resulting verdict:</span>
+      <div class="terminal" aria-hidden="true">
+        <div class="terminal-bar">
+          <span class="terminal-dot dot-red"></span>
+          <span class="terminal-dot dot-yellow"></span>
+          <span class="terminal-dot dot-green"></span>
+          <span class="terminal-title">janetcode &mdash; ~/project</span>
+        </div>
+        <pre class="terminal-body"><code><span class="t-prompt">$</span> janetcode -p <span class="t-out">"add a --verbose flag"</span> \
+  --yolo
+
+<span class="t-tool">&rarr; edit_file</span> cmd/server/main.go
+      18   func main() {
+<span class="t-del">      19 -     flag.Parse()</span>
+<span class="t-add">      19 +     verbose := flag.Bool(
+        "verbose", false, "verbose")</span>
+<span class="t-add">      20 +     flag.Parse()</span>
+      21       srv := server.New()
+
+  Allow this edit?
+  <span class="t-key">(y)</span>es  <span class="t-key">(a)</span>lways  <span class="t-key">(n)</span>o  <span class="t-key">(r)</span>ule
+
+<span class="t-tool">&rarr; bash</span> go test ./...
+  ok    cmd/server    0.412s
+
+<span class="t-verdict">&check; verified</span><span class="t-dim">: go test ./...
+  &mdash; tests ran and passed</span></code></pre>
+      </div>
+    </div>
+
+    <div class="hero-actions">
+      <div class="code-block hero-install">
+        <pre><code>git clone https://github.com/xmonader/janetcode
+cd janetcode
+make install</code></pre>
+      </div>
+      <a class="btn" href="#quick-start">60-second quick start &rarr;</a>
+    </div>
+  </section>
 
   <section id="what-it-is">
     <h2>What it is</h2>
@@ -162,39 +211,51 @@ janetcode -p "add a --verbose flag to cmd/server" --yolo</code></pre>
 
   <section id="features-overview">
     <h2>Features, in brief</h2>
-    <p>The full list with plain-language explanations is on the
-    <a href="features.html">features page</a>; this is the short version.</p>
-    <ul>
-      <li><strong>Permission rules and modes</strong> &mdash; ask, plan,
-      auto or yolo; save a rule once and stop being asked the same
-      question. <a href="features.html#permissions">Details &rarr;</a></li>
-      <li><strong>Sessions</strong> &mdash; every conversation is saved,
-      resumable, forkable and searchable, and long ones are summarised
-      rather than truncated. <a href="features.html#sessions">Details
-      &rarr;</a></li>
-      <li><strong>Undo and provenance</strong> &mdash; revert a whole turn
-      or one change, and see which turn wrote which line of a file.
-      <a href="features.html#undo">Details &rarr;</a></li>
-      <li><strong>Verification gates and verdicts</strong> &mdash; the
-      project defines what &ldquo;done&rdquo; means, and janetcode reports
-      what actually ran rather than what the model claimed.
-      <a href="features.html#verdicts">Details &rarr;</a></li>
-      <li><strong>Recipes and evals</strong> &mdash; replay a turn's tool
-      calls for free, or turn a real session into a regression test.
-      <a href="features.html#recipes">Details &rarr;</a></li>
-      <li><strong>Subagents and background jobs</strong> &mdash; a
-      <em>subagent</em> is a second, smaller conversation the main model
-      starts to do one side task in its own context, optionally on a
-      cheaper model, without filling up the main conversation.
-      <a href="features.html#subagents">Details &rarr;</a></li>
-      <li><strong>MCP, language servers, skills, hooks</strong> &mdash;
-      <em>MCP</em> (Model Context Protocol) is a standard way to plug in
-      extra tools, such as a browser; a language server (<em>LSP</em>) is
-      the same background process your editor uses for autocomplete and
-      compile errors. Both, plus skills and hooks, extend what janetcode
-      can reach and how it behaves, all through plain files.
-      <a href="features.html#extending">Details &rarr;</a></li>
-    </ul>
+    <p>Every card links to a worked example &mdash; what you type, what
+    janetcode prints back &mdash; on the <a href="features.html">features
+    page</a>.</p>
+    <div class="index-feature-grid">
+      <a class="index-feature" href="features.html#permissions">
+        <span class="index-feature-title">Permission prompt &amp; modes <span class="chip">shift+tab</span></span>
+        Ask, plan, auto or yolo &mdash; save a rule once and stop being
+        asked the same question.
+      </a>
+      <a class="index-feature" href="features.html#sessions">
+        <span class="index-feature-title">Sessions: resume &amp; fork <span class="chip">--resume</span></span>
+        Every conversation is saved, resumable and forkable; long ones are
+        summarised rather than truncated.
+      </a>
+      <a class="index-feature" href="features.html#undo">
+        <span class="index-feature-title">Undo &amp; provenance <span class="chip">/undo</span></span>
+        Revert a whole turn or one change, and see which turn wrote which
+        line of a file.
+      </a>
+      <a class="index-feature" href="features.html#verdicts">
+        <span class="index-feature-title">Verdicts, not claims <span class="chip">/verify set</span></span>
+        The project defines what &ldquo;done&rdquo; means; janetcode
+        reports what actually ran, not what the model claimed.
+      </a>
+      <a class="index-feature" href="features.html#recipes">
+        <span class="index-feature-title">Recipes &amp; evals <span class="chip">/recipe run</span></span>
+        Replay a turn's tool calls for free, or turn a real session into a
+        regression test.
+      </a>
+      <a class="index-feature" href="features.html#subagents">
+        <span class="index-feature-title">Subagents <span class="chip">/review</span></span>
+        A second, bounded conversation does one side task in its own
+        context, optionally on a cheaper model.
+      </a>
+      <a class="index-feature" href="features.html#extending">
+        <span class="index-feature-title">MCP, hooks &amp; skills <span class="chip">/mcp trust</span></span>
+        Plug in extra tools, house procedures and enforced checks, all
+        through plain project files.
+      </a>
+      <a class="index-feature" href="features.html#cost">
+        <span class="index-feature-title">Cost control <span class="chip">/budget</span></span>
+        See tokens and spend as you go, and set a hard ceiling for a
+        session or a headless run.
+      </a>
+    </div>
   </section>
 </main>
 
@@ -204,7 +265,15 @@ janetcode -p "add a --verbose flag to cmd/server" --yolo</code></pre>
   This site is generated from the project's own manual in
   <code>docs/manual/</code> &mdash; see <a href="reference.html">the reference
   page</a> for commands, flags and configuration keys.</p>
+  <nav class="footer-links" aria-label="Footer">
+    <a href="index.html">Home</a>
+    <a href="features.html">Features</a>
+    <a href="how-it-works.html">How it works</a>
+    <a href="reference.html">Reference</a>
+    <a href="https://github.com/xmonader/janetcode">GitHub</a>
+  </nav>
 </footer>
+<script src="js/theme.js"></script>
 <script src="js/copy.js"></script>
 </body>
 </html>

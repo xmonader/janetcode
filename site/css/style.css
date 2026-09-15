@@ -1,38 +1,113 @@
-/* janetcode site — one accent colour, system fonts, light/dark via
-   prefers-color-scheme. No frameworks, no external requests. */
+/* janetcode site — dark-first developer-tool palette, system fonts only,
+   light theme via prefers-color-scheme + a persisted toggle. No
+   frameworks, no external requests, no build step. */
 
 :root {
-  --bg: #ffffff;
-  --bg-alt: #f4f5f7;
-  --fg: #1b1e24;
-  --fg-dim: #52596a;
-  --border: #d9dce2;
-  --accent: #1f5fa8;
+  /* dark palette (default: this is a terminal tool, it leads with dark) */
+  --bg: #0d0f12;
+  --bg-alt: #14171b;
+  --bg-raised: #191d22;
+  --fg: #e7e9ee;
+  --fg-dim: #9aa1ac;
+  --fg-faint: #6b7280;
+  --border: #262b33;
+  --border-strong: #343b46;
+
+  --accent: #e8a33d;       /* warm amber — sparing use: links, h1 mark, CTAs */
+  --accent-fg: #1a1204;
+  --accent-dim: #b9822f;
+  --accent-2: #5fbf8f;      /* muted green — verdicts, diff adds, "good" */
+  --accent-2-fg: #05130c;
+  --danger: #d9776b;        /* muted rust — diff removals, "bad" */
+  --warn: #d9b25a;
+
+  --code-bg: #14171b;
+  --code-fg: #e7e9ee;
+  --table-stripe: #14171b;
+  --focus: #7fd4ff;
+
+  --term-bg: #0a0c0f;
+  --term-bar: #14171b;
+
+  --shadow: 0 20px 45px -24px rgba(0, 0, 0, 0.6);
+
+  --max-text: 68ch;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  color-scheme: dark;
+}
+
+/* light theme: system preference (unless explicitly overridden to dark) */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #faf8f4;
+    --bg-alt: #f1efe9;
+    --bg-raised: #ffffff;
+    --fg: #201d17;
+    --fg-dim: #5b5647;
+    --fg-faint: #85806f;
+    --border: #e2ddd0;
+    --border-strong: #cfc8b5;
+
+    --accent: #a15e0d;
+    --accent-fg: #ffffff;
+    --accent-dim: #8a4f0a;
+    --accent-2: #2f7a54;
+    --accent-2-fg: #ffffff;
+    --danger: #b23c2c;
+    --warn: #8a6a1f;
+
+    --code-bg: #efece3;
+    --code-fg: #201d17;
+    --table-stripe: #f3f1e9;
+    --focus: #0b63a8;
+
+    --term-bg: #1c1a15;
+    --term-bar: #26231c;
+
+    --shadow: 0 16px 32px -20px rgba(60, 50, 20, 0.25);
+    color-scheme: light;
+  }
+}
+
+/* explicit toggle: wins over system preference either direction */
+:root[data-theme="light"] {
+  --bg: #faf8f4;
+  --bg-alt: #f1efe9;
+  --bg-raised: #ffffff;
+  --fg: #201d17;
+  --fg-dim: #5b5647;
+  --fg-faint: #85806f;
+  --border: #e2ddd0;
+  --border-strong: #cfc8b5;
+
+  --accent: #a15e0d;
   --accent-fg: #ffffff;
-  --code-bg: #eef0f4;
-  --code-fg: #1b1e24;
-  --table-stripe: #f7f8fa;
-  --focus: #b3400e;
-  --max-text: 70ch;
+  --accent-dim: #8a4f0a;
+  --accent-2: #2f7a54;
+  --accent-2-fg: #ffffff;
+  --danger: #b23c2c;
+  --warn: #8a6a1f;
+
+  --code-bg: #efece3;
+  --code-fg: #201d17;
+  --table-stripe: #f3f1e9;
+  --focus: #0b63a8;
+
+  --term-bg: #1c1a15;
+  --term-bar: #26231c;
+
+  --shadow: 0 16px 32px -20px rgba(60, 50, 20, 0.25);
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14161a;
-    --bg-alt: #1b1e24;
-    --fg: #e7e9ee;
-    --fg-dim: #a8adb9;
-    --border: #33384433;
-    --border: #3a3f4a;
-    --accent: #6fa8dc;
-    --accent-fg: #0b1220;
-    --code-bg: #1e2229;
-    --code-fg: #e7e9ee;
-    --table-stripe: #191c22;
-    --focus: #ffb454;
-    color-scheme: dark;
-  }
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 * {
@@ -51,7 +126,8 @@ body {
     Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   line-height: 1.65;
   font-size: 17px;
-  padding-inline: 1.25rem;
+  padding-inline: clamp(1rem, 4vw, 2rem);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 img {
@@ -62,8 +138,21 @@ img {
   display: none !important;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 a {
   color: var(--accent);
+  text-underline-offset: 0.15em;
 }
 
 a:visited {
@@ -73,6 +162,16 @@ a:visited {
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ---------- layout ---------- */
@@ -86,7 +185,7 @@ a:visited {
 main {
   max-width: 78ch;
   margin: 0 auto;
-  padding-bottom: 3rem;
+  padding-bottom: 4rem;
 }
 
 main.wide {
@@ -94,33 +193,65 @@ main.wide {
 }
 
 h1, h2, h3, h4 {
-  line-height: 1.25;
-  scroll-margin-top: 1rem;
+  line-height: 1.2;
+  scroll-margin-top: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 h1 {
-  font-size: 2rem;
-  margin: 1.5rem 0 0.5rem;
+  font-size: clamp(2.1rem, 1.5rem + 2.6vw, 3.25rem);
+  margin: 0.5rem 0 0.6rem;
+  letter-spacing: -0.02em;
 }
 
 h2 {
   font-size: 1.4rem;
-  margin: 2.2rem 0 0.6rem;
-  padding-top: 0.4rem;
+  margin: 2.6rem 0 0.8rem;
+  padding-top: 0.9rem;
   border-top: 1px solid var(--border);
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+h2::before {
+  content: "//";
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
+  font-size: 0.85em;
+  opacity: 0.8;
 }
 
 h2:first-of-type {
   border-top: none;
+  padding-top: 0;
+}
+
+.toc h2::before,
+.hero h2::before {
+  content: none;
 }
 
 h3 {
-  font-size: 1.1rem;
-  margin: 1.4rem 0 0.4rem;
+  font-size: 1.12rem;
+  margin: 0 0 0.5rem;
 }
 
 p, ul, ol, dl {
   max-width: var(--max-text);
+}
+
+.eyebrow {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0 0 0.6rem;
 }
 
 .lede {
@@ -131,27 +262,44 @@ p, ul, ol, dl {
 
 .tagline {
   color: var(--fg-dim);
-  font-size: 1rem;
-  margin-top: -0.25rem;
+  font-size: 1.05rem;
+  margin: 0 0 0.9rem;
 }
 
 /* ---------- header / nav ---------- */
 
 .site-header {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-wrap: nowrap;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
-  padding-block: 1rem;
+  padding-block: 1.1rem;
   border-bottom: 1px solid var(--border);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
+  row-gap: 0.5rem;
 }
 
 .brand {
   font-weight: 700;
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   color: var(--fg);
   text-decoration: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: -0.02em;
+}
+
+.brand::before {
+  content: "> ";
+  color: var(--accent);
 }
 
 .brand:hover {
@@ -161,12 +309,14 @@ p, ul, ol, dl {
 .site-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem 1rem;
+  align-items: center;
+  gap: 0.4rem 1.1rem;
   font-size: 0.95rem;
 }
 
 .site-nav a {
   text-decoration: none;
+  color: var(--fg-dim);
   padding: 0.25rem 0.1rem;
   border-bottom: 2px solid transparent;
 }
@@ -174,25 +324,66 @@ p, ul, ol, dl {
 .site-nav a:hover,
 .site-nav a[aria-current="page"] {
   border-bottom-color: var(--accent);
+  color: var(--fg);
 }
 
 .site-nav a[aria-current="page"] {
-  color: var(--fg);
   font-weight: 600;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--fg-dim);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.theme-toggle:hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
 }
 
 /* ---------- footer ---------- */
 
 .site-footer {
   border-top: 1px solid var(--border);
-  padding-block: 1.25rem;
-  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  padding-block: 1.5rem;
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
   color: var(--fg-dim);
   font-size: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem 2rem;
 }
 
 .site-footer p {
-  max-width: none;
+  max-width: 60ch;
+  margin: 0;
+}
+
+.footer-links {
+  display: flex;
+  gap: 1.1rem;
+  flex-wrap: wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
 }
 
 /* ---------- generic content blocks ---------- */
@@ -205,7 +396,7 @@ section {
   background: var(--bg-alt);
   border: 1px solid var(--border);
   border-left: 4px solid var(--accent);
-  border-radius: 4px;
+  border-radius: 6px;
   padding: 0.9rem 1.1rem;
   max-width: var(--max-text);
 }
@@ -215,7 +406,119 @@ section {
 }
 
 .caution {
-  border-left-color: var(--focus);
+  border-left-color: var(--warn);
+}
+
+/* ---------- hero ---------- */
+
+.hero {
+  padding-block: clamp(1.5rem, 4vw, 2.5rem) 1rem;
+}
+
+.hero-terminal-wrap {
+  max-width: 62rem;
+  margin: 1.75rem 0 1.5rem;
+}
+
+.terminal {
+  background: var(--term-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.65rem 0.9rem;
+  background: var(--term-bar);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.terminal-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot-red { background: #ff5f57; }
+.dot-yellow { background: #febc2e; }
+.dot-green { background: #28c840; }
+
+.terminal-title {
+  margin-left: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: #8a8f98;
+}
+
+.terminal-body {
+  margin: 0;
+  padding: 1.1rem 1.25rem 1.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.84rem;
+  line-height: 1.75;
+  overflow-x: auto;
+  color: #d7dae0;
+  border: none;
+  border-radius: 0;
+  /* same last-resort scroll-shadow fallback as .xterm-body */
+  background:
+    linear-gradient(to left, var(--term-bg) 40%, transparent) 100% 0 / 28px 100% no-repeat local,
+    linear-gradient(to left, transparent, rgba(255, 255, 255, 0.16)) 100% 0 / 14px 100% no-repeat scroll,
+    var(--term-bg);
+}
+
+.terminal-body code {
+  background: none;
+  padding: 0;
+  color: inherit;
+  white-space: pre;
+}
+
+.t-prompt { color: var(--accent); font-weight: 700; }
+.t-tool { color: #7fb8e0; }
+.t-add { color: #7fe3a8; }
+.t-del { color: #f0968a; }
+.t-key { color: #d7dae0; font-weight: 600; }
+.t-dim { color: #8a8f98; }
+.t-verdict { color: #7fe3a8; font-weight: 700; }
+.t-out { color: #8a8f98; }
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  margin-top: 1.25rem;
+}
+
+.hero-install {
+  margin: 0;
+  flex: 1 1 24rem;
+  max-width: 34rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--fg-dim);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.55rem 1rem;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
 }
 
 /* ---------- code ---------- */
@@ -232,10 +535,12 @@ code {
   padding: 0.1em 0.35em;
   border-radius: 3px;
   word-break: break-word;
+  border: 1px solid var(--border);
 }
 
 kbd {
   background: var(--code-bg);
+  color: var(--code-fg);
   border: 1px solid var(--border);
   border-bottom-width: 2px;
   border-radius: 4px;
@@ -244,18 +549,24 @@ kbd {
 
 pre {
   position: relative;
-  background: var(--code-bg);
   color: var(--code-fg);
-  padding: 0.9rem 1rem;
-  border-radius: 6px;
+  padding: 1rem 1.1rem;
+  border-radius: 8px;
   overflow-x: auto;
   max-width: 100%;
   border: 1px solid var(--border);
+  /* same last-resort scroll-shadow fallback as .xterm-body, in case a
+     code sample is ever too wide for a narrow viewport */
+  background:
+    linear-gradient(to left, var(--code-bg) 40%, transparent) 100% 0 / 28px 100% no-repeat local,
+    linear-gradient(to left, transparent, rgba(128, 128, 128, 0.35)) 100% 0 / 14px 100% no-repeat scroll,
+    var(--code-bg);
 }
 
 pre code {
   background: none;
   padding: 0;
+  border: none;
   border-radius: 0;
   white-space: pre;
 }
@@ -265,59 +576,69 @@ pre code {
   max-width: var(--max-text);
 }
 
+.code-block pre {
+  padding-top: 2.6rem;
+}
+
 main.wide .code-block {
   max-width: 90ch;
 }
 
 .copy-btn {
   position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  font-size: 0.75rem;
-  background: var(--bg);
+  top: 0.6rem;
+  right: 0.6rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  background: var(--bg-raised);
   color: var(--fg-dim);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 0.2rem 0.5rem;
+  padding: 0.22rem 0.55rem;
   cursor: pointer;
 }
 
 .copy-btn:hover {
   color: var(--fg);
+  border-color: var(--border-strong);
 }
+
+/* shell prompt / comment / output styling inside a couple of hand-marked
+   code blocks (see .sh-* spans used sparingly in the quick-start) */
+.sh-prompt { color: var(--fg-faint); }
+.sh-comment { color: var(--fg-faint); font-style: italic; }
+.sh-out { color: var(--fg-dim); }
 
 /* ---------- tables ---------- */
 
 .table-scroll {
-  overflow-x: auto;
+  overflow: auto;
   max-width: 100%;
-  margin: 0.75rem 0 1.25rem;
+  max-height: 32rem;
+  margin: 0.9rem 0 1.5rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 32rem;
+  min-width: 28rem;
   font-size: 0.92rem;
-}
-
-main.wide table {
-  min-width: 40rem;
 }
 
 caption {
   text-align: left;
-  padding: 0.6rem 0.8rem 0.3rem;
+  padding: 0.7rem 0.9rem 0.4rem;
   font-weight: 600;
   color: var(--fg-dim);
   font-size: 0.85rem;
+  background: var(--bg-alt);
 }
 
 th, td {
   text-align: left;
-  padding: 0.5rem 0.8rem;
+  padding: 0.55rem 0.9rem;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
@@ -326,68 +647,316 @@ th {
   background: var(--bg-alt);
   font-weight: 600;
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  box-shadow: 0 1px 0 var(--border);
+}
+
+/* the first column is always a short name (command/flag/key): let it
+   shrink to fit so the last, prose column keeps the room it needs */
+th:first-child,
+td:first-child {
+  white-space: nowrap;
+  width: 1%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 tbody tr:nth-child(even) {
   background: var(--table-stripe);
 }
 
+tbody tr:hover {
+  background: var(--bg-raised);
+}
+
 td code {
+  white-space: normal;
+}
+
+td:first-child code {
   white-space: nowrap;
 }
 
-/* ---------- feature entries ---------- */
+/* ---------- verdict badges ---------- */
 
-.feature {
-  max-width: var(--max-text);
-  padding-bottom: 1.1rem;
-  margin-bottom: 1.1rem;
-  border-bottom: 1px solid var(--border);
+.v-ok { color: var(--accent-2); font-weight: 700; }
+.v-warn { color: var(--warn); font-weight: 700; }
+.v-bad { color: var(--danger); font-weight: 700; }
+
+/* ---------- feature entries (example-first cards) ---------- */
+
+.chip {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--code-bg);
+  color: var(--accent-dim);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.12rem 0.5rem;
+  margin-left: 0.45rem;
+  vertical-align: middle;
+  white-space: normal;
+  word-break: break-word;
 }
 
-.feature:last-child {
-  border-bottom: none;
+.feature-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem 1.1rem;
+  align-items: start;
+  margin: 0.85rem 0 0.4rem;
+  max-width: none;
+  font-size: 0.85rem;
+  line-height: 1.44;
+}
+
+@media (min-width: 640px) {
+  /* capped at 2 columns (not 3): a 3-up card at this width left the
+     terminal examples too narrow to show a full line without clipping */
+  .feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* the features page needs real width for two-up cards; widen just that
+   page's main rather than every main.wide user (reference.html's tables
+   don't need this) */
+.features-page main.wide {
+  max-width: 132ch;
+}
+
+.feature {
+  max-width: none;
+  min-width: 0;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem 0.9rem;
+  margin: 0;
+}
+
+.feature:hover {
+  border-color: var(--border-strong);
 }
 
 .feature h3 {
-  margin-bottom: 0.3rem;
+  margin: 0 0 0.55rem;
+  padding-bottom: 0;
+  border-bottom: none;
+  font-size: 1.02rem;
+  line-height: 1.35;
 }
 
-.feature dl {
+.feature .lead {
+  margin: 0 0 0.65rem;
+  max-width: none;
+}
+
+.feature .when {
+  color: var(--fg-dim);
+}
+
+.feature .why {
+  margin: 0.65rem 0 0;
+  max-width: none;
+}
+
+.feature .why-label {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.xterm {
+  margin: 0.65rem 0;
+}
+
+.xterm-cue {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  color: var(--fg-dim);
+  max-width: none;
+}
+
+.xterm-body {
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: #d7dae0;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  overflow-x: auto;
+  white-space: pre;
+  max-width: 100%;
+  /* last-resort fallback: every example line is trimmed to fit the 2-col
+     card, so this shouldn't fire, but if a block is ever widened past its
+     box it scrolls instead of clipping silently, and this CSS-only
+     scroll-shadow trick makes that obvious without JS. The "local"
+     layer scrolls with the text and only uncovers the "scroll" layer
+     (pinned to the box) while there's more content past the right edge;
+     once scrolled to the end (or if it never overflowed) the two align
+     and the fade disappears. */
+  background:
+    linear-gradient(to left, var(--term-bg) 40%, transparent) 100% 0 / 28px 100% no-repeat local,
+    linear-gradient(to left, transparent, rgba(255, 255, 255, 0.16)) 100% 0 / 14px 100% no-repeat scroll,
+    var(--term-bg);
+}
+
+.xterm-body code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  white-space: inherit;
+  font-size: inherit;
+}
+
+.feature details {
+  margin-top: 0.65rem;
+  border-top: 1px dashed var(--border);
+  padding-top: 0.55rem;
+}
+
+.feature summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg-dim);
+  outline-offset: 3px;
+}
+
+.feature summary:hover {
+  color: var(--accent);
+}
+
+.feature details[open] summary {
+  color: var(--fg);
+  margin-bottom: 0.5rem;
+}
+
+.feature details p,
+.feature details ul {
+  max-width: none;
   margin: 0.5rem 0 0;
 }
 
-.feature dt {
-  font-weight: 600;
-  color: var(--fg-dim);
+.feature .manual-link {
+  display: inline-block;
   margin-top: 0.55rem;
+  font-size: 0.82rem;
 }
 
-.feature dd {
-  margin: 0.15rem 0 0;
+@media print {
+  details:not([open]) {
+    display: block;
+  }
+  details:not([open]) > summary {
+    list-style: none;
+  }
+  details:not([open]) > summary::-webkit-details-marker,
+  details:not([open]) > summary::marker {
+    display: none;
+  }
+  details:not([open]) > summary ~ * {
+    display: block;
+  }
 }
 
 .feature-group h2 {
-  margin-top: 2.6rem;
+  margin: 1.9rem 0 0.5rem;
+  padding-top: 0.7rem;
+}
+
+.feature-group:first-of-type h2 {
+  margin-top: 1.5rem;
+}
+
+.feature-group .group-note {
+  margin-top: -0.4rem;
+}
+
+/* ---------- index: compact feature grid ---------- */
+
+.index-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.85rem 1.15rem;
+  margin: 1.1rem 0 0.5rem;
+  max-width: none;
+}
+
+.index-feature {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+}
+
+.index-feature:hover {
+  border-color: var(--accent);
+}
+
+.index-feature:hover .index-feature-title {
+  color: var(--accent);
+}
+
+.index-feature-title {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  color: var(--fg);
+}
+
+.index-feature .chip {
+  margin-left: 0;
 }
 
 .toc {
   background: var(--bg-alt);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  padding: 1.1rem 1.35rem;
   max-width: var(--max-text);
 }
 
 .toc h2 {
   border-top: none;
   margin-top: 0;
-  font-size: 1.05rem;
+  padding-top: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+  font-weight: 700;
 }
 
 .toc ul {
   columns: 1;
-  padding-left: 1.1rem;
+  padding-left: 0;
+  margin: 0.4rem 0 0;
+  list-style: none;
+  max-width: none;
+}
+
+.toc li {
+  padding: 0.15rem 0;
+}
+
+.toc a {
+  text-decoration: none;
+  color: var(--fg-dim);
+}
+
+.toc a:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 
 @media (min-width: 640px) {
@@ -397,20 +966,57 @@ td code {
   }
 }
 
+/* wide-screen sticky in-page nav: a two-column layout with the toc as a
+   rail beside the content */
+@media (min-width: 1080px) {
+  .page-grid {
+    display: grid;
+    grid-template-columns: 15.5rem minmax(0, 1fr);
+    gap: 2.5rem;
+    align-items: start;
+    max-width: none;
+  }
+
+  .page-grid .toc {
+    position: sticky;
+    top: 1.25rem;
+    max-width: none;
+    max-height: calc(100vh - 2.5rem);
+    overflow-y: auto;
+  }
+
+  .page-grid .toc ul {
+    columns: 1;
+  }
+
+  .page-grid .toc h2 {
+    padding-top: 0;
+  }
+
+  .page-grid .page-content {
+    min-width: 0;
+  }
+
+  main.wide .page-grid {
+    grid-template-columns: 16.5rem minmax(0, 1fr);
+  }
+}
+
 /* ---------- how-it-works flow ---------- */
 
 .flow {
   list-style: none;
   padding: 0;
-  margin: 1.25rem 0 1.75rem;
+  margin: 1.5rem 0 1.75rem;
   max-width: var(--max-text);
+  counter-reset: flow-step;
 }
 
 .flow li {
   position: relative;
-  padding: 0.75rem 1rem 0.9rem 3rem;
+  padding: 0.85rem 1.1rem 1rem 3.25rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   margin-bottom: 0.75rem;
   background: var(--bg-alt);
 }
@@ -419,10 +1025,10 @@ td code {
   content: counter(flow-step);
   counter-increment: flow-step;
   position: absolute;
-  left: 0.75rem;
-  top: 0.7rem;
-  width: 1.6rem;
-  height: 1.6rem;
+  left: 0.85rem;
+  top: 0.8rem;
+  width: 1.7rem;
+  height: 1.7rem;
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-fg);
@@ -431,10 +1037,7 @@ td code {
   justify-content: center;
   font-weight: 700;
   font-size: 0.85rem;
-}
-
-.flow {
-  counter-reset: flow-step;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 .flow strong {
@@ -461,8 +1064,9 @@ td code {
 
 .pill {
   display: inline-block;
-  font-size: 0.75rem;
-  border: 1px solid var(--border);
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
   padding: 0.05rem 0.55rem;
   color: var(--fg-dim);
@@ -479,11 +1083,45 @@ hr {
   body {
     font-size: 16px;
   }
-  h1 {
-    font-size: 1.6rem;
-  }
   .site-nav {
     font-size: 0.9rem;
     gap: 0.3rem 0.7rem;
   }
+  /* a long flag/key string would otherwise force the first column very
+     wide and push the "what it does" column almost entirely off screen;
+     give it a fixed, wrap-friendly width instead of shrink-to-fit */
+  th:first-child,
+  td:first-child,
+  td:first-child code {
+    white-space: normal;
+    width: 7rem;
+  }
+  .hero-terminal-wrap {
+    margin-inline: -1rem;
+    width: calc(100% + 2rem);
+  }
+  .hero-terminal-wrap .terminal {
+    border-radius: 0;
+    border-inline: none;
+  }
+}
+
+/* The list is long enough on a phone to bury the first card, so there it
+   collapses behind its own heading; on anything wider it is always open
+   and the marker is hidden, so the box looks exactly as it did. */
+.toc-box > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.toc-box > summary::-webkit-details-marker { display: none; }
+.toc-box > summary h2 { display: inline-block; }
+.toc-box > summary::after {
+  content: " \25be";
+  color: var(--fg-faint);
+}
+.toc-box[open] > summary::after { content: " \25b4"; }
+@media (min-width: 640px) {
+  .toc-box > summary { cursor: default; }
+  .toc-box > summary::after,
+  .toc-box[open] > summary::after { content: ""; }
 }

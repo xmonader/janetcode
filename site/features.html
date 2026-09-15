@@ -4,11 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Features &mdash; janetcode</title>
-<meta name="description" content="Every notable janetcode feature explained in plain language: what it is, when it helps, and the command or flag that uses it.">
+<meta name="description" content="Every notable janetcode feature explained with a worked example: what you type, what you see, and why it matters.">
 <link rel="stylesheet" href="css/style.css">
+<script>(function(){try{var t=localStorage.getItem("janetcode-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
 </head>
-<body>
+<body class="features-page">
 <header class="site-header">
+<div class="header-left">
   <a class="brand" href="index.html">janetcode</a>
   <nav class="site-nav" aria-label="Primary">
     <a href="index.html">Home</a>
@@ -17,947 +19,939 @@
     <a href="reference.html">Reference</a>
     <a href="https://github.com/xmonader/janetcode">GitHub</a>
   </nav>
+</div>
+<div class="header-right">
+<button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">&#9789;</button>
+</div>
 </header>
 
-<main>
+<main class="wide">
+  <p class="eyebrow">Features</p>
   <h1>Features</h1>
-  <p class="lede">For each feature: what it is in one sentence, a concrete
-  situation where it helps, and the command or flag that uses it. Detail
-  follows only after that. See <a href="how-it-works.html">how it
-  works</a> for the turn loop these features sit inside.</p>
+  <p class="lede">Every card below leads with a worked example: a
+  situation, what you type, and what janetcode actually prints back &mdash;
+  taken from the real output strings, not a paraphrase. &ldquo;Why it
+  matters&rdquo; is one or two sentences; anything deeper is folded into a
+  <strong>More detail</strong> block you can skip. See
+  <a href="how-it-works.html">how it works</a> for the turn loop these
+  features sit inside.</p>
 
+  <div class="page-grid">
   <nav class="toc" aria-label="On this page">
-    <h2>On this page</h2>
+    <details class="toc-box" open>
+      <summary><h2>On this page</h2></summary>
     <ul>
-      <li><a href="#permissions">Permission rules and modes</a></li>
+      <li><a href="#permissions">Permission prompt</a></li>
+      <li><a href="#learned-permissions">Learned permissions</a></li>
+      <li><a href="#modes">Modes</a></li>
+      <li><a href="#remote">Remote workspace</a></li>
       <li><a href="#sandbox">Sandboxing</a></li>
-      <li><a href="#plan-mode">Plan mode and read-only mode</a></li>
-      <li><a href="#remote">Remote workspaces</a></li>
-      <li><a href="#sessions">Sessions</a></li>
-      <li><a href="#undo">Undo and change provenance</a></li>
+      <li><a href="#hooks">Hooks</a></li>
+      <li><a href="#sessions">Sessions: resume and fork</a></li>
+      <li><a href="#compaction">Compaction and the archive</a></li>
+      <li><a href="#memory">Memory</a></li>
+      <li><a href="#rules">Path-scoped rules</a></li>
+      <li><a href="#skills">Skills</a></li>
+      <li><a href="#undo">Undo a turn</a></li>
+      <li><a href="#undo-about">Undo by description</a></li>
+      <li><a href="#changes">Change provenance</a></li>
       <li><a href="#proof">Proof in the commit</a></li>
       <li><a href="#verdicts">Verification gates and verdicts</a></li>
       <li><a href="#accept">Acceptance tests</a></li>
-      <li><a href="#diagnostics">Diagnostics from language servers</a></li>
       <li><a href="#impact">The reach of an edit</a></li>
+      <li><a href="#diagnostics">Diagnostics from language servers</a></li>
       <li><a href="#critic">Trajectory critic</a></li>
       <li><a href="#recipes">Recipes</a></li>
-      <li><a href="#evals">Evals and keeping a session as one</a></li>
+      <li><a href="#evals">Evals from a session</a></li>
       <li><a href="#what-if">What-if replay</a></li>
       <li><a href="#jobs">Background jobs</a></li>
-      <li><a href="#hooks">Hooks</a></li>
-      <li><a href="#subagents">Subagents and teams</a></li>
+      <li><a href="#custom-commands">Custom commands</a></li>
+      <li><a href="#step-routing">Step routing</a> <span class="pill">experimental</span></li>
+      <li><a href="#subagents">Subagents</a></li>
       <li><a href="#custom-agents">Custom agents</a></li>
       <li><a href="#extending">MCP servers</a></li>
-      <li><a href="#skills">Skills</a></li>
-      <li><a href="#memory">Memory</a></li>
-      <li><a href="#rules">Path-scoped rules</a></li>
-      <li><a href="#custom-commands">Custom commands</a></li>
       <li><a href="#repo-map">Repository map</a></li>
-      <li><a href="#web-ui">Web UI</a></li>
+      <li><a href="#headless">Headless and scripting</a></li>
+      <li><a href="#web-ui">The web UI</a></li>
       <li><a href="#acp">Editor integration (ACP)</a></li>
-      <li><a href="#headless">Headless and CLI use</a></li>
-      <li><a href="#cost">Cost and budget</a></li>
+      <li><a href="#cost">Cost control</a></li>
       <li><a href="#themes">Themes</a></li>
       <li><a href="#hints">Hints</a></li>
-      <li><a href="#step-routing">Step routing</a> <span class="pill">experimental</span></li>
     </ul>
+    </details>
   </nav>
 
+  <div class="page-content">
+
   <div class="feature-group">
-  <h2>Safety and control</h2>
+  <h2>Permissions and safety</h2>
+  <div class="feature-grid">
 
-  <div class="feature" id="permissions">
-    <h3>Permission rules and modes</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Before janetcode edits a file or runs a shell command, it asks
-      you first &mdash; showing the diff or the exact command &mdash;
-      unless you have told it not to. Four modes control how much it
-      asks: <strong>ask</strong> (everything asks, the default),
-      <strong>plan</strong> (read-only until you approve a plan),
-      <strong>auto</strong> (in-workspace edits and known-safe reads run,
-      other commands still ask) and <strong>yolo</strong> (nothing asks).</dd>
-      <dt>When it helps</dt>
-      <dd>You are letting an agent touch a real project and want to see
-      every change before it lands, but do not want to re-approve
-      &ldquo;run <code>go test ./...</code>&rdquo; for the fortieth time
-      in one session.</dd>
-      <dt>How to use it</dt>
-      <dd><kbd>shift+tab</kbd> cycles the four modes; <code>--yolo</code>,
-      <code>--auto</code> and <code>--auto-edits</code> set one for a run.
-      At a prompt, <kbd>y</kbd> allows once, <kbd>a</kbd> allows that tool
-      for the session, <kbd>n</kbd> denies with a reason, and <kbd>r</kbd>
-      saves a permission rule such as <code>bash(go test *)</code> so the
-      same shape of call never asks again, in any session.</dd>
-    </dl>
-    <p>Rules live under <code>"permissions"</code> in the config file, as
-    <code>allow</code> and <code>deny</code> lists; a denied rule always
-    wins. <code>/permissions</code> lists and adds rules. A project can
-    ship its own <code>.janetcode/permissions.json</code> &mdash; its deny
-    rules apply immediately, but its allow rules need a one-time
-    <code>/permissions trust</code>, since a cloned repository should not
-    be able to silently widen what it is allowed to do on your machine. A
-    few destructive-looking commands (recursive deletes, force pushes,
-    <code>sudo</code>, piping a download into a shell) are flagged even
-    when a rule would otherwise allow them, and anything that would touch
-    janetcode's own settings &mdash; the config file, <code>.mcp.json</code>,
-    everything under <code>.janetcode/</code> &mdash; always asks, in every
-    mode, because a model that can silently widen its own permissions and
-    then use them is the one thing worth always showing a human.</p>
-    <p>janetcode separately keeps a private, per-project record of how you
-    answered past prompts. It never saves a rule for you; once a call's
-    shape has been approved three times running with no refusal, the
-    prompt notes that next to the rule <kbd>r</kbd> would save, and
-    <code>/permissions</code> lists it under &ldquo;approved often, not
-    saved&rdquo;.</p>
-  </div>
+  <article class="feature" id="permissions">
+    <h3>Permission prompt <span class="chip">y a r n c</span></h3>
+    <p class="lead">Before janetcode edits a file or runs a command, it
+    stops and shows the diff or the exact command. <span class="when">When
+    it helps: nothing has approved this shape of command yet this
+    session.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>  allow bash go test ./internal/...
+y allow once
+a always for bash this session
+r save rule bash(go test ./internal/...)
+n deny (and say why)
+c cancel the turn</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    the five keys are different <em>scopes</em>, not five ways to say yes
+    or no; picking the wrong one is how a session either nags all
+    afternoon or runs with the brakes off.</p>
+    <details>
+      <summary>More detail</summary>
+      <p><kbd>n</kbd> asks for a reason first &mdash; typed text goes back
+      to the model as guidance; empty input or <kbd>esc</kbd> sends a
+      plain refusal. <kbd>c</kbd> denies this call <em>and</em> stops the
+      whole turn, not just the one prompt.</p>
+      <p>Rules live under <code>"permissions"</code> in the config file as
+      <code>allow</code>/<code>deny</code> lists. A project's own
+      <code>.janetcode/permissions.json</code> needs a one-time
+      <code>/permissions trust</code> before its allow rules apply (its
+      deny rules apply immediately). A few destructive-looking commands
+      (recursive deletes, force pushes, <code>sudo</code>, piping a
+      download into a shell) are flagged even when a rule would allow
+      them, and anything touching janetcode's own settings always asks, in
+      every mode. <a href="how-it-works.html#permissions">More &rarr;</a></p>
+    </details>
+  </article>
 
-  <div class="feature" id="sandbox">
-    <h3>Sandboxing</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Wraps the shell commands janetcode runs in Docker (or
-      <code>sandbox-exec</code> on macOS), so a command runs isolated from
-      the rest of your machine. File tools (reading and editing) still act
-      on the real workspace directly; only the shell is contained.</dd>
-      <dt>When it helps</dt>
-      <dd>You want the model to be able to run arbitrary commands
-      &mdash; installing a package, running a build script it wrote
-      &mdash; without those commands reaching anything outside the
-      project.</dd>
-      <dt>How to use it</dt>
-      <dd><code>--sandbox</code> on the command line, or <code>/sandbox
-      on</code> mid-session; off by default.</dd>
-    </dl>
-  </div>
+  <article class="feature" id="learned-permissions">
+    <h3>Learned permissions <span class="chip">/permissions</span></h3>
+    <p class="lead">A private tally of how you've answered past prompts
+    offers to save a rule once a shape is approved three times running.
+    <span class="when">When it helps: you've said yes to <code>bash(go
+    test *)</code> four times today and are tired of it.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /permissions
+approved often, not saved:
+  /permissions allow bash(go test *)
+  (approved 4&times;, never refused)</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    it counts rather than guesses, and one refusal, ever, takes a shape
+    off the list for good. Nothing saves until you type the command or
+    press <kbd>r</kbd>.</p>
+  </article>
 
-  <div class="feature" id="plan-mode">
-    <h3>Plan mode and read-only mode</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Plan mode restricts the model to read-only tools while it
-      explores the code and writes a numbered plan; nothing changes until
-      you approve it, after which each step of the plan runs as an
-      ordinary, verified turn. Read-only mode is the same restriction with
-      no plan attached: the model can inspect and answer, but change
-      nothing, for the rest of the session.</dd>
-      <dt>When it helps</dt>
-      <dd>A change big enough that you want to read the plan before any
-      file is touched; or you want the model's read of a codebase without
-      any risk of it editing something.</dd>
-      <dt>How to use it</dt>
-      <dd><code>/plan &lt;request&gt;</code>, then <code>/plan
-      approve</code> to execute it or <code>/plan off</code> to leave
-      without executing; <code>/readonly</code> or the <code>--readonly</code>
-      flag for the plain restriction.</dd>
-    </dl>
-  </div>
+  <article class="feature" id="modes">
+    <h3>Modes <span class="chip">shift+tab</span></h3>
+    <p class="lead">One dial cycles four levels of how much janetcode asks
+    before it acts: ask, plan, auto, yolo. <span class="when">When it
+    helps: handing over work you already trust, without babysitting every
+    edit.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ shift+tab (&times;3)
+PLAN   reads only &middot; writes a plan
+AUTO   edits and known-safe reads run
+YOLO   tools run without asking</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    the status line says in plain words what the mode actually does, so
+    the four read as one dial, not unrelated settings.</p>
+    <details>
+      <summary>More detail</summary>
+      <p><code>/plan &lt;request&gt;</code> jumps straight into plan mode
+      with a request queued; <code>/auto</code> and <code>/yolo</code>
+      toggle those two directly without cycling. <code>/readonly</code>
+      (or <code>--readonly</code>) is not on this cycle &mdash; it refuses
+      every mutating call for the rest of the session. Plan mode's plan is
+      a numbered list you approve with <code>/plan approve</code>, after
+      which each step runs as an ordinary, verified turn.</p>
+    </details>
+  </article>
 
-  <div class="feature" id="remote">
-    <h3>Remote workspaces</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Retargets the file-reading, file-editing and shell tools onto
-      another machine or a running container, without restarting the
-      session. The session itself, memory and undo history all stay
-      local; only what the model reads, writes and runs moves.</dd>
-      <dt>When it helps</dt>
-      <dd>The code you want worked on lives on a remote server or inside a
-      running container, and you would rather not copy it locally first.</dd>
-      <dt>How to use it</dt>
-      <dd><code>/ssh user@host[:/path]</code> (needs a working key or
-      ssh-agent; it will not prompt for a password) and <code>/docker
-      container[:/path]</code>; either one with <code>off</code> returns
-      to the local directory.</dd>
-    </dl>
+  <article class="feature" id="remote">
+    <h3>Remote workspace <span class="chip">/ssh /docker</span></h3>
+    <p class="lead">Retargets the file-reading, file-editing and shell
+    tools onto another machine or a running container &mdash; the
+    session, memory and undo history all stay local. <span class="when">When
+    it helps: the code you want changed lives on a build box you reach
+    over ssh, and you'd rather not copy it locally first.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /ssh build@10.0.4.12:/srv/app
+workspace build@10.0.4.12:/srv/app
+&middot; file tools and bash run there</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    <code>/ssh</code> needs a working key or ssh-agent, it will not prompt
+    for a password. <code>/docker container[:/path]</code> does the same
+    for a running container, and <code>off</code> on either returns to the
+    local directory.</p>
+  </article>
+
+  <article class="feature" id="sandbox">
+    <h3>Sandboxing <span class="chip">/sandbox</span></h3>
+    <p class="lead">Wraps the shell commands janetcode runs in Docker (or
+    <code>sandbox-exec</code> on macOS) so a command can't reach the rest
+    of your machine &mdash; file tools still act on the real workspace
+    directly, only the shell is contained. <span class="when">When it
+    helps: the model needs to run arbitrary commands &mdash; installing a
+    package, a build script it wrote &mdash; without them reaching
+    anything outside the project.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /sandbox on
+sandbox on &middot; bash runs in docker
+  (janetcode-sandbox)</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    this is independent of <a href="#remote">where the tools point</a>:
+    <code>/sandbox</code> only isolates the shell, and it's off by
+    default.</p>
+  </article>
+
+  <article class="feature" id="hooks">
+    <h3>Hooks <span class="chip">.janetcode/hooks.json</span></h3>
+    <p class="lead">Shell commands run at fixed points in the loop, whose
+    output can block a call or add a note. <span class="when">When it
+    helps: check every edit with <code>gofmt -l</code> automatically.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>"post_tool": [{
+  "match": "write_file|edit_file",
+  "command": "gofmt -l . | sed
+    's/^/unformatted: /'"
+}]
+$ /hooks trust
+trusted .janetcode/hooks.json &middot; ...
+&hellip; unformatted: parse.go</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    a project hook can't reach the network, since trusting a clone's hooks
+    is a decision about that clone, not a blank check.</p>
+    <details>
+      <summary>More detail</summary>
+      <p>Your own hooks, listed under <code>"hooks"</code> in the config
+      file, run unrestricted. A hook exits 2 to block a call (or a
+      <code>stop</code> hook to send the model back to work), and can
+      print JSON to rewrite input or attach a note, or plain text as a
+      note. <a href="reference.html#config">Config reference &rarr;</a></p>
+    </details>
+  </article>
+
   </div>
   </div>
 
   <div class="feature-group">
   <h2>Sessions and history</h2>
+  <div class="feature-grid">
 
-  <div class="feature" id="sessions">
-    <h3>Sessions: resume, fork, compaction, archive</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Every conversation is saved, append-only, as a local file. You
-      can pick it back up later, branch it into a second attempt, or
-      search across every session you have ever run in any directory.
-      When a conversation grows large, the old part is <em>compacted</em>
-      &mdash; condensed into a short working-memory record &mdash;
-      instead of being resent in full on every request, and the archive
-      (see below) keeps the full text on disk regardless.</dd>
-      <dt>When it helps</dt>
-      <dd>You want to stop mid-task and pick up tomorrow exactly where you
-      left off, try two different approaches from the same starting point,
-      or find which past session dealt with a bug you now vaguely
-      remember.</dd>
-      <dt>How to use it</dt>
-      <dd><code>--continue</code> resumes the newest session for this
-      directory, <code>--resume &lt;id&gt;</code> a named one,
-      <code>--sessions</code> lists them; inside a session,
-      <code>/resume</code>, <code>/fork [stay] [title]</code>,
-      <code>/title &lt;text&gt;</code> and <code>/history
-      &lt;words&gt;</code> do the same and more.</dd>
-    </dl>
-    <p>Compaction happens automatically once the conversation passes a
-    token threshold (80,000 by default &mdash; deliberately far below any
-    model's real window, since a smaller working context is cheaper,
-    caches better, and is attended to more carefully), or on demand with
-    <code>/compact</code>. The summary is not free-form prose: it is a
-    typed record &mdash; files edited with a hash of their current
-    content, files read, commands run with their exit codes, open
-    questions, next steps &mdash; that the model updates rather than
-    rewrites from scratch each time, so it does not drift.</p>
-    <p>Nothing compaction removes is actually thrown away. The full text
-    of every long tool result and of the conversation compaction replaces
-    goes to a local archive; the <code>expand_output</code> tool searches
-    it by words, by an exact file-and-line reference, or by regular
-    expression. Measured by forcing compaction and then asking for facts
-    that had been condensed away: 0 of 16 were recalled with no archive to
-    check, 9 of 20 (45%) with it, and every correct answer was traced back
-    to something actually fetched from the archive rather than guessed
-    (<code>docs/benchmarks/compaction/FACTS.md</code>).</p>
+  <article class="feature" id="sessions">
+    <h3>Sessions: resume and fork <span class="chip">--resume /fork</span></h3>
+    <p class="lead">Every conversation saves automatically; pick it back up,
+    branch it, or search across every session you've run.
+    <span class="when">When it helps: try a second, riskier approach
+    without losing the first.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /resume 2
+$ /fork try-the-generic-version
+20260911-153001-4f2a  42 msgs
+claude-opus-5 &middot; rename Config to Settings</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    a fork never mutates the original, only reads it; <code>/resume</code>
+    then lists both, the copy carrying a <code>fork_of</code> link back to
+    it.</p>
+    <details>
+      <summary>More detail</summary>
+      <p><code>janetcode --sessions</code> lists every session for this
+      directory; <code>--continue</code> resumes the newest one.
+      <code>/history &lt;words&gt;</code> searches every saved session in
+      every directory for a match. <a href="how-it-works.html#sessions-undo">More &rarr;</a></p>
+    </details>
+  </article>
+
+  <article class="feature" id="compaction">
+    <h3>Compaction and the archive <span class="chip">/context</span></h3>
+    <p class="lead">The old part of a long session is condensed into a
+    short working record instead of resent in full. <span class="when">When
+    it helps: you'd rather see what's filling the context than watch it
+    fill.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /context
+context ~92k tokens
+compaction at 80k (115%) &middot; 48 messages
+largest tool results:
+  18.2k  bash go test ./... (message 31)</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    nothing compacted is thrown away, just trimmed to a placeholder like
+    <code>bash "go test ./..." &rarr; exit 1; last line: FAIL pkg</code>;
+    <code>expand_output</code> recovers the exact text instead of a
+    guess.</p>
+    <details>
+      <summary>More detail</summary>
+      <p>Compaction happens automatically once the conversation passes
+      80,000 tokens by default &mdash; deliberately far below any model's
+      real window, since a smaller working context is cheaper, caches
+      better, and is attended to more carefully &mdash; or on demand with
+      <code>/compact</code>.</p>
+    </details>
+  </article>
+
+  <article class="feature" id="memory">
+    <h3>Memory <span class="chip">/remember</span></h3>
+    <p class="lead">Facts and preferences kept across sessions as small
+    markdown files, recalled in full only when a request clearly overlaps
+    one. <span class="when">When it helps: you've told the model twice
+    this week that this project always runs <code>make check</code>
+    before a commit, and want it to just know.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /remember always run `make check`
+  before considering a change done
+remembered: always run `make check`&hellip;</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    a value that looks like a credential is refused outright, since memory
+    is written to disk and read back into every later prompt &mdash; the
+    last place a secret belongs.</p>
+  </article>
+
+  <article class="feature" id="rules">
+    <h3>Path-scoped rules <span class="chip">/rules</span></h3>
+    <p class="lead">A markdown file with path globs in its frontmatter,
+    sent to the model only once a tool call actually touches a matching
+    path. <span class="when">When it helps: a rule that only matters for
+    one corner of a large repository (&ldquo;migrations are
+    append-only&rdquo;) would be wasted context on every other
+    request.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /rules
+migrations  waiting
+  db/migrations/**,*.sql
+migrations are append-only</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    unlike project instructions, sent on every request whether relevant or
+    not, a migrations-only rule costs nothing in every turn that isn't
+    touching migrations.</p>
+  </article>
+
+  <article class="feature" id="skills">
+    <h3>Skills <span class="chip">/skills</span></h3>
+    <p class="lead">A markdown file of instructions for one kind of task,
+    attached automatically when a request matches it, or run directly as a
+    command. <span class="when">When it helps: a house procedure
+    (&ldquo;how we cut a release&rdquo;) that should be available without
+    pasting it into every request.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /skills
+release-checklist   Ship a release
+  to production  (project)</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    memory, skills and rules are three different ways to avoid
+    re-explaining something: memory is a recalled fact, a skill is a whole
+    procedure read on request or by match, a rule enters only once a
+    matching path is touched.</p>
+  </article>
+
+  </div>
   </div>
 
-  <div class="feature" id="undo">
-    <h3>Undo and change provenance</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Every file change a turn makes is recorded with the model's own
-      stated reason for it &mdash; a record janetcode calls
-      <em>provenance</em> &mdash; so the session's work can be read back
-      and reverted one decision at a time, not just one whole turn at a
-      time.</dd>
-      <dt>When it helps</dt>
-      <dd>The model changed the wrong thing and you want just that back;
-      or a file looks wrong days later and you want to know which turn,
-      and why, wrote the line in question.</dd>
-      <dt>How to use it</dt>
-      <dd><code>/undo</code> reverts the last changing turn entirely;
-      <code>/changes</code> lists recorded changes by turn and intent,
-      and <code>/changes N</code> shows one change's hunks;
-      <code>/blame &lt;path&gt;</code> attributes each line of a file to
-      the change that wrote it; <code>/undo N</code> reverts one recorded
-      change on its own, leaving later changes to the same file in
-      place.</dd>
-    </dl>
-    <p>Inside a git repository, a whole-turn <code>/undo</code> uses a
-    hidden snapshot taken before the turn's first change (through a
-    temporary index, so your own HEAD, index and branches are never
-    touched), so it also reverts anything a shell command changed or
-    deleted &mdash; not just file-tool edits. Outside git, only edits made
-    through the file-editing tools can be reverted. It can go back up to
-    30 turns, and still works after resuming a session. <code>/redo</code>
-    reapplies what the last undo reverted, until the next change makes
-    that ambiguous.</p>
-    <p><code>/undo about &lt;description&gt;</code> is the finer
-    instrument: it previews which of the session's recorded changes match
-    a plain-language description (&ldquo;the logging changes but keep the
-    rename&rdquo;), listed as <code>undo</code>, <code>keep</code> or
-    <code>mixed</code> (an edit that partly matches), and a deterministic
-    check simulates the revert to warn when keeping one change while
-    undoing another would leave code referring to something that no
-    longer exists. Nothing is touched until <code>/undo apply</code>, which
-    reverts exactly that preview and reports whether the result still
-    passes the project's checks.</p>
-  </div>
+  <div class="feature-group">
+  <h2>Undo and provenance</h2>
+  <div class="feature-grid">
 
-  <div class="feature" id="proof">
-    <h3>Proof in the commit</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Makes the provenance record above outlive the session by
-      attaching it to a git commit: which session, which turn, and its
-      stated intent wrote each of the commit's files, plus what the
-      harness actually observed demonstrating the work (the turn's
-      verdict &mdash; see <a href="#verdicts">below</a>), not the model's
-      own claim.</dd>
-      <dt>When it helps</dt>
-      <dd>Code review, or months later: &ldquo;why is this line here, and
-      what actually showed it worked?&rdquo; answered from the commit
-      itself rather than from a chat log nobody kept.</dd>
-      <dt>How to use it</dt>
-      <dd>Automatic: when a bash call that looks like <code>git
-      commit</code> succeeds and HEAD moves, the note is attached without
-      being asked. <code>/proof [commit]</code> prints it (attaching one
-      first if there isn't one yet); <code>/proof push [remote]</code> and
-      <code>/proof fetch [remote]</code> move notes to and from a remote,
-      since git does not push or fetch notes on its own.</dd>
-    </dl>
-    <p>The note is stored as a git note under
-    <code>refs/notes/janetcode</code>, local to the clone that made it
-    until pushed. Two sessions that both touch one commit merge their
-    notes rather than overwrite each other, and janetcode configures git
-    so an <code>--amend</code> or a rebase carries the note onto the new
-    commit instead of leaving it orphaned. Turn this off with
-    <code>"proof_notes": false</code> in the config file.</p>
+  <article class="feature" id="undo">
+    <h3>Undo a turn <span class="chip">/undo</span></h3>
+    <p class="lead">Reverts a whole turn's file changes, including a shell
+    command's side effects inside a git repository. <span class="when">When
+    it helps: you want to see what a turn did before trusting it's
+    gone.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /undo preview
+remove internal/export/csv.go
+$ /undo
+&#8626; removed internal/export/csv.go
+verified: go test ./... (1.4s)</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    preview costs nothing, so you can check before committing to it. It
+    goes back up to 30 turns, and <code>/redo</code> reapplies a
+    reverted undo.</p>
+    <details>
+      <summary>More detail</summary>
+      <p>Outside git, only edits made through the file-editing tools can
+      be reverted &mdash; a shell command's own side effects are not
+      tracked. <code>/undo N</code> reverts one recorded change on its
+      own, leaving later changes to the same file in place. <a href="how-it-works.html#sessions-undo">More &rarr;</a></p>
+    </details>
+  </article>
+
+  <article class="feature" id="undo-about">
+    <h3>Undo by description <span class="chip">/undo about</span></h3>
+    <p class="lead">Picks out changes matching a plain-language
+    description, and warns when undoing one breaks another.
+    <span class="when">When it helps: a session did two unrelated things
+    and you only want one gone.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /undo about the rename
+[undo ] #3  config.go
+  &middot; rename Config to Settings
+[keep ] #4  log.go
+  &middot; fix duplicate log line
+warning: #5 uses Settings &mdash;
+  undoing #3 would likely not build
+$ /undo apply --force
+&#8626; reverted 1 hunk(s) of config.go</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    the coupling check is a deterministic pass over the diffs, not a
+    model's guess; <code>--force</code> is the deliberate override, not
+    the default.</p>
+  </article>
+
+  <article class="feature" id="changes">
+    <h3>Change provenance <span class="chip">/changes /blame</span></h3>
+    <p class="lead">Groups edits by turn with the model's stated intent,
+    and attributes each line of a file to the change that wrote it.
+    <span class="when">When it helps: a file looks wrong and you want to
+    know which turn wrote which line, and why.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /changes
+turn 3 &middot; rename Config to Settings
+  &middot; config.go +12 -12
+$ /blame internal/config/config.go
+#3  12 &#9474; type Settings struct {</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    a session-scoped cousin of <code>git blame</code> that also knows
+    <em>why</em> a line was written, not just when.</p>
+  </article>
+
+  <article class="feature" id="proof">
+    <h3>Proof in the commit <span class="chip">/proof</span></h3>
+    <p class="lead">Attaches the provenance record to the git commit itself
+    &mdash; which session and turn wrote it, and what the harness observed.
+    <span class="when">When it helps: code review asks why a line looks
+    this way, and whether it was tested.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /proof
+&#10003; turn 3: verified: 1 file(s) edited
+  and tests ran and passed afterwards
+parse.go &middot; #3 edit_file +14 -3
+  &middot; handle trailing commas</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    it travels with the commit, not the session file, since git doesn't
+    push or fetch notes on its own.</p>
+    <details>
+      <summary>More detail</summary>
+      <p>Attached automatically when a bash call that looks like
+      <code>git commit</code> succeeds. <code>/proof push</code>/<code>fetch</code>
+      move it to and from a remote, since git doesn't do that on its own;
+      an <code>--amend</code> or rebase carries the note onto the new
+      commit. Turn it off with <code>"proof_notes": false</code>. <a href="reference.html#config">More &rarr;</a></p>
+    </details>
+  </article>
+
   </div>
   </div>
 
   <div class="feature-group">
   <h2>Verification and quality</h2>
+  <div class="feature-grid">
 
-  <div class="feature" id="verdicts">
-    <h3>Verification gates and verdicts</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>A verification gate is a set of commands the project defines as
-      what &ldquo;done&rdquo; means (a build, a test run); janetcode runs
-      them after any turn that changed something and feeds a failure back
-      to the model. A <em>verdict</em> is janetcode's own judgment, on top
-      of that, about what a turn actually demonstrated &mdash; computed
-      from what it watched run, not from the model's summary of what it
-      did.</dd>
-      <dt>When it helps</dt>
-      <dd>You want &ldquo;done, tests pass&rdquo; to mean something,
-      instead of trusting a sentence the model wrote about its own
-      work.</dd>
-      <dt>How to use it</dt>
-      <dd><code>/verify set &lt;cmd&gt;</code> or
-      <code>.janetcode/verify.json</code> defines the gate;
-      <code>/verify</code> alone runs it now. The verdict needs no setup
-      &mdash; it appears under every turn that changed code, and
-      <code>--eval-off verdict</code> turns it off for an eval run.</dd>
-    </dl>
-    <p>The seven verdicts are <code>verified</code> (tests ran and passed),
-    <code>self-checked</code> (tests passed, but were edited this turn
-    too), <code>not demonstrated</code> (something ran but proved
-    nothing), <code>unverified</code> (nothing was run at all),
-    <code>check failed</code>, <code>vacuous</code> (a check exited clean
-    having found no tests to run), and <code>tests written</code> (an
-    acceptance-test turn wrote tests that correctly fail, since the code
-    does not exist yet). Full table and how it fits the turn loop:
-    <a href="how-it-works.html#verification">how it works</a>.</p>
-    <p>A project can go further with <code>"mutate": "&lt;test
-    command&gt;"</code>: once the checks pass, janetcode flips one operator
-    at a time in the lines the turn changed (<code>==</code> to
-    <code>!=</code>, <code>&lt;</code> to <code>&lt;=</code>, and similar)
-    and re-runs the tests against each mutant in a throwaway worktree
-    (a second, temporary checkout of the repository). A mutant the tests
-    do not catch means that line's behaviour is not actually pinned down
-    by a test, whatever the test suite's pass/fail says. At most twelve
-    mutants run per turn, so the cost is bounded.</p>
-  </div>
+  <article class="feature" id="verdicts">
+    <h3>Verification gates and verdicts <span class="chip">/verify set</span></h3>
+    <p class="lead">A gate is the command that defines &ldquo;done&rdquo;;
+    a verdict is janetcode's own judgment about what a turn actually
+    demonstrated. <span class="when">When it helps: you want &ldquo;tests
+    pass&rdquo; to mean something, not just a sentence the model
+    wrote.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /verify set go test ./...
+set: go test ./...
+&#10003; verified: 2 file(s) edited
+  and tests ran and passed afterwards
+&#9888; unverified: 2 file(s) edited
+  and nothing was run against them
+&#10007; check failed: 2 file(s) edited
+  and a check came back red</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    a model that writes &ldquo;tests pass&rdquo; without running anything
+    still gets &#9888; unverified, not &#10003;.</p>
+    <details>
+      <summary>More detail</summary>
+      <p>The seven verdicts are <code>verified</code>,
+      <code>self-checked</code> (tests passed, but were edited this turn
+      too), <code>not demonstrated</code>, <code>unverified</code>,
+      <code>check failed</code>, <code>vacuous</code> (a check exited
+      clean having found no tests to run), and <code>tests written</code>.
+      A project can go further with <code>"mutate": "&lt;test
+      command&gt;"</code>: once checks pass, janetcode flips one operator
+      at a time in the lines the turn changed and re-runs the tests
+      against each mutant in a throwaway worktree, capped at twelve
+      mutants per turn. <a href="how-it-works.html#verification">More &rarr;</a></p>
+    </details>
+  </article>
 
-  <div class="feature" id="accept">
-    <h3>Acceptance tests</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>A test-first mode: the model's only job is to write tests for a
-      request that fail against the current code and would pass once the
-      request is done. Once you approve them, they are locked &mdash; no
-      tool call, from the model or from a script, can weaken or delete
-      them &mdash; and their command becomes an extra gate for the rest of
-      the session.</dd>
-      <dt>When it helps</dt>
-      <dd>You want to see and agree with the tests before any
-      implementation exists, so the model cannot make a test pass by
-      quietly rewriting it once the real fix turns out hard.</dd>
-      <dt>How to use it</dt>
-      <dd><code>/accept &lt;request&gt;</code> to write tests,
-      <code>/diff &lt;path&gt;</code> to review each one (they are new
-      files, so the diff is the whole file), then <code>/accept
-      approve</code> to lock them in.</dd>
-    </dl>
-    <p>While locked, an edit or a shell command that would touch a locked
-    test file is refused up front; as a second line of defence, the exact
-    content of each locked file is hashed at lock time and checked again
-    after every mutating call, so even a command the up-front check missed
-    gets the file restored immediately, with a notice. <code>/accept
-    unlock</code> lifts the lock when a test turns out to be wrong itself;
-    <code>/accept command &lt;cmd&gt;</code> corrects the verify command if
-    janetcode's guess was wrong.</p>
-  </div>
+  <article class="feature" id="accept">
+    <h3>Acceptance tests <span class="chip">/accept</span></h3>
+    <p class="lead">A test-first mode: the model writes failing tests for a
+    request, and once you approve them, they're locked. <span class="when">When
+    it helps: you want to agree the tests before any implementation
+    exists.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /accept approve
+accept: locked  export_test.go
+&hellip; export_test.go is a locked
+  acceptance test; the edit was reverted.</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    each locked file is hashed at lock time and re-checked after every
+    mutating call, so a green from editing the test back to passing was
+    never a real green.</p>
+    <details>
+      <summary>More detail</summary>
+      <p><code>/accept unlock</code> lifts the lock when a test turns out
+      to be wrong itself; <code>/accept command &lt;cmd&gt;</code>
+      corrects the verify command if janetcode's guess was wrong.</p>
+    </details>
+  </article>
 
-  <div class="feature" id="diagnostics">
-    <h3>Diagnostics from language servers</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>A language server (<em>LSP</em>, for Language Server Protocol)
-      is the background process your editor already uses for autocomplete,
-      go-to-definition and inline errors. When one is installed for the
-      file's language, every edit's result carries its diagnostics, so a
-      type error shows up in the same step that caused it rather than at
-      the next build.</dd>
-      <dt>When it helps</dt>
-      <dd>Go, Python, TypeScript, Rust or C code, where a language server
-      (gopls, pyright, typescript-language-server, rust-analyzer, clangd)
-      is on your <code>PATH</code>; catches a broken reference or a type
-      mismatch immediately instead of after a full build.</dd>
-      <dt>How to use it</dt>
-      <dd>Automatic once the server is installed; <code>/lsp</code> shows
-      server status, and the model has a <code>diagnostics</code> tool to
-      re-check a file or list every known problem on demand.</dd>
-    </dl>
-    <p>The same connection also answers <code>symbols</code> queries
-    &mdash; where a name is defined, every place it is used, its type, or
-    everything a file declares &mdash; which is one call against the
-    resolved program instead of a text search that cannot tell a
-    declaration from a mention in a comment.</p>
-  </div>
+  <article class="feature" id="impact">
+    <h3>The reach of an edit <span class="chip">impact line</span></h3>
+    <p class="lead">The approval prompt names what an edit reaches: the
+    symbols it touches, how many places reference them, and which tests
+    cover them. <span class="when">When it helps: is this one-line-looking
+    change touching something used in fourteen places?</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>  allow edit_file parse/parse.go
+  changes Parse (func)
+  &middot; 14 refs in 6 files
+  tests: parse_test.go
+  &middot; checks: go test ./...</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    the count comes from a running language server or the repository's
+    symbol index (marked <code>(partial)</code>), computed in well under a
+    second so approving never feels slower.</p>
+  </article>
 
-  <div class="feature" id="impact">
-    <h3>The reach of an edit</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>When you are asked to approve an edit to a file that already
-      exists, the prompt adds an impact line naming what the change
-      reaches: the symbols it touches, how many places reference each one,
-      which test files already cover them, and which verification commands
-      will run &mdash; for example, <code>changes Parse (func) &middot; 14
-      refs in 6 files &middot; tests: parse_test.go &middot; checks: go
-      test ./...</code>.</dd>
-      <dt>When it helps</dt>
-      <dd>Deciding, at a glance, whether a one-line-looking change is
-      actually touching something used in fourteen places before you
-      approve it.</dd>
-      <dt>How to use it</dt>
-      <dd>Automatic, shown in the permission prompt itself; nothing to
-      turn on.</dd>
-    </dl>
-    <p>The answer comes from the language server when one is available,
-    and from the repository map otherwise (see
-    <a href="#repo-map">below</a>), marked <code>(partial)</code> when it
-    had to fall back to the coarser count. It never delays the prompt
-    beyond a fixed, short budget; whatever is not known in time is simply
-    left out.</p>
-  </div>
+  <article class="feature" id="diagnostics">
+    <h3>Diagnostics from language servers <span class="chip">/lsp</span></h3>
+    <p class="lead">A running language server's diagnostics ride along on
+    every edit result, so a type error shows up in the step that caused
+    it. <span class="when">When it helps: Go, Python, TypeScript, Rust or C
+    &mdash; catching a broken reference before the next build.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /lsp
+gopls: running (pid 48213, 6 files open)
+parse.go:14:9: cannot use "no" (untyped
+  string constant) as int (compile)</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    the same background process your editor already uses for autocomplete
+    and inline errors.</p>
+  </article>
 
-  <div class="feature" id="critic">
-    <h3>Trajectory critic</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Watches the shape of a turn, not just its last call: an
-      identical tool call repeated three times gets a note and five ends
-      the turn; a two-to-four-step cycle that keeps failing (edit, run the
-      failing test, edit again, fail again) is named after three rounds
-      and ends the turn after six. It also checks a plan against the
-      repository before tools run &mdash; a file or symbol named in the
-      model's own text that does not actually exist gets flagged.</dd>
-      <dt>When it helps</dt>
-      <dd>Stops a stuck turn from burning tool calls and money on a loop
-      that is not converging, rather than waiting for a model-call cap to
-      end it.</dd>
-      <dt>How to use it</dt>
-      <dd>Automatic; <code>--eval-off critic,plan</code> disables the two
-      halves for an eval run.</dd>
-    </dl>
-    <p>It can also learn: every eval run records a turn's shape (tool
-    calls, errors, test runs, repeats) against pass or fail, and
-    <code>make eval-train</code> fits a small model to that data. Once
-    trained, it scores a live turn every five tool calls and, the first
-    time the estimated chance of success drops under 35%, gives the model
-    one note naming what is pulling the odds down. As of the current
-    bundled data (35 runs, 3 failures) there have not been enough failing
-    runs to show it beats simply guessing the majority outcome, so it is
-    not shipped switched on by that path yet.</p>
+  <article class="feature" id="critic">
+    <h3>Trajectory critic <span class="chip">automatic</span></h3>
+    <p class="lead">Watches the shape of a turn: a repeated call or a
+    failing edit-run-fail cycle gets flagged and ends the turn.
+    <span class="when">When it helps: a stuck turn would otherwise burn
+    calls until a model-call cap ends it.</span></p>
+    <p class="small">Automatic; <code>--eval-off critic,plan</code>
+    disables it for an eval run.</p>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    an identical call repeated three times gets a note, five ends the
+    turn; a failing two-to-four-step cycle is named after three rounds and
+    ends after six.</p>
+    <details>
+      <summary>More detail</summary>
+      <p>It also checks a plan against the repository before tools run
+      &mdash; a file or symbol named in the model's own text that doesn't
+      exist gets flagged. It can learn from eval history too: as of the
+      current bundled data (35 runs, 3 failures), there haven't been
+      enough failing runs to show it beats guessing the majority outcome,
+      so it isn't shipped switched on by that path yet.</p>
+    </details>
+  </article>
+
   </div>
   </div>
 
   <div class="feature-group">
   <h2>Automation and replay</h2>
+  <div class="feature-grid">
 
-  <div class="feature" id="recipes">
-    <h3>Recipes: replay a turn for free</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Turns a turn's tool calls &mdash; the files it read, the exact
-      edits it made, the commands it ran &mdash; into a small JSON file
-      that replays them later with no model call and no tokens spent,
-      verifying at each step that the file still matches what was
-      recorded before touching it.</dd>
-      <dt>When it helps</dt>
-      <dd>A repeatable job &mdash; bumping a version number in three
-      files, a release checklist &mdash; that already worked once as a
-      normal turn and does not need a model's judgement to do again.</dd>
-      <dt>How to use it</dt>
-      <dd><code>/recipe save &lt;name&gt;</code> after a turn that worked;
-      <code>/recipe run &lt;name&gt; key=value</code> to replay it, with
-      parameters substituted; <code>janetcode --recipe &lt;name&gt;</code>
-      runs one with no session open at all.</dd>
-    </dl>
-    <p>A recipe step never blindly replays a position: a text edit must
-    still match the current file exactly once, and a step that creates a
-    new file refuses to run if the path already exists with different
-    content. If any step cannot be verified this way, replay stops without
-    touching anything, and hands off to the model as an ordinary turn
-    &mdash; the same fallback used when the project's own verification gate
-    fails after a clean replay. Saved recipes live in
-    <code>.janetcode/recipes/</code> and are meant to be committed, the
-    same as custom commands and evals.</p>
-  </div>
+  <article class="feature" id="recipes">
+    <h3>Recipes <span class="chip">/recipe save /recipe run</span></h3>
+    <p class="lead">Turns a turn's tool calls into a JSON file that
+    replays with no model call and no tokens spent. <span class="when">When
+    it helps: replay a fixed lint complaint instead of paying a model to
+    redo it.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /recipe save fix-lint-header --turn 6
+.janetcode/recipes/fix-lint-header.json
+  run with /recipe run fix-lint-header
+$ /recipe run fix-lint-header
+recipe fix-lint-header: replaying 5 steps
+&#10003; verified: 1 file(s) edited
+  and tests ran and passed afterwards</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    the moment a step's target no longer matches what was recorded, it
+    refuses to overwrite blind and hands the rest to the model.</p>
+    <details>
+      <summary>More detail</summary>
+      <p>e.g. <code>header.go did not exist when this recipe was recorded,
+      but it exists now with different content; refusing to overwrite it
+      rather than guess.</code> Saved recipes live in
+      <code>.janetcode/recipes/</code> and are meant to be committed, the
+      same as custom commands and evals.</p>
+    </details>
+  </article>
 
-  <div class="feature" id="evals">
-    <h3>Evals, and keeping a session as one</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>An <em>eval</em> here is a scripted task &mdash; a prompt, some
-      setup files, and a shell check that must exit 0 &mdash; run against
-      a model with a minimal, fixed toolset, so a harness change or a
-      prompt change can be measured rather than eyeballed from a
-      transcript. <code>/eval keep</code> writes one directly from a real
-      session that already happened.</dd>
-      <dt>When it helps</dt>
-      <dd>A bug got fixed or a feature got built in a real session, and
-      you want to make sure it stays fixed as the project and the harness
-      change &mdash; a regression test written from what actually
-      happened rather than typed by hand.</dd>
-      <dt>How to use it</dt>
-      <dd><code>/eval keep [name] [--check cmd]</code> inside a session;
-      <code>janetcode --eval .janetcode/evals</code> to run the kept
-      tasks later; <code>make eval</code> for the project's bundled
-      task set.</dd>
-    </dl>
-    <p>A kept task records the commit the session started from and a diff
-    of anything left uncommitted at that point, so replaying it recreates
-    the exact starting tree, not just the prompt. Because one run of a
-    small task set is close to a coin flip, <code>--eval-runs 3</code>
-    repeats each task and reports a pass rate with a statistical interval,
-    and <code>--eval-compare</code> pairs two result files and reports the
-    delta &mdash; the project's own report found a 21% spread between three
-    identical runs of one task set, which is the whole reason this exists
-    rather than trusting a single run.</p>
-  </div>
+  <article class="feature" id="evals">
+    <h3>Evals from a session <span class="chip">/eval keep</span></h3>
+    <p class="lead">Writes a regression test from a real session, not one
+    typed from memory later. <span class="when">When it helps: a bug got
+    fixed this session and you want it to stay fixed.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /eval keep fix-trailing-comma
+.janetcode/evals/fix-trailing-comma.json
+  &middot; 2 prompts
+$ janetcode --eval .janetcode/evals
+PASS fix-trailing-comma  4.1s  3 tools
+  $0.0009 &middot; 1/1 passed</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    it replays against the state the bug actually appeared in; if the
+    check already passes there, <code>/eval keep</code> says so rather
+    than keeping a task that can never fail.</p>
+    <details>
+      <summary>More detail</summary>
+      <p><code>--eval-runs 3</code> repeats each task and reports a pass
+      rate with a statistical interval, and <code>--eval-compare</code>
+      pairs two result files and reports the delta &mdash; the project's
+      own report found a 21% spread between three identical runs of one
+      task set, which is why this exists rather than trusting a single
+      run. <a href="reference.html#commands">More &rarr;</a></p>
+    </details>
+  </article>
 
-  <div class="feature" id="what-if">
-    <h3>What-if: replaying a session with one thing changed</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Answers &ldquo;what would have happened if&hellip;&rdquo; for a
-      session that already ran: replays the turns before a chosen point
-      for free from the recorded transcript, then runs the remaining turns
-      <strong>live</strong> against one change &mdash; a different model,
-      a disabled behaviour, an extra deny rule, or a reworded prompt
-      &mdash; entirely inside a throwaway worktree, so your real project is
-      never touched.</dd>
-      <dt>When it helps</dt>
-      <dd>&ldquo;Would a cheaper model still have solved this?&rdquo; or
-      &ldquo;would it have found the same fix if I'd phrased the request
-      differently?&rdquo; without redoing the whole session by hand.</dd>
-      <dt>How to use it</dt>
-      <dd><code>janetcode --what-if &lt;session&gt; --from-turn &lt;n&gt;
-      [--model m] [--off names] [--prompt "text"]</code>.</dd>
-    </dl>
-    <p>The report at the end shows where the two runs first diverge, a
-    verdict for each turn on each side, which files each side touched,
-    a run of the project's own checks in the resulting worktree, and cost
-    split into what the whole session would have cost against what this
-    run actually spent new &mdash; the replayed part is free. It refuses
-    up front, before spending anything, when the session has no recorded
-    starting state to replay from.</p>
-  </div>
+  <article class="feature" id="what-if">
+    <h3>What-if replay <span class="chip">--what-if</span></h3>
+    <p class="lead">Replays turns before a chosen point for free, then runs
+    the rest live against one change &mdash; a different model, a reworded
+    prompt &mdash; inside a throwaway worktree. <span class="when">When it
+    helps: &ldquo;would a cheaper model have solved this?&rdquo; without
+    redoing the session by hand.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ janetcode --what-if 20260911-153001-4f2a \
+  --from-turn 4 --model claude-opus-5
+diverges at turn 4: edit_file parse.go
+  (recorded) vs token.go (this run)
+turn 4  recorded: &#9888; unverified
+  this run: &#10003; verified</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    it answers &ldquo;what if&rdquo; against exactly what happened, and
+    refuses up front, before spending anything, when there's no recorded
+    starting state to replay
+    from.</p>
+  </article>
 
-  <div class="feature" id="jobs">
-    <h3>Background jobs</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>A shell command started detached: it runs in its own process
-      group with output going to a log file, and the turn continues
-      immediately rather than waiting for it. When the job ends, the model
-      is told before its next call.</dd>
-      <dt>When it helps</dt>
-      <dd>A dev server, a long build, or a slow test suite that should not
-      hold the whole conversation open while it runs.</dd>
-      <dt>How to use it</dt>
-      <dd>The model starts one with <code>bash</code>'s
-      <code>background: true</code>; a command already running in the
-      foreground can be moved there with <kbd>ctrl+g</kbd>.
-      <code>/jobs</code> opens a live overlay to tail, kill, or write to
-      one; the model has a matching <code>job</code> tool.</dd>
-    </dl>
-  </div>
+  <article class="feature" id="jobs">
+    <h3>Background jobs <span class="chip">ctrl+g</span></h3>
+    <p class="lead">Moves a running shell command to the background so the
+    turn continues, and tells the model the moment it finishes.
+    <span class="when">When it helps: a foreground build is taking longer
+    than expected.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ ctrl+g
+moved to background as job 1
+  &middot; /jobs shows it
+job 1 running for 42s (pid 88213):
+  go build ./...
+&#9881; job 1 finished with exit 0</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    moving a command to the background is your call about something
+    already running, not the model's; the job just stops holding the turn
+    open.</p>
+  </article>
 
-  <div class="feature" id="hooks">
-    <h3>Hooks</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Shell commands run at fixed points in the loop &mdash; before a
-      tool call, after one, before compaction, when a turn ends &mdash;
-      whose output can block the call, rewrite its input, or add a note to
-      the conversation.</dd>
-      <dt>When it helps</dt>
-      <dd>Enforcing a house rule outside the model's judgement: block any
-      <code>bash</code> call against a policy script, or run
-      <code>gofmt -l</code> after every edit and surface the result.</dd>
-      <dt>How to use it</dt>
-      <dd>Your own hooks go under <code>"hooks"</code> in the config file
-      and run unrestricted; a project's <code>.janetcode/hooks.json</code>
-      needs a one-time <code>/hooks trust</code> and is held to tighter
-      limits (capped timeout, no network access) since trusting a clone's
-      hooks is a decision about that clone, not a blank check.</dd>
-    </dl>
-    <p>A hook exits 2 to block a call (or a <code>stop</code> hook to send
-    the model back to work), prints JSON to rewrite input or attach a
-    note, or prints plain text as a note; any other outcome, a crash, or a
-    timeout is logged and ignored &mdash; hooks fail open, so a broken one
-    cannot wedge a session.</p>
+  <article class="feature" id="custom-commands">
+    <h3>Custom commands <span class="chip">/&lt;name&gt;</span></h3>
+    <p class="lead">A prompt template stored as a file, submitted as a
+    slash command with your arguments substituted in.
+    <span class="when">When it helps: a request you type often, worded the
+    same way every time.</span></p>
+    <p class="small">Add <code>.janetcode/commands/&lt;name&gt;.md</code>;
+    run it as <code>/&lt;name&gt; args</code>, with
+    <code>$ARGUMENTS</code> replaced in the template.</p>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    one file instead of retyping the same wording into the prompt every
+    time.</p>
+  </article>
+
+  <article class="feature" id="step-routing">
+    <h3>Step routing <span class="chip">route_cheap</span> <span class="pill">experimental</span></h3>
+    <p class="lead">Sends a turn's mechanical steps &mdash; reading a
+    file, re-running a passed check &mdash; to a second, cheaper model;
+    planning and edits stay on the main one. <span class="when">When it
+    helps: nothing yet, by design, until an eval shows a real saving.</span></p>
+    <p class="small"><code>"route_cheap": "&lt;model&gt;"</code>; empty
+    (default) is off. <a href="reference.html#config">Config reference &rarr;</a></p>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    the policy is a short list of fixed rules, not anything learned, and
+    must be demonstrated per project with an eval comparison first.</p>
+  </article>
+
   </div>
   </div>
 
   <div class="feature-group">
   <h2>Delegation</h2>
+  <div class="feature-grid">
 
-  <div class="feature" id="subagents">
-    <h3>Subagents and teams</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>A <em>subagent</em> is a second, bounded conversation the main
-      model starts with the <code>task</code> tool to do one job in its
-      own context &mdash; explore a directory, fix one test, review a diff
-      &mdash; on the same model or a different, perhaps cheaper one.
-      Several can run in parallel, and only the final report comes back to
-      the main conversation unless you open its own transcript.</dd>
-      <dt>When it helps</dt>
-      <dd>A side task that would otherwise fill the main conversation with
-      reading it does not need to keep, or a job better suited to a
-      cheaper model than the one steering the whole task.</dd>
-      <dt>How to use it</dt>
-      <dd>The model calls <code>task</code> on its own; <code>/agents</code>
-      (or <kbd>ctrl+t</kbd>) opens a live overlay of subagents this
-      session started, and <code>/agents new &lt;brief&gt;</code> starts
-      one yourself.</dd>
-    </dl>
-    <p><code>task {"agent": "explore"}</code> is a built-in, read-only
-    subagent for wide reading with no editing tools at all; a subagent
-    with <code>edit: true</code> instead gets the full tool set inside a
-    <strong>worktree</strong> &mdash; a second, temporary checkout of the
-    repository on its own branch &mdash; so it can edit and run commands
-    without asking, and returns a patch for you to review rather than
-    having changed your real tree. <code>--worktree &lt;branch&gt;</code>
-    does the same for an entire session.</p>
-  </div>
+  <article class="feature" id="subagents">
+    <h3>Subagents <span class="chip">/agents /review</span></h3>
+    <p class="lead">A bounded second conversation that does one job in its
+    own context; only the final report comes back. <span class="when">When
+    it helps: a second, independent pass over the diff before
+    committing.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /review
+started review &middot; two subagents
+  &middot; /agents watches them
+review bugs   done   found:
+  parse.go:88 ignores the error
+  from Close()
+review tests  done   found:
+  no test covers the empty-input
+  case in Parse</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    the two subagents get separate briefs over the same
+    <code>git diff HEAD</code>, so you get two independent readings
+    instead of one pass trying to do both.</p>
+    <details>
+      <summary>More detail</summary>
+      <p><code>/agents new &lt;brief&gt;</code> starts a plain read-only
+      subagent directly; <code>/agents fork &lt;brief&gt;</code> starts
+      one that inherits this whole conversation's history. A subagent with
+      <code>edit: true</code> gets the full tool set inside a
+      <strong>worktree</strong> &mdash; a second, temporary checkout on its
+      own branch &mdash; and returns a patch for you to review rather than
+      changing your real tree. <a href="how-it-works.html#subagents-overview">More &rarr;</a></p>
+    </details>
+  </article>
 
-  <div class="feature" id="custom-agents">
-    <h3>Custom agents</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>A named subagent profile &mdash; a markdown file that sets its
-      own system-prompt text, an allowed tool list, and optionally a
-      different model &mdash; that the model can pick by name.</dd>
-      <dt>When it helps</dt>
-      <dd>A recurring kind of subagent job (&ldquo;strict reviewer,
-      read-only&rdquo;, &ldquo;fixes one failing test in its own
-      checkout&rdquo;) worth defining once instead of describing in the
-      prompt every time.</dd>
-      <dt>How to use it</dt>
-      <dd>Add <code>.janetcode/agents/&lt;name&gt;.md</code> with
-      frontmatter (<code>description</code>, <code>tools</code>,
-      <code>model</code>) and a body of instructions;
-      <code>/agents new &lt;brief&gt;</code> starts the built-in general
-      profile, <code>/agents fork &lt;brief&gt;</code> starts one that
-      inherits the current conversation.</dd>
-    </dl>
+  <article class="feature" id="custom-agents">
+    <h3>Custom agents <span class="chip">.janetcode/agents/*.md</span></h3>
+    <p class="lead">A markdown profile setting a subagent's instructions,
+    allowed tools and model, picked by name. <span class="when">When it
+    helps: a subagent that only reviews, never edits or reaches the
+    network.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>.janetcode/agents/reviewer.md:
+---
+description: Reviews a change
+  for correctness
+tools: read_file, grep, glob
+disallowed_tools: fetch_url, web_search
+---
+review bugs   done   found:
+  parse.go:88 ignores the error
+  from Close()</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    <code>disallowed_tools</code> applies after the <code>tools</code>
+    allowlist, so nothing can hand a forbidden tool back by naming it.</p>
+  </article>
+
   </div>
   </div>
 
   <div class="feature-group">
   <h2>Extending janetcode</h2>
+  <div class="feature-grid">
 
-  <div class="feature" id="extending">
-    <h3>MCP servers</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd><em>MCP</em> (Model Context Protocol) is a standard way for a
-      program to offer tools to an agent. janetcode is an MCP client: it
-      can start a local server over stdio, or connect to a remote one over
-      HTTP, and the server's tools become available to the model
-      alongside the built-in ones.</dd>
-      <dt>When it helps</dt>
-      <dd>Reaching something janetcode has no built-in tool for &mdash; a
-      real browser (Chrome's own devtools MCP server), a company's
-      internal API, a database.</dd>
-      <dt>How to use it</dt>
-      <dd>List a server under <code>"mcp_servers"</code> in the config
-      file to start it with every session, or ship a project
-      <code>.mcp.json</code> that starts once you run <code>/mcp
-      trust</code>. <code>/mcp</code> shows status and tools; <code>/mcp
-      auth &lt;server&gt;</code> runs an OAuth login for a server that
-      needs one.</dd>
-    </dl>
-    <p>A server with more than six tools has them registered
-    <em>deferred</em>: their schemas are not sent with every request, only
-    when the model searches for one by keyword, so a browsing session pays
-    for its 29 tools and a plain coding session does not. Screenshots
-    cannot quietly fill the context either &mdash; janetcode's tool
-    interface is text-only, so image content from a server is replaced
-    with a placeholder and the model works from the accessibility tree
-    instead of pixels.</p>
-  </div>
+  <article class="feature" id="extending">
+    <h3>MCP servers <span class="chip">/mcp trust</span></h3>
+    <p class="lead"><em>MCP</em> is a standard way for a program to offer
+    tools to an agent; janetcode's built-in tools gain whatever a
+    connected server offers. <span class="when">When it helps: reaching a
+    real browser, a company's internal API, a database.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /mcp trust
+trusted .mcp.json &middot; starting its servers</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    a project's <code>.mcp.json</code> can run arbitrary commands on your
+    machine, so it's shown at startup but stays inert until you explicitly
+    trust it once; editing the file asks again.</p>
+    <details>
+      <summary>More detail</summary>
+      <p>A server with more than six tools has them registered
+      <em>deferred</em>: schemas are sent only when the model searches for
+      one by keyword, so a browsing session pays for its many tools and a
+      plain coding session does not. Image content from a server is
+      replaced with a placeholder, and the model works from the
+      accessibility tree instead of pixels. <a href="reference.html#config">More &rarr;</a></p>
+    </details>
+  </article>
 
-  <div class="feature" id="skills">
-    <h3>Skills</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>A markdown file of instructions for one kind of task, attached to
-      the conversation automatically when a request clearly matches it, or
-      run directly as a command.</dd>
-      <dt>When it helps</dt>
-      <dd>A house procedure (&ldquo;how we cut a release&rdquo;, &ldquo;the
-      steps for adding a migration&rdquo;) that should be available to the
-      model without being pasted into every request or kept in the
-      project instructions permanently.</dd>
-      <dt>How to use it</dt>
-      <dd>Add <code>.janetcode/skills/&lt;name&gt;/SKILL.md</code> (or
-      <code>.md</code>) in the project, or under the config directory for
-      every project; run it directly as <code>/&lt;name&gt; args</code>,
-      or let the model reach for it with its <code>skill</code> tool.
-      <code>/skills</code> lists what is installed.</dd>
-    </dl>
-  </div>
+  <article class="feature" id="repo-map">
+    <h3>Repository map <span class="chip">repo_map</span></h3>
+    <p class="lead">A ranked map of which files and symbols matter for a
+    request &mdash; links are &ldquo;file A uses a symbol file B
+    defines,&rdquo; ranked the way a search engine ranks pages.
+    <span class="when">When it helps: a sense of the codebase's shape
+    without reading every file first.</span></p>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    by default it parses Go with the standard parser and everything else
+    with regular expressions; <code>make build-treesitter</code> compiles
+    in real grammars for more languages, at the cost of a C toolchain.</p>
+  </article>
 
-  <div class="feature" id="memory">
-    <h3>Memory</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Facts and preferences kept across sessions as small markdown
-      files, indexed by name and description in every request (cheap) and
-      recalled in full only when a request clearly overlaps one (up to
-      four per turn).</dd>
-      <dt>When it helps</dt>
-      <dd>A project convention or a personal preference (&ldquo;I prefer
-      small commits&rdquo;) you are tired of repeating every session.</dd>
-      <dt>How to use it</dt>
-      <dd>The model's own <code>memory</code> tool records what a turn
-      established; <code>/remember [-g] &lt;fact&gt;</code> adds one
-      directly (<code>-g</code> for global, across every project),
-      <code>/memory</code> lists them, and <code>/forget &lt;n&gt;</code>
-      removes one.</dd>
-    </dl>
-    <p>A value that looks like a credential &mdash; an API key, a private
-    key block, a JWT &mdash; is refused with an explanation: memory is
-    written to disk and read back into every later prompt, which is the
-    last place a secret belongs. Only you can write a global entry that
-    applies to every project; anything the model extracts on its own stays
-    scoped to the current one.</p>
-  </div>
-
-  <div class="feature" id="rules">
-    <h3>Path-scoped rules</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>A markdown file with a list of path globs in its frontmatter,
-      sent to the model only once a tool call actually touches a matching
-      path &mdash; unlike project instructions, which are sent on every
-      request whether they are relevant or not.</dd>
-      <dt>When it helps</dt>
-      <dd>A rule that only matters for one corner of a large repository
-      (&ldquo;migrations are append-only&rdquo;, scoped to
-      <code>db/migrations/**</code>) that would be wasted context on every
-      other request if it lived in the main project instructions.</dd>
-      <dt>How to use it</dt>
-      <dd>Add a file under <code>.janetcode/rules/</code> with
-      <code>paths:</code> in its frontmatter; <code>/rules</code> lists
-      what is defined and which have fired this session.</dd>
-    </dl>
-  </div>
-
-  <div class="feature" id="custom-commands">
-    <h3>Custom commands</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>A prompt template stored as a file, submitted as a slash command
-      with your arguments substituted in.</dd>
-      <dt>When it helps</dt>
-      <dd>A request you type often, worded exactly the same way each time
-      (&ldquo;write a changelog entry for $ARGUMENTS in the style of
-      &hellip;&rdquo;).</dd>
-      <dt>How to use it</dt>
-      <dd>Add <code>.janetcode/commands/&lt;name&gt;.md</code> (project) or
-      <code>~/.config/janetcode/commands/&lt;name&gt;.md</code> (every
-      project); run it as <code>/&lt;name&gt; args</code>, with
-      <code>$ARGUMENTS</code> replaced in the template.</dd>
-    </dl>
-  </div>
-
-  <div class="feature" id="repo-map">
-    <h3>Repository map</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>A ranked map of which files and symbols in the repository matter
-      for the current request, built by treating files as nodes and
-      &ldquo;file A uses a symbol file B defines&rdquo; as an edge, then
-      running the same kind of ranking web search engines use on links.</dd>
-      <dt>When it helps</dt>
-      <dd>Gives the model a sense of the codebase's shape without reading
-      every file first, and answers &ldquo;what would break if I changed
-      this&rdquo; without a full-project search.</dd>
-      <dt>How to use it</dt>
-      <dd>Attached automatically to every request; the model also has a
-      <code>repo_map</code> tool to re-rank for another query or show a
-      symbol's full blast radius (everything that defines or uses it).</dd>
-    </dl>
-    <p>By default it parses Go with the standard library's own parser and
-    every other language with regular expressions, which cannot always
-    tell a real declaration from the same words in a comment. Building
-    with <code>make build-treesitter</code> compiles in real grammars for
-    Python, JavaScript, TypeScript, Rust and C instead, at the cost of
-    needing a C toolchain (cgo) &mdash; which is why it is opt-in rather
-    than the default.</p>
   </div>
   </div>
 
   <div class="feature-group">
-  <h2>Interfaces</h2>
+  <h2>Interfaces and cost</h2>
+  <div class="feature-grid">
 
-  <div class="feature" id="web-ui">
-    <h3>Web UI</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>The same session in a browser instead of the terminal: a
-      three-column layout with the session list, a conversation column,
-      and a tabbed panel for the plan, changed files, background jobs,
-      subagents and this session's mode.</dd>
-      <dt>When it helps</dt>
-      <dd>You would rather click through permission prompts and tabs than
-      use the terminal, or want to hand a colleague a link to watch a
-      session (mind the warning below).</dd>
-      <dt>How to use it</dt>
-      <dd><code>janetcode --web</code>; <code>--web-addr</code> to change
-      the listen address.</dd>
-    </dl>
-    <p>The server binds to loopback (<code>127.0.0.1:8787</code>) unless
-    you point it elsewhere. Anyone who can reach the port can approve
-    commands in that directory, so treat the address the same way you
-    would treat shell access to the project.</p>
+  <article class="feature" id="headless">
+    <h3>Headless and scripting <span class="chip">janetcode -p</span></h3>
+    <p class="lead">Runs one prompt to completion, no interactive terminal:
+    text on stdout, tool activity on stderr. <span class="when">When it
+    helps: a CI script runs one prompt and parses the result.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ janetcode -p "uppercase out.txt" \
+  --output-format json
+{
+  "result": "out.txt now holds the
+    uppercased text.",
+  "is_error": false,
+  &hellip;
+  "verdict": "tests pass"
+}</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    <code>verdict</code> comes from what the harness watched, not the
+    model's claim, so a script checking it gets an honest answer.</p>
+    <details>
+      <summary>More detail</summary>
+      <p>Without <code>--yolo</code> and with no terminal to ask, a
+      mutating tool call is simply denied rather than left hanging.
+      <code>--until "&lt;cmd&gt;"</code> keeps a run going until a command
+      exits 0, up to five rounds. <a href="reference.html#flags">More &rarr;</a></p>
+    </details>
+  </article>
+
+  <article class="feature" id="web-ui">
+    <h3>The web UI <span class="chip">--web</span></h3>
+    <p class="lead">The same session in a browser instead of the terminal,
+    for approving commands and reading a long diff in a tab.
+    <span class="when">When it helps: you'd rather click through
+    permission prompts than use the terminal.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ janetcode --web
+janetcode 0.9.0 serving
+  http://127.0.0.1:8787
+  (claude-opus-5 in ~/project)</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    it's loopback-only by default for a reason stated plainly: anyone who
+    can reach the port can approve commands in that directory, so binding
+    it off loopback prints a warning rather than doing it silently.</p>
+  </article>
+
+  <article class="feature" id="acp">
+    <h3>Editor integration <span class="chip">--acp</span></h3>
+    <p class="lead">Speaks the Agent Client Protocol on stdio, so an ACP
+    editor can drive janetcode directly instead of through a terminal.
+    <span class="when">When it helps: your editor wants to drive janetcode
+    itself &mdash; sessions, streamed replies and permission prompts as
+    protocol messages.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ janetcode --acp
+{
+  "jsonrpc": "2.0",
+  "method": "session/update",
+  "params": {
+    "sessionId": "sess-1",
+    "update": {
+      "sessionUpdate":
+        "agent_message_chunk",
+      "content": {
+        "type": "text",
+        "text": "Reading parse.go..."
+      }
+    }
+  }
+}</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    ACP is not a chat UI at all &mdash; it's the same tool-call and
+    permission machinery, addressed by an editor instead of a
+    terminal.</p>
+  </article>
+
+  <article class="feature" id="cost">
+    <h3>Cost control <span class="chip">/budget</span></h3>
+    <p class="lead">A running total of tokens and cost, with an optional
+    hard ceiling that stops the session once reached. <span class="when">When
+    it helps: stop on its own before spending more than fifty cents.</span></p>
+    <div class="xterm" aria-hidden="true">
+      <pre class="xterm-body"><code>$ /budget 0.50
+cost budget $0.50 &middot; the session
+  stops when it crosses that
+$ /usage
+in 12.4k &middot; out 3.1k
+  &middot; cost $0.0187
+  (reported by the provider)</code></pre>
+    </div>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    the ceiling is checked after every model call, so a long single turn
+    can still overshoot it by one call's worth. <code>--max-cost
+    0.50</code> does the same for a headless run, and exits with code 55
+    if crossed.</p>
+  </article>
+
+  <article class="feature" id="themes">
+    <h3>Themes <span class="chip">/theme</span></h3>
+    <p class="lead">A named colour palette for the terminal interface
+    &mdash; eighteen are built in, from a historical default to Solarized,
+    Nord, Dracula, Gruvbox and Catppuccin. <span class="when">When it
+    helps: the default colours are hard to read on your terminal or
+    background.</span></p>
+    <p class="small"><code>/theme</code> opens a live, searchable list;
+    <code>/theme &lt;name&gt;</code> switches directly.</p>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    you can also define your own with fourteen named colour roles in the
+    config file.</p>
+  </article>
+
+  <article class="feature" id="hints">
+    <h3>Hints <span class="chip">automatic</span></h3>
+    <p class="lead">One-time, faint notices about a feature you appear not
+    to know about, shown at the exact moment it would have helped.
+    <span class="when">When it helps: you're new to janetcode, or have
+    never needed a particular corner of it.</span></p>
+    <p class="small">On by default; <code>/hints off</code> silences them
+    for the session.</p>
+    <p class="why"><span class="why-label">Why it matters</span> &mdash;
+    each hint fires at most once, ever, and never for a feature you
+    already use.</p>
+  </article>
+
+  </div>
   </div>
 
-  <div class="feature" id="acp">
-    <h3>Editor integration (ACP)</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Speaks the Agent Client Protocol on stdin and stdout, so an ACP
-      editor can launch janetcode as a subprocess and drive it directly
-      &mdash; sessions, streamed replies, tool calls and permission
-      prompts all as protocol messages instead of terminal text.</dd>
-      <dt>When it helps</dt>
-      <dd>Running janetcode inside an editor that speaks ACP (Zed is the
-      one it is tested against) instead of a separate terminal window.</dd>
-      <dt>How to use it</dt>
-      <dd><code>janetcode --acp</code>, pointed at from the editor's own
-      ACP agent configuration.</dd>
-    </dl>
-  </div>
-
-  <div class="feature" id="headless">
-    <h3>Headless and CLI use</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Running one prompt to completion with no interactive terminal:
-      assistant text on stdout, tool activity on stderr, and an exit code
-      that says how it went &mdash; the shape a script or a CI job needs.</dd>
-      <dt>When it helps</dt>
-      <dd>Automating a task (&ldquo;add a flag and open a PR&rdquo;) from a
-      script, or running janetcode as one step of a larger pipeline.</dd>
-      <dt>How to use it</dt>
-      <dd><code>janetcode -p "&lt;prompt&gt;" --yolo</code>; add
-      <code>--output-format json</code> for a single machine-readable
-      result object, or <code>stream-json</code> for one JSON line per
-      event as it happens. <code>--until "&lt;cmd&gt;"</code> keeps a
-      headless run going until a command exits 0 (up to five rounds); the
-      exit code is the verdict, never the model's own opinion of its
-      work.</dd>
-    </dl>
-    <p>Without <code>--yolo</code> and without a terminal to ask, a
-    mutating tool call is simply denied rather than left hanging &mdash;
-    a headless run either has permission in advance or does not touch
-    anything.</p>
-  </div>
-  </div>
-
-  <div class="feature-group">
-  <h2>Cost and experience</h2>
-
-  <div class="feature" id="cost">
-    <h3>Cost and budget</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Running total of tokens and estimated cost for a session, and an
-      optional hard ceiling that stops the session once it is reached.</dd>
-      <dt>When it helps</dt>
-      <dd>A long or exploratory session where you want to know what it is
-      costing as you go, or a headless run in a script that should stop
-      rather than run away.</dd>
-      <dt>How to use it</dt>
-      <dd><code>/usage</code> (tokens and cost so far) and
-      <code>/stats</code> (turns, model calls, tool calls per tool,
-      failures, cache hit rate) inside a session; <code>/budget
-      &lt;usd&gt;</code> to set a ceiling for this session,
-      <code>--max-cost &lt;usd&gt;</code> for a headless run (exits 55 when
-      reached).</dd>
-    </dl>
-    <p>A cost figure is labelled by where it came from: <code>reported</code>
-    when the provider sent an actual figure with the response,
-    <code>list price</code> when it was worked out from a rate table
-    (an estimate, not money spent), and <code>unpriced</code> when
-    neither is available.</p>
-  </div>
-
-  <div class="feature" id="themes">
-    <h3>Themes</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>A named colour palette for the terminal interface; eighteen are
-      built in, from a historical default to Solarized, Nord, Dracula,
-      Gruvbox, Catppuccin, a high-contrast theme and a near-colourless
-      one.</dd>
-      <dt>When it helps</dt>
-      <dd>The default colours are hard to read on your terminal or
-      background, or you simply prefer a different look.</dd>
-      <dt>How to use it</dt>
-      <dd><code>/theme</code> opens a live, searchable list; <code>/theme
-      &lt;name&gt;</code> switches directly; <code>--theme &lt;name&gt;</code>
-      sets one for a single run. You can also define your own with
-      fourteen named colour roles in the config file.</dd>
-    </dl>
-  </div>
-
-  <div class="feature" id="hints">
-    <h3>Hints</h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>One-time, faint notices about a feature you appear not to know
-      about, shown at the exact moment it would have helped &mdash;
-      approving the same command a ninth time, or a command holding a turn
-      open for twenty seconds with no mention of the key that would back
-      it up.</dd>
-      <dt>When it helps</dt>
-      <dd>You are new to janetcode, or have never needed a particular
-      corner of it; each hint fires at most once, ever, and never for a
-      feature you already use.</dd>
-      <dt>How to use it</dt>
-      <dd>On by default; <code>/hints off</code> silences them for the
-      session, <code>"hints": false</code> in the config file turns them
-      off for good.</dd>
-    </dl>
-  </div>
-
-  <div class="feature" id="step-routing">
-    <h3>Step routing <span class="pill">experimental</span></h3>
-    <dl>
-      <dt>What it is</dt>
-      <dd>Sends a turn's purely mechanical steps &mdash; reading a file,
-      listing a directory, re-running a check that already passed &mdash;
-      to a second, cheaper model, while the first call of every turn,
-      planning and edits stay on the main model.</dd>
-      <dt>When it helps</dt>
-      <dd>Nothing yet, by design: the manual is explicit that this should
-      only be turned on after an eval run shows a real cost saving with no
-      drop in pass rate on the harder task set, not from turning it on and
-      reading a transcript.</dd>
-      <dt>How to use it</dt>
-      <dd><code>"route_cheap": "&lt;model&gt;"</code> in the config file;
-      empty (the default) is off. Measure it first with
-      <code>EVAL_ROUTE=&lt;model&gt; make eval</code>, compared against a
-      baseline &mdash; see <a href="reference.html#config">the
-      configuration reference</a> and the evals manual for the exact
-      commands.</dd>
-    </dl>
-    <p>Marked experimental deliberately: it is off by default, the policy
-    is a short list of fixed rules rather than anything learned, and the
-    project's own documentation says its value has to be demonstrated per
-    project with an eval comparison before it is worth leaving on.</p>
   </div>
   </div>
 </main>
@@ -968,7 +962,15 @@
   Drawn mainly from <code>docs/manual/interface.md</code>, with
   <code>docs/manual/configuration.md</code>, <code>docs/manual/evals.md</code>,
   <code>docs/manual/sessions.md</code> and <code>docs/manual/editor.md</code>.</p>
+  <nav class="footer-links" aria-label="Footer">
+    <a href="index.html">Home</a>
+    <a href="features.html">Features</a>
+    <a href="how-it-works.html">How it works</a>
+    <a href="reference.html">Reference</a>
+    <a href="https://github.com/xmonader/janetcode">GitHub</a>
+  </nav>
 </footer>
+<script src="js/theme.js"></script>
 <script src="js/copy.js"></script>
 </body>
 </html>

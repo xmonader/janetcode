@@ -24,8 +24,14 @@ python3 -m http.server
 - `reference.html` — commands, flags, exit codes, tools, configuration keys,
   environment variables and project files
 
-`css/style.css` is the only stylesheet; `js/copy.js` adds a small "copy"
-button to code blocks and does nothing else.
+`css/style.css` is the only stylesheet, a dark-first developer-tool
+theme (system sans for prose, system monospace for code and the
+terminal) with a light variant via `prefers-color-scheme`. Two small,
+dependency-free scripts: `js/theme.js` toggles and remembers a light/dark
+choice in `localStorage` (the button in the header; the page still
+follows the system preference until you use it), and `js/copy.js` adds a
+"copy" button to code blocks (skipping the illustrative terminal session
+on the home page, which isn't meant to be copied) and does nothing else.
 
 ## Keeping it in sync with the manual
 

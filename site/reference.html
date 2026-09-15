@@ -6,9 +6,11 @@
 <title>Reference &mdash; janetcode</title>
 <meta name="description" content="Command-line reference for janetcode: every slash command, flag, exit code, configuration key, environment variable and project file, generated from the source tables the program itself runs on.">
 <link rel="stylesheet" href="css/style.css">
+<script>(function(){try{var t=localStorage.getItem("janetcode-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
 </head>
 <body>
 <header class="site-header">
+<div class="header-left">
   <a class="brand" href="index.html">janetcode</a>
   <nav class="site-nav" aria-label="Primary">
     <a href="index.html">Home</a>
@@ -17,9 +19,14 @@
     <a href="reference.html" aria-current="page">Reference</a>
     <a href="https://github.com/xmonader/janetcode">GitHub</a>
   </nav>
+</div>
+<div class="header-right">
+<button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">&#9789;</button>
+</div>
 </header>
 
 <main class="wide">
+  <p class="eyebrow">Reference</p>
   <h1>Reference</h1>
   <p class="lede">Commands, flags, exit codes, configuration keys and
   project files. The command and flag tables are generated from
@@ -30,6 +37,7 @@
   for how the pieces fit together, see
   <a href="how-it-works.html">how it works</a>.</p>
 
+  <div class="page-grid">
   <nav class="toc" aria-label="On this page">
     <h2>On this page</h2>
     <ul>
@@ -43,6 +51,7 @@
     </ul>
   </nav>
 
+  <div class="page-content">
   <section id="commands">
     <h2>Slash commands</h2>
     <p>Typed at the prompt inside a session. <kbd>Tab</kbd> completes a
@@ -386,6 +395,8 @@
     </table>
     </div>
   </section>
+  </div>
+  </div>
 </main>
 
 <footer class="site-footer">
@@ -395,7 +406,15 @@
   and <code>docs/manual/cli.md</code>; everything else drawn from
   <code>docs/manual/configuration.md</code> and
   <code>docs/manual/interface.md</code>.</p>
+  <nav class="footer-links" aria-label="Footer">
+    <a href="index.html">Home</a>
+    <a href="features.html">Features</a>
+    <a href="how-it-works.html">How it works</a>
+    <a href="reference.html">Reference</a>
+    <a href="https://github.com/xmonader/janetcode">GitHub</a>
+  </nav>
 </footer>
+<script src="js/theme.js"></script>
 <script src="js/copy.js"></script>
 </body>
 </html>

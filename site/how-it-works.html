@@ -6,9 +6,11 @@
 <title>How it works &mdash; janetcode</title>
 <meta name="description" content="The turn loop behind janetcode: prompt, model, tool calls with approval, verification and a verdict, all written to a session record; plus permissions, sessions, undo and subagents.">
 <link rel="stylesheet" href="css/style.css">
+<script>(function(){try{var t=localStorage.getItem("janetcode-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
 </head>
 <body>
 <header class="site-header">
+<div class="header-left">
   <a class="brand" href="index.html">janetcode</a>
   <nav class="site-nav" aria-label="Primary">
     <a href="index.html">Home</a>
@@ -17,9 +19,14 @@
     <a href="reference.html">Reference</a>
     <a href="https://github.com/xmonader/janetcode">GitHub</a>
   </nav>
+</div>
+<div class="header-right">
+<button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme">&#9789;</button>
+</div>
 </header>
 
 <main>
+  <p class="eyebrow">The turn loop</p>
   <h1>How it works</h1>
   <p class="lede">One exchange with the model &mdash; from the moment you
   press enter to the moment janetcode is ready for your next message &mdash;
@@ -101,8 +108,15 @@
     session:</p>
     <div class="code-block">
       <pre><code>"permissions": {
-  "allow": ["read_file", "bash(go test *)", "edit_file(internal/*)"],
-  "deny":  ["bash(git push*)", "bash(rm -rf *)"]
+  "allow": [
+    "read_file",
+    "bash(go test *)",
+    "edit_file(internal/*)"
+  ],
+  "deny": [
+    "bash(git push*)",
+    "bash(rm -rf *)"
+  ]
 }</code></pre>
     </div>
     <p><code>/permissions</code> lists and adds rules; a project can ship
@@ -173,13 +187,13 @@
       <caption>Verdicts and what they mean</caption>
       <thead><tr><th>Verdict</th><th>What it means</th></tr></thead>
       <tbody>
-        <tr><td><code>verified</code></td><td>tests ran and passed afterwards (and it says so when a failing check flipped to green)</td></tr>
-        <tr><td><code>self-checked</code></td><td>tests passed, but the tests themselves were edited in the same turn</td></tr>
-        <tr><td><code>not demonstrated</code></td><td>a check passed without exercising anything, or code ran with nothing asserting the result</td></tr>
-        <tr><td><code>unverified</code></td><td>code was edited and nothing was run against it</td></tr>
-        <tr><td><code>check failed</code></td><td>something ran and came back red</td></tr>
-        <tr><td><code>vacuous</code></td><td>a check exited 0 having found no tests to run</td></tr>
-        <tr><td><code>tests written</code></td><td>an acceptance-test writing turn wrote only test files, and they fail, as they should until the implementation exists</td></tr>
+        <tr><td><code class="v-ok">verified</code></td><td>tests ran and passed afterwards (and it says so when a failing check flipped to green)</td></tr>
+        <tr><td><code class="v-warn">self-checked</code></td><td>tests passed, but the tests themselves were edited in the same turn</td></tr>
+        <tr><td><code class="v-warn">not demonstrated</code></td><td>a check passed without exercising anything, or code ran with nothing asserting the result</td></tr>
+        <tr><td><code class="v-warn">unverified</code></td><td>code was edited and nothing was run against it</td></tr>
+        <tr><td><code class="v-bad">check failed</code></td><td>something ran and came back red</td></tr>
+        <tr><td><code class="v-warn">vacuous</code></td><td>a check exited 0 having found no tests to run</td></tr>
+        <tr><td><code class="v-warn">tests written</code></td><td>an acceptance-test writing turn wrote only test files, and they fail, as they should until the implementation exists</td></tr>
       </tbody>
     </table>
     </div>
@@ -223,7 +237,15 @@
   <a href="https://github.com/xmonader/janetcode">github.com/xmonader/janetcode</a>.
   Drawn from <code>docs/manual/interface.md</code> and
   <code>docs/manual/sessions.md</code>.</p>
+  <nav class="footer-links" aria-label="Footer">
+    <a href="index.html">Home</a>
+    <a href="features.html">Features</a>
+    <a href="how-it-works.html">How it works</a>
+    <a href="reference.html">Reference</a>
+    <a href="https://github.com/xmonader/janetcode">GitHub</a>
+  </nav>
 </footer>
+<script src="js/theme.js"></script>
 <script src="js/copy.js"></script>
 </body>
 </html>
