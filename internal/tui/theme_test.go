@@ -115,13 +115,13 @@ func TestGutterCollapsesUnderThreshold(t *testing.T) {
 
 	// The transcript indents its top-level lines by the gutter when it is
 	// on, and not when it is off.
-	tr := newTranscriptStyled("dark")
+	tr := newTranscriptStyled("dark", defaultStyles())
 	tr.user("hello there")
 	wide := plain(tr.render(renderOpts{width: 100, gutter: 2}))
 	if !strings.Contains(wide, "\n  ❯ ") && !strings.HasPrefix(wide, "  ❯ ") {
 		t.Errorf("wide render did not indent the prompt line:\n%q", wide)
 	}
-	tr2 := newTranscriptStyled("dark")
+	tr2 := newTranscriptStyled("dark", defaultStyles())
 	tr2.user("hello there")
 	narrow := plain(tr2.render(renderOpts{width: 100, gutter: 0}))
 	if strings.HasPrefix(narrow, "  ❯") {

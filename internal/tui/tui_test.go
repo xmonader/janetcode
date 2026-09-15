@@ -4206,7 +4206,7 @@ func TestFitPhrase(t *testing.T) {
 // /open and /changes ended in "……".
 func TestCodeLinesEndInOneEllipsis(t *testing.T) {
 	long := "/diff <path> shows the hunks · /diff revert <path>:<n> reverts one · /undo reverts a whole turn"
-	out := plain(renderCode(long, 40))
+	out := plain(renderCode(defaultStyles(), long, 40))
 	if strings.Contains(out, "……") {
 		t.Fatalf("two ellipses: %q", out)
 	}

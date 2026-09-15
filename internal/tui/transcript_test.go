@@ -18,6 +18,9 @@ import (
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
+// newTranscript is a dark transcript drawn with the default styles.
+func newTranscript() *transcript { return newTranscriptStyled("dark", defaultStyles()) }
+
 var ansiRe = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
 
 func plain(s string) string { return ansiRe.ReplaceAllString(s, "") }
@@ -284,7 +287,7 @@ func TestGoalEndIsALineOfItsOwn(t *testing.T) {
 func TestMarkdownStyleHasNoBackgrounds(t *testing.T) {
 	const src = "# Heading\n\nSome `inline code` and *emph* here.\n\n```go\nfunc main() {}\n```\n"
 	for _, style := range []string{"dark", "light"} {
-		tr := newTranscriptStyled(style)
+		tr := newTranscriptStyled(style, defaultStyles())
 		tr.apply(agent.Event{Kind: agent.EvText, Text: src})
 		tr.apply(agent.Event{Kind: agent.EvTurnDone})
 		out := tr.render(renderOpts{width: 80, renderer: builtinRenderers})
@@ -306,10 +309,11 @@ func TestMarkdownStyleHasNoBackgrounds(t *testing.T) {
 // rather than glamour's own colours.
 func TestMarkdownStyleUsesPalette(t *testing.T) {
 	for _, dark := range []bool{true, false} {
-		c := markdownStyle(dark)
-		accent, tool := colAccent.Light, colTool.Light
+		p := defaultStyles().col
+		c := markdownStyle(p, dark)
+		accent, tool := p.accent.Light, p.tool.Light
 		if dark {
-			accent, tool = colAccent.Dark, colTool.Dark
+			accent, tool = p.accent.Dark, p.tool.Dark
 		}
 		if c.Heading.Color == nil || *c.Heading.Color != accent {
 			t.Errorf("dark=%v heading colour = %v, want %s", dark, c.Heading.Color, accent)
@@ -498,7 +502,7 @@ func TestPendingCallIsNotStillStreaming(t *testing.T) {
 // printed a replacement character.
 func TestPreviewTruncationKeepsUTF8(t *testing.T) {
 	preview := "--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n+" + strings.Repeat("é", 60) + "\n"
-	out := plain(renderPreview(preview, 40, 10, true))
+	out := plain(renderPreview(defaultStyles(), preview, 40, 10, true))
 	if strings.ContainsRune(out, '�') || !utf8.ValidString(out) {
 		t.Fatalf("truncation corrupted UTF-8: %q", out)
 	}
@@ -777,7 +781,7 @@ func TestCommandSummaryShortensPaths(t *testing.T) {
 // like a paragraph's; a new item, a nested list and a hard break stay.
 func TestListItemSoftBreaksReflow(t *testing.T) {
 	text := "- **Clip** now counts display width, so it no longer splits multi-byte characters\n  when truncating long lines.\n  - nested item\n- second item ends in a hard break  \n  kept on its own line"
-	tr := newTranscriptStyled("dark")
+	tr := newTranscriptStyled("dark", defaultStyles())
 	tr.apply(agent.Event{Kind: agent.EvText, Text: text})
 	tr.apply(agent.Event{Kind: agent.EvTurnDone})
 	out := plain(tr.render(renderOpts{width: 140}))

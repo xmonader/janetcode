@@ -169,6 +169,8 @@ type PermOptions struct {
 
 type model struct {
 	opts Options
+	// styles is what every view draws with; a theme switch replaces it.
+	styles *styles
 	// quitArmedAt is when ctrl+c was last pressed while idle.
 	quitArmedAt time.Time
 	// pendingClosedAt is when the last permission prompt closed.
@@ -309,7 +311,8 @@ func newModel(opts Options) *model {
 	bgDark := lipgloss.HasDarkBackground()
 	th, dark := resolveTheme(opts.Theme, opts.Themes, bgDark)
 	lipgloss.SetHasDarkBackground(dark)
-	applyTheme(th)
+	st := newStyles(th, ansi)
+	install(st)
 	style := "light"
 	if dark {
 		style = "dark"
@@ -320,7 +323,8 @@ func newModel(opts Options) *model {
 		pinned:     true,
 		approver:   &tuiApprover{},
 		asker:      &tuiAsker{},
-		transcript: newTranscriptStyled(style),
+		styles:     st,
+		transcript: newTranscriptStyled(style, st),
 		queue:      &eventQueue{},
 		input:      ta,
 		spinner:    sp,

@@ -138,7 +138,7 @@ func (h diffHunk) changePair() (int, int, bool) {
 
 // renderDiff draws the hunks with a gutter, elisions between them and the
 // changed tokens picked out where a single line was replaced.
-func renderDiff(hunks []diffHunk, width, maxLines int, expandable bool) string {
+func renderDiff(sty *styles, hunks []diffHunk, width, maxLines int, expandable bool) string {
 	last := 0
 	for _, h := range hunks {
 		if e := h.newStart + len(h.lines); e > last {
@@ -152,7 +152,7 @@ func renderDiff(hunks []diffHunk, width, maxLines int, expandable bool) string {
 		h := raw.trimContext()
 		if i > 0 {
 			if gap := h.newStart - prevEnd; gap > 0 {
-				out = append(out, styleFaint.Render(fmt.Sprintf("  %s … %d unchanged lines", strings.Repeat(" ", gw), gap)))
+				out = append(out, sty.faint.Render(fmt.Sprintf("  %s … %d unchanged lines", strings.Repeat(" ", gw), gap)))
 			}
 		}
 		hiDel, hiAdd := -1, -1
@@ -162,12 +162,12 @@ func renderDiff(hunks []diffHunk, width, maxLines int, expandable bool) string {
 		oldN, newN := h.oldStart, h.newStart
 		for j, l := range h.lines {
 			n := newN
-			style := styleDim
+			style := sty.dim
 			switch l.kind {
 			case '+':
-				style, newN = styleDiffAdd, newN+1
+				style, newN = sty.diffAdd, newN+1
 			case '-':
-				n, style, oldN = oldN, styleDiffDel, oldN+1
+				n, style, oldN = oldN, sty.diffDel, oldN+1
 			default:
 				oldN, newN = oldN+1, newN+1
 			}
@@ -180,7 +180,7 @@ func renderDiff(hunks []diffHunk, width, maxLines int, expandable bool) string {
 			default:
 				text = style.Render(text)
 			}
-			gutter := styleFaint.Render(fmt.Sprintf("  %*d │ ", gw, n))
+			gutter := sty.faint.Render(fmt.Sprintf("  %*d │ ", gw, n))
 			out = append(out, fitLine(gutter+style.Render(string(l.kind))+text, width-2))
 		}
 		prevEnd = newN
@@ -190,7 +190,7 @@ func renderDiff(hunks []diffHunk, width, maxLines int, expandable bool) string {
 		hidden, out = len(out)-maxLines, out[:maxLines]
 	}
 	if hidden > 0 {
-		out = append(out, styleFaint.Render("  "+moreNote(hidden, expandable)))
+		out = append(out, sty.faint.Render("  "+moreNote(hidden, expandable)))
 	}
 	return strings.Join(out, "\n")
 }

@@ -323,7 +323,7 @@ func (m *model) cmdClear(text string, fields []string) (tea.Cmd, bool) {
 		m.transcript.errorf("%v", err)
 	}
 	m.titleGen++ // a title generated for the old conversation must not land here
-	m.transcript = newTranscriptStyled(m.transcript.styleName)
+	m.transcript = newTranscriptStyled(m.transcript.styleName, m.styles)
 	m.transcript.cwd = m.opts.Cwd
 	m.transcript.banner(m.welcome(""))
 	m.note("new session " + sess.Meta.ID)
