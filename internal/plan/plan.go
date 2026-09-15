@@ -20,6 +20,7 @@
 package plan
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -69,11 +70,22 @@ func Extract(text string) (body string, ok bool) {
 	return "", false
 }
 
+// ErrNoRoot is returned by Write when there is no project root to put the
+// plan file in.
+var ErrNoRoot = errors.New("plan: no project root")
+
 // Write puts body in the project's plan file, moving the version it
 // replaces to plan.md.prev. It reports whether the file changed: a turn
 // that restates the same plan rewrites nothing and keeps the previous
 // version pointing at the last real revision.
 func Write(root, body string) (changed bool, err error) {
+	// Without a project root the path would be relative to whatever
+	// directory the process happens to be in — which is how a test once
+	// wrote a plan into the package it was testing. A session always has
+	// a root (Agent.Root); anything else keeps its plan in memory only.
+	if root == "" {
+		return false, ErrNoRoot
+	}
 	path := File(root)
 	body = strings.TrimRight(body, "\n") + "\n"
 	if old, err := os.ReadFile(path); err == nil {

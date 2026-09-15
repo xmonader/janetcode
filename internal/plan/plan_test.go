@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,5 +109,14 @@ func TestCommentsCollectAndEmpty(t *testing.T) {
 	}
 	if c.Len() != 0 {
 		t.Fatal("taking the comments left some behind")
+	}
+}
+
+// TestWriteRefusesWithoutRoot: a plan written with no project root would
+// land wherever the process happens to be — a test once committed one
+// into internal/tui.
+func TestWriteRefusesWithoutRoot(t *testing.T) {
+	if _, err := Write("", "## Plan\n1. do it\n"); !errors.Is(err, ErrNoRoot) {
+		t.Fatalf("err = %v, want ErrNoRoot", err)
 	}
 }
