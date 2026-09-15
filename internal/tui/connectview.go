@@ -25,6 +25,33 @@ func (m *model) dialogStep(win int) int {
 	return win
 }
 
+// listMove is how the highlight moves in every modal list: up and down
+// wrap around, pgup and pgdown move by the window the last frame drew.
+// It reports whether the key was one of those, so the picker, /connect
+// and the step dialog agree without saying it three times.
+func listMove(key string, idx, n, step int) (next int, handled bool) {
+	switch key {
+	case "up", "ctrl+p":
+		if n == 0 {
+			return idx, true
+		}
+		return (idx - 1 + n) % n, true
+	case "down", "ctrl+n":
+		if n == 0 {
+			return idx, true
+		}
+		return (idx + 1) % n, true
+	case "pgup":
+		return max(idx-step, 0), true
+	case "pgdown":
+		if n == 0 {
+			return idx, true
+		}
+		return min(idx+step, n-1), true
+	}
+	return idx, false
+}
+
 func fitRows(height, chrome int) int {
 	avail := height - chrome
 	if avail < 1 {

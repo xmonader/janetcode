@@ -139,7 +139,9 @@ var dispatch = map[string]cmdHandler{
 	},
 	"/model": (*model).cmdModel,
 	"/mcp": func(m *model, text string, fields []string) (tea.Cmd, bool) {
-		m.mcpCommand(fields[1:])
+		if cmd := m.mcpCommand(fields[1:]); cmd != nil {
+			return cmd, true
+		}
 		return nil, false
 	},
 	"/hooks": func(m *model, text string, fields []string) (tea.Cmd, bool) {

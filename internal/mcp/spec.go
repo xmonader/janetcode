@@ -156,23 +156,32 @@ func IsURL(s string) bool {
 	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
 }
 
-// putPair records "KEY=value" or "Name: value" in m.
-func putPair(m map[string]string, s string) error {
+// ParsePair reads one environment variable ("KEY=value") or one header
+// ("Name: value"), which the dialog and the command line both accept.
+func ParsePair(s string) (key, value string, err error) {
 	if k, v, ok := strings.Cut(s, "="); ok && !strings.HasPrefix(k, " ") {
 		if strings.TrimSpace(k) == "" {
-			return fmt.Errorf("%q has no name", s)
+			return "", "", fmt.Errorf("%q has no name", s)
 		}
-		m[strings.TrimSpace(k)] = v
-		return nil
+		return strings.TrimSpace(k), v, nil
 	}
 	if k, v, ok := strings.Cut(s, ":"); ok {
 		if strings.TrimSpace(k) == "" {
-			return fmt.Errorf("%q has no name", s)
+			return "", "", fmt.Errorf("%q has no name", s)
 		}
-		m[strings.TrimSpace(k)] = strings.TrimSpace(v)
-		return nil
+		return strings.TrimSpace(k), strings.TrimSpace(v), nil
 	}
-	return fmt.Errorf("%q is not KEY=value", s)
+	return "", "", fmt.Errorf("%q is not KEY=value", s)
+}
+
+// putPair records "KEY=value" or "Name: value" in m.
+func putPair(m map[string]string, s string) error {
+	k, v, err := ParsePair(s)
+	if err != nil {
+		return err
+	}
+	m[k] = v
+	return nil
 }
 
 // Describe summarises a server the way /mcp add reports what it wrote.

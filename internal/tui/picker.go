@@ -75,30 +75,6 @@ func (m *model) handlePickerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	case "esc", "ctrl+c":
 		m.closePicker()
 		return nil, true
-	case "up", "down", "ctrl+p", "ctrl+n":
-		rows, idx := m.pickerRows()
-		if len(rows) > 0 {
-			d := 1
-			if keyName(msg) == "up" || keyName(msg) == "ctrl+p" {
-				d = -1
-			}
-			p.idx = (idx + d + len(rows)) % len(rows)
-			p.idxFor = p.field.Value()
-			m.refresh(false)
-		}
-		return nil, true
-	case "pgup", "pgdown":
-		rows, idx := m.pickerRows()
-		if len(rows) > 0 {
-			if keyName(msg) == "pgup" {
-				p.idx = max(idx-m.dialogStep(p.winRows), 0)
-			} else {
-				p.idx = min(idx+m.dialogStep(p.winRows), len(rows)-1)
-			}
-			p.idxFor = p.field.Value()
-			m.refresh(false)
-		}
-		return nil, true
 	case "enter":
 		rows, idx := m.pickerRows()
 		typed := strings.TrimSpace(p.field.Value())
@@ -113,6 +89,13 @@ func (m *model) handlePickerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			return choose(row{}, typed), true
 		}
 		return nil, true
+	}
+	if rows, idx := m.pickerRows(); len(rows) > 0 {
+		if next, ok := listMove(keyName(msg), idx, len(rows), m.dialogStep(p.winRows)); ok {
+			p.idx, p.idxFor = next, p.field.Value()
+			m.refresh(false)
+			return nil, true
+		}
 	}
 	var cmd tea.Cmd
 	p.field, cmd = p.field.Update(msg)
