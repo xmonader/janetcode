@@ -14,7 +14,6 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
-// toolAcc accumulates a streamed tool call.
 // slotFor decides which tool call a streamed delta belongs to.
 //
 // Providers disagree about how they number tool calls, and every way of
@@ -131,6 +130,7 @@ func mergeName(cur, chunk string) string {
 	return cur + chunk
 }
 
+// toolAcc accumulates a streamed tool call.
 type toolAcc struct {
 	id, name string
 	args     strings.Builder
@@ -145,19 +145,8 @@ type toolAcc struct {
 func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Response, error) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
-	var (
-		text     strings.Builder
-		thinking strings.Builder
-		tools    = map[int]*toolAcc{}
-		byID     = map[string]int{}
-		order    []int
-		byIndex  = map[int]int{}
-		nextSlot int
-		finish   string
-		usage    llm.Usage
-		gotDone  bool
-		gotChunk bool
-	)
+	st := newStreamState(emit)
+	var gotDone, gotChunk bool
 	// Blocks are emitted in the order: thinking, text, tool calls, matching how
 	// the model produced them well enough for history replay.
 	for sc.Scan() {
@@ -185,68 +174,7 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 			return nil, &APIError{Status: 200, Message: ch.Error.Message}
 		}
 		gotChunk = true
-		if ch.Usage != nil {
-			pt := ch.Usage.PromptTokens
-			cached := 0
-			if ch.Usage.PromptTokensDetails != nil {
-				cached = ch.Usage.PromptTokensDetails.CachedTokens
-			}
-			// OpenAI/DashScope: cached_tokens is a subset of prompt_tokens.
-			// Store uncached input so Cost() and CacheRate() stay additive
-			// like the Anthropic path (input_tokens is already uncached there).
-			usage.OutputTokens = ch.Usage.CompletionTokens
-			usage.CacheReadTokens = cached
-			if cached > 0 && cached <= pt {
-				usage.InputTokens = pt - cached
-			} else {
-				usage.InputTokens = pt
-			}
-			usage.CostUSD = ch.Usage.Cost
-		}
-		for _, c := range ch.Choices {
-			if c.FinishReason != nil && *c.FinishReason != "" {
-				finish = *c.FinishReason
-			}
-			d := c.Delta
-			if d.ReasoningContent != "" || d.Reasoning != "" {
-				rc := d.ReasoningContent + d.Reasoning
-				thinking.WriteString(rc)
-				emit(llm.Event{Type: llm.EventThinkingDelta, Text: rc})
-			}
-			if d.Content != "" {
-				text.WriteString(d.Content)
-				emit(llm.Event{Type: llm.EventTextDelta, Text: d.Content})
-			}
-			for i, tc := range d.ToolCalls {
-				idx := slotFor(tc.Index, i, tc.ID, tc.Function.Name, tools, order, byIndex, byID, &nextSlot)
-				acc := tools[idx]
-				if !slices.Contains(order, idx) {
-					order = append(order, idx)
-				}
-				if tc.ID != "" {
-					acc.id = tc.ID
-					if _, seen := byID[tc.ID]; !seen {
-						byID[tc.ID] = idx
-					}
-				}
-				if tc.Function.Name != "" {
-					acc.name = mergeName(acc.name, tc.Function.Name)
-				}
-				if !acc.started && acc.name != "" {
-					acc.started = true
-					if acc.id == "" {
-						acc.id = fmt.Sprintf("call_%d_%d", time.Now().UnixNano(), idx)
-					}
-					emit(llm.Event{Type: llm.EventToolUseStart, Block: &llm.Block{Type: llm.BlockToolUse, ID: acc.id, Name: acc.name}})
-				}
-				if tc.Function.Arguments != "" {
-					delta := mergeArguments(&acc.args, tc.Function.Arguments)
-					if delta != "" {
-						emit(llm.Event{Type: llm.EventToolUseDelta, Text: delta})
-					}
-				}
-			}
-		}
+		st.add(ch)
 	}
 	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("openai: stream read: %w", err)
@@ -254,22 +182,120 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 	if !gotChunk {
 		return nil, errors.New("openai: empty stream from server")
 	}
-	if !gotDone && finish == "" {
+	if !gotDone && st.finish == "" {
 		return nil, errors.New("openai: stream ended without finish_reason")
 	}
+	return st.response()
+}
 
-	msg := llm.Message{Role: llm.RoleAssistant}
-	if thinking.Len() > 0 {
-		msg.Blocks = append(msg.Blocks, llm.Block{Type: llm.BlockThinking, Text: thinking.String()})
+// streamState is what readStream has accumulated from the chunks so far.
+type streamState struct {
+	emit     func(llm.Event)
+	text     strings.Builder
+	thinking strings.Builder
+	tools    map[int]*toolAcc
+	byID     map[string]int
+	order    []int
+	byIndex  map[int]int
+	nextSlot int
+	finish   string
+	usage    llm.Usage
+}
+
+func newStreamState(emit func(llm.Event)) *streamState {
+	return &streamState{emit: emit, tools: map[int]*toolAcc{}, byID: map[string]int{}, byIndex: map[int]int{}}
+}
+
+// add folds one decoded chunk into the state, emitting deltas as they
+// arrive.
+func (s *streamState) add(ch wireChunk) {
+	if ch.Usage != nil {
+		s.usage = usageOf(ch.Usage)
 	}
-	if text.Len() > 0 {
-		msg.Blocks = append(msg.Blocks, llm.Block{Type: llm.BlockText, Text: text.String()})
+	for _, c := range ch.Choices {
+		if c.FinishReason != nil && *c.FinishReason != "" {
+			s.finish = *c.FinishReason
+		}
+		d := c.Delta
+		if d.ReasoningContent != "" || d.Reasoning != "" {
+			rc := d.ReasoningContent + d.Reasoning
+			s.thinking.WriteString(rc)
+			s.emit(llm.Event{Type: llm.EventThinkingDelta, Text: rc})
+		}
+		if d.Content != "" {
+			s.text.WriteString(d.Content)
+			s.emit(llm.Event{Type: llm.EventTextDelta, Text: d.Content})
+		}
+		for i, tc := range d.ToolCalls {
+			s.addToolCall(i, tc)
+		}
+	}
+}
+
+// usageOf converts the wire usage.
+func usageOf(u *wireUsage) llm.Usage {
+	pt := u.PromptTokens
+	cached := 0
+	if u.PromptTokensDetails != nil {
+		cached = u.PromptTokensDetails.CachedTokens
+	}
+	// OpenAI/DashScope: cached_tokens is a subset of prompt_tokens.
+	// Store uncached input so Cost() and CacheRate() stay additive
+	// like the Anthropic path (input_tokens is already uncached there).
+	usage := llm.Usage{OutputTokens: u.CompletionTokens, CacheReadTokens: cached, CostUSD: u.Cost}
+	if cached > 0 && cached <= pt {
+		usage.InputTokens = pt - cached
+	} else {
+		usage.InputTokens = pt
+	}
+	return usage
+}
+
+// addToolCall folds the pos-th tool-call delta of a chunk into its call.
+func (s *streamState) addToolCall(pos int, tc wireDeltaToolCall) {
+	idx := slotFor(tc.Index, pos, tc.ID, tc.Function.Name, s.tools, s.order, s.byIndex, s.byID, &s.nextSlot)
+	acc := s.tools[idx]
+	if !slices.Contains(s.order, idx) {
+		s.order = append(s.order, idx)
+	}
+	if tc.ID != "" {
+		acc.id = tc.ID
+		if _, seen := s.byID[tc.ID]; !seen {
+			s.byID[tc.ID] = idx
+		}
+	}
+	if tc.Function.Name != "" {
+		acc.name = mergeName(acc.name, tc.Function.Name)
+	}
+	if !acc.started && acc.name != "" {
+		acc.started = true
+		if acc.id == "" {
+			acc.id = fmt.Sprintf("call_%d_%d", time.Now().UnixNano(), idx)
+		}
+		s.emit(llm.Event{Type: llm.EventToolUseStart, Block: &llm.Block{Type: llm.BlockToolUse, ID: acc.id, Name: acc.name}})
+	}
+	if tc.Function.Arguments != "" {
+		delta := mergeArguments(&acc.args, tc.Function.Arguments)
+		if delta != "" {
+			s.emit(llm.Event{Type: llm.EventToolUseDelta, Text: delta})
+		}
+	}
+}
+
+// response builds the assistant message from a completed stream.
+func (s *streamState) response() (*llm.Response, error) {
+	msg := llm.Message{Role: llm.RoleAssistant}
+	if s.thinking.Len() > 0 {
+		msg.Blocks = append(msg.Blocks, llm.Block{Type: llm.BlockThinking, Text: s.thinking.String()})
+	}
+	if s.text.Len() > 0 {
+		msg.Blocks = append(msg.Blocks, llm.Block{Type: llm.BlockText, Text: s.text.String()})
 	}
 	// Stable, so calls that shared a wire index keep the order they were
 	// streamed in.
-	sort.SliceStable(order, func(i, j int) bool { return tools[order[i]].sortKey < tools[order[j]].sortKey })
-	for _, idx := range order {
-		acc := tools[idx]
+	sort.SliceStable(s.order, func(i, j int) bool { return s.tools[s.order[i]].sortKey < s.tools[s.order[j]].sortKey })
+	for _, idx := range s.order {
+		acc := s.tools[idx]
 		args := strings.TrimSpace(acc.args.String())
 		if args == "" {
 			args = "{}"
@@ -279,26 +305,30 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 		}
 		b := llm.Block{Type: llm.BlockToolUse, ID: acc.id, Name: acc.name, Input: json.RawMessage(args)}
 		if !acc.started {
-			emit(llm.Event{Type: llm.EventToolUseStart, Block: &b})
+			s.emit(llm.Event{Type: llm.EventToolUseStart, Block: &b})
 		}
-		emit(llm.Event{Type: llm.EventToolUseEnd, Block: &b})
+		s.emit(llm.Event{Type: llm.EventToolUseEnd, Block: &b})
 		msg.Blocks = append(msg.Blocks, b)
 	}
 	if len(msg.Blocks) == 0 {
 		msg.Blocks = []llm.Block{{Type: llm.BlockText, Text: ""}}
 	}
-	stop := llm.StopEndTurn
+	return &llm.Response{Message: msg, StopReason: stopReason(s.finish, len(s.order) > 0), Usage: s.usage}, nil
+}
+
+// stopReason maps finish_reason; a response that called tools stops for
+// them whatever the server said.
+func stopReason(finish string, calledTools bool) llm.StopReason {
 	switch {
-	case len(order) > 0:
-		stop = llm.StopToolUse
+	case calledTools:
+		return llm.StopToolUse
 	case finish == "length":
-		stop = llm.StopMaxTokens
+		return llm.StopMaxTokens
 	case finish == "content_filter":
-		stop = llm.StopRefusal
+		return llm.StopRefusal
 	case finish == "stop", finish == "":
-		stop = llm.StopEndTurn
+		return llm.StopEndTurn
 	default:
-		stop = llm.StopOther
+		return llm.StopOther
 	}
-	return &llm.Response{Message: msg, StopReason: stop, Usage: usage}, nil
 }

@@ -90,29 +90,34 @@ type wireJSONSchema struct {
 type wireChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content          string `json:"content"`
-			ReasoningContent string `json:"reasoning_content"`
-			Reasoning        string `json:"reasoning"`
-			ToolCalls        []struct {
-				Index    *int   `json:"index"`
-				ID       string `json:"id"`
-				Function struct {
-					Name      string `json:"name"`
-					Arguments string `json:"arguments"`
-				} `json:"function"`
-			} `json:"tool_calls"`
+			Content          string              `json:"content"`
+			ReasoningContent string              `json:"reasoning_content"`
+			Reasoning        string              `json:"reasoning"`
+			ToolCalls        []wireDeltaToolCall `json:"tool_calls"`
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
-	Usage *struct {
-		PromptTokens        int `json:"prompt_tokens"`
-		CompletionTokens    int `json:"completion_tokens"`
-		PromptTokensDetails *struct {
-			CachedTokens int `json:"cached_tokens"`
-		} `json:"prompt_tokens_details"`
-		Cost float64 `json:"cost"` // OpenRouter reports the request price
-	} `json:"usage"`
+	Usage *wireUsage `json:"usage"`
 	Error *wireError `json:"error"`
+}
+
+// wireDeltaToolCall is one tool-call fragment in a streamed delta.
+type wireDeltaToolCall struct {
+	Index    *int   `json:"index"`
+	ID       string `json:"id"`
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	} `json:"function"`
+}
+
+type wireUsage struct {
+	PromptTokens        int `json:"prompt_tokens"`
+	CompletionTokens    int `json:"completion_tokens"`
+	PromptTokensDetails *struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"prompt_tokens_details"`
+	Cost float64 `json:"cost"` // OpenRouter reports the request price
 }
 
 type wireError struct {
