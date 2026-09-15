@@ -9,7 +9,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
@@ -87,7 +86,7 @@ func TestFrontEndCallsDuringATurn(t *testing.T) {
 // TestSettingsChangesDuringATurn is a race-detector test for the settings
 // a front-end changes while a turn runs: the mode toggles (shift+tab,
 // /yolo, /auto, /edits, /readonly, /plan), the keys /config writes through
-// ApplyConfig, /model and /connect switching through SwitchModel, /pin and
+// settingsapply.Apply, /model and /connect switching through SwitchModel, /pin and
 // /unpin, and /permissions adding a rule — while a subagent is built from
 // the parent's settings on a goroutine of its own.
 func TestSettingsChangesDuringATurn(t *testing.T) {
@@ -99,7 +98,6 @@ func TestSettingsChangesDuringATurn(t *testing.T) {
 	a, root := newAgent(t, &fake{responses: responses}, ApproverFunc(func(context.Context, ToolCall) (Decision, error) { return Allow, nil }))
 	a.AutoApprove = true
 	a.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, tool.WriteFile{Root: root})
-	cfg := &config.Config{}
 	task := &Task{Parent: a}
 	prov := a.Settings().Provider
 
@@ -120,21 +118,19 @@ func TestSettingsChangesDuringATurn(t *testing.T) {
 			})
 			a.SetPlanMode(on)
 			_ = a.Settings()
-			for key, val := range map[string]string{
-				"model": fmt.Sprintf("m%d", i%3), "max_tokens": fmt.Sprint(1000 + i%2),
-				"compact_at": fmt.Sprint(-1 + i%2), "max_iterations": fmt.Sprint(100 + i%2),
-				"intent": fmt.Sprint(on), "proof_notes": fmt.Sprint(on),
-			} {
-				if _, err := ApplyConfig(cfg, a, "", key, val); err != nil {
-					t.Error(err)
-					return
-				}
-			}
+			// /config: what settingsapply.Apply writes for model,
+			// max_tokens, compact_at, max_iterations, intent, proof_notes.
+			a.UpdateSettings(func(s *Settings) { s.Model = fmt.Sprintf("m%d", i%3) })
+			a.UpdateSettings(func(s *Settings) { s.MaxTokens = 1000 + i%2 })
+			a.UpdateSettings(func(s *Settings) { s.CompactAt = -1 + i%2 })
+			a.UpdateSettings(func(s *Settings) { s.MaxIterations = 100 + i%2 })
+			a.Tools.SetIntent(on)
+			a.UpdateSettings(func(s *Settings) { s.ProofNotes = on })
 			// /model and /connect: model, provider, price and window.
 			if on {
-				a.SwitchModel(fmt.Sprintf("m%d", i%3), prov, cfg)
+				a.SwitchModel(fmt.Sprintf("m%d", i%3), prov, &llm.Price{Input: float64(i % 3)}, 1000+i%3)
 			} else {
-				a.SwitchModel("gpt-4o", nil, nil)
+				a.SwitchModel("gpt-4o", nil, nil, llm.KnownWindow("gpt-4o"))
 			}
 			_ = a.CompactThreshold()
 			a.Pin(fmt.Sprintf("note %d", i))

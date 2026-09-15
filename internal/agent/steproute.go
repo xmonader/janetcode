@@ -143,7 +143,7 @@ type routeCheapState struct {
 }
 
 // resolveRouteCheap resolves RouteCheap through Route once per session (or
-// once per change: ApplyConfig clears this when route_cheap is set live)
+// once per change: settingsapply.Apply clears this when route_cheap is set live)
 // and caches the result. A model that cannot be routed turns the feature
 // off for the rest of the session with one notice, exactly as the config
 // key's doc promises, rather than retrying — and failing the same way —

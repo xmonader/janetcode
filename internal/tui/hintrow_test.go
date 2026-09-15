@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/settingsapply"
 	"io"
 	"os"
 	"path/filepath"
@@ -604,7 +605,7 @@ func TestSwitchingModelAfterATurnOffersWhatIf(t *testing.T) {
 	withHints(h)
 	h.m.hintState.VerifyConfigured = true
 	// Before any turn, a switch is a choice of model, not a comparison.
-	h.m.opts.Agent.SwitchModel("m0", nil, nil)
+	settingsapply.SwitchModel(nil, h.m.opts.Agent, "m0", nil)
 	h.m.observeCommand([]string{"/model", "m0"})
 	if v := plain(h.m.View()); strings.Contains(v, "--what-if") {
 		t.Fatalf("a switch before any turn offered --what-if:\n%s", v)

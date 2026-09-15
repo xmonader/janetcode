@@ -4,7 +4,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 )
@@ -91,21 +90,18 @@ func (a *Agent) UpdateSettings(change func(*Settings)) {
 
 // SwitchModel moves the live session to model, safe while a turn runs:
 // onto prov when it is not nil (the model routes to another provider),
-// with the price and context window cfg records for the model — or, with
-// no config, the window llm knows for it. /model and /connect in every
-// front-end switch through it, so the four change together.
-func (a *Agent) SwitchModel(model string, prov llm.Provider, cfg *config.Config) {
+// with price and window as the model's price and context window. /model
+// and /connect in every front-end switch through it (via settingsapply,
+// which looks the price and window up in the config), so the four change
+// together.
+func (a *Agent) SwitchModel(model string, prov llm.Provider, price *llm.Price, window int) {
 	a.UpdateSettings(func(s *Settings) {
 		s.Model = model
 		if prov != nil {
 			s.Provider = prov
 		}
-		if cfg == nil {
-			s.ContextWindow = llm.KnownWindow(model)
-			return
-		}
-		s.Price = cfg.PriceFor(model)
-		s.ContextWindow = cfg.MetaFor(model).ContextWindow
+		s.Price = price
+		s.ContextWindow = window
 	})
 }
 

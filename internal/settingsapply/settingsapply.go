@@ -1,0 +1,73 @@
+// Package settingsapply carries configuration onto a live agent: /config,
+// /model and /connect in every front-end come through here, so the agent
+// itself does not need to know the config file's shape.
+package settingsapply
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/llm"
+)
+
+// Apply writes a catalogued config key onto cfg and the live agent,
+// and saves it to path when there is one. /config in every front-end
+// comes through here, so a key set in one is set the same way in all.
+func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, error) {
+	key, val = strings.TrimSpace(key), strings.TrimSpace(val)
+	applied, err := config.ApplyKV(cfg, key, val)
+	if err != nil {
+		return nil, err
+	}
+	if path != "" {
+		if err := config.UpdateKey(path, key, applied); err != nil {
+			return nil, fmt.Errorf("save config: %w", err)
+		}
+	}
+	if a == nil {
+		return applied, nil
+	}
+	switch key {
+	case "intent":
+		if a.Tools != nil {
+			a.Tools.SetIntent(cfg.IntentEnabled())
+		}
+	case "auto_approve":
+		a.UpdateSettings(func(s *agent.Settings) { s.AutoApprove = cfg.AutoApprove })
+	case "compact_at":
+		a.UpdateSettings(func(s *agent.Settings) { s.CompactAt = cfg.CompactAt })
+	case "max_tokens":
+		a.UpdateSettings(func(s *agent.Settings) { s.MaxTokens = cfg.MaxTokens })
+	case "max_iterations":
+		a.UpdateSettings(func(s *agent.Settings) { s.MaxIterations = cfg.MaxIterations })
+	case "model":
+		a.UpdateSettings(func(s *agent.Settings) { s.Model = cfg.Model })
+	case "proof_notes":
+		a.UpdateSettings(func(s *agent.Settings) { s.ProofNotes = cfg.ProofNotesEnabled() })
+	case "route_cheap":
+		a.SetRouteCheap(cfg.RouteCheap)
+	}
+	return applied, nil
+}
+
+// SwitchModel moves the live session to model, safe while a turn runs:
+// onto prov when it is not nil (the model routes to another provider),
+// with the price and context window cfg records for the model — or, with
+// no config, the window llm knows for it and the price unchanged. /model
+// and /connect in every front-end switch through it, so the four change
+// together.
+func SwitchModel(cfg *config.Config, a *agent.Agent, model string, prov llm.Provider) {
+	if cfg == nil {
+		a.UpdateSettings(func(s *agent.Settings) {
+			s.Model = model
+			if prov != nil {
+				s.Provider = prov
+			}
+			s.ContextWindow = llm.KnownWindow(model)
+		})
+		return
+	}
+	a.SwitchModel(model, prov, cfg.PriceFor(model), cfg.MetaFor(model).ContextWindow)
+}

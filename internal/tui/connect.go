@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/settingsapply"
 	"net/url"
 	"sort"
 	"strconv"
@@ -505,7 +506,7 @@ func (m *model) applyConnect(modelID string) {
 	if mi, ok := c.meta[modelID]; ok {
 		m.rememberModel(mi)
 	}
-	m.opts.Agent.SwitchModel(modelID, prov, m.opts.Config)
+	settingsapply.SwitchModel(m.opts.Config, m.opts.Agent, modelID, prov)
 	s := m.opts.Agent.Settings()
 	if d := modelDetails(llm.ModelInfo{ContextWindow: s.ContextWindow, Price: s.Price}); d != "" {
 		note += " · " + d

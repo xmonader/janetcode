@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"github.com/xmonader/janetcode/internal/settingsapply"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -210,7 +211,7 @@ func (m *model) command(text string) tea.Cmd {
 				m.note("switched to provider " + name + " for " + fields[1])
 			}
 		}
-		m.opts.Agent.SwitchModel(fields[1], prov, m.opts.Config)
+		settingsapply.SwitchModel(m.opts.Config, m.opts.Agent, fields[1], prov)
 		if cfg := m.opts.Config; cfg != nil {
 			cfg.Model = fields[1]
 			if m.opts.ConfigPath != "" {

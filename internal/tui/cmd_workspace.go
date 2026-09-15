@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"github.com/xmonader/janetcode/internal/settingsapply"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -81,7 +82,7 @@ func (m *model) configCommand(arg string) {
 		return
 	}
 	key, val = strings.TrimSpace(key), strings.TrimSpace(val)
-	applied, err := agent.ApplyConfig(m.opts.Config, m.opts.Agent, m.opts.ConfigPath, key, val)
+	applied, err := settingsapply.Apply(m.opts.Config, m.opts.Agent, m.opts.ConfigPath, key, val)
 	if err != nil {
 		m.transcript.errorf("config: %v", err)
 		return

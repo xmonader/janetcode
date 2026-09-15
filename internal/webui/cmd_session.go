@@ -2,6 +2,7 @@ package webui
 
 import (
 	"fmt"
+	"github.com/xmonader/janetcode/internal/settingsapply"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,7 +37,7 @@ func (s *server) model(arg string) {
 			s.notice("switched to provider " + name + " for " + arg)
 		}
 	}
-	ag.SwitchModel(arg, prov, cfg)
+	settingsapply.SwitchModel(cfg, ag, arg, prov)
 	if cfg != nil {
 		cfg.Model = arg
 		if s.opts.ConfigPath != "" {
@@ -90,7 +91,7 @@ func (s *server) configKV(arg string) {
 		s.errf("usage: /config key=value")
 		return
 	}
-	applied, err := agent.ApplyConfig(s.opts.Config, s.opts.Agent, s.opts.ConfigPath, key, val)
+	applied, err := settingsapply.Apply(s.opts.Config, s.opts.Agent, s.opts.ConfigPath, key, val)
 	if err != nil {
 		s.errf("config: %v", err)
 		return
