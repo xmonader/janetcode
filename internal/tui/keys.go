@@ -70,303 +70,404 @@ func keyName(msg tea.KeyMsg) string {
 	return msg.String()
 }
 
+// handleKey routes one key press. The modals and the permission prompt
+// each take the whole keyboard while they are up; outside them the key
+// table below says what a key does, and a key with no entry falls
+// through to the textarea.
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
-	if m.asking != nil {
+	switch {
+	case m.asking != nil:
 		return m.handleAskKey(msg)
-	}
-	if m.ov.kind != "" {
+	case m.ov.kind != "":
 		return m.handleOverlayKey(msg)
-	}
-	if m.picker != nil {
+	case m.picker != nil:
 		return m.handlePickerKey(msg)
-	}
-	if m.connect != nil {
+	case m.connect != nil:
 		return m.handleConnectKey(msg)
 	}
 	if m.pending == nil && msg.Paste && bigPaste(string(msg.Runes)) {
-		// A file dropped into the prompt is one thing, not two hundred
-		// lines to scroll past. It becomes a chip; submit puts it back.
-		m.input.InsertString(m.storePaste(string(msg.Runes)))
-		m.layout()
-		m.notice.flash(fmt.Sprintf("pasted %s as a chip · it is sent in full", textfmt.Plural(strings.Count(string(msg.Runes), "\n")+1, "line")))
-		// A bracketed paste is one event, not a keystroke: the whole
-		// text arrives at once, which is the moment @path is worth
-		// knowing about.
-		m.observePaste(string(msg.Runes))
-		m.refresh(false)
-		return nil, true
+		return m.chipPaste(string(msg.Runes))
 	}
 	// Permission prompt takes over the keyboard.
-	if m.pending != nil && m.denying {
-		// Collecting an optional reason: enter sends it, esc denies silently.
-		switch keyName(msg) {
-		case "enter":
-			m.answer(agent.Deny, strings.TrimSpace(m.input.Value()))
-			m.input.Reset()
-			m.layout()
-		case "esc":
-			m.answer(agent.Deny, "")
-			m.input.Reset()
-			m.layout()
-		case "ctrl+c":
-			m.answer(agent.Deny, "")
-			m.input.Reset()
-			m.cancelTurn()
-		default:
-			return nil, false // let the textarea take it
-		}
-		return nil, true
-	}
 	if m.pending != nil {
-		switch keyName(msg) {
-		case "y", "Y", "enter":
-			m.answer(agent.Allow, "")
-		case "a", "A":
-			m.answer(agent.AllowSession, "")
-		case "r", "R":
-			if m.pending.call.Rule == "" {
-				break // no rule is offered for this call
-			}
-			m.noteUse("r")
-			m.answer(agent.AllowAlways, "")
-		case "n", "N":
-			// Ask why so the model can adapt; enter with nothing skips.
-			m.denying = true
-			m.input.Reset()
-			m.turn.setPhase("waiting for your reason")
-			m.layout()
-			m.refresh(false)
-		case "esc":
-			m.answer(agent.Deny, "")
-		case "c", "C", "ctrl+c":
-			// Not just this call: the whole turn stops here.
-			m.answer(agent.Deny, agent.CancelledReason)
-			m.cancelTurn()
-		case "ctrl+o":
-			// At a prompt ctrl+o is about this one call, not the session.
-			if e := m.transcript.findTool(m.pending.call.ID); e != nil {
-				e.expanded, e.final = !e.expanded, false
-			}
-			m.refresh(false)
-		case "pgup", "pgdown":
-			return m.scroll(msg), true
+		if m.denying {
+			return m.handleDenyKey(msg)
 		}
-		return nil, true
+		return m.handlePendingKey(msg)
 	}
-	switch keyName(msg) {
-	case "ctrl+c":
-		// Three stages: cancel a running turn, else clear typed text, else
-		// quit. A second press while a cancel is pending forces the quit.
-		if m.turn.running && !m.turn.cancelling {
-			m.cancelTurn()
-			return nil, true
-		}
-		if !m.turn.running && m.input.Value() != "" {
-			m.input.Reset()
-			m.status = "input cleared · ctrl+c again to quit"
-			m.quitArmedAt = time.Now()
-			m.layout()
-			m.refresh(false)
-			return nil, true
-		}
-		// One press when idle arms the quit; a second within a couple of
-		// seconds does it. An accidental ctrl+c must not close a session.
-		if !m.turn.running && time.Since(m.quitArmedAt) > quitArmWindow {
-			m.quitArmedAt = time.Now()
-			m.status = "ctrl+c again to quit"
-			m.refresh(false)
-			return nil, true
-		}
-		m.quitting = true
-		return tea.Quit, true
-	case "ctrl+d":
-		if m.input.Value() == "" {
-			m.quitting = true
-			return tea.Quit, true
-		}
-	case "esc":
-		if m.turn.running {
-			m.cancelTurn()
-			m.restoreQueued()
-			return nil, true
-		}
-		if draft, ok := m.hist.cancel(); ok {
-			m.setInput(draft)
-			m.refresh(false)
-			return nil, true
-		}
-		if m.input.Value() != "" {
-			m.input.Reset()
-			m.layout()
-			m.refresh(false)
-			return nil, true
-		}
-	case "ctrl+o":
-		m.noteUse("ctrl+o")
-		switch expanded, any := m.transcript.toggleLastTurn(); {
-		case !any:
-			m.status = "nothing folded in the last turn · /verbose expands every turn"
-		case expanded:
-			m.status = "expanded the last turn · ctrl+o folds it again, click a line to fold one"
-		default:
-			m.status = "folded the last turn"
-		}
-		m.refresh(false)
-		return nil, true
-	case "backspace":
-		// The chip is one thing: backspace takes all of it or none.
-		if v := m.input.Value(); pasteMarkerRe.MatchString(v) {
-			if loc := pasteMarkerRe.FindAllStringIndex(v, -1); loc[len(loc)-1][1] == len(v) {
-				m.input.SetValue(v[:loc[len(loc)-1][0]])
-				m.input.CursorEnd()
-				m.layout()
-				m.refresh(false)
-				return nil, true
-			}
-		}
-	case "ctrl+g":
-		// A build or a test run that turns out to be long used to leave
-		// only waiting or cancelling. Promotion keeps the work: the
-		// command becomes a job, and the turn carries on.
-		m.noteUse("ctrl+g")
-		job, err := m.opts.Running.PromoteLatest()
-		if err != nil {
-			m.status = err.Error()
-			m.refresh(false)
-			return nil, true
-		}
-		m.note(fmt.Sprintf("moved to background as job %d · /jobs shows it", job))
-		m.refresh(false)
-		return nil, true
-	case "ctrl+s":
-		// Say something to the turn that is running, rather than queueing
-		// it for the next one. The agent holds the note and hands it to
-		// the model before its next call.
-		text := strings.TrimSpace(m.input.Value())
-		switch {
-		case !m.turn.running:
-			m.status = "ctrl+s steers a running turn; there is none · enter sends"
-		case text == "":
-			m.status = "type what the model should do differently, then ctrl+s"
-		default:
-			m.noteUse("ctrl+s")
-			m.opts.Typed.Note(text)
-			m.opts.Agent.Steer(m.inflatePastes(text))
-			m.turn.steering = append(m.turn.steering, text)
-			m.hist.remember(text)
-			m.input.Reset()
-			m.layout()
-		}
-		m.refresh(false)
-		return nil, true
-	case "ctrl+l":
-		return tea.ClearScreen, true
-	case "shift+tab":
-		m.noteUse("shift+tab")
-		m.cycleMode()
-		return nil, true
-	case "ctrl+t":
-		m.noteUse("ctrl+t")
-		m.agentsCommand("")
-		m.refresh(false)
-		return nil, true
-	case "ctrl+v":
-		// Text paste arrives through the terminal on its own; ctrl+v grabs an
-		// image from the clipboard and attaches it as an @mention.
-		m.noteUse("ctrl+v")
-		m.pasteImage()
-		return nil, true
-	case "tab":
-		if m.complete() {
-			m.layout()
-			m.refresh(false)
-			return nil, true
-		}
-	case "up":
-		if m.moveMenu(-1) {
-			return nil, true
-		}
-		if m.turn.running && len(m.turn.queued) > 0 && m.input.Value() == "" {
-			// Take the last queued message back to edit it: queued text
-			// was unreachable until the turn ended.
-			m.input.SetValue(m.turn.queued[len(m.turn.queued)-1])
-			m.turn.queued = m.turn.queued[:len(m.turn.queued)-1]
-			m.input.CursorEnd()
-			m.layout()
-			m.status = "took the queued message back · enter queues it again, ctrl+s steers this turn"
-			m.refresh(false)
-			return nil, true
-		}
-		if m.input.Line() == 0 {
-			if text, ok := m.hist.back(m.input.Value()); ok {
-				m.setInput(text)
-				return nil, true
-			}
-		}
-	case "down":
-		if m.moveMenu(1) {
-			return nil, true
-		}
-		if m.input.Line() == m.input.LineCount()-1 {
-			if text, ok := m.hist.forward(); ok {
-				m.setInput(text)
-				return nil, true
-			}
-		}
-	case "pgup", "pgdown", "ctrl+u", "ctrl+b", "ctrl+f":
-		// With text in the input these are the textarea's readline keys
-		// (kill line, back/forward a character); they page the transcript
-		// only when there is nothing to edit.
-		if k := keyName(msg); k == "pgup" || k == "pgdown" || m.input.Value() == "" {
-			return m.scroll(msg), true
-		}
-		return nil, false
-	case "enter":
-		if c, idx := m.menu(); len(c) > 0 && !m.comp.args && strings.TrimSpace(m.input.Value()) != c[idx].name {
-			m.complete()
-			m.layout()
-			m.refresh(false)
-			if c[idx].args != "" || !strings.HasPrefix(c[idx].name, "/") {
-				return nil, true // needs arguments or a path: let the user continue
-			}
-			m.input.SetValue(c[idx].name)
-		}
-		text := strings.TrimSpace(m.input.Value())
-		if text == "" {
-			return nil, true
-		}
-		// A "y" typed a moment after a permission prompt closed was meant
-		// for the prompt, not for the model; sending it costs a turn of
-		// the model guessing what "y" means.
-		if len(text) == 1 && strings.ContainsAny(strings.ToLower(text), "ynar") && time.Since(m.pendingClosedAt) < strayKeyWindow {
-			m.input.Reset()
-			m.layout()
-			m.status = "ignored a stray " + text + " meant for the approval prompt"
-			m.refresh(false)
-			return nil, true
-		}
-		if m.turn.running && !strings.HasPrefix(text, "/") {
-			// Queue it; finishTurn sends it once the model is done.
-			m.turn.queued = append(m.turn.queued, text)
-			m.hist.remember(text)
-			m.input.Reset()
-			m.layout()
-			m.status = fmt.Sprintf("queued %d · sends when this turn ends · esc cancels the turn and restores it", len(m.turn.queued))
-			m.refresh(false)
-			return nil, true
-		}
-		m.input.Reset()
-		m.layout()
-		m.hist.remember(text)
-		if strings.HasPrefix(text, "/") {
-			return m.command(text), true
-		}
-		if strings.HasPrefix(text, "!") {
-			return m.shell(strings.TrimSpace(text[1:])), true
-		}
-		return m.submit(text), true
+	if act, ok := promptKeys[keyName(msg)]; ok {
+		return act(m, msg)
 	}
 	return nil, false
+}
+
+// chipPaste turns a file dropped into the prompt into one chip. It is
+// one thing, not two hundred lines to scroll past; submit puts it back.
+func (m *model) chipPaste(text string) (tea.Cmd, bool) {
+	m.input.InsertString(m.storePaste(text))
+	m.layout()
+	m.notice.flash(fmt.Sprintf("pasted %s as a chip · it is sent in full", textfmt.Plural(strings.Count(text, "\n")+1, "line")))
+	// A bracketed paste is one event, not a keystroke: the whole text
+	// arrives at once, which is the moment @path is worth knowing about.
+	m.observePaste(text)
+	m.refresh(false)
+	return nil, true
+}
+
+// handleDenyKey collects the optional reason for a denial: enter sends
+// it, esc denies silently, anything else is text.
+func (m *model) handleDenyKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	switch keyName(msg) {
+	case "enter":
+		m.answer(agent.Deny, strings.TrimSpace(m.input.Value()))
+		m.input.Reset()
+		m.layout()
+	case "esc":
+		m.answer(agent.Deny, "")
+		m.input.Reset()
+		m.layout()
+	case "ctrl+c":
+		m.answer(agent.Deny, "")
+		m.input.Reset()
+		m.cancelTurn()
+	default:
+		return nil, false // let the textarea take it
+	}
+	return nil, true
+}
+
+// handlePendingKey answers the permission prompt. Every key is consumed:
+// a run of characters typed at a prompt is ignored as a whole rather
+// than answering with its first letter.
+func (m *model) handlePendingKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	switch keyName(msg) {
+	case "y", "Y", "enter":
+		m.answer(agent.Allow, "")
+	case "a", "A":
+		m.answer(agent.AllowSession, "")
+	case "r", "R":
+		if m.pending.call.Rule == "" {
+			break // no rule is offered for this call
+		}
+		m.noteUse("r")
+		m.answer(agent.AllowAlways, "")
+	case "n", "N":
+		// Ask why so the model can adapt; enter with nothing skips.
+		m.denying = true
+		m.input.Reset()
+		m.turn.setPhase("waiting for your reason")
+		m.layout()
+		m.refresh(false)
+	case "esc":
+		m.answer(agent.Deny, "")
+	case "c", "C", "ctrl+c":
+		// Not just this call: the whole turn stops here.
+		m.answer(agent.Deny, agent.CancelledReason)
+		m.cancelTurn()
+	case "ctrl+o":
+		// At a prompt ctrl+o is about this one call, not the session.
+		if e := m.transcript.findTool(m.pending.call.ID); e != nil {
+			e.expanded, e.final = !e.expanded, false
+		}
+		m.refresh(false)
+	case "pgup", "pgdown":
+		return m.scroll(msg), true
+	}
+	return nil, true
+}
+
+// keyAction handles one key press at the ordinary prompt. It is given
+// the whole press because a few entries share a handler, and one of them
+// hands the press on to the viewport. It reports whether it took the key; not taking it hands the press to the textarea, which
+// is how a key that is only a shortcut in some states stays typeable in
+// the others.
+type keyAction func(*model, tea.KeyMsg) (tea.Cmd, bool)
+
+// promptKeys is what each key does at the ordinary prompt — the same
+// shape as the slash-command table, for the same reason: one long switch
+// hid which keys existed, and every arm had to be read to find out.
+var promptKeys = map[string]keyAction{
+	"ctrl+c":    (*model).keyInterrupt,
+	"ctrl+d":    (*model).keyEOF,
+	"esc":       (*model).keyEscape,
+	"ctrl+o":    (*model).keyFold,
+	"backspace": (*model).keyBackspace,
+	"ctrl+g":    (*model).keyBackground,
+	"ctrl+s":    (*model).keySteer,
+	"ctrl+l":    (*model).keyClearScreen,
+	"shift+tab": (*model).keyCycleMode,
+	"ctrl+t":    (*model).keyAgents,
+	"ctrl+v":    (*model).keyPasteImage,
+	"tab":       (*model).keyComplete,
+	"up":        (*model).keyUp,
+	"down":      (*model).keyDown,
+	"pgup":      (*model).keyPage,
+	"pgdown":    (*model).keyPage,
+	"ctrl+u":    (*model).keyPage,
+	"ctrl+b":    (*model).keyPage,
+	"ctrl+f":    (*model).keyPage,
+	"enter":     (*model).keyEnter,
+}
+
+// keyInterrupt is ctrl+c in three stages: cancel a running turn, else
+// clear typed text, else quit. A second press while a cancel is pending
+// forces the quit.
+func (m *model) keyInterrupt(tea.KeyMsg) (tea.Cmd, bool) {
+	if m.turn.running && !m.turn.cancelling {
+		m.cancelTurn()
+		return nil, true
+	}
+	if !m.turn.running && m.input.Value() != "" {
+		m.input.Reset()
+		m.status = "input cleared · ctrl+c again to quit"
+		m.quitArmedAt = time.Now()
+		m.layout()
+		m.refresh(false)
+		return nil, true
+	}
+	// One press when idle arms the quit; a second within a couple of
+	// seconds does it. An accidental ctrl+c must not close a session.
+	if !m.turn.running && time.Since(m.quitArmedAt) > quitArmWindow {
+		m.quitArmedAt = time.Now()
+		m.status = "ctrl+c again to quit"
+		m.refresh(false)
+		return nil, true
+	}
+	m.quitting = true
+	return tea.Quit, true
+}
+
+// keyEOF is ctrl+d: it quits, but only on an empty prompt.
+func (m *model) keyEOF(tea.KeyMsg) (tea.Cmd, bool) {
+	if m.input.Value() == "" {
+		m.quitting = true
+		return tea.Quit, true
+	}
+	return nil, false
+}
+
+// keyEscape cancels the turn, leaves the history, or clears the input,
+// whichever applies first.
+func (m *model) keyEscape(tea.KeyMsg) (tea.Cmd, bool) {
+	if m.turn.running {
+		m.cancelTurn()
+		m.restoreQueued()
+		return nil, true
+	}
+	if draft, ok := m.hist.cancel(); ok {
+		m.setInput(draft)
+		m.refresh(false)
+		return nil, true
+	}
+	if m.input.Value() != "" {
+		m.input.Reset()
+		m.layout()
+		m.refresh(false)
+		return nil, true
+	}
+	return nil, false
+}
+
+// keyFold is ctrl+o: fold or unfold the whole of the last turn.
+func (m *model) keyFold(tea.KeyMsg) (tea.Cmd, bool) {
+	m.noteUse("ctrl+o")
+	switch expanded, any := m.transcript.toggleLastTurn(); {
+	case !any:
+		m.status = "nothing folded in the last turn · /verbose expands every turn"
+	case expanded:
+		m.status = "expanded the last turn · ctrl+o folds it again, click a line to fold one"
+	default:
+		m.status = "folded the last turn"
+	}
+	m.refresh(false)
+	return nil, true
+}
+
+// keyBackspace takes a paste chip whole: the chip is one thing, so
+// backspace takes all of it or none.
+func (m *model) keyBackspace(tea.KeyMsg) (tea.Cmd, bool) {
+	v := m.input.Value()
+	if !pasteMarkerRe.MatchString(v) {
+		return nil, false
+	}
+	loc := pasteMarkerRe.FindAllStringIndex(v, -1)
+	if loc[len(loc)-1][1] != len(v) {
+		return nil, false
+	}
+	m.input.SetValue(v[:loc[len(loc)-1][0]])
+	m.input.CursorEnd()
+	m.layout()
+	m.refresh(false)
+	return nil, true
+}
+
+// keyBackground is ctrl+g. A build or a test run that turns out to be
+// long used to leave only waiting or cancelling. Promotion keeps the
+// work: the command becomes a job, and the turn carries on.
+func (m *model) keyBackground(tea.KeyMsg) (tea.Cmd, bool) {
+	m.noteUse("ctrl+g")
+	job, err := m.opts.Running.PromoteLatest()
+	if err != nil {
+		m.status = err.Error()
+		m.refresh(false)
+		return nil, true
+	}
+	m.note(fmt.Sprintf("moved to background as job %d · /jobs shows it", job))
+	m.refresh(false)
+	return nil, true
+}
+
+// keySteer is ctrl+s: say something to the turn that is running, rather
+// than queueing it for the next one. The agent holds the note and hands
+// it to the model before its next call.
+func (m *model) keySteer(tea.KeyMsg) (tea.Cmd, bool) {
+	text := strings.TrimSpace(m.input.Value())
+	switch {
+	case !m.turn.running:
+		m.status = "ctrl+s steers a running turn; there is none · enter sends"
+	case text == "":
+		m.status = "type what the model should do differently, then ctrl+s"
+	default:
+		m.noteUse("ctrl+s")
+		m.opts.Typed.Note(text)
+		m.opts.Agent.Steer(m.inflatePastes(text))
+		m.turn.steering = append(m.turn.steering, text)
+		m.hist.remember(text)
+		m.input.Reset()
+		m.layout()
+	}
+	m.refresh(false)
+	return nil, true
+}
+
+func (m *model) keyClearScreen(tea.KeyMsg) (tea.Cmd, bool) { return tea.ClearScreen, true }
+
+func (m *model) keyCycleMode(tea.KeyMsg) (tea.Cmd, bool) {
+	m.noteUse("shift+tab")
+	m.cycleMode()
+	return nil, true
+}
+
+func (m *model) keyAgents(tea.KeyMsg) (tea.Cmd, bool) {
+	m.noteUse("ctrl+t")
+	m.agentsCommand("")
+	m.refresh(false)
+	return nil, true
+}
+
+// keyPasteImage is ctrl+v. Text paste arrives through the terminal on
+// its own; ctrl+v grabs an image from the clipboard and attaches it as
+// an @mention.
+func (m *model) keyPasteImage(tea.KeyMsg) (tea.Cmd, bool) {
+	m.noteUse("ctrl+v")
+	m.pasteImage()
+	return nil, true
+}
+
+func (m *model) keyComplete(tea.KeyMsg) (tea.Cmd, bool) {
+	if !m.complete() {
+		return nil, false
+	}
+	m.layout()
+	m.refresh(false)
+	return nil, true
+}
+
+// keyUp moves the completion highlight, takes back the last queued
+// message, or steps up through the history, in that order.
+func (m *model) keyUp(tea.KeyMsg) (tea.Cmd, bool) {
+	if m.moveMenu(-1) {
+		return nil, true
+	}
+	if m.turn.running && len(m.turn.queued) > 0 && m.input.Value() == "" {
+		// Take the last queued message back to edit it: queued text was
+		// unreachable until the turn ended.
+		m.input.SetValue(m.turn.queued[len(m.turn.queued)-1])
+		m.turn.queued = m.turn.queued[:len(m.turn.queued)-1]
+		m.input.CursorEnd()
+		m.layout()
+		m.status = "took the queued message back · enter queues it again, ctrl+s steers this turn"
+		m.refresh(false)
+		return nil, true
+	}
+	if m.input.Line() == 0 {
+		if text, ok := m.hist.back(m.input.Value()); ok {
+			m.setInput(text)
+			return nil, true
+		}
+	}
+	return nil, false
+}
+
+func (m *model) keyDown(tea.KeyMsg) (tea.Cmd, bool) {
+	if m.moveMenu(1) {
+		return nil, true
+	}
+	if m.input.Line() == m.input.LineCount()-1 {
+		if text, ok := m.hist.forward(); ok {
+			m.setInput(text)
+			return nil, true
+		}
+	}
+	return nil, false
+}
+
+// keyPage pages the transcript. With text in the input ctrl+u/b/f are
+// the textarea's own readline keys (kill line, back/forward a
+// character); they page only when there is nothing to edit.
+func (m *model) keyPage(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if k := keyName(msg); k == "pgup" || k == "pgdown" || m.input.Value() == "" {
+		return m.scroll(msg), true
+	}
+	return nil, false
+}
+
+// keyEnter takes the completion if one is highlighted, then sends what
+// is in the box: a command, a shell line, a queued prompt, or a turn.
+func (m *model) keyEnter(tea.KeyMsg) (tea.Cmd, bool) {
+	if c, idx := m.menu(); len(c) > 0 && !m.comp.args && strings.TrimSpace(m.input.Value()) != c[idx].name {
+		m.complete()
+		m.layout()
+		m.refresh(false)
+		if c[idx].args != "" || !strings.HasPrefix(c[idx].name, "/") {
+			return nil, true // needs arguments or a path: let the user continue
+		}
+		m.input.SetValue(c[idx].name)
+	}
+	text := strings.TrimSpace(m.input.Value())
+	if text == "" {
+		return nil, true
+	}
+	// A "y" typed a moment after a permission prompt closed was meant
+	// for the prompt, not for the model; sending it costs a turn of the
+	// model guessing what "y" means.
+	if len(text) == 1 && strings.ContainsAny(strings.ToLower(text), "ynar") && time.Since(m.pendingClosedAt) < strayKeyWindow {
+		m.input.Reset()
+		m.layout()
+		m.status = "ignored a stray " + text + " meant for the approval prompt"
+		m.refresh(false)
+		return nil, true
+	}
+	if m.turn.running && !strings.HasPrefix(text, "/") {
+		// Queue it; finishTurn sends it once the model is done.
+		m.turn.queued = append(m.turn.queued, text)
+		m.hist.remember(text)
+		m.input.Reset()
+		m.layout()
+		m.status = fmt.Sprintf("queued %d · sends when this turn ends · esc cancels the turn and restores it", len(m.turn.queued))
+		m.refresh(false)
+		return nil, true
+	}
+	m.input.Reset()
+	m.layout()
+	m.hist.remember(text)
+	switch {
+	case strings.HasPrefix(text, "/"):
+		return m.command(text), true
+	case strings.HasPrefix(text, "!"):
+		return m.shell(strings.TrimSpace(text[1:])), true
+	}
+	return m.submit(text), true
 }
 
 // setInput replaces what is being typed with a recalled line, leaving
