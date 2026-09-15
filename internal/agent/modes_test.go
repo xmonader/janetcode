@@ -68,7 +68,7 @@ func TestModeGateSameForModelAndScriptCalls(t *testing.T) {
 					}
 				} else {
 					var err error
-					o.msg, o.isErr, err = a.executeTool(context.Background(), llm.Block{ID: "c1", Name: "write_file", Input: []byte(input)}, emit)
+					o.msg, _, o.isErr, err = a.executeTool(context.Background(), llm.Block{ID: "c1", Name: "write_file", Input: []byte(input)}, emit)
 					if err != nil {
 						t.Fatal(err)
 					}

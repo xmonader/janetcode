@@ -13,6 +13,7 @@ import (
 	"github.com/xmonader/janetcode/internal/acp"
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/cua"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/headless"
 	"github.com/xmonader/janetcode/internal/hints"
@@ -62,6 +63,11 @@ func (r *root) startMCP(ctx context.Context, warnUntrusted bool) {
 		}
 	} else if warnUntrusted && len(r.projectServers) > 0 {
 		fmt.Fprintf(os.Stderr, "[mcp] %s lists servers that are not trusted yet; open the TUI and run /mcp trust\n", mcp.ProjectFile)
+	}
+	if r.cfg.ComputerUseEnabled() {
+		if _, ok := cua.MergeInto(toStart); !ok {
+			fmt.Fprintf(os.Stderr, "[cua] computer_use is on but no driver is on PATH\n%s\n", cua.InstallHint)
+		}
 	}
 	r.servers.StartAll(ctx, toStart, func(name string, c *mcp.Client, err error) {
 		if err != nil {

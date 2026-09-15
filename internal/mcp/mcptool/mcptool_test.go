@@ -59,8 +59,19 @@ func TestAgentToolResults(t *testing.T) {
 	c := startFake(t)
 	echo := AgentTools(c)[0]
 	out, err := echo.Run(context.Background(), json.RawMessage(`{"text":"hi"}`))
-	if err != nil || out != "echo: hi\n[image content omitted: image/png]" {
+	if err != nil || out != "echo: hi\n[image image/png attached]" {
 		t.Fatalf("echo = %q %v", out, err)
+	}
+	rich, ok := echo.(tool.Rich)
+	if !ok {
+		t.Fatal("MCP tools must implement tool.Rich so screenshots reach the model")
+	}
+	got, err := rich.RunRich(context.Background(), json.RawMessage(`{"text":"pic"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Images) != 1 || got.Images[0].Type != "image" || got.Images[0].Data != "AAAA" {
+		t.Fatalf("images = %+v", got.Images)
 	}
 	fail := AgentTools(c)[2]
 	if _, err := fail.Run(context.Background(), nil); err == nil || !strings.Contains(err.Error(), "it broke") {

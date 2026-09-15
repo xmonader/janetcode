@@ -14,6 +14,19 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
+// Result is what a tool may return besides text: screenshots a vision
+// model should see. Tools that only implement Run still work; Rich is
+// optional.
+type Result struct {
+	Text   string
+	Images []llm.Block
+}
+
+// Rich is a tool that can return images with its text.
+type Rich interface {
+	RunRich(ctx context.Context, input json.RawMessage) (Result, error)
+}
+
 // Tool is one capability the model can call.
 type Tool interface {
 	Name() string

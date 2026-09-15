@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -172,6 +173,11 @@ func lostConnection(err error) bool {
 }
 
 func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
+	r, err := t.RunRich(ctx, input)
+	return r.Text, err
+}
+
+func (t *Tool) RunRich(ctx context.Context, input json.RawMessage) (tool.Result, error) {
 	res, err := t.Client.CallTool(ctx, t.Info.Name, input)
 	if lostConnection(err) && ctx.Err() == nil {
 		// The reply never arrived, which says nothing about whether the
@@ -179,17 +185,28 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		// "create issue" or "send message" is a second issue or a second
 		// message, so the model is told what happened and decides.
 		if !t.safeToRepeat() {
-			return "", fmt.Errorf("%s: the connection failed before a reply arrived, so the server may or may not have run it. It is not marked read-only or idempotent, so it was not retried: check whether it took effect before calling it again (original error: %w)", t.name, err)
+			return tool.Result{}, fmt.Errorf("%s: the connection failed before a reply arrived, so the server may or may not have run it. It is not marked read-only or idempotent, so it was not retried: check whether it took effect before calling it again (original error: %w)", t.name, err)
 		}
 		res, err = t.Client.CallTool(ctx, t.Info.Name, input)
 	}
 	if err != nil {
-		return "", err
+		return tool.Result{}, err
 	}
 	if res.IsError {
-		return "", fmt.Errorf("%s", firstNonEmpty(res.Text, "tool reported an error"))
+		return tool.Result{}, fmt.Errorf("%s", firstNonEmpty(res.Text, "tool reported an error"))
 	}
-	return textfmt.Truncate(res.Text), nil
+	out := tool.Result{Text: textfmt.Truncate(res.Text)}
+	for _, img := range res.Images {
+		if img.Data == "" {
+			continue
+		}
+		mime := img.MIME
+		if mime == "" {
+			mime = "image/png"
+		}
+		out.Images = append(out.Images, llm.Block{Type: llm.BlockImage, MediaType: mime, Data: img.Data})
+	}
+	return out, nil
 }
 
 func firstNonEmpty(a, b string) string {

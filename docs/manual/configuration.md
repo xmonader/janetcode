@@ -133,6 +133,10 @@ is the session log, which is also local and which `/history` and
 
 ### Hints
 
+`"computer_use": true` starts Cua Driver as an MCP server when
+`cua-driver` or `open-computer-use` is on PATH. Off by default. `/cua on`
+sets it and starts the server in the running session.
+
 `"followup": true` turns on ghost-text next-prompt suggestions after a
 turn. They are off by default. A cheap side query (no system prompt, no
 tools) proposes 2–12 words; Tab accepts them in the terminal. `/followup

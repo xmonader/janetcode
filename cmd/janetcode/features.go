@@ -134,6 +134,7 @@ var configWhen = map[string][2]string{
 	"sandbox":             {"the sandbox profile a session in this project starts under: off, workspace, read-only or strict", "this project's commands should always be confined, not only when you remember to type /sandbox"},
 	"route_cheap":         {"experimental: send a turn's mechanical steps (reads, greps, checks that already passed) to this model instead", "an eval run showed it saves cost without moving the pass rate; empty is off"},
 	"followup":            {"cheap next-prompt ghost text after a turn; tab accepts", "you want a suggested next prompt in the input box without another full turn"},
+	"computer_use":        {"start Cua Driver as an MCP server when cua-driver is on PATH", "you want the model to operate the desktop through accessibility, not pixel clicks"},
 }
 
 // harnessFeatures are the things janetcode does without being asked.
@@ -181,6 +182,10 @@ var harnessFeatures = []feature.Feature{
 		What:   "the status line cycles through seeded Claude verbs and Qwen loading phrases while waiting on the model",
 		When:   "the spinner would otherwise sit on the word thinking",
 		Topics: []string{"spinner", "thinking", "flavor", "status", "fun", "moonwalking", "qwen"}},
+	{Name: "Cua Driver", Kind: feature.KindBehave, Invoke: "/cua on", Manual: "interface",
+		What:   "Cua Driver (cua-driver or open-computer-use) is started as an MCP server so the model can observe accessibility trees and act on element tokens; screenshots from the driver are attached as images",
+		When:   "you want desktop automation that is not raw xdotool clicks",
+		Topics: []string{"computer", "desktop", "cua", "accessibility", "screenshot", "click", "driver", "mcp"}},
 	{Name: "web trajectory", Kind: feature.KindBehave, Invoke: "Trajectory (web)", Manual: "interface",
 		What:   "the --web conversation header switches Chat and Trajectory, the session event ledger with a timing strip and a record inspector",
 		When:   "you want the raw turn/tool/compaction record without leaving the browser",

@@ -578,7 +578,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 				planNote = a.PlanCheck(ctx, text)
 			}
 		}
-		results, err := a.executeAll(ctx, uses, emit)
+		results, images, err := a.executeAll(ctx, uses, emit)
 		a.stepRoute.prevMechanical = allMechanicalStep(uses, results)
 		if repeatNote != "" && len(results) > 0 {
 			results[len(results)-1].Text += repeatNote
@@ -589,6 +589,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			emit(Event{Kind: EvNotice, Text: planNote})
 		}
 		tr := llm.ToolResultMessage(results...)
+		tr.Blocks = append(tr.Blocks, images...)
 		a.appendMessage(tr)
 		a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &tr})
 		a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})

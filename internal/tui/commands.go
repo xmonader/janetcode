@@ -138,6 +138,7 @@ var dispatch = map[string]cmdHandler{
 		m.hintsCommand(fields[1:])
 		return nil, false
 	},
+	"/cua": (*model).cmdCua,
 	"/followup": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.followupCommand(fields[1:])
 		return nil, false

@@ -413,10 +413,18 @@ func (c *Client) ReadResource(ctx context.Context, uri string) (string, error) {
 // Tools lists what the server offers, as reported at startup.
 func (c *Client) Tools() []ToolInfo { return append([]ToolInfo(nil), c.tools...) }
 
+// Image is a base64 image a tool returned, typically a screenshot.
+type Image struct {
+	MIME string
+	Data string
+}
+
 // CallResult is what a tool returned: its text content and whether the
-// server flagged it as an error.
+// server flagged it as an error. Images are screenshots (and similar)
+// that should be attached to the conversation so a vision model can see them.
 type CallResult struct {
 	Text    string
+	Images  []Image
 	IsError bool
 }
 
@@ -433,7 +441,8 @@ func (c *Client) CallTool(ctx context.Context, name string, args json.RawMessage
 		Content []struct {
 			Type     string `json:"type"`
 			Text     string `json:"text"`
-			MimeType string `json:"mimeType"`
+			MIME     string `json:"mimeType"`
+			Data     string `json:"data"`
 			Resource *struct {
 				URI  string `json:"uri"`
 				Text string `json:"text"`
@@ -446,6 +455,7 @@ func (c *Client) CallTool(ctx context.Context, name string, args json.RawMessage
 		return CallResult{}, fmt.Errorf("bad tools/call result: %w", err)
 	}
 	var sb strings.Builder
+	var images []Image
 	for _, part := range out.Content {
 		switch part.Type {
 		case "text":
@@ -455,8 +465,19 @@ func (c *Client) CallTool(ctx context.Context, name string, args json.RawMessage
 			if part.Resource != nil {
 				fmt.Fprintf(&sb, "[resource %s]\n%s\n", part.Resource.URI, part.Resource.Text)
 			}
-		case "image", "audio":
-			fmt.Fprintf(&sb, "[%s content omitted: %s]\n", part.Type, part.MimeType)
+		case "image":
+			mime := part.MIME
+			if mime == "" {
+				mime = "image/png"
+			}
+			if part.Data != "" {
+				images = append(images, Image{MIME: mime, Data: part.Data})
+				fmt.Fprintf(&sb, "[image %s attached]\n", mime)
+			} else {
+				fmt.Fprintf(&sb, "[image %s with no data]\n", mime)
+			}
+		case "audio":
+			fmt.Fprintf(&sb, "[audio content omitted: %s]\n", part.MIME)
 		default:
 			fmt.Fprintf(&sb, "[%s content]\n", part.Type)
 		}
@@ -464,7 +485,7 @@ func (c *Client) CallTool(ctx context.Context, name string, args json.RawMessage
 	if sb.Len() == 0 && len(out.StructuredContent) > 0 {
 		sb.Write(out.StructuredContent)
 	}
-	return CallResult{Text: strings.TrimRight(sb.String(), "\n"), IsError: out.IsError}, nil
+	return CallResult{Text: strings.TrimRight(sb.String(), "\n"), Images: images, IsError: out.IsError}, nil
 }
 
 // Close stops the server or connection. It is safe to call more than once.

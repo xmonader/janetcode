@@ -25,12 +25,24 @@ const MaxParallelTools = 8
 // mutating (permission-gated) tools one at a time in order. It always
 // returns one result per call so the history stays valid, even when ctx is
 // cancelled part-way; the error is then ctx.Err().
-func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Event)) ([]llm.Block, error) {
+func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Event)) ([]llm.Block, []llm.Block, error) {
 	a.emitMu.Lock()
 	a.emitNow = emit
 	a.emitMu.Unlock()
 	results := make([]llm.Block, len(uses))
 	filled := make([]bool, len(uses))
+	var (
+		images []llm.Block
+		imgMu  sync.Mutex
+	)
+	addImages := func(imgs []llm.Block) {
+		if len(imgs) == 0 {
+			return
+		}
+		imgMu.Lock()
+		images = append(images, imgs...)
+		imgMu.Unlock()
+	}
 	parallel := func(u llm.Block) bool {
 		t, ok := a.Tools.Get(u.Name)
 		return ok && !t.Mutating()
@@ -51,22 +63,23 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 			case <-ctx.Done():
 				return
 			}
-			out, isErr, err := a.execute(ctx, u, emit)
+			out, imgs, isErr, err := a.execute(ctx, u, emit)
 			if err == nil {
 				results[i] = llm.ToolResult(replyID(u), out, isErr)
 				filled[i] = true
+				addImages(imgs)
 			}
 		}(i, u)
 	}
 	wg.Wait()
 
-	cancelled := func() ([]llm.Block, error) {
+	cancelled := func() ([]llm.Block, []llm.Block, error) {
 		for i, u := range uses {
 			if !filled[i] {
 				results[i] = llm.ToolResult(replyID(u), "Cancelled by user before the tool finished.", true)
 			}
 		}
-		return results, ctx.Err()
+		return results, images, ctx.Err()
 	}
 	if ctx.Err() != nil {
 		return cancelled()
@@ -75,23 +88,24 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		if filled[i] {
 			continue
 		}
-		out, isErr, err := a.execute(ctx, u, emit)
+		out, imgs, isErr, err := a.execute(ctx, u, emit)
 		if err != nil {
 			return cancelled()
 		}
 		results[i] = llm.ToolResult(replyID(u), out, isErr)
 		filled[i] = true
+		addImages(imgs)
 	}
-	return results, nil
+	return results, images, nil
 }
 
 // execute runs one tool call. The returned error is non-nil only for
 // context cancellation; tool failures come back as (message, true, nil).
-func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (string, bool, error) {
+func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (string, []llm.Block, bool, error) {
 	start := time.Now()
-	out, isErr, err := a.executeTool(ctx, u, emit)
+	out, images, isErr, err := a.executeTool(ctx, u, emit)
 	a.stats.tool(u.Name, time.Since(start), isErr || err != nil)
-	return out, isErr, err
+	return out, images, isErr, err
 }
 
 // authorize is everything that has to happen before a tool call may run:
@@ -365,7 +379,7 @@ func (a *Agent) applyDecision(d Decision, reason string, suggested perm.Rule, na
 	return ""
 }
 
-func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) (string, bool, error) {
+func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) (string, []llm.Block, bool, error) {
 	// The intent is the model's own one-line reason for the call. It is
 	// taken off before anything else looks at the input, because the tools
 	// decode with unknown fields disallowed.
@@ -376,9 +390,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	accepted := tookLargeOutput(stripped)
 	u.Input = takeLargeOutput(stripped)
 	call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input, Intent: intent}
-	refuse := func(msg string, denied bool) (string, bool, error) {
+	refuse := func(msg string, denied bool) (string, []llm.Block, bool, error) {
 		a.refuseCall(&call, msg, denied, emit)
-		return msg, true, nil
+		return msg, nil, true, nil
 	}
 	t, ok := a.Tools.Get(u.Name)
 	if !ok {
@@ -389,7 +403,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	hookNotes, deny, err := a.authorize(ctx, t, &u, &call, emit)
 	if err != nil {
-		return "", true, err
+		return "", nil, true, err
 	}
 	if deny != "" {
 		return refuse(deny, true)
@@ -420,13 +434,13 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if checkingCommit {
 		commitPreHead = a.headForCommitCheck(ctx)
 	}
-	out, err := runSafely(ctx, t, u.Input)
+	out, images, err := runSafely(ctx, t, u.Input)
 	dur := time.Since(start)
 	if err == nil && len(pend) > 0 {
 		a.after(u, intent, pend)
 	}
 	if ctx.Err() != nil {
-		return "", true, ctx.Err()
+		return "", nil, true, ctx.Err()
 	}
 	isErr := false
 	if err != nil {
@@ -503,16 +517,25 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	emit(Event{Kind: EvToolResult, Call: &call, Output: out, IsError: isErr, Duration: dur})
 	a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: out, IsError: isErr, DurationMs: dur.Milliseconds()})
-	return out, isErr, nil
+	if isErr {
+		images = nil
+	}
+	return out, images, isErr, nil
 }
 
-func runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (out string, err error) {
+func runSafely(ctx context.Context, t tool.Tool, input json.RawMessage) (out string, images []llm.Block, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("tool %s panicked: %v\n%s", t.Name(), r, debug.Stack())
+			images = nil
 		}
 	}()
-	return t.Run(ctx, input)
+	if rich, ok := t.(tool.Rich); ok {
+		res, rerr := rich.RunRich(ctx, input)
+		return res.Text, res.Images, rerr
+	}
+	out, err = t.Run(ctx, input)
+	return out, nil, err
 }
 
 func (a *Agent) toolNames() string {
@@ -607,7 +630,7 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 		pend = a.before(t, u.Input)
 	}
 	start := time.Now()
-	out, runErr := runSafely(ctx, t, u.Input)
+	out, _, runErr := runSafely(ctx, t, u.Input)
 	dur := time.Since(start)
 	isErr := runErr != nil
 	if isErr {

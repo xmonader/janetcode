@@ -14,6 +14,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/cua"
 	"github.com/xmonader/janetcode/internal/doctorfix"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
@@ -168,9 +169,16 @@ func doctor(w io.Writer, ov config.Overrides, fix bool) error {
 	} else {
 		warn("git", "not a git repository: shell results are never cached here")
 	}
-	for _, bin := range []string{"git", "gofmt", "python3", "node", "npx", "wl-paste", "xclip"} {
+	for _, bin := range []string{"git", "gofmt", "python3", "node", "npx", "wl-paste", "xclip", "cua-driver", "open-computer-use"} {
 		if _, err := exec.LookPath(bin); err == nil {
 			fmt.Fprintf(w, "[ok  ] %-14s found\n", "tool "+bin)
+		}
+	}
+	if cfg != nil && cfg.ComputerUseEnabled() {
+		if d, ok := cua.Detect(); ok {
+			row(true, "cua", d.Kind+" at "+d.Path+" · /cua doctor")
+		} else {
+			warn("cua", "computer_use is on but no driver is on PATH")
 		}
 	}
 	if cfg != nil {

@@ -82,6 +82,7 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 		"hints":         "read via cfg.ShowHints() by the hint engine",
 		"memory":        "read via cfg.AutoMemory() where memory extraction is scheduled",
 		"followup":      "read via cfg.FollowupEnabled() by the terminal after a turn",
+		"computer_use":  "read via cfg.ComputerUseEnabled() when MCP servers start",
 	}
 
 	seen := map[string]bool{}

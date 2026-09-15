@@ -39,6 +39,7 @@ var Commands = withIdle([]Command{
 	{Name: "/blame", Args: "<path>", Help: "which change wrote each line of a file changed this session"},
 	{Name: "/redo", Args: "", Help: "reapply what the last /undo reverted (until the next change)"},
 	{Name: "/mcp", Args: "[add [<name> <command|url>]|remove <server>|trust|auth <server>|logout <server>]", Help: "MCP servers and their tools; add writes one into .mcp.json and starts it (no arguments walks through it); trust starts the project's .mcp.json servers; auth logs in to a remote server with OAuth"},
+	{Name: "/cua", Args: "[on|off|doctor]", Help: "start Cua Driver as an MCP desktop server when cua-driver is installed; doctor checks the binary"},
 	{Name: "/hooks", Args: "[trust]", Help: "hooks in effect; trust enables the project's .janetcode/hooks.json"},
 	{Name: "/permissions", Args: "[allow|deny <rule>|trust]", Help: "permission rules; add one, or trust the project's .janetcode/permissions.json"},
 	{Name: "/verify", Args: "[set <cmd>|add <cmd>|mutate <test cmd>|clear|trust]", Help: "run the project's checks now; set replaces .janetcode/verify.json's commands with one, add appends one; mutate requires tests to catch mutations of changed lines"},

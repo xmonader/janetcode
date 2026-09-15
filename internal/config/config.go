@@ -175,6 +175,9 @@ type Config struct {
 	// Followup enables a cheap next-prompt suggestion as ghost text
 	// after a turn; tab accepts it. Nil means off.
 	Followup *bool `json:"followup,omitempty"`
+	// ComputerUse starts Cua Driver as an MCP server when cua-driver (or
+	// open-computer-use) is on PATH. Nil means off; /cua on sets it.
+	ComputerUse *bool `json:"computer_use,omitempty"`
 }
 
 // StreamLimits are the watchdog bounds for one streamed model call.
@@ -645,6 +648,11 @@ func (c *Config) IntentEnabled() bool {
 // FollowupEnabled reports whether ghost-text next-prompt suggestions run.
 func (c *Config) FollowupEnabled() bool {
 	return c != nil && c.Followup != nil && *c.Followup
+}
+
+// ComputerUseEnabled reports whether the Cua Driver MCP server should start.
+func (c *Config) ComputerUseEnabled() bool {
+	return c != nil && c.ComputerUse != nil && *c.ComputerUse
 }
 
 // LeanTools reports whether the search tools are deferred.

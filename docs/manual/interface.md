@@ -264,6 +264,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /compact-fast (also /compress-fast: prune old results and thinking, no summary call)
 /followup [on|off]  (ghost-text next prompt after a turn; tab accepts; off by default)
 /curator [list | pin <name> | archive <name> | restore <name>]  (auto-generated skills)
+/cua [on|off|doctor]  (start Cua Driver as an MCP desktop server)
 /effort [tier|up|down]  (how hard the model thinks: low, medium, high, xhigh, max)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost, what the harness had to recover)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
@@ -1568,9 +1569,26 @@ it for the session.
 
 `read_many_files` concatenates several text files (or a glob) in one
 call. It stays behind `tool_search` so it does not sit on every request.
-`computer` drives the local desktop (screenshot, click, type, key) the
-same way; every call is permissioned, and a `computer-use` skill ships
-with the binary.
+
+### Cua Driver
+
+Desktop automation that is not pixel-guessing: [Cua Driver](https://cua.ai/docs/how-to-guides/driver/install)
+(`cua-driver` on PATH) or `npm i -g @qwen-code/open-computer-use`. janetcode
+does not ship the native driver.
+
+`/cua on` (or `"computer_use": true` in the config) starts it as the MCP
+server `cua-driver`. Its tools (`list_apps`, `list_windows`,
+`get_window_state`, `click` with `element_token`, …) are deferred behind
+`tool_search` as `mcp__cua-driver__*`. Screenshots the driver returns are
+attached as images so a vision model can see them. `/cua off` stops the
+server. `/cua doctor` runs the driver's own checks.
+
+The built-in `computer` tool remains a last-resort pixel fallback
+(screenshot / click / type / key via xdotool or osascript). The
+`computer-use` skill prefers Cua Driver when it is connected.
+
+`/mcp add cua-driver cua-driver mcp` is the same registration if you would
+rather list it under `mcp_servers` yourself.
 
 `/context` remains a shortcut for the first. `/pin <note>` or `/pin @path`
 keeps a note (or a file's content, up to 16 KB) in the system prompt for the
