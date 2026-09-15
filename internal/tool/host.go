@@ -192,7 +192,7 @@ func Retarget(ws *Workspace, cwd, kind, arg string, dial func(string) (Host, err
 	}
 	h, err := dial(arg)
 	if err != nil {
-		return "", fmt.Errorf("%s: %v", kind, err)
+		return "", fmt.Errorf("%s: %w", kind, err)
 	}
 	ws.Set(h)
 	return "workspace " + h.Label() + " · file tools and bash run there", nil

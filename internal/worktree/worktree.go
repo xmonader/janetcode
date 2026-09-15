@@ -85,7 +85,7 @@ func Open(ctx context.Context, repo, branch string) (*Tree, error) {
 		args = append(args, "-b", branch, path)
 	}
 	if _, err := gitx.Run(ctx, repo, nil, args...); err != nil {
-		return nil, fmt.Errorf("worktree: git %s: %s", strings.Join(args, " "), gitx.Detail(err))
+		return nil, gitx.Wrapf(err, "worktree: git %s", strings.Join(args, " "))
 	}
 	t := &Tree{Path: path, Branch: branch, Repo: repo, Created: true}
 	if err := t.Validate(ctx); err != nil {

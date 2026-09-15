@@ -335,7 +335,7 @@ func showBlob(ctx context.Context, repoDir, rev, path string) (data []byte, ok b
 		if errors.As(err, &ge) && blobMissingRe.MatchString(ge.Stderr) {
 			return nil, false, nil
 		}
-		return nil, false, fmt.Errorf("git show %s:%s: %s", gitx.Short(rev), path, gitx.Detail(err))
+		return nil, false, gitx.Wrapf(err, "git show %s:%s", gitx.Short(rev), path)
 	}
 	return data, true, nil
 }
@@ -420,7 +420,7 @@ func Attach(ctx context.Context, repoDir, commit string, r Record) error {
 		return err
 	}
 	if _, err := gitx.RunInput(ctx, repoDir, data, "notes", "--ref="+NotesRef, "add", "-f", "-F", "-", commit); err != nil {
-		return fmt.Errorf("git notes add: %s", gitx.Detail(err))
+		return gitx.Wrapf(err, "git notes add")
 	}
 	return nil
 }
@@ -438,7 +438,7 @@ func Read(ctx context.Context, repoDir, commit string) (Record, bool, error) {
 		if errors.As(err, &ge) && noNoteRe.MatchString(ge.Stderr) {
 			return Record{}, false, nil
 		}
-		return Record{}, false, fmt.Errorf("git notes show: %s", gitx.Detail(err))
+		return Record{}, false, gitx.Wrapf(err, "git notes show")
 	}
 	var r Record
 	if err := json.Unmarshal(out, &r); err != nil {

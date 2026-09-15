@@ -64,6 +64,21 @@ func Detail(err error) string {
 	return err.Error()
 }
 
+// Wrapf prefixes err with a formatted context the way
+// fmt.Errorf(format+": %s", args..., Detail(err)) would, but keeps err in
+// the chain, so errors.As still finds the *Error and ExitCode still works.
+func Wrapf(err error, format string, args ...any) error {
+	return &wrapped{msg: fmt.Sprintf(format, args...) + ": " + Detail(err), err: err}
+}
+
+type wrapped struct {
+	msg string
+	err error
+}
+
+func (w *wrapped) Error() string { return w.msg }
+func (w *wrapped) Unwrap() error { return w.err }
+
 // ExitCode is err's git exit status when err is an *Error that exited, -1
 // otherwise (including err == nil).
 func ExitCode(err error) int {

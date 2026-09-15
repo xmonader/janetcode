@@ -210,7 +210,7 @@ func (c Config) Validate() error {
 			}
 			if h.Match != "" {
 				if _, err := regexp.Compile(h.Match); err != nil {
-					return fmt.Errorf("hooks: %s[%d] match: %v", ev, i, err)
+					return fmt.Errorf("hooks: %s[%d] match: %w", ev, i, err)
 				}
 			}
 		}

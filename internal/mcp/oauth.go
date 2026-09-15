@@ -147,7 +147,7 @@ func (s *TokenStore) Bearer(ctx context.Context, client *http.Client, serverURL 
 	}
 	nt, err := tokenRequest(ctx, client, t.TokenEndpoint, form)
 	if err != nil {
-		return "", true, fmt.Errorf("%w: refresh failed: %v", ErrAuthRequired, err)
+		return "", true, fmt.Errorf("%w: refresh failed: %w", ErrAuthRequired, err)
 	}
 	nt.ClientID, nt.ClientSecret, nt.TokenEndpoint = t.ClientID, t.ClientSecret, t.TokenEndpoint
 	if nt.RefreshToken == "" {

@@ -498,8 +498,13 @@ func (c *Client) call(ctx context.Context, method string, params any) (json.RawM
 	c.pending[id] = ch
 	c.pendMu.Unlock()
 
+	raw, err := marshalParams(params)
+	if err != nil {
+		c.dropPending(id)
+		return nil, fmt.Errorf("%s: %w", method, err)
+	}
 	rawID := json.RawMessage(fmt.Sprint(id))
-	if err := c.send(ctx, rpcMessage{JSONRPC: "2.0", ID: &rawID, Method: method, Params: mustJSON(params)}); err != nil {
+	if err := c.send(ctx, rpcMessage{JSONRPC: "2.0", ID: &rawID, Method: method, Params: raw}); err != nil {
 		c.dropPending(id)
 		return nil, err
 	}
@@ -518,7 +523,11 @@ func (c *Client) call(ctx context.Context, method string, params any) (json.RawM
 }
 
 func (c *Client) notify(ctx context.Context, method string, params any) error {
-	return c.send(ctx, rpcMessage{JSONRPC: "2.0", Method: method, Params: mustJSON(params)})
+	raw, err := marshalParams(params)
+	if err != nil {
+		return fmt.Errorf("%s: %w", method, err)
+	}
+	return c.send(ctx, rpcMessage{JSONRPC: "2.0", Method: method, Params: raw})
 }
 
 func (c *Client) send(ctx context.Context, msg rpcMessage) error {
@@ -577,7 +586,12 @@ func (c *Client) handleRequest(req rpcMessage) {
 		if c.root != "" {
 			roots = append(roots, map[string]string{"uri": "file://" + c.root, "name": "project"})
 		}
-		reply.Result = mustJSON(map[string]any{"roots": roots})
+		result, err := marshalParams(map[string]any{"roots": roots})
+		if err != nil {
+			reply.Error = &rpcError{Code: -32603, Message: err.Error()}
+			break
+		}
+		reply.Result = result
 	default:
 		reply.Error = &rpcError{Code: -32601, Message: "method not supported by janetcode: " + req.Method}
 	}
@@ -608,13 +622,15 @@ func (c *Client) logf(format string, args ...any) {
 	}
 }
 
-func mustJSON(v any) json.RawMessage {
+// marshalParams encodes v for the wire. v can come from a caller (tool
+// arguments), so a value that does not encode is an error, not a panic.
+func marshalParams(v any) (json.RawMessage, error) {
 	if raw, ok := v.(json.RawMessage); ok {
-		return raw
+		return raw, nil
 	}
 	data, err := json.Marshal(v)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("encode params: %w", err)
 	}
-	return data
+	return data, nil
 }

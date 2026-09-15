@@ -107,7 +107,7 @@ func SetSandbox(sb *Sandbox, arg string) (string, error) {
 	case "", "status":
 	case "on":
 		if err := sb.Enable(); err != nil {
-			return "", fmt.Errorf("sandbox: %v", err)
+			return "", fmt.Errorf("sandbox: %w", err)
 		}
 	case "off":
 		sb.Disable()
@@ -115,7 +115,7 @@ func SetSandbox(sb *Sandbox, arg string) (string, error) {
 		sb.SetImage(arg)
 		if !sb.Enabled() {
 			if err := sb.Enable(); err != nil {
-				return "", fmt.Errorf("sandbox: %v", err)
+				return "", fmt.Errorf("sandbox: %w", err)
 			}
 		}
 	}

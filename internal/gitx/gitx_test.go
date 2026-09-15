@@ -134,3 +134,18 @@ func TestShort(t *testing.T) {
 		t.Fatal("Short")
 	}
 }
+
+func TestWrapfKeepsTextAndChain(t *testing.T) {
+	ge := &Error{Args: []string{"notes", "add"}, Stderr: "fatal: nope", Err: errors.New("exit status 128")}
+	err := Wrapf(ge, "git notes add %s", "x")
+	if got, want := err.Error(), "git notes add x: fatal: nope"; got != want {
+		t.Fatalf("text = %q, want %q", got, want)
+	}
+	var back *Error
+	if !errors.As(err, &back) || back != ge {
+		t.Fatal("Wrapf dropped the *Error from the chain")
+	}
+	if Detail(err) != "fatal: nope" {
+		t.Fatalf("Detail through Wrapf = %q", Detail(err))
+	}
+}
