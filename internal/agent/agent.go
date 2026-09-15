@@ -55,6 +55,15 @@ type ToolCall struct {
 	// front-end offers its r key only when it is set. Set only when the
 	// call is about to ask.
 	Rule string
+	// Rungs is the ladder of rules AllowAlways could save for this call,
+	// narrowest first (see perm.SuggestLadder), each with its own ledger
+	// note; Rule is Rungs[RuleIndex].String(). A front-end may let the
+	// user move along it before saving; one rung (or none) means there is
+	// nothing to choose and the prompt looks exactly as it always has.
+	Rungs []RuleRung
+	// RuleIndex is the rung a front-end starts on: the one Suggest
+	// proposes, so an answer given without moving saves what it used to.
+	RuleIndex int
 	// Learned notes that the ledger has seen this call's shape (see
 	// perm.Suggest) approved perm.LearnAfter times with no refusal, e.g.
 	// "approved 4× before, never refused". Set only when the call is
@@ -71,6 +80,13 @@ type ToolCall struct {
 	Impact string
 }
 
+// RuleRung is one rule the user may choose to save at a permission
+// prompt, with the ledger's note about that exact rule.
+type RuleRung struct {
+	Rule    string
+	Learned string
+}
+
 // Approver decides whether a mutating tool call may run. Implementations
 // block until the user answers; ctx cancellation aborts the turn.
 type Approver interface {
@@ -82,6 +98,15 @@ type Approver interface {
 type ReasonApprover interface {
 	Approver
 	ApproveWithReason(ctx context.Context, call ToolCall) (Decision, string, error)
+}
+
+// RuleApprover is a ReasonApprover that can also name which rung of the
+// call's ladder an AllowAlways answer chose (see ToolCall.Rungs). An
+// empty or unknown rule means the default rung, so an approver that does
+// not offer the choice need not implement this at all.
+type RuleApprover interface {
+	ReasonApprover
+	ApproveWithRule(ctx context.Context, call ToolCall) (d Decision, reason, rule string, err error)
 }
 
 // DeniedMessage is the tool result the model sees after a denial. The user's

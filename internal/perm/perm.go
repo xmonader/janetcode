@@ -242,40 +242,143 @@ func SubjectIn(tool string, input json.RawMessage, root string) string {
 // or one led by a builtin or a wrapper that runs something else (cd, sudo,
 // sh -c, env, xargs, ...) — it returns the zero Rule: a pattern ending in
 // * would allow whatever follows the leading words (see Match).
+//
+// Suggest is one rung of SuggestLadder: the one a front-end starts on.
 func Suggest(tool, subject string) Rule {
+	rungs, def := ladder(tool, subject)
+	if len(rungs) == 0 {
+		return Rule{}
+	}
+	return rungs[def]
+}
+
+// SuggestLadder is the range of rules the user may choose between when
+// saving one for a call, ordered narrowest first: for
+// `go test ./internal/...` it is bash(go test ./internal/...),
+// bash(go test *), bash(go *); for a file tool the exact path, its
+// directory, then the directory above. The widest rung is still narrower
+// than the tool itself, so no rung ever amounts to bash(*).
+//
+// A call Suggest refuses to capture (see above) has no ladder either:
+// widening is only offered where a rule was safe to propose at all.
+func SuggestLadder(tool, subject string) []Rule {
+	rungs, _ := ladder(tool, subject)
+	return rungs
+}
+
+// DefaultRung is the index in rungs of the rule Suggest proposes, or 0
+// when it is not among them. Front-ends start the user there, so that
+// answering without moving saves exactly what it used to.
+func DefaultRung(rungs []Rule, r Rule) int {
+	for i, e := range rungs {
+		if e == r {
+			return i
+		}
+	}
+	return 0
+}
+
+// ladder builds the rungs and says which one is the default.
+func ladder(tool, subject string) ([]Rule, int) {
 	switch tool {
 	case "bash":
-		words := strings.Fields(subject)
-		if len(words) == 0 {
-			return Rule{Tool: tool}
-		}
-		// 2>&1 joins two outputs; it is not a second command.
-		if bare := strings.ReplaceAll(subject, "2>&1", ""); strings.ContainsAny(bare, ";|&`\n") || strings.Contains(bare, "$(") || notCapturable[words[0]] {
-			return Rule{}
-		}
-		if len(words) == 1 {
-			return Rule{Tool: tool, Pattern: words[0]}
-		}
-		// Runners take a subcommand that decides what the command does, so
-		// the rule keeps it: "go test *" rather than "go *".
-		n := 1
-		if runners[words[0]] && !strings.HasPrefix(words[1], "-") && isWordy(words[1]) {
-			n = 2
-		}
-		return Rule{Tool: tool, Pattern: strings.Join(words[:n], " ") + " *"}
+		return bashLadder(tool, subject)
 	case "fetch_url":
-		if u, err := url.Parse(subject); err == nil && u.Host != "" {
-			return Rule{Tool: tool, Pattern: u.Scheme + "://" + u.Host + "/*"}
-		}
-		return Rule{Tool: tool}
+		return urlLadder(tool, subject)
 	case "read_file", "write_file", "edit_file", "list_dir", "glob", "grep":
-		dir := filepath.Dir(subject)
-		if dir == "." || dir == "/" || subject == "" {
-			return Rule{Tool: tool}
-		}
-		return Rule{Tool: tool, Pattern: dir + "/*"}
+		return pathLadder(tool, subject)
 	}
-	return Rule{Tool: tool}
+	return []Rule{{Tool: tool}}, 0
+}
+
+func bashLadder(tool, subject string) ([]Rule, int) {
+	words := strings.Fields(subject)
+	if len(words) == 0 {
+		return []Rule{{Tool: tool}}, 0
+	}
+	// 2>&1 joins two outputs; it is not a second command.
+	if bare := strings.ReplaceAll(subject, "2>&1", ""); strings.ContainsAny(bare, ";|&`\n") || strings.Contains(bare, "$(") || notCapturable[words[0]] {
+		return nil, 0
+	}
+	// The exact command is the narrowest rung: no wildcard at all.
+	rungs := []Rule{{Tool: tool, Pattern: strings.Join(words, " ")}}
+	// Runners take a subcommand that decides what the command does, so
+	// there is a rung that keeps it — "go test *" — above which sits the
+	// runner alone, "go *". The floor is the leading word: never bash
+	// itself, which would be bash(*).
+	if len(words) > 1 && runners[words[0]] && !strings.HasPrefix(words[1], "-") && isWordy(words[1]) {
+		rungs = append(rungs, Rule{Tool: tool, Pattern: words[0] + " " + words[1] + " *"})
+	}
+	// A one-word command has nowhere to widen to: "make *" does not even
+	// match `make`, and bash alone is bash(*).
+	if len(words) == 1 {
+		return rungs, 0
+	}
+	rungs = append(rungs, Rule{Tool: tool, Pattern: words[0] + " *"})
+	rungs = dedupe(rungs)
+	// The default is what Suggest has always proposed: the leading words
+	// plus *, which is the widest rung unless the subcommand made one.
+	def := len(rungs) - 1
+	if len(rungs) > 2 {
+		def = len(rungs) - 2
+	}
+	return rungs, def
+}
+
+func urlLadder(tool, subject string) ([]Rule, int) {
+	u, err := url.Parse(subject)
+	if err != nil || u.Host == "" {
+		return []Rule{{Tool: tool}}, 0
+	}
+	host := u.Scheme + "://" + u.Host
+	rungs := []Rule{{Tool: tool, Pattern: subject}}
+	// One rung for the section of the site the page is in, so trusting
+	// one host's docs does not have to mean trusting the whole host.
+	if seg := strings.SplitN(strings.TrimPrefix(u.Path, "/"), "/", 2)[0]; seg != "" {
+		rungs = append(rungs, Rule{Tool: tool, Pattern: host + "/" + seg + "/*"})
+	}
+	rungs = append(rungs, Rule{Tool: tool, Pattern: host + "/*"})
+	rungs = dedupe(rungs)
+	return rungs, len(rungs) - 1
+}
+
+func pathLadder(tool, subject string) ([]Rule, int) {
+	if subject == "" || subject == "." {
+		return []Rule{{Tool: tool}}, 0
+	}
+	rungs := []Rule{{Tool: tool, Pattern: subject}}
+	dir := filepath.Dir(subject)
+	if dir == "." || dir == "/" {
+		// Nothing to widen to but the tool itself, which is what
+		// Suggest has always proposed here.
+		return append(rungs, Rule{Tool: tool}), 1
+	}
+	rungs = append(rungs, Rule{Tool: tool, Pattern: dir + "/*"})
+	// One level above the directory is the tree the file sits in. Higher
+	// than that is guesswork, and the root is never a rung.
+	if up := filepath.Dir(dir); up != "." && up != "/" && up != dir {
+		rungs = append(rungs, Rule{Tool: tool, Pattern: up + "/*"})
+	}
+	return dedupe(rungs), 1
+}
+
+// dedupe drops rungs equal to one already in the list, keeping order: a
+// one-word command and a path with a single parent both collapse.
+func dedupe(rungs []Rule) []Rule {
+	out := rungs[:0:0]
+	for _, r := range rungs {
+		seen := false
+		for _, e := range out {
+			if e == r {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // notCapturable are leading words a rule must not be made of: navigation

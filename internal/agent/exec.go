@@ -234,21 +234,42 @@ func (a *Agent) ask(ctx context.Context, u *llm.Block, call *ToolCall, subject s
 	suggested := perm.Suggest(u.Name, subject)
 	shape := suggested.String()
 	call.Rule = shape
-	if tally := a.Ledger.Get(shape); shape != "" && tally.Allowed >= perm.LearnAfter && tally.Denied == 0 && !mustAsk && call.Warning == "" {
-		call.Learned = fmt.Sprintf("approved %d× before, never refused", tally.Allowed)
+	// The ladder the user may move along before saving: each rung with
+	// the ledger's note about that exact rule, so the "approved N×" note
+	// always counts the rule shown beside it.
+	rungs := perm.SuggestLadder(u.Name, subject)
+	call.RuleIndex = perm.DefaultRung(rungs, suggested)
+	call.Rungs = nil
+	for _, r := range rungs {
+		call.Rungs = append(call.Rungs, RuleRung{Rule: r.String(), Learned: a.learnedNote(r.String(), mustAsk, call.Warning)})
 	}
+	call.Learned = a.learnedNote(shape, mustAsk, call.Warning)
 	var (
 		d      Decision
 		reason string
+		chosen string
 		err    error
 	)
-	if ra, ok := a.Approver.(ReasonApprover); ok {
-		d, reason, err = ra.ApproveWithReason(ctx, *call)
-	} else {
+	switch ap := a.Approver.(type) {
+	case RuleApprover:
+		d, reason, chosen, err = ap.ApproveWithRule(ctx, *call)
+	case ReasonApprover:
+		d, reason, err = ap.ApproveWithReason(ctx, *call)
+	default:
 		d, err = a.Approver.Approve(ctx, *call)
 	}
 	if err != nil {
 		return 0, "", perm.Rule{}, err
+	}
+	// Saving a wider or narrower rung than the default makes that rung
+	// the shape this answer is about, so it is the one the ledger counts.
+	if d == AllowAlways && chosen != "" {
+		for _, r := range rungs {
+			if r.String() == chosen {
+				suggested, shape = r, chosen
+				break
+			}
+		}
 	}
 	// Recorded before applyDecision, which reports a refusal: the ledger
 	// has to see a refusal too, not only the allow variants.
@@ -260,6 +281,19 @@ func (a *Agent) ask(ctx context.Context, u *llm.Block, call *ToolCall, subject s
 		a.Ledger.MarkWarned(shape)
 	}
 	return d, reason, suggested, nil
+}
+
+// learnedNote is the ledger's note for one rule shape, or "" when the
+// shape is new, has ever been refused, or the prompt is unusual enough
+// that a "you have allowed this before" note would be misleading.
+func (a *Agent) learnedNote(shape string, mustAsk bool, warning string) string {
+	if shape == "" || mustAsk || warning != "" {
+		return ""
+	}
+	if t := a.Ledger.Get(shape); t.Allowed >= perm.LearnAfter && t.Denied == 0 {
+		return fmt.Sprintf("approved %d× before, never refused", t.Allowed)
+	}
+	return ""
 }
 
 // applyDecision carries out what the user chose: widening the allow for
