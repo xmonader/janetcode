@@ -121,15 +121,10 @@ type Agent struct {
 	// permissions owns what a tool call must satisfy before it runs
 	// (see permissions.go). Embedded for the same reason.
 	permissions
-
-	stats statsCounter
-	// Predictor, when set, scores the running turn from its trajectory
-	// features (see Trajectory) and warns the model once per turn when
-	// the score is low. Trained from eval runs with Train.
-	Predictor *Predictor
-	turnStart time.Time
-	warned    bool
-	lastScore float64
+	// turnMonitor watches the running turn: cost, counters, and the
+	// three things that notice a turn going wrong (see turnmon.go).
+	// Embedded for the same reason.
+	turnMonitor
 
 	// Model, MaxTokens, MaxIterations, CompactAt, AutoApprove, AutoEdits,
 	// AutoMode, ReadOnly, PlanMode, ProofNotes, Rules and Pins are filled
@@ -219,16 +214,9 @@ type Agent struct {
 	// Messages is the conversation history. It is only ever appended to and
 	// always ends in a state a provider will accept.
 	Messages []llm.Message
-	// Usage accumulates over the whole conversation.
-	Usage llm.Usage
 	// Price, when set, lets the UI estimate spend for providers that do not
 	// report cost.
 	Price *llm.Price
-	// MaxCostUSD, when set, ends a run once Usage has cost this much. It
-	// is checked after every model call and after every batch of tool
-	// results, not only between turns; see budget.go. Zero means no
-	// ceiling, and a model with no price cannot be held to one.
-	MaxCostUSD float64
 	// Log, when set, is the append-only trajectory of this conversation.
 	// Resume reconstructs counts by folding it. Nil means in-memory stats only.
 	Log          session.Log
@@ -262,23 +250,16 @@ type Agent struct {
 	// callIDs is every tool-call id handed out this conversation, so a
 	// provider that repeats or omits one cannot collide with it.
 	callIDs map[string]bool
-	coach   coach
-	coachMu sync.Mutex // read_file runs in parallel goroutines
-	loops   loopDetector
-	loopMu  sync.Mutex
-	usageMu sync.Mutex // the status bar reads Usage while a turn runs
 	msgMu   sync.Mutex // guards Messages writes against off-turn readers (see MessagesSnapshot)
 	steerMu sync.Mutex // guards steer, written from the UI goroutine
 	steer   []string   // notes for the running turn (see Steer)
 	harness []string   // harness text for the running turn (path rules)
-	turnUse llm.Usage  // what the turn in progress has cost so far
 	// acceptMu guards Accept, which a front-end changes while tools read
 	// it (see accept.go).
 	acceptMu sync.Mutex
 	// tools is this turn's tool list, held so that a server registering
 	// mid-turn cannot rewrite the cached prefix. Cleared at each turn.
 	tools []llm.ToolDef
-	stuck bool
 
 	// emitNow is the current turn's event sink. A tool that dispatches
 	// further tool calls of its own — a script does — needs it to show

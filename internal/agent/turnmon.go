@@ -1,0 +1,116 @@
+package agent
+
+import (
+	"math"
+	"sort"
+	"sync"
+	"time"
+
+	"github.com/xmonader/janetcode/internal/llm"
+)
+
+// turnMonitor is the collaborator that watches a turn happen: what it has
+// cost (Usage, turnUse, MaxCostUSD — see budget.go), what it has done
+// (stats.go), and whether it is going anywhere — the trajectory predictor
+// that scores it (trajectory.go), the loop detector that notices it
+// repeating itself (loop.go) and the edit coach that notices the same
+// mistake twice (coach.go). None of it decides anything about the
+// conversation; it observes the turn and warns.
+//
+// Embedded in Agent by value, so Usage, MaxCostUSD and Predictor keep
+// their names for the callers that read and set them.
+//
+// usageMu also guards the context manager's cache ledger and prefix
+// watch: they are written from the same place the usage is (addUsage and
+// callOn), by the turn goroutine, and read from the same place — the
+// status bar's goroutine.
+type turnMonitor struct {
+	stats statsCounter
+
+	// Usage accumulates over the whole conversation.
+	Usage llm.Usage
+	// turnUse is what the turn in progress has cost so far.
+	turnUse llm.Usage
+	usageMu sync.Mutex // the status bar reads Usage while a turn runs
+	// MaxCostUSD, when set, ends a run once Usage has cost this much. It
+	// is checked after every model call and after every batch of tool
+	// results, not only between turns; see budget.go. Zero means no
+	// ceiling, and a model with no price cannot be held to one. Read
+	// through MaxCost, written through SetMaxCost.
+	MaxCostUSD float64
+
+	// Predictor, when set, scores the running turn from its trajectory
+	// features (see Trajectory) and warns the model once per turn when
+	// the score is low. Trained from eval runs with Train.
+	Predictor *Predictor
+	turnStart time.Time
+	warned    bool
+	lastScore float64
+	stuck     bool
+
+	loops   loopDetector
+	loopMu  sync.Mutex
+	coach   coach
+	coachMu sync.Mutex // read_file runs in parallel goroutines
+}
+
+// Stats returns a snapshot of the counters.
+func (m *turnMonitor) Stats() Stats {
+	m.stats.mu.Lock()
+	defer m.stats.mu.Unlock()
+	s := m.stats.s
+	s.Tools = make([]ToolStat, 0, len(m.stats.tools))
+	for _, t := range m.stats.tools {
+		s.Tools = append(s.Tools, *t)
+	}
+	sort.Slice(s.Tools, func(i, j int) bool {
+		if s.Tools[i].Calls != s.Tools[j].Calls {
+			return s.Tools[i].Calls > s.Tools[j].Calls
+		}
+		return s.Tools[i].Name < s.Tools[j].Name
+	})
+	s.Models = make([]ModelStat, 0, len(m.stats.models))
+	for _, ms := range m.stats.models {
+		s.Models = append(s.Models, *ms)
+	}
+	sort.Slice(s.Models, func(i, j int) bool {
+		if s.Models[i].Calls != s.Models[j].Calls {
+			return s.Models[i].Calls > s.Models[j].Calls
+		}
+		return s.Models[i].Name < s.Models[j].Name
+	})
+	return s
+}
+
+// TurnUsage is what the current turn has cost across all of its model
+// calls. The last call's usage is not the turn's: a turn that took four
+// calls to finish paid for four, and reporting only the last one makes a
+// long turn look like a short one.
+func (m *turnMonitor) TurnUsage() llm.Usage {
+	m.usageMu.Lock()
+	defer m.usageMu.Unlock()
+	return m.turnUse
+}
+
+// startTurn resets the per-turn usage.
+func (m *turnMonitor) startTurn() {
+	m.usageMu.Lock()
+	m.turnUse = llm.Usage{}
+	m.usageMu.Unlock()
+}
+
+// UsageSnapshot is a copy of the usage so far, safe to read while a turn
+// is running.
+func (m *turnMonitor) UsageSnapshot() llm.Usage {
+	m.usageMu.Lock()
+	defer m.usageMu.Unlock()
+	return m.Usage
+}
+
+// LastScore is the most recent critic score, or NaN before any.
+func (m *turnMonitor) LastScore() float64 {
+	if m.lastScore == 0 {
+		return math.NaN()
+	}
+	return m.lastScore
+}

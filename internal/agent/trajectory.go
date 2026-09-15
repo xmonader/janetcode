@@ -485,11 +485,3 @@ func mustJSON(v any) json.RawMessage {
 	b, _ := json.Marshal(v)
 	return b
 }
-
-// LastScore is the most recent critic score, or NaN before any.
-func (a *Agent) LastScore() float64 {
-	if a.lastScore == 0 {
-		return math.NaN()
-	}
-	return a.lastScore
-}

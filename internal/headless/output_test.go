@@ -264,8 +264,8 @@ func TestTextFormatWritesNoEnvelope(t *testing.T) {
 // recorder only sees usage at EvTurnDone, which such a run never
 // reaches, so the figure comes from the agent's own counter.
 func TestEnvelopeReportsUsageOfAnUnfinishedTurn(t *testing.T) {
-	ag := &agent.Agent{Model: "m", Price: &llm.Price{Input: 3, Output: 15},
-		Usage: llm.Usage{InputTokens: 1000, OutputTokens: 2000}}
+	ag := &agent.Agent{Model: "m", Price: &llm.Price{Input: 3, Output: 15}}
+	ag.Usage = llm.Usage{InputTokens: 1000, OutputTokens: 2000}
 	r := newRecorder(Options{Stdout: io.Discard, Agent: ag}, FormatJSON)
 	res := r.result(ag, fmt.Errorf("%w: spent it all", ErrBudget))
 	if res.Usage.InputTokens != 1000 || res.Usage.OutputTokens != 2000 {

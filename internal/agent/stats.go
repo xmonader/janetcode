@@ -220,34 +220,6 @@ func (c *statsCounter) tool(name string, d time.Duration, failed bool) {
 	}
 }
 
-// Stats returns a snapshot of the counters.
-func (a *Agent) Stats() Stats {
-	a.stats.mu.Lock()
-	defer a.stats.mu.Unlock()
-	s := a.stats.s
-	s.Tools = make([]ToolStat, 0, len(a.stats.tools))
-	for _, t := range a.stats.tools {
-		s.Tools = append(s.Tools, *t)
-	}
-	sort.Slice(s.Tools, func(i, j int) bool {
-		if s.Tools[i].Calls != s.Tools[j].Calls {
-			return s.Tools[i].Calls > s.Tools[j].Calls
-		}
-		return s.Tools[i].Name < s.Tools[j].Name
-	})
-	s.Models = make([]ModelStat, 0, len(a.stats.models))
-	for _, m := range a.stats.models {
-		s.Models = append(s.Models, *m)
-	}
-	sort.Slice(s.Models, func(i, j int) bool {
-		if s.Models[i].Calls != s.Models[j].Calls {
-			return s.Models[i].Calls > s.Models[j].Calls
-		}
-		return s.Models[i].Name < s.Models[j].Name
-	})
-	return s
-}
-
 // switches are the behaviours Agent.Off can disable.
 var switches = map[string]bool{"coach": true, "syntax": true, "loops": true, "prune": true, "verify": true, "repomap": true, "working": true, "richskip": true, "faults": true, "verdict": true, "todo": true, "script": true, "lineedit": true, "extratools": true, "intent": true, "oversized": true, "plan": true, "critic": true}
 

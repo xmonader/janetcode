@@ -133,7 +133,8 @@ func TestWatchdogKillsAreCounted(t *testing.T) {
 // money format rounds both figures to $0.0000 — a message that names
 // neither the spend nor the ceiling it crossed.
 func TestBudgetErrorNamesSubCentFigures(t *testing.T) {
-	a := &Agent{MaxCostUSD: 0.00005}
+	a := &Agent{}
+	a.MaxCostUSD = 0.00005
 	msg := a.budgetErr(0.00023).Error()
 	if !strings.Contains(msg, "$0.00023") || !strings.Contains(msg, "$0.00005") {
 		t.Fatalf("the budget error rounded its own figures away: %s", msg)
