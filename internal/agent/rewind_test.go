@@ -369,3 +369,62 @@ func TestRestoreToTurnRefusesWhileATurnIsRunning(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// planTool switches plan mode from inside a turn, the way a tool or a
+// front-end acting mid-turn does.
+type planTool struct{ a *Agent }
+
+func (planTool) Name() string        { return "planmode" }
+func (planTool) Description() string { return "" }
+func (planTool) Mutating() bool      { return false }
+func (planTool) Schema() json.RawMessage {
+	return json.RawMessage(`{"type":"object"}`)
+}
+func (p planTool) Run(context.Context, json.RawMessage) (string, error) {
+	p.a.SetPlanMode(true)
+	return "plan mode on", nil
+}
+
+// TestRewindPutsPlanModeBack: plan mode is folded from the log on every
+// resume, so a rewind that left a dropped turn's switch standing would
+// leave the session — and a later resume of it — in a mode no surviving
+// turn ever asked for.
+func TestRewindPutsPlanModeBack(t *testing.T) {
+	pt := planTool{}
+	a, _, sess, dir := loggedTurns(t, []*llm.Response{
+		toolCall("w1", "write_file", `{"path":"one.txt","content":"one"}`),
+		text("wrote one"),
+		toolCall("w2", "write_file", `{"path":"two.txt","content":"two"}`),
+		toolCall("p1", "planmode", `{}`),
+		text("wrote two"),
+	}, &pt)
+	pt.a = a
+	for _, p := range []string{"do one", "do two"} {
+		if err := a.Run(context.Background(), p, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !a.Settings().PlanMode {
+		t.Fatal("turn 2 did not switch plan mode on")
+	}
+	if _, err := a.PreviewUndoTurn(context.Background(), 2, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.ApplyPendingUndo(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	if a.Settings().PlanMode {
+		t.Fatal("plan mode outlived the turn that switched it on")
+	}
+	// And the log says so, so a resume folds the mode the session is
+	// actually in.
+	reopened, _, err := session.Open(dir, sess.Meta.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := &Agent{Provider: &fake{}, Model: "m"}
+	b.SetLog(reopened)
+	if b.PlanMode {
+		t.Fatal("a resume of the rewound session comes back in plan mode")
+	}
+}

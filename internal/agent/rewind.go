@@ -118,13 +118,16 @@ func (a *Agent) rewindCut(cp Checkpoint) (keep int, ok bool, why string) {
 // mode the session was in when turn n began — folded over what survives,
 // since a dropped turn may have switched it.
 func (a *Agent) rewindScan(n int) (turns int, archived []string, plan bool) {
-	plan = a.Settings().PlanMode
 	if a.Log == nil {
+		// Nothing to fold; the mode stays as it is.
 		if a.turnN >= n {
 			turns = a.turnN - n + 1
 		}
-		return turns, nil, plan
+		return turns, nil, a.Settings().PlanMode
 	}
+	// Folded from false, exactly as session.FoldPlanMode does on a
+	// resume: a session with no plan/mode event before turn n was not in
+	// plan mode when it began.
 	seen := map[int]bool{}
 	for _, e := range a.Log.Events() {
 		if e.Turn < n {
@@ -206,6 +209,30 @@ func (a *Agent) rewindConversation(cp Checkpoint, restored []string) *Conversati
 	a.EstimateTokens()
 	return rw
 }
+
+// What a rewind deliberately leaves alone, and why:
+//
+//   - The cumulative usage and the session's stats. The tokens were
+//     spent whether or not the work survived; a cost counter that went
+//     down when work was thrown away would be a lie about the bill.
+//   - Subagents. Each holds its own conversation and never writes the
+//     parent's, so nothing of theirs is inconsistent afterwards. Their
+//     reports were tool results in the dropped turns and go with them,
+//     which is the point: the model no longer knows about work it can no
+//     longer see the result of. A child is still continuable by id for
+//     anything that kept one.
+//   - Cron jobs (/loop). They carry no turn, and they are standing
+//     instructions from the user rather than something a turn produced,
+//     so scoping them to a rewound turn would be a guess. They stay
+//     armed and die with the session as they always have.
+//   - The /accept lock. It lives in the session metadata, not in the
+//     conversation, and each locked test file is hash-stamped, so a
+//     restore that puts one of them back is caught by the gate's own
+//     check rather than silently trusted.
+//   - The provenance record behind /changes and /blame, which gains the
+//     restore as a change of its own. It is the history of what was done
+//     to the files, and a rewind is one more thing that was done to
+//     them.
 
 // rewindThroughLog appends the replacement event that takes everything
 // past keep off the model-visible surface and re-folds the conversation
