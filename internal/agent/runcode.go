@@ -6,16 +6,17 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/recipe"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
 const runCodeMaxSteps = 20
 
-// runCodeSkip is tool.NotReplayable: run_code's steps are a fixed list of
+// runCodeSkip is recipe.NotReplayable: run_code's steps are a fixed list of
 // tool calls, the same shape internal/recipe replays, so both refuse the
 // same tools rather than keeping two lists that can drift apart.
-var runCodeSkip = tool.NotReplayable
+var runCodeSkip = recipe.NotReplayable
 
 // RunCode runs a short program of real tool calls in this session.
 // Each step goes through authorize/guards/the event log.

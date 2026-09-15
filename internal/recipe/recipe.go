@@ -28,7 +28,6 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // Param is a named substitution a saved recipe accepts. Default is the
@@ -98,7 +97,7 @@ func LatestToolTurn(events []session.Event) int {
 
 // FromEvents extracts one turn's tool calls, in the order they ran,
 // keeping only calls whose result was not an error and dropping tools
-// that must not be replayed (see tool.NotReplayable). turn==0 means the
+// that must not be replayed (see NotReplayable). turn==0 means the
 // latest turn that made any tool call.
 func FromEvents(events []session.Event, turn int) ([]Step, error) {
 	if turn == 0 {
@@ -130,7 +129,7 @@ func FromEvents(events []session.Event, turn int) ([]Step, error) {
 	var steps []Step
 	for _, id := range order {
 		call := calls[id]
-		if tool.NotReplayable[call.Name] {
+		if NotReplayable[call.Name] {
 			continue
 		}
 		res, ok := results[id]
