@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/xmonader/janetcode/internal/weburl"
 )
 
 const ddgPage = `<html><body><div id="links">
@@ -35,7 +37,7 @@ func TestWebSearchDuckDuckGo(t *testing.T) {
 		w.Write([]byte(ddgPage))
 	}))
 	defer srv.Close()
-	ws := WebSearch{Config: SearchConfig{URL: srv.URL + "/html/"}}
+	ws := WebSearch{Config: weburl.SearchConfig{URL: srv.URL + "/html/"}}
 	out, err := ws.Run(context.Background(), json.RawMessage(`{"query":"go net/http docs","max_results":2}`))
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +73,7 @@ func TestWebSearchBraveAndErrors(t *testing.T) {
 		w.Write([]byte(`{"web":{"results":[{"title":"<strong>Rust</strong> book","url":"https://doc.rust-lang.org/book/","description":"Learn Rust"},{"title":"no url"},{"title":"Second","url":"https://example.org/2","description":""}]}}`))
 	}))
 	defer srv.Close()
-	ws := WebSearch{Config: SearchConfig{Provider: "brave", Key: "${BRAVE_TEST_KEY}", URL: srv.URL}}
+	ws := WebSearch{Config: weburl.SearchConfig{Provider: "brave", Key: "${BRAVE_TEST_KEY}", URL: srv.URL}}
 	out, err := ws.Run(context.Background(), json.RawMessage(`{"query":"rust book","max_results":50}`))
 	if err != nil {
 		t.Fatal(err)
@@ -87,14 +89,5 @@ func TestWebSearchBraveAndErrors(t *testing.T) {
 	}
 	if _, err := ws.Run(context.Background(), json.RawMessage(`{"query":"  "}`)); err == nil {
 		t.Fatal("empty query accepted")
-	}
-	if err := (SearchConfig{Provider: "brave"}).Validate(); err == nil {
-		t.Fatal("brave without key validated")
-	}
-	if err := (SearchConfig{Provider: "bing"}).Validate(); err == nil {
-		t.Fatal("unknown provider validated")
-	}
-	if err := (SearchConfig{}).Validate(); err != nil {
-		t.Fatal(err)
 	}
 }

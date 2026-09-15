@@ -1,6 +1,8 @@
-// Package weburl normalizes and vets URLs the agent is asked to fetch:
-// GitHub blob links rewritten to raw content, private-network targets
-// recognised, and the hosts the user named remembered.
+// Package weburl holds the web-access rules that do not need the tool
+// machinery: URLs the agent is asked to fetch are normalized (GitHub blob
+// links rewritten to raw content) and vetted (private-network targets
+// recognised, the hosts the user named remembered), and the search
+// backend's configuration is validated.
 package weburl
 
 import (

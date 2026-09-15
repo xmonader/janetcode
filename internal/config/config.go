@@ -17,7 +17,7 @@ import (
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/theme"
-	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/weburl"
 	"github.com/xmonader/janetcode/internal/xdg"
 )
 
@@ -113,7 +113,7 @@ type Config struct {
 	LSP lsp.Config `json:"lsp,omitempty"`
 	// Search selects the web_search backend: DuckDuckGo by default, or
 	// Brave Search with a key.
-	Search tool.SearchConfig `json:"search,omitempty"`
+	Search weburl.SearchConfig `json:"search,omitempty"`
 	// FallbackModels are tried, in order, when a call fails in a way
 	// another model could survive: an exhausted quota, or rate limits
 	// and server errors that outlived the provider's own retries. Each
