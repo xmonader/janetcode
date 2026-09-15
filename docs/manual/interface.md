@@ -193,7 +193,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /plan <request> (plan mode: explore, write a plan; /plan approve executes it)
 /accept <request> (write acceptance tests first; /accept approve locks them as a gate)
 /readonly  (toggle read-only: the model can inspect but change nothing)
-/sandbox [on|off|image]  (wrap local bash in docker; file tools stay here)
+/sandbox [on|off|workspace|read-only|strict|backend|image]  (run local bash under a sandbox profile; file tools stay here)
 /review [focus]  (two subagents read the current diff: bugs and tests)
 /loop [duration] [prompt|off]  (repeat a prompt this session; restored on resume)
 /agents [id|new <brief>|fork <brief>]  (overlay of subagents; new starts a general one, fork inherits this conversation)
@@ -1409,9 +1409,10 @@ asking) → ask. The current mode stays on the status line (and as a
 header prefix); cycling it does not print into the transcript. `/edits`
 and `/readonly` stay their own toggles.
 
-`/sandbox on` wraps local bash in docker (or `sandbox-exec` on macOS).
-File tools, `/ssh` and `/docker` are unchanged: only the shell is
-isolated, and it is off by default. `/review` starts two read-only
+`/sandbox workspace` runs local bash under a named profile (see *The
+sandbox* below); `/sandbox on` is the same as `/sandbox workspace`. File
+tools, `/ssh` and `/docker` are unchanged: only the shell is isolated,
+and it is off by default. `/review` starts two read-only
 subagents over `git diff HEAD` (bugs and tests). `/loop 5m <prompt>`
 repeats that prompt for this session; the timers are written on the
 session record and restored on `-c`/`-r` of that session (`/loop off`
@@ -1421,6 +1422,69 @@ another local root for this session. `/btw` asks a side question that is
 not stored as a user turn; `/copy` copies the last reply; `/config key=value`
 sets a catalogued setting; `/doctor` prints the same checkup as
 `janetcode --doctor` without changing files.
+
+### The sandbox
+
+The sandbox is off by default. When it is on, local bash — and any
+background job started from it — runs under a named **profile**; file
+tools, `/ssh` and `/docker` are untouched, so only the shell is confined.
+
+| profile | writes | reads | network | never writable |
+|---|---|---|---|---|
+| `workspace` | the project root, the directories `/add-dir` granted, and the temp dir | anything | allowed | `.janetcode/**`, `**/id_rsa`, `**/id_ed25519`, `**/.ssh/**`, `**/.aws/credentials` |
+| `read-only` | nothing | anything | allowed | — (nothing is writable) |
+| `strict` | the project root, the `/add-dir` directories, and the temp dir | anything | **none** | `.git/**` and everything `workspace` denies |
+
+`/sandbox on` means `workspace`. `/sandbox off` turns it off again.
+`/sandbox` alone reports the active profile, the backend, and whatever
+that backend cannot enforce. `/sandbox <image>` names the docker image
+(default `alpine:3.20`) and `/sandbox docker|seatbelt|landlock|auto`
+forces a backend instead of the one picked for the machine. A project
+can start every session sandboxed with the `sandbox` config key (see
+*Configuration*).
+
+`strict` denies writes to `.git/**`, which means git cannot commit
+inside it. That is the point of the profile; use `workspace` when the
+model is expected to commit.
+
+**Backends.** macOS uses `sandbox-exec` (seatbelt). Linux uses docker
+when it is installed, and **Landlock** otherwise — the kernel LSM, no
+container and no image. `/sandbox landlock` chooses it even where docker
+exists.
+
+What each backend can and cannot do:
+
+- **docker** mounts every write root read-write and everything else the
+  command can see read-only, gives a profile with no network
+  `--network=none`, and re-mounts a deny glob that names a directory
+  (like `.git/**`) read-only on top. It cannot mount a *wildcard* deny
+  glob such as `**/id_rsa`. The command also runs inside the image, not
+  against your machine's toolchain.
+- **seatbelt** writes a policy with a `subpath` rule per write root, a
+  `deny` rule per deny glob (a `subpath` for a directory, a regex for a
+  wildcard glob) and `deny network*` for `strict`. Reads stay broad by
+  design.
+- **Landlock** confines writes to the profile's roots in the kernel.
+  It has allow rules only, so it cannot carve a deny glob out of a root
+  it made writable. It also cannot take a network away before ABI 4
+  (Linux 6.7), so `strict` **refuses to run** on such a kernel rather
+  than pretending — install docker, or use `workspace`. From ABI 4 it
+  denies TCP bind and connect, but not UDP (DNS included) or unix
+  sockets; docker's `--network=none` is the stronger no.
+
+Whatever the backend, a deny glob is also enforced before the command
+runs: janetcode reads the command line with the same static analysis the
+acceptance-test lock uses, and refuses `rm -rf .git` under `strict` with
+a message the model can act on. That analysis sees the write targets of
+a command line — the path arguments of `mv`, `cp`, `rm`, `tee`, `sed -i`
+and friends, and redirect targets — not what a program decides to write
+once it is running; the backend is what stops the rest.
+
+Two Landlock details worth knowing: `/dev/null`, the terminal and
+`/dev/fd` stay writable under every profile (a shell that cannot write
+them cannot report anything), and the sandboxed command is started by
+re-executing janetcode itself, which applies the policy and then execs
+your shell.
 
 ### Acceptance tests
 
