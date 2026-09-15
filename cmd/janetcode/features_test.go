@@ -109,6 +109,7 @@ func TestEveryHintNamesSomethingThatExists(t *testing.T) {
 		{UndoneMixed: 3},
 		{RepeatedTurnShape: "edit_file VERSION, edit_file CHANGELOG.md"},
 		{TestFirstPrompt: true},
+		{Queued: true},
 		{VerifiedAfterFailure: true},
 		{ProofAttached: true},
 		{SwitchedModel: "claude-opus-5-some-long-name", SessionID: "20260911-153001-4f2a"},

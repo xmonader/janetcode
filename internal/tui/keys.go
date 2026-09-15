@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -474,7 +475,8 @@ func (m *model) keyEnter(tea.KeyMsg) (tea.Cmd, bool) {
 		m.hist.remember(text)
 		m.input.Reset()
 		m.layout()
-		m.status = fmt.Sprintf("queued %d · sends when this turn ends · esc cancels the turn and restores it", len(m.turn.queued))
+		m.status = fmt.Sprintf("queued %d · sends when this turn ends · ctrl+s would have steered it into this turn instead · esc cancels the turn and restores it", len(m.turn.queued))
+		m.noteHint(func(s *hints.State) { s.Queued = true })
 		m.refresh(false)
 		return nil, true
 	}

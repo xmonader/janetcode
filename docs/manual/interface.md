@@ -208,9 +208,11 @@ second line: the reach of the change, such as
 
 Typing while the model is working queues the message; it is sent as soon as
 the turn ends. `ctrl+s` instead hands what you typed to the turn that is
-running — the model reads it before its next step. `↑` with an empty prompt
-takes the last queued message back to edit, and cancelling a turn hands all
-queued text back to the input, joined by blank lines.
+running — the model reads it before its next step. The prompt names both
+while a turn is running (`enter queues · ctrl+s steers`), and the reserved
+row above it says what is queued and how to steer it instead. `↑` with an
+empty prompt takes the last queued message back to edit, and cancelling a
+turn hands all queued text back to the input, joined by blank lines.
 
 In a short terminal the interface gives way rather than crowding out the
 transcript: how much of a tool result is shown is a third of the visible

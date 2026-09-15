@@ -293,6 +293,7 @@ func TestTheFeatureHintsFireOnTheirMomentOnly(t *testing.T) {
 		{"undo-about", "/undo about", "/undo about <description>", State{UndoneMixed: 2}, State{UndoneMixed: 1}},
 		{"recipe-repeat", "/recipe save", "/recipe save <name>", State{RepeatedTurnShape: "edit_file VERSION, edit_file CHANGELOG"}, State{}},
 		{"accept-tests", "/accept", "/accept <request>", State{TestFirstPrompt: true}, State{}},
+		{"steer-or-queue", "ctrl+s", "ctrl+s instead hands", State{Queued: true}, State{}},
 		{"eval-keep", "/eval keep", "/eval keep <name>", State{VerifiedAfterFailure: true}, State{}},
 		{"proof-notes", "/proof", "/proof push", State{ProofAttached: true}, State{}},
 		{"what-if-model", "what-if", "--what-if s1 --from-turn 1 --model m2", State{SwitchedModel: "m2", SessionID: "s1"}, State{SwitchedModel: "m2"}},

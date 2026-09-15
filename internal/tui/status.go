@@ -102,7 +102,10 @@ func (m *model) footerNotice() string {
 	case len(m.turn.steering) > 0:
 		return fitLine("  "+m.styles.warn.Render("steering ")+m.styles.dim.Render(textfmt.OneLine(m.turn.steering[len(m.turn.steering)-1])), room)
 	case len(m.turn.queued) > 0:
-		return fitLine("  "+m.styles.faint.Render(fmt.Sprintf("queued %d · ", len(m.turn.queued)))+m.styles.dim.Render(textfmt.OneLine(m.turn.queued[len(m.turn.queued)-1]))+m.styles.faint.Render(" · up takes it back"), room)
+		// What it is waiting for, and the other thing it could have been:
+		// the row is where somebody looks after pressing enter and
+		// finding the message has not gone anywhere yet.
+		return fitLine("  "+m.styles.faint.Render(fmt.Sprintf("queued %d · ", len(m.turn.queued)))+m.styles.dim.Render(textfmt.OneLine(m.turn.queued[len(m.turn.queued)-1]))+m.styles.faint.Render(" · sends when this turn ends · up takes it back, ctrl+s steers it into this turn"), room)
 	case m.notice.live():
 		return fitLine("  "+m.styles.dim.Render(m.notice.text), room)
 	}
@@ -335,10 +338,15 @@ func (m *model) placeholder() string {
 	case m.opts.Agent.Settings().Provider == nil:
 		return fitPhrase(room, "No provider yet · /connect picks one", "/connect")
 	case m.turn.running:
+		// Both intents, at every width. Queueing and steering are one
+		// keystroke apart and the difference — after this turn, or into
+		// it — is invisible unless the box says so, so the shortest
+		// wording still names both keys and drops everything else.
 		return fitPhrase(room,
-			"Type to queue a message for when this turn ends · esc cancels",
-			"Type to queue a message · esc cancels",
-			"queue · esc cancels")
+			"enter queues a message for when this turn ends · ctrl+s steers it into this one · esc cancels",
+			"enter queues for after this turn · ctrl+s steers into it · esc cancels",
+			"enter queues · ctrl+s steers · esc cancels",
+			"enter queues · ctrl+s steers")
 	case m.opts.Agent.Settings().PlanMode:
 		return fitPhrase(room,
 			"Plan mode: describe the change · /plan approve runs the plan",

@@ -27,7 +27,9 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/flavor"
+	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/mcp/mcptest"
@@ -4552,5 +4554,96 @@ func TestUndoTurnPreviewThenApply(t *testing.T) {
 	h.pump(func() bool { return !h.m.turn.running })
 	if v := plain(h.m.View()); !strings.Contains(v, "no snapshot for that turn") {
 		t.Fatalf("a turn with no snapshot was not refused:\n%s", v)
+	}
+}
+
+// TestTheBoxNamesBothQueueingAndSteering: enter and ctrl+s are one key
+// apart and do opposite things with the same text — after this turn, or
+// into it. The placeholder has to say so, and has to go on saying both
+// when the terminal is too narrow for the sentence.
+func TestTheBoxNamesBothQueueingAndSteering(t *testing.T) {
+	h := newHarness(t)
+	h.m.turn.running = true
+	for _, width := range []int{110, 80, 50, 34} {
+		h.m.input.SetWidth(width)
+		got := h.m.placeholder()
+		if lipgloss.Width(got) > width-2 {
+			t.Errorf("at %d columns the placeholder overflows: %q", width, got)
+		}
+		if !strings.Contains(got, "enter queues") || !strings.Contains(got, "ctrl+s steers") {
+			t.Errorf("at %d columns the placeholder names only one of the two: %q", width, got)
+		}
+	}
+	// The wordings really do differ, so the narrow ones are a fit and not
+	// the same sentence cut short.
+	h.m.input.SetWidth(110)
+	wide := h.m.placeholder()
+	h.m.input.SetWidth(34)
+	if narrow := h.m.placeholder(); narrow == wide {
+		t.Fatalf("the placeholder did not give way at 34 columns: %q", narrow)
+	}
+}
+
+// TestQueueingSaysHowToSteerInstead: pressing enter during a turn puts
+// the message somewhere it will sit until the turn ends. Both places
+// that say so — the status line at the moment it happens, and the
+// reserved row for as long as it waits — name the other key.
+func TestQueueingSaysHowToSteerInstead(t *testing.T) {
+	h := newHarness(t)
+	h.m.turn.running = true
+	h.keys("look at the other file too")
+	h.enter()
+	if len(h.m.turn.queued) != 1 {
+		t.Fatalf("queued = %v", h.m.turn.queued)
+	}
+	for _, want := range []string{"queued 1", "sends when this turn ends", "ctrl+s"} {
+		if !strings.Contains(h.m.status, want) {
+			t.Errorf("the queue note does not mention %q: %q", want, h.m.status)
+		}
+	}
+	h.m.width = 200
+	row := plain(h.m.footerNotice())
+	for _, want := range []string{"queued 1", "look at the other file too", "up takes it back", "ctrl+s steers it into this turn"} {
+		if !strings.Contains(row, want) {
+			t.Errorf("the reserved row does not mention %q: %q", want, row)
+		}
+	}
+}
+
+// TestTheFirstQueuedMessageTeachesCtrlS: the hint engine says it once
+// per project, and never to somebody who already steers.
+func TestTheFirstQueuedMessageTeachesCtrlS(t *testing.T) {
+	queue := func(h *harness, text string) {
+		h.m.turn.running = true
+		h.keys(text)
+		h.enter()
+	}
+	tips := func(h *harness) []string {
+		var out []string
+		for _, e := range h.m.transcript.entries {
+			if e.kind == entryTip {
+				out = append(out, e.text)
+			}
+		}
+		return out
+	}
+
+	h := newHarness(t)
+	h.m.hint.engine = hints.New(nil, nil)
+	queue(h, "one")
+	queue(h, "two")
+	got := tips(h)
+	if len(got) != 1 || !strings.Contains(got[0], "ctrl+s") {
+		t.Fatalf("the first queued message should teach ctrl+s exactly once: %q", got)
+	}
+
+	// Somebody who has already steered is told nothing.
+	h2 := newHarness(t)
+	h2.m.hint.engine = hints.New(nil, nil)
+	h2.m.opts.Usage = feature.OpenUsage(t.TempDir())
+	h2.m.noteUse("ctrl+s")
+	queue(h2, "one")
+	if got := tips(h2); len(got) != 0 {
+		t.Fatalf("taught ctrl+s to a user who already steers: %q", got)
 	}
 }
