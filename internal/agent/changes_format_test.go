@@ -22,7 +22,7 @@ func TestFormatChangeGroupsHeadsEachTurnOnce(t *testing.T) {
 		{Turn: 3, Intent: "wire it up", Changes: []Change{{Seq: 2, Turn: 3, Tool: "edit_file", Path: abs("main.go"), Before: []byte("x\n"), After: []byte("y\n"), Existed: true, Undone: true}}},
 		{Turn: 4, Intent: "fix the test", Changes: []Change{{Seq: 3, Turn: 4, Tool: "write_file", Path: abs("t_test.go"), After: []byte("z\n")}}},
 	}
-	got := FormatChangeGroups(groups, root)
+	got := FormatChangeGroups(groups, root, nil)
 	if n := strings.Count(got, "turn 3"); n != 1 {
 		t.Fatalf("turn 3 appears %d times:\n%s", n, got)
 	}

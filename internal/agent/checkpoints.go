@@ -24,6 +24,7 @@ type Snapshotter interface {
 	Drop(ctx context.Context, s snapshot.Snap)
 	Changed(ctx context.Context, s snapshot.Snap) (bool, error)
 	Diff(ctx context.Context, s snapshot.Snap) ([]string, error)
+	Moved(ctx context.Context, s snapshot.Snap) (bool, error)
 }
 
 // checkpoints is the collaborator that answers "put it back the way it
@@ -47,9 +48,9 @@ type checkpoints struct {
 	cp checkpointer
 	// undoRemoved is how many messages the last Undo removed.
 	undoRemoved int
-	// pendingUndo is the selection last shown by "/undo about", for a
-	// following "/undo apply" (see undo_intent.go). Not persisted: it does
-	// not survive a resume, the way turn-level undo checkpoints do.
+	// pendingUndo is what "/undo about" or "/undo turn" last showed, for
+	// a following "/undo apply" (see undo_intent.go). Not persisted: it
+	// does not survive a resume, the way turn-level undo checkpoints do.
 	pendingUndo *pendingUndo
 }
 

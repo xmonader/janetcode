@@ -598,6 +598,7 @@ func TestParseUndoArgs(t *testing.T) {
 		{"about the logging change", UndoArgs{About: true, Description: "the logging change"}},
 		{"about", UndoArgs{About: true}},
 		{"3", UndoArgs{N: 3}},
+		{"turn 4", UndoArgs{Turn: 4}},
 	}
 	for _, c := range cases {
 		got, err := ParseUndoArgs(c.rest)
@@ -608,7 +609,7 @@ func TestParseUndoArgs(t *testing.T) {
 			t.Fatalf("%q: got %+v want %+v", c.rest, got, c.want)
 		}
 	}
-	for _, bad := range []string{"apply --now", "preview extra", "nonsense"} {
+	for _, bad := range []string{"apply --now", "preview extra", "nonsense", "turn", "turn x", "turn 0"} {
 		if _, err := ParseUndoArgs(bad); err == nil {
 			t.Fatalf("%q: expected an error", bad)
 		}

@@ -13,7 +13,15 @@ import (
 // are shown relative to root. Grouping by turn and intent (ChangeGroups)
 // used to print "turn N · intent" above every row whenever each change
 // had its own intent, repeating the turn number down the list.
-func FormatChangeGroups(groups []ChangeGroup, root string) string {
+// restorable names the turns whose pre-turn state is still on hand
+// (Agent.RestorableTurns), marked so /changes says which turn "/undo
+// turn n" can put the work tree back to.
+func FormatChangeGroups(groups []ChangeGroup, root string, restorable []int) string {
+	back := make(map[int]bool, len(restorable))
+	for _, t := range restorable {
+		back[t] = true
+	}
+	marked := false
 	var sb strings.Builder
 	row := func(indent string, c Change) {
 		add, del := c.Stats()
@@ -30,6 +38,10 @@ func FormatChangeGroups(groups []ChangeGroup, root string) string {
 		}
 		turn := groups[i:j]
 		fmt.Fprintf(&sb, "turn %d", turn[0].Turn)
+		if back[turn[0].Turn] {
+			sb.WriteString(" [restorable]")
+			marked = true
+		}
 		if len(turn) == 1 {
 			if turn[0].Intent != "" {
 				fmt.Fprintf(&sb, " · %s", turn[0].Intent)
@@ -52,6 +64,9 @@ func FormatChangeGroups(groups []ChangeGroup, root string) string {
 			}
 		}
 		i = j
+	}
+	if marked {
+		sb.WriteString("\n[restorable] /undo turn <n> puts the whole work tree back to before that turn\n")
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }

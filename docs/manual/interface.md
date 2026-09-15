@@ -209,7 +209,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /connect   /model     /compact (summarise the context to free the window)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost, what the harness had to recover)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
-/undo [preview | about <description> | apply]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
+/undo [preview | turn <n> | about <description> | apply]  /redo  /find X  /cost  /mcp [trust | auth <server> | logout <server>]
 /budget [usd | off] (stop the session once it has spent that much; alone reports it)
 /fork [stay] [title]  /title <text>  /history <words> (search every saved session)
 /open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)
@@ -256,6 +256,41 @@ git snapshot is not applied and only file-tool changes are reverted.
 without touching anything. `/redo` reapplies what the last `/undo`
 reverted; it survives a restart but is discarded as soon as the next turn
 changes something, because the two histories would no longer line up.
+
+#### Restoring the work tree to before a turn: /undo turn n
+
+Repeating `/undo` walks back a turn at a time. `/undo turn 4` goes
+straight there: it puts the whole work tree back to the state turn 4
+started from, out of the same per-turn checkpoints `/undo` uses — no
+second checkpoint system, no shadow repository. `/changes` marks the
+turns you can go back to (`turn 4 [restorable]`), and tab completion
+offers them.
+
+It is a preview, not an action. `/undo turn 4` lists every file it would
+restore, recreate or remove and changes nothing; the same `/undo apply`
+that carries out an `/undo about` selection carries this out too, so
+there is one confirmation to learn. It refuses, with nothing touched,
+when:
+
+- there is no snapshot for that turn — the turn changed nothing, or it is
+  older than the last 30 turns that did, so trimming dropped it. The
+  refusal names the turns that can still be restored.
+- the repository moved underneath it (a commit, checkout or reset since
+  the snapshot was taken). The work tree recorded then cannot be put back
+  without mixing two states, so it is refused outright rather than
+  half-applied from the file copies.
+- the turns moved between the preview and the apply (a turn ran, an
+  `/undo` popped one): what was listed is no longer what would happen, so
+  run `/undo turn n` again.
+
+What it restores is recorded as changes of its own, exactly as `/undo n`
+records a revert, so the restore appears in `/changes` and `/blame` and
+`/undo <n>` can take it back. The model is told what went back through
+the same note `/undo apply` always leaves, so it does not go on believing
+the reverted files still say what it wrote. Outside a git repository
+there is no work-tree snapshot, so the restore falls back to the copies
+the file tools made — the same fallback `/undo` uses, covering file-tool
+changes only.
 
 ### Permission rules
 
@@ -712,8 +747,8 @@ outside the session since. `/undo 4` reverts one change on its own,
 leaving the later changes to the same file in place: each hunk is
 located in the file as it is now and put back, and a hunk whose lines
 were edited since is refused rather than guessed. Reverts are recorded
-as changes themselves. Turn-level `/undo` and `/redo` still restore
-whole snapshots. Shell commands are not tracked at hunk level; a git
+as changes themselves. Turn-level `/undo`, `/undo turn n` and `/redo`
+still restore whole snapshots. Shell commands are not tracked at hunk level; a git
 snapshot covers them for turn-level undo.
 
 ### Undo by description

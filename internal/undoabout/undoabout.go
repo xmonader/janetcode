@@ -118,11 +118,16 @@ type Args struct {
 	// selection has a Mixed change or a coupling Warning.
 	Apply bool
 	Force bool
+	// Turn previews putting the whole work tree back to how it was
+	// before that turn, without touching anything (see PreviewUndoTurn);
+	// zero when not given. Like About it is only a preview: the same
+	// "/undo apply" carries it out.
+	Turn int
 }
 
 // errArgsUsage documents /undo's argument shape (kept in step with
 // slash.Command "/undo" and webArgs["/undo"]).
-var errArgsUsage = errors.New("usage: /undo [preview | n | about <description> | apply [--force]]")
+var errArgsUsage = errors.New("usage: /undo [preview | n | turn <n> | about <description> | apply [--force]]")
 
 // ParseArgs parses the text after "/undo" (leading/trailing space
 // trimmed by the caller or here either way): the one shared parser both
@@ -135,6 +140,12 @@ func ParseArgs(rest string) (Args, error) {
 		return Args{}, nil
 	case "about":
 		return Args{About: true, Description: strings.TrimSpace(after)}, nil
+	case "turn":
+		n, err := strconv.Atoi(strings.TrimSpace(after))
+		if err != nil || n < 1 {
+			return Args{}, errors.New("usage: /undo turn <n>, the number of the turn to put the work tree back to the state before")
+		}
+		return Args{Turn: n}, nil
 	}
 	t, err := argspkg.Tokenize(after, argspkg.Spec{Bool: []string{"--force"}})
 	if err != nil {
