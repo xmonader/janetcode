@@ -10,7 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/slash"
 )
 
-var dispatchCase = regexp.MustCompile(`(?m)^\tcase ("/[a-z][a-z0-9?-]*"(?:, "/[a-z][a-z0-9?-]*")*):`)
+var dispatchCase = regexp.MustCompile(`(?m)^\tcase ("/[a-z?][a-z0-9?-]*"(?:, "/[a-z?][a-z0-9?-]*")*):`)
 
 // TestDispatchedCommandsAreInTheTable reads the source of the command
 // dispatcher and checks that every name it answers to is either in the
@@ -35,11 +35,13 @@ func TestDispatchedCommandsAreInTheTable(t *testing.T) {
 	for _, c := range commands {
 		known[c.name] = true
 	}
+	dispatched := map[string]bool{}
 	found := 0
 	for _, m := range dispatchCase.FindAllStringSubmatch(body[start:start+end], -1) {
 		for _, name := range strings.Split(m[1], ", ") {
 			name = strings.Trim(name, `"`)
 			found++
+			dispatched[name] = true
 			if known[name] || slash.Aliases[name] != "" {
 				continue
 			}
@@ -48,6 +50,16 @@ func TestDispatchedCommandsAreInTheTable(t *testing.T) {
 	}
 	if found < 40 {
 		t.Fatalf("only found %d dispatched commands; the regexp has stopped matching", found)
+	}
+	for _, c := range slash.Commands {
+		if !dispatched[c.Name] {
+			t.Errorf("%s is in the slash table but the terminal never dispatches it", c.Name)
+		}
+	}
+	for alias := range slash.Aliases {
+		if !dispatched[alias] {
+			t.Errorf("alias %s is declared but the terminal never dispatches it", alias)
+		}
 	}
 }
 
