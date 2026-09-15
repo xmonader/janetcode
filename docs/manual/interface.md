@@ -323,20 +323,30 @@ without touching anything. `/redo` reapplies what the last `/undo`
 reverted; it survives a restart but is discarded as soon as the next turn
 changes something, because the two histories would no longer line up.
 
-#### Restoring the work tree to before a turn: /undo turn n
+#### Going back to before a turn: /undo turn n
 
 Repeating `/undo` walks back a turn at a time. `/undo turn 4` goes
 straight there: it puts the whole work tree back to the state turn 4
-started from, out of the same per-turn checkpoints `/undo` uses — no
-second checkpoint system, no shadow repository. `/changes` marks the
-turns you can go back to (`turn 4 [restorable]`), and tab completion
-offers them.
+started from **and rewinds the conversation to that point**, out of the
+same per-turn checkpoints `/undo` uses — no second checkpoint system, no
+shadow repository. `/changes` marks the turns you can go back to
+(`turn 4 [restorable]`), and tab completion offers them.
+
+The conversation goes back with the files because the alternative is
+worse: a model whose context still holds the turns that wrote the code
+keeps describing that work as done, offers to build on files whose
+contents it can still quote, and has to be argued out of it. That
+confusion is the thing `/undo turn` exists to remove. `/undo turn 4
+--files-only` restores the files and leaves the conversation as it is,
+if that is what you want.
 
 It is a preview, not an action. `/undo turn 4` lists every file it would
-restore, recreate or remove and changes nothing; the same `/undo apply`
-that carries out an `/undo about` selection carries this out too, so
-there is one confirmation to learn. It refuses, with nothing touched,
-when:
+restore, recreate or remove, and says plainly what leaves the context —
+`and rewind this conversation to that point, dropping 3 turns, 27
+messages from the model's context` — and changes nothing; the same
+`/undo apply` that carries out an `/undo about` selection carries this
+out too, so there is one confirmation to learn. It refuses, with nothing
+touched, when:
 
 - there is no snapshot for that turn — the turn changed nothing, or it is
   older than the last 30 turns that did, so trimming dropped it. The
@@ -351,12 +361,28 @@ when:
 
 What it restores is recorded as changes of its own, exactly as `/undo n`
 records a revert, so the restore appears in `/changes` and `/blame` and
-`/undo <n>` can take it back. The model is told what went back through
-the same note `/undo apply` always leaves, so it does not go on believing
-the reverted files still say what it wrote. Outside a git repository
-there is no work-tree snapshot, so the restore falls back to the copies
-the file tools made — the same fallback `/undo` uses, covering file-tool
-changes only.
+`/undo <n>` can take it back. Outside a git repository there is no
+work-tree snapshot, so the restore falls back to the copies the file
+tools made — the same fallback `/undo` uses, covering file-tool changes
+only.
+
+A rewind drops, from turn n on: every message of those turns (prompts,
+replies, tool calls and their results), the undo checkpoints of those
+turns, and the archived tool outputs they produced, since the messages
+naming their `ctx-…` ids are gone. It keeps everything from before turn
+n untouched, the session file itself (see
+[Sessions](sessions.md#rewinding-a-session), which is append-only and
+keeps every dropped turn), your pins, the `/changes` record, and the
+cumulative cost counters — the tokens were spent whether or not the work
+survived. One harness note stands where the dropped turns were, saying
+what went back and that the model is no longer the author of it; with
+`--files-only` you get the ordinary `/undo apply` note instead.
+
+The rewind is refused on its own, leaving the files to go back by
+themselves, when the conversation has been compacted since turn n began:
+the summary replaced the messages that marked where the turn started, so
+that point can no longer be located and cutting at a guess would take
+the wrong messages. The preview says so in as many words.
 
 ### Permission rules
 
@@ -887,8 +913,8 @@ outside the session since. `/undo 4` reverts one change on its own,
 leaving the later changes to the same file in place: each hunk is
 located in the file as it is now and put back, and a hunk whose lines
 were edited since is refused rather than guessed. Reverts are recorded
-as changes themselves. Turn-level `/undo`, `/undo turn n` and `/redo`
-still restore whole snapshots. Shell commands are not tracked at hunk level; a git
+as changes themselves. Turn-level `/undo`, `/undo turn n` (which
+rewinds the conversation too) and `/redo` still restore whole snapshots. Shell commands are not tracked at hunk level; a git
 snapshot covers them for turn-level undo.
 
 ### Undo by description
