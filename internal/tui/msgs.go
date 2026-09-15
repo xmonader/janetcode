@@ -26,6 +26,10 @@ type agentDoneMsg struct {
 
 type tickMsg time.Time
 
+// flashDoneMsg retires the finished-tool flash. One of these is in flight
+// at a time, whatever the transcript is doing (see model.scheduleFlash).
+type flashDoneMsg struct{}
+
 type subagentDoneMsg struct {
 	desc string
 	err  error

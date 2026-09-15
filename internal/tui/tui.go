@@ -62,6 +62,10 @@ type model struct {
 	// reader who had scrolled up back to the tail.
 	pinned      bool
 	lastContent string // last transcript pushed into the viewport
+	// flashPending is the one timer that ends the finished-tool flash.
+	// It is a latch, not a count: a hundred calls returning in the same
+	// second schedule one tick between them.
+	flashPending bool
 
 	// pastes holds the text behind each "[paste #N +M lines]" chip in the
 	// input, in the order they were pasted.

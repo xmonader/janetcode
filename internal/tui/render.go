@@ -50,6 +50,18 @@ type renderOpts struct {
 	preview func(name string, input []byte) string
 	// renderer finds a tool that knows how to present itself.
 	renderer func(name string) (tool.Renderer, bool)
+	// now is the frame's clock, so every entry in one frame agrees about
+	// which finished calls are still flashing. Zero means "ask the clock",
+	// for the callers that render one entry outside a frame.
+	now time.Time
+}
+
+// at is the frame's clock.
+func (o renderOpts) at() time.Time {
+	if o.now.IsZero() {
+		return time.Now()
+	}
+	return o.now
 }
 
 // outputCap is the fold height for a viewport: a third of it, never fewer
@@ -107,6 +119,7 @@ func (t *transcript) render(o renderOpts) string {
 		}
 	}
 	now := time.Now()
+	o.now = now
 	var sb strings.Builder
 	// The whole transcript is concatenated every frame, so on a long one
 	// the builder's doubling is most of what the render allocates: five
@@ -136,10 +149,16 @@ func (t *transcript) render(o renderOpts) string {
 			if e.kind == entryTool {
 				e.toolStamp = toolStamp(e, o)
 			}
-		} else if e.kind == entryTool && e.running && e.toolBody != "" {
-			// Spinner and elapsed are chrome: splice them onto the cached
-			// body rather than rebuilding the result.
-			e.rendered = applyToolChrome(e.toolBody, toolIcon(t.styles, e, o), toolElapsed(t.styles, e))
+		} else if e.kind == entryTool && e.toolBody != "" && (e.running || e.flashed || flashing(t.styles, e, now)) {
+			// Spinner, elapsed and the finished-call flash are chrome:
+			// splice them onto the cached body rather than rebuilding the
+			// result. e.flashed carries the one frame after the flash has
+			// faded, where the cached render still holds the bright mark
+			// and nothing else would ask for it to be redrawn.
+			e.rendered = applyToolChrome(e.toolBody, toolIcon(t.styles, e, o), toolElapsed(t.styles, e, o))
+		}
+		if e.kind == entryTool {
+			e.flashed = flashing(t.styles, e, now)
 		}
 		// The gutter is applied on the way out, not baked into the cached
 		// render, so it costs nothing when it collapses to zero and the

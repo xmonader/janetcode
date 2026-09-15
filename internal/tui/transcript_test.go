@@ -802,3 +802,101 @@ func TestListItemSoftBreaksReflow(t *testing.T) {
 		}
 	}
 }
+
+// TestFlashClearsWithoutMovingTheLayout: the flash on a finished call is
+// chrome. It has to go away on its own — a finished entry is rendered
+// once and cached, so a flash that never cleared would stay bright for
+// the rest of the session — and while it comes and goes nothing on the
+// screen may move.
+func TestFlashClearsWithoutMovingTheLayout(t *testing.T) {
+	saved := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(saved)
+
+	tr := newTranscript()
+	c := agent.ToolCall{ID: "1", Name: "bash"}
+	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &c})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &c, Output: "ok", Duration: 1200 * time.Millisecond})
+	if got := time.Until(tr.flashUntil); got <= 0 || got > flashFor {
+		t.Fatalf("a finished call must leave a deadline to flash until: %v", got)
+	}
+
+	bright := tr.render(renderOpts{width: 80})
+	tr.findTool("1").ended = time.Now().Add(-time.Second) // the flash has faded
+	settled := tr.render(renderOpts{width: 80})
+	if bright == settled {
+		t.Fatal("the flash never cleared: the cached render kept it bright")
+	}
+	if a, b := lipgloss.Height(bright), lipgloss.Height(settled); a != b {
+		t.Fatalf("the flash moved the layout: %d lines bright, %d settled", a, b)
+	}
+	if a, b := plain(bright), plain(settled); a != b {
+		t.Fatalf("the flash changed the text, not just the colour:\n%q\n%q", a, b)
+	}
+	if again := tr.render(renderOpts{width: 80}); again != settled {
+		t.Fatal("a settled call must not go on being redrawn")
+	}
+}
+
+// TestFlashIsInvisibleWithoutColour: on a terminal with only the sixteen
+// ANSI colours the bright form is the ordinary form, so there is no
+// flash and nothing to schedule.
+func TestFlashIsInvisibleWithoutColour(t *testing.T) {
+	sty := defaultStyles()
+	sty.ansiOnly = true
+	tr := newTranscriptStyled("dark", sty)
+	c := agent.ToolCall{ID: "1", Name: "bash"}
+	tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &c})
+	tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &c, Output: "ok", Duration: time.Second})
+
+	bright := tr.render(renderOpts{width: 80})
+	tr.findTool("1").ended = time.Now().Add(-time.Second)
+	if settled := tr.render(renderOpts{width: 80}); settled != bright {
+		t.Fatalf("ansiOnly should not flash:\n%q\n%q", bright, settled)
+	}
+	m := &model{transcript: tr, styles: sty, pinned: true}
+	if cmd := m.scheduleFlash(); cmd != nil {
+		t.Fatal("ansiOnly scheduled a timer for a flash it does not draw")
+	}
+}
+
+// TestFlashSchedulesOneTimer: twenty calls returning together must cost
+// one timer, not twenty, and none at all when the user has scrolled away
+// from the tail and cannot see the line.
+func TestFlashSchedulesOneTimer(t *testing.T) {
+	tr := newTranscript()
+	m := &model{transcript: tr, styles: defaultStyles(), pinned: true}
+	finish := func(id string) {
+		c := agent.ToolCall{ID: id, Name: "bash"}
+		tr.apply(agent.Event{Kind: agent.EvToolRun, Call: &c})
+		tr.apply(agent.Event{Kind: agent.EvToolResult, Call: &c, Output: "ok"})
+	}
+
+	finish("1")
+	if m.scheduleFlash() == nil {
+		t.Fatal("the first finished call must arm the timer")
+	}
+	for i := 2; i <= 20; i++ {
+		finish(fmt.Sprint(i))
+		if cmd := m.scheduleFlash(); cmd != nil {
+			t.Fatalf("call %d armed a second timer", i)
+		}
+	}
+	// The tick that fires releases the latch; the deadline has moved on
+	// with the later calls, so exactly one more timer covers them.
+	m.flashPending = false
+	if m.scheduleFlash() == nil {
+		t.Fatal("the calls that finished meanwhile must be covered by one more timer")
+	}
+	m.flashPending = false
+	tr.flashUntil = time.Now().Add(-time.Second)
+	if m.scheduleFlash() != nil {
+		t.Fatal("nothing is flashing: no timer")
+	}
+
+	tr.flashUntil = time.Now().Add(flashFor)
+	m.pinned = false
+	if m.scheduleFlash() != nil {
+		t.Fatal("a reader who has scrolled away must not be made to pay for a redraw")
+	}
+}

@@ -6,6 +6,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -151,8 +152,39 @@ func (m *model) updateTerminal(msg tea.Msg) (tea.Cmd, bool) {
 			m.refresh(false)
 		}
 		return tick(), true
+
+	case flashDoneMsg:
+		// The flash has faded: one redraw puts the ordinary mark back on
+		// every line that was bright, and if more calls finished while
+		// this tick was in flight, one more timer covers all of them.
+		m.flashPending = false
+		m.refresh(false)
+		return m.scheduleFlash(), true
 	}
 	return nil, false
+}
+
+// scheduleFlash arms the single timer that ends the finished-tool flash.
+// A Bubble Tea command is the model's only clock, and a finished entry is
+// rendered once and cached: without a tick the bright mark would be baked
+// in and stay bright until something else happened to redraw that line.
+//
+// One timer serves every call that has finished, because they share one
+// deadline (transcript.flashUntil) and the latch refuses a second. There
+// is none at all when the flash cannot be seen: not under ansiOnly, where
+// there is no flash, and not while the user has scrolled away from the
+// tail, where redrawing the bottom of the transcript would cost a frame
+// for something off screen.
+func (m *model) scheduleFlash() tea.Cmd {
+	if m.flashPending || m.styles == nil || m.styles.ansiOnly || !m.pinned {
+		return nil
+	}
+	d := time.Until(m.transcript.flashUntil)
+	if d <= 0 {
+		return nil
+	}
+	m.flashPending = true
+	return tea.Tick(d, func(time.Time) tea.Msg { return flashDoneMsg{} })
 }
 
 // updateTurn handles the messages the running turn produces: its
@@ -162,12 +194,12 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 	case agentEventMsg:
 		m.applyEvent(msg.ev)
 		m.refresh(false)
-		return nil, true
+		return m.scheduleFlash(), true
 
 	case flushMsg:
 		m.drainEvents()
 		m.refresh(false)
-		return nil, true
+		return m.scheduleFlash(), true
 
 	case permissionMsg:
 		m.drainEvents() // the tool entry must exist before the prompt shows
