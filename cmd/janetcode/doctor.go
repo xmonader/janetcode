@@ -12,7 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/doctorfix"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
@@ -31,9 +33,14 @@ import (
 
 // doctor prints what janetcode found on this machine and whether it can
 // work: config, provider credentials, a live model call, directories, git
-// and MCP servers. Every row is a fact with a fix hint; nothing here
-// changes state.
-func doctor(w io.Writer, ov config.Overrides) error {
+// and MCP servers. Every row is a fact with a fix hint.
+//
+// With fix false nothing changes: the safe repairs are listed as "would
+// fix: …" and the user decides. With fix true those repairs are carried
+// out and each one printed. What counts as safe is internal/doctorfix's
+// decision, and it is a narrow one — anything that needs judgement is
+// reported here and never touched.
+func doctor(w io.Writer, ov config.Overrides, fix bool) error {
 	failed := 0
 	row := func(ok bool, what, detail string) {
 		mark := "ok  "
@@ -187,11 +194,42 @@ func doctor(w io.Writer, ov config.Overrides) error {
 	ts := trust.Store{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
 	doctorProject(w, row, warn, cfg, cwd, filepath.Dir(cfgPath), sessDir, ts)
 	fmt.Fprintln(w)
+	printResult(w, doctorfix.Run(fixEnv(cfgPath, cwd, sessDir, ts), fix))
 	if failed > 0 {
 		return fmt.Errorf("%d check(s) failed", failed)
 	}
 	fmt.Fprintln(w, "all checks passed")
 	return nil
+}
+
+// fixEnv points the repair pass at this machine's files: the config
+// directory, the project, and the directories a feature stops working
+// without.
+func fixEnv(cfgPath, cwd, sessDir string, ts trust.Store) doctorfix.Env {
+	cfgDir := filepath.Dir(cfgPath)
+	dirs := []string{filepath.Join(cfgDir, "skills"), filepath.Join(cwd, ".janetcode", "skills")}
+	if sessDir != "" {
+		dirs = append(dirs, memory.Open(filepath.Dir(sessDir), cwd).Root)
+	}
+	return doctorfix.Env{ConfigPath: cfgPath, Cwd: cwd, Trust: ts, Dirs: dirs,
+		Tokens: &mcp.TokenStore{Path: filepath.Join(cfgDir, "mcp-auth.json")}}
+}
+
+// printResult renders what a core command returned for a terminal that
+// is not the TUI: the sheet, then the error, the notes and the tips.
+func printResult(w io.Writer, res cmdresult.Result) {
+	if res.Sheet != "" {
+		fmt.Fprintln(w, res.Sheet)
+	}
+	if res.Error != "" {
+		fmt.Fprintln(w, res.Error)
+	}
+	for _, n := range res.Notes {
+		fmt.Fprintln(w, n)
+	}
+	for _, t := range res.Tips {
+		fmt.Fprintln(w, t)
+	}
 }
 
 func describeServer(sc mcp.ServerConfig) string {

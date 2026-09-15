@@ -63,10 +63,12 @@ type options struct {
 	resume       string
 	showVersion  bool
 	listSess     bool
+	initProject  bool
 	initCfg      bool
 	mcpAuth      string
 	appendSystem string
 	runDoctor    bool
+	doctorFix    bool
 	runProof     bool
 	recipeName   string
 	themeFlag    string
@@ -157,8 +159,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
 	fs.BoolVar(&o.listSess, "sessions", false, "list saved sessions for this directory and exit")
 	fs.BoolVar(&o.initCfg, "init", false, "write an example config file and exit")
+	fs.BoolVar(&o.initProject, "init-project", false, "write a starter instruction file (the one read at the start of every session here) from what this repository shows -- languages, the commands it declares, its layout -- and exit; an existing one is never overwritten")
 	fs.StringVar(&o.mcpAuth, "mcp-auth", "", "log in to the named remote MCP server with OAuth (browser flow) and exit")
 	fs.StringVar(&o.appendSystem, "append-system-prompt", "", "text (or @file) appended to the system prompt; JANETCODE_SYSTEM_MD=<file> replaces the base prompt. Both are recorded in eval results so a prompt A/B is traceable")
+	fs.BoolVar(&o.doctorFix, "fix", false, "with --doctor: carry out the safe repairs it lists (a misspelled config key, a missing config directory, an untrusted .janetcode/verify.json, an expired MCP login that cannot refresh, a directory of ours the owner cannot read) and print each change; anything needing judgement is still only reported")
 	fs.BoolVar(&o.runDoctor, "doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
 	fs.BoolVar(&o.runProof, "proof", false, "print the proof note (see internal/proof) attached to a commit -- which session, turn and intent wrote each of its files, and what actually demonstrated the work -- then exit; positional argument is a commit (default HEAD), or push [remote] | fetch [remote] to move proof notes to/from a remote, since they are local only until pushed")
 	fs.StringVar(&o.recipeName, "recipe", "", "replay a saved recipe (.janetcode/recipes/<name>.json, see /recipe save) as tool calls with no model call and no tokens, then exit; extra positional arguments are k=v parameter substitutions; a step that fails, or the project's verify gate once every step has succeeded, hands over to the model if a provider is configured, otherwise the run exits non-zero")

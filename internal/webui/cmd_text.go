@@ -287,15 +287,13 @@ func (s *server) memoryText(query string) string {
 }
 
 func (s *server) skillsText() string {
-	skills := skill.Load(s.opts.Cwd, s.opts.ConfigDir)
-	if len(skills) == 0 {
-		return "no skills found · add .janetcode/skills/<name>/SKILL.md"
+	where := "add .janetcode/skills/<name>/SKILL.md"
+	prefix := 0
+	if s.opts.Agent != nil {
+		c := s.opts.Agent.Context()
+		prefix = c.System + c.Extra + c.Pins + c.Tools
 	}
-	var sb strings.Builder
-	for _, sk := range skills {
-		fmt.Fprintf(&sb, "%-20s %s  (%s)\n", sk.Name, sk.Description, sk.Source)
-	}
-	return sb.String()
+	return skill.Report(skill.Load(s.opts.Cwd, s.opts.ConfigDir), s.opts.Skills.Stats(), prefix, where).Sheet
 }
 
 func (s *server) changesText(arg string) string {

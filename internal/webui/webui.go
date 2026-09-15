@@ -24,6 +24,7 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/weburl"
@@ -31,7 +32,10 @@ import (
 
 // Options configures the browser UI.
 type Options struct {
-	Agent    *agent.Agent
+	Agent *agent.Agent
+	// Skills says which skills this session has attached and what they
+	// cost, for /skills to price them.
+	Skills   *skill.Injector
 	Session  *session.Session
 	Provider string
 	Cwd      string

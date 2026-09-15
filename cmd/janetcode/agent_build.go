@@ -166,8 +166,11 @@ type builtAgent struct {
 	// which of them this session has already sent.
 	rules        func() []rules.Rule
 	ruleInjector *rules.Injector
-	ws           *tool.Workspace
-	terms        *tool.Terms
+	// skillInjector says which skills this session has attached, so
+	// /skills can say which of them earned their tokens.
+	skillInjector *skill.Injector
+	ws            *tool.Workspace
+	terms         *tool.Terms
 	// once guards close: the root closes the agent it built, and an
 	// error partway through the build closes it again on the way out.
 	once *sync.Once
@@ -333,7 +336,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	ag.PathRules = injector.For
 	ag.PathSkills = skillInj.ForPaths
 	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(d.cwd, cfgDir) }
-	ag.Tools.Add(&skill.Tool{Skills: skills})
+	ag.Tools.Add(&skill.Tool{Skills: skills, Used: skillInj.MarkUsed})
 	ag.Tools.Add(&agent.CronTool{Cron: cron})
 	ag.Tools.Add(&memory.Tool{Store: mem})
 	diag := lsp.New(d.cwd, d.cfg.LSP)
@@ -395,5 +398,5 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
 
-	return builtAgent{once: &sync.Once{}, agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector, ws: ws, terms: terms}, nil
+	return builtAgent{once: &sync.Once{}, agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector, skillInjector: skillInj, ws: ws, terms: terms}, nil
 }

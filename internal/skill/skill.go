@@ -346,6 +346,55 @@ type Injector struct {
 	mu   sync.Mutex
 	turn int
 	last map[string]int // skill name -> turn it was attached
+	used map[string]int // skill name -> times its text was sent
+}
+
+// Stat is what one skill did this session: how often its text was sent,
+// when that last happened, and whether it is still in the context.
+type Stat struct {
+	Used     int
+	LastTurn int
+	Fresh    bool
+}
+
+// Stats reports the per-skill record, keyed by skill name. A name that
+// is absent was never sent.
+func (in *Injector) Stats() map[string]Stat {
+	out := map[string]Stat{}
+	if in == nil {
+		return out
+	}
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	for name, n := range in.used {
+		out[name] = Stat{Used: n, LastTurn: in.last[name], Fresh: in.turn-in.last[name] < freshTurns}
+	}
+	return out
+}
+
+// mark records that a skill's text went into the context. The caller
+// holds the lock.
+func (in *Injector) mark(name string) {
+	if in.last == nil {
+		in.last = map[string]int{}
+	}
+	if in.used == nil {
+		in.used = map[string]int{}
+	}
+	in.last[name] = in.turn
+	in.used[name]++
+}
+
+// MarkUsed records a skill the model pulled in itself, with the skill
+// tool, rather than one the injector matched. It is the same cost and
+// the same freshness, so it counts the same way.
+func (in *Injector) MarkUsed(name string) {
+	if in == nil {
+		return
+	}
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	in.mark(name)
 }
 
 // freshTurns is how many turns an attached skill stays in effect before
@@ -375,7 +424,7 @@ func (in *Injector) Prepare(blocks []llm.Block) ([]llm.Block, []string) {
 		if t, ok := in.last[s.Name]; ok && in.turn-t < freshTurns {
 			continue
 		}
-		in.last[s.Name] = in.turn
+		in.mark(s.Name)
 		b := s.Block()
 		b.Synthetic = true
 		blocks = append(blocks, b)
@@ -443,7 +492,7 @@ func (in *Injector) ForPaths(paths []string) []string {
 		if !hit {
 			continue
 		}
-		in.last[s.Name] = in.turn
+		in.mark(s.Name)
 		out = append(out, fmt.Sprintf("[skill: %s — applies to %s]\n%s", s.Name, strings.Join(s.Paths, ", "), s.Block().Text))
 	}
 	return out
@@ -452,6 +501,9 @@ func (in *Injector) ForPaths(paths []string) []string {
 // Tool lets the model read a skill by name.
 type Tool struct {
 	Skills func() []Skill
+	// Used, when set, is told the name of a skill the model read, so the
+	// skills report can say it earned its place.
+	Used func(name string)
 }
 
 func (*Tool) Name() string { return "skill" }
@@ -476,6 +528,9 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			continue
 		}
 		if strings.EqualFold(s.Name, strings.TrimSpace(in.Name)) {
+			if t.Used != nil {
+				t.Used(s.Name)
+			}
 			return textfmt.Truncate(s.Block().Text), nil
 		}
 		names = append(names, s.Name)

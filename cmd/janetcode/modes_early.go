@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/headless"
+	"github.com/xmonader/janetcode/internal/projectinit"
 )
 
 // The modes that run before anything is loaded. Each reports whether it
@@ -27,10 +29,23 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 			return true, err
 		}
 		fmt.Println("wrote", p)
+	case o.initProject:
+		cwd, err := os.Getwd()
+		if err != nil {
+			return true, err
+		}
+		res, err := projectinit.Run(cwd, false)
+		if err != nil {
+			return true, err
+		}
+		printResult(os.Stdout, res)
+		if res.Error != "" {
+			return true, errors.New(res.Error)
+		}
 	case o.listSess:
 		return true, printSessions()
 	case o.runDoctor:
-		return true, doctor(os.Stdout, config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag})
+		return true, doctor(os.Stdout, config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag}, o.doctorFix)
 	case o.runProof:
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -55,6 +70,7 @@ func checkModes(o *options, initial string, format headless.Format) error {
 	}{
 		{initial != "" && o.promptText != "", "give the prompt either with -p or as an argument, not both"},
 		{o.until != "" && o.promptText == "", "--until needs a headless prompt (-p)"},
+		{o.doctorFix && !o.runDoctor, "--fix is --doctor's: run janetcode --doctor --fix"},
 		{format != headless.FormatText && o.promptText == "" && o.watchCmd == "", "--output-format applies to a headless run (-p)"},
 		{o.watchCmd != "" && o.until != "", "--watch and --until cannot be combined"},
 		{o.web && o.acpMode, "--web and --acp cannot be combined"},

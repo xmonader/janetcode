@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -259,6 +260,23 @@ var ErrNoCredentials = errors.New("no API key")
 var ErrBadConfig = errors.New("bad configuration")
 
 // badf builds an ErrBadConfig error with a message of its own.
+// Keys are the config file's top-level keys, read off the struct's json
+// tags so the list cannot drift from what load accepts. The feature
+// catalogue documents them and the doctor uses them to recognise a
+// misspelling.
+func Keys() []string {
+	t := reflect.TypeOf(Config{})
+	out := make([]string, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ",")
+		if name == "" || name == "-" {
+			continue
+		}
+		out = append(out, name)
+	}
+	return out
+}
+
 func badf(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrBadConfig, fmt.Sprintf(format, args...))
 }

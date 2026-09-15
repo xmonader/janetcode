@@ -40,7 +40,7 @@ func TestDoctorReportsProjectFeatures(t *testing.T) {
 	t.Cleanup(func() { os.Chdir(old) })
 
 	var out bytes.Buffer
-	err := doctor(&out, config.Overrides{})
+	err := doctor(&out, config.Overrides{}, false)
 	if err == nil || !strings.Contains(err.Error(), "check(s) failed") {
 		t.Fatalf("err = %v; want a credential failure", err)
 	}
@@ -63,8 +63,51 @@ func TestDoctorReportsProjectFeatures(t *testing.T) {
 	// A broken hooks file is a failure, not a crash.
 	os.WriteFile(filepath.Join(work, ".janetcode", "hooks.json"), []byte(`{"bogus_event": []}`), 0o644)
 	out.Reset()
-	doctor(&out, config.Overrides{})
+	doctor(&out, config.Overrides{}, false)
 	if !strings.Contains(out.String(), "[FAIL] hooks") {
 		t.Fatalf("broken hooks not reported:\n%s", out.String())
+	}
+}
+
+// TestDoctorFixListsThenRepairs is the two-step the flag exists for: the
+// plain checkup says what it would repair and touches nothing, and
+// --fix carries out exactly those repairs and says what changed.
+func TestDoctorFixListsThenRepairs(t *testing.T) {
+	work := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("OPENAI_API_KEY", "")
+	if err := os.MkdirAll(filepath.Join(work, ".janetcode"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(work, ".janetcode", "verify.json"), []byte(`{"commands":["go build ./..."]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(work); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(old) })
+
+	var out bytes.Buffer
+	doctor(&out, config.Overrides{}, false)
+	if !strings.Contains(out.String(), "would fix: trust .janetcode/verify.json") {
+		t.Fatalf("the checkup did not offer the repair:\n%s", out.String())
+	}
+	out.Reset()
+	doctor(&out, config.Overrides{}, true)
+	if !strings.Contains(out.String(), "fixed: trust .janetcode/verify.json") {
+		t.Fatalf("--fix did not report the repair:\n%s", out.String())
+	}
+	out.Reset()
+	doctor(&out, config.Overrides{}, true)
+	if strings.Contains(out.String(), "fixed: ") || !strings.Contains(out.String(), "nothing to fix") {
+		t.Fatalf("--fix repeated itself:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "verify         1 command in .janetcode/verify.json · trusted") {
+		t.Errorf("verify is not reported as trusted after the repair:\n%s", out.String())
 	}
 }

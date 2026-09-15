@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/projectinit"
 	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -20,7 +21,7 @@ import (
 var webCommands = []string{
 	"/help", "/clear", "/compact", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/loop",
 	"/readonly", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/diff", "/open", "/context",
-	"/stats", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills",
+	"/stats", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/init",
 	"/pin", "/unpin", "/title", "/model", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
 	"/settle", "/goal", "/why", "/trajectory", "/agents", "/ssh", "/docker", "/reload",
 	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp",
@@ -198,6 +199,10 @@ var webDispatch = map[string]webHandler{
 	},
 	"/skills": func(s *server, arg string) (bool, error) {
 		s.sheet("skills", s.skillsText())
+		return false, nil
+	},
+	"/init": func(s *server, arg string) (bool, error) {
+		s.showResult(projectinit.Run(s.opts.Cwd, strings.EqualFold(strings.TrimSpace(arg), "force")))
 		return false, nil
 	},
 	"/pin": func(s *server, arg string) (bool, error) {

@@ -512,6 +512,11 @@ entries by meaning, so "verify the build works" finds a note about running
 when an entry changes; if the endpoint fails, recall silently falls back to
 words and retries a few minutes later.
 
+`/init` writes the project's starter instruction file (`JANETCODE.md`)
+from what the repository shows — see
+[Project instructions](configuration.md#project-instructions). It never
+overwrites one that is already there; `/init force` does.
+
 ### Skills
 
 A skill is a markdown file with instructions for one kind of task
@@ -541,9 +546,17 @@ in the text, or several words of its description and headings), the file
 is attached to that turn (up to five, not re-attached while still fresh
 in the context) and you see `skills attached: …`. For anything else the
 model can read a skill with the `skill` tool. You can run one yourself as
-`/<name> args` (`$ARGUMENTS` in the body is replaced), and `/skills`
-lists what is installed. Skills are re-read from disk every turn, so
-editing one takes effect immediately.
+`/<name> args` (`$ARGUMENTS` in the body is replaced). Skills are re-read
+from disk every turn, so editing one takes effect immediately.
+
+`/skills` prices what is installed rather than only naming it: per skill,
+what attaching it costs in tokens (the same estimator `/context` uses),
+what its one line in the system prompt's skill list costs in *every*
+request, whether it is in the context right now, and how often it has
+been sent this session — matched by the injector, brought in by a `paths`
+glob, or read with the `skill` tool. The heaviest come first, and the
+last line totals the index lines against the request prefix, which is
+what a directory of a hundred unused skills actually costs you.
 
 ### Changing janetcode's own settings always asks
 
@@ -1639,7 +1652,10 @@ the copy; `/fork stay [title]` lists the copy and stays here. `/add-dir <path>` 
 another local root for this session. `/btw` asks a side question that is
 not stored as a user turn; `/copy` copies the last reply; `/config key=value`
 sets a catalogued setting; `/doctor` prints the same checkup as
-`janetcode --doctor` without changing files.
+`janetcode --doctor` without changing files — including the `would fix:`
+lines, which say what `janetcode --doctor --fix` would repair. Repairing
+is the command line's job, so a running session never changes files
+behind you.
 
 ### The sandbox
 
