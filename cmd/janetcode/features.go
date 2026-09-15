@@ -120,6 +120,7 @@ var configWhen = map[string][2]string{
 	"mcp_servers":         {"MCP servers started for every project", "a tool server you use everywhere"},
 	"hooks":               {"commands run around tool calls and turns", "you want a formatter, a guard or a notifier in the loop"},
 	"permissions":         {"persistent allow and deny rules", "the same approval keeps coming up, or something must never run"},
+	"protected_paths":     {"extra paths a write always asks about, appended to the built-in set", "a file of yours has effects that outlive the session"},
 	"embedding_model":     {"model asked of /embeddings so memory recall ranks by meaning", "word overlap is not finding the memory you meant"},
 	"lsp":                 {"language servers consulted for diagnostics after edits", "you want the compiler's opinion before the tests'"},
 	"search":              {"the web_search backend: DuckDuckGo, or Brave with a key", "you want better results than the free backend gives"},

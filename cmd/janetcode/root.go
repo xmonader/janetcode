@@ -225,6 +225,9 @@ func (r *root) wireProject() error {
 	// The ledger is keyed like the hint store below: per project, in the
 	// config directory, never in the project itself.
 	ag.Ledger = perm.OpenLedger(cfgDir, memory.Key(cwd))
+	// Paths a write always asks about, whatever the mode: the defaults
+	// plus whatever protected_paths adds to them.
+	ag.Protected = perm.NewProtected(cfg.ProtectedPaths)
 	projectTrusted := len(projectServers) > 0 && ts.Trusted(cwd, projectHash)
 
 	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {

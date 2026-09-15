@@ -4,7 +4,8 @@
 // matched against the call's subject: the command for bash, the path for
 // file tools, the URL for fetch_url. A parameter clause names a field of
 // the call instead (see param.go), and every clause of a rule must match.
-// Deny rules win over allow rules; anything unmatched asks.
+// Deny rules win over allow rules, a hard deny (see HardDeny) wins over
+// both, and anything unmatched asks.
 package perm
 
 import (
@@ -128,24 +129,30 @@ type Call struct {
 // matching rule is returned. Parameter rules cannot match here — use
 // DecideCall, which carries the call's input.
 func (rs Rules) Decide(tool, subject string) (Verdict, Rule) {
-	return rs.DecideCall(Call{Tool: tool, Subject: subject})
+	v, r, _ := rs.DecideCall(Call{Tool: tool, Subject: subject})
+	return v, r
 }
 
-// DecideCall matches a whole call: deny rules first, so a deny always
-// outranks an allow however the two were written, then allow rules;
-// anything unmatched asks.
-func (rs Rules) DecideCall(c Call) (Verdict, Rule) {
+// DecideCall matches a whole call. The order is the order of authority:
+// a hard deny (see HardDeny) refuses whatever the rules say and comes
+// back with the reason; then deny rules, so a deny always outranks an
+// allow however the two were written; then allow rules; anything
+// unmatched asks.
+func (rs Rules) DecideCall(c Call) (Verdict, Rule, string) {
+	if why := HardDeny(c); why != "" {
+		return Denied, Rule{Tool: c.Tool}, why
+	}
 	for _, r := range rs.Deny {
 		if r.matchesCall(c) {
-			return Denied, r
+			return Denied, r, ""
 		}
 	}
 	for _, r := range rs.Allow {
 		if r.matchesCall(c) {
-			return Allowed, r
+			return Allowed, r, ""
 		}
 	}
-	return Ask, Rule{}
+	return Ask, Rule{}, ""
 }
 
 // Add appends a rule unless an equal one exists.

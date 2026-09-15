@@ -115,6 +115,18 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		return nil, refusal, nil
 	}
 	mustAsk := a.describeCall(ctx, t, u, call)
+	// A write to a protected path always asks, under /edits, /auto, an
+	// allow rule and --yolo alike, and the prompt says which path it is
+	// asking about. It rides on the warning line the prompt already has,
+	// so both front-ends show it without knowing about any of this.
+	if t.Mutating() {
+		if why := a.Protected.Reason(perm.Call{Tool: u.Name, Input: u.Input, Root: a.displayRoot()}); why != "" {
+			mustAsk = true
+			if !strings.Contains(call.Warning, why) {
+				call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
+			}
+		}
+	}
 	// A locked accept-test file is refused like a denied permission rule:
 	// before anything asks the user, and with no way for AutoApprove or a
 	// saved rule to skip past it (see accept.Mode.Denial).
@@ -123,7 +135,13 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 			return nil, reason, nil
 		}
 	}
-	subject, verdict, rule := a.ruleDecision(u)
+	subject, verdict, rule, hard := a.ruleDecision(u)
+	// The hard deny tier: a command that destroys the machine is refused
+	// before the rules are consulted at all, so no allow rule and no mode
+	// can put it in front of the user as something to approve.
+	if hard != "" {
+		return nil, fmt.Sprintf("Refused: this command %s. janetcode never runs it, not even with auto-approve or an allow rule; do not retry it in another form.", hard), nil
+	}
 	if verdict == perm.Denied {
 		return nil, fmt.Sprintf("Denied by permission rule %s. Do not retry this call; choose another approach or ask the user to change the rule.", rule), nil
 	}
@@ -198,10 +216,10 @@ func (a *Agent) describeCall(ctx context.Context, t tool.Tool, u *llm.Block, cal
 
 // ruleDecision is what the persistent permission rules say about this
 // call, with the subject they matched on (which the ask step needs too).
-func (a *Agent) ruleDecision(u *llm.Block) (subject string, verdict perm.Verdict, rule perm.Rule) {
+func (a *Agent) ruleDecision(u *llm.Block) (subject string, verdict perm.Verdict, rule perm.Rule, hard string) {
 	subject = perm.SubjectIn(u.Name, u.Input, a.displayRoot())
-	verdict, rule = a.decideCall(a.permCall(u.Name, u.Input, subject))
-	return subject, verdict, rule
+	verdict, rule, hard = a.decideCall(a.permCall(u.Name, u.Input, subject))
+	return subject, verdict, rule, hard
 }
 
 // permCall is one call as the permission rules see it.

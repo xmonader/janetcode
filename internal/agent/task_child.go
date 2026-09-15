@@ -45,6 +45,7 @@ func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) (*Agent
 	child.System = p.System + "\n\nYou are a subagent doing one delegated job for the main agent, in your own checkout of the project. Make the change requested, run the relevant build or tests, and finish with a short report of what you changed and how you verified it. Your edits are returned to the main agent as a patch; do not commit. Do not ask questions; make reasonable assumptions and state them."
 	child.Rules = perm.Rules{Deny: p.RulesSnapshot().Deny}
 	child.Ledger = p.Ledger
+	child.Protected = p.Protected
 	child.Impact = p.Impact
 	// An editing subagent approves its own calls because nothing it does
 	// reaches the real tree and the patch is reviewed before it is
@@ -172,6 +173,7 @@ func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, erro
 	child.Rules = perm.Rules{Deny: p.RulesSnapshot().Deny}
 	child.Debug = p.Debug
 	child.Ledger = p.Ledger
+	child.Protected = p.Protected
 	child.Impact = p.Impact
 	return child, nil
 }
@@ -232,6 +234,7 @@ func (t *Task) forkChild() (*Agent, error) {
 	child.Debug = p.Debug
 	child.Forked = true
 	child.Ledger = p.Ledger
+	child.Protected = p.Protected
 	child.Impact = p.Impact
 	if !ps.AutoApprove && p.Approver != nil {
 		child.Approver = bubbled{to: p.Approver, name: "fork"}

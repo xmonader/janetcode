@@ -45,6 +45,12 @@ type permissions struct {
 	Impact func(ctx context.Context, call ToolCall) string
 	// Sandbox, when set, is the optional wrapper around local bash.
 	Sandbox *shell.Sandbox
+	// Protected, when set, is the set of paths a write to always asks
+	// about, whatever the mode or the rules say (see perm.Protected):
+	// shell startup files, git config and hooks, credentials, keys, and
+	// janetcode's own permission record. Nil protects nothing, which is
+	// what a test agent that never sets one up wants.
+	Protected *perm.Protected
 
 	// allowed are the tools the user allowed for the rest of the session
 	// (Decision AllowSession).

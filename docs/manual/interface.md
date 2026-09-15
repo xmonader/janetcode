@@ -333,8 +333,10 @@ reason `r` offers no rule for a compound command (`&&`, `;`, `|`, `$( )`)
 or one led by `cd`, `sudo`, `env`, `sh -c` and similar wrappers. A leading
 `cd <project> &&`, which changes nothing, is ignored when matching and
 suggesting, so `go test` rules cover a model that prefixes every command
-that way. Deny wins over allow; a denied call is
-refused without a prompt and the model is told which rule did it.
+that way. Deny wins over allow, whichever order the two were written in and
+whichever is more specific; a denied call is refused without a prompt and
+the model is told which rule did it. Below both sits a tier no allow rule
+reaches: see [Protected paths](#protected-paths).
 Guarded commands (ones that reach outside the workspace) still ask.
 A parameter clause names a field of the call instead of the subject, for
 the things the subject cannot say:
@@ -497,6 +499,46 @@ This is defence in depth, not a boundary: a determined model has a
 hundred ways to write a file, and this catches the obvious ones. What it
 buys is that the single move which turns a limited session into an
 unlimited one is the one move always shown to a human.
+
+### Protected paths
+
+The same carve-out covers the files that are not janetcode's but are not
+work either — the ones whose effect outlives the session:
+
+- shell startup files and profiles (`~/.zshenv`, `~/.bashrc`,
+  `~/.profile`, `~/.config/fish/**`, `/etc/profile`, `/etc/profile.d/**`)
+- `.git/config` and `.git/hooks/**` in any repository, `~/.gitconfig`
+- publishing and package credentials (`.npmrc`, `.pypirc`, `.netrc`,
+  `~/.docker/config.json`, `~/.cargo/credentials`, `~/.config/gh/hosts.yml`)
+- keys and cloud credentials (`**/.ssh/**`, `**/.aws/credentials`,
+  `~/.gnupg/**`, `~/.kube/config`)
+- `.janetcode/permissions.json`, the trust store, and janetcode's own
+  binary when it sits inside the workspace
+- what runs at login or on a timer (LaunchAgents, user systemd units,
+  `/etc/cron.d/**`, autostart)
+
+Writing one of these always asks — under `/edits`, `/auto`, a saved allow
+rule and `--yolo` alike — and the prompt says why on the line it already
+uses for warnings: `protected path: ~/.zshenv`. The web UI shows the same
+text, because it is the same field. Through the shell it is what the
+command would *write* that decides, not how it is spelled: a `>` or `>>`
+redirect, `cp`, `mv`, `tee`, `sed -i` and the rest, through `sudo`,
+`env`, `timeout`, `sh -c` and `eval`. Reading any of them is unaffected.
+
+`--yolo` asking is deliberate. Yolo means the session does not stop for
+its own work, and this set is outside anyone's work: a session doing what
+it was asked never meets it, and the one that does is the one you would
+want to see. Nothing else about `--yolo` changes. The set is data —
+`protected_paths` in the config file is appended to it (see
+[Configuration](configuration.md#the-protected_paths-key)) and can only
+add.
+
+Below the rules entirely sits the hard deny: a command that destroys the
+machine (`rm -rf /`, `mkfs`, `dd of=/dev/…`, a download piped into a
+shell, a fork bomb) is refused before the rules are consulted at all. An
+allow rule, `--yolo` and a `pre_tool` hook all pass it by without being
+asked, and the model is told it was refused and not to retry it in
+another form.
 
 ### Encodings, byte-order marks and line endings
 

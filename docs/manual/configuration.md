@@ -76,6 +76,30 @@ sandbox=strict` changes the project default and what a running sandbox
 enforces — it does not turn a sandbox on, because a backend can fail and
 `/sandbox` is where you would want to hear about it.
 
+### The protected_paths key
+
+Some files are not work: a shell startup file, a git hook, an `.npmrc`,
+a key under `.ssh`. A write to one of those changes what happens the
+next time you open a terminal, commit, publish or connect — long after
+the session ended. They are protected: writing one always asks, under
+`/edits`, `/auto`, a saved allow rule and `--yolo` alike, and the prompt
+says which path it is asking about ("protected path: ~/.zshenv"). See
+[Protected paths](interface.md#protected-paths) for the whole set and
+the reasoning.
+
+`protected_paths` adds to that set:
+
+```json
+{ "protected_paths": ["~/work/deploy/**", "/srv/secrets.env"] }
+```
+
+Entries are **appended** to the built-in list and never replace it, so
+this key can only make a session ask about more, never about less. A
+pattern is matched the way a permission rule is — `*` spans anything,
+including `/` — a leading `~` is your home directory, and a pattern
+ending in `/*` or `/**` covers the directory itself as well as what is
+in it.
+
 ### What janetcode records about you
 
 Two small files in the config directory, and nothing else:

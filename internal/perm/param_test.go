@@ -133,7 +133,7 @@ func TestParamMatching(t *testing.T) {
 			t.Fatalf("Parse(%q): %v", tc.rule, err)
 		}
 		rs := Rules{Allow: []Rule{r}}
-		got, _ := rs.DecideCall(tc.c)
+		got, _, _ := rs.DecideCall(tc.c)
 		if (got == Allowed) != tc.want {
 			t.Errorf("%s against %s: %v, want allowed=%v", tc.rule, tc.c.Input, got, tc.want)
 		}
@@ -149,7 +149,7 @@ func TestParamRuleNeedsInput(t *testing.T) {
 	if v, _ := rs.Decide("task", ""); v != Ask {
 		t.Fatalf("Decide without input = %v, want ask", v)
 	}
-	if v, _ := rs.DecideCall(call("task", "", `{"model":"opus"}`)); v != Allowed {
+	if v, _, _ := rs.DecideCall(call("task", "", `{"model":"opus"}`)); v != Allowed {
 		t.Fatalf("DecideCall = %v, want allow", v)
 	}
 }
