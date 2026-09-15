@@ -549,3 +549,6 @@ func TestStopReasonsAreTheProtocolsOwn(t *testing.T) {
 		}
 	}
 }
+
+// textBlock is a plain text prompt block, as a client sends one.
+func textBlock(s string) contentBlock { return contentBlock{Type: "text", Text: s} }

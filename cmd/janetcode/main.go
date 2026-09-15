@@ -31,6 +31,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm/anthropic"
 	"github.com/xmonader/janetcode/internal/llm/openai"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/mcp/mcptool"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/mutate"
 	"github.com/xmonader/janetcode/internal/perm"
@@ -519,7 +520,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	_ = task
 	_ = repo
 
-	servers := mcp.Manager{Options: mcp.Options{Root: cwd, Version: version}, Registry: ag.Tools}
+	servers := mcptool.Manager{Options: mcp.Options{Root: cwd, Version: version}, Registry: ag.Tools}
 	defer servers.Close()
 	projectServers, projectHash, err := mcp.LoadProject(cwd)
 	if err != nil {

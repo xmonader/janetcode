@@ -99,7 +99,6 @@ func splitLineSpans(s string) lineSpans {
 		if i < 0 {
 			ls.lines = append(ls.lines, s[off:])
 			ls.starts = append(ls.starts, off)
-			off = len(s) + 1
 			break
 		}
 		ls.lines = append(ls.lines, s[off:off+i])

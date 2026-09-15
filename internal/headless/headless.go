@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/term"
@@ -83,7 +84,9 @@ func Run(ctx context.Context, opts Options) error {
 func run(ctx context.Context, opts Options, rec *recorder) error {
 	ag := opts.Agent
 	if ag.Approver == nil {
-		ag.Approver = &stdinApprover{in: opts.Stdin, out: opts.Stderr}
+		sa := newStdinApprover(opts.Stdin, opts.Stderr)
+		defer sa.Close()
+		ag.Approver = sa
 	}
 	if opts.MaxCostUSD > 0 {
 		ag.MaxCostUSD = opts.MaxCostUSD
@@ -281,9 +284,28 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 
 // stdinApprover asks on the terminal; without a terminal it denies, so a
 // CI run never silently mutates anything unless --yolo was given.
+//
+// One goroutine owns the input for the approver's life and hands each
+// line to whichever prompt is waiting. A prompt abandoned by a cancelled
+// context therefore leaves nothing behind to swallow the next answer, and
+// no read-ahead is lost to a throwaway bufio.Reader.
 type stdinApprover struct {
 	in  *os.File
 	out io.Writer
+	// src is what answers are read from; in when nil. Tests set it with
+	// interactive, since a pipe is not a terminal.
+	src         io.Reader
+	interactive func() bool
+
+	start     sync.Once
+	lines     chan lineRead
+	done      chan struct{}
+	closeOnce sync.Once
+}
+
+type lineRead struct {
+	s   string
+	err error
 }
 
 // NewStdinApprover is the approver Run installs when none is set. It is
@@ -291,7 +313,48 @@ type stdinApprover struct {
 // runs Agent.RunRecipe directly rather than through Run — can give a
 // replayed step the same permission prompt a live -p run would.
 func NewStdinApprover(in *os.File, out io.Writer) agent.Approver {
-	return &stdinApprover{in: in, out: out}
+	return newStdinApprover(in, out)
+}
+
+func newStdinApprover(in *os.File, out io.Writer) *stdinApprover {
+	return &stdinApprover{in: in, out: out, lines: make(chan lineRead), done: make(chan struct{})}
+}
+
+// Close stops the line reader. A prompt after Close is denied.
+func (a *stdinApprover) Close() error {
+	a.closeOnce.Do(func() { close(a.done) })
+	return nil
+}
+
+func (a *stdinApprover) canAsk() bool {
+	if a.interactive != nil {
+		return a.interactive()
+	}
+	return a.in != nil && isTerminal(a.in)
+}
+
+// readLines is the single reader. After a read error it keeps offering
+// that error, so every later prompt sees the closed input as before.
+func (a *stdinApprover) readLines() {
+	src := a.src
+	if src == nil {
+		src = a.in
+	}
+	br := bufio.NewReader(src)
+	for {
+		line, err := br.ReadString('\n')
+		r := lineRead{line, err}
+		for {
+			select {
+			case a.lines <- r:
+			case <-a.done:
+				return
+			}
+			if err == nil {
+				break
+			}
+		}
+	}
 }
 
 func (a *stdinApprover) Approve(ctx context.Context, call agent.ToolCall) (agent.Decision, error) {
@@ -302,7 +365,7 @@ func (a *stdinApprover) Approve(ctx context.Context, call agent.ToolCall) (agent
 // ApproveWithReason reads one line: y, a, or n optionally followed by a
 // reason for the model ("n use the config dir instead").
 func (a *stdinApprover) ApproveWithReason(ctx context.Context, call agent.ToolCall) (agent.Decision, string, error) {
-	if a.in == nil || !isTerminal(a.in) {
+	if !a.canAsk() {
 		fmt.Fprintf(a.out, "[permission] %s denied: stdin is not a terminal (use --yolo to auto-approve)\n", call.Name)
 		return agent.Deny, "", nil
 	}
@@ -317,19 +380,13 @@ func (a *stdinApprover) ApproveWithReason(ctx context.Context, call agent.ToolCa
 		rule = fmt.Sprintf(" / [r]ule %s saved for good", call.Rule)
 	}
 	fmt.Fprintf(a.out, "\nAllow %s %s? [y]es / [a]lways this session%s / [n]o (add a reason after n): ", call.Name, textfmt.Clip(textfmt.OneLine(string(call.Input)), 200), rule)
-	type res struct {
-		s   string
-		err error
-	}
-	ch := make(chan res, 1)
-	go func() {
-		line, err := bufio.NewReader(a.in).ReadString('\n')
-		ch <- res{line, err}
-	}()
+	a.start.Do(func() { go a.readLines() })
 	select {
 	case <-ctx.Done():
 		return agent.Deny, "", ctx.Err()
-	case r := <-ch:
+	case <-a.done:
+		return agent.Deny, "", nil
+	case r := <-a.lines:
 		if r.err != nil && r.s == "" {
 			return agent.Deny, "", nil
 		}

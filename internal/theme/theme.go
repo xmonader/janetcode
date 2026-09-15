@@ -254,10 +254,10 @@ func Build(userThemes map[string]Theme) (*Set, error) {
 		}
 		for role, c := range t.Roles {
 			if err := validColor(c.Light); err != nil {
-				return nil, fmt.Errorf("theme %q: role %q: %v", name, role, err)
+				return nil, fmt.Errorf("theme %q: role %q: %w", name, role, err)
 			}
 			if err := validColor(c.Dark); err != nil {
-				return nil, fmt.Errorf("theme %q: role %q: %v", name, role, err)
+				return nil, fmt.Errorf("theme %q: role %q: %w", name, role, err)
 			}
 		}
 		raw[name] = t

@@ -449,7 +449,7 @@ func isGitRepo(ctx context.Context, dir string) bool {
 func resolveRev(ctx context.Context, dir, rev string) (string, error) {
 	out, err := gitx.Run(ctx, dir, nil, "rev-parse", "--verify", rev+"^{commit}")
 	if err != nil {
-		return "", fmt.Errorf("--base %s: %s", rev, gitx.Detail(err))
+		return "", gitx.Wrapf(err, "--base %s", rev)
 	}
 	return strings.TrimSpace(out), nil
 }
@@ -461,7 +461,7 @@ func resolveRev(ctx context.Context, dir, rev string) (string, error) {
 func hasRemoteContaining(ctx context.Context, dir, sha string) (bool, error) {
 	out, err := gitx.Run(ctx, dir, nil, "for-each-ref", "--contains", sha, "refs/remotes")
 	if err != nil {
-		return false, fmt.Errorf("check remote refs: %s", gitx.Detail(err))
+		return false, gitx.Wrapf(err, "check remote refs")
 	}
 	return strings.TrimSpace(out) != "", nil
 }

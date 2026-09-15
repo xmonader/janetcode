@@ -1,273 +1,16 @@
 package tool
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/diff"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
-
-// ReadFile reads a file with optional line window.
-type ReadFile struct {
-	Root string
-	// WS, when set, is the shared workspace so /ssh retargets this tool
-	// in place. Root is the fallback tests and worktrees still set.
-	WS *Workspace
-	// Seen, when set, records what was read for later conflict checks.
-	Seen *Seen
-}
-
-func (ReadFile) Name() string { return "read_file" }
-func (ReadFile) Description() string {
-	return "Read a text file. Returns numbered lines. Use offset/limit for large files (max 2000 lines per call). Set anchors to number them as 12:abc instead, where the letters mark the line's content: edit_file takes those in from_anchor/to_anchor and they keep pointing at the right line even after earlier edits move it."
-}
-func (ReadFile) Mutating() bool { return false }
-func (ReadFile) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{
-"path":{"type":"string","description":"File path, relative to the working directory or absolute"},
-"offset":{"type":"integer","description":"1-based line to start from (default 1)"},
-"limit":{"type":"integer","description":"Max lines to return (default 2000)"}},
-"required":["path"],"additionalProperties":false}`)
-}
-
-func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) {
-	var in struct {
-		Path    string `json:"path"`
-		Offset  int    `json:"offset"`
-		Limit   int    `json:"limit"`
-		Anchors bool   `json:"anchors"`
-	}
-	if err := decode(input, &in); err != nil {
-		return "", err
-	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
-	if err != nil {
-		return "", err
-	}
-	if st, serr := statOf(t.WS, p); serr == nil && st.IsDir() {
-		return "", fmt.Errorf("%s is a directory; list_dir shows what is in it and glob finds files by pattern", in.Path)
-	}
-	data, err := readFileOf(t.WS, p)
-	if err != nil {
-		return "", err
-	}
-	if isBinary(data) {
-		return "", fmt.Errorf("%s is a binary file (%d bytes)", in.Path, len(data))
-	}
-	t.Seen.Record(p, data)
-	text, shape := decodeText(data)
-	lines := strings.Split(text, "\n")
-	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-	if in.Offset < 1 {
-		in.Offset = 1
-	}
-	if in.Limit < 1 || in.Limit > 2000 {
-		in.Limit = 2000
-	}
-	if in.Offset > len(lines) {
-		return fmt.Sprintf("(file has %d lines; offset %d is past the end)", len(lines), in.Offset), nil
-	}
-	end := in.Offset - 1 + in.Limit
-	if end > len(lines) {
-		end = len(lines)
-	}
-	var sb strings.Builder
-	for i := in.Offset - 1; i < end; i++ {
-		if in.Anchors {
-			// The mark travels with the line, so an edit aimed at it still
-			// lands after something above it moves.
-			fmt.Fprintf(&sb, "%s\t%s\n", Anchor(i+1, lines[i]), lines[i])
-		} else {
-			fmt.Fprintf(&sb, "%d\t%s\n", i+1, lines[i])
-		}
-	}
-	if end < len(lines) {
-		fmt.Fprintf(&sb, "... (%d more lines)\n", len(lines)-end)
-	}
-	out := textfmt.Truncate(sb.String())
-	if note := shape.Note(); note != "" {
-		out += "[" + note + "]\n"
-	}
-	return out, nil
-}
-
-// isBinary reports whether the file cannot be handled as text: a NUL byte
-// in the first 4 KB. UTF-16 is full of NUL bytes and is text, so a file
-// that announces itself with a UTF-16 byte-order mark is exempt.
-func isBinary(b []byte) bool {
-	if bytes.HasPrefix(b, []byte(bomUTF16L)) || bytes.HasPrefix(b, []byte(bomUTF16B)) {
-		return false
-	}
-	n := len(b)
-	if n > binarySniffBytes {
-		n = binarySniffBytes
-	}
-	return bytes.IndexByte(b[:n], 0) >= 0
-}
-
-// WriteFile creates or overwrites a file.
-type WriteFile struct {
-	Root string
-	WS   *Workspace
-	// Seen, when set, refuses to overwrite a file that changed since the
-	// agent last read or wrote it.
-	Seen *Seen
-}
-
-func (WriteFile) Name() string { return "write_file" }
-func (WriteFile) Description() string {
-	return "Create or overwrite a file with the given content. Parent directories are created. Prefer edit_file for changes to existing files."
-}
-func (WriteFile) Mutating() bool { return true }
-func (WriteFile) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{
-"path":{"type":"string","description":"File path, relative to the working directory or absolute"},
-"content":{"type":"string","description":"Full file content"}},
-"required":["path","content"],"additionalProperties":false}`)
-}
-
-func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error) {
-	var in struct {
-		Path    string `json:"path"`
-		Content string `json:"content"`
-	}
-	if err := decode(input, &in); err != nil {
-		return "", err
-	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
-	if err != nil {
-		return "", err
-	}
-	if err := mkdirAllOf(t.WS, filepath.Dir(p), 0o755); err != nil {
-		return "", err
-	}
-	if err := t.Seen.CheckAt(t.WS, p, in.Path, "write"); err != nil {
-		return "", err
-	}
-	old, readErr := readFileOf(t.WS, p)
-	existed := readErr == nil
-	// A file keeps the shape it had: its byte-order mark, its line endings
-	// and its charset. Otherwise the first write to a Windows or Latin-1
-	// repository rewrites every line of the file it touched.
-	oldText, shape := "", form{Charset: "utf-8"}
-	if existed {
-		oldText, shape = decodeText(old)
-	}
-	data := encodeText(in.Content, shape)
-	if err := writeFileOf(t.WS, p, data); err != nil {
-		return "", err
-	}
-	t.Seen.Record(p, data)
-	root := rootOf(t.Root, t.WS)
-	if !existed {
-		return fmt.Sprintf("Created %s (%s)", displayPath(root, in.Path), textfmt.Plural(countLines(in.Content), "line")), nil
-	}
-	added, removed := diff.Stats(oldText, in.Content)
-	out := fmt.Sprintf("Overwrote %s (+%d -%d lines)", displayPath(root, in.Path), added, removed)
-	if note := shape.Note(); note != "" {
-		out += "\n[" + note + "]"
-	}
-	return out, nil
-}
-
-// Guard implements Guard: a write to one of janetcode's own control
-// surfaces asks, whatever the permission mode.
-func (t WriteFile) Guard(input json.RawMessage) (bool, string) {
-	return guardSelfModify(rootOf(t.Root, t.WS), input)
-}
-
-// Preview implements Previewer: a diff against the existing file, or the
-// head of a new file.
-// Touches reports the file the write will replace or create.
-func (t WriteFile) Touches(input json.RawMessage) ([]string, error) {
-	return touchedPathOn(t.WS, t.Root, input)
-}
-
-// Result computes what this write would produce, without writing: the
-// resolved path, and the file's content before (empty for a file that
-// does not exist yet) and after. internal/impact uses it to analyze the
-// reach of a write before it is approved.
-func (t WriteFile) Result(input json.RawMessage) (path, before, after string, err error) {
-	var in struct {
-		Path    string `json:"path"`
-		Content string `json:"content"`
-	}
-	if err := decode(input, &in); err != nil {
-		return "", "", "", err
-	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
-	if err != nil {
-		return "", "", "", err
-	}
-	if old, rerr := readFileOf(t.WS, p); rerr == nil && !isBinary(old) {
-		before, _ = decodeText(old)
-	}
-	return p, before, in.Content, nil
-}
-
-func (t WriteFile) Preview(_ context.Context, input json.RawMessage) (string, error) {
-	var in struct {
-		Path    string `json:"path"`
-		Content string `json:"content"`
-	}
-	if err := decode(input, &in); err != nil {
-		return "", err
-	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
-	if err != nil {
-		return "", err
-	}
-	old, err := readFileOf(t.WS, p)
-	if err != nil {
-		return diff.Unified(in.Path, "", in.Content, 0), nil
-	}
-	if isBinary(old) {
-		return fmt.Sprintf("(replacing binary file %s, %d bytes)", in.Path, len(old)), nil
-	}
-	oldText, _ := decodeText(old)
-	d := diff.Unified(in.Path, oldText, in.Content, 3)
-	if d == "" {
-		return "(no change: content is identical)", nil
-	}
-	return d, nil
-}
-
-func countLines(s string) int {
-	if s == "" {
-		return 0
-	}
-	n := strings.Count(s, "\n")
-	if !strings.HasSuffix(s, "\n") {
-		n++
-	}
-	return n
-}
-
-// touchedPathOn resolves the "path" field of a file tool's input.
-func touchedPathOn(ws *Workspace, root string, input json.RawMessage) ([]string, error) {
-	var in struct {
-		Path string `json:"path"`
-	}
-	// Plain unmarshal: only the path matters here, the other fields are the
-	// tool's business.
-	if err := json.Unmarshal(input, &in); err != nil {
-		return nil, err
-	}
-	p, err := resolveOn(ws, root, in.Path)
-	if err != nil {
-		return nil, err
-	}
-	return []string{p}, nil
-}
 
 // EditFile replaces an exact substring in a file.
 type EditFile struct {
@@ -451,7 +194,7 @@ func (e oneEdit) apply(content, display string, index, total int) (string, int, 
 
 // checkSeen resolves the edit's path and asks Seen whether the file is
 // still the one the agent looked at.
-func (t EditFile) checkSeen(input json.RawMessage) error {
+func (t EditFile) checkSeen(ctx context.Context, input json.RawMessage) error {
 	var in struct {
 		Path string `json:"path"`
 	}
@@ -462,10 +205,10 @@ func (t EditFile) checkSeen(input json.RawMessage) error {
 	if err != nil {
 		return nil
 	}
-	return t.Seen.CheckAt(t.WS, p, displayPath(rootOf(t.Root, t.WS), in.Path), "edit")
+	return t.Seen.CheckAt(ctx, t.WS, p, displayPath(rootOf(t.Root, t.WS), in.Path), "edit")
 }
 
-func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
+func (t EditFile) plan(ctx context.Context, input json.RawMessage) (*editPlan, error) {
 	input = repairEdits(input)
 	var in struct {
 		Path       string    `json:"path"`
@@ -508,7 +251,7 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := readFileOf(t.WS, p)
+	data, err := readFileOf(ctx, t.WS, p)
 	if err != nil {
 		return nil, err
 	}
@@ -772,19 +515,19 @@ func changed(before, after string) (first, last int, ok bool) {
 	return i, max(i, k), true
 }
 
-func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) {
+func (t EditFile) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	// The state of the file is checked before the plan is built: a file
 	// that vanished since it was read must say so, not fail as an open
 	// error with no explanation of what happened to it.
-	if err := t.checkSeen(input); err != nil {
+	if err := t.checkSeen(ctx, input); err != nil {
 		return "", err
 	}
-	pl, err := t.plan(input)
+	pl, err := t.plan(ctx, input)
 	if err != nil {
 		return "", err
 	}
 	data := encodeText(pl.after, pl.shape)
-	if err := writeFileOf(t.WS, pl.path, data); err != nil {
+	if err := writeFileOf(ctx, t.WS, pl.path, data); err != nil {
 		return "", err
 	}
 	t.Seen.Record(pl.path, data)
@@ -819,8 +562,8 @@ func (t EditFile) Touches(input json.RawMessage) ([]string, error) {
 	return touchedPathOn(t.WS, t.Root, input)
 }
 
-func (t EditFile) Preview(_ context.Context, input json.RawMessage) (string, error) {
-	pl, err := t.plan(input)
+func (t EditFile) Preview(ctx context.Context, input json.RawMessage) (string, error) {
+	pl, err := t.plan(ctx, input)
 	if err != nil {
 		return "", err
 	}
@@ -833,61 +576,9 @@ func (t EditFile) Preview(_ context.Context, input json.RawMessage) (string, err
 // with what Run would actually do. internal/impact uses it to analyze the
 // reach of an edit before it is approved.
 func (t EditFile) Result(input json.RawMessage) (path, before, after string, err error) {
-	pl, err := t.plan(input)
+	pl, err := t.plan(context.Background(), input)
 	if err != nil {
 		return "", "", "", err
 	}
 	return pl.path, pl.before, pl.after, nil
-}
-
-// ListDir lists a directory.
-type ListDir struct {
-	Root string
-	WS   *Workspace
-}
-
-func (ListDir) Name() string { return "list_dir" }
-func (ListDir) Description() string {
-	return "List files and directories at a path (non-recursive). Directories end with /."
-}
-func (ListDir) Mutating() bool { return false }
-func (ListDir) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{
-"path":{"type":"string","description":"Directory path (default: working directory)"}},
-"additionalProperties":false}`)
-}
-
-func (t ListDir) Run(_ context.Context, input json.RawMessage) (string, error) {
-	var in struct {
-		Path string `json:"path"`
-	}
-	if len(input) > 0 {
-		if err := decode(input, &in); err != nil {
-			return "", err
-		}
-	}
-	if in.Path == "" {
-		in.Path = "."
-	}
-	p, err := resolveOn(t.WS, t.Root, in.Path)
-	if err != nil {
-		return "", err
-	}
-	entries, err := readDirOf(t.WS, p)
-	if err != nil {
-		return "", err
-	}
-	names := make([]string, 0, len(entries))
-	for _, e := range entries {
-		n := e.Name()
-		if e.IsDir() {
-			n += "/"
-		}
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	if len(names) == 0 {
-		return "(empty directory)", nil
-	}
-	return textfmt.Truncate(strings.Join(names, "\n")), nil
 }

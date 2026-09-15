@@ -14,7 +14,7 @@ import (
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
-	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/mcp/mcptool"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/rules"
@@ -39,7 +39,7 @@ type subjectDeps struct {
 	mem     *memory.Store
 	repo    *repomap.Cache
 	diag    *lsp.Manager
-	mcp     *mcp.Manager
+	mcp     *mcptool.Manager
 	jobs    *tool.Jobs
 	task    *agent.Task
 	skills  func() []skill.Skill

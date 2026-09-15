@@ -92,8 +92,6 @@ type contentBlock struct {
 	Resource *embeddedResource `json:"resource,omitempty"`
 }
 
-func textBlock(s string) contentBlock { return contentBlock{Type: "text", Text: s} }
-
 type embeddedResource struct {
 	URI      string `json:"uri,omitempty"`
 	MimeType string `json:"mimeType,omitempty"`

@@ -48,7 +48,7 @@ func Detached(ctx context.Context, label, repo, base string, patch []byte) (dir 
 		return "", nil, err
 	}
 	if _, err := gitx.Run(ctx, repo, nil, "worktree", "add", "--detach", "-q", dir, base); err != nil {
-		return "", nil, fmt.Errorf("git worktree add %s: %s", base, gitx.Detail(err))
+		return "", nil, gitx.Wrapf(err, "git worktree add %s", base)
 	}
 	cleanup = func() {
 		bg := context.Background()
@@ -127,7 +127,7 @@ func applyPatch(ctx context.Context, dir string, patch []byte) error {
 		return nil
 	}
 	if err := gitx.Apply(ctx, dir, patch); err != nil {
-		return fmt.Errorf("git apply: %s", gitx.Detail(err))
+		return gitx.Wrapf(err, "git apply")
 	}
 	return nil
 }

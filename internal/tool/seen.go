@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -121,16 +122,16 @@ type ErrChanged = ErrPriorRead
 // not see, and the coach supplies the content when one misses. A write
 // does not name anything, so overwriting an unread file is refused.
 func (s *Seen) Check(path, display, verb string) error {
-	return s.CheckAt(nil, path, display, verb)
+	return s.CheckAt(context.Background(), nil, path, display, verb)
 }
 
 // CheckAt is Check against a workspace, so a remote file is not probed
 // on this machine.
-func (s *Seen) CheckAt(ws *Workspace, path, display, verb string) error {
+func (s *Seen) CheckAt(ctx context.Context, ws *Workspace, path, display, verb string) error {
 	if s == nil {
 		return nil
 	}
-	st, statErr := statOf(ws, path)
+	st, statErr := statOf(ctx, ws, path)
 	if statErr == nil && st.IsDir() {
 		return &ErrPriorRead{Path: display, Verb: verb, Cause: CauseDirectory}
 	}
@@ -143,7 +144,7 @@ func (s *Seen) CheckAt(ws *Workspace, path, display, verb string) error {
 		}
 		return nil
 	}
-	data, err := readFileOf(ws, path)
+	data, err := readFileOf(ctx, ws, path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &ErrPriorRead{Path: display, Verb: verb, Cause: CauseDisappeared}

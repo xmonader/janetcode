@@ -132,3 +132,33 @@ func TestFoldedAmbiguityIsRefused(t *testing.T) {
 		t.Fatalf("an ambiguous folded match must be refused: %v", err)
 	}
 }
+
+// The span of line i is [starts[i], starts[i+1]); a trailing newline
+// leaves an empty last line at len(s), and starts always ends at len(s).
+func TestSplitLineSpans(t *testing.T) {
+	for _, tc := range []struct {
+		in     string
+		lines  []string
+		starts []int
+	}{
+		{"", []string{""}, []int{0, 0}},
+		{"a", []string{"a"}, []int{0, 1}},
+		{"a\n", []string{"a", ""}, []int{0, 2, 2}},
+		{"a\nbc\nd", []string{"a", "bc", "d"}, []int{0, 2, 5, 6}},
+	} {
+		ls := splitLineSpans(tc.in)
+		if strings.Join(ls.lines, "|") != strings.Join(tc.lines, "|") || len(ls.lines) != len(tc.lines) {
+			t.Errorf("%q lines = %q, want %q", tc.in, ls.lines, tc.lines)
+		}
+		if len(ls.starts) != len(tc.starts) {
+			t.Errorf("%q starts = %v, want %v", tc.in, ls.starts, tc.starts)
+			continue
+		}
+		for i := range ls.starts {
+			if ls.starts[i] != tc.starts[i] {
+				t.Errorf("%q starts = %v, want %v", tc.in, ls.starts, tc.starts)
+				break
+			}
+		}
+	}
+}

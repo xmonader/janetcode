@@ -82,7 +82,7 @@ func notedCommits(ctx context.Context, repoDir string) ([]string, error) {
 		if errors.As(err, &ge) && (strings.Contains(ge.Stderr, "No note") || strings.Contains(ge.Stderr, "does not exist")) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("git notes list: %s", gitx.Detail(err))
+		return nil, gitx.Wrapf(err, "git notes list")
 	}
 	out := strings.TrimSpace(raw)
 	if out == "" {

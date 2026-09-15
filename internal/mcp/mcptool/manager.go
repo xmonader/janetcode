@@ -1,16 +1,17 @@
-package mcp
+package mcptool
 
 import (
 	"context"
 	"sort"
 	"sync"
 
+	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // Manager owns the running servers and the tools they contributed.
 type Manager struct {
-	Options  Options
+	Options  mcp.Options
 	Registry *tool.Registry // receives each server's tools once it is up
 	// DeferAbove is the number of tools past which a server's tools are
 	// registered deferred (loaded on demand via tool_search) instead of
@@ -18,7 +19,7 @@ type Manager struct {
 	DeferAbove int
 
 	mu       sync.Mutex
-	clients  map[string]*Client
+	clients  map[string]*mcp.Client
 	errs     map[string]error
 	starting map[string]bool
 }
@@ -31,13 +32,13 @@ const DefaultDeferAbove = 6
 type ServerStatus struct {
 	Name     string
 	Tools    []string
-	Prompts  []PromptInfo
+	Prompts  []mcp.PromptInfo
 	Err      error
 	Starting bool
 }
 
 // Client returns a running server by name.
-func (m *Manager) Client(name string) (*Client, bool) {
+func (m *Manager) Client(name string) (*mcp.Client, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	c, ok := m.clients[name]
@@ -50,10 +51,10 @@ func (m *Manager) Client(name string) (*Client, bool) {
 // It reports whether a start was actually begun. A server already running
 // or already starting is left alone and its onDone is never called, which
 // a caller that waits on onDone has to know about.
-func (m *Manager) Start(ctx context.Context, name string, cfg ServerConfig, onDone func(name string, c *Client, err error)) bool {
+func (m *Manager) Start(ctx context.Context, name string, cfg mcp.ServerConfig, onDone func(name string, c *mcp.Client, err error)) bool {
 	m.mu.Lock()
 	if m.clients == nil {
-		m.clients, m.errs, m.starting = map[string]*Client{}, map[string]error{}, map[string]bool{}
+		m.clients, m.errs, m.starting = map[string]*mcp.Client{}, map[string]error{}, map[string]bool{}
 	}
 	if m.starting[name] || m.clients[name] != nil {
 		m.mu.Unlock()
@@ -63,7 +64,7 @@ func (m *Manager) Start(ctx context.Context, name string, cfg ServerConfig, onDo
 	delete(m.errs, name)
 	m.mu.Unlock()
 	go func() {
-		c, err := Start(ctx, name, cfg, m.Options)
+		c, err := mcp.Start(ctx, name, cfg, m.Options)
 		m.mu.Lock()
 		delete(m.starting, name)
 		if err != nil {
@@ -71,7 +72,7 @@ func (m *Manager) Start(ctx context.Context, name string, cfg ServerConfig, onDo
 		} else {
 			m.clients[name] = c
 			if m.Registry != nil {
-				tools := c.AgentTools()
+				tools := AgentTools(c)
 				deferAbove := m.DeferAbove
 				if deferAbove == 0 {
 					deferAbove = DefaultDeferAbove
@@ -105,7 +106,7 @@ func (m *Manager) Stop(name string) {
 		return
 	}
 	if m.Registry != nil {
-		for _, t := range c.AgentTools() {
+		for _, t := range AgentTools(c) {
 			m.Registry.Remove(t.Name())
 		}
 	}
@@ -113,11 +114,11 @@ func (m *Manager) Stop(name string) {
 }
 
 // StartAll launches every server and waits for all of them.
-func (m *Manager) StartAll(ctx context.Context, servers map[string]ServerConfig, onDone func(name string, c *Client, err error)) {
+func (m *Manager) StartAll(ctx context.Context, servers map[string]mcp.ServerConfig, onDone func(name string, c *mcp.Client, err error)) {
 	var wg sync.WaitGroup
 	for name, cfg := range servers {
 		wg.Add(1)
-		started := m.Start(ctx, name, cfg, func(name string, c *Client, err error) {
+		started := m.Start(ctx, name, cfg, func(name string, c *mcp.Client, err error) {
 			defer wg.Done()
 			if onDone != nil {
 				onDone(name, c, err)
@@ -141,7 +142,7 @@ func (m *Manager) Status() []ServerStatus {
 	for name, c := range m.clients {
 		seen[name] = true
 		st := ServerStatus{Name: name}
-		for _, t := range c.AgentTools() {
+		for _, t := range AgentTools(c) {
 			st.Tools = append(st.Tools, t.Name())
 		}
 		st.Prompts = c.Prompts()
@@ -166,11 +167,11 @@ func (m *Manager) Status() []ServerStatus {
 func (m *Manager) Close() {
 	m.mu.Lock()
 	clients := m.clients
-	m.clients = map[string]*Client{}
+	m.clients = map[string]*mcp.Client{}
 	m.mu.Unlock()
 	for _, c := range clients {
 		if m.Registry != nil {
-			for _, t := range c.AgentTools() {
+			for _, t := range AgentTools(c) {
 				m.Registry.Remove(t.Name())
 			}
 		}
