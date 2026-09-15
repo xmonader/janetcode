@@ -463,17 +463,20 @@ func (m *model) cmdInspect(text string, fields []string) (tea.Cmd, bool) {
 }
 
 func (m *model) cmdSkills(text string, fields []string) (tea.Cmd, bool) {
-	skills := skill.Load(m.opts.Cwd, m.opts.ConfigDir)
-	if len(skills) == 0 {
-		m.transcript.info("no skills found: add .janetcode/skills/<name>/SKILL.md (or <name>.md) to the project, or skills/ under " + shortPath(m.opts.ConfigDir) + "; .claude/skills is read too")
-		return nil, false
-	}
-	var sb strings.Builder
-	for _, s := range skills {
-		fmt.Fprintf(&sb, "%-20s %s  (%s)\n", s.Name, s.Description, s.Source)
-	}
-	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+	where := "add .janetcode/skills/<name>/SKILL.md (or <name>.md) to the project, or skills/ under " + shortPath(m.opts.ConfigDir) + "; .claude/skills is read too"
+	m.showResult(skill.Report(skill.Load(m.opts.Cwd, m.opts.ConfigDir), m.opts.Skills.Stats(), m.prefixTokens(), where), nil)
 	return nil, false
+}
+
+// prefixTokens estimates the part of the request that is the same every
+// turn — system prompt, project context, pins and tool schemas — which
+// is what a skill's index line is a share of.
+func (m *model) prefixTokens() int {
+	if m.opts.Agent == nil {
+		return 0
+	}
+	c := m.opts.Agent.Context()
+	return c.System + c.Extra + c.Pins + c.Tools
 }
 
 func (m *model) cmdRules(text string, fields []string) (tea.Cmd, bool) {

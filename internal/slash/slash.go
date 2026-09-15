@@ -60,7 +60,7 @@ var Commands = withIdle([]Command{
 	{Name: "/docker", Args: "[container[:/path]|off]", Help: "run file tools and bash in a docker container; off returns here"},
 	{Name: "/readonly", Args: "", Help: "toggle read-only mode (no edits or commands)"},
 	{Name: "/memory", Args: "", Help: "what janetcode remembers about this project"},
-	{Name: "/skills", Args: "", Help: "skill files available to the model"},
+	{Name: "/skills", Args: "", Help: "skill files available to the model, what each costs in tokens and which have fired this session"},
 	{Name: "/rules", Args: "", Help: "path-scoped project rules: what brings each in, and which have been sent this session"},
 	{Name: "/remember", Args: "<fact>", Help: "add a fact to the project memory"},
 	{Name: "/forget", Args: "<n>", Help: "remove memory entry n"},

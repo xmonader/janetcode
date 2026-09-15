@@ -20,6 +20,7 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/trust"
@@ -42,6 +43,9 @@ type Options struct {
 	// Rules says which path-scoped rules this session has already given
 	// the model, for /rules to mark them.
 	Rules *rules.Injector
+	// Skills says which skills this session has attached and what they
+	// cost, for /skills to price them.
+	Skills *skill.Injector
 	// LSP reports language-server status (/lsp).
 	LSP *lsp.Manager
 	// Inspect answers for every part of the session; /inspect reads it.

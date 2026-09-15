@@ -46,7 +46,7 @@ var commandWhen = map[string]string{
 	"/docker":      "the files you want the model to edit live in a running container",
 	"/readonly":    "you want answers about the code with no chance of it being changed",
 	"/memory":      "you want to see, or correct, what janetcode has learned about this project",
-	"/skills":      "you want to know which skill files the model can reach from here",
+	"/skills":      "you want to know which skill files the model can reach from here, what they cost every turn and which have earned it",
 	"/rules":       "a path-scoped rule should have fired and you want to know why it did not",
 	"/remember":    "a fact you are tired of repeating: it comes back in every future session here",
 	"/forget":      "a remembered fact has gone stale or was wrong",

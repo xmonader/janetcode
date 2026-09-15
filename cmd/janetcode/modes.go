@@ -228,7 +228,7 @@ func (r *root) webMode() error {
 		Version: version, Addr: o.webAddr,
 		Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
 		Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For,
-		Workspace: built.ws, MCP: mcpOpts,
+		Workspace: built.ws, MCP: mcpOpts, Skills: built.skillInjector,
 		Doctor: func(w io.Writer) error {
 			return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme})
 		},
@@ -274,6 +274,7 @@ func (r *root) tuiMode() error {
 		}),
 		UnpricedModel: unpricedModel(cfg, os.Getenv),
 		Rules:         built.ruleInjector,
+		Skills:        built.skillInjector,
 		Models:        pool.For,
 		Jobs:          jobs,
 		Running:       deps.running,
