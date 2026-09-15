@@ -175,7 +175,9 @@ func (m *model) statusState() string {
 	}
 	s := st.Render(mode)
 	if ag := m.opts.Agent; ag != nil && ag.Sandbox != nil && ag.Sandbox.Enabled() {
-		s += m.styles.faint.Render(" · sandbox")
+		// The profile is the part that says what is actually confined,
+		// so the chrome names it rather than only that there is a box.
+		s += m.styles.faint.Render(" · sandbox:" + ag.Sandbox.ProfileName())
 	}
 	if ws := m.opts.Workspace; ws != nil && !ws.Local() {
 		s += m.styles.faint.Render(" · " + ws.Kind())

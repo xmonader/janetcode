@@ -42,7 +42,7 @@ var flagWhen = map[string]string{
 	"effort":               "an Anthropic model and a task worth more or less thinking",
 	"yolo":                 "a sandbox, a container, or work you have already decided to trust",
 	"auto":                 "you trust in-workspace edits and read-only commands but still want to see the rest",
-	"sandbox":              "you want bash isolated in docker without retargeting file tools",
+	"sandbox":              "you want bash isolated in a sandbox profile without retargeting file tools",
 	"readonly":             "you want answers about a repository with no chance of it being changed",
 	"c":                    "carry on where the last session in this directory left off",
 	"r":                    "reopen one session by id",
@@ -129,6 +129,7 @@ var configWhen = map[string][2]string{
 	"memory":              {"extract project memory automatically after turns that changed something", "you would rather decide yourself what is remembered (/remember always works)"},
 	"hints":               {"one-time hints about features you have not used", "you know the harness and want the transcript quiet"},
 	"proof_notes":         {"attach evidence of this session's changes to a commit it makes, as a git note", "you review commits without the session that made them, or want the write skipped"},
+	"sandbox":             {"the sandbox profile a session in this project starts under: off, workspace, read-only or strict", "this project's commands should always be confined, not only when you remember to type /sandbox"},
 	"route_cheap":         {"experimental: send a turn's mechanical steps (reads, greps, checks that already passed) to this model instead", "an eval run showed it saves cost without moving the pass rate; empty is off"},
 }
 

@@ -20,6 +20,7 @@ janetcode --init     # writes ~/.config/janetcode/config.json
   "memory": true,
   "hints": true,
   "proof_notes": true,
+  "sandbox": "off",
   "theme": "auto",
   "providers": {
     "anthropic":  { "type": "anthropic", "api_key": "sk-ant-..." },
@@ -50,6 +51,30 @@ environment are never copied into the config file.
 `effort` (Anthropic only) is `low`, `medium`, `high`, `xhigh` or `max`.
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
+
+### The sandbox key
+
+`sandbox` names the sandbox profile a session in this project starts
+under, so commands are confined without anyone having to remember
+`/sandbox`:
+
+```json
+{ "sandbox": "workspace" }
+```
+
+`off` (the default, and what an absent key means) starts unsandboxed;
+`workspace`, `read-only` and `strict` are the profiles described in
+[The sandbox](interface.md#the-sandbox), which also lists what each
+backend — docker, macOS seatbelt, Linux Landlock — can and cannot
+enforce. A value that is not one of those is a config error, not a
+session that quietly is not sandboxed.
+
+`--sandbox` on the command line turns one on without naming a profile
+and means `workspace`; a config file that names another profile keeps
+it. `/sandbox <profile>` changes it for one session, and `/config
+sandbox=strict` changes the project default and what a running sandbox
+enforces — it does not turn a sandbox on, because a backend can fail and
+`/sandbox` is where you would want to hear about it.
 
 ### What janetcode records about you
 
