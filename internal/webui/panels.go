@@ -38,7 +38,7 @@ func (s *server) sessionsAPI(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	infos, err := session.List(dir, s.opts.Cwd)
+	infos, err := session.List(dir, s.cwd())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

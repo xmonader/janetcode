@@ -153,8 +153,8 @@ func (a *Agent) UndoApply(ctx context.Context, force bool) (UndoReport, cmdresul
 // to: Root, or the process working directory when Root is unset; "" (show
 // absolute paths) when neither is known.
 func (a *Agent) displayRoot() string {
-	if a.Root != "" {
-		return a.Root
+	if r := a.RootDir(); r != "" {
+		return r
 	}
 	d, _ := os.Getwd()
 	return d

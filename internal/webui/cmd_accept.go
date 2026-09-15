@@ -8,7 +8,7 @@ import "github.com/xmonader/janetcode/internal/agent"
 // parser both front-ends use, so a spelling accepted here means the same
 // thing in the terminal.
 func (s *server) accept(arg string) {
-	res, err := s.opts.Agent.AcceptCommand(agent.ParseAcceptArgs(arg), s.opts.Cwd)
+	res, err := s.opts.Agent.AcceptCommand(agent.ParseAcceptArgs(arg), s.cwd())
 	s.showResult(res, err)
 	if err == nil && res.Handover != "" {
 		s.startTurn(res.Handover)

@@ -207,7 +207,9 @@ type Agent struct {
 	// Root is the directory the session works in. Paths shown to the user
 	// and the model by /undo about are relative to it; empty means the
 	// process working directory, which is only right for a front-end
-	// started in the project (the web UI may not be).
+	// started in the project (the web UI may not be). It is set once at
+	// build time and thereafter only through SetRoot, which /cd calls
+	// while a turn may be reading it; read it back with RootDir.
 	Root string
 	// ProofNotes gates the automatic side of internal/proof: when a bash
 	// call this session runs looks like `git commit` and HEAD actually

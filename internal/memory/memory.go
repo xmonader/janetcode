@@ -719,3 +719,17 @@ func firstLine(s string) string {
 
 // Clean normalises free text into a one-line description.
 func Clean(text string) string { return oneLine(text, MaxIndexLine) }
+
+// Rekey points the store at another project: memory is per project, so a
+// session that moves with /cd reads and writes the new project's entries.
+// The global scope is unaffected — it is global on purpose.
+func (s *Store) Rekey(cwd string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Key = Key(cwd)
+	s.Ecosystem = ""
+	if p, ok := project.Detect(cwd); ok {
+		s.Ecosystem = strings.ToLower(p.Kind)
+	}
+	s.vecs = nil
+}

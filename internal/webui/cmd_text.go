@@ -287,7 +287,7 @@ func (s *server) memoryText(query string) string {
 }
 
 func (s *server) skillsText() string {
-	skills := skill.Load(s.opts.Cwd, s.opts.ConfigDir)
+	skills := skill.Load(s.cwd(), s.opts.ConfigDir)
 	if len(skills) == 0 {
 		return "no skills found · add .janetcode/skills/<name>/SKILL.md"
 	}
@@ -304,13 +304,13 @@ func (s *server) changesText(arg string) string {
 		if err != nil {
 			return err.Error()
 		}
-		return agent.FormatChange(c, s.opts.Cwd)
+		return agent.FormatChange(c, s.cwd())
 	}
 	groups := s.opts.Agent.ChangeGroups()
 	if len(groups) == 0 {
 		return "no file changes in this session yet"
 	}
-	return agent.FormatChangeGroups(groups, s.opts.Cwd, s.opts.Agent.RestorableTurns())
+	return agent.FormatChangeGroups(groups, s.cwd(), s.opts.Agent.RestorableTurns())
 }
 
 func (s *server) diffText(path string) string {
@@ -318,7 +318,7 @@ func (s *server) diffText(path string) string {
 	if path != "" {
 		args = append(args, "--", path)
 	}
-	out, err := gitx.RunBytes(s.life, s.opts.Cwd, nil, args...)
+	out, err := gitx.RunBytes(s.life, s.cwd(), nil, args...)
 	if err != nil {
 		return err.Error()
 	}
@@ -340,7 +340,7 @@ func (s *server) openText(arg string) string {
 	}
 	abs := path
 	if !filepath.IsAbs(abs) {
-		abs = filepath.Join(s.opts.Cwd, path)
+		abs = filepath.Join(s.cwd(), path)
 	}
 	data, err := os.ReadFile(abs)
 	if err != nil {

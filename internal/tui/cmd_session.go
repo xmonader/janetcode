@@ -116,6 +116,7 @@ func (m *model) forkSession(arg string) {
 	}
 	old := m.opts.Session.Label()
 	m.opts.Session = ns
+	m.opts.CD.SetSession(ns)
 	if err := m.opts.Agent.ForkSession(ns); err != nil {
 		m.transcript.errorf("fork: %v", err)
 	}
@@ -252,6 +253,7 @@ func (m *model) resume(arg string) {
 		return
 	}
 	m.opts.Session = sess
+	m.opts.CD.SetSession(sess)
 	m.opts.Agent.Usage = llm.Usage{}
 	if err := m.opts.Agent.OpenSession(sess, history); err != nil {
 		m.transcript.errorf("%v", err)

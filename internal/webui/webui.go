@@ -46,6 +46,9 @@ type Options struct {
 	Jobs      *tool.Jobs
 	Features  *feature.Catalog
 	ConfigDir string
+	// CD is the session's working directory and everything rooted at it;
+	// /cd moves them together. Nil disables /cd.
+	CD *agent.CD
 	// Workspace is the shared host file tools use; /ssh and /docker retarget it.
 	Workspace *tool.Workspace
 
@@ -163,6 +166,26 @@ type server struct {
 	asking  *askReq
 	status  string
 	verbose bool
+
+	// dirMu guards dir, the directory this session is rooted at. It is
+	// separate from mu because the hello payload reads it while mu is
+	// held.
+	dirMu sync.RWMutex
+	dir   string
+}
+
+// cwd is the directory this session is rooted at.
+func (s *server) cwd() string {
+	s.dirMu.RLock()
+	defer s.dirMu.RUnlock()
+	return s.dir
+}
+
+// setCwd records where /cd moved the session.
+func (s *server) setCwd(dir string) {
+	s.dirMu.Lock()
+	defer s.dirMu.Unlock()
+	s.dir = dir
 }
 
 type envelope struct {
@@ -249,6 +272,7 @@ func newServer(life context.Context, opts Options) *server {
 	s := &server{
 		opts: opts,
 		life: life,
+		dir:  opts.Cwd,
 		subs: map[chan envelope]struct{}{},
 	}
 	if opts.Agent != nil {
@@ -318,7 +342,7 @@ func (s *server) handler() http.Handler {
 
 func (s *server) hello() helloPayload {
 	h := helloPayload{
-		Cwd:      s.opts.Cwd,
+		Cwd:      s.cwd(),
 		Provider: s.opts.Provider,
 		Version:  s.opts.Version,
 	}
@@ -417,7 +441,7 @@ func (s *server) events(w http.ResponseWriter, r *http.Request) {
 // completeAPI lists @path completions for the composer, the same source
 // the TUI's tab completion uses.
 func (s *server) completeAPI(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, prompt.CompletePath(s.opts.Cwd, r.URL.Query().Get("q")))
+	writeJSON(w, prompt.CompletePath(s.cwd(), r.URL.Query().Get("q")))
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -516,7 +540,7 @@ func (s *server) startTurn(text string) {
 		s.opts.Typed.Note(text)
 	}
 	blocks := []llm.Block{{Type: llm.BlockText, Text: text}}
-	expanded, atts := prompt.ExpandMentions(s.opts.Cwd, text)
+	expanded, atts := prompt.ExpandMentions(s.cwd(), text)
 	if len(atts) > 0 {
 		names := make([]string, len(atts))
 		for i, a := range atts {
@@ -642,7 +666,7 @@ func (s *server) runShell(cmdline string) {
 	call := agent.ToolCall{ID: fmt.Sprintf("shell-%d", time.Now().UnixNano()), Name: "shell", Input: input}
 	s.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
 	s.emitStatus()
-	cwd := s.opts.Cwd
+	cwd := s.cwd()
 	go func() {
 		start := time.Now()
 		out, err := tool.Bash{Root: cwd}.Run(ctx, input)

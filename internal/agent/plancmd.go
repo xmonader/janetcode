@@ -29,10 +29,11 @@ const PlanRevisePrompt = "Revise the plan to address every comment above and wri
 // planRoot is the directory the plan file lives under: the session's
 // root, or the process working directory when a front-end set none.
 func (a *Agent) planRoot() string {
-	if a.Root == "" {
+	r := a.RootDir()
+	if r == "" {
 		return "."
 	}
-	return a.Root
+	return r
 }
 
 // PlanComments is the collection the user has built up and not yet sent.

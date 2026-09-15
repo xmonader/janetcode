@@ -29,7 +29,7 @@ func TestImpactHookExistingFileVsNewFile(t *testing.T) {
 	ws := tool.NewLocal(root)
 	diag := lsp.New(root, lsp.Config{Disabled: true})
 	repo := &repomap.Cache{Root: root}
-	hook := impactHook(root, ws, diag, repo, func() []string { return []string{"go test ./..."} })
+	hook := impactHook(agent.NewCD(root), ws, diag, repo, func() []string { return []string{"go test ./..."} })
 
 	editInput, _ := json.Marshal(map[string]any{
 		"path": "lib/parse.go", "old_string": "return len(s)", "new_string": "return len(s) + 1",

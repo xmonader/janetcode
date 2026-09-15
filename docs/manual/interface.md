@@ -251,6 +251,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /copy            (copy the last assistant reply)
 /config [key=value]  (set a catalogued config key)
 /doctor          (checkup; reports facts, changes nothing)
+/cd [path]       (move this session's working directory; no argument says where it is)
 /ssh [user@host[:/path]|off]  (file tools and bash on a remote host; off returns here)
 /docker [container[:/path]|off]  (the same, in a running container)
 /connect   /model     /compact (summarise the context to free the window)
@@ -1801,6 +1802,50 @@ it needs no profile file in `.janetcode/agents`. `agent: general` is the
 same kind of built-in subagent for a job that is not specifically
 exploration. Other names still load from those files.
 
+### Moving the working directory
+
+`/cd <path>` moves the session to another directory without restarting it.
+It is the local form of the retarget below: the same shared workspace
+pointer is swapped, so the file tools and `bash` follow, and everything
+else the session roots at the project follows with them — the repository
+map, `.janetcode/`'s hooks, verification and permission files, skills,
+rules, project memory, the plan file, the language servers, the checkout
+root editing subagents branch from, the snapshots `/undo` and `/proof`
+take, and the working directory the system prompt states. Relative paths
+and `~` resolve against where the session is *now*, not where janetcode
+was started, so `/cd ../sibling` works after an earlier `/cd`. A path
+that does not exist, is not a directory, or cannot be opened is refused
+and nothing moves. A directory `/add-dir` granted is a perfectly good
+target. `/cd` with no argument says where the session is rooted, what
+else the file tools may read, and that `/ssh` and `/docker` are the
+remote forms.
+
+The conversation is not reset — this is a move, not a new session. The
+model is told once, as a harness note, that the directory changed and
+that relative paths it gathered before no longer mean what they did. The
+session's metadata records the new directory, so `--continue` from there
+finds this session afterwards.
+
+Three things cannot follow, and `/cd` says so rather than leaving them
+pointed at the tree you left. A running language server is stopped and a
+fresh one starts in the new tree on the next edit. Background jobs,
+open terminals and subagents that are still working keep the directory
+they were started in — they are processes and checkouts, not settings.
+The archive of full tool outputs stays where it was opened, because the
+results in it belong to *this* conversation and `expand_output` still has
+to be able to read them back. Trust does not travel either: the new
+directory's `.janetcode/hooks.json`, `verify.json` and `permissions.json`
+are re-read and re-checked against the trust store, so a tree you have
+never approved starts unapproved.
+
+`/cd` costs almost nothing in prompt cache. The working directory lives
+below the `# Environment` heading of the system prompt, which is the part
+deliberately left outside the cached prefix (it carries the date too, so
+it changes daily anyway); the cached prefix above it and the whole
+conversation are untouched. What a move does cost is the next turn's
+repository map, which is rebuilt for the new tree and attached to that
+turn like any other — the same price the first turn in a project pays.
+
 ### Remote workspace
 
 `/ssh user@host` (or `user@host:/path`) retargets the file tools and
@@ -1809,7 +1854,11 @@ every tool sees the new root without rebuilding the agent. `/ssh off`
 returns to this directory. `/docker <container>` (or
 `container:/path`) does the same through `docker exec`. The session,
 memory, snapshots, language servers and `/undo` stay on the local
-project; only what the model reads, writes and runs moves. `ssh` uses
+project; only what the model reads, writes and runs moves. That is the
+difference from `/cd`, which moves all of them: `/ssh` changes *where the
+tools run*, `/cd` changes *where the session is*. For the same reason
+`/cd` is refused while the workspace is remote — bring it back with
+`/ssh off` first, or move it with `/ssh user@host:/path`. `ssh` uses
 `BatchMode` so it will not prompt for a password: keys or an ssh-agent
 have to already work.
 

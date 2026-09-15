@@ -115,6 +115,10 @@ var dispatch = map[string]cmdHandler{
 		m.agentsCommand(cmdArg(text, fields))
 		return nil, false
 	},
+	"/cd": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.cdCommand(cmdArg(text, fields))
+		return nil, false
+	},
 	"/ssh": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.sshCommand(cmdArg(text, fields))
 		return nil, false
@@ -326,6 +330,7 @@ func (m *model) cmdClear(text string, fields []string) (tea.Cmd, bool) {
 		return nil, false
 	}
 	m.opts.Session = sess
+	m.opts.CD.SetSession(sess)
 	if err := m.opts.Agent.OpenSession(sess, nil); err != nil {
 		m.transcript.errorf("%v", err)
 	}

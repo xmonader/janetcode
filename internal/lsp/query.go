@@ -250,7 +250,7 @@ func (m *Manager) warm(ctx context.Context, path string) {
 			return
 		}
 		opened := 0
-		_ = filepath.WalkDir(m.Root, func(p string, d os.DirEntry, err error) error {
+		_ = filepath.WalkDir(m.root(), func(p string, d os.DirEntry, err error) error {
 			if err != nil || opened >= warmLimit {
 				if opened >= warmLimit {
 					return filepath.SkipAll
@@ -591,10 +591,11 @@ func (m *Manager) sourceLine(path string, line int) string {
 // rel makes a path relative to the project root, so results read the way
 // the model's own paths do.
 func (m *Manager) rel(abs string) string {
-	if m.Root == "" || !filepath.IsAbs(abs) {
+	root := m.root()
+	if root == "" || !filepath.IsAbs(abs) {
 		return abs
 	}
-	if r, err := filepath.Rel(m.Root, abs); err == nil && !strings.HasPrefix(r, "..") {
+	if r, err := filepath.Rel(root, abs); err == nil && !strings.HasPrefix(r, "..") {
 		return r
 	}
 	return abs
