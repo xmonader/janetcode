@@ -215,6 +215,12 @@ type permPayload struct {
 	Warning    string `json:"warning,omitempty"`
 	Rule       string `json:"rule,omitempty"`
 	Expandable bool   `json:"expandable,omitempty"`
+	// Rungs is the ladder of rules the "remember this rule" button may
+	// save, narrowest first, and RuleIndex the one it starts on — the
+	// same choice the terminal offers with its arrow keys (see
+	// perm.SuggestLadder). One rung means there is nothing to choose.
+	Rungs     []permRung `json:"rungs,omitempty"`
+	RuleIndex int        `json:"ruleIndex,omitempty"`
 	// Learned is the ledger's note that this call's shape has been
 	// approved several times with no refusal (see agent.ToolCall), shown
 	// next to Rule so the "remember this rule" button explains itself.
@@ -225,6 +231,13 @@ type permPayload struct {
 	// verbatim from agent.ToolCall.Impact. "" for every other call and for
 	// a new file.
 	Impact string `json:"impact,omitempty"`
+}
+
+// permRung is one choosable rule on a prompt's ladder, with the ledger's
+// note about that exact rule.
+type permRung struct {
+	Rule    string `json:"rule"`
+	Learned string `json:"learned,omitempty"`
 }
 
 func newServer(life context.Context, opts Options) *server {

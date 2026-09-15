@@ -7,6 +7,8 @@
   const ask = document.getElementById("ask");
   const askLine = document.getElementById("ask-line");
   const askRule = document.getElementById("ask-rule");
+  const askRungs = document.getElementById("ask-rungs");
+  const askRung = document.getElementById("ask-rung");
   const askImpact = document.getElementById("ask-impact");
   const askPreview = document.getElementById("ask-preview");
   const questionsEl = document.getElementById("questions");
@@ -223,10 +225,34 @@
     askLine.textContent = "Allow " + p.name + (p.summary ? " — " + p.summary : "") + (p.warning ? "  Warning: " + p.warning : "") + "?";
     askRule.hidden = !p.rule;
     if (p.rule) askRule.textContent = "rule: " + p.rule + (p.learned ? "  ·  " + p.learned : "");
+    showRungs(p);
     askImpact.hidden = !p.impact;
     if (p.impact) askImpact.textContent = p.impact;
     askPreview.hidden = !p.preview;
     if (p.preview) askPreview.innerHTML = diffHTML(p.preview);
+  }
+
+  // The ladder of rules "Remember this rule" may save, narrowest first
+  // (see perm.SuggestLadder). One rung is no choice at all, so the card
+  // stays as it was and the line above already names the rule.
+  function showRungs(p) {
+    const rungs = Array.isArray(p.rungs) ? p.rungs : [];
+    askRungs.hidden = rungs.length < 2;
+    askRung.innerHTML = "";
+    if (askRungs.hidden) return;
+    rungs.forEach((r, i) => {
+      const o = document.createElement("option");
+      o.value = r.rule;
+      o.textContent = r.rule + (r.learned ? "  ·  " + r.learned : "");
+      o.selected = i === (p.ruleIndex || 0);
+      askRung.appendChild(o);
+    });
+  }
+
+  // chosenRule is the rung the card has selected, "" when it offers no
+  // choice — the server then saves the one it proposed.
+  function chosenRule() {
+    return askRungs.hidden ? "" : askRung.value;
   }
 
   function showQuestions(qs) {
@@ -400,7 +426,7 @@
       const map = { y: "allow", a: "session", r: "always", n: "deny", c: "cancel" };
       if (map[ev.key.toLowerCase()]) {
         ev.preventDefault();
-        await post("/api/permission", { decision: map[ev.key.toLowerCase()] });
+        await post("/api/permission", { decision: map[ev.key.toLowerCase()], rule: chosenRule() });
       }
     }
     if (ev.key === "s" && ev.ctrlKey && running) {
@@ -415,7 +441,7 @@
   ask.addEventListener("click", async (ev) => {
     const b = ev.target.closest("button[data-d]");
     if (!b) return;
-    await post("/api/permission", { decision: b.dataset.d });
+    await post("/api/permission", { decision: b.dataset.d, rule: chosenRule() });
   });
   document.querySelector(".switches").addEventListener("click", async (ev) => {
     const b = ev.target.closest("button[data-cmd]");

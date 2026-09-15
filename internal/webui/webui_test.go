@@ -19,6 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -645,5 +646,77 @@ func TestColorTokensUnchanged(t *testing.T) {
 		if !bytes.Contains(css, []byte(tok)) {
 			t.Errorf("stylesheet lost %q", tok)
 		}
+	}
+}
+
+// TestPermissionLadderPayloadAndChoice: the card is given the whole
+// ladder of rules and which one to start on, and "always" saves the rung
+// the browser sends back rather than the one the server proposed.
+func TestPermissionLadderPayloadAndChoice(t *testing.T) {
+	ts, ag := testApp(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"docs/n.txt","content":"x\n"}`)},
+		}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "written"), StopReason: llm.StopEndTurn},
+	)
+	defer ts.Close()
+	var saved []string
+	ag.SaveRule = func(r perm.Rule) error { saved = append(saved, r.String()); return nil }
+
+	body, _ := json.Marshal(map[string]string{"text": "make it"})
+	pr, err := http.Post(ts.URL+"/api/prompt", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr.Body.Close()
+
+	var p permPayload
+	deadline := time.Now().Add(4 * time.Second)
+	for time.Now().Before(deadline) {
+		res, err := http.Get(ts.URL + "/api/state")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var snap struct {
+			Permission *permPayload `json:"permission"`
+		}
+		err = json.NewDecoder(res.Body).Decode(&snap)
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if snap.Permission != nil && snap.Permission.Name == "write_file" {
+			p = *snap.Permission
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if p.Name != "write_file" {
+		t.Fatal("no permission prompt")
+	}
+	if len(p.Rungs) != 2 || p.Rungs[0].Rule != "write_file(docs/n.txt)" || p.Rungs[1].Rule != "write_file(docs/*)" || p.RuleIndex != 1 {
+		t.Fatalf("rungs = %+v index = %d", p.Rungs, p.RuleIndex)
+	}
+	if p.Rule != p.Rungs[p.RuleIndex].Rule {
+		t.Fatalf("rule %q is not the rung it starts on: %+v", p.Rule, p.Rungs)
+	}
+	// The narrowest rung, which is not the one the server proposed.
+	dec, _ := json.Marshal(map[string]string{"decision": "always", "rule": p.Rungs[0].Rule})
+	ar, err := http.Post(ts.URL+"/api/permission", "application/json", bytes.NewReader(dec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ar.Body.Close()
+	if ar.StatusCode != 200 {
+		t.Fatalf("always %d", ar.StatusCode)
+	}
+	for time.Now().Before(deadline) && len(saved) == 0 {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if len(saved) != 1 || saved[0] != "write_file(docs/n.txt)" {
+		t.Fatalf("saved = %v, want the rung the browser chose", saved)
+	}
+	if v, r := ag.RulesSnapshot().Decide("write_file", "docs/n.txt"); v != perm.Allowed || r.String() != "write_file(docs/n.txt)" {
+		t.Fatalf("rules = %v %s", v, r)
 	}
 }

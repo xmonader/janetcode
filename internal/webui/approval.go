@@ -22,6 +22,9 @@ type permReq struct {
 type verdict struct {
 	d      agent.Decision
 	reason string
+	// rule is which rung of the call's ladder an "always" answer chose,
+	// "" for the one the card offered first (see agent.ToolCall.Rungs).
+	rule string
 }
 
 func (s *server) doCancel(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +64,9 @@ func (s *server) permission(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Decision string `json:"decision"`
 		Reason   string `json:"reason"`
+		// Rule is the rung of the prompt's ladder to save; ignored
+		// unless it is one of them (see agent.ToolCall.Rungs).
+		Rule string `json:"rule"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
 		http.Error(w, "bad json", http.StatusBadRequest)
@@ -100,7 +106,7 @@ func (s *server) permission(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 	}
 	select {
-	case p.reply <- verdict{d: d, reason: reason}:
+	case p.reply <- verdict{d: d, reason: reason, rule: body.Rule}:
 	default:
 	}
 	s.emit(envelope{Type: "permission"})
@@ -164,6 +170,11 @@ func (s *server) Approve(ctx context.Context, call agent.ToolCall) (agent.Decisi
 }
 
 func (s *server) ApproveWithReason(ctx context.Context, call agent.ToolCall) (agent.Decision, string, error) {
+	d, reason, _, err := s.ApproveWithRule(ctx, call)
+	return d, reason, err
+}
+
+func (s *server) ApproveWithRule(ctx context.Context, call agent.ToolCall) (agent.Decision, string, string, error) {
 	reply := make(chan verdict, 1)
 	s.mu.Lock()
 	s.pending = &permReq{call: call, reply: reply}
@@ -174,7 +185,7 @@ func (s *server) ApproveWithReason(ctx context.Context, call agent.ToolCall) (ag
 	s.emitStatus()
 	select {
 	case v := <-reply:
-		return v.d, v.reason, nil
+		return v.d, v.reason, v.rule, nil
 	case <-ctx.Done():
 		s.mu.Lock()
 		if s.pending != nil && s.pending.reply == reply {
@@ -182,20 +193,28 @@ func (s *server) ApproveWithReason(ctx context.Context, call agent.ToolCall) (ag
 		}
 		s.mu.Unlock()
 		s.emit(envelope{Type: "permission"})
-		return agent.Deny, "", ctx.Err()
+		return agent.Deny, "", "", ctx.Err()
 	}
 }
 
 func (s *server) permOf(c agent.ToolCall) permPayload {
 	rule := c.Rule
+	var rungs []permRung
+	if len(c.Rungs) > 1 {
+		for _, r := range c.Rungs {
+			rungs = append(rungs, permRung{Rule: r.Rule, Learned: r.Learned})
+		}
+	}
 	return permPayload{
-		ID:      c.ID,
-		Name:    c.Name,
-		Summary: summarizeInput(c.Name, string(c.Input), 80, s.opts.Cwd),
-		Preview: c.Preview,
-		Warning: c.Warning,
-		Rule:    rule,
-		Learned: c.Learned,
-		Impact:  c.Impact,
+		ID:        c.ID,
+		Name:      c.Name,
+		Summary:   summarizeInput(c.Name, string(c.Input), 80, s.opts.Cwd),
+		Preview:   c.Preview,
+		Warning:   c.Warning,
+		Rule:      rule,
+		Rungs:     rungs,
+		RuleIndex: c.RuleIndex,
+		Learned:   c.Learned,
+		Impact:    c.Impact,
 	}
 }
