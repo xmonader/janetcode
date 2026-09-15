@@ -334,7 +334,7 @@ func (m *model) renderChildSteps(log agent.ChildLog, width int) []string {
 			wrap(st.Text)
 			lines = append(lines, "")
 		case "tool":
-			mark := m.styles.faint.Render("…")
+			var mark string
 			switch {
 			case st.Pending:
 				mark = m.styles.warn.Render("…")
