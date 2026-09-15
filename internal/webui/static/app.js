@@ -195,6 +195,7 @@
     statusEl.textContent = bits.join(" · ");
     statusEl.classList.toggle("busy", !!st.running);
     if (st.mode) setModeChip(st.mode);
+    setEffortChip(st.effort);
     if (st.phase) lastFlavor = st.phase;
     relabelThinking();
     refreshWorkspace();
@@ -216,6 +217,15 @@
     const m = mode || "ask";
     chip.textContent = m;
     chip.dataset.mode = m;
+  }
+
+  // The reasoning tier is shown only when it is not the provider's own
+  // default, so a session at max says so without anyone asking.
+  function setEffortChip(effort) {
+    const chip = document.getElementById("effort-chip");
+    if (!chip) return;
+    chip.hidden = !effort;
+    chip.textContent = effort ? "effort " + effort : "";
   }
 
   function showAsk(p) {

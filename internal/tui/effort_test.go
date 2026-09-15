@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -69,5 +70,30 @@ func TestCtrlRCyclesEffort(t *testing.T) {
 	// The key must not have leaked into the prompt as text.
 	if v := h.m.input.Value(); v != "" {
 		t.Fatalf("ctrl+r typed %q into the input", v)
+	}
+}
+
+// A tier above the provider's default sits with the mode chip, and must
+// not cost the status line its width discipline: the gauge still never
+// yields, whatever the tier is called.
+func TestStatusLineShowsEffort(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+	h.update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	if v := plain(h.m.statusView()); strings.Contains(v, "effort") {
+		t.Fatalf("the default tier should show nothing:\n%s", v)
+	}
+	h.m.opts.Agent.Effort = "max"
+	if v := plain(h.m.statusView()); !strings.Contains(v, "effort:max") {
+		t.Fatalf("the tier is not on the status line:\n%s", v)
+	}
+	for _, w := range []int{120, 80, 60, 40, 24} {
+		h.update(tea.WindowSizeMsg{Width: w, Height: 24})
+		line := h.m.statusView()
+		if got := lipgloss.Width(line); got > w {
+			t.Errorf("width %d: status line is %d columns:\n%s", w, got, plain(line))
+		}
+		if gauge := plain(h.m.contextGauge()); !strings.Contains(plain(line), gauge) {
+			t.Errorf("width %d: the gauge %q was cut:\n%s", w, gauge, plain(line))
+		}
 	}
 }

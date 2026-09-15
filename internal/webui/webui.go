@@ -202,9 +202,12 @@ type statusPayload struct {
 	Plan     bool   `json:"plan"`
 	ReadOnly bool   `json:"readonly"`
 	Mode     string `json:"mode"`
-	Verbose  bool   `json:"verbose"`
-	Status   string `json:"status,omitempty"`
-	Cost     string `json:"cost,omitempty"`
+	// Effort is the reasoning tier the session asks for, empty when it
+	// is the provider's own default — the chip beside the mode.
+	Effort  string `json:"effort,omitempty"`
+	Verbose bool   `json:"verbose"`
+	Status  string `json:"status,omitempty"`
+	Cost    string `json:"cost,omitempty"`
 }
 
 type permPayload struct {
@@ -669,6 +672,7 @@ func (s *server) statusLocked() statusPayload {
 		st.Plan = modes.PlanMode
 		st.ReadOnly = modes.ReadOnly
 		st.Mode = sessionMode(s.opts.Agent)
+		st.Effort = modes.Effort
 		st.Verbose = s.verbose
 		if usd, ok := s.opts.Agent.UsageSnapshot().Cost(s.opts.Agent.Settings().Price); ok {
 			st.Cost = llm.FormatUSD(usd)

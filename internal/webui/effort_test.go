@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -29,5 +30,29 @@ func TestWebEffortCommand(t *testing.T) {
 	}
 	if sheet := s.sheetText(t); !strings.Contains(sheet, "effort: xhigh") {
 		t.Fatalf("sheet = %q", sheet)
+	}
+}
+
+// The web UI's status payload carries the tier so the browser can show a
+// chip beside the mode; the default tier carries nothing.
+func TestWebStatusCarriesEffort(t *testing.T) {
+	s, _ := planServer(t)
+	s.mu.Lock()
+	st := s.statusLocked()
+	s.mu.Unlock()
+	if st.Effort != "" {
+		t.Fatalf("effort = %q, want the default to be silent", st.Effort)
+	}
+	if err := s.runCommand("/effort max"); err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	st = s.statusLocked()
+	s.mu.Unlock()
+	if st.Effort != "max" {
+		t.Fatalf("effort = %q", st.Effort)
+	}
+	if b, err := json.Marshal(st); err != nil || !strings.Contains(string(b), `"effort":"max"`) {
+		t.Fatalf("payload = %s, %v", b, err)
 	}
 }
