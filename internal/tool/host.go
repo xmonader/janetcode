@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/xmonader/janetcode/internal/fsutil"
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 // Host is the machine the file and shell tools talk to. Local is the
@@ -215,10 +216,10 @@ func (Local) WalkDir(root string, fn fs.WalkDirFunc) error {
 	return filepath.WalkDir(root, fn)
 }
 func (l Local) Command(ctx context.Context, command string) (*exec.Cmd, error) {
-	cmd := ShellCommand(ctx, command)
+	cmd := shell.Command(ctx, command)
 	cmd.Dir = l.root
-	cmd.Env = scrubEnv(os.Environ())
-	setProcessGroup(cmd)
+	cmd.Env = shell.ScrubEnv(os.Environ())
+	shell.SetProcessGroup(cmd)
 	return cmd, nil
 }
 

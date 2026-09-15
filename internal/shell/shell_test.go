@@ -1,4 +1,4 @@
-package tool
+package shell
 
 import (
 	"context"
@@ -59,11 +59,11 @@ func TestPowerShellCommandIsEncodedWithExitStatus(t *testing.T) {
 }
 
 func TestShellCommandRunsHere(t *testing.T) {
-	out, err := ShellCommand(context.Background(), "echo shell-ok").CombinedOutput()
+	out, err := Command(context.Background(), "echo shell-ok").CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "shell-ok") {
 		t.Fatalf("out=%q err=%v", out, err)
 	}
-	if n := DefaultShell().Name; n != "bash" && n != "sh" && n != "PowerShell" {
+	if n := Default().Name; n != "bash" && n != "sh" && n != "PowerShell" {
 		t.Fatalf("shell name %q", n)
 	}
 }

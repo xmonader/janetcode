@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/eval"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 var (
@@ -67,7 +67,7 @@ func runJanetBatch(ctx context.Context, cfg runConfig, batchN int, tasks []eval.
 		"--eval-no-tool-limit",
 	}
 	cmd := exec.CommandContext(ctx, bin, args...)
-	tool.Supervise(cmd)
+	shell.Supervise(cmd)
 	cmd.Dir = cfg.RepoRoot
 	cmd.Env = childEnv(cfg, janetEnv(cfg, home))
 	var stdout, stderr bytes.Buffer
@@ -275,7 +275,7 @@ func runCheck(ctx context.Context, t eval.Task, dir, outPath string) (bool, stri
 	cctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(cctx, "bash", "-c", t.Check)
-	tool.Supervise(cmd)
+	shell.Supervise(cmd)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir)
 	out, err := cmd.CombinedOutput()
@@ -663,7 +663,7 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 	default:
 		return "", "", nil, 1, fmt.Errorf("unknown harness %s", harness)
 	}
-	tool.Supervise(cmd) // kill the harness's whole tree on timeout; never block on an orphan
+	shell.Supervise(cmd) // kill the harness's whole tree on timeout; never block on an orphan
 	cmd.Dir = dir
 	if openclawWS != "" {
 		// openclaw is run from inside its own workspace: configuring the
@@ -744,7 +744,7 @@ context_window = 128000
 	defer cancel()
 	cmd := exec.CommandContext(pctx, "grok", "-p", "Reply with the single word pong and nothing else.",
 		"--always-approve", "--output-format", "json", "--model", cfg.Model, "--max-turns", "2")
-	tool.Supervise(cmd)
+	shell.Supervise(cmd)
 	cmd.Dir = home // auto-approve must never run in the real repository
 	cmd.Env = childEnv(cfg, map[string]string{
 		"GROK_HOME":         home,

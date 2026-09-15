@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/weburl"
 )
 
 func TestFetchURL(t *testing.T) {
@@ -30,7 +32,7 @@ func TestFetchURL(t *testing.T) {
 
 	// The test server is on the loopback address, which is refused unless
 	// the user named it — so say they did.
-	typed := &URLSet{}
+	typed := &weburl.Set{}
 	typed.Note("please look at " + srv.URL)
 	run := func(u string) (string, error) {
 		in, _ := json.Marshal(map[string]string{"url": u})
@@ -86,7 +88,7 @@ func TestFetchCancelledMidBodyIsNotAPartialPage(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 		cancel()
 	}()
-	typed := &URLSet{}
+	typed := &weburl.Set{}
 	typed.Note("please look at " + srv.URL)
 	in, _ := json.Marshal(map[string]string{"url": srv.URL + "/slow"})
 	out, err := FetchURL{Typed: typed}.Run(ctx, in)

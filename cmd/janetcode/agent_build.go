@@ -17,9 +17,11 @@ import (
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/weburl"
 )
 
 // chainPrep runs turn-preparation hooks in order, joining their notes.
@@ -136,7 +138,7 @@ type agentDeps struct {
 	promptOverride prompt.Override
 	// typed holds the hosts the user named themselves. fetch_url reaches a
 	// private-network address only for a host that is in here.
-	typed *tool.URLSet
+	typed *weburl.Set
 	// running is the registry of foreground commands that can be moved to
 	// the background while they run.
 	running *tool.Running
@@ -186,7 +188,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	mem := d.mem
 	seen := &tool.Seen{}
 	ws := tool.NewLocal(d.cwd)
-	sb := &tool.Sandbox{}
+	sb := &shell.Sandbox{}
 	if d.sandboxOn {
 		if err := sb.Enable(); err != nil {
 			return builtAgent{}, fmt.Errorf("--sandbox: %w", err)

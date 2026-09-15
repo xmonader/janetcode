@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/diff"
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 // `sed -i` is an edit. It rewrites a file in place, it is not reversible
@@ -31,7 +32,7 @@ func (t Bash) Preview(ctx context.Context, input json.RawMessage) (string, error
 		return "", nil
 	}
 	var out []string
-	for _, seg := range splitSegments(in.Command) {
+	for _, seg := range shell.Segments(in.Command) {
 		out = append(out, sedInPlaceDiff(ctx, t.Root, seg)...)
 	}
 	return strings.Join(out, "\n"), nil
@@ -39,7 +40,7 @@ func (t Bash) Preview(ctx context.Context, input json.RawMessage) (string, error
 
 // sedInPlaceDiff renders what one `sed -i` segment would do, per file.
 func sedInPlaceDiff(ctx context.Context, root, seg string) []string {
-	toks := shellWords(seg)
+	toks := shell.Words(seg)
 	if leadingCommand(toks, 0) != "sed" {
 		return nil
 	}

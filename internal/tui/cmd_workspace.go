@@ -10,15 +10,16 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
 func (m *model) sandboxCommand(arg string) {
-	var sb *tool.Sandbox
+	var sb *shell.Sandbox
 	if ag := m.opts.Agent; ag != nil {
 		sb = ag.Sandbox
 	}
-	status, err := tool.SetSandbox(sb, arg)
+	status, err := shell.SetSandbox(sb, arg)
 	if err != nil {
 		m.transcript.errorf("%v", err)
 		m.refresh(false)

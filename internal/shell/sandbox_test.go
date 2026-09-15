@@ -1,4 +1,4 @@
-package tool
+package shell
 
 import (
 	"context"
@@ -74,15 +74,5 @@ func TestSetSandboxUnknownArgIsAnImage(t *testing.T) {
 	status, err := SetSandbox(s, "myimage:latest")
 	if err != nil || s.Image() != "myimage:latest" || !s.Enabled() {
 		t.Fatalf("status=%q image=%q enabled=%v err=%v", status, s.Image(), s.Enabled(), err)
-	}
-}
-
-func TestLocalShellSkipsSandboxWhenOff(t *testing.T) {
-	cmd, err := localShell(context.Background(), nil, nil, t.TempDir(), "echo hi")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(strings.Join(cmd.Args, " "), "docker") {
-		t.Fatalf("unwrapped command used docker: %v", cmd.Args)
 	}
 }

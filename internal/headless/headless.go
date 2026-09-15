@@ -19,8 +19,8 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // Options configures a headless run.
@@ -200,7 +200,7 @@ func remember(ctx context.Context, opts Options) {
 func check(ctx context.Context, cwd, command string) (string, int) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	cmd := tool.ShellCommand(ctx, command)
+	cmd := shell.Command(ctx, command)
 	cmd.Dir = cwd
 	out, err := cmd.CombinedOutput()
 	if err == nil {

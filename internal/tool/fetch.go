@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/weburl"
 )
 
 // FetchURL downloads a web page or API response for the model. HTML is
@@ -24,7 +25,7 @@ type FetchURL struct {
 	Client *http.Client
 	// Typed holds the hosts the user named in their own messages. A
 	// private-network target is fetched only when the user asked for it.
-	Typed *URLSet
+	Typed *weburl.Set
 }
 
 // MaxFetchBytes caps the response body read from the network.
@@ -52,12 +53,12 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 	if err := decode(input, &in); err != nil {
 		return "", err
 	}
-	target, rewritten := NormalizeURL(in.URL)
+	target, rewritten := weburl.Normalize(in.URL)
 	u, err := url.Parse(strings.TrimSpace(target))
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return "", fmt.Errorf("url must be absolute http(s): %q", in.URL)
 	}
-	if why := PrivateTarget(u); why != "" && !t.Typed.Has(u.Host) {
+	if why := weburl.PrivateTarget(u); why != "" && !t.Typed.Has(u.Host) {
 		return "", fmt.Errorf("refused: %s, and you were not asked to fetch it. Only a URL the user named themselves may point inside the local machine or network", why)
 	}
 	client := t.Client
@@ -182,7 +183,7 @@ func (t FetchURL) Preview(_ context.Context, input json.RawMessage) (string, err
 	if err := decode(input, &in); err != nil {
 		return "", err
 	}
-	if target, rewritten := NormalizeURL(in.URL); rewritten {
+	if target, rewritten := weburl.Normalize(in.URL); rewritten {
 		return "GET " + target + "\n(rewritten from " + in.URL + ": the raw file rather than the page around it)", nil
 	}
 	return "", nil
@@ -196,12 +197,12 @@ func (t FetchURL) Warn(input json.RawMessage) string {
 	if json.Unmarshal(input, &in) != nil {
 		return ""
 	}
-	target, _ := NormalizeURL(in.URL)
+	target, _ := weburl.Normalize(in.URL)
 	u, err := url.Parse(strings.TrimSpace(target))
 	if err != nil || u.Host == "" {
 		return ""
 	}
-	if why := PrivateTarget(u); why != "" {
+	if why := weburl.PrivateTarget(u); why != "" {
 		return why
 	}
 	if u.Scheme == "http" {

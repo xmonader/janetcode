@@ -5,61 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/xmonader/janetcode/internal/weburl"
 )
-
-func TestNormalizeGitHubBlob(t *testing.T) {
-	cases := []struct{ in, want string }{
-		{"https://github.com/o/r/blob/main/a/b.go", "https://raw.githubusercontent.com/o/r/main/a/b.go"},
-		{"https://github.com/o/r/raw/v1.2/x.txt", "https://raw.githubusercontent.com/o/r/v1.2/x.txt"},
-		{"https://github.com/o/r", "https://github.com/o/r"},
-		{"https://github.com/o/r/issues/3", "https://github.com/o/r/issues/3"},
-		{"https://example.com/o/r/blob/main/x", "https://example.com/o/r/blob/main/x"},
-	}
-	for _, c := range cases {
-		got, changed := NormalizeURL(c.in)
-		if got != c.want || changed != (c.in != c.want) {
-			t.Errorf("NormalizeURL(%q) = %q %v, want %q", c.in, got, changed, c.want)
-		}
-	}
-}
-
-func TestPrivateTarget(t *testing.T) {
-	private := []string{
-		"http://127.0.0.1:8080/x", "http://localhost/x", "http://[::1]/x",
-		"http://169.254.169.254/latest/meta-data/", "http://10.0.0.5/x",
-		"http://192.168.1.1/x", "http://172.16.0.1/x", "http://box.local/x",
-		"http://metadata.google.internal/x",
-	}
-	for _, raw := range private {
-		u, _ := url.Parse(raw)
-		if PrivateTarget(u) == "" {
-			t.Errorf("%s not recognised as private", raw)
-		}
-	}
-	for _, raw := range []string{"https://example.com/x", "https://8.8.8.8/x"} {
-		u, _ := url.Parse(raw)
-		if why := PrivateTarget(u); why != "" {
-			t.Errorf("%s judged private: %s", raw, why)
-		}
-	}
-}
-
-func TestURLSetRemembersWhatTheUserNamed(t *testing.T) {
-	s := &URLSet{}
-	s.Note("check http://localhost:3000/health and https://example.com/docs please")
-	if !s.Has("localhost:3000") || !s.Has("localhost") {
-		t.Fatal("the host the user named is not remembered")
-	}
-	if s.Has("169.254.169.254") {
-		t.Fatal("a host nobody named is remembered")
-	}
-	if !s.Has("example.com") {
-		t.Fatal("example.com missing")
-	}
-}
 
 func TestFetchRefusesPrivateTargetsAndCrossHostRedirects(t *testing.T) {
 	var other *httptest.Server
@@ -88,7 +38,7 @@ func TestFetchRefusesPrivateTargetsAndCrossHostRedirects(t *testing.T) {
 		t.Fatalf("a private target with nothing typed: %v", err)
 	}
 
-	typed := &URLSet{}
+	typed := &weburl.Set{}
 	typed.Note(srv.URL + " " + other.URL)
 	f := FetchURL{Typed: typed}
 	run := func(path string) (string, error) {

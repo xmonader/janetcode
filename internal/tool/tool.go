@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -316,7 +315,3 @@ type Guard interface {
 type Warner interface {
 	Warn(input json.RawMessage) string
 }
-
-// SetProcessGroup puts a command in its own process group, so cancelling
-// it kills everything it started and not just the process itself.
-func SetProcessGroup(cmd *exec.Cmd) { setProcessGroup(cmd) }

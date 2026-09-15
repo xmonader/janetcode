@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -299,7 +300,7 @@ func (s *Script) Run(ctx context.Context, input json.RawMessage) (string, error)
 		"PYTHONDONTWRITEBYTECODE=1",
 		"PYTHONUNBUFFERED=1",
 	)
-	tool.SetProcessGroup(cmd)
+	shell.SetProcessGroup(cmd)
 	var stdout, stderr strings.Builder
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	runErr := cmd.Run()

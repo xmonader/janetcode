@@ -1,4 +1,7 @@
-package tool
+// Package weburl normalizes and vets URLs the agent is asked to fetch:
+// GitHub blob links rewritten to raw content, private-network targets
+// recognised, and the hosts the user named remembered.
+package weburl
 
 import (
 	"net"
@@ -8,12 +11,12 @@ import (
 	"sync"
 )
 
-// NormalizeURL rewrites URLs that would fetch something other than what
+// Normalize rewrites URLs that would fetch something other than what
 // they appear to. A GitHub blob page is 300 KB of application shell around
 // the file; raw.githubusercontent.com is the file. The rewrite happens
 // before the permission check so that the host the user approves, and any
 // rule they save, is the host actually contacted.
-func NormalizeURL(raw string) (string, bool) {
+func Normalize(raw string) (string, bool) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || u.Host == "" {
 		return raw, false
@@ -34,12 +37,12 @@ func NormalizeURL(raw string) (string, bool) {
 	return out.String(), true
 }
 
-// URLSet remembers the hosts the user named in their own messages. A
+// Set remembers the hosts the user named in their own messages. A
 // fetch of a private-network address is refused unless the user asked for
 // that host: an agent reaching 169.254.169.254 or a service on localhost
 // off its own bat is reading something the user never offered it, and on
 // a cloud instance that is the credentials endpoint.
-type URLSet struct {
+type Set struct {
 	mu    sync.Mutex
 	hosts map[string]bool
 }
@@ -47,7 +50,7 @@ type URLSet struct {
 var urlInText = regexp.MustCompile(`(?i)\bhttps?://[^\s<>"'` + "`" + `)\]]+`)
 
 // Note records every host named in text.
-func (s *URLSet) Note(text string) {
+func (s *Set) Note(text string) {
 	if s == nil || text == "" {
 		return
 	}
@@ -66,7 +69,7 @@ func (s *URLSet) Note(text string) {
 }
 
 // Has reports whether the user named this host (with or without its port).
-func (s *URLSet) Has(host string) bool {
+func (s *Set) Has(host string) bool {
 	if s == nil {
 		return false
 	}

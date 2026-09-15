@@ -6,6 +6,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 // A job is reaped by its waiting goroutine before that goroutine records
@@ -14,9 +16,9 @@ import (
 // Killing on the Done flag alone therefore sent SIGKILL to whatever tree
 // happened to be given the number next.
 func TestKillDoesNotSignalAJobAlreadyReaped(t *testing.T) {
-	cmd := ShellCommand(context.Background(), "exit 0")
+	cmd := shell.Command(context.Background(), "exit 0")
 	cmd.Dir = t.TempDir()
-	setProcessGroup(cmd)
+	shell.SetProcessGroup(cmd)
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}

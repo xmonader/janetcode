@@ -4,16 +4,7 @@ package tool
 
 import (
 	"os/exec"
-
-	"github.com/xmonader/janetcode/internal/procgroup"
 )
-
-// setProcessGroup starts the command in its own process group and kills
-// the whole tree on cancellation with taskkill, the closest Windows has to
-// killing a process group. Untested on a real Windows machine.
-func setProcessGroup(cmd *exec.Cmd) {
-	procgroup.KillOnCancel(cmd)
-}
 
 // processDone has no cheap answer here: Windows offers no "does this
 // process exist" signal, and os.Process does not expose what it knows. A

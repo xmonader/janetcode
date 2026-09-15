@@ -14,6 +14,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -429,7 +430,7 @@ func (a *Agent) autoAllows(u llm.Block) bool {
 	if json.Unmarshal(u.Input, &in) != nil {
 		return false
 	}
-	return tool.SafeRead(in.Command)
+	return shell.SafeRead(in.Command)
 }
 
 // editTool reports the tools AutoEdits covers: the ones that change files

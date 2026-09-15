@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 func loadLargeTask(t *testing.T, name string) Task {
@@ -47,7 +47,7 @@ func runTaskCheck(t *testing.T, dir, check string) (ok bool, out string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	cmd := tool.ShellCommand(ctx, check)
+	cmd := shell.Command(ctx, check)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "EVAL_DIR="+dir)
 	b, err := cmd.CombinedOutput()

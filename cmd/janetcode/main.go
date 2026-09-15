@@ -40,6 +40,7 @@ import (
 	"github.com/xmonader/janetcode/internal/tui"
 	"github.com/xmonader/janetcode/internal/verify"
 	"github.com/xmonader/janetcode/internal/webui"
+	"github.com/xmonader/janetcode/internal/weburl"
 	"github.com/xmonader/janetcode/internal/worktree"
 )
 
@@ -488,7 +489,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if err != nil {
 		return err
 	}
-	typed := &tool.URLSet{}
+	typed := &weburl.Set{}
 	typed.Note(initial)
 	typed.Note(*promptText)
 	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, autoMode: *autoMode, sandboxOn: *sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: addDir}

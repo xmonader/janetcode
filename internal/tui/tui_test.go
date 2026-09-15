@@ -39,6 +39,7 @@ import (
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/verify"
+	"github.com/xmonader/janetcode/internal/weburl"
 )
 
 type scripted struct {
@@ -3724,7 +3725,7 @@ func TestCtrlGPromotesARunningCommand(t *testing.T) {
 // without this every later message lost the permission.
 func TestTypedHostsAreNotedFromEveryUserMessage(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "looked"), StopReason: llm.StopEndTurn})
-	typed := &tool.URLSet{}
+	typed := &weburl.Set{}
 	h.m.opts.Typed = typed
 	h.keys("check http://localhost:8080/health please")
 	h.enter()

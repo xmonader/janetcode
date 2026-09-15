@@ -3,6 +3,8 @@ package tool
 import (
 	"fmt"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 // Some programs use exit 1 to say "I looked and found nothing", not "I
@@ -69,7 +71,7 @@ func exitCandidates(command string) []string {
 		if last == "" {
 			continue
 		}
-		name := leadingCommand(shellWords(last), 0)
+		name := leadingCommand(shell.Words(last), 0)
 		if name == "" {
 			return nil
 		}
@@ -81,7 +83,7 @@ func exitCandidates(command string) []string {
 // leadingCommand peels wrappers and returns the program that actually runs,
 // or "" when it cannot tell.
 func leadingCommand(toks []string, depth int) string {
-	if len(toks) == 0 || depth > maxWrapperDepth {
+	if len(toks) == 0 || depth > shell.MaxWrapperDepth {
 		return ""
 	}
 	skipOpts := func(i int) int {

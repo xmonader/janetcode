@@ -1,4 +1,9 @@
-package tool
+// Package shell runs command lines through the platform shell and judges
+// them: which interpreter to use, how to supervise the process tree, what
+// environment a model-run command sees, whether a command line is
+// read-only, escapes the workspace or is catastrophic, and the optional
+// docker/sandbox-exec sandbox around it. It knows nothing about tools.
+package shell
 
 import (
 	"context"
@@ -8,6 +13,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf16"
+
+	"github.com/xmonader/janetcode/internal/procgroup"
 )
 
 // Shell is the interpreter commands run through: bash (or sh) on Unix,
@@ -35,19 +42,19 @@ func (s Shell) Command(ctx context.Context, command string) *exec.Cmd {
 }
 
 var (
-	shellOnce sync.Once
-	shell     Shell
+	shellOnce    sync.Once
+	defaultShell Shell
 )
 
-// DefaultShell picks the shell for this machine once.
-func DefaultShell() Shell {
-	shellOnce.Do(func() { shell = shellFor(runtime.GOOS, exec.LookPath) })
-	return shell
+// Default picks the shell for this machine once.
+func Default() Shell {
+	shellOnce.Do(func() { defaultShell = shellFor(runtime.GOOS, exec.LookPath) })
+	return defaultShell
 }
 
-// ShellCommand is DefaultShell().Command.
-func ShellCommand(ctx context.Context, command string) *exec.Cmd {
-	return DefaultShell().Command(ctx, command)
+// ShellCommand is Default().Command.
+func Command(ctx context.Context, command string) *exec.Cmd {
+	return Default().Command(ctx, command)
 }
 
 // shellFor chooses by OS and what is installed: pwsh (PowerShell 7) over
@@ -85,6 +92,10 @@ func encodePowerShell(command string) string {
 // whole tree, and bounds how long Wait blocks on pipes held open by
 // orphaned grandchildren. Use it for any command a context may cancel.
 func Supervise(cmd *exec.Cmd) {
-	setProcessGroup(cmd)
+	SetProcessGroup(cmd)
 	cmd.WaitDelay = 5 * time.Second
 }
+
+// SetProcessGroup puts a command in its own process group, so cancelling
+// it kills everything it started and not just the process itself.
+func SetProcessGroup(cmd *exec.Cmd) { procgroup.KillOnCancel(cmd) }

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -30,11 +31,11 @@ func (s *server) addDir(arg string) {
 }
 
 func (s *server) sandbox(arg string) {
-	var sb *tool.Sandbox
+	var sb *shell.Sandbox
 	if ag := s.opts.Agent; ag != nil {
 		sb = ag.Sandbox
 	}
-	status, err := tool.SetSandbox(sb, arg)
+	status, err := shell.SetSandbox(sb, arg)
 	if err != nil {
 		s.errf("%v", err)
 		return

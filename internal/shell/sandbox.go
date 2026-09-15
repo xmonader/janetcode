@@ -1,4 +1,4 @@
-package tool
+package shell
 
 import (
 	"context"
@@ -178,7 +178,7 @@ func (s *Sandbox) docker(ctx context.Context, root, command string) (*exec.Cmd, 
 	}
 	args = append(args, image, "sh", "-c", command)
 	cmd := exec.CommandContext(ctx, bin, args...)
-	setProcessGroup(cmd)
+	SetProcessGroup(cmd)
 	return cmd, nil
 }
 
@@ -204,8 +204,8 @@ func (s *Sandbox) seatbelt(ctx context.Context, root, command string) (*exec.Cmd
 `
 	cmd := exec.CommandContext(ctx, bin, "-p", profile, "sh", "-c", command)
 	cmd.Dir = root
-	cmd.Env = scrubEnv(os.Environ())
-	setProcessGroup(cmd)
+	cmd.Env = ScrubEnv(os.Environ())
+	SetProcessGroup(cmd)
 	return cmd, nil
 }
 
@@ -218,21 +218,4 @@ func sandboxUser() string {
 		return ""
 	}
 	return fmt.Sprintf("%d:%d", uid, gid)
-}
-
-// localShell builds the exec.Cmd for a command: a remote workspace uses
-// the host, an enabled sandbox wraps docker/sandbox-exec, otherwise the
-// default shell in root.
-func localShell(ctx context.Context, ws *Workspace, sb *Sandbox, root, command string) (*exec.Cmd, error) {
-	if ws != nil && !ws.Local() {
-		return ws.Host().Command(ctx, command)
-	}
-	if sb != nil && sb.Enabled() {
-		return sb.Command(ctx, root, command)
-	}
-	cmd := ShellCommand(ctx, command)
-	cmd.Dir = root
-	cmd.Env = scrubEnv(os.Environ())
-	setProcessGroup(cmd)
-	return cmd, nil
 }

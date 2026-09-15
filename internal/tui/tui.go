@@ -33,6 +33,7 @@ import (
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/weburl"
 )
 
 // Options configures the UI.
@@ -80,7 +81,7 @@ type Options struct {
 	Running *tool.Running
 	// Typed collects the hosts the user names in their own messages;
 	// fetch_url reaches a private address only for one of them.
-	Typed *tool.URLSet
+	Typed *weburl.Set
 	// AutoTitle asks the model for a short session title after the first turn.
 	AutoTitle bool
 	// Doctor writes the same checkup janetcode --doctor prints. Nil

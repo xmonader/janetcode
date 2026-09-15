@@ -77,7 +77,7 @@ func TestAcceptLockDeniesWriteFile(t *testing.T) {
 
 // TestAcceptLockDeniesBashWrite is the "echo x > locked_test.go" case:
 // a shell redirect at a locked path is caught the same way as the file
-// tools, via tool.WriteTargets sharing safety.go's path-escape analysis.
+// tools, via shell.WriteTargets sharing safety.go's path-escape analysis.
 func TestAcceptLockDeniesBashWrite(t *testing.T) {
 	f := &fake{responses: []*llm.Response{
 		toolCall("t1", "bash", `{"command":"echo x > foo_test.go"}`),

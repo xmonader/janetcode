@@ -21,8 +21,8 @@ import (
 	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/snapshot"
-	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/worktree"
 )
 
@@ -382,7 +382,7 @@ func (r *Runner) Run(ctx context.Context) (Report, error) {
 		}
 		o := Outcome{Mutant: m}
 		cctx, cancel := context.WithTimeout(ctx, timeout)
-		cmd := tool.ShellCommand(cctx, r.Command)
+		cmd := shell.Command(cctx, r.Command)
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(), "JANETCODE_VERIFY=1", "JANETCODE_MUTANT="+m.String())
 		out, runErr := cmd.CombinedOutput()

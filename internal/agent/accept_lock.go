@@ -14,6 +14,7 @@ import (
 	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/verify"
@@ -72,7 +73,7 @@ func (a *Agent) captureAcceptContents() {
 // every mutating tool call while accept mode is locked (see executeTool
 // and runNested), whatever tool just ran. The pre-execution checks
 // (acceptDenial, built on the file tools' declared targets and
-// tool.WriteTargets for bash) are the first line of defence, and are
+// shell.WriteTargets for bash) are the first line of defence, and are
 // necessarily incomplete — a shell trick they do not recognise, a
 // nested script or run_code call, anything at all that ends up writing
 // to disk. This looks at what is actually there afterwards: any locked
@@ -174,7 +175,7 @@ func resolvedTouches(t tool.Tool, input json.RawMessage) []string {
 // touches a locked accept-test file, or "" when it may proceed. Covers
 // exactly the two ways a tool call writes a file: a file tool's declared
 // target (touchedPaths, shared with pathrules.go) and a bash command's
-// write targets (tool.WriteTargets, built on the same path-escape
+// write targets (shell.WriteTargets, built on the same path-escape
 // analysis Classify uses for the workspace guard).
 func (a *Agent) acceptDenial(t tool.Tool, input json.RawMessage) string {
 	a.acceptMu.Lock()
@@ -196,7 +197,7 @@ func (a *Agent) acceptDenial(t tool.Tool, input json.RawMessage) string {
 			Command string `json:"command"`
 		}
 		if json.Unmarshal(input, &in) == nil {
-			for _, p := range tool.WriteTargets(in.Command, a.Accept.Root) {
+			for _, p := range shell.WriteTargets(in.Command, a.Accept.Root) {
 				if a.isLockedPath(p) {
 					hit = p
 					break
@@ -255,18 +256,18 @@ func (a *Agent) acceptWritingDenial(t tool.Tool, input json.RawMessage) string {
 }
 
 // acceptPhaseAllowsCommand reports whether a bash command may pass the
-// writing/proposed phase's gate: a read-only command (tool.SafeRead) — the
+// writing/proposed phase's gate: a read-only command (shell.SafeRead) — the
 // model has to look at the code to test it — or a run of the tests: the
 // proposed command itself, or one simple command whose leading words run
 // tests and that writes nothing it names. It only passes the mode gate;
 // the command still needs approval like any other. Called with acceptMu
 // held.
 func (a *Agent) acceptPhaseAllowsCommand(cmd string) bool {
-	cmd = tool.TrimWorkspaceCd(cmd, a.Accept.Root)
+	cmd = shell.TrimWorkspaceCd(cmd, a.Accept.Root)
 	if cmd == "" {
 		return false
 	}
-	if tool.SafeRead(cmd) || cmd == verify.CleanCommand(a.Accept.Proposed) {
+	if shell.SafeRead(cmd) || cmd == verify.CleanCommand(a.Accept.Proposed) {
 		return true
 	}
 	if strings.ContainsAny(strings.ReplaceAll(cmd, "2>&1", ""), ";|&`<>\n") || strings.Contains(cmd, "$(") {
@@ -274,7 +275,7 @@ func (a *Agent) acceptPhaseAllowsCommand(cmd string) bool {
 	}
 	words := strings.Fields(cmd)
 	lead := strings.Join(words[:min(len(words), 3)], " ")
-	return testRunRe.MatchString(lead) && len(tool.WriteTargets(cmd, a.Accept.Root)) == 0
+	return testRunRe.MatchString(lead) && len(shell.WriteTargets(cmd, a.Accept.Root)) == 0
 }
 
 // acceptTrackEdit records a test file the writing phase just wrote, or

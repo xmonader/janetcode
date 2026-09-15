@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -44,7 +45,7 @@ type Jobs struct {
 	// Dir holds output files; empty means the OS temp directory.
 	Dir string
 	// Sandbox, when enabled, wraps local commands the same way Bash does.
-	Sandbox *Sandbox
+	Sandbox *shell.Sandbox
 	mu      sync.Mutex
 	jobs    []*Job
 	next    int

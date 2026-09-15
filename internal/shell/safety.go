@@ -1,4 +1,4 @@
-package tool
+package shell
 
 import (
 	"os"
@@ -31,8 +31,8 @@ func (r Risk) String() string {
 	return "ordinary"
 }
 
-// maxWrapperDepth bounds unwrapping of sudo/env/sh -c/eval nests.
-const maxWrapperDepth = 4
+// MaxWrapperDepth bounds unwrapping of sudo/env/sh -c/eval nests.
+const MaxWrapperDepth = 4
 
 var catastrophic = []struct {
 	re     *regexp.Regexp
@@ -81,7 +81,7 @@ func Classify(command, root string) (Risk, string) {
 		}
 	}
 	worst, reason := RiskOrdinary, ""
-	for _, seg := range splitSegments(command) {
+	for _, seg := range Segments(command) {
 		r, why := classifyOne(seg, root, 0)
 		if r > worst {
 			worst, reason = r, why
@@ -92,16 +92,16 @@ func Classify(command, root string) (Risk, string) {
 
 func classifyOne(seg, root string, depth int) (Risk, string) {
 	seg = strings.TrimSpace(seg)
-	if seg == "" || depth > maxWrapperDepth {
+	if seg == "" || depth > MaxWrapperDepth {
 		return RiskOrdinary, ""
 	}
-	return classifyWords(shellWords(seg), seg, root, depth)
+	return classifyWords(Words(seg), seg, root, depth)
 }
 
 // classifyWords peels wrappers so `sudo sh -c "rm -rf /"` is judged by what
 // it runs. seg is the raw text, for redirection checks.
 func classifyWords(toks []string, seg, root string, depth int) (Risk, string) {
-	if len(toks) == 0 || depth > maxWrapperDepth {
+	if len(toks) == 0 || depth > MaxWrapperDepth {
 		return RiskOrdinary, ""
 	}
 	skipOpts := func(i int) int {
@@ -236,7 +236,7 @@ func WriteTargets(command, root string) []string {
 		seen[p] = true
 		out = append(out, p)
 	}
-	for _, seg := range splitSegments(command) {
+	for _, seg := range Segments(command) {
 		collectWriteTargets(seg, root, 0, add)
 	}
 	return out
@@ -244,10 +244,10 @@ func WriteTargets(command, root string) []string {
 
 func collectWriteTargets(seg, root string, depth int, add func(string)) {
 	seg = strings.TrimSpace(seg)
-	if seg == "" || depth > maxWrapperDepth {
+	if seg == "" || depth > MaxWrapperDepth {
 		return
 	}
-	toks := shellWords(seg)
+	toks := Words(seg)
 	if len(toks) == 0 {
 		return
 	}
@@ -278,7 +278,7 @@ func collectWriteTargets(seg, root string, depth int, add func(string)) {
 	case "sh", "bash", "zsh", "dash", "ksh":
 		for i := 1; i < len(toks)-1; i++ {
 			if strings.HasPrefix(toks[i], "-") && strings.Contains(toks[i], "c") {
-				for _, s := range splitSegments(toks[i+1]) {
+				for _, s := range Segments(toks[i+1]) {
 					collectWriteTargets(s, root, depth+1, add)
 				}
 				return
@@ -286,7 +286,7 @@ func collectWriteTargets(seg, root string, depth int, add func(string)) {
 		}
 		return
 	case "eval":
-		for _, s := range splitSegments(strings.Join(toks[1:], " ")) {
+		for _, s := range Segments(strings.Join(toks[1:], " ")) {
 			collectWriteTargets(s, root, depth+1, add)
 		}
 		return
@@ -319,7 +319,7 @@ func SafeRead(command string) bool {
 	if risk, _ := Classify(command, ""); risk != RiskOrdinary {
 		return false
 	}
-	for _, seg := range splitSegments(command) {
+	for _, seg := range Segments(command) {
 		if !safeSegment(seg, 0) {
 			return false
 		}
@@ -332,13 +332,13 @@ func safeSegment(seg string, depth int) bool {
 	if seg == "" {
 		return true
 	}
-	if depth > maxWrapperDepth {
+	if depth > MaxWrapperDepth {
 		return false
 	}
 	if writesRedirect(seg) {
 		return false
 	}
-	return safeWords(shellWords(seg), depth)
+	return safeWords(Words(seg), depth)
 }
 
 func writesRedirect(seg string) bool {
@@ -355,7 +355,7 @@ func safeWords(toks []string, depth int) bool {
 	if len(toks) == 0 {
 		return true
 	}
-	if depth > maxWrapperDepth {
+	if depth > MaxWrapperDepth {
 		return false
 	}
 	skipOpts := func(i int) int {
@@ -479,7 +479,7 @@ func stripQuoted(s string) string {
 
 // splitSegments breaks a command line at pipes, &&, ||, ; and newlines,
 // outside quotes. Subshell parentheses are stripped.
-func splitSegments(s string) []string {
+func Segments(s string) []string {
 	var segs []string
 	var cur strings.Builder
 	quote := byte(0)
@@ -512,7 +512,7 @@ func splitSegments(s string) []string {
 }
 
 // shellWords splits on whitespace honouring quotes; quotes are removed.
-func shellWords(s string) []string {
+func Words(s string) []string {
 	var words []string
 	var cur strings.Builder
 	in := false
@@ -577,4 +577,14 @@ func TrimWorkspaceCd(command, root string) string {
 		}
 	}
 	return strings.TrimSpace(command[len(m[0]):])
+}
+
+// Redirects returns the targets of the output redirections (> and >>) in
+// one command segment, as written.
+func Redirects(seg string) []string {
+	var out []string
+	for _, m := range redirect.FindAllStringSubmatch(seg, -1) {
+		out = append(out, m[1])
+	}
+	return out
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -304,7 +305,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 			}
 			continue
 		case e.Type == session.TypeGate:
-			cmd := tool.TrimWorkspaceCd(strings.TrimSpace(e.Name), root)
+			cmd := shell.TrimWorkspaceCd(strings.TrimSpace(e.Name), root)
 			if e.Turn != turn {
 				if e.IsError {
 					failedBefore[cmd] = true
@@ -317,7 +318,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		if e.Type != session.TypeToolResult || e.CallID == "" || refused(e) {
 			continue
 		}
-		cmd := tool.TrimWorkspaceCd(commandOf(e.Arguments), root)
+		cmd := shell.TrimWorkspaceCd(commandOf(e.Arguments), root)
 		check := e.Name == "bash" && isCheck(cmd)
 		if e.Turn != turn {
 			// Earlier in the session: remember what was red, so a pass in

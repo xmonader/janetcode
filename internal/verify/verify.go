@@ -19,8 +19,8 @@ import (
 
 	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/mutate"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // ProjectFile lists the commands, relative to the project root.
@@ -146,7 +146,7 @@ func (r *Runner) Run(ctx context.Context) Result {
 	}
 	for _, command := range r.Config.Commands {
 		cctx, cancel := context.WithTimeout(ctx, timeout)
-		cmd := tool.ShellCommand(cctx, command)
+		cmd := shell.Command(cctx, command)
 		cmd.Dir = r.Cwd
 		cmd.Env = append(os.Environ(), "JANETCODE_VERIFY=1")
 		out, err := cmd.CombinedOutput()

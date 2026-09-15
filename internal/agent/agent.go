@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -167,7 +168,7 @@ type Agent struct {
 	// refactor, where every edit would be approved anyway.
 	AutoEdits bool
 	// AutoMode skips the Approver for in-workspace file edits and for
-	// shell commands that only read (see tool.SafeRead). Ordinary bash
+	// shell commands that only read (see shell.SafeRead). Ordinary bash
 	// and other mutating tools still ask. Distinct from AutoApprove
 	// (everything) and AutoEdits (file tools only). Guard still forces
 	// an ask for commands that leave the workspace or touch janetcode's
@@ -335,7 +336,7 @@ type Agent struct {
 	// their frontmatter.
 	PathSkills func(paths []string) []string
 	// Sandbox, when set, is the optional wrapper around local bash.
-	Sandbox *tool.Sandbox
+	Sandbox *shell.Sandbox
 	// Cron is the session-scoped scheduler; jobs die when the session ends.
 	Cron *Cron
 	// Accept is the /accept "acceptance tests you approve first" state,

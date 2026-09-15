@@ -14,13 +14,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/xmonader/janetcode/internal/tool"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 // Event names.
@@ -371,7 +372,7 @@ type Runner struct {
 	Cwd    string
 	Log    func(string)
 	// Shell overrides the shell used with -c (bash on Unix and PowerShell
-	// on Windows by default, see tool.DefaultShell).
+	// on Windows by default, see shell.Default).
 	Shell string
 }
 
@@ -480,7 +481,7 @@ func (r *Runner) exec(ctx context.Context, h Hook, in Input) (execOut, int, erro
 	if r.Shell != "" {
 		cmd = exec.CommandContext(ctx, r.Shell, "-c", h.Command)
 	} else {
-		cmd = tool.ShellCommand(ctx, h.Command)
+		cmd = shell.Command(ctx, h.Command)
 	}
 	cmd.Dir = r.Cwd
 	cmd.Stdin = bytes.NewReader(payload)

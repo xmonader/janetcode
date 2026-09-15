@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -31,12 +32,12 @@ type Bash struct {
 	Running *Running
 	// Sandbox, when enabled, wraps local commands in docker or sandbox-exec.
 	// Shared with Jobs so background starts take the same wrapping.
-	Sandbox *Sandbox
+	Sandbox *shell.Sandbox
 }
 
 func (Bash) Name() string { return "bash" }
 func (Bash) Description() string {
-	return "Run a shell command with " + DefaultShell().Name + " in the working directory. Returns combined stdout/stderr and the exit code. Use a timeout for long-running commands, or background: true for servers, watchers and long builds: the command keeps running, you get a job id at once and a note when it finishes (see the job tool). Do not use for reading or editing files; use the dedicated tools."
+	return "Run a shell command with " + shell.Default().Name + " in the working directory. Returns combined stdout/stderr and the exit code. Use a timeout for long-running commands, or background: true for servers, watchers and long builds: the command keeps running, you get a job id at once and a note when it finishes (see the job tool). Do not use for reading or editing files; use the dedicated tools."
 }
 func (Bash) Mutating() bool { return true }
 func (Bash) Schema() json.RawMessage {
@@ -60,7 +61,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		return "", fmt.Errorf("command is empty")
 	}
 	root := rootOf(t.Root, t.WS)
-	if risk, why := Classify(in.Command, root); risk == RiskCatastrophic {
+	if risk, why := shell.Classify(in.Command, root); risk == shell.RiskCatastrophic {
 		return "", fmt.Errorf("refused: this command %s. janetcode never runs it, not even with auto-approve; do not retry it in another form", why)
 	}
 	if in.Background {
@@ -219,7 +220,7 @@ func (t Bash) Guard(input json.RawMessage) (bool, string) {
 		return false, ""
 	}
 	root := rootOf(t.Root, t.WS)
-	if risk, why := Classify(in.Command, root); risk == RiskEscapes {
+	if risk, why := shell.Classify(in.Command, root); risk == shell.RiskEscapes {
 		return true, why
 	}
 	if what := selfModifyingCommand(in.Command, root); what != "" {
@@ -238,7 +239,7 @@ func (t Bash) Warn(input json.RawMessage) string {
 	}
 	var notes []string
 	root := rootOf(t.Root, t.WS)
-	if risk, why := Classify(in.Command, root); risk != RiskOrdinary {
+	if risk, why := shell.Classify(in.Command, root); risk != shell.RiskOrdinary {
 		notes = append(notes, why)
 	}
 	if what := selfModifyingCommand(in.Command, root); what != "" {
@@ -250,65 +251,6 @@ func (t Bash) Warn(input json.RawMessage) string {
 		}
 	}
 	return strings.Join(notes, "; ")
-}
-
-// secretEnv lists variables that model-run commands must never see: the
-// agent's own credentials. Anything else the user exported stays available.
-var secretEnv = map[string]bool{
-	"ANTHROPIC_API_KEY":    true,
-	"ANTHROPIC_AUTH_TOKEN": true,
-	"OPENAI_API_KEY":       true,
-}
-
-// nonInteractiveEnv stops common tools from waiting on a human: no pagers,
-// no editors, no credential prompts. Commands get EOF on stdin regardless.
-var nonInteractiveEnv = []string{
-	"PAGER=cat",
-	"GIT_PAGER=cat",
-	"GIT_EDITOR=true",
-	"GIT_TERMINAL_PROMPT=0",
-	"DEBIAN_FRONTEND=noninteractive",
-	"CI=true",
-	"NO_COLOR=1",
-	"NONINTERACTIVE=1",
-	// less pages even a short file unless told not to, and -X keeps it
-	// from clearing the screen on exit.
-	"LESS=-FX",
-}
-
-// nonUTF8Locales are the C/POSIX locales. LC_ALL overrides every LC_*
-// category, so a user or CI image that exports LC_ALL=C makes tools emit
-// non-UTF-8 bytes no matter what LC_CTYPE says — and the agent then reads
-// mangled output. Only that case is touched; a real locale is left alone.
-var nonUTF8Locales = map[string]bool{"C": true, "POSIX": true}
-
-func scrubEnv(env []string) []string {
-	out := make([]string, 0, len(env)+len(nonInteractiveEnv))
-	forced := map[string]bool{}
-	for _, kv := range nonInteractiveEnv {
-		name, _, _ := strings.Cut(kv, "=")
-		forced[name] = true
-	}
-	dropLCAll := false
-	for _, kv := range env {
-		if name, val, _ := strings.Cut(kv, "="); name == "LC_ALL" && nonUTF8Locales[val] {
-			dropLCAll = true
-		}
-	}
-	for _, kv := range env {
-		name, _, _ := strings.Cut(kv, "=")
-		if secretEnv[name] || forced[name] {
-			continue
-		}
-		if dropLCAll && (name == "LC_ALL" || name == "LC_CTYPE") {
-			continue
-		}
-		out = append(out, kv)
-	}
-	if dropLCAll {
-		out = append(out, "LC_CTYPE=C.UTF-8")
-	}
-	return append(out, nonInteractiveEnv...)
 }
 
 // clampTimeout turns a timeout_ms from the model into a duration between

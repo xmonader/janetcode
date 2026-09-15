@@ -11,11 +11,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	tools "github.com/xmonader/janetcode/internal/tool"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/shell"
+	"github.com/xmonader/janetcode/internal/weburl"
 )
 
 // Rule is one allow or deny entry.
@@ -210,7 +212,7 @@ func Subject(tool string, input json.RawMessage) string {
 		// The rewrite that turns a GitHub blob page into the raw file
 		// happens before the check, so the host approved, and any rule
 		// saved, is the host actually contacted.
-		out, _ := tools.NormalizeURL(str("url"))
+		out, _ := weburl.Normalize(str("url"))
 		return out
 	}
 	for _, k := range []string{"path", "command", "url", "query", "name"} {
@@ -222,13 +224,13 @@ func Subject(tool string, input json.RawMessage) string {
 }
 
 // SubjectIn is Subject for a session working in root: a bash command's
-// leading `cd <root> &&` is dropped (see tools.TrimWorkspaceCd), since it
+// leading `cd <root> &&` is dropped (see shell.TrimWorkspaceCd), since it
 // changes nothing about what runs and would otherwise make every command
 // a model prefixes that way look like a `cd` to rules and to Suggest.
 func SubjectIn(tool string, input json.RawMessage, root string) string {
 	s := Subject(tool, input)
 	if tool == "bash" {
-		s = tools.TrimWorkspaceCd(s, root)
+		s = shell.TrimWorkspaceCd(s, root)
 	}
 	return s
 }

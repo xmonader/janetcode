@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/xmonader/janetcode/internal/tool"
 	"io"
 	"os"
 	"os/exec"
@@ -24,6 +23,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/worktree"
 )
@@ -486,7 +486,7 @@ func restoreLocked(dir string, t Task) error {
 func runCheck(ctx context.Context, t Task, dir, outPath string) (string, error) {
 	cctx, ccancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer ccancel()
-	cmd := tool.ShellCommand(cctx, t.Check)
+	cmd := shell.Command(cctx, t.Check)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir)
 	out, err := cmd.CombinedOutput()

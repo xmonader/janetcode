@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 // remoteHost is an SSH or Docker workspace: file ops and bash go through
@@ -177,8 +179,8 @@ func (h *remoteHost) Command(ctx context.Context, command string) (*exec.Cmd, er
 	default:
 		cmd = exec.CommandContext(ctx, "ssh", append(sshArgs(h.target), "bash", "-lc", script)...)
 	}
-	cmd.Env = scrubEnv(os.Environ())
-	setProcessGroup(cmd)
+	cmd.Env = shell.ScrubEnv(os.Environ())
+	shell.SetProcessGroup(cmd)
 	return cmd, nil
 }
 

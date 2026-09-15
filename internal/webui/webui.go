@@ -26,6 +26,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/weburl"
 )
 
 // Options configures the browser UI.
@@ -50,7 +51,7 @@ type Options struct {
 
 	// Typed collects hosts the user names in their own messages so
 	// fetch_url may reach them; @path attachments are expanded with it.
-	Typed      *tool.URLSet
+	Typed      *weburl.Set
 	Config     *config.Config
 	ConfigPath string
 	// Models switches the session onto another model's provider.

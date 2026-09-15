@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -100,7 +101,7 @@ func (t *Terms) Open(dir string) (*Term, error) {
 }
 
 func interactiveShell(ctx context.Context, dir string) *exec.Cmd {
-	sh := DefaultShell()
+	sh := shell.Default()
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
 		cmd = exec.CommandContext(ctx, sh.Path, "-NoProfile", "-NonInteractive", "-Command", "-")
@@ -108,8 +109,8 @@ func interactiveShell(ctx context.Context, dir string) *exec.Cmd {
 		cmd = exec.CommandContext(ctx, sh.Path, "--noprofile", "--norc", "-s")
 	}
 	cmd.Dir = dir
-	cmd.Env = scrubEnv(os.Environ())
-	setProcessGroup(cmd)
+	cmd.Env = shell.ScrubEnv(os.Environ())
+	shell.SetProcessGroup(cmd)
 	return cmd
 }
 

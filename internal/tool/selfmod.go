@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 // Everything that decides what janetcode may do without asking — the
@@ -109,8 +111,8 @@ func selfPathToken(tk, root string) string {
 // would write to, and how. Only the obvious shell forms are recognised —
 // a redirect, and the file-writing commands with a path argument.
 func selfModifyingCommand(command, root string) string {
-	for _, seg := range splitSegments(command) {
-		toks := shellWords(seg)
+	for _, seg := range shell.Segments(command) {
+		toks := shell.Words(seg)
 		if len(toks) == 0 {
 			continue
 		}
@@ -124,8 +126,8 @@ func selfModifyingCommand(command, root string) string {
 		}
 		// dd of=… and tee's arguments are covered above; a redirect can
 		// point anywhere regardless of the command in front of it.
-		for _, m := range redirect.FindAllStringSubmatch(seg, -1) {
-			if what := selfPathToken(m[1], root); what != "" {
+		for _, target := range shell.Redirects(seg) {
+			if what := selfPathToken(target, root); what != "" {
 				return "this writes to " + what
 			}
 		}

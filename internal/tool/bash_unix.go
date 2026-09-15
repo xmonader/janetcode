@@ -7,15 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
-
-	"github.com/xmonader/janetcode/internal/procgroup"
 )
-
-// setProcessGroup puts the command in its own process group so that
-// cancellation kills the whole tree (pipelines, background servers).
-func setProcessGroup(cmd *exec.Cmd) {
-	procgroup.KillOnCancel(cmd)
-}
 
 // processDone reports whether the process has already been waited for.
 // os.Process knows this itself and answers under its own lock, so it is
