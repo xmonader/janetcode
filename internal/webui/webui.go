@@ -112,7 +112,7 @@ func Run(ctx context.Context, opts Options) error {
 			fmt.Fprintln(os.Stderr, "warning: bound off loopback; anyone who can reach this port can approve commands in this directory")
 		}
 	}
-	s := newServer(opts)
+	s := newServer(ctx, opts)
 	hs := &http.Server{Handler: s.handler()}
 	go func() {
 		<-ctx.Done()
@@ -140,6 +140,11 @@ func displayAddr(a net.Addr) string {
 
 type server struct {
 	opts Options
+	// life ends when Run's context does. Every turn, background command
+	// and subagent this server starts derives its context from it, so
+	// shutting the server down stops them rather than leaving them
+	// running against a server nobody can reach.
+	life context.Context
 
 	mu      sync.Mutex
 	seq     int
@@ -222,9 +227,10 @@ type permPayload struct {
 	Impact string `json:"impact,omitempty"`
 }
 
-func newServer(opts Options) *server {
+func newServer(life context.Context, opts Options) *server {
 	s := &server{
 		opts: opts,
+		life: life,
 		subs: map[chan envelope]struct{}{},
 	}
 	if opts.Agent != nil {
@@ -481,7 +487,7 @@ func (s *server) startTurn(text string) {
 	s.phase = "thinking"
 	s.started = time.Now()
 	s.status = ""
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(s.life)
 	s.cancel = cancel
 	s.mu.Unlock()
 
@@ -611,7 +617,7 @@ func (s *server) runShell(cmdline string) {
 	s.running = true
 	s.phase = "running your command"
 	s.started = time.Now()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(s.life)
 	s.cancel = cancel
 	s.mu.Unlock()
 	input, _ := json.Marshal(map[string]string{"command": cmdline})

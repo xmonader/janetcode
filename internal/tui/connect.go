@@ -125,7 +125,7 @@ func (m *model) openConnect(step connectStep) tea.Cmd {
 		m.transcript.errorf("provider switching is not available in this build")
 		return nil
 	}
-	if m.running || m.pending != nil {
+	if m.turn.running || m.pending != nil {
 		m.transcript.errorf("wait for the current turn to finish first")
 		return nil
 	}
@@ -245,7 +245,7 @@ func (m *model) fetchModels() tea.Cmd {
 		if !ok {
 			return modelsMsg{gen: gen}
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(m.life, 20*time.Second)
 		defer cancel()
 		models, err := lister.ListModels(ctx)
 		return modelsMsg{gen: gen, models: models, err: err}

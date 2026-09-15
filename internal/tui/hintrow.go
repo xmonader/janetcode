@@ -25,18 +25,43 @@ import (
 // predicates. The only I/O is the one small write that happens when a
 // hint fires, which happens at most sixteen times in the life of a project.
 
+// hintsState is the terminal's whole side of the hint engine: the
+// engine itself, the facts the rules are allowed to look at, what the
+// observers remember between events, and the !commands seen so far.
+type hintsState struct {
+	engine   *hints.Engine    // event-driven one-time hints; nil disables them
+	state    hints.State      // what the hint rules are allowed to look at
+	obs      hintObservations // what the observers remember between events
+	bangSeen map[string]int   // !commands the user ran, by command line
+}
+
+// off reports whether hints are disabled, either because none were
+// configured or because /hints off silenced them. Every observer asks
+// first: recording into a state nobody evaluates is pure cost.
+func (h *hintsState) off() bool { return h.engine == nil || h.engine.Off }
+
+// bang counts one !command the user typed and reports how many times it
+// has now been seen.
+func (h *hintsState) bang(cmdline string) int {
+	if h.bangSeen == nil {
+		h.bangSeen = map[string]int{}
+	}
+	h.bangSeen[cmdline]++
+	return h.bangSeen[cmdline]
+}
+
 // noteHint records an observation and evaluates. A hint that comes out
 // goes into the transcript as a tip, the same faint one-line form the
 // first-run notes have always used.
 func (m *model) noteHint(record func(*hints.State)) {
-	if m.hints == nil || m.hints.Off {
+	if m.hint.off() {
 		return
 	}
 	if record != nil {
-		record(&m.hintState)
+		record(&m.hint.state)
 	}
 	m.refreshHintState()
-	if text := m.hints.Eval(&m.hintState); text != "" {
+	if text := m.hint.engine.Eval(&m.hint.state); text != "" {
 		m.transcript.tip(text)
 		// Only once there is a window: at startup the first layout has
 		// not happened yet, and the banner is redrawn with everything
@@ -51,8 +76,8 @@ func (m *model) noteHint(record func(*hints.State)) {
 // read from what the session already holds: the gauge, the spend, and
 // whether the user is being asked something.
 func (m *model) refreshHintState() {
-	s := &m.hintState
-	s.Blocked = m.pending != nil || m.picker != nil || m.connect != nil || m.denying || m.overlay != "" || m.asking != nil
+	s := &m.hint.state
+	s.Blocked = m.pending != nil || m.picker != nil || m.connect != nil || m.denying || m.ov.kind != "" || m.asking != nil
 	s.Promotable = m.opts.Running != nil
 	if m.opts.Verify != nil {
 		s.VerifyConfigured = len(m.opts.Verify.Config.Commands) > 0
@@ -70,7 +95,7 @@ func (m *model) refreshHintState() {
 		// history again.
 		if limit := ag.CompactThreshold(); limit > 0 {
 			est := ag.TokenEstimate()
-			if !m.running {
+			if !m.turn.running {
 				est = ag.EstimateTokens()
 			}
 			s.ContextPct = est * 100 / limit
@@ -78,8 +103,8 @@ func (m *model) refreshHintState() {
 	}
 	// A model other than the one the last turn ran on is a switch made
 	// mid-session, by /model or the picker; either way it is seen here.
-	if ag := m.opts.Agent; ag != nil && m.hintObs.turns > 0 {
-		if cur := ag.Settings().Model; cur != "" && cur != m.hintObs.turnModel {
+	if ag := m.opts.Agent; ag != nil && m.hint.obs.turns > 0 {
+		if cur := ag.Settings().Model; cur != "" && cur != m.hint.obs.turnModel {
 			s.SwitchedModel = cur
 			if m.opts.Session != nil {
 				s.SessionID = m.opts.Session.Meta.ID
@@ -142,7 +167,7 @@ func onPath(name string) bool {
 
 // hintsCommand is /hints on|off.
 func (m *model) hintsCommand(args []string) {
-	if m.hints == nil {
+	if m.hint.engine == nil {
 		m.note("hints are not available in this session")
 		return
 	}
@@ -151,23 +176,23 @@ func (m *model) hintsCommand(args []string) {
 		// Whichever way round it is, the line has to name the other
 		// way: somebody who has just turned hints off and typed /hints
 		// was being told again how to turn them off.
-		if m.hints.Off {
+		if m.hint.engine.Off {
 			m.note("hints are off · /hints on brings them back")
 			return
 		}
 		// Said and spent are different things: a rule suppressed because
 		// the first-run line had already proposed it was never a hint
 		// anybody read, and counting it as given overstated the help.
-		line := textfmt.Plural(len(m.hints.Shown()), "hint") + " shown for this project"
-		if n := len(m.hints.Skipped()); n > 0 {
+		line := textfmt.Plural(len(m.hint.engine.Shown()), "hint") + " shown for this project"
+		if n := len(m.hint.engine.Skipped()); n > 0 {
 			line += fmt.Sprintf(", %d skipped", n)
 		}
 		m.note(line + " · /hints off silences them")
 	case args[0] == "on":
-		m.hints.Off = false
+		m.hint.engine.Off = false
 		m.note("hints on")
 	case args[0] == "off":
-		m.hints.Off = true
+		m.hint.engine.Off = true
 		m.note("hints off · \"hints\": false in the config file makes it permanent")
 	default:
 		m.transcript.errorf("usage: /hints [on|off]")
@@ -182,7 +207,7 @@ const slowCommandSeconds = 20
 // about. It is a switch over four event kinds, on a path that already
 // switches over ten.
 func (m *model) observeEvent(ev agent.Event) {
-	if m.hints == nil || m.hints.Off {
+	if m.hint.off() {
 		return
 	}
 	switch ev.Kind {
@@ -204,7 +229,7 @@ func (m *model) observeEvent(ev agent.Event) {
 		return
 	}
 	secs := int(ev.Duration.Seconds())
-	if secs < slowCommandSeconds || secs <= m.hintState.SlowCommandSeconds {
+	if secs < slowCommandSeconds || secs <= m.hint.state.SlowCommandSeconds {
 		return
 	}
 	m.noteHint(func(s *hints.State) {
@@ -220,18 +245,14 @@ var testCommandRe = regexp.MustCompile(`(?i)\b(go test|pytest|npm (run )?test|ya
 // observeBang records a shell command the user ran themselves. The
 // second time the same test command is typed, the gate is worth naming.
 func (m *model) observeBang(cmdline string) {
-	if m.hints == nil || m.hints.Off {
+	if m.hint.off() {
 		return
 	}
 	cmdline = strings.TrimSpace(cmdline)
 	if cmdline == "" || !testCommandRe.MatchString(cmdline) {
 		return
 	}
-	if m.bangSeen == nil {
-		m.bangSeen = map[string]int{}
-	}
-	m.bangSeen[cmdline]++
-	if m.bangSeen[cmdline] < 2 {
+	if m.hint.bang(cmdline) < 2 {
 		return
 	}
 	m.noteHint(func(s *hints.State) { s.RepeatedBangCommand = cmdline })
@@ -242,7 +263,7 @@ func (m *model) observeBang(cmdline string) {
 // The ledger, not an in-memory count here, is what makes this survive a
 // session that ends and a new one that starts on the same project.
 func (m *model) observeDenial(shape string) {
-	if m.hints == nil || m.hints.Off || shape == "" {
+	if m.hint.off() || shape == "" {
 		return
 	}
 	ag := m.opts.Agent
@@ -263,7 +284,7 @@ func (m *model) observeDenial(shape string) {
 // refusal, the learned-rule hint offers to save it before the user has
 // to keep answering the same prompt.
 func (m *model) observeApproval(shape string) {
-	if m.hints == nil || m.hints.Off || shape == "" {
+	if m.hint.off() || shape == "" {
 		return
 	}
 	ag := m.opts.Agent
@@ -288,7 +309,7 @@ var traceRe = regexp.MustCompile(`(?m)^\s*(at [\w.$]+\(|File "|\s+File |goroutin
 // the moment to mention @path is while the user is looking at what they
 // just pasted.
 func (m *model) observePaste(text string) {
-	if m.hints == nil || m.hints.Off {
+	if m.hint.off() {
 		return
 	}
 	lines := strings.Count(text, "\n") + 1
@@ -328,7 +349,7 @@ func (m *model) observeTurnDone() {
 	if ag == nil {
 		return
 	}
-	o := &m.hintObs
+	o := &m.hint.obs
 	shape, steps := m.lastTurnShape()
 	// One file edited twice is most of programming; a repeated sequence
 	// of at least two changes is a procedure.
@@ -382,7 +403,7 @@ func (m *model) lastTurnShape() (string, int) {
 // turn the next /undo reverts, whichever is more. It has to be read
 // before the undo, while the turn is still the one Undo names.
 func (m *model) undoSpread() int {
-	if m.hints == nil || m.hints.Off || m.opts.Agent == nil {
+	if m.hint.off() || m.opts.Agent == nil {
 		return 0
 	}
 	turn, ok := m.opts.Agent.UndoTurn()
@@ -405,7 +426,7 @@ func (m *model) undoSpread() int {
 // observeUndo is called after a whole-turn /undo reverted something,
 // with what undoSpread counted beforehand.
 func (m *model) observeUndo(spread int) {
-	if m.hints == nil || m.hints.Off || spread < 2 {
+	if m.hint.off() || spread < 2 {
 		return
 	}
 	m.noteHint(func(s *hints.State) { s.UndoneMixed = spread })
@@ -443,7 +464,7 @@ const bigFeatureWords = 80
 
 // observePrompt looks at a prompt the user typed, as it is sent.
 func (m *model) observePrompt(text string) {
-	if m.hints == nil || m.hints.Off {
+	if m.hint.off() {
 		return
 	}
 	if !testFirstRe.MatchString(text) && !(bigFeatureRe.MatchString(text) && len(strings.Fields(text)) >= bigFeatureWords) {

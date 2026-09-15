@@ -89,7 +89,7 @@ func (m *model) inspectCommand(arg string) {
 		m.transcript.errorf("nothing is registered for inspection in this session")
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(m.life, 60*time.Second)
 	defer cancel()
 	out, err := m.opts.Inspect.Report(ctx, arg)
 	if err != nil {

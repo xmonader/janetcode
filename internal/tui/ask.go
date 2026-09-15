@@ -73,7 +73,7 @@ func (m *model) openAsk(msg askMsg) {
 		reply:     msg.reply,
 	}
 	m.input.Blur()
-	m.setPhase("waiting for your answer")
+	m.turn.setPhase("waiting for your answer")
 	m.refresh(false)
 }
 
@@ -85,7 +85,7 @@ func (m *model) finishAsk() {
 	m.asking = nil
 	m.input.Reset()
 	m.input.Focus()
-	m.setPhase("")
+	m.turn.setPhase("")
 	select {
 	case s.reply <- s.answers:
 	default:

@@ -179,7 +179,7 @@ func (m *model) revertHunk(spec string) {
 		return
 	}
 	single := header + hunks[n-1]
-	if _, err := gitx.RunInput(context.Background(), m.opts.Cwd, []byte(single), "apply", "-R", "--recount", "-"); err != nil {
+	if _, err := gitx.RunInput(m.life, m.opts.Cwd, []byte(single), "apply", "-R", "--recount", "-"); err != nil {
 		m.transcript.errorf("git apply -R: %s", gitx.Detail(err))
 		return
 	}

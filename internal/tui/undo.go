@@ -19,7 +19,7 @@ import (
 
 // undoChange reverts one change from /changes on its own.
 func (m *model) undoChange(n int) {
-	if m.running {
+	if m.turn.running {
 		m.transcript.errorf("wait for the current turn to finish before undoing")
 		return
 	}
@@ -103,7 +103,7 @@ func (m *model) blameCommand(path string) {
 // (see internal/proof.BlameCommitted). Used when this session never
 // changed the file itself.
 func (m *model) blameCommitted(abs string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(m.life, 15*time.Second)
 	defer cancel()
 	lines, err := proof.BlameCommitted(ctx, m.opts.Cwd, abs)
 	if err != nil {
@@ -134,7 +134,7 @@ func (m *model) relPath(path string) string {
 
 // undoCommand handles /undo, /undo preview and /redo.
 func (m *model) undoCommand(cmd string, preview bool) {
-	if m.running {
+	if m.turn.running {
 		m.transcript.errorf("wait for the current turn to finish before %s", strings.TrimPrefix(cmd, "/")+"ing")
 		return
 	}
@@ -145,7 +145,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 		return shortPath(path)
 	}
 	if preview {
-		lines, err := m.opts.Agent.UndoPreview(context.Background())
+		lines, err := m.opts.Agent.UndoPreview(m.life)
 		if errors.Is(err, agent.ErrNothingToUndo) {
 			m.transcript.errorf("nothing to undo: no turn has changed anything yet")
 			return
@@ -174,14 +174,14 @@ func (m *model) undoCommand(cmd string, preview bool) {
 	)
 	if cmd == "/redo" {
 		mark = "↷"
-		done, err = m.opts.Agent.Redo(context.Background())
+		done, err = m.opts.Agent.Redo(m.life)
 		if errors.Is(err, agent.ErrNothingToRedo) {
 			m.transcript.errorf("nothing to redo: /redo only reapplies an /undo from before the next change")
 			return
 		}
 	} else {
 		spread := m.undoSpread()
-		done, err = m.opts.Agent.Undo(context.Background())
+		done, err = m.opts.Agent.Undo(m.life)
 		if err == nil && len(done) > 0 {
 			defer m.observeUndo(spread)
 		}
@@ -253,8 +253,8 @@ func (m *model) undoAboutCommand(description string) tea.Cmd {
 // work, where a status note set here would outlive it.
 func (m *model) startSideWork(phase string) context.Context {
 	m.startTurn(phase)
-	ctx, cancel := context.WithCancel(context.Background())
-	m.cancel = cancel
+	ctx, cancel := context.WithCancel(m.life)
+	m.turn.cancel = cancel
 	return ctx
 }
 
@@ -262,19 +262,19 @@ func (m *model) startSideWork(phase string) context.Context {
 // prompt, the way the end of a turn does. ok is whether the work
 // succeeded, for the terminal's command-zone mark.
 func (m *model) endSideWork(ok bool) tea.Cmd {
-	m.running = false
-	m.cancelling = false
-	if m.cancel != nil {
-		m.cancel()
-		m.cancel = nil
+	m.turn.running = false
+	m.turn.cancelling = false
+	if m.turn.cancel != nil {
+		m.turn.cancel()
+		m.turn.cancel = nil
 	}
-	m.setPhase("")
+	m.turn.setPhase("")
 	m.term.turnEnded(ok, m.status)
-	if len(m.queued) == 0 {
+	if len(m.turn.queued) == 0 {
 		return nil
 	}
-	next := m.queued[0]
-	m.queued = m.queued[1:]
+	next := m.turn.queued[0]
+	m.turn.queued = m.turn.queued[1:]
 	return m.submit(next)
 }
 

@@ -1,8 +1,6 @@
 package webui
 
 import (
-	"context"
-
 	"github.com/xmonader/janetcode/internal/proof"
 )
 
@@ -11,5 +9,5 @@ import (
 // attaching one from this session first if there is none yet, or move
 // proof notes to and from a remote.
 func (s *server) proofCommand(arg string) {
-	s.showResult(proof.Exec(context.Background(), s.opts.Cwd, proof.ParseArgs(arg), s.opts.Agent.AttachProof))
+	s.showResult(proof.Exec(s.life, s.opts.Cwd, proof.ParseArgs(arg), s.opts.Agent.AttachProof))
 }

@@ -1,6 +1,8 @@
 package webui
 
 import (
+	"context"
+	"strings"
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/slash"
@@ -37,6 +39,25 @@ func TestDispatchCoversWebCommands(t *testing.T) {
 	for name := range webArgs {
 		if !known[name] {
 			t.Errorf("webArgs narrows %s, which is not in webCommands", name)
+		}
+	}
+}
+
+// TestAliasesObeyTheIdleGate: an alias of an idle-only command is
+// refused mid-turn exactly as the canonical name is. The gate compared
+// the typed name with commandSpecs, which carries canonical names only,
+// so /new started a new session out from under a running turn while
+// /clear was correctly refused.
+func TestAliasesObeyTheIdleGate(t *testing.T) {
+	if slash.Canonical("/new") != "/clear" {
+		t.Fatal("/new should be an alias of /clear")
+	}
+	for _, name := range []string{"/clear", "/new"} {
+		s := newServer(context.Background(), Options{})
+		s.running = true
+		err := s.runCommand(name)
+		if err == nil || !strings.Contains(err.Error(), "waits for the turn to finish") {
+			t.Errorf("%s during a running turn: err = %v, want a refusal", name, err)
 		}
 	}
 }

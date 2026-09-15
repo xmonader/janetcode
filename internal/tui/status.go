@@ -2,14 +2,12 @@ package tui
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
-	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -99,59 +97,16 @@ func (m *model) footerNotice() string {
 		return "  " + m.styles.warn.Bold(true).Render("denied "+m.pending.call.Name) + m.styles.dim.Render(" · tell the model why (optional) · enter sends · esc skips")
 	case m.pending != nil:
 		return m.permissionNotice()
-	case len(m.steering) > 0 && len(m.queued) > 0:
-		return fitLine("  "+m.styles.warn.Render(fmt.Sprintf("steering %d", len(m.steering)))+m.styles.faint.Render(fmt.Sprintf(" · queued %d · ", len(m.queued)))+m.styles.dim.Render(textfmt.OneLine(m.queued[len(m.queued)-1])), room)
-	case len(m.steering) > 0:
-		return fitLine("  "+m.styles.warn.Render("steering ")+m.styles.dim.Render(textfmt.OneLine(m.steering[len(m.steering)-1])), room)
-	case len(m.queued) > 0:
-		return fitLine("  "+m.styles.faint.Render(fmt.Sprintf("queued %d · ", len(m.queued)))+m.styles.dim.Render(textfmt.OneLine(m.queued[len(m.queued)-1]))+m.styles.faint.Render(" · up takes it back"), room)
-	case m.notice != "" && time.Since(m.noticeAt) < noticeFor:
-		return fitLine("  "+m.styles.dim.Render(m.notice), room)
+	case len(m.turn.steering) > 0 && len(m.turn.queued) > 0:
+		return fitLine("  "+m.styles.warn.Render(fmt.Sprintf("steering %d", len(m.turn.steering)))+m.styles.faint.Render(fmt.Sprintf(" · queued %d · ", len(m.turn.queued)))+m.styles.dim.Render(textfmt.OneLine(m.turn.queued[len(m.turn.queued)-1])), room)
+	case len(m.turn.steering) > 0:
+		return fitLine("  "+m.styles.warn.Render("steering ")+m.styles.dim.Render(textfmt.OneLine(m.turn.steering[len(m.turn.steering)-1])), room)
+	case len(m.turn.queued) > 0:
+		return fitLine("  "+m.styles.faint.Render(fmt.Sprintf("queued %d · ", len(m.turn.queued)))+m.styles.dim.Render(textfmt.OneLine(m.turn.queued[len(m.turn.queued)-1]))+m.styles.faint.Render(" · up takes it back"), room)
+	case m.notice.live():
+		return fitLine("  "+m.styles.dim.Render(m.notice.text), room)
 	}
 	return ""
-}
-
-// flashNotice puts a one-shot line in the reserved row above the input.
-// Queue, steering and a permission prompt take the row while they apply.
-func (m *model) flashNotice(s string) {
-	m.notice, m.noticeAt = s, time.Now()
-}
-
-// waitRe matches the "in 12s" a provider puts at the end of a phase to
-// say how long it is about to sleep.
-var waitRe = regexp.MustCompile(`(.*\bin )([0-9.]+)(m?s)$`)
-
-// setPhase records what the turn is waiting on. A provider that is about
-// to sleep says so once — "retrying 1/2 · rate limited · in 6s" — and
-// that line then sat unchanged for six seconds next to a counter running
-// the other way, which reads as a frozen screen. The deadline is kept so
-// the line can count down to the moment something happens.
-func (m *model) setPhase(text string) {
-	m.phase, m.phaseUntil = text, time.Time{}
-	g := waitRe.FindStringSubmatch(text)
-	if g == nil {
-		return
-	}
-	d, err := time.ParseDuration(g[2] + g[3])
-	if err != nil || d <= 0 {
-		return
-	}
-	m.phase, m.phaseUntil = g[1], time.Now().Add(d)
-}
-
-// phaseText is the phase with its countdown resolved to now.
-func (m *model) phaseText() string {
-	if m.phaseUntil.IsZero() {
-		return flavor.ForPhase(m.phase, time.Now(), m.startedAt)
-	}
-	left := time.Until(m.phaseUntil)
-	if left < 0 {
-		left = 0
-	}
-	if left < time.Minute {
-		return fmt.Sprintf("%s%ds", m.phase, int(left.Round(time.Second)/time.Second))
-	}
-	return m.phase + textfmt.Duration(left.Round(time.Second))
 }
 
 // statusMode is the compact label for the current permission mode, shown
@@ -233,17 +188,17 @@ func (m *model) statusView() string {
 	switch {
 	case m.pending != nil:
 		left = m.styles.warn.Render("● approval needed")
-	case m.running && m.tight():
-		left = m.spinner.View() + " " + m.styles.dim.Render(m.phaseText())
-	case m.running:
-		el := textfmt.Duration(time.Since(m.startedAt))
+	case m.turn.running && m.tight():
+		left = m.spinner.View() + " " + m.styles.dim.Render(m.turn.phaseText())
+	case m.turn.running:
+		el := textfmt.Duration(time.Since(m.turn.startedAt))
 		hint := " · esc to cancel"
 		// Only while there is something to promote: a key that does
 		// nothing is worse than no key.
 		if len(m.opts.Running.List()) > 0 {
 			hint += " · ctrl+g backgrounds it"
 		}
-		left = m.spinner.View() + " " + m.styles.dim.Render(m.phaseText()+" · "+el+hint)
+		left = m.spinner.View() + " " + m.styles.dim.Render(m.turn.phaseText()+" · "+el+hint)
 	case m.status != "":
 		left = m.styles.dim.Render(m.status)
 	default:
@@ -298,7 +253,7 @@ func (m *model) contextGauge() string {
 	// While a turn runs the history belongs to the turn goroutine; the
 	// gauge reads the estimate the agent published instead.
 	est := m.opts.Agent.TokenEstimate()
-	if !m.running {
+	if !m.turn.running {
 		est = m.opts.Agent.EstimateTokens()
 	}
 	limit := m.opts.Agent.CompactThreshold()
@@ -331,7 +286,7 @@ func (m *model) inputBox() lipgloss.Style {
 	switch {
 	case m.denying, m.pending != nil:
 		return m.styles.boxWarn
-	case m.running:
+	case m.turn.running:
 		return m.styles.boxBusy
 	}
 	return m.styles.boxIdle
@@ -369,7 +324,7 @@ func (m *model) placeholder() string {
 		return m.pendingKeys()
 	case m.opts.Agent.Settings().Provider == nil:
 		return fitPhrase(room, "No provider yet · /connect picks one", "/connect")
-	case m.running:
+	case m.turn.running:
 		return fitPhrase(room,
 			"Type to queue a message for when this turn ends · esc cancels",
 			"Type to queue a message · esc cancels",
@@ -434,7 +389,7 @@ func (m *model) footerView() string {
 	switch {
 	case m.denying, m.pending != nil:
 		prompt = m.styles.warn.Render("❯ ")
-	case m.running:
+	case m.turn.running:
 		prompt = m.styles.faint.Render("❯ ")
 	}
 	m.input.Placeholder = m.placeholder()

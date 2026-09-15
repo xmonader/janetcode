@@ -25,7 +25,7 @@ import (
 // because most of the tests in this package want a quiet transcript.
 func withHints(h *harness) *hints.Engine {
 	e := hints.New(nil, nil)
-	h.m.hints = e
+	h.m.hint.engine = e
 	return e
 }
 
@@ -145,7 +145,7 @@ func TestARefusalStopsTheLearnedRuleFromFiring(t *testing.T) {
 func TestABigPasteOffersTheFileReference(t *testing.T) {
 	h := newHarness(t)
 	withHints(h)
-	h.m.hintState.VerifyConfigured = true
+	h.m.hint.state.VerifyConfigured = true
 	h.m.observePaste(strings.Repeat("a line of log\n", 60))
 	if v := plain(h.m.View()); !strings.Contains(v, "@path") {
 		t.Fatalf("a sixty-line paste did not mention @path:\n%s", v)
@@ -155,7 +155,7 @@ func TestABigPasteOffersTheFileReference(t *testing.T) {
 func TestAShortStackTraceStillOffersTheFileReference(t *testing.T) {
 	h := newHarness(t)
 	withHints(h)
-	h.m.hintState.VerifyConfigured = true
+	h.m.hint.state.VerifyConfigured = true
 	h.m.observePaste("panic: runtime error: index out of range\n\ngoroutine 1 [running]:\nmain.main()\n")
 	v := plain(h.m.View())
 	if !strings.Contains(v, "stack trace") {
@@ -166,7 +166,7 @@ func TestAShortStackTraceStillOffersTheFileReference(t *testing.T) {
 func TestASmallOrdinaryPasteSaysNothing(t *testing.T) {
 	h := newHarness(t)
 	withHints(h)
-	h.m.hintState.VerifyConfigured = true
+	h.m.hint.state.VerifyConfigured = true
 	h.m.observePaste("just three\nshort\nlines\n")
 	if v := plain(h.m.View()); strings.Contains(v, "@path attaches") {
 		t.Fatalf("an ordinary paste produced a hint:\n%s", v)
@@ -257,7 +257,7 @@ func TestTheHintRecordIsWrittenWhenOneFires(t *testing.T) {
 	}
 	// A new session for the same project does not repeat it.
 	h2 := newHarness(t)
-	h2.m.hints = hints.New(store.Load())
+	h2.m.hint.engine = hints.New(store.Load())
 	h2.m.observeBang("go test ./...")
 	h2.m.observeBang("go test ./...")
 	if v := plain(h2.m.View()); strings.Contains(v, "/verify set") {
@@ -312,7 +312,7 @@ func TestTheFirstRunLineIsSaidOnceAndNotEveryMorning(t *testing.T) {
 func TestHintsReportsShownAndSkippedApart(t *testing.T) {
 	h := newHarness(t)
 	e := hints.New(nil, nil)
-	h.m.hints = e
+	h.m.hint.engine = e
 	e.MarkShown("first-run")
 	e.MarkSpent("verify-gate")
 	h.keys("/hints")
@@ -423,7 +423,7 @@ func TestHintsDoNotRunOnKeystrokes(t *testing.T) {
 		ID: "counter", When: func(*hints.State) bool { evals++; return false },
 		Text: func(*hints.State) string { return "" },
 	}}
-	h.m.hints = e
+	h.m.hint.engine = e
 	h.keys("hello there, this is a prompt being typed out")
 	h.update(tea.KeyMsg{Type: tea.KeyUp})
 	h.update(tea.KeyMsg{Type: tea.KeyDown})
@@ -455,7 +455,7 @@ func flat(view string) string { return strings.Join(strings.Fields(plain(view)),
 func runPrompt(h *harness, text string) {
 	h.keys(text)
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 }
 
 // Two turns that change the same files in the same order are a procedure,
@@ -468,7 +468,7 @@ func TestTwoTurnsWithTheSameChangesOfferARecipe(t *testing.T) {
 	rs = append(rs, writeTurn("three", "VERSION", "CHANGELOG")...)
 	h := newHarness(t, rs...)
 	withHints(h)
-	h.m.hintState.VerifyConfigured = true
+	h.m.hint.state.VerifyConfigured = true
 	h.m.opts.Agent.AutoApprove = true
 	runPrompt(h, "bump the version")
 	runPrompt(h, "write notes")
@@ -490,7 +490,7 @@ func TestARecipeUserIsNotToldAboutRecipes(t *testing.T) {
 	h.m.opts.Usage = feature.OpenUsage(t.TempDir())
 	h.m.opts.Usage.Note("/recipe save")
 	e := withHints(h)
-	h.m.hintState.VerifyConfigured = true
+	h.m.hint.state.VerifyConfigured = true
 	h.m.opts.Agent.AutoApprove = true
 	runPrompt(h, "bump the version")
 	runPrompt(h, "bump it again")
@@ -507,7 +507,7 @@ func TestARecipeUserIsNotToldAboutRecipes(t *testing.T) {
 func TestUndoingAMixedTurnOffersUndoAbout(t *testing.T) {
 	h := newHarness(t, writeTurn("one", "a.txt", "b.txt")...)
 	withHints(h)
-	h.m.hintState.VerifyConfigured = true
+	h.m.hint.state.VerifyConfigured = true
 	h.m.opts.Agent.AutoApprove = true
 	runPrompt(h, "make two files")
 	h.keys("/undo")
@@ -524,7 +524,7 @@ func TestUndoingAMixedTurnOffersUndoAbout(t *testing.T) {
 func TestUndoingAOneFileTurnSaysNothingAboutUndoAbout(t *testing.T) {
 	h := newHarness(t, writeTurn("one", "a.txt")...)
 	withHints(h)
-	h.m.hintState.VerifyConfigured = true
+	h.m.hint.state.VerifyConfigured = true
 	h.m.opts.Agent.AutoApprove = true
 	runPrompt(h, "make a file")
 	h.keys("/undo")
@@ -552,7 +552,7 @@ func TestAPromptAskingForTestsOffersAccept(t *testing.T) {
 	for _, p := range []string{"add a retry flag and write tests for it", "fix the parser, TDD please", "do this test-first"} {
 		h := newHarness(t)
 		withHints(h)
-		h.m.hintState.VerifyConfigured = true
+		h.m.hint.state.VerifyConfigured = true
 		h.m.observePrompt(p)
 		if v := plain(h.m.View()); !strings.Contains(v, "/accept <request>") {
 			t.Errorf("%q did not offer /accept:\n%s", p, v)
@@ -560,7 +560,7 @@ func TestAPromptAskingForTestsOffersAccept(t *testing.T) {
 	}
 	h := newHarness(t)
 	withHints(h)
-	h.m.hintState.VerifyConfigured = true
+	h.m.hint.state.VerifyConfigured = true
 	h.m.observePrompt("why does the latest test fail?")
 	if v := plain(h.m.View()); strings.Contains(v, "/accept") {
 		t.Fatalf("a question about a test offered /accept:\n%s", v)
@@ -575,7 +575,7 @@ func TestAPromptAskingForTestsOffersAccept(t *testing.T) {
 func TestAVerifiedTurnOffersEvalKeep(t *testing.T) {
 	h := newHarness(t)
 	withHints(h)
-	h.m.hintState.VerifyConfigured = true
+	h.m.hint.state.VerifyConfigured = true
 	h.m.applyEvent(agent.Event{Kind: agent.EvVerdict, Text: "⚠ unverified: nothing ran", IsError: true})
 	if v := plain(h.m.View()); strings.Contains(v, "/eval keep") {
 		t.Fatalf("an unverified turn offered /eval keep:\n%s", v)
@@ -589,7 +589,7 @@ func TestAVerifiedTurnOffersEvalKeep(t *testing.T) {
 func TestAttachingAProofNoteOffersProofPush(t *testing.T) {
 	h := newHarness(t)
 	withHints(h)
-	h.m.hintState.VerifyConfigured = true
+	h.m.hint.state.VerifyConfigured = true
 	h.m.applyEvent(agent.Event{Kind: agent.EvNotice, Text: "proof: could not attach evidence to abc123: boom"})
 	if v := plain(h.m.View()); strings.Contains(v, "/proof push") {
 		t.Fatalf("a failed attach offered /proof push:\n%s", v)
@@ -603,7 +603,7 @@ func TestAttachingAProofNoteOffersProofPush(t *testing.T) {
 func TestSwitchingModelAfterATurnOffersWhatIf(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hi"), StopReason: llm.StopEndTurn})
 	withHints(h)
-	h.m.hintState.VerifyConfigured = true
+	h.m.hint.state.VerifyConfigured = true
 	// Before any turn, a switch is a choice of model, not a comparison.
 	settingsapply.SwitchModel(nil, h.m.opts.Agent, "m0", nil)
 	h.m.observeCommand([]string{"/model", "m0"})

@@ -27,7 +27,7 @@ func (m *model) planTodos() []agent.Todo {
 }
 
 func (m *model) planHeight() int {
-	if m.picker != nil || m.connect != nil || m.overlay != "" || m.asking != nil {
+	if m.picker != nil || m.connect != nil || m.ov.kind != "" || m.asking != nil {
 		return 0
 	}
 	return len(m.planLines())
@@ -138,7 +138,7 @@ func (m *model) planCommand(arg string) tea.Cmd {
 			m.refresh(false)
 			return nil
 		}
-		if m.running {
+		if m.turn.running {
 			m.transcript.errorf("wait for the plan to finish")
 			m.refresh(false)
 			return nil

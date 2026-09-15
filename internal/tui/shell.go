@@ -34,7 +34,7 @@ func (m *model) shell(cmdline string) tea.Cmd {
 		m.refresh(false)
 		return nil
 	}
-	if m.running {
+	if m.turn.running {
 		m.transcript.errorf("wait for the current turn to finish before running a command")
 		m.refresh(false)
 		return nil
@@ -50,8 +50,8 @@ func (m *model) shell(cmdline string) tea.Cmd {
 	call := agent.ToolCall{ID: fmt.Sprintf("shell-%d", time.Now().UnixNano()), Name: "shell", Input: input}
 	m.transcript.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
 	m.startTurn("running your command")
-	ctx, cancel := context.WithCancel(context.Background())
-	m.cancel = cancel
+	ctx, cancel := context.WithCancel(m.life)
+	m.turn.cancel = cancel
 	send, cwd := m.send, m.opts.Cwd
 	m.repin()
 	m.refresh(false)
@@ -64,13 +64,13 @@ func (m *model) shell(cmdline string) tea.Cmd {
 }
 
 func (m *model) finishShell(msg shellDoneMsg) {
-	m.running = false
-	m.cancelling = false
-	if m.cancel != nil {
-		m.cancel()
-		m.cancel = nil
+	m.turn.running = false
+	m.turn.cancelling = false
+	if m.turn.cancel != nil {
+		m.turn.cancel()
+		m.turn.cancel = nil
 	}
-	m.setPhase("")
+	m.turn.setPhase("")
 	out, isErr := msg.output, false
 	if msg.err != nil {
 		out, isErr = "Error: "+msg.err.Error(), true
@@ -96,7 +96,7 @@ func (m *model) finishShell(msg shellDoneMsg) {
 		m.status += " · " + failed
 	}
 	m.status += " · output shared with the model"
-	if len(m.queued) > 0 {
+	if len(m.turn.queued) > 0 {
 		m.status += " · sending queued prompt"
 	}
 }

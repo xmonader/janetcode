@@ -140,13 +140,13 @@ func TestSubmitAndStreamResponse(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hello back"), StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 7, OutputTokens: 2}})
 	h.keys("hi there")
 	h.enter()
-	if !h.m.running {
+	if !h.m.turn.running {
 		t.Fatal("should be running after enter")
 	}
 	if h.m.input.Value() != "" {
 		t.Fatal("input not cleared")
 	}
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	v := plain(h.m.View())
 	for _, want := range []string{"❯ hi there", "hello back", "in 7 · out 2"} {
 		if !strings.Contains(v, want) {
@@ -183,7 +183,7 @@ func TestPermissionPromptAllow(t *testing.T) {
 		t.Fatal("keys leaked into input during permission prompt")
 	}
 	h.keys("y")
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	v = plain(h.m.View())
 	if !strings.Contains(v, "✓ write_file n.txt") || !strings.Contains(v, "written") {
 		t.Fatalf("after allow:\n%s", v)
@@ -207,7 +207,7 @@ func TestPermissionDenyWithReason(t *testing.T) {
 	}
 	h.keys("wrong directory")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	res := h.m.opts.Agent.Messages[2].Blocks[0]
 	if !res.IsError || !strings.Contains(res.Text, "The user said: wrong directory") {
 		t.Fatalf("tool result = %q", res.Text)
@@ -235,7 +235,7 @@ func TestEscCancelsRunningTurn(t *testing.T) {
 	h.enter()
 	<-blocker.started
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if v := plain(h.m.View()); !strings.Contains(v, "cancelled") {
 		t.Fatalf("expected cancelled marker:\n%s", v)
 	}
@@ -264,7 +264,7 @@ func TestDoubleCtrlCForcesQuit(t *testing.T) {
 	h.keys("slow")
 	h.enter()
 	<-blocker.started
-	if _, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC}); cmd != nil || !h.m.cancelling {
+	if _, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC}); cmd != nil || !h.m.turn.cancelling {
 		t.Fatal("first ctrl+c should cancel, not quit")
 	}
 	if _, cmd := h.m.Update(tea.KeyMsg{Type: tea.KeyCtrlC}); cmd == nil {
@@ -290,13 +290,15 @@ func TestQueuedPromptSendsAfterTurn(t *testing.T) {
 	h.enter()
 	h.keys("two")
 	h.enter()
-	if len(h.m.queued) != 1 || h.m.input.Value() != "" {
-		t.Fatalf("queued = %v input = %q", h.m.queued, h.m.input.Value())
+	if len(h.m.turn.queued) != 1 || h.m.input.Value() != "" {
+		t.Fatalf("queued = %v input = %q", h.m.turn.queued, h.m.input.Value())
 	}
 	if v := plain(h.m.View()); !strings.Contains(v, "queued 1 · two") {
 		t.Fatalf("queue not shown:\n%s", v)
 	}
-	h.pump(func() bool { return !h.m.running && len(h.m.queued) == 0 && len(h.m.opts.Agent.Messages) == 4 })
+	h.pump(func() bool {
+		return !h.m.turn.running && len(h.m.turn.queued) == 0 && len(h.m.opts.Agent.Messages) == 4
+	})
 	v := plain(h.m.View())
 	for _, want := range []string{"❯ one", "first answer", "❯ two", "second answer"} {
 		if !strings.Contains(v, want) {
@@ -318,12 +320,12 @@ func TestQueuedPromptRestoredOnCancel(t *testing.T) {
 	h.keys("later")
 	h.enter()
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if got := h.m.input.Value(); got != "later" {
 		t.Fatalf("queued prompt not restored: %q", got)
 	}
-	if len(h.m.queued) != 0 {
-		t.Fatalf("queue = %v", h.m.queued)
+	if len(h.m.turn.queued) != 0 {
+		t.Fatalf("queue = %v", h.m.turn.queued)
 	}
 }
 
@@ -347,7 +349,7 @@ func TestMentionCompletionAndAttachment(t *testing.T) {
 		t.Fatalf("after second tab: %q", got)
 	}
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	sent := h.m.opts.Agent.Messages[0].Blocks[0].Text
 	if !strings.HasPrefix(sent, "explain @main_test.go") || !strings.Contains(sent, "<attached path=\"main_test.go\">\npackage main") {
 		t.Fatalf("prompt sent = %q", sent)
@@ -361,10 +363,10 @@ func TestShellPassthrough(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "seen"), StopReason: llm.StopEndTurn})
 	h.keys("!echo hello-from-shell; echo err >&2; exit 3")
 	h.enter()
-	if !h.m.running {
+	if !h.m.turn.running {
 		t.Fatal("shell should mark the UI busy")
 	}
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	v := plain(h.m.View())
 	for _, want := range []string{"shell", "hello-from-shell", "output shared with the model"} {
 		if !strings.Contains(v, want) {
@@ -374,7 +376,7 @@ func TestShellPassthrough(t *testing.T) {
 	// The next prompt carries the command and its output.
 	h.keys("what did that print?")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if n := len(h.m.opts.Agent.Messages); n != 2 {
 		t.Fatalf("messages = %d, the shell context must merge into the user turn", n)
 	}
@@ -390,7 +392,7 @@ func TestResumePicker(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "old answer"), StopReason: llm.StopEndTurn})
 	h.keys("old question")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	old := h.m.opts.Session.Meta.ID
 	h.keys("/clear")
 	h.enter()
@@ -457,7 +459,7 @@ func TestCustomSlashCommand(t *testing.T) {
 	h.update(tea.KeyMsg{Type: tea.KeyTab})
 	h.keys("main.go")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if sent := h.m.opts.Agent.Messages[0].Text(); sent != "# Careful review\nReview main.go for bugs." {
 		t.Fatalf("sent = %q", sent)
 	}
@@ -523,7 +525,7 @@ func TestUndoCommand(t *testing.T) {
 	h.m.opts.Agent.AutoApprove = true
 	h.keys("make n.txt")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	target := filepath.Join(h.m.opts.Cwd, "n.txt")
 	if _, err := os.Stat(target); err != nil {
 		t.Fatal("file not written")
@@ -564,7 +566,7 @@ func TestUndoCommand(t *testing.T) {
 	}
 	h.keys("continue")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if sent := h.m.opts.Agent.Messages[len(h.m.opts.Agent.Messages)-2].Text(); !strings.Contains(sent, "I reverted the file changes") || !strings.Contains(sent, "continue") {
 		t.Fatalf("model not told about the undo: %q", sent)
 	}
@@ -575,7 +577,7 @@ func TestImageMentionSendsImageBlock(t *testing.T) {
 	os.WriteFile(filepath.Join(h.m.opts.Cwd, "shot.png"), []byte("\x89PNGfake"), 0o644)
 	h.keys("what is in @shot.png ?")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	blocks := h.m.opts.Agent.Messages[0].Blocks
 	if len(blocks) != 2 || blocks[0].Type != llm.BlockText || blocks[1].Type != llm.BlockImage || blocks[1].MediaType != "image/png" {
 		t.Fatalf("blocks = %+v", blocks)
@@ -720,7 +722,7 @@ func TestMCPTrustFlow(t *testing.T) {
 	h.m.opts.Agent.Provider = &scripted{responses: []*llm.Response{{Message: llm.TextMessage(llm.RoleAssistant, "hello there"), StopReason: llm.StopEndTurn}}}
 	h.keys("/mcp__proj__greet the team")
 	h.enter()
-	h.pump(func() bool { return !h.m.running && len(h.m.opts.Agent.Messages) == 2 })
+	h.pump(func() bool { return !h.m.turn.running && len(h.m.opts.Agent.Messages) == 2 })
 	if sent := h.m.opts.Agent.Messages[0].Text(); sent != "Say hello to the team" {
 		t.Fatalf("prompt sent = %q", sent)
 	}
@@ -745,7 +747,7 @@ func TestCtrlVPastesClipboardImage(t *testing.T) {
 	path := strings.TrimSpace(strings.TrimPrefix(v, "look @"))
 	t.Cleanup(func() { os.Remove(path) })
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	blocks := h.m.opts.Agent.Messages[0].Blocks
 	if len(blocks) != 2 || blocks[1].Type != llm.BlockImage || blocks[1].MediaType != "image/png" {
 		t.Fatalf("blocks = %+v", blocks)
@@ -818,10 +820,10 @@ func TestPromptHistoryRecall(t *testing.T) {
 	)
 	h.keys("first prompt")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	h.keys("second prompt")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	h.keys("dra")
 	up := tea.KeyMsg{Type: tea.KeyUp}
 	down := tea.KeyMsg{Type: tea.KeyDown}
@@ -850,10 +852,10 @@ func TestInitialPromptIsSubmitted(t *testing.T) {
 	m.send = func(msg tea.Msg) { h.msgs <- msg }
 	m.queue.send = m.send
 	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if !h.m.running {
+	if !h.m.turn.running {
 		t.Fatal("initial prompt not submitted")
 	}
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if v := plain(h.m.View()); !strings.Contains(v, "explain") || !strings.Contains(v, "auto") {
 		t.Fatalf("view:\n%s", v)
 	}
@@ -1129,7 +1131,7 @@ func TestExportWritesMarkdown(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "hello there"), StopReason: llm.StopEndTurn})
 	h.keys("hi")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	h.keys("/export notes/out.md")
 	h.enter()
 	data, err := os.ReadFile(filepath.Join(h.m.opts.Cwd, "notes", "out.md"))
@@ -1175,7 +1177,7 @@ func TestMemoryCommandsAndAutoExtraction(t *testing.T) {
 	}
 	h.keys("write x")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	// The turn changed a file, so extraction runs; drive its command.
 	if !h.m.opts.Agent.LastTurnMutated() {
 		t.Fatal("turn not mutated")
@@ -1219,7 +1221,7 @@ func TestPermissionPromptRuleKeySavesRule(t *testing.T) {
 		t.Fatalf("prompt view:\n%s", v)
 	}
 	h.keys("r")
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if len(saved) != 1 || saved[0] != "write_file(docs/*)" || len(h.m.opts.Agent.Rules.Allow) != 1 {
 		t.Fatalf("saved = %v rules = %+v", saved, h.m.opts.Agent.Rules)
 	}
@@ -1257,13 +1259,13 @@ func TestVerifyCommandSetsRunsAndGatesTurns(t *testing.T) {
 	}
 	h.keys("/verify")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if v := plain(h.m.View()); !strings.Contains(v, "verification failed: grep -q ok a.txt (exit 2") {
 		t.Fatalf("manual run view:\n%s", v)
 	}
 	h.keys("write it")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	v := plain(h.m.View())
 	if !strings.Contains(v, "sending the model back to fix it (1/3)") || !strings.Contains(v, "verified: grep -q ok a.txt") {
 		t.Fatalf("gated turn view:\n%s", v)
@@ -1317,7 +1319,7 @@ func TestVerifyRereadsProjectFileEachCommand(t *testing.T) {
 	}
 	h.keys("/verify")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if v := plain(h.m.View()); !strings.Contains(v, "verified: true") {
 		t.Fatalf("expected /verify to run the now-loaded command, view:\n%s", v)
 	}
@@ -1337,7 +1339,7 @@ func TestPlanModeHidesToolsUntilApproved(t *testing.T) {
 	}
 	h.keys("/plan add a.txt")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	sc := h.m.opts.Agent.Provider.(*scripted)
 	if !h.m.opts.Agent.PlanMode || !strings.Contains(plain(h.m.View()), "PLAN ·") {
 		t.Fatalf("plan mode not on; view:\n%s", plain(h.m.View()))
@@ -1349,7 +1351,7 @@ func TestPlanModeHidesToolsUntilApproved(t *testing.T) {
 	}
 	h.keys("/plan approve")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if h.m.opts.Agent.PlanMode {
 		t.Fatal("still in plan mode after approve")
 	}
@@ -1383,7 +1385,7 @@ func TestContextAndPinCommands(t *testing.T) {
 	}
 	h.keys("write n")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	sc := h.m.opts.Agent.Provider.(*scripted)
 	if sys := sc.reqs()[0].System; !strings.Contains(sys, "File rules.md as of pinning:\ntabs not spaces") || !strings.Contains(sys, "2. never edit vendor") {
 		t.Fatalf("system = %q", sys)
@@ -1414,7 +1416,7 @@ func TestFooterShowsCacheRate(t *testing.T) {
 	}
 	h.keys("hello")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if v := plain(h.m.View()); !strings.Contains(v, "cache 90%") {
 		t.Fatalf("view:\n%s", v)
 	}
@@ -1437,7 +1439,7 @@ func TestStatsCommand(t *testing.T) {
 	}
 	h.keys("read missing")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	h.keys("/stats")
 	h.enter()
 	v := plain(h.m.View())
@@ -1466,7 +1468,7 @@ func TestAgentsCommandEmpty(t *testing.T) {
 	h := newHarness(t)
 	attachTask(h)
 	runAgents(h)
-	if h.m.overlay != overlayAgents {
+	if h.m.ov.kind != overlayAgents {
 		t.Fatal("empty /agents should still open the overlay")
 	}
 	v := plain(h.m.View())
@@ -1479,7 +1481,7 @@ func TestAgentsCommandEmpty(t *testing.T) {
 		}
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlay != "" {
+	if h.m.ov.kind != "" {
 		t.Fatal("esc should close the empty overlay")
 	}
 }
@@ -1499,11 +1501,11 @@ func TestAgentsOverlayOpenEscAndNoDump(t *testing.T) {
 	}
 	id := kids[0].ID
 	runAgents(h)
-	if h.m.overlay != overlayAgents {
-		t.Fatalf("overlay = %q, want %s", h.m.overlay, overlayAgents)
+	if h.m.ov.kind != overlayAgents {
+		t.Fatalf("overlay = %q, want %s", h.m.ov.kind, overlayAgents)
 	}
-	if h.m.overlayChild != id {
-		t.Fatalf("one child should open its transcript, overlayChild = %q", h.m.overlayChild)
+	if h.m.ov.child != id {
+		t.Fatalf("one child should open its transcript, overlayChild = %q", h.m.ov.child)
 	}
 	v := plain(h.m.View())
 	for _, want := range []string{id, "explore the parser", "look at the parser", "found the parser", "esc back"} {
@@ -1517,7 +1519,7 @@ func TestAgentsOverlayOpenEscAndNoDump(t *testing.T) {
 		}
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlay == "" || h.m.overlayChild != "" {
+	if h.m.ov.kind == "" || h.m.ov.child != "" {
 		t.Fatal("esc from the transcript should return to the list")
 	}
 	v = plain(h.m.View())
@@ -1525,7 +1527,7 @@ func TestAgentsOverlayOpenEscAndNoDump(t *testing.T) {
 		t.Fatalf("list after esc:\n%s", v)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlay != "" {
+	if h.m.ov.kind != "" {
 		t.Fatal("esc on the list should close the overlay")
 	}
 	h.keys("still here")
@@ -1583,8 +1585,8 @@ func TestAgentsOverlayLiveUpdate(t *testing.T) {
 		t.Fatalf("want one running child, got %+v", kids)
 	}
 	runAgents(h)
-	if h.m.overlay != overlayAgents || h.m.overlayChild != kids[0].ID {
-		t.Fatalf("should open the running child's transcript, overlay=%q child=%q", h.m.overlay, h.m.overlayChild)
+	if h.m.ov.kind != overlayAgents || h.m.ov.child != kids[0].ID {
+		t.Fatalf("should open the running child's transcript, overlay=%q child=%q", h.m.ov.kind, h.m.ov.child)
 	}
 	v := plain(h.m.View())
 	for _, want := range []string{kids[0].ID, "survey tests", "running"} {
@@ -1615,7 +1617,7 @@ func TestAgentsOverlayLiveUpdate(t *testing.T) {
 	if strings.Contains(v, "running") {
 		t.Fatalf("still shows running after done:\n%s", v)
 	}
-	if h.m.overlay != overlayAgents || h.m.overlayChild != kids[0].ID {
+	if h.m.ov.kind != overlayAgents || h.m.ov.child != kids[0].ID {
 		t.Fatal("detail view should stay open across the live update")
 	}
 }
@@ -1641,11 +1643,11 @@ func TestAgentsOverlayDetailShowsToolCall(t *testing.T) {
 		}
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlayChild != "" {
+	if h.m.ov.child != "" {
 		t.Fatal("esc should leave the transcript")
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEnter})
-	if h.m.overlayChild == "" {
+	if h.m.ov.child == "" {
 		t.Fatal("enter on the list should reopen the transcript")
 	}
 	if v := plain(h.m.View()); !strings.Contains(v, "read_file") {
@@ -1657,7 +1659,7 @@ func TestJobsCommandAndIdleNotice(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
 	h.keys("/jobs")
 	h.enter()
-	if h.m.overlay != overlayJobs {
+	if h.m.ov.kind != overlayJobs {
 		t.Fatal("empty /jobs should open the overlay")
 	}
 	if v := plain(h.m.View()); !strings.Contains(v, "no background jobs") {
@@ -1683,15 +1685,15 @@ func TestJobsCommandAndIdleNotice(t *testing.T) {
 	}
 	h.keys("/jobs")
 	h.enter()
-	if h.m.overlay != overlayJobs || h.m.overlayChild != "1" {
-		t.Fatalf("one job should open its log, overlay=%q child=%q", h.m.overlay, h.m.overlayChild)
+	if h.m.ov.kind != overlayJobs || h.m.ov.child != "1" {
+		t.Fatalf("one job should open its log, overlay=%q child=%q", h.m.ov.kind, h.m.ov.child)
 	}
 	v := plain(h.m.View())
 	if !strings.Contains(v, "echo hi") || !strings.Contains(v, "hi") {
 		t.Fatalf("job log:\n%s", v)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlayChild != "" {
+	if h.m.ov.child != "" {
 		t.Fatal("esc should return to the list")
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
@@ -1742,14 +1744,14 @@ func TestTodosOverlayOpenLiveAndEsc(t *testing.T) {
 	h := newHarness(t)
 	h.keys("/todos")
 	h.enter()
-	if h.m.overlay != overlayTodos {
+	if h.m.ov.kind != overlayTodos {
 		t.Fatal("empty /todos should open the overlay")
 	}
 	if v := plain(h.m.View()); !strings.Contains(v, "no plan has been written") {
 		t.Fatalf("empty overlay:\n%s", v)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlay != "" {
+	if h.m.ov.kind != "" {
 		t.Fatal("esc should close the empty overlay")
 	}
 	h.m.opts.Agent.WriteTodos([]agent.Todo{
@@ -1779,7 +1781,7 @@ func TestTodosOverlayOpenLiveAndEsc(t *testing.T) {
 		t.Fatalf("expected two completed steps:\n%s", v)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlay != "" {
+	if h.m.ov.kind != "" {
 		t.Fatal("esc should restore the prompt")
 	}
 	h.keys("still here")
@@ -1869,7 +1871,7 @@ func TestForkTitleAndSearchCommands(t *testing.T) {
 	h.m.opts.AutoTitle = true
 	h.keys("add rate limiting to the api")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	h.runCmd(h.m.autoTitle()) // finishTurn batches this; the harness drops commands
 	if got := h.m.opts.Session.Meta.Title; got != "Rate limiting for the API" {
 		t.Fatalf("title = %q", got)
@@ -1885,7 +1887,7 @@ func TestForkTitleAndSearchCommands(t *testing.T) {
 	}
 	h.keys("switch to redis")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	_, origMsgs, _ := session.Open(dirOf(orig), orig.Meta.ID)
 	_, forkMsgs, _ := session.Open(dirOf(orig), h.m.opts.Session.Meta.ID)
 	if len(origMsgs) != 2 || len(forkMsgs) != 4 {
@@ -1921,7 +1923,7 @@ func TestForkStayLeavesLiveSession(t *testing.T) {
 	)
 	h.keys("add rate limiting")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	orig := h.m.opts.Session
 	h.keys("/fork stay other path")
 	h.enter()
@@ -1949,7 +1951,7 @@ func TestForkStayLeavesLiveSession(t *testing.T) {
 	}
 	h.keys("keep going")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	_, origMsgs, _ := session.Open(dirOf(orig), orig.Meta.ID)
 	_, copyMsgs, _ := session.Open(dirOf(orig), copyID)
 	if len(origMsgs) <= len(copyMsgs) {
@@ -1964,7 +1966,7 @@ func TestBtwDoesNotRecordAUserTurn(t *testing.T) {
 	)
 	h.keys("hello")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	usersBefore := countUserTurns(h)
 	h.keys("/btw is this sideways")
 	h.enter()
@@ -1995,7 +1997,7 @@ func TestAcksStayOffTranscript(t *testing.T) {
 	h.m.copyText = func(string) error { return nil }
 	h.keys("hi")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	before := countInfo(h)
 	h.keys("/verbose")
 	h.enter()
@@ -2031,7 +2033,7 @@ func TestCopyLastAssistant(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "copy me please"), StopReason: llm.StopEndTurn})
 	h.keys("say it")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	var got string
 	h.m.copyText = func(s string) error { got = s; return nil }
 	h.keys("/copy")
@@ -2221,7 +2223,7 @@ func TestChangesBlameAndUndoOne(t *testing.T) {
 	h.m.opts.Agent.Tools = tool.NewRegistry(tool.WriteFile{Root: h.m.opts.Cwd}, tool.EditFile{Root: h.m.opts.Cwd})
 	h.keys("make the list")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	h.keys("/changes")
 	h.enter()
 	v := plain(h.m.View())
@@ -2283,7 +2285,7 @@ func TestUndoAboutPreviewThenApply(t *testing.T) {
 	h.m.opts.Agent.Tools = tool.NewRegistry(tool.WriteFile{Root: h.m.opts.Cwd})
 	h.keys("add logging and rename foo")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 
 	h.keys("/undo about the logging change")
 	h.enter()
@@ -2353,17 +2355,17 @@ func TestStrayApprovalKeyIsNotAPrompt(t *testing.T) {
 	h.m.pendingClosedAt = time.Now()
 	h.keys("y")
 	h.enter()
-	if h.m.running || h.m.input.Value() != "" || !strings.Contains(h.m.status, "stray") {
-		t.Fatalf("running=%v input=%q status=%q", h.m.running, h.m.input.Value(), h.m.status)
+	if h.m.turn.running || h.m.input.Value() != "" || !strings.Contains(h.m.status, "stray") {
+		t.Fatalf("running=%v input=%q status=%q", h.m.turn.running, h.m.input.Value(), h.m.status)
 	}
 	// Long after the prompt, "y" is just a prompt like any other.
 	h.m.pendingClosedAt = time.Now().Add(-time.Minute)
 	h.keys("y")
 	h.enter()
-	if !h.m.running {
+	if !h.m.turn.running {
 		t.Fatal("a y typed long after the prompt should be sent")
 	}
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 }
 
 // TestCtrlCWhenIdleArmsFirst: one ctrl+c when idle says "again to quit";
@@ -2529,10 +2531,10 @@ func TestGoalStartsWorkingAtOnce(t *testing.T) {
 	h := newHarness(t, replies...)
 	h.keys("/goal make the tests green")
 	h.enter()
-	if !h.m.running {
+	if !h.m.turn.running {
 		t.Fatal("setting a goal should start a turn")
 	}
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	reqs := h.m.opts.Agent.Provider.(*scripted).reqs()
 	if len(reqs) == 0 || !strings.Contains(reqs[0].Messages[len(reqs[0].Messages)-1].Text(), "make the tests green") {
 		t.Fatalf("the first round should carry the objective: %+v", reqs)
@@ -2599,7 +2601,7 @@ func TestViewportPinning(t *testing.T) {
 	if !h.m.pinned {
 		t.Fatal("a new prompt must re-pin")
 	}
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 }
 
 // TestInputBoxStates covers item 5: the border colour and the placeholder
@@ -2634,14 +2636,14 @@ func TestInputBoxStates(t *testing.T) {
 	}
 	check("denial reason", h.m.styles.boxWarn, "Why?")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	check("back to idle", h.m.styles.boxIdle, defaultPlaceholder)
 	h.m.opts.Agent.SetPlanMode(true)
 	check("plan mode", h.m.styles.boxIdle, "Plan mode")
 	h.m.opts.Agent.SetPlanMode(false)
-	h.m.running = true
+	h.m.turn.running = true
 	check("running", h.m.styles.boxBusy, "queue")
-	h.m.running = false
+	h.m.turn.running = false
 	// The connect dialog is another box you type into: same accent border.
 	if h.m.styles.dialog.GetBorderTopForeground() != h.m.styles.boxIdle.GetBorderTopForeground() {
 		t.Error("the connect dialog border does not match an idle input box")
@@ -2657,14 +2659,14 @@ func TestStatusBarFitsWidth(t *testing.T) {
 		name string
 		set  func()
 	}{
-		{"idle", func() { h.m.running, h.m.pending, h.m.status = false, nil, "" }},
+		{"idle", func() { h.m.turn.running, h.m.pending, h.m.status = false, nil, "" }},
 		{"running with a long phase", func() {
-			h.m.running = true
-			h.m.startedAt = time.Now().Add(-90 * time.Second)
-			h.m.phase = "write_file scheme.py · writing 754 lines (21.3KB) so far"
+			h.m.turn.running = true
+			h.m.turn.startedAt = time.Now().Add(-90 * time.Second)
+			h.m.turn.phase = "write_file scheme.py · writing 754 lines (21.3KB) so far"
 		}},
 		{"approval needed", func() {
-			h.m.running = false
+			h.m.turn.running = false
 			h.m.pending = &permissionMsg{call: agent.ToolCall{Name: "bash"}}
 		}},
 		{"done with a verdict", func() {
@@ -2774,7 +2776,7 @@ func TestErrorRendering(t *testing.T) {
 	h.update(tea.WindowSizeMsg{Width: 60, Height: 30})
 	h.keys("do it")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	v := plain(h.m.View())
 	if !strings.Contains(v, "✗ cannot reach the API") {
 		t.Fatalf("error not shown:\n%s", v)
@@ -2888,7 +2890,7 @@ func TestClearAndResumeBanners(t *testing.T) {
 	}
 	h.keys("hi")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if !strings.Contains(plain(h.m.headerView()), "an older conversation") {
 		t.Fatal("the title should be in the header to begin with")
 	}
@@ -3041,7 +3043,7 @@ func TestPermissionBoxExpandHint(t *testing.T) {
 			h.m.styles.permBox.GetBorderTopForeground(), h.m.styles.warn.GetForeground())
 	}
 	h.keys("y")
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 }
 
 // TestUserVisibleStringStyle covers item 14: the strings the interface
@@ -3082,8 +3084,8 @@ func TestUserVisibleStringStyle(t *testing.T) {
 	h := newHarness(t)
 	check("the default placeholder", defaultPlaceholder)
 	for _, set := range []func(){
-		func() { h.m.running = true },
-		func() { h.m.running, h.m.denying = false, true },
+		func() { h.m.turn.running = true },
+		func() { h.m.turn.running, h.m.denying = false, true },
 		func() { h.m.denying = false; h.m.opts.Agent.SetPlanMode(true) },
 		func() { h.m.opts.Agent.SetPlanMode(false); h.m.opts.Agent.ReadOnly = true },
 	} {
@@ -3107,7 +3109,7 @@ func TestUserVisibleStringStyle(t *testing.T) {
 // reach the status line, so a stalled turn says what it is stalled on.
 func TestPhaseNamesWhatTheTurnWaitsOn(t *testing.T) {
 	h := newHarness(t)
-	h.m.running = true
+	h.m.turn.running = true
 	h.m.applyEvent(agent.Event{Kind: agent.EvPhase, Text: "retrying 2/5 · rate limited · in 12s"})
 	h.m.refresh(false)
 	if v := plain(h.m.View()); !strings.Contains(v, "retrying 2/5 · rate limited · in 12s") {
@@ -3130,7 +3132,7 @@ func TestPhaseNamesWhatTheTurnWaitsOn(t *testing.T) {
 // dim line under the turn instead.
 func TestFinishedRetryLeavesALine(t *testing.T) {
 	h := newHarness(t)
-	h.m.running = true
+	h.m.turn.running = true
 	before := len(h.m.transcript.entries)
 	h.m.applyEvent(agent.Event{Kind: agent.EvRetry, Text: "retried 2× · rate limited · waited 1.5s",
 		Retry: &llm.Retry{Attempts: 2, Reason: "rate limited", Wait: 1500 * time.Millisecond}})
@@ -3241,7 +3243,7 @@ func TestPasteChip(t *testing.T) {
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(body), Paste: true})
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	sent := h.m.opts.Agent.Messages[0].Text()
 	if !strings.Contains(sent, body) {
 		t.Fatalf("the paste was not re-inflated on submit: %q", sent)
@@ -3269,7 +3271,7 @@ func TestEphemeralNoticeRow(t *testing.T) {
 		t.Fatalf("paste confirmation added a transcript line: %+v", h.m.transcript.entries[nEntries:])
 	}
 
-	h.m.queued = []string{"do the next thing"}
+	h.m.turn.queued = []string{"do the next thing"}
 	h.m.refresh(false)
 	v = plain(h.m.View())
 	if !strings.Contains(v, "queued 1") {
@@ -3278,10 +3280,10 @@ func TestEphemeralNoticeRow(t *testing.T) {
 	if strings.Contains(v, "pasted 41 lines") {
 		t.Fatalf("queue should win over the paste notice:\n%s", v)
 	}
-	h.m.queued = nil
+	h.m.turn.queued = nil
 	h.m.input.Reset()
 
-	h.m.noticeAt = time.Now().Add(-noticeFor - time.Second)
+	h.m.notice.at = time.Now().Add(-noticeFor - time.Second)
 	h.update(tickMsg(time.Now()))
 	if strings.Contains(plain(h.m.View()), "pasted 41 lines") {
 		t.Fatalf("expired paste notice still on screen:\n%s", plain(h.m.View()))
@@ -3296,7 +3298,7 @@ func TestEphemeralNoticeRow(t *testing.T) {
 	}
 	h.m.branch = "main"
 	nEntries = len(h.m.transcript.entries)
-	h.m.running = false
+	h.m.turn.running = false
 	h.m.ticks = 9
 	h.update(tickMsg(time.Now()))
 	v = plain(h.m.View())
@@ -3306,7 +3308,7 @@ func TestEphemeralNoticeRow(t *testing.T) {
 	if len(h.m.transcript.entries) != nEntries {
 		t.Fatalf("branch change added a transcript line: %+v", h.m.transcript.entries[nEntries:])
 	}
-	h.m.noticeAt = time.Now().Add(-noticeFor - time.Second)
+	h.m.notice.at = time.Now().Add(-noticeFor - time.Second)
 	h.update(tickMsg(time.Now()))
 	if strings.Contains(plain(h.m.View()), "branch changed") {
 		t.Fatalf("expired branch notice still on screen:\n%s", plain(h.m.View()))
@@ -3318,7 +3320,7 @@ func TestEphemeralNoticeRow(t *testing.T) {
 func TestPasteNeverSubmitsItself(t *testing.T) {
 	h := newHarness(t)
 	h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(strings.Repeat("x\n", 30)), Paste: true})
-	if h.m.running {
+	if h.m.turn.running {
 		t.Fatal("a paste submitted the prompt")
 	}
 	if h.m.input.Value() == "" {
@@ -3331,25 +3333,25 @@ func TestPasteNeverSubmitsItself(t *testing.T) {
 // same directory recalls them.
 func TestPromptHistoryOutlivesTheProcess(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
-	if h.m.histFile == "" {
+	if h.m.hist.file == "" {
 		t.Fatal("no history file for the session")
 	}
 	h.keys("first prompt")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	h.keys("!ls -l")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 
-	got := loadPromptHistory(h.m.histFile)
+	got := loadPromptHistory(h.m.hist.file)
 	want := []histEntry{{Text: "first prompt"}, {Text: "ls -l", Bash: true}}
 	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("history file = %+v", got)
 	}
 	// A fresh model in the same directory starts with them.
 	m2 := newModel(Options{Agent: h.m.opts.Agent, Session: h.m.opts.Session, Provider: "fake", Cwd: h.m.opts.Cwd, Version: "test"})
-	if len(m2.history) != 2 || m2.histIdx != 2 {
-		t.Fatalf("reloaded history = %+v idx=%d", m2.history, m2.histIdx)
+	if len(m2.hist.entries) != 2 || m2.hist.idx != 2 {
+		t.Fatalf("reloaded history = %+v idx=%d", m2.hist.entries, m2.hist.idx)
 	}
 	// Up browses; the "!" comes back with the command; esc restores the draft.
 	h.keys("draft")
@@ -3374,12 +3376,12 @@ func TestSteerAndTakeBackQueuedMessages(t *testing.T) {
 	h.enter()
 	h.keys("also this")
 	h.enter()
-	if len(h.m.queued) != 1 {
-		t.Fatalf("queued = %v", h.m.queued)
+	if len(h.m.turn.queued) != 1 {
+		t.Fatalf("queued = %v", h.m.turn.queued)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyUp})
-	if h.m.input.Value() != "also this" || len(h.m.queued) != 0 {
-		t.Fatalf("up did not take the queued message back: %q %v", h.m.input.Value(), h.m.queued)
+	if h.m.input.Value() != "also this" || len(h.m.turn.queued) != 0 {
+		t.Fatalf("up did not take the queued message back: %q %v", h.m.input.Value(), h.m.turn.queued)
 	}
 	// ctrl+s hands it to the running turn instead.
 	h.update(tea.KeyMsg{Type: tea.KeyCtrlS})
@@ -3399,7 +3401,7 @@ func TestSteerAndTakeBackQueuedMessages(t *testing.T) {
 		t.Fatalf("cancel left %q", got)
 	}
 	close(block)
-	h.pump(func() bool { return !h.m.running && len(h.m.queued) == 0 })
+	h.pump(func() bool { return !h.m.turn.running && len(h.m.turn.queued) == 0 })
 }
 
 // heldOpen holds the first call open until a channel closes, so a test can
@@ -3445,7 +3447,7 @@ func TestCommandAvailabilityAndArgumentCompletion(t *testing.T) {
 		t.Fatalf("no blocked message:\n%s", v)
 	}
 	close(block)
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 
 	// Fuzzy matching: the letters in order, and a "/" in the query splits.
 	if !fuzzyCommand("/resume", "/rsm") || !fuzzyCommand("/permissions", "/prms") {
@@ -3464,7 +3466,7 @@ func TestCommandAvailabilityAndArgumentCompletion(t *testing.T) {
 	if len(c) == 0 || c[0].name != "/undo preview" {
 		t.Fatalf("/undo completions = %+v", c)
 	}
-	if !h.m.compArgs {
+	if !h.m.comp.args {
 		t.Fatal("an argument menu should be marked as one")
 	}
 }
@@ -3542,7 +3544,7 @@ func TestPromptDoesNotJump(t *testing.T) {
 		t.Fatalf("the queue is not reported:\n%s", v)
 	}
 	close(block)
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 
 	// Reserved input height: wrapping inside the cap, a permission
 	// prompt (warning included), and the prompt closing must not move
@@ -3693,7 +3695,7 @@ func TestCtrlGPromotesARunningCommand(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	// While a command is promotable the status line offers the key.
-	h.m.running = true
+	h.m.turn.running = true
 	if !strings.Contains(h.m.statusView(), "ctrl+g") {
 		t.Errorf("the status line does not offer the key:\n%s", h.m.statusView())
 	}
@@ -3731,7 +3733,7 @@ func TestTypedHostsAreNotedFromEveryUserMessage(t *testing.T) {
 	h.m.opts.Typed = typed
 	h.keys("check http://localhost:8080/health please")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if !typed.Has("localhost:8080") {
 		t.Fatal("the host the user typed was not noted")
 	}
@@ -3819,7 +3821,7 @@ func (h *harness) typed(s string) {
 // a sentence, and "home" jumped the cursor to the start of the line.
 func TestTypedWordsAreNotKeyPresses(t *testing.T) {
 	h := newHarness(t)
-	h.m.remember("first prompt")
+	h.m.hist.remember("first prompt")
 	for _, word := range []string{"right", "left", "up", "down", "home", "end", "delete", "esc", "enter", "tab", "insert", "pgup"} {
 		h.m.input.Reset()
 		h.typed("aa " + word + " bb")
@@ -3911,8 +3913,8 @@ func TestGoalRoundIsOneLine(t *testing.T) {
 		t.Fatalf("session title = %q", got)
 	}
 	// The model still receives the full continuation.
-	if !strings.Contains(h.m.lastUserText, "Rounds are a budget") {
-		t.Fatalf("the model got %q", h.m.lastUserText)
+	if !strings.Contains(h.m.hist.lastUser, "Rounds are a budget") {
+		t.Fatalf("the model got %q", h.m.hist.lastUser)
 	}
 }
 
@@ -4096,52 +4098,52 @@ func tailOf(s string) string {
 // counter running the other way, which reads as a frozen screen.
 func TestRetryPhaseCountsDown(t *testing.T) {
 	h := newHarness(t)
-	h.m.setPhase("retrying 1/2 · rate limited · in 6s")
-	if h.m.phaseUntil.IsZero() {
+	h.m.turn.setPhase("retrying 1/2 · rate limited · in 6s")
+	if h.m.turn.phaseUntil.IsZero() {
 		t.Fatal("no deadline taken from the phase")
 	}
-	first := h.m.phaseText()
+	first := h.m.turn.phaseText()
 	if !strings.HasPrefix(first, "retrying 1/2 · rate limited · in ") {
 		t.Fatalf("phase = %q", first)
 	}
-	h.m.phaseUntil = time.Now().Add(2 * time.Second)
-	if got := h.m.phaseText(); got != "retrying 1/2 · rate limited · in 2s" {
+	h.m.turn.phaseUntil = time.Now().Add(2 * time.Second)
+	if got := h.m.turn.phaseText(); got != "retrying 1/2 · rate limited · in 2s" {
 		t.Fatalf("phase after two seconds left = %q", got)
 	}
 	// Past the deadline it says now, not a negative number.
-	h.m.phaseUntil = time.Now().Add(-time.Second)
-	if got := h.m.phaseText(); !strings.HasSuffix(got, "in 0s") {
+	h.m.turn.phaseUntil = time.Now().Add(-time.Second)
+	if got := h.m.turn.phaseText(); !strings.HasSuffix(got, "in 0s") {
 		t.Fatalf("phase past the deadline = %q", got)
 	}
 	// A phase with no wait in it is left exactly as it came.
-	h.m.setPhase("running bash")
-	if !h.m.phaseUntil.IsZero() || h.m.phaseText() != "running bash" {
-		t.Fatalf("phase = %q until = %v", h.m.phaseText(), h.m.phaseUntil)
+	h.m.turn.setPhase("running bash")
+	if !h.m.turn.phaseUntil.IsZero() || h.m.turn.phaseText() != "running bash" {
+		t.Fatalf("phase = %q until = %v", h.m.turn.phaseText(), h.m.turn.phaseUntil)
 	}
 	// And a stale countdown never survives the next phase.
-	h.m.setPhase("retrying 1/2 · in 30s")
-	h.m.setPhase("thinking")
-	if !h.m.phaseUntil.IsZero() {
+	h.m.turn.setPhase("retrying 1/2 · in 30s")
+	h.m.turn.setPhase("thinking")
+	if !h.m.turn.phaseUntil.IsZero() {
 		t.Fatal("countdown survived a thinking phase")
 	}
-	if got := h.m.phaseText(); strings.Contains(got, "retrying") {
+	if got := h.m.turn.phaseText(); strings.Contains(got, "retrying") {
 		t.Fatalf("phase = %q", got)
 	}
 }
 
 func TestThinkingPhaseShowsFlavor(t *testing.T) {
 	h := newHarness(t)
-	h.m.startedAt = time.Unix(1_700_000_000, 0)
-	h.m.setPhase("thinking")
-	got := h.m.phaseText()
+	h.m.turn.startedAt = time.Unix(1_700_000_000, 0)
+	h.m.turn.setPhase("thinking")
+	got := h.m.turn.phaseText()
 	if got == "thinking" || got == "" {
 		t.Fatalf("thinking was not dressed: %q", got)
 	}
 	if !flavor.Known(got) {
 		t.Fatalf("phase %q is not a seeded flavor verb", got)
 	}
-	h.m.setPhase("running bash")
-	if got := h.m.phaseText(); got != "running bash" {
+	h.m.turn.setPhase("running bash")
+	if got := h.m.turn.phaseText(); got != "running bash" {
 		t.Fatalf("tool phase was dressed: %q", got)
 	}
 }
@@ -4277,8 +4279,8 @@ func TestCtrlTOpensAgentsOverlay(t *testing.T) {
 	h := newHarness(t)
 	attachTask(h)
 	h.update(tea.KeyMsg{Type: tea.KeyCtrlT})
-	if h.m.overlay != overlayAgents {
-		t.Fatalf("overlay = %q, want %s", h.m.overlay, overlayAgents)
+	if h.m.ov.kind != overlayAgents {
+		t.Fatalf("overlay = %q, want %s", h.m.ov.kind, overlayAgents)
 	}
 	if v := plain(h.m.View()); !strings.Contains(v, "Subagents") {
 		t.Fatalf("view:\n%s", v)
@@ -4293,8 +4295,8 @@ func TestAgentsNewSpawnsGeneral(t *testing.T) {
 	attachTask(h)
 	h.keys("/agents new map the parser")
 	h.enter()
-	if h.m.overlay != overlayAgents {
-		t.Fatalf("overlay = %q", h.m.overlay)
+	if h.m.ov.kind != overlayAgents {
+		t.Fatalf("overlay = %q", h.m.ov.kind)
 	}
 	h.pump(func() bool {
 		kids := h.m.taskTool().Children()
@@ -4329,8 +4331,33 @@ func TestSideWorkLeavesNoStaleStatus(t *testing.T) {
 	h.update(tea.WindowSizeMsg{Width: 120, Height: 24})
 	h.keys("/undo apply")
 	h.enter()
-	h.pump(func() bool { return !h.m.running })
+	h.pump(func() bool { return !h.m.turn.running })
 	if v := plain(h.m.statusView()); strings.Contains(v, "applying") || strings.Contains(v, "matching") {
 		t.Fatalf("status after /undo apply finished:\n%s", v)
+	}
+}
+
+// TestAliasesObeyTheIdleGate: an alias of an idle-only command is
+// refused mid-turn exactly as the canonical name is. The gate used to
+// look the typed name up in the slash table, which lists canonical names
+// only, so /new started a new session out from under a running turn
+// while /clear was correctly refused.
+func TestAliasesObeyTheIdleGate(t *testing.T) {
+	if slash.Canonical("/new") != "/clear" {
+		t.Fatal("/new should be an alias of /clear")
+	}
+	for _, name := range []string{"/clear", "/new"} {
+		block := make(chan struct{})
+		h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
+		h.m.opts.Agent.Provider = &heldOpen{until: block, inner: h.m.opts.Agent.Provider}
+		h.keys("go")
+		h.enter()
+		h.keys(name)
+		h.enter()
+		if v := plain(h.m.View()); !strings.Contains(v, name+" waits for the turn to finish") {
+			t.Errorf("%s during a running turn was not refused:\n%s", name, v)
+		}
+		close(block)
+		h.pump(func() bool { return !h.m.turn.running })
 	}
 }

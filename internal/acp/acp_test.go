@@ -172,7 +172,7 @@ func testOptions(t *testing.T) (Options, string) {
 	dir := t.TempDir()
 	return Options{
 		Version: "test",
-		NewAgent: func(cwd, resume string) (*agent.Agent, *session.Session, error) {
+		NewAgent: func(cwd, resume string) (TurnRunner, *session.Session, error) {
 			var (
 				s    *session.Session
 				hist []llm.Message
@@ -190,7 +190,7 @@ func testOptions(t *testing.T) (Options, string) {
 				Provider: &scripted{}, Model: "m", System: "sys", Log: s, Messages: hist,
 				Tools: tool.NewRegistry(tool.WriteFile{Root: cwd}, tool.ReadFile{Root: cwd}),
 			}
-			return ag, s, nil
+			return Wrap(ag), s, nil
 		},
 	}, root
 }
@@ -370,6 +370,43 @@ func TestToolKindsAndTitles(t *testing.T) {
 	}
 }
 
+// fakeRunner is a TurnRunner with no model, no tools and no history
+// behind it: it records the prompts it is given and answers each with one
+// line of text. That is the whole of what the ACP server asks of an
+// agent, which is what the interface is for — a test about the protocol
+// need not stand up a provider and a tool registry to get one turn out.
+type fakeRunner struct {
+	mu       sync.Mutex
+	prompts  [][]llm.Block
+	history  []llm.Message
+	approver agent.Approver
+	reply    string
+}
+
+func (f *fakeRunner) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(agent.Event)) error {
+	f.mu.Lock()
+	f.prompts = append(f.prompts, blocks)
+	f.history = append(f.history, llm.Message{Role: llm.RoleUser, Blocks: blocks})
+	f.history = append(f.history, llm.TextMessage(llm.RoleAssistant, f.reply))
+	reply := f.reply
+	f.mu.Unlock()
+	emit(agent.Event{Kind: agent.EvText, Text: reply})
+	emit(agent.Event{Kind: agent.EvTurnDone})
+	return ctx.Err()
+}
+
+func (f *fakeRunner) MessagesSnapshot() []llm.Message {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]llm.Message(nil), f.history...)
+}
+
+func (f *fakeRunner) SetApprover(ap agent.Approver) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.approver = ap
+}
+
 // The editor says which directory a session is for, and it is not
 // necessarily the one the binary was launched from. Every tool is rooted
 // at that directory, so the factory has to be told which one it is.
@@ -378,14 +415,13 @@ func TestSessionCwdReachesTheAgent(t *testing.T) {
 	var gotCwd []string
 	o := Options{
 		Version: "test",
-		NewAgent: func(cwd, resume string) (*agent.Agent, *session.Session, error) {
+		NewAgent: func(cwd, resume string) (TurnRunner, *session.Session, error) {
 			gotCwd = append(gotCwd, cwd)
 			s, err := session.New(dir, cwd, "fake", "m")
 			if err != nil {
 				return nil, nil, err
 			}
-			return &agent.Agent{Provider: &scripted{}, Model: "m", Log: s,
-				Tools: tool.NewRegistry(tool.WriteFile{Root: cwd})}, s, nil
+			return &fakeRunner{reply: "ok"}, s, nil
 		},
 	}
 	c, stop := newClient(t, o)
@@ -413,6 +449,26 @@ func TestSessionCwdReachesTheAgent(t *testing.T) {
 	if ns2.SessionID == ns.SessionID {
 		t.Fatal("two workspaces shared one session")
 	}
+	// And the fake really is enough to drive a turn: the prompt reaches
+	// it and its answer comes back as a message chunk.
+	c.call("session/prompt", promptParams{SessionID: ns.SessionID, Prompt: []contentBlock{textBlock("hello")}})
+	final, updates := c.readUntil(isResponse)
+	var pr promptResult
+	if err := json.Unmarshal(final.Result, &pr); err != nil {
+		t.Fatal(err)
+	}
+	if pr.StopReason != stopEndTurn {
+		t.Fatalf("stopReason = %q", pr.StopReason)
+	}
+	said := false
+	for _, u := range updates {
+		if u.Method == "session/update" && strings.Contains(string(u.Params), `"text":"ok"`) {
+			said = true
+		}
+	}
+	if !said {
+		t.Fatalf("the fake's answer was not streamed: %+v", updates)
+	}
 	// A session without a cwd is refused rather than silently rooted at
 	// whatever directory the process happens to be in.
 	c.call("session/new", newSessionParams{})
@@ -430,12 +486,12 @@ func TestCancelEndsTheTurnAndLeavesTheSessionUsable(t *testing.T) {
 	slow := &blockingProvider{release: release}
 	o := Options{
 		Version: "test",
-		NewAgent: func(cwd, resume string) (*agent.Agent, *session.Session, error) {
+		NewAgent: func(cwd, resume string) (TurnRunner, *session.Session, error) {
 			s, err := session.New(dir, cwd, "fake", "m")
 			if err != nil {
 				return nil, nil, err
 			}
-			return &agent.Agent{Provider: slow, Model: "m", Log: s, Tools: tool.NewRegistry()}, s, nil
+			return Wrap(&agent.Agent{Provider: slow, Model: "m", Log: s, Tools: tool.NewRegistry()}), s, nil
 		},
 	}
 	slow.started.Add(1)

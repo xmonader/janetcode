@@ -11,11 +11,123 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
+
+// waitRe matches the "in 12s" a provider puts at the end of a phase to
+// say how long it is about to sleep.
+var waitRe = regexp.MustCompile(`(.*\bin )([0-9.]+)(m?s)$`)
+
+// turnState is the turn the model is running right now: whether there
+// is one, how to stop it, what it is doing, and what the user has lined
+// up behind it. Every field is only meaningful while running is true,
+// apart from the queue, which survives a turn precisely so finishTurn
+// can send the next one.
+type turnState struct {
+	running    bool
+	cancelling bool
+	compacting bool
+	cancel     context.CancelFunc
+	startedAt  time.Time // when the running turn began
+	phase      string    // what the agent is doing right now
+	// phaseUntil is when the thing the phase names is due, so a wait the
+	// provider announced once counts down instead of standing still.
+	phaseUntil time.Time
+	queued     []string // prompts typed while a turn was running
+	steering   []string // notes handed to the running turn (ctrl+s)
+}
+
+// start marks a turn as begun, dropping the steering notes that belonged
+// to the turn before it.
+func (t *turnState) start() {
+	t.steering = nil
+	t.running = true
+	t.cancelling = false
+	t.startedAt = time.Now()
+}
+
+// stop cancels the running turn's context, if it has one.
+func (t *turnState) stop() {
+	if t.cancel != nil {
+		t.cancel()
+	}
+	t.cancelling = true
+}
+
+// finish ends the turn and reports whether the thing that ended was a
+// compaction rather than a conversational turn.
+func (t *turnState) finish() bool {
+	t.running, t.cancelling = false, false
+	compacting := t.compacting
+	t.compacting = false
+	t.release()
+	t.steering = nil
+	return compacting
+}
+
+// release drops the turn's cancel function, cancelling it so the context
+// it made is not left behind.
+func (t *turnState) release() {
+	if t.cancel != nil {
+		t.cancel()
+		t.cancel = nil
+	}
+}
+
+// setPhase records what the turn is waiting on. A provider that is about
+// to sleep says so once — "retrying 1/2 · rate limited · in 6s" — and
+// that line then sat unchanged for six seconds next to a counter running
+// the other way, which reads as a frozen screen. The deadline is kept so
+// the line can count down to the moment something happens.
+func (t *turnState) setPhase(text string) {
+	t.phase, t.phaseUntil = text, time.Time{}
+	g := waitRe.FindStringSubmatch(text)
+	if g == nil {
+		return
+	}
+	d, err := time.ParseDuration(g[2] + g[3])
+	if err != nil || d <= 0 {
+		return
+	}
+	t.phase, t.phaseUntil = g[1], time.Now().Add(d)
+}
+
+// phaseText is the phase with its countdown resolved to now.
+func (t *turnState) phaseText() string {
+	if t.phaseUntil.IsZero() {
+		return flavor.ForPhase(t.phase, time.Now(), t.startedAt)
+	}
+	left := time.Until(t.phaseUntil)
+	if left < 0 {
+		left = 0
+	}
+	if left < time.Minute {
+		return fmt.Sprintf("%s%ds", t.phase, int(left.Round(time.Second)/time.Second))
+	}
+	return t.phase + textfmt.Duration(left.Round(time.Second))
+}
+
+// dequeue takes the next prompt waiting behind the finished turn.
+func (t *turnState) dequeue() (string, bool) {
+	if len(t.queued) == 0 {
+		return "", false
+	}
+	next := t.queued[0]
+	t.queued = t.queued[1:]
+	return next, true
+}
+
+// takeQueued hands back everything queued and empties the queue, for the
+// cancel that puts it in the input rather than throwing it away.
+func (t *turnState) takeQueued() []string {
+	parts := t.queued
+	t.queued = nil
+	return parts
+}
 
 func (m *model) submit(text string) tea.Cmd { return m.submitAs(text, "") }
 
@@ -44,7 +156,7 @@ func (m *model) submitAs(text, note string) tea.Cmd {
 	// http://localhost:8080/health" refused in the message that asked for
 	// it.
 	m.opts.Typed.Note(text)
-	m.lastUserText = text
+	m.hist.lastUser = text
 	text, atts := prompt.ExpandMentions(m.opts.Cwd, text)
 	if len(atts) > 0 {
 		m.noteUse("@path")
@@ -62,8 +174,8 @@ func (m *model) submitAs(text, note string) tea.Cmd {
 	}
 	blocks := append([]llm.Block{{Type: llm.BlockText, Text: text}}, prompt.ImageBlocks(atts)...)
 	m.startTurn("thinking")
-	ctx, cancel := context.WithCancel(context.Background())
-	m.cancel = cancel
+	ctx, cancel := context.WithCancel(m.life)
+	m.turn.cancel = cancel
 	ag, send, queue := m.opts.Agent, m.send, m.queue
 	m.repin()
 	m.refresh(false)
@@ -77,14 +189,11 @@ func (m *model) submitAs(text, note string) tea.Cmd {
 }
 
 func (m *model) startTurn(phase string) {
-	m.steering = nil
+	m.turn.start()
 	m.term.turnStarted()
-	m.running = true
-	m.cancelling = false
-	m.startedAt = time.Now()
 	m.status = ""
 	m.lastVerdict = ""
-	m.setPhase(phase)
+	m.turn.setPhase(phase)
 	if phase == "thinking" {
 		m.transcript.apply(agent.Event{Kind: agent.EvThinking})
 	}
@@ -102,9 +211,9 @@ func onOff(v bool) string {
 // compact summarises the history in the background like a turn.
 func (m *model) compact() tea.Cmd {
 	m.startTurn("compacting context")
-	m.compacting = true
-	ctx, cancel := context.WithCancel(context.Background())
-	m.cancel = cancel
+	m.turn.compacting = true
+	ctx, cancel := context.WithCancel(m.life)
+	m.turn.cancel = cancel
 	ag, send, queue := m.opts.Agent, m.send, m.queue
 	m.note(fmt.Sprintf("compacting ~%s tokens of context…", textfmt.Tokens(ag.EstimateTokens())))
 	m.refresh(false)
@@ -121,27 +230,17 @@ func (m *model) compact() tea.Cmd {
 }
 
 func (m *model) cancelTurn() {
-	if m.cancel != nil {
-		m.cancel()
-	}
-	m.cancelling = true
-	m.setPhase("cancelling")
+	m.turn.stop()
+	m.turn.setPhase("cancelling")
 	m.status = "cancelling… (ctrl+c again to force quit)"
 }
 
 func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
-	m.running = false
-	m.cancelling = false
-	compacting := m.compacting
-	m.compacting = false
-	if m.cancel != nil {
-		m.cancel()
-		m.cancel = nil
-	}
+	compacting := m.turn.finish()
 	m.pending = nil
 	m.pendingClosedAt = time.Now()
-	m.setPhase("")
-	elapsed := textfmt.Duration(time.Since(m.startedAt))
+	m.turn.setPhase("")
+	elapsed := textfmt.Duration(time.Since(m.turn.startedAt))
 	m.transcript.finishTurn()
 	switch {
 	case errors.Is(msg.err, context.Canceled):
@@ -183,14 +282,13 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		}
 	})
 	m.reportCacheWaste()
-	m.steering = nil
 	m.term.turnEnded(msg.err == nil, m.status)
-	if msg.err == nil && len(m.queued) == 0 {
+	if msg.err == nil && len(m.turn.queued) == 0 {
 		if cmd := m.goalRound(); cmd != nil {
 			return cmd
 		}
 	}
-	if len(m.queued) == 0 {
+	if len(m.turn.queued) == 0 {
 		return nil
 	}
 	if msg.err != nil {
@@ -199,8 +297,7 @@ func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 		m.restoreQueued()
 		return nil
 	}
-	next := m.queued[0]
-	m.queued = m.queued[1:]
+	next, _ := m.turn.dequeue()
 	return m.submit(next)
 }
 
@@ -266,11 +363,10 @@ func errorCode(l string) string {
 // already there, separated by blank lines. Nothing typed is ever thrown
 // away by a cancel: it goes back where it came from.
 func (m *model) restoreQueued() {
-	if len(m.queued) == 0 {
+	if len(m.turn.queued) == 0 {
 		return
 	}
-	parts := m.queued
-	m.queued = nil
+	parts := m.turn.takeQueued()
 	if v := strings.TrimSpace(m.input.Value()); v != "" {
 		parts = append(parts, v)
 	}

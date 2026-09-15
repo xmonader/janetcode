@@ -119,7 +119,7 @@ func (m *model) answer(d agent.Decision, reason string) {
 	m.pending = nil
 	m.pendingClosedAt = time.Now()
 	m.denying = false
-	m.setPhase("thinking")
+	m.turn.setPhase("thinking")
 	// Named by the rule the r key would save, because that is the shape
 	// both hints below are about.
 	shape := call.Rule

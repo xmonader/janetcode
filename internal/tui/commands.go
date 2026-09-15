@@ -253,10 +253,11 @@ var dispatch = map[string]cmdHandler{
 
 func (m *model) command(text string) tea.Cmd {
 	fields := strings.Fields(text)
-	// Idle-only is decided by the slash table alone. Only table names are
-	// gated: an alias resolves to its handler below without this check.
-	if m.running {
-		if c, ok := slash.Lookup(fields[0]); ok && c.Idle {
+	// Idle-only is decided by the slash table alone, on the canonical
+	// name: /new is /clear, and gating only the table names let every
+	// alias of an idle-only command straight past the check.
+	if m.turn.running {
+		if c, ok := slash.Lookup(slash.Canonical(fields[0])); ok && c.Idle {
 			m.transcript.errorf("%s waits for the turn to finish (esc cancels it, ctrl+s steers it)", fields[0])
 			m.refresh(false)
 			return nil
@@ -309,8 +310,7 @@ func (m *model) cmdHelp(text string, fields []string) (tea.Cmd, bool) {
 }
 
 func (m *model) cmdQuit(text string, fields []string) (tea.Cmd, bool) {
-	m.quitting = true
-	return tea.Quit, true
+	return m.quit(), true
 }
 
 func (m *model) cmdClear(text string, fields []string) (tea.Cmd, bool) {
@@ -524,7 +524,7 @@ func (m *model) cmdUndo(text string, fields []string) (tea.Cmd, bool) {
 func (m *model) cmdFind(text string, fields []string) (tea.Cmd, bool) {
 	q := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
 	if q == "" {
-		q = m.lastFind
+		q = m.finder.query
 	}
 	if q == "" {
 		m.transcript.errorf("usage: /find <text>")
@@ -543,7 +543,7 @@ func (m *model) cmdResume(text string, fields []string) (tea.Cmd, bool) {
 }
 
 func (m *model) cmdCompact(text string, fields []string) (tea.Cmd, bool) {
-	if m.running {
+	if m.turn.running {
 		m.transcript.errorf("wait for the current turn to finish before compacting")
 		return nil, false
 	}

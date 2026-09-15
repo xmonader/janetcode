@@ -79,13 +79,13 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 		m.transcript.errorf("%s is not trusted yet: review it, then run /verify trust", verify.ProjectFile)
 		return nil
 	}
-	if m.running {
+	if m.turn.running {
 		m.transcript.errorf("wait for the current turn to finish before verifying")
 		return nil
 	}
 	m.startTurn("verifying")
-	ctx, cancel := context.WithCancel(context.Background())
-	m.cancel = cancel
+	ctx, cancel := context.WithCancel(m.life)
+	m.turn.cancel = cancel
 	r, send := &verify.Runner{Config: o.Config, Cwd: m.opts.Cwd, Mutate: mutate.ForVerify}, m.send
 	m.note("verifying: " + strings.Join(o.Config.Commands, " · "))
 	m.refresh(false)
@@ -155,12 +155,9 @@ func verifyLine(c verify.Config) string {
 
 // finishVerify reports a manual run.
 func (m *model) finishVerify(msg verifyDoneMsg) {
-	m.running = false
-	m.phase = ""
-	if m.cancel != nil {
-		m.cancel()
-		m.cancel = nil
-	}
+	m.turn.running = false
+	m.turn.phase = ""
+	m.turn.release()
 	if msg.res.Mutation != nil && msg.res.Mutation.Scored() {
 		m.opts.Agent.LogEvent(msg.res.Mutation.Event())
 	}

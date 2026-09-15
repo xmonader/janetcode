@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -66,7 +65,7 @@ func (m *model) goalCommand(arg string) tea.Cmd {
 // is idle. Setting a goal and seeing nothing happen was the alternative:
 // the loop only advanced when a turn ended, and there was no turn.
 func (m *model) startGoalRound() tea.Cmd {
-	if m.running {
+	if m.turn.running {
 		m.note("the goal continues when this turn ends")
 		return nil
 	}
@@ -116,15 +115,15 @@ func (m *model) agentsCommand(arg string) {
 	kids := m.overlayKids()
 	switch {
 	case arg != "":
-		m.overlayChild = arg
+		m.ov.child = arg
 		for i, k := range kids {
 			if k.ID == arg {
-				m.overlayIdx = i
+				m.ov.idx = i
 				break
 			}
 		}
 	case len(kids) == 1:
-		m.overlayChild = kids[0].ID
+		m.ov.child = kids[0].ID
 	}
 }
 
@@ -135,7 +134,7 @@ func (m *model) reviewCommand(arg string) tea.Cmd {
 		m.refresh(false)
 		return nil
 	}
-	diff, err := agent.ReviewDiff(context.Background(), m.opts.Cwd)
+	diff, err := agent.ReviewDiff(m.life, m.opts.Cwd)
 	if err != nil {
 		m.transcript.errorf("review: %v", err)
 		m.refresh(false)
@@ -159,7 +158,7 @@ func (m *model) reviewCommand(arg string) tea.Cmd {
 func (m *model) startTask(task *agent.Task, in agent.TaskInput) {
 	send := m.send
 	go func() {
-		_, runErr := task.Start(context.Background(), in)
+		_, runErr := task.Start(m.life, in)
 		send(subagentDoneMsg{desc: in.Description, err: runErr})
 	}()
 }

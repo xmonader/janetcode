@@ -9,46 +9,13 @@ import (
 	"github.com/xmonader/janetcode/internal/skill"
 )
 
-// remember adds a submitted prompt to the up/down history and to the
-// file that outlives the process. A "!" command keeps its flag so
-// recalling it restores the shell prompt rather than asking the model.
-func (m *model) remember(text string) {
-	e := histEntry{Text: text}
-	if strings.HasPrefix(text, "!") {
-		e = histEntry{Text: strings.TrimPrefix(text, "!"), Bash: true}
-	}
-	if e.Text == "" {
-		return
-	}
-	if n := len(m.history); n == 0 || m.history[n-1] != e {
-		m.history = append(m.history, e)
-		if m.histFile != "" {
-			if err := appendPromptHistory(m.histFile, e, len(m.history)); err == nil && len(m.history) > histCap {
-				m.history = m.history[len(m.history)-histCap:]
-				rewritePromptHistory(m.histFile, m.history)
-			}
-		}
-	}
-	m.histIdx = len(m.history)
-	m.draft = ""
-}
-
-// recall renders one history entry back into the input's own language.
-func (m *model) recall(i int) string {
-	e := m.history[i]
-	if e.Bash {
-		return "!" + e.Text
-	}
-	return e.Text
-}
-
 // completions lists slash commands matching the input, or files matching
 // the @path being typed at its end.
 func (m *model) completions() []command {
-	if m.connect != nil || m.picker != nil || m.overlay != "" || m.asking != nil {
+	if m.connect != nil || m.picker != nil || m.ov.kind != "" || m.asking != nil {
 		return nil
 	}
-	m.compArgs = false
+	m.comp.args = false
 	v := m.input.Value()
 	if strings.HasPrefix(v, "/") && !strings.ContainsAny(v, " \n") {
 		var exact, fuzzy []command
@@ -66,7 +33,7 @@ func (m *model) completions() []command {
 		if c, found := lookup(name); found && c.argsFor != nil {
 			// An argument menu offers; it never takes enter, so a typed
 			// argument still runs the command the moment you send it.
-			m.compArgs = true
+			m.comp.args = true
 			return c.argsFor(m, strings.TrimLeft(arg, " "))
 		}
 	}
@@ -143,13 +110,7 @@ func (m *model) menu() ([]command, int) {
 	if len(c) == 0 {
 		return nil, 0
 	}
-	if v := m.input.Value(); v != m.compFor {
-		m.compFor, m.compIdx = v, 0
-	}
-	if m.compIdx >= len(c) {
-		m.compIdx = len(c) - 1
-	}
-	return c, m.compIdx
+	return c, m.comp.highlight(m.input.Value(), len(c))
 }
 
 // moveMenu shifts the highlight; it reports whether a menu was open.
@@ -158,8 +119,7 @@ func (m *model) moveMenu(delta int) bool {
 	if len(c) == 0 {
 		return false
 	}
-	m.compIdx = (idx + delta + len(c)) % len(c)
-	m.compFor = m.input.Value()
+	m.comp.move(m.input.Value(), len(c), delta, idx)
 	m.layout()
 	m.refresh(false)
 	return true
@@ -192,7 +152,7 @@ func (m *model) complete() bool {
 	}
 	m.input.SetValue(v[:i+1] + name)
 	m.input.CursorEnd()
-	m.compFor, m.compIdx = m.input.Value(), 0
+	m.comp.pin(m.input.Value())
 	return true
 }
 

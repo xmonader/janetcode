@@ -123,6 +123,7 @@ type Options struct {
 // Run starts the interactive UI and blocks until the user quits.
 func Run(opts Options) error {
 	m := newModel(opts)
+	defer m.endLife()
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus())
 	m.send = p.Send
 	m.queue.send = p.Send
@@ -170,6 +171,12 @@ type PermOptions struct {
 
 type model struct {
 	opts Options
+	// life ends when the window does. Every turn, background command and
+	// server this session starts derives its context from it, so quitting
+	// stops them rather than leaving them running against a program that
+	// is no longer there.
+	life    context.Context
+	endLife context.CancelFunc
 	// styles is what every view draws with; a theme switch replaces it.
 	styles *styles
 	// quitArmedAt is when ctrl+c was last pressed while idle.
@@ -207,71 +214,44 @@ type model struct {
 	// pastes holds the text behind each "[paste #N +M lines]" chip in the
 	// input, in the order they were pasted.
 	pastes []string
-	// history of submitted prompts for up/down recall, loaded from and
+	// hist is the up/down recall of submitted prompts, loaded from and
 	// appended to a file per working directory (see history.go).
-	history  []histEntry
-	histFile string
-	// lastUserText is the prompt of the running or last turn.
-	lastUserText string
-	histIdx      int    // == len(history) when not browsing
-	draft        string // input saved while browsing history
+	hist historyState
 
-	running    bool
-	cancelling bool
-	compacting bool
-	cancel     context.CancelFunc
-	startedAt  time.Time // when the running turn began
-	// phaseUntil is when the thing the phase names is due, so a wait the
-	// provider announced once counts down instead of standing still.
-	phaseUntil time.Time
+	// turn is the running turn: whether there is one, how to stop it,
+	// what it is doing, and what is waiting behind it.
+	turn turnState
 	// openedAt is when this window opened. /stats used startedAt, which
 	// is the turn clock: before the first turn it was the zero time and
 	// the session was reported as up for 2562047h47m16.854775807s.
-	openedAt      time.Time
-	phase         string // what the agent is doing right now
-	pending       *permissionMsg
-	denying       bool // the input box is collecting a reason for a denial
-	status        string
-	lastTurn      string                   // usage summary of the last turn
-	lastVerdict   string                   // the last turn's verdict line
-	ticks         int                      // tick count, for slow periodic checks
-	lastUsage     llm.Usage                // the last turn's usage
-	hints         *hints.Engine            // event-driven one-time hints; nil disables them
-	hintState     hints.State              // what the hint rules are allowed to look at
-	bangSeen      map[string]int           // !commands the user ran, by command line
-	hintObs       hintObservations         // what the hint observers remember between events
-	queued        []string                 // prompts typed while a turn was running
-	steering      []string                 // notes handed to the running turn (ctrl+s)
-	custom        map[string]prompt.Custom // user-defined slash commands
-	clipboard     func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
-	copyText      func(string) error       // writes text to the clipboard; swapped in tests
-	compIdx       int                      // highlighted row of the completion menu
-	compArgs      bool                     // the menu is offering arguments, not commands
-	compFor       string                   // input value the highlight belongs to
-	lastFind      string                   // last /find query, for repeats
-	lastFindAt    int                      // line of the last hit, so repeats advance past it
-	picker        *picker                  // open searchable list
-	connect       *connect                 // open provider/model dialog
-	overlay       string                   // live panel over the transcript (overlayAgents); empty is closed
-	overlayIdx    int                      // highlighted child in the /agents list
-	overlayChild  string                   // id whose transcript is open; empty is the list
-	overlayScroll int                      // line offset in the child transcript
-	overlayFollow bool                     // keep the child transcript pinned to the tail
-	overlayNote   string                   // kill/error line inside a jobs overlay
-	planH         int                      // last reserved plan-strip height, so a rewrite relayouts
-	connectGen    int
-	quitting      bool
-	branch        string
+	openedAt    time.Time
+	pending     *permissionMsg
+	denying     bool // the input box is collecting a reason for a denial
+	status      string
+	lastTurn    string                   // usage summary of the last turn
+	lastVerdict string                   // the last turn's verdict line
+	ticks       int                      // tick count, for slow periodic checks
+	lastUsage   llm.Usage                // the last turn's usage
+	hint        hintsState               // the one-time hint engine and what it watches
+	custom      map[string]prompt.Custom // user-defined slash commands
+	clipboard   func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
+	copyText    func(string) error       // writes text to the clipboard; swapped in tests
+	comp        completionState          // highlight in the completion menu
+	finder      findState                // the last /find, so a repeat advances
+	picker      *picker                  // open searchable list
+	connect     *connect                 // open provider/model dialog
+	ov          overlayState             // live panel over the transcript; empty kind is closed
+	planH       int                      // last reserved plan-strip height, so a rewrite relayouts
+	connectGen  int
+	quitting    bool
+	branch      string
 	// gutterOff is the hysteresis latch for the transcript margin: it
 	// turns off below gutterCollapseWidth and stays off until the
 	// terminal is at least gutterRestoreWidth, so resizing around 88
 	// does not slam the margin on and off.
 	gutterOff bool
-	// notice is a one-shot line for the reserved row above the input
-	// (paste-chip confirmation, outside branch change). It yields to a
-	// live queue or steering notice and expires after noticeFor.
-	notice   string
-	noticeAt time.Time
+	// notice is the one-shot line in the reserved row above the input.
+	notice noticeState
 	// term writes the escape sequences that let the terminal take part:
 	// OSC 133 zones, desktop notifications, the window title.
 	term *termIntegration
@@ -329,6 +309,7 @@ func newModel(opts Options) *model {
 		spinner:    sp,
 		term:       newTermIntegration(),
 	}
+	m.life, m.endLife = context.WithCancel(context.Background())
 	if b, ok := prompt.GitBranch(opts.Cwd); ok {
 		m.branch = b
 		if b == "" {
@@ -340,15 +321,13 @@ func newModel(opts Options) *model {
 	m.clipboard = readClipboardImage
 	m.copyText = writeClipboardText
 	if opts.Session != nil {
-		m.histFile = histPath(dirOf(opts.Session), opts.Cwd)
-		m.history = loadPromptHistory(m.histFile)
-		m.histIdx = len(m.history)
+		m.hist.load(dirOf(opts.Session), opts.Cwd)
 	}
 	m.custom = map[string]prompt.Custom{}
 	for _, c := range prompt.CustomCommands(opts.Cwd, opts.ConfigDir) {
 		m.custom["/"+c.Name] = c
 	}
-	m.hints = opts.Hints
+	m.hint.engine = opts.Hints
 	var firstRun string
 	if opts.Resumed > 0 {
 		m.transcript.banner(m.welcome(resumedLine(opts.Session.Meta.ID, opts.Resumed)))
@@ -362,10 +341,10 @@ func newModel(opts Options) *model {
 		// morning for a year is not orientation, it is noise, and a
 		// project with no .janetcode directory of its own never grew one
 		// to notice.
-		if !m.hints.Given(firstRunID) && !m.hints.Silent() {
+		if !m.hint.engine.Given(firstRunID) && !m.hint.engine.Silent() {
 			if firstRun = m.firstRunLine(); firstRun != "" {
 				m.transcript.tip(firstRun)
-				m.hints.MarkShown(firstRunID)
+				m.hint.engine.MarkShown(firstRunID)
 			}
 		}
 	}
@@ -376,11 +355,11 @@ func newModel(opts Options) *model {
 	if firstRun != "" && strings.Contains(firstRun, "/verify set") {
 		// Already proposed, above; the rule that would propose it again
 		// three turns from now is spent here.
-		m.hints.MarkSpent("verify-gate")
+		m.hint.engine.MarkSpent("verify-gate")
 	}
-	m.hintState.Untrusted = opts.Untrusted
-	m.hintState.UnpricedModel = opts.UnpricedModel
-	m.hintState.ResumedAfterCompaction = opts.Resumed > 0 && resumedAfterCompaction(opts.Session)
+	m.hint.state.Untrusted = opts.Untrusted
+	m.hint.state.UnpricedModel = opts.UnpricedModel
+	m.hint.state.ResumedAfterCompaction = opts.Resumed > 0 && resumedAfterCompaction(opts.Session)
 	m.noteHint(nil)
 	return m
 }
@@ -458,25 +437,16 @@ func tick() tea.Cmd {
 	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
+// Update is the loop. A window resize, a key and a spinner tick are
+// handled here because they are the three that can fall through to the
+// textarea and the viewport at the bottom of this function; everything
+// else is a message from somewhere that finished, and is routed to one
+// of the three handlers below.
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		first := !m.ready
-		m.width, m.height = msg.Width, msg.Height
-		m.layout()
-		m.refresh(true)
-		if first && m.opts.Connect {
-			m.opts.Connect = false
-			return m, m.openConnect(stepPick)
-		}
-		if first && m.opts.InitialPrompt != "" {
-			text := m.opts.InitialPrompt
-			m.opts.InitialPrompt = ""
-			m.remember(text)
-			return m, m.submit(text)
-		}
-		return m, nil
+		return m, m.resize(msg)
 
 	case tea.KeyMsg:
 		// A word that spells a key name is text, not that key. It is
@@ -498,224 +468,20 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
-	case modelsMsg:
-		m.handleModels(msg)
-		return m, nil
-
-	case tea.FocusMsg:
-		m.term.focused = true
-		return m, nil
-
-	case tea.BlurMsg:
-		m.term.focused = false
-		return m, nil
-
-	case tea.MouseMsg:
-		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-			if m.clickTranscript(msg.Y) {
-				return m, nil
-			}
-		}
-		return m, m.scroll(msg)
-
-	case tickMsg:
-		// Keeps elapsed timers and throttled live markdown moving even when
-		// no event arrives.
-		m.ticks++
-		expired := m.notice != "" && time.Since(m.noticeAt) >= noticeFor
-		if expired {
-			m.notice = ""
-		}
-		if m.ticks%10 == 0 && !m.running {
-			// Someone may have checked out another branch in this tree
-			// (or in the session's worktree) from outside; follow it.
-			m.followBranch()
-		}
-		if m.running || m.overlay != "" {
-			m.refresh(false)
-		} else if notes := m.opts.Jobs.Finished(); len(notes) > 0 {
-			for _, n := range notes {
-				m.note(strings.SplitN(n, "\n", 2)[0])
-				m.opts.Agent.AddHarnessContext("[background job update]\n" + n)
-			}
-			m.refresh(false)
-		} else if expired {
-			m.refresh(false)
-		}
-		return m, tick()
-
 	case spinner.TickMsg:
-		if m.running || (m.connect != nil && m.connect.loading) {
+		if m.turn.running || (m.connect != nil && m.connect.loading) {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			cmds = append(cmds, cmd)
 			m.refresh(false)
 		}
 
-	case agentEventMsg:
-		m.applyEvent(msg.ev)
-		m.refresh(false)
-		return m, nil
-
-	case flushMsg:
-		m.drainEvents()
-		m.refresh(false)
-		return m, nil
-
-	case permissionMsg:
-		m.drainEvents() // the tool entry must exist before the prompt shows
-		m.pending = &msg
-		m.setPhase("waiting for your approval")
-		m.term.announce("janetcode", "approval needed: "+msg.call.Name)
-		m.refresh(false)
-		return m, nil
-
-	case askMsg:
-		m.drainEvents()
-		m.openAsk(msg)
-		m.term.announce("janetcode", "a question for you")
-		return m, nil
-
-	case subagentDoneMsg:
-		if msg.err != nil {
-			m.transcript.errorf("subagent %s: %v", msg.desc, msg.err)
-		} else {
-			m.note("subagent finished · " + msg.desc + " · /agents to read it")
-		}
-		m.refresh(false)
-		return m, nil
-
-	case recipeDoneMsg:
-		return m, m.finishRecipe(msg)
-
-	case btwMsg:
-		if msg.err != nil {
-			m.transcript.errorf("btw: %v", msg.err)
-		} else {
-			m.transcript.info("btw " + msg.q + "\n" + msg.a)
-		}
-		m.refresh(false)
-		return m, nil
-
-	case doctorMsg:
-		if msg.report != "" {
-			m.transcript.info(msg.report)
-		}
-		if msg.err != nil {
-			m.transcript.errorf("doctor: %v", msg.err)
-		}
-		m.refresh(false)
-		return m, nil
-
-	case undoAboutMsg:
-		cmd := m.finishUndoAbout(msg)
-		m.refresh(false)
-		return m, cmd
-
-	case evalKeepMsg:
-		cmd := m.finishEvalKeep(msg)
-		m.refresh(false)
-		return m, cmd
-
-	case undoApplyMsg:
-		cmd := m.finishUndoApply(msg)
-		m.refresh(false)
-		return m, cmd
-
-	case cronFireMsg:
-		if m.running {
-			m.note("loop " + msg.id + " skipped · a turn is running")
-			m.refresh(false)
-			return m, nil
-		}
-		m.note("loop " + msg.id)
-		return m, m.submitAs(msg.prompt, "loop "+msg.id+" · "+msg.prompt)
-
-	case verifyDoneMsg:
-		m.finishVerify(msg)
-		m.refresh(false)
-		return m, nil
-
-	case mcpPromptMsg:
-		m.running = false
-		m.setPhase("")
-		if msg.err != nil {
-			m.transcript.errorf("%s: %v", msg.command, msg.err)
-			m.refresh(false)
-			return m, nil
-		}
-		return m, m.submit(msg.text)
-
-	case mcpAuthMsg:
-		switch {
-		case !msg.done:
-			m.transcript.info(noteNotice + "mcp " + msg.name + ": " + msg.text)
-		case msg.err != nil:
-			m.transcript.errorf("mcp %s: authorization failed: %v", msg.name, msg.err)
-		default:
-			m.note("mcp " + msg.name + ": authorized · restarting the server")
-			m.restartMCP(msg.name)
-		}
-		m.refresh(false)
-		return m, nil
-
-	case mcpDoneMsg:
-		if msg.err != nil {
-			m.transcript.errorf("mcp %s: %s", msg.name, strings.TrimPrefix(msg.err.Error(), "mcp "+msg.name+": "))
-		} else {
-			line := fmt.Sprintf("mcp %s ready · %d tools", msg.name, msg.tools)
-			if n := len(m.mcpPrompts(msg.name)); n > 0 {
-				line += fmt.Sprintf(" · %d prompts as /mcp__%s__<name>", n, msg.name)
+	default:
+		for _, h := range []func(tea.Msg) (tea.Cmd, bool){m.updateTerminal, m.updateTurn, m.updateBackground} {
+			if cmd, handled := h(msg); handled {
+				return m, cmd
 			}
-			m.note(line + " · /mcp")
 		}
-		if m.status == "starting MCP servers…" {
-			m.status = ""
-		}
-		m.refresh(false)
-		return m, nil
-
-	case shellDoneMsg:
-		m.finishShell(msg)
-		var cmd tea.Cmd
-		if len(m.queued) > 0 {
-			next := m.queued[0]
-			m.queued = m.queued[1:]
-			cmd = m.submit(next)
-		}
-		m.refresh(false)
-		return m, cmd
-
-	case agentDoneMsg:
-		m.drainEvents()
-		cmd := m.finishTurn(msg)
-		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && (m.opts.Agent.LastTurnMutated() || memory.LooksLikeFeedback(m.lastUserText)) {
-			cmd = tea.Batch(cmd, m.extractMemory())
-		}
-		if msg.err == nil && m.opts.AutoTitle && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && len(m.opts.Agent.Messages) >= 2 {
-			cmd = tea.Batch(cmd, m.autoTitle())
-		}
-		m.refresh(false)
-		return m, cmd
-	case titleMsg:
-		if msg.gen == m.titleGen && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && msg.title != "" {
-			if err := m.opts.Session.SetTitle(msg.title); err != nil {
-				m.transcript.errorf("could not save the title: %v", err)
-			}
-			m.refresh(false)
-			return m, tea.SetWindowTitle(m.windowTitle())
-		}
-		return m, nil
-
-	case memoryMsg:
-		if msg.err != nil {
-			m.note("memory: extraction failed: " + msg.err.Error())
-		}
-		for _, e := range msg.added {
-			m.note("remembered: " + memoryLine(e))
-		}
-		m.refresh(false)
-		return m, nil
 	}
 
 	var cmd tea.Cmd
@@ -738,6 +504,257 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+// resize relays out for a new terminal size. The first one is also when
+// the window exists at last, which is when a dialog or a prompt handed
+// in on the command line can finally be put up.
+func (m *model) resize(msg tea.WindowSizeMsg) tea.Cmd {
+	first := !m.ready
+	m.width, m.height = msg.Width, msg.Height
+	m.layout()
+	m.refresh(true)
+	if first && m.opts.Connect {
+		m.opts.Connect = false
+		return m.openConnect(stepPick)
+	}
+	if first && m.opts.InitialPrompt != "" {
+		text := m.opts.InitialPrompt
+		m.opts.InitialPrompt = ""
+		m.hist.remember(text)
+		return m.submit(text)
+	}
+	return nil
+}
+
+// updateTerminal handles what the terminal and the clock say: focus,
+// the mouse, and the half-second tick that keeps elapsed timers and
+// throttled live markdown moving when no event arrives.
+func (m *model) updateTerminal(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case tea.FocusMsg:
+		m.term.focused = true
+		return nil, true
+
+	case tea.BlurMsg:
+		m.term.focused = false
+		return nil, true
+
+	case tea.MouseMsg:
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			if m.clickTranscript(msg.Y) {
+				return nil, true
+			}
+		}
+		return m.scroll(msg), true
+
+	case tickMsg:
+		// Keeps elapsed timers and throttled live markdown moving even when
+		// no event arrives.
+		m.ticks++
+		expired := m.notice.expire()
+		if m.ticks%10 == 0 && !m.turn.running {
+			// Someone may have checked out another branch in this tree
+			// (or in the session's worktree) from outside; follow it.
+			m.followBranch()
+		}
+		if m.turn.running || m.ov.kind != "" {
+			m.refresh(false)
+		} else if notes := m.opts.Jobs.Finished(); len(notes) > 0 {
+			for _, n := range notes {
+				m.note(strings.SplitN(n, "\n", 2)[0])
+				m.opts.Agent.AddHarnessContext("[background job update]\n" + n)
+			}
+			m.refresh(false)
+		} else if expired {
+			m.refresh(false)
+		}
+		return tick(), true
+	}
+	return nil, false
+}
+
+// updateTurn handles the messages the running turn produces: its
+// events, the prompts it puts to the user, and its end.
+func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case agentEventMsg:
+		m.applyEvent(msg.ev)
+		m.refresh(false)
+		return nil, true
+
+	case flushMsg:
+		m.drainEvents()
+		m.refresh(false)
+		return nil, true
+
+	case permissionMsg:
+		m.drainEvents() // the tool entry must exist before the prompt shows
+		m.pending = &msg
+		m.turn.setPhase("waiting for your approval")
+		m.term.announce("janetcode", "approval needed: "+msg.call.Name)
+		m.refresh(false)
+		return nil, true
+
+	case askMsg:
+		m.drainEvents()
+		m.openAsk(msg)
+		m.term.announce("janetcode", "a question for you")
+		return nil, true
+
+	case agentDoneMsg:
+		m.drainEvents()
+		cmd := m.finishTurn(msg)
+		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && (m.opts.Agent.LastTurnMutated() || memory.LooksLikeFeedback(m.hist.lastUser)) {
+			cmd = tea.Batch(cmd, m.extractMemory())
+		}
+		if msg.err == nil && m.opts.AutoTitle && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && len(m.opts.Agent.Messages) >= 2 {
+			cmd = tea.Batch(cmd, m.autoTitle())
+		}
+		m.refresh(false)
+		return cmd, true
+
+	case titleMsg:
+		if msg.gen == m.titleGen && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && msg.title != "" {
+			if err := m.opts.Session.SetTitle(msg.title); err != nil {
+				m.transcript.errorf("could not save the title: %v", err)
+			}
+			m.refresh(false)
+			return tea.SetWindowTitle(m.windowTitle()), true
+		}
+		return nil, true
+
+	case cronFireMsg:
+		if m.turn.running {
+			m.note("loop " + msg.id + " skipped · a turn is running")
+			m.refresh(false)
+			return nil, true
+		}
+		m.note("loop " + msg.id)
+		return m.submitAs(msg.prompt, "loop "+msg.id+" · "+msg.prompt), true
+
+	case mcpPromptMsg:
+		m.turn.running = false
+		m.turn.setPhase("")
+		if msg.err != nil {
+			m.transcript.errorf("%s: %v", msg.command, msg.err)
+			m.refresh(false)
+			return nil, true
+		}
+		return m.submit(msg.text), true
+
+	case memoryMsg:
+		if msg.err != nil {
+			m.note("memory: extraction failed: " + msg.err.Error())
+		}
+		for _, e := range msg.added {
+			m.note("remembered: " + memoryLine(e))
+		}
+		m.refresh(false)
+		return nil, true
+	}
+	return nil, false
+}
+
+// updateBackground handles work that was started and left to finish on
+// its own: subagents, recipes, /verify, MCP, shell commands, and the
+// commands that answer with a report.
+func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case modelsMsg:
+		m.handleModels(msg)
+		return nil, true
+
+	case subagentDoneMsg:
+		if msg.err != nil {
+			m.transcript.errorf("subagent %s: %v", msg.desc, msg.err)
+		} else {
+			m.note("subagent finished · " + msg.desc + " · /agents to read it")
+		}
+		m.refresh(false)
+		return nil, true
+
+	case recipeDoneMsg:
+		return m.finishRecipe(msg), true
+
+	case btwMsg:
+		if msg.err != nil {
+			m.transcript.errorf("btw: %v", msg.err)
+		} else {
+			m.transcript.info("btw " + msg.q + "\n" + msg.a)
+		}
+		m.refresh(false)
+		return nil, true
+
+	case doctorMsg:
+		if msg.report != "" {
+			m.transcript.info(msg.report)
+		}
+		if msg.err != nil {
+			m.transcript.errorf("doctor: %v", msg.err)
+		}
+		m.refresh(false)
+		return nil, true
+
+	case undoAboutMsg:
+		cmd := m.finishUndoAbout(msg)
+		m.refresh(false)
+		return cmd, true
+
+	case evalKeepMsg:
+		cmd := m.finishEvalKeep(msg)
+		m.refresh(false)
+		return cmd, true
+
+	case undoApplyMsg:
+		cmd := m.finishUndoApply(msg)
+		m.refresh(false)
+		return cmd, true
+
+	case verifyDoneMsg:
+		m.finishVerify(msg)
+		m.refresh(false)
+		return nil, true
+
+	case mcpAuthMsg:
+		switch {
+		case !msg.done:
+			m.transcript.info(noteNotice + "mcp " + msg.name + ": " + msg.text)
+		case msg.err != nil:
+			m.transcript.errorf("mcp %s: authorization failed: %v", msg.name, msg.err)
+		default:
+			m.note("mcp " + msg.name + ": authorized · restarting the server")
+			m.restartMCP(msg.name)
+		}
+		m.refresh(false)
+		return nil, true
+
+	case mcpDoneMsg:
+		if msg.err != nil {
+			m.transcript.errorf("mcp %s: %s", msg.name, strings.TrimPrefix(msg.err.Error(), "mcp "+msg.name+": "))
+		} else {
+			line := fmt.Sprintf("mcp %s ready · %d tools", msg.name, msg.tools)
+			if n := len(m.mcpPrompts(msg.name)); n > 0 {
+				line += fmt.Sprintf(" · %d prompts as /mcp__%s__<name>", n, msg.name)
+			}
+			m.note(line + " · /mcp")
+		}
+		if m.status == "starting MCP servers…" {
+			m.status = ""
+		}
+		m.refresh(false)
+		return nil, true
+
+	case shellDoneMsg:
+		m.finishShell(msg)
+		var cmd tea.Cmd
+		if next, ok := m.turn.dequeue(); ok {
+			cmd = m.submit(next)
+		}
+		m.refresh(false)
+		return cmd, true
+	}
+	return nil, false
+}
+
 func (m *model) drainEvents() {
 	for _, ev := range m.queue.drain() {
 		m.applyEvent(ev)
@@ -749,35 +766,35 @@ func (m *model) applyEvent(ev agent.Event) {
 	m.observeEvent(ev)
 	switch ev.Kind {
 	case agent.EvThinking:
-		m.setPhase("thinking")
+		m.turn.setPhase("thinking")
 	case agent.EvText:
-		m.setPhase("writing")
+		m.turn.setPhase("writing")
 	case agent.EvToolStart:
-		m.setPhase("preparing " + ev.Call.Name)
+		m.turn.setPhase("preparing " + ev.Call.Name)
 	case agent.EvToolInput:
 		// Streamed input: the status says what is being written and how
 		// much, instead of "preparing write_file" for a minute.
 		if e := m.transcript.lastTool(ev.Call); e != nil && e.call.Name != "" {
 			if s := streamingSummary(e.call.Name, e.input.String(), m.opts.Cwd); s != "" && s != "…" {
-				m.setPhase(e.call.Name + " " + s)
+				m.turn.setPhase(e.call.Name + " " + s)
 			}
 		}
 	case agent.EvPhase:
 		// The provider or the loop said what it is waiting on: a retry
 		// countdown, a compaction, a subagent.
-		m.setPhase(ev.Text)
+		m.turn.setPhase(ev.Text)
 	case agent.EvToolRun:
-		m.setPhase("running " + ev.Call.Name)
+		m.turn.setPhase("running " + ev.Call.Name)
 		if ev.Call.Name == "task" {
-			m.setPhase("waiting on subagent")
+			m.turn.setPhase("waiting on subagent")
 		}
 	case agent.EvToolResult:
-		m.setPhase("thinking")
+		m.turn.setPhase("thinking")
 		if ev.Call != nil && ev.Call.Name == "goal_status" && !ev.IsError {
 			m.status = strings.TrimSpace(ev.Output)
 		}
 	case agent.EvCompacted:
-		m.setPhase("thinking")
+		m.turn.setPhase("thinking")
 	case agent.EvVerdict:
 		m.lastVerdict = shortenPaths(m.opts.Cwd, ev.Text)
 	case agent.EvTurnDone:
@@ -810,7 +827,7 @@ func (m *model) View() string {
 	if m.quitting {
 		return ""
 	}
-	if m.picker != nil || m.connect != nil || m.overlay != "" || m.asking != nil {
+	if m.picker != nil || m.connect != nil || m.ov.kind != "" || m.asking != nil {
 		// A modal is the input: give it the body plus the reserved
 		// footer so a short terminal still has room for the highlight.
 		bodyH := m.height - 2 // header, status

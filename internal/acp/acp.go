@@ -20,14 +20,35 @@ import (
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
+// TurnRunner is everything this package asks of an agent: run one turn,
+// hand back the conversation to replay, and take the approver that
+// answers the editor's permission requests. It is deliberately this
+// small — the ACP server streams a turn and nothing else — so a test can
+// drive the protocol without building a model, a tool registry and a
+// session file first.
+type TurnRunner interface {
+	RunBlocks(ctx context.Context, blocks []llm.Block, emit func(agent.Event)) error
+	MessagesSnapshot() []llm.Message
+	SetApprover(agent.Approver)
+}
+
+// Wrap adapts a real agent to TurnRunner. Its approver is a field rather
+// than a setter, so this is the one place the server names the concrete
+// type.
+func Wrap(a *agent.Agent) TurnRunner { return agentRunner{a} }
+
+type agentRunner struct{ *agent.Agent }
+
+func (a agentRunner) SetApprover(ap agent.Approver) { a.Approver = ap }
+
 // Options configures the server.
 type Options struct {
 	// NewAgent builds an agent and its session for a working directory.
 	// resume names an existing session to reopen, or is empty for a new
 	// one; the returned id is what the editor gets back.
-	NewAgent func(cwd, resume string) (*agent.Agent, *session.Session, error)
+	NewAgent func(cwd, resume string) (TurnRunner, *session.Session, error)
 	// Close, when set, releases what NewAgent allocated for a session.
-	Close   func(*agent.Agent)
+	Close   func(TurnRunner)
 	In      io.Reader
 	Out     io.Writer
 	Log     io.Writer
@@ -47,7 +68,7 @@ type Server struct {
 type acpSession struct {
 	id    string
 	cwd   string
-	agent *agent.Agent
+	agent TurnRunner
 	sess  *session.Session
 
 	mu     sync.Mutex // one turn at a time
@@ -182,7 +203,7 @@ func (s *Server) loadSession(raw json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, m := range as.agent.Messages {
+	for _, m := range as.agent.MessagesSnapshot() {
 		kind := "agent_message_chunk"
 		if m.Role == llm.RoleUser {
 			kind = "user_message_chunk"
@@ -212,7 +233,7 @@ func (s *Server) open(cwd, resume string) (*acpSession, error) {
 		id = sess.Meta.ID
 	}
 	as := &acpSession{id: id, cwd: cwd, agent: ag, sess: sess}
-	ag.Approver = &approver{s: s, as: as}
+	ag.SetApprover(&approver{s: s, as: as})
 	s.mu.Lock()
 	s.sessions[id] = as
 	s.mu.Unlock()
