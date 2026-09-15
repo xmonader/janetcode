@@ -211,6 +211,10 @@ func (r *root) headlessMode() error {
 func (r *root) webMode() error {
 	o, cfg, ag, cwd, cfgDir, cfgPath := r.opts, r.cfg, r.ag, r.cwd, r.cfgDir, r.cfgPath
 	sess, mem, jobs, subjects, catalog, typed, pool, built := r.sess, r.mem, r.jobs, r.subjects, r.catalog, r.typed, r.pool, r.built
+	mcpOpts := &webui.MCPOptions{
+		Manager: &r.servers, Global: cfg.MCPServers,
+		Project: r.projectServers, ProjectHash: r.projectHash, Trust: r.trust,
+	}
 	needsConnect := r.needsConnect
 	if needsConnect {
 		return fmt.Errorf("no credentials yet: run janetcode without --web and use /connect, or set a key")
@@ -224,7 +228,7 @@ func (r *root) webMode() error {
 		Version: version, Addr: o.webAddr,
 		Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
 		Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For,
-		Workspace: built.ws,
+		Workspace: built.ws, MCP: mcpOpts,
 		Doctor: func(w io.Writer) error {
 			return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme})
 		},

@@ -129,15 +129,23 @@ func (m *model) runMCPPrompt(name string, rest string) (tea.Cmd, bool) {
 	return nil, false
 }
 
-func (m *model) mcpCommand(args []string) {
+// mcpCommand answers /mcp. It returns a command when what was asked for
+// runs in the background (adding a server) or opens a dialog.
+func (m *model) mcpCommand(args []string) tea.Cmd {
 	o := m.opts.MCP
 	if o == nil || o.Manager == nil {
 		m.transcript.info("MCP is not configured: add servers under \"mcp_servers\" in the config file or a .mcp.json in the project")
-		return
+		return nil
 	}
 	if len(args) > 0 && (args[0] == "auth" || args[0] == "logout") {
 		m.mcpAuth(args)
-		return
+		return nil
+	}
+	switch {
+	case len(args) > 0 && args[0] == "add":
+		return m.mcpAdd(args[1:])
+	case len(args) > 0 && (args[0] == "remove" || args[0] == "rm"):
+		return m.mcpRemove(args[1:])
 	}
 	if len(args) > 0 && args[0] == "trust" {
 		switch {
@@ -148,7 +156,7 @@ func (m *model) mcpCommand(args []string) {
 		default:
 			if err := o.Trust.Trust(m.opts.Cwd, o.ProjectHash); err != nil {
 				m.transcript.errorf("record trust: %v", err)
-				return
+				return nil
 			}
 			o.ProjectTrusted = true
 			m.note("trusted " + mcp.ProjectFile + " · starting its servers")
@@ -162,16 +170,16 @@ func (m *model) mcpCommand(args []string) {
 				})
 			}
 		}
-		return
+		return nil
 	}
 	st := o.Manager.Status()
 	if len(st) == 0 {
 		if len(o.Project) > 0 && !o.ProjectTrusted {
 			m.transcript.info("no MCP servers running · /mcp trust starts the ones in " + mcp.ProjectFile)
 		} else {
-			m.transcript.info("no MCP servers configured")
+			m.transcript.info("no MCP servers configured · /mcp add walks through adding one")
 		}
-		return
+		return nil
 	}
 	var sb strings.Builder
 	sb.WriteString("MCP servers\n")
@@ -192,6 +200,7 @@ func (m *model) mcpCommand(args []string) {
 		}
 	}
 	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+	return nil
 }
 
 // mcpAuth handles /mcp auth <server> and /mcp logout <server>.

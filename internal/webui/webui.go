@@ -56,6 +56,8 @@ type Options struct {
 	ConfigPath string
 	// Models switches the session onto another model's provider.
 	Models func(string) (llm.Provider, string, error)
+	// MCP describes the MCP servers, for /mcp.
+	MCP *MCPOptions
 	// Doctor is the same checkup janetcode --doctor prints.
 	Doctor func(io.Writer) error
 }

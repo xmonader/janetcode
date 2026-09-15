@@ -346,32 +346,15 @@ func (m *model) handleConnectKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			return m.enterStep(c.step - 1), true
 		}
 		return nil, true
-	case "up", "down", "ctrl+p", "ctrl+n":
-		rows, idx := m.visible()
-		if len(rows) > 0 {
-			d := 1
-			if keyName(msg) == "up" || keyName(msg) == "ctrl+p" {
-				d = -1
-			}
-			c.idx = (idx + d + len(rows)) % len(rows)
-			c.idxFor = c.field.Value()
-			m.refresh(false)
-		}
-		return nil, true
-	case "pgup", "pgdown":
-		rows, idx := m.visible()
-		if len(rows) > 0 {
-			if keyName(msg) == "pgup" {
-				c.idx = max(idx-m.dialogStep(c.rows), 0)
-			} else {
-				c.idx = min(idx+m.dialogStep(c.rows), len(rows)-1)
-			}
-			c.idxFor = c.field.Value()
-			m.refresh(false)
-		}
-		return nil, true
 	case "enter":
 		return m.connectEnter(), true
+	}
+	if rows, idx := m.visible(); len(rows) > 0 {
+		if next, ok := listMove(keyName(msg), idx, len(rows), m.dialogStep(c.rows)); ok {
+			c.idx, c.idxFor = next, c.field.Value()
+			m.refresh(false)
+			return nil, true
+		}
 	}
 	var cmd tea.Cmd
 	c.field, cmd = c.field.Update(msg)

@@ -311,6 +311,24 @@ func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
 		m.refresh(false)
 		return nil, true
 
+	case mcpCmdMsg:
+		if m.status != "" && strings.HasSuffix(m.status, "…") {
+			m.status = ""
+		}
+		m.showResult(msg.res, msg.err)
+		m.refresh(false)
+		return nil, true
+
+	case mcpProjectMsg:
+		if o := m.opts.MCP; o != nil {
+			// The user wrote this file themselves, so it is trusted.
+			o.Project, o.ProjectHash, o.ProjectTrusted = msg.servers, msg.hash, true
+		}
+		return nil, true
+
+	case mcpFetchMsg:
+		return m.handleMCPFetch(msg), true
+
 	case mcpDoneMsg:
 		if msg.err != nil {
 			m.transcript.errorf("mcp %s: %s", msg.name, strings.TrimPrefix(msg.err.Error(), "mcp "+msg.name+": "))

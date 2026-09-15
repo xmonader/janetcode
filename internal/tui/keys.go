@@ -84,6 +84,8 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return m.handlePickerKey(msg)
 	case m.connect != nil:
 		return m.handleConnectKey(msg)
+	case m.wiz != nil:
+		return m.handleWizardKey(msg)
 	}
 	if m.pending == nil && msg.Paste && bigPaste(string(msg.Runes)) {
 		return m.chipPaste(string(msg.Runes))

@@ -1914,11 +1914,53 @@ refresh and retry. Servers without dynamic registration take
 `"client_id"`, `"client_secret"` (env references expand) and `"scope"` in
 their config. `/mcp logout <server>` forgets the token.
 
+#### Adding a server
+
+`/mcp add` walks through it: a name, the transport (a command here, or a
+remote HTTP/SSE URL), the command or URL, any environment variables or
+request headers, and a confirmation. On confirm the entry is written into
+the project's `.mcp.json` — created if absent, and otherwise left as it
+was, other keys, server order and indentation included — marked trusted
+(you wrote it yourself), started, and its tools listed.
+
+`/mcp add <name> <command or url>` does the same without the dialog, for
+scripting and for the web UI:
+
+```
+/mcp add fs npx -y @modelcontextprotocol/server-filesystem .
+/mcp add docs --env API_TOKEN=… -- npx -y docs-mcp
+/mcp add remote https://example.com/mcp --header 'Authorization: Bearer …'
+```
+
+Options come before the command, because everything after it belongs to
+the command: the `-y` in `npx -y pkg` is npx's. `--env K=V` sets the
+command's environment, `--header 'Name: value'` a remote server's request
+headers, and `--transport stdio|http|sse` pins the transport rather than
+letting the URL decide. `--` hands every remaining word to the command.
+
+`/mcp add --from <git url or directory>` installs what a repository
+declares for itself. The contract is the smallest one that already
+exists: a file at the repository's root named `.mcp.json` or `mcp.json`,
+holding the same `{"mcpServers": {…}}` object as the project file, and
+nothing else — no registry, no install script. The repository is cloned
+shallow (or read in place when it is a directory) into
+`mcp-servers/<repo>` next to the config file, and every entry that runs a
+command gets its `cwd` set to that checkout, so a relative `node
+server.js` works. Nothing is written until you confirm what it found; in
+the web UI, where there is no dialog, the first call prints what it would
+add and `--yes` performs it.
+
+`/mcp remove <name>` stops the server and drops it from `.mcp.json`,
+after a confirmation (`--yes` in the web UI). A server that comes from
+the config file rather than the project is left alone and says so.
+
 Server tools appear as `mcp__<server>__<tool>`. They ask for permission
 unless the server marks them read-only. Servers that publish resources get
 `mcp__<server>__list_resources` and `read_resource` tools, and every prompt
 a server offers becomes a slash command: `/mcp__<server>__<prompt> args`.
-`/mcp` shows status, tools and prompts.
+`/mcp` shows status, tools and prompts. The web UI answers `/mcp`,
+`/mcp add` and `/mcp remove` in their non-interactive forms; `/mcp auth`
+and `/mcp trust` stay in the terminal.
 
 Resource content is written by whoever runs the server, so it is framed
 with a delimiter it cannot close: `<mcp-resource <nonce> uri=…>` with a

@@ -93,6 +93,7 @@ type model struct {
 	finder      findState                // the last /find, so a repeat advances
 	picker      *picker                  // open searchable list
 	connect     *connect                 // open provider/model dialog
+	wiz         *wizard                  // open step dialog (/mcp add)
 	ov          overlayState             // live panel over the transcript; empty kind is closed
 	planH       int                      // last reserved plan-strip height, so a rewrite relayouts
 	connectGen  int
@@ -297,7 +298,7 @@ func (m *model) View() string {
 	if m.quitting {
 		return ""
 	}
-	if m.picker != nil || m.connect != nil || m.ov.kind != "" || m.asking != nil {
+	if m.picker != nil || m.connect != nil || m.wiz != nil || m.ov.kind != "" || m.asking != nil {
 		// A modal is the input: give it the body plus the reserved
 		// footer so a short terminal still has room for the highlight.
 		bodyH := m.height - 2 // header, status
@@ -312,6 +313,8 @@ func (m *model) View() string {
 			body = m.pickerView(bodyH)
 		case m.connect != nil:
 			body = m.connectView(bodyH)
+		case m.wiz != nil:
+			body = m.wizardView(bodyH)
 		default:
 			body = m.overlayView(bodyH)
 		}
