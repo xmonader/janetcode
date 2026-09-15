@@ -124,6 +124,27 @@ func TestDependencyDirection(t *testing.T) {
 		{"skill", []string{"agent"}},
 		{"mutate", []string{"agent", "verify"}},
 		{"worktree", []string{"agent"}},
+		// The feature packages phase 3 lifted out of internal/agent.
+		// Each of them is imported BY the agent loop, so none of them
+		// may import it back: accept owns the /accept state and the
+		// lock over the approved tests, undoabout decides which recorded
+		// changes a description means, recipe/run replays a recipe's
+		// steps through a Dispatcher the agent implements, cron is the
+		// session scheduler, critic is the trajectory model and /why.
+		// A feature that reaches back into the agent stops being a
+		// feature and becomes another part of the loop.
+		{"agent", []string{"accept", "undoabout", "recipe/...", "cron", "critic"}},
+		// The two types those features share with the agent are data,
+		// not behaviour: change is the provenance record and its diff
+		// arithmetic, terms the BM25 splitting two rankings agree on.
+		// Either one importing a feature package would put the shared
+		// bottom of the graph above the things built on it.
+		{"accept", []string{"change", "terms"}},
+		{"undoabout", []string{"change", "terms"}},
+		{"critic", []string{"change", "terms"}},
+		// undoabout decides what to undo; applying it means checkpoints,
+		// which the agent owns. It must not grow its own way to write.
+		{"snapshot", []string{"undoabout"}},
 	}
 	for _, r := range rules {
 		bad := internal(r.forbidden)
@@ -141,7 +162,7 @@ func TestDependencyDirection(t *testing.T) {
 // import nothing from janetcode, so they can never be part of a cycle.
 func TestLeaves(t *testing.T) {
 	g := load(t)
-	for _, pat := range []string{"textfmt", "fsutil", "gitx", "xdg", "slash/args", "weburl", "trust"} {
+	for _, pat := range []string{"textfmt", "fsutil", "gitx", "xdg", "slash/args", "weburl", "trust", "terms"} {
 		for _, p := range g.expand(t, pat) {
 			if d := g.deps[p]; len(d) > 0 {
 				t.Errorf("%s is meant to be a leaf but depends on %v", p, d)
