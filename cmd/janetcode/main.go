@@ -14,7 +14,6 @@ import (
 	"runtime/debug"
 	"strings"
 	"syscall"
-	"time"
 
 	"golang.org/x/term"
 
@@ -35,7 +34,6 @@ import (
 	"github.com/xmonader/janetcode/internal/mutate"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
-	"github.com/xmonader/janetcode/internal/rates"
 	"github.com/xmonader/janetcode/internal/recipe"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -45,7 +43,6 @@ import (
 	"github.com/xmonader/janetcode/internal/verify"
 	"github.com/xmonader/janetcode/internal/webui"
 	"github.com/xmonader/janetcode/internal/weburl"
-	"github.com/xmonader/janetcode/internal/worktree"
 )
 
 // version is set at build time via -ldflags "-X main.version=...". A
@@ -168,55 +165,17 @@ func run(args []string) error {
 	if done, err := offlineMode(o); done {
 		return err
 	}
-	cfg, cerr := config.Load(config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag, AutoApprove: o.yolo})
+	cfg, needsConnect, cerr := loadConfig(o)
 	err = cerr
-	// Interactive first run: open the TUI and ask for a provider instead
-	// of failing. Headless runs still need working credentials.
-	needsConnect := err != nil && errors.Is(err, config.ErrNoCredentials) && o.promptText == "" && term.IsTerminal(int(os.Stdin.Fd()))
-	// Inspecting the configuration is what you reach for when the
-	// configuration is the problem, so it must not need a working one.
-	// The subjects that describe a running session are unavailable, and
-	// the listing says which those are.
-	if o.inspectWhat != "" && err != nil && errors.Is(err, config.ErrNoCredentials) {
-		r := inspect.New()
-		cfgPath, _ := config.Path()
-		cwd, _ := os.Getwd()
-		registerOfflineSubjects(r, cfg, cfgPath, cwd, err)
-		registerFeatureSubject(r, buildCatalog(fs, nil))
-		registerThemeSubject(r, cfg)
-		return inspectOnce(r, o.inspectWhat, os.Stdout)
+	if done, ierr := offlineInspect(fs, o, cfg, cerr); done {
+		return ierr
 	}
 	if err == nil {
-		// Prices for models the file does not list come from LiteLLM's
-		// public table, cached a day under the config directory. The
-		// cache is read now; a refresh runs in the background.
-		if cfgPath, perr := config.Path(); perr == nil {
-			dir := filepath.Dir(cfgPath)
-			cfg.RatesTable = rates.LoadLazy(dir)
-			if !rates.Fresh(dir) {
-				// The refresh writes model-rates.json into the config
-				// directory, and it is background work only for as long as
-				// the run lasts: a goroutine still downloading 2.3 MB after
-				// run returns outlives whatever set that directory up. A
-				// test's TempDir cleanup raced exactly that and failed with
-				// ".config/janetcode not empty". Cancel it and wait for it
-				// on the way out, so nothing writes there after the run.
-				rctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				done := make(chan struct{})
-				go func() {
-					defer close(done)
-					_, _ = rates.Refresh(rctx, dir)
-				}()
-				defer func() {
-					cancel()
-					<-done
-				}()
+		defer startRates(cfg)()
+		if o.promptText != "" {
+			for _, n := range cfg.Notes {
+				fmt.Fprintln(os.Stderr, "janetcode:", n)
 			}
-		}
-	}
-	if err == nil && o.promptText != "" {
-		for _, n := range cfg.Notes {
-			fmt.Fprintln(os.Stderr, "janetcode:", n)
 		}
 	}
 	if err != nil && !needsConnect {
@@ -232,91 +191,29 @@ func run(args []string) error {
 			return err
 		}
 	}
-	// The turn cap and the compaction threshold are settings, not eval
-	// plumbing: a headless run driven by a benchmark needs the same two
-	// knobs the eval runner takes, and applying them to the config means
-	// every path downstream -- headless, TUI and ACP -- reads one value.
-	if o.maxTurns > 0 {
-		cfg.MaxIterations = o.maxTurns
-	}
-	if o.compactAt > 0 {
-		cfg.CompactAt = o.compactAt
-	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	if o.wtBranch != "" {
-		wt, err := worktree.Open(context.Background(), cwd, o.wtBranch)
-		if err != nil {
-			return err
-		}
-		verb := "reusing"
-		if wt.Created {
-			verb = "created"
-		}
-		fmt.Fprintf(os.Stderr, "worktree: %s %s on branch %s\n", verb, wt.Path, wt.Branch)
-		defer func() {
-			fmt.Fprintf(os.Stderr, "worktree: branch %s has %s (%s)\nmerge it with: git merge %s\n", wt.Branch, wt.Summarize(context.Background()), wt.Path, wt.Branch)
-		}()
-		// Everything downstream is rooted at cwd: tools, the repository
-		// map, language servers, hooks and the session's own record.
-		if err := os.Chdir(wt.Path); err != nil {
-			return err
-		}
-		cwd = wt.Path
+	cwd, reportWorktree, err := openWorktree(o, cwd)
+	defer reportWorktree()
+	if err != nil {
+		return err
 	}
-	if o.whatIf != "" {
-		if prov == nil {
-			return errors.New("--what-if needs a configured provider for the live part")
-		}
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-		return runWhatIf(ctx, cfg, prov, whatIfOptions{
-			session: o.whatIf, fromTurn: o.whatIfFrom, off: o.whatIfOff, deny: o.deny, prompt: o.whatIfPrompt,
-			keep: o.whatIfKeep, json: o.jsonOut,
-		})
+	if done, werr := whatIfMode(o, cfg, prov); done {
+		return werr
 	}
-	// Re-reading saved results needs no provider and no money: the data is
-	// already on disk, and a comparison that was printed once should be
-	// printable again when the statistics behind it change.
-	if o.evalPath != "" {
-		if prov == nil {
-			return errors.New("--eval needs a configured provider")
-		}
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-		ov, err := prompt.LoadOverride(os.Getenv, o.appendSystem)
-		if err != nil {
-			return err
-		}
-		return runEval(ctx, cfg, prov, evalOptions{path: o.evalPath, jobs: o.evalJobs, only: o.evalOnly, jsonOut: o.evalJSON, keep: o.evalKeep,
-			runs: o.evalRuns, compare: o.evalCompare, off: o.evalOff, route: o.evalRoute, label: o.evalLabel, prompt: ov,
-			timeout: o.evalTimeout, maxTurns: o.evalTurns, noToolLimit: o.evalNoLimit, compactAt: o.evalCompact, facts: o.evalFacts, factsBlind: o.evalBlind})
+	if done, eerr := evalMode(o, cfg, prov); done {
+		return eerr
 	}
 
 	sessDir, err := session.Dir()
 	if err != nil {
 		return err
 	}
-	var (
-		sess     *session.Session
-		history  []llm.Message
-		resumeID = o.resume
-	)
-	if o.cont && resumeID == "" {
-		if resumeID, err = session.Latest(sessDir, cwd); err != nil {
-			return err
-		}
-	}
-	if resumeID != "" {
-		if sess, history, err = session.Open(sessDir, resumeID); err != nil {
-			return fmt.Errorf("resume: %w", err)
-		}
-	} else {
-		if sess, err = session.New(sessDir, cwd, cfg.Provider, cfg.Model); err != nil {
-			return fmt.Errorf("create session: %w", err)
-		}
+	sess, history, err := openSession(o, cfg, sessDir, cwd)
+	if err != nil {
+		return err
 	}
 	if o.bg {
 		prompt := strings.TrimSpace(o.promptText)
