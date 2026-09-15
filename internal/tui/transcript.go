@@ -107,6 +107,16 @@ type entry struct {
 type mdChunk struct {
 	src, out string
 	width    int
+	// expanded is whether the block was rendered for a reader who asked
+	// to see it in full: a mermaid diagram is drawn when it is folded and
+	// shown as its source when it is expanded, so the cache has to know
+	// which of the two it holds.
+	expanded bool
+	// partial marks a block whose fence was still open when it was
+	// rendered. The text is the same once the fence closes — the renderer
+	// closes it itself — so without this the finished block would be
+	// served from the cache and never drawn.
+	partial bool
 }
 
 // transcript is the ordered list of things shown in the viewport.
@@ -456,6 +466,10 @@ func (e *entry) expandable() bool {
 		return e.output != "" || e.call.Preview != "" || e.input.Len() > 0
 	case entryThinking:
 		return e.done && strings.TrimSpace(e.text) != ""
+	case entryAssistant:
+		// A message is expandable when something in it was drawn rather
+		// than shown: ctrl+o swaps the diagram for its mermaid source.
+		return e.done && strings.Contains(e.text, "```mermaid")
 	}
 	return false
 }

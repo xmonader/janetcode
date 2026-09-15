@@ -27,6 +27,7 @@ call on one line with what it did and how long it took, and renders every
 edit as a diff with line numbers: three lines of context around each
 change, "… N unchanged lines" where a gap was skipped, and for a
 single-line replacement the changed tokens picked out in inverse video.
+A ```mermaid block is drawn rather than printed (see below).
 The status line shows the session mode (ask, PLAN, AUTO, YOLO, EDITS),
 whether bash is sandboxed or the workspace is remote, what the agent is
 doing (including what it is waiting on: a retry and its countdown, a
@@ -132,6 +133,50 @@ around the threshold does not slam the margin on and off. A dense theme
 can set its gutter to `0` to switch the margin off at every width. The
 vertical rhythm — one blank line between blocks — is unchanged; this is
 horizontal only.
+
+### Mermaid diagrams are drawn, not printed
+
+When the model answers with a ```mermaid block, janetcode draws it with
+box characters at the width of the transcript instead of showing the
+source. Three kinds are drawn:
+
+- `flowchart` / `graph`, top-down (`TD`, `TB`) and left-right (`LR`),
+  with the usual shapes (`[ ]`, `( )`, `{ }`, `(( ))`), chains
+  (`A --> B --> C`) and both spellings of an edge label (`A -->|yes| B`
+  and `A -- yes --> B`). A cycle is fine: the edge that closes it is
+  drawn with its arrow pointing back the way it came.
+- `sequenceDiagram` with `participant`/`actor` lines and plain messages
+  (`->>`, `-->>`, `->`, `-->`), drawn as lanes with a lifeline each; a
+  dashed reply stays dashed.
+- `stateDiagram` / `stateDiagram-v2`, drawn as a flowchart whose `[*]`
+  ends become a **start** and an **end** box.
+
+Everything else keeps today's behaviour and is shown as source: any other
+kind (class, gantt, pie, ER, journey…), and anything inside a supported
+kind that would have to be ignored to draw it — a `subgraph`, a `note`, a
+`loop`/`alt`, a composite `state X { … }`, `classDef` and friends,
+`BT`/`RL` directions, a self-loop, an `%%{init}%%` directive or YAML front
+matter. Malformed source is shown as source too. A diagram is never drawn
+from a partial understanding of it: the rule is that a wrong picture is
+worse than the text.
+
+It also falls back when it cannot be drawn honestly at this size: a
+terminal under 40 columns, a diagram that would be wider than the
+transcript or taller than 120 lines, and anything past the caps (40
+nodes, 80 edges). On a terminal that reports only sixteen colours the
+source is shown as well. An edge label that has no room is shortened, and
+dropped when there is no room at all — the diagram is never widened past
+the terminal to fit a label.
+
+The source is always one keypress away: a message that drew a diagram is
+expandable, so **ctrl+o** (or clicking the line, or `/verbose` for the
+whole transcript) swaps every diagram in the last turn for the mermaid
+source it was drawn from, and ctrl+o again draws them back. A faint line
+under each diagram says so.
+
+`--web` renders markdown in the browser, where a mermaid block is a code
+block and stays one: the web UI makes no external requests, and a
+mermaid library would be one.
 
 ## The terminal takes part
 
