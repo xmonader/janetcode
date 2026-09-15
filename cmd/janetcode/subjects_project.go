@@ -11,7 +11,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/lsp"
-	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/mcp/mcptool"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/rules"
@@ -102,7 +102,7 @@ func lspReport(m *lsp.Manager) string {
 	return b.String()
 }
 
-func mcpReport(m *mcp.Manager) string {
+func mcpReport(m *mcptool.Manager) string {
 	if m == nil {
 		return "no MCP servers in this session"
 	}

@@ -25,6 +25,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/mcp/mcptool"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
@@ -136,7 +137,7 @@ func Run(opts Options) error {
 // MCPOptions lists the servers from the config file (started right away)
 // and from the project's .mcp.json (started once the user trusts it).
 type MCPOptions struct {
-	Manager        *mcp.Manager
+	Manager        *mcptool.Manager
 	Global         map[string]mcp.ServerConfig
 	Project        map[string]mcp.ServerConfig
 	ProjectHash    string

@@ -31,6 +31,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/mcp/mcptest"
+	"github.com/xmonader/janetcode/internal/mcp/mcptool"
 	"github.com/xmonader/janetcode/internal/mcp/testserver"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
@@ -597,7 +598,7 @@ func TestMCPAuthCommand(t *testing.T) {
 	h := newHarness(t)
 	reg := h.m.opts.Agent.Tools
 	tokens := &mcp.TokenStore{Path: filepath.Join(t.TempDir(), "mcp-auth.json")}
-	mgr := &mcp.Manager{Options: mcp.Options{Root: h.m.opts.Cwd, HandshakeTimeout: 10 * time.Second, Tokens: tokens}, Registry: reg}
+	mgr := &mcptool.Manager{Options: mcp.Options{Root: h.m.opts.Cwd, HandshakeTimeout: 10 * time.Second, Tokens: tokens}, Registry: reg}
 	secure := mcp.ServerConfig{URL: srv.URL + "/mcp"}
 	opened := make(chan string, 1)
 	h.m.opts.MCP = &MCPOptions{
@@ -677,7 +678,7 @@ func TestMCPAuthCommand(t *testing.T) {
 func TestMCPTrustFlow(t *testing.T) {
 	h := newHarness(t)
 	reg := h.m.opts.Agent.Tools
-	mgr := &mcp.Manager{Options: mcp.Options{Root: h.m.opts.Cwd, HandshakeTimeout: 20 * time.Second}, Registry: reg}
+	mgr := &mcptool.Manager{Options: mcp.Options{Root: h.m.opts.Cwd, HandshakeTimeout: 20 * time.Second}, Registry: reg}
 	fake := mcp.ServerConfig{Command: os.Args[0], Args: []string{"-test.run=TestFakeMCPServerProcess"}, Env: map[string]string{"MCP_FAKE_SERVER": "1"}}
 	h.m.opts.MCP = &MCPOptions{
 		Manager: mgr, Project: map[string]mcp.ServerConfig{"proj": fake}, ProjectHash: "h1",

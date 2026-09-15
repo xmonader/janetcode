@@ -29,6 +29,7 @@ import (
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/mcp/mcptool"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
@@ -504,7 +505,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	_ = task
 	_ = repo
 
-	servers := mcp.Manager{Options: mcp.Options{Root: cwd, Version: version}, Registry: ag.Tools}
+	servers := mcptool.Manager{Options: mcp.Options{Root: cwd, Version: version}, Registry: ag.Tools}
 	defer servers.Close()
 	projectServers, projectHash, err := mcp.LoadProject(cwd)
 	if err != nil {

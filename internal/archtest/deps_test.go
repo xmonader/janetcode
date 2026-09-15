@@ -102,7 +102,11 @@ func TestDependencyDirection(t *testing.T) {
 		// tool is the agent's tool registry and its tools. Stores,
 		// policies and analyses sit below it and must not use it as a
 		// utility bucket.
-		{"tool", []string{"session", "perm", "hook", "memory", "repomap", "recipe", "impact", "mutate", "verify", "llm/...", "shell", "weburl", "trust", "xdg"}},
+		{"tool", []string{"session", "perm", "hook", "memory", "repomap", "recipe", "impact", "mutate", "verify", "llm/...", "shell", "weburl", "trust", "xdg",
+			// config holds MCP server settings; the adapter that turns a
+			// server's tools into agent tools lives in mcp/mcptool, so
+			// neither config nor the mcp client needs the registry.
+			"config", "mcp"}},
 		// feature is the catalogue; it imports its sources, not the
 		// other way round.
 		{"feature", []string{"proof", "recipe", "slash", "slash/args"}},
@@ -118,18 +122,6 @@ func TestDependencyDirection(t *testing.T) {
 				}
 			}
 		}
-	}
-}
-
-// TestConfigDoesNotImportTool is narrower than the rules above: config
-// still reaches tool transitively through mcp.ServerConfig, because the
-// mcp package also holds the adapter that turns a server's tools into
-// agent tools. Until that adapter moves out of mcp, only a direct import
-// is refused.
-func TestConfigDoesNotImportTool(t *testing.T) {
-	g := load(t)
-	if contains(g.imports[internal("config")], internal("tool")) {
-		t.Errorf("config imports %s", internal("tool"))
 	}
 }
 
