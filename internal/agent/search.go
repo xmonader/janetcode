@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/xmonader/janetcode/internal/terms"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -28,56 +29,7 @@ const (
 	searchContext = 2     // extra lines shown around a hit
 	searchBudget  = 6_000 // bytes of output, about 1.5k tokens
 	searchTopK    = 12
-	bm25K1        = 1.2
-	bm25B         = 0.75
 )
-
-var (
-	tokenRe = regexp.MustCompile(`[A-Za-z0-9_][A-Za-z0-9_./:-]*`)
-	partRe  = regexp.MustCompile(`[A-Za-z]+|[0-9]+`)
-)
-
-// terms splits text into lowercase search terms. A literal such as
-// internal/server/router.go:42 is indexed whole (so an exact mention
-// anchors) and by its parts (so "router" finds it), and words are lightly
-// stemmed so "compiling" meets "compile".
-func terms(s string) []string {
-	var out []string
-	for _, t := range tokenRe.FindAllString(s, -1) {
-		t = strings.ToLower(strings.Trim(t, "./:-"))
-		if len(t) < 2 || stopword[t] {
-			continue
-		}
-		parts := partRe.FindAllString(t, -1)
-		if len(parts) > 1 {
-			out = append(out, t)
-		}
-		for _, p := range parts {
-			if p = stem(p); len(p) >= 2 && !stopword[p] {
-				out = append(out, p)
-			}
-		}
-	}
-	return out
-}
-
-// stem trims the commonest English suffixes; enough to match a query's
-// "compile" or "fail" against "compiling" and "failed" without a
-// dictionary, and cheap enough to run on every archived line.
-func stem(w string) string {
-	for _, suf := range []string{"ing", "ies", "ed", "es", "s"} {
-		if strings.HasSuffix(w, suf) && len(w)-len(suf) >= 3 {
-			w = strings.TrimSuffix(w, suf)
-			if suf == "ies" {
-				w += "y"
-			}
-			break
-		}
-	}
-	return w
-}
-
-var stopword = map[string]bool{"the": true, "a": true, "an": true, "of": true, "in": true, "to": true, "was": true, "what": true, "is": true, "did": true, "and": true, "or": true, "it": true, "that": true, "for": true, "on": true, "with": true, "this": true, "be": true, "by": true, "at": true, "from": true, "as": true}
 
 // anchor reports whether a term is a literal worth an exact-match boost:
 // something a model would not paraphrase, like a path, an identifier
@@ -236,7 +188,7 @@ func searchArchive(ar *Archive, ids []string, query string, budget int) string {
 	if out := lineLookup(ar, ids, query); out != "" {
 		return out
 	}
-	q := terms(query)
+	q := terms.Split(query)
 	if len(q) == 0 {
 		return "The query has no searchable words."
 	}
@@ -256,7 +208,7 @@ func searchArchive(ar *Archive, ids []string, query string, budget int) string {
 			seen := map[string]bool{}
 			n := 0
 			for _, l := range w.lines {
-				for _, t := range terms(l) {
+				for _, t := range terms.Split(l) {
 					n++
 					if !seen[t] {
 						seen[t] = true
@@ -280,7 +232,7 @@ func searchArchive(ar *Archive, ids []string, query string, budget int) string {
 		tf := map[string]int{}
 		n := 0
 		for _, l := range w.lines {
-			for _, t := range terms(l) {
+			for _, t := range terms.Split(l) {
 				tf[t]++
 				n++
 			}
@@ -302,7 +254,7 @@ func searchArchive(ar *Archive, ids []string, query string, budget int) string {
 				continue
 			}
 			idf := math.Log(1 + (float64(len(wins))-float64(df[t])+0.5)/(float64(df[t])+0.5))
-			w.score += idf * (f * (bm25K1 + 1)) / (f + bm25K1*(1-bm25B+bm25B*float64(n)/math.Max(avg, 1)))
+			w.score += idf * (f * (terms.K1 + 1)) / (f + terms.K1*(1-terms.B+terms.B*float64(n)/math.Max(avg, 1)))
 			if anchor(t) && strings.Contains(text, t) {
 				w.score += idf // an exact literal counts twice
 			}

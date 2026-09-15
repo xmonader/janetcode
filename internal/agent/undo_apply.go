@@ -3,35 +3,13 @@ package agent
 import (
 	"context"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/undoabout"
 	"sort"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/verify"
 )
-
-// selectionTouchedPaths lists, without duplicates, every file any change
-// sel considered touches: undone, kept, or left mixed.
-func selectionTouchedPaths(sel Selection) []string {
-	seen := map[string]bool{}
-	var out []string
-	add := func(p string) {
-		if p != "" && !seen[p] {
-			seen[p] = true
-			out = append(out, p)
-		}
-	}
-	for _, c := range sel.Undo {
-		add(c.Path)
-	}
-	for _, c := range sel.Keep {
-		add(c.Path)
-	}
-	for _, m := range sel.Mixed {
-		add(m.Change.Path)
-	}
-	return out
-}
 
 // UndoSelection reverts sel.Undo, newest change first so a later edit to
 // the same file is undone before an earlier one — the same order
@@ -94,7 +72,7 @@ func (a *Agent) reportChecks(ctx context.Context, rep *UndoReport, sel Selection
 	} else {
 		rep.CheckNote = "no checks configured (/verify set <cmd>)"
 	}
-	paths := selectionTouchedPaths(sel)
+	paths := undoabout.TouchedPaths(sel)
 	if a.Diagnose == nil || len(paths) == 0 {
 		rep.Diagnostics = "nothing verified the result"
 		return

@@ -1,7 +1,8 @@
-package agent
+package undoabout
 
 import (
 	"fmt"
+	"github.com/xmonader/janetcode/internal/change"
 	"sort"
 	"strings"
 
@@ -15,7 +16,7 @@ import (
 // shown prominently, since either one blocks /undo apply short of
 // --force.
 func FormatSelection(cwd string, sel Selection) string {
-	all := append(append([]Change(nil), sel.Undo...), sel.Keep...)
+	all := append(append([]change.Change(nil), sel.Undo...), sel.Keep...)
 	for _, m := range sel.Mixed {
 		all = append(all, m.Change)
 	}

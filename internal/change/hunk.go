@@ -1,4 +1,9 @@
-package agent
+// Package change is the unit of provenance: one file changed by one tool
+// call, with the content around the call, and the line-level diff of it.
+// It is data plus the arithmetic over that data — no agent, no session —
+// so both internal/agent, which records changes, and internal/undoabout,
+// which decides which of them to revert, can work on the same type.
+package change
 
 import (
 	"fmt"
@@ -7,24 +12,25 @@ import (
 	"github.com/xmonader/janetcode/internal/diff"
 )
 
-// edit is one step of a line diff: '=' kept, '-' removed, '+' added.
-type edit struct {
-	op   byte
-	line string
+// Edit is one step of a line diff: Op is '=' kept, '-' removed, '+'
+// added, and Line is the line itself.
+type Edit struct {
+	Op   byte
+	Line string
 }
 
-// diffLines is a thin adapter over diff.Lines, the shared Myers line-diff
+// DiffLines is a thin adapter over diff.Lines, the shared Myers line-diff
 // implementation: it just relabels diff.Op's ' ' (equal) as '=' to match
-// this package's edit type.
-func diffLines(a, b []string) []edit {
+// this package's Edit type.
+func DiffLines(a, b []string) []Edit {
 	ops := diff.Lines(a, b)
-	out := make([]edit, len(ops))
+	out := make([]Edit, len(ops))
 	for i, op := range ops {
 		k := op.Kind
 		if k == ' ' {
 			k = '='
 		}
-		out[i] = edit{op: k, line: op.Text}
+		out[i] = Edit{Op: k, Line: op.Text}
 	}
 	return out
 }
@@ -38,13 +44,13 @@ type Hunk struct {
 
 const hunkContext = 3
 
-// makeHunks groups a diff into hunks with hunkContext lines of context.
-func makeHunks(edits []edit) []Hunk {
+// MakeHunks groups a diff into hunks with hunkContext lines of context.
+func MakeHunks(edits []Edit) []Hunk {
 	var hunks []Hunk
 	oldLine, newLine := 1, 1
 	i := 0
 	for i < len(edits) {
-		if edits[i].op == '=' {
+		if edits[i].Op == '=' {
 			oldLine++
 			newLine++
 			i++
@@ -53,7 +59,7 @@ func makeHunks(edits []edit) []Hunk {
 		// Start a hunk hunkContext lines before this change.
 		start := i
 		lead := 0
-		for start > 0 && lead < hunkContext && edits[start-1].op == '=' {
+		for start > 0 && lead < hunkContext && edits[start-1].Op == '=' {
 			start--
 			lead++
 		}
@@ -61,7 +67,7 @@ func makeHunks(edits []edit) []Hunk {
 		j := i
 		eq := 0
 		for j < len(edits) {
-			if edits[j].op == '=' {
+			if edits[j].Op == '=' {
 				eq++
 				if eq > 2*hunkContext {
 					break
@@ -77,22 +83,22 @@ func makeHunks(edits []edit) []Hunk {
 		}
 		for _, e := range edits[start:end] {
 			prefix := " "
-			if e.op != '=' {
-				prefix = string(e.op)
+			if e.Op != '=' {
+				prefix = string(e.Op)
 			}
-			h.Lines = append(h.Lines, prefix+e.line)
-			if e.op != '+' {
+			h.Lines = append(h.Lines, prefix+e.Line)
+			if e.Op != '+' {
 				h.OldCount++
 			}
-			if e.op != '-' {
+			if e.Op != '-' {
 				h.NewCount++
 			}
 		}
 		for _, e := range edits[i:end] {
-			if e.op != '+' {
+			if e.Op != '+' {
 				oldLine++
 			}
-			if e.op != '-' {
+			if e.Op != '-' {
 				newLine++
 			}
 		}
@@ -131,7 +137,8 @@ func (h Hunk) String() string {
 
 // sides splits the hunk into what it looked like before (context and
 // removed lines) and after (context and added lines).
-func (h Hunk) sides() (old, new []string) {
+// Sides are the hunk's old and new line blocks.
+func (h Hunk) Sides() (old, new []string) {
 	for _, l := range h.Lines {
 		switch l[0] {
 		case ' ':
@@ -147,7 +154,8 @@ func (h Hunk) sides() (old, new []string) {
 }
 
 // stats counts added and removed lines.
-func (h Hunk) stats() (add, del int) {
+// Stats counts the lines the hunk adds and removes.
+func (h Hunk) Stats() (add, del int) {
 	for _, l := range h.Lines {
 		switch l[0] {
 		case '+':

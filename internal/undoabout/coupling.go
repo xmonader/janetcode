@@ -1,7 +1,8 @@
-package agent
+package undoabout
 
 import (
 	"fmt"
+	"github.com/xmonader/janetcode/internal/change"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -123,7 +124,7 @@ func (lx *codeLexer) idents(line string) []string {
 // ('+' or '-'), with repeats, read as code: the side of the diff is lexed
 // with its context lines so a comment opened on one line is still a
 // comment on the next.
-func hunkIdents(c Change, prefix byte) []string {
+func hunkIdents(c change.Change, prefix byte) []string {
 	lx := lexerFor(c.Path)
 	var out []string
 	for _, h := range c.Hunks() {
@@ -183,7 +184,7 @@ var identStopwords = map[string]bool{
 // separated hunks (a definition here, a call site there) is caught
 // exactly as well as one two lines apart in the same hunk as an unrelated
 // edit.
-func addedIdents(c Change) map[string]bool {
+func addedIdents(c change.Change) map[string]bool {
 	removed := map[string]bool{}
 	for _, t := range hunkIdents(c, '-') {
 		removed[t] = true
@@ -228,7 +229,7 @@ func countIdent(path string, lines []string, tok string) int {
 // undone: always within one directory (one package, for Go), and across
 // directories only for an exported-looking name — a lowercase name in
 // another package's file is that file's own, whatever it is called.
-func canReference(kept, undone Change, tok string) bool {
+func canReference(kept, undone change.Change, tok string) bool {
 	if filepath.Dir(kept.Path) == filepath.Dir(undone.Path) {
 		return true
 	}
@@ -246,8 +247,8 @@ func canReference(kept, undone Change, tok string) bool {
 // happen for a selection built from SelectChanges, since partitionUndoable
 // already excluded any change like that from the candidates); the caller
 // falls back to disk content for a path with no entry.
-func simulateUndoneContent(undo []Change) map[string][]string {
-	byPath := map[string][]Change{}
+func simulateUndoneContent(undo []change.Change) map[string][]string {
+	byPath := map[string][]change.Change{}
 	for _, c := range undo {
 		byPath[c.Path] = append(byPath[c.Path], c)
 	}
@@ -269,7 +270,7 @@ func simulateUndoneContent(undo []Change) map[string][]string {
 				lines, ok = nil, false
 				break
 			}
-			reverted, rok, _ := revertContent(lines, c)
+			reverted, rok, _ := change.Revert(lines, c)
 			if !rok {
 				ok = false
 				break
@@ -298,7 +299,7 @@ func detectCoupling(cwd string, sel Selection) []string {
 	if len(sel.Undo) == 0 || len(sel.Keep) == 0 {
 		return nil
 	}
-	touched := selectionTouchedPaths(sel)
+	touched := TouchedPaths(sel)
 	simulated := simulateUndoneContent(sel.Undo)
 	content := make(map[string][]string, len(touched))
 	for _, p := range touched {
@@ -315,7 +316,7 @@ func detectCoupling(cwd string, sel Selection) []string {
 	for _, k := range sel.Keep {
 		kAdded := addedIdents(k)
 		for t := range meaningfulIdents(kAdded) {
-			var coupledWith *Change
+			var coupledWith *change.Change
 			for i := range sel.Undo {
 				if addedIdents(sel.Undo[i])[t] && canReference(k, sel.Undo[i], t) {
 					coupledWith = &sel.Undo[i]
@@ -367,8 +368,8 @@ func detectCoupling(cwd string, sel Selection) []string {
 // restore the state it needs. A change whose own edit cannot be found even
 // so (typically the newest one on its file, if any) is unavailable no
 // matter what else gets selected.
-func partitionUndoable(cwd string, candidates []Change) (ok []Change, unavailable []UnavailableChange) {
-	byPath := map[string][]Change{}
+func partitionUndoable(cwd string, candidates []change.Change) (ok []change.Change, unavailable []UnavailableChange) {
+	byPath := map[string][]change.Change{}
 	for _, c := range candidates {
 		byPath[c.Path] = append(byPath[c.Path], c)
 	}
@@ -397,7 +398,7 @@ func partitionUndoable(cwd string, candidates []Change) (ok []Change, unavailabl
 				bad[c.Seq] = fmt.Sprintf("#%d edited %s, which is gone since", c.Seq, textfmt.RelTo(cwd, path))
 				continue
 			}
-			reverted, rok, badHunk := revertContent(lines, c)
+			reverted, rok, badHunk := change.Revert(lines, c)
 			if !rok {
 				h := c.Hunks()[badHunk-1]
 				bad[c.Seq] = fmt.Sprintf("#%d's hunk %d (%s) of %s no longer applies: those lines were edited outside the session since", c.Seq, badHunk, h.Header(), textfmt.RelTo(cwd, path))

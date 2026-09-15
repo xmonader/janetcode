@@ -1,9 +1,11 @@
-package agent
+package undoabout
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/change"
+	"github.com/xmonader/janetcode/internal/terms"
 	"math"
 	"strings"
 
@@ -39,11 +41,10 @@ const (
 )
 
 // selectByModel asks the model to split candidates against description.
-func (a *Agent) selectByModel(ctx context.Context, description string, candidates []Change) (Selection, error) {
-	prompt := buildSelectPrompt(a.displayRoot(), description, candidates)
-	s := a.Settings()
-	resp, err := s.Provider.Stream(ctx, llm.Request{
-		Model:     s.Model,
+func selectByModel(ctx context.Context, prov llm.Provider, model, cwd, description string, candidates []change.Change) (Selection, error) {
+	prompt := buildSelectPrompt(cwd, description, candidates)
+	resp, err := prov.Stream(ctx, llm.Request{
+		Model:     model,
 		System:    selectSystem,
 		Messages:  []llm.Message{llm.TextMessage(llm.RoleUser, prompt)},
 		MaxTokens: 1024,
@@ -66,7 +67,7 @@ func (a *Agent) selectByModel(ctx context.Context, description string, candidate
 // capped so a long session cannot blow the call's budget: each change
 // shows a few hunks, each hunk a few of its changed (not context) lines,
 // and the whole prompt stops growing past selectMaxPromptBytes.
-func buildSelectPrompt(cwd, description string, candidates []Change) string {
+func buildSelectPrompt(cwd, description string, candidates []change.Change) string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Description: %s\n\nCandidates:\n", description)
 	for _, c := range candidates {
@@ -133,8 +134,8 @@ func parseSelectionReply(text string) (undo, keep []int, mixed []mixedSeq, why s
 // candidate the model named in none of the three lists is kept: undo is
 // opt-in, not opt-out, so a name the model forgot to place does not get
 // reverted.
-func resolveSelection(candidates []Change, undoIDs, keepIDs []int, mixedIDs []mixedSeq, why string) Selection {
-	byID := make(map[int]Change, len(candidates))
+func resolveSelection(candidates []change.Change, undoIDs, keepIDs []int, mixedIDs []mixedSeq, why string) Selection {
+	byID := make(map[int]change.Change, len(candidates))
 	for _, c := range candidates {
 		byID[c.Seq] = c
 	}
@@ -175,9 +176,9 @@ func resolveSelection(candidates []Change, undoIDs, keepIDs []int, mixedIDs []mi
 // reading the description and the diff together, so a candidate only
 // clears the bar when it scores close to the best match; everything else,
 // including a candidate with no overlap at all, is kept.
-func selectByKeywords(description string, candidates []Change) Selection {
+func selectByKeywords(description string, candidates []change.Change) Selection {
 	sel := Selection{Fallback: true}
-	q := terms(description)
+	q := terms.Split(description)
 	if len(q) == 0 {
 		sel.Keep = append(sel.Keep, candidates...)
 		sel.Why = "the description had no searchable words; nothing was matched"
@@ -190,7 +191,7 @@ func selectByKeywords(description string, candidates []Change) Selection {
 	for i, c := range candidates {
 		tf := map[string]int{}
 		n := 0
-		for _, t := range terms(changeText(c)) {
+		for _, t := range terms.Split(changeText(c)) {
 			tf[t]++
 			n++
 		}
@@ -211,7 +212,7 @@ func selectByKeywords(description string, candidates []Change) Selection {
 				continue
 			}
 			idf := math.Log(1 + (float64(len(candidates))-float64(df[t])+0.5)/(float64(df[t])+0.5))
-			score += idf * (f * (bm25K1 + 1)) / (f + bm25K1*(1-bm25B+bm25B*float64(lens[i])/avg))
+			score += idf * (f * (terms.K1 + 1)) / (f + terms.K1*(1-terms.B+terms.B*float64(lens[i])/avg))
 		}
 		scores[i] = score
 		if score > best {
@@ -238,7 +239,7 @@ func selectByKeywords(description string, candidates []Change) Selection {
 // changeText is what selectByKeywords scores a change against: its
 // stated reason, its path, and the lines its diff actually changed
 // (context lines would only dilute the match).
-func changeText(c Change) string {
+func changeText(c change.Change) string {
 	var sb strings.Builder
 	sb.WriteString(c.Intent)
 	sb.WriteString(" ")
@@ -251,4 +252,58 @@ func changeText(c Change) string {
 		}
 	}
 	return sb.String()
+}
+
+// Select matches description against candidates: with a provider, one
+// side model call (not added to the conversation, the same discipline as
+// AskOnce) is shown a compact numbered list and asked which to undo and
+// which to keep; without one, or when the model's reply cannot be used, a
+// BM25 keyword ranking over each candidate's intent, path and diff takes
+// over and Selection.Fallback is set so the caller can say so.
+//
+// A candidate whose own edit can no longer be located is not a choice
+// between undo and keep at all — offering it either way would promise
+// something this guard cannot actually do. It is excluded before the
+// model or the keyword fallback ever sees it (see partitionUndoable).
+//
+// cwd is the directory paths are shown relative to. prov may be nil.
+func Select(ctx context.Context, prov llm.Provider, model, cwd, description string, all []change.Change) (Selection, error) {
+	description = strings.TrimSpace(description)
+	if description == "" {
+		return Selection{}, fmt.Errorf("empty description")
+	}
+	if len(all) == 0 {
+		return Selection{}, ErrNoChangesToUndo
+	}
+	candidates, unavailable := partitionUndoable(cwd, all)
+	if len(candidates) == 0 {
+		// Every change is still there but none can be reverted any more:
+		// say which and why, rather than claiming there is nothing.
+		return Selection{Unavailable: unavailable, Why: "every change left in this session was edited or reverted since"}, nil
+	}
+	sel, got := Selection{}, false
+	if prov != nil {
+		if s, err := selectByModel(ctx, prov, model, cwd, description, candidates); err == nil {
+			sel, got = s, true
+		}
+	}
+	if !got {
+		sel = selectByKeywords(description, candidates)
+	}
+	sel.Unavailable = unavailable
+	// The coupling guard runs regardless of how the split was made: a
+	// model can miss it as easily as the keyword fallback can.
+	sel.Warnings = detectCoupling(cwd, sel)
+	return sel, nil
+}
+
+// Fingerprint identifies the set of undoable changes at a moment in time,
+// cheaply enough to call on every preview and apply: it changes whenever
+// a candidate is undone, added, or removed.
+func Fingerprint(candidates []change.Change) string {
+	ids := make([]string, len(candidates))
+	for i, c := range candidates {
+		ids[i] = fmt.Sprintf("%d", c.Seq)
+	}
+	return strings.Join(ids, ",")
 }

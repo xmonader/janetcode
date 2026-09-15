@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"github.com/xmonader/janetcode/internal/change"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -28,18 +29,18 @@ func TestDiffLinesRoundTrips(t *testing.T) {
 		a, b := gen(), gen()
 		var got []string
 		ai := 0
-		for _, e := range diffLines(a, b) {
-			switch e.op {
+		for _, e := range change.DiffLines(a, b) {
+			switch e.Op {
 			case '=':
-				if a[ai] != e.line {
+				if a[ai] != e.Line {
 					t.Fatalf("kept line mismatch at %d", ai)
 				}
-				got = append(got, e.line)
+				got = append(got, e.Line)
 				ai++
 			case '-':
 				ai++
 			case '+':
-				got = append(got, e.line)
+				got = append(got, e.Line)
 			}
 		}
 		if ai != len(a) || strings.Join(got, "") != strings.Join(b, "") {
@@ -47,9 +48,9 @@ func TestDiffLinesRoundTrips(t *testing.T) {
 		}
 		// Applying every hunk's sides in order rebuilds b as well.
 		cur := append([]string{}, a...)
-		hunks := makeHunks(diffLines(a, b))
+		hunks := change.MakeHunks(change.DiffLines(a, b))
 		for i := len(hunks) - 1; i >= 0; i-- {
-			old, new := hunks[i].sides()
+			old, new := hunks[i].Sides()
 			at := hunks[i].OldStart - 1
 			if at+len(old) > len(cur) || strings.Join(cur[at:at+len(old)], "") != strings.Join(old, "") {
 				t.Fatalf("hunk %s old side does not match a=%q: %q", hunks[i].Header(), a, old)
@@ -69,7 +70,7 @@ func TestDiffLinesRoundTrips(t *testing.T) {
 	for i := range big {
 		rev[i] = big[len(big)-1-i]
 	}
-	if n := len(diffLines(big, rev)); n == 0 {
+	if n := len(change.DiffLines(big, rev)); n == 0 {
 		t.Fatal("empty diff")
 	}
 }

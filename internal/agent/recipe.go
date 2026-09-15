@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/change"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/diff"
@@ -365,7 +366,7 @@ func (a *Agent) hunksToEditSteps(st recipe.Step, c Change) []recipe.Step {
 	}
 	before := diff.SplitLinesKeepEOL(string(c.Before))
 	after := diff.SplitLinesKeepEOL(string(c.After))
-	regions := rawChangeRegions(diffLines(before, after))
+	regions := rawChangeRegions(change.DiffLines(before, after))
 	if len(regions) == 0 {
 		return []recipe.Step{st}
 	}
@@ -393,12 +394,12 @@ func (a *Agent) hunksToEditSteps(st recipe.Step, c Change) []recipe.Step {
 // diff; this is that same walk without the padding, because
 // hunksToEditSteps grows its own context outward only as far as
 // uniqueness demands.
-func rawChangeRegions(edits []edit) []Hunk {
+func rawChangeRegions(edits []change.Edit) []Hunk {
 	var out []Hunk
 	oldLine, newLine := 1, 1
 	i := 0
 	for i < len(edits) {
-		if edits[i].op == '=' {
+		if edits[i].Op == '=' {
 			oldLine++
 			newLine++
 			i++
@@ -406,11 +407,11 @@ func rawChangeRegions(edits []edit) []Hunk {
 		}
 		h := Hunk{OldStart: oldLine, NewStart: newLine}
 		j := i
-		for j < len(edits) && edits[j].op != '=' {
-			if edits[j].op != '+' {
+		for j < len(edits) && edits[j].Op != '=' {
+			if edits[j].Op != '+' {
 				h.OldCount++
 			}
-			if edits[j].op != '-' {
+			if edits[j].Op != '-' {
 				h.NewCount++
 			}
 			j++
