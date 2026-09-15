@@ -206,6 +206,7 @@ var promptKeys = map[string]keyAction{
 	"ctrl+l":    (*model).keyClearScreen,
 	"shift+tab": (*model).keyCycleMode,
 	"ctrl+t":    (*model).keyAgents,
+	"ctrl+r":    (*model).keyCycleEffort,
 	"ctrl+v":    (*model).keyPasteImage,
 	"tab":       (*model).keyComplete,
 	"up":        (*model).keyUp,

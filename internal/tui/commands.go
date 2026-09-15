@@ -235,6 +235,10 @@ var dispatch = map[string]cmdHandler{
 		return nil, false
 	},
 	"/usage": (*model).cmdUsage, "/cost": (*model).cmdUsage,
+	"/effort": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.effortCommand(cmdArg(text, fields))
+		return nil, false
+	},
 	"/budget": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.budgetCommand(cmdArg(text, fields))
 		return nil, false

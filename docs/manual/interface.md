@@ -57,6 +57,7 @@ ctrl+o           expand the last turn's output   ctrl+l   redraw
 pgup / pgdn      scroll (mouse wheel works)
 ctrl+c           cancel the turn; when idle, press twice to quit
 shift+tab        cycle ask → plan → auto → yolo (approvals, plan-first, safe-auto, auto-approve)
+ctrl+r           cycle the reasoning tier up the ladder and round again (/effort)
 ctrl+t           open the overlay of continuable subagents (/agents)
 ```
 
@@ -208,6 +209,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /ssh [user@host[:/path]|off]  (file tools and bash on a remote host; off returns here)
 /docker [container[:/path]|off]  (the same, in a running container)
 /connect   /model     /compact (summarise the context to free the window)
+/effort [tier|up|down]  (how hard the model thinks: low, medium, high, xhigh, max)
 /usage     /stats (turns, model calls, tool calls per tool, tokens, cost, what the harness had to recover)
 /resume (searchable list of earlier sessions; /resume <n or id> reopens one directly)   /verbose   /settle (list it last)
 /undo [preview | about <description> | apply]  /redo  /find X    /cost      /mcp [trust | auth <server> | logout <server>]
@@ -231,6 +233,24 @@ in the config, so cost estimates work without a `"prices"` entry and
 compaction runs at three quarters of the model's window (capped at 200k
 tokens) instead of the 80k default. Explicit `"prices"` and `compact_at`
 still win; Claude and GPT windows are known without a listing.
+
+`/effort` sets how hard the model thinks, without changing models:
+`low`, `medium`, `high`, `xhigh`, `max`, in that order, or `default` for
+whatever the provider does on its own. Alone it reports the tier the
+session is asking for, marks it on the ladder and says whether the
+provider behind it takes one at all; `/effort up` and `/effort down` step
+a rung, and `ctrl+r` cycles up and round. The tier rides on every request
+from the next one onward, so it can be raised for one hard step and
+lowered again afterwards, in the middle of a session and even while a
+turn is running. It changes this session only — `/config effort=high`
+is the spelling that also writes it to the config file for the next one.
+When a model refuses the tier asked for, the one below it is used instead
+and remembered, so the refusal is paid for once; asking for another tier
+afterwards clears that and tries the new one honestly. Only Anthropic
+models take a reasoning tier today: with another provider the setting is
+remembered, `/effort` says it is not being sent, and nothing else changes.
+A session above the default shows its tier next to the mode on the status
+line, so `max` is never a surprise at the end of the month.
 
 Safety rules that apply in every mode, including `--yolo`: commands that
 would destroy the machine (deleting `/` or the home directory, formatting,
