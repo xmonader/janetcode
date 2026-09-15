@@ -46,6 +46,7 @@ janetcode -p "prompt" [flags]     one prompt, headless, then exit
 | `--proof [commit]` | print the proof note attached to a commit (default `HEAD`): which session, turn and intent wrote each of its files, and what actually demonstrated the work; "no proof for `<sha>`" when none is attached, then exit |
 | `--recipe <name> [k=v ...]` | replay a saved recipe (`.janetcode/recipes/<name>.json`, see [Recipes](interface.md#recipes-replay-a-turn-for-free)) as tool calls, no model call and no tokens unless a step fails or, once every step has succeeded, the project's own [verify gate](interface.md#verification-gates) fails; `k=v` substitutes the recipe's parameters. Either failure hands over to the configured model the way `-p` running under `--until` does, or exits non-zero without one. MCP servers are started first only when a step calls one of their tools |
 | `--init` | write a starter config file |
+| `--init-project` | write a starter `JANETCODE.md` for this repository, from its languages, declared commands and layout, and exit. An existing one is never overwritten; `/init force` in a session replaces it. See [Project instructions](configuration.md#project-instructions) |
 | `--allow`, `--deny` | add a permission rule for this run |
 | `--mcp-auth <server>` | run the OAuth flow for an MCP server |
 | `--version` | print the version |

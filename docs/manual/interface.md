@@ -510,6 +510,11 @@ entries by meaning, so "verify the build works" finds a note about running
 when an entry changes; if the endpoint fails, recall silently falls back to
 words and retries a few minutes later.
 
+`/init` writes the project's starter instruction file (`JANETCODE.md`)
+from what the repository shows — see
+[Project instructions](configuration.md#project-instructions). It never
+overwrites one that is already there; `/init force` does.
+
 ### Skills
 
 A skill is a markdown file with instructions for one kind of task

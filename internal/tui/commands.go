@@ -10,6 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/projectinit"
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/settingsapply"
@@ -213,6 +214,7 @@ var dispatch = map[string]cmdHandler{
 		}
 		return nil, false
 	},
+	"/init":     (*model).cmdInit,
 	"/skills":   (*model).cmdSkills,
 	"/rules":    (*model).cmdRules,
 	"/memory":   (*model).cmdMemory,
@@ -459,6 +461,14 @@ func (m *model) cmdTodos(text string, fields []string) (tea.Cmd, bool) {
 
 func (m *model) cmdInspect(text string, fields []string) (tea.Cmd, bool) {
 	m.inspectCommand(cmdArg(text, fields))
+	return nil, false
+}
+
+// cmdInit writes the project's starter instruction file. It never
+// overwrites one without "force": the existing file is the user's.
+func (m *model) cmdInit(text string, fields []string) (tea.Cmd, bool) {
+	force := strings.EqualFold(strings.TrimSpace(cmdArg(text, fields)), "force")
+	m.showResult(projectinit.Run(m.opts.Cwd, force))
 	return nil, false
 }
 

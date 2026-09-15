@@ -63,6 +63,7 @@ type options struct {
 	resume       string
 	showVersion  bool
 	listSess     bool
+	initProject  bool
 	initCfg      bool
 	mcpAuth      string
 	appendSystem string
@@ -158,6 +159,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	fs.BoolVar(&o.showVersion, "version", false, "print version and exit")
 	fs.BoolVar(&o.listSess, "sessions", false, "list saved sessions for this directory and exit")
 	fs.BoolVar(&o.initCfg, "init", false, "write an example config file and exit")
+	fs.BoolVar(&o.initProject, "init-project", false, "write a starter instruction file (the one read at the start of every session here) from what this repository shows -- languages, the commands it declares, its layout -- and exit; an existing one is never overwritten")
 	fs.StringVar(&o.mcpAuth, "mcp-auth", "", "log in to the named remote MCP server with OAuth (browser flow) and exit")
 	fs.StringVar(&o.appendSystem, "append-system-prompt", "", "text (or @file) appended to the system prompt; JANETCODE_SYSTEM_MD=<file> replaces the base prompt. Both are recorded in eval results so a prompt A/B is traceable")
 	fs.BoolVar(&o.doctorFix, "fix", false, "with --doctor: carry out the safe repairs it lists (a misspelled config key, a missing config directory, an untrusted .janetcode/verify.json, an expired MCP login that cannot refresh, a directory of ours the owner cannot read) and print each change; anything needing judgement is still only reported")

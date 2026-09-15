@@ -303,6 +303,19 @@ working directory is read: there is no boundary to walk up to, and
 walking to the filesystem root would read whatever a home directory
 happens to hold.
 
+Nobody writes that file, because writing it from a blank page means
+deciding what a stranger needs to know. `/init` in a session, or
+`janetcode --init-project` on the command line, writes a starter one from
+what the repository already shows: the languages by file count, the
+commands it declares (`Makefile` targets, `package.json` scripts, `go.mod`,
+`Cargo.toml`, a Python project's files, and `.janetcode/verify.json` if it
+is there), the top-level layout, and a `Conventions` heading left empty
+because that part is yours. It is a page, not a dump — everything in it is
+paid for on every request. An existing `JANETCODE.md` is never overwritten:
+`/init force` replaces it, and the command line refuses and says so. When
+`AGENTS.md` or `CLAUDE.md` is already there, the generated file names it
+and its headings rather than repeating what it says.
+
 A line that is nothing but `@path` pulls another file in where it stands,
 which is how one standard is kept in one place and referred to from
 several. Paths resolve against the importing file's directory, imports are
