@@ -44,7 +44,7 @@ func (m *model) submitAs(text, note string) tea.Cmd {
 	// http://localhost:8080/health" refused in the message that asked for
 	// it.
 	m.opts.Typed.Note(text)
-	m.lastUserText = text
+	m.hist.lastUser = text
 	text, atts := prompt.ExpandMentions(m.opts.Cwd, text)
 	if len(atts) > 0 {
 		m.noteUse("@path")

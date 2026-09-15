@@ -9,39 +9,6 @@ import (
 	"github.com/xmonader/janetcode/internal/skill"
 )
 
-// remember adds a submitted prompt to the up/down history and to the
-// file that outlives the process. A "!" command keeps its flag so
-// recalling it restores the shell prompt rather than asking the model.
-func (m *model) remember(text string) {
-	e := histEntry{Text: text}
-	if strings.HasPrefix(text, "!") {
-		e = histEntry{Text: strings.TrimPrefix(text, "!"), Bash: true}
-	}
-	if e.Text == "" {
-		return
-	}
-	if n := len(m.history); n == 0 || m.history[n-1] != e {
-		m.history = append(m.history, e)
-		if m.histFile != "" {
-			if err := appendPromptHistory(m.histFile, e, len(m.history)); err == nil && len(m.history) > histCap {
-				m.history = m.history[len(m.history)-histCap:]
-				rewritePromptHistory(m.histFile, m.history)
-			}
-		}
-	}
-	m.histIdx = len(m.history)
-	m.draft = ""
-}
-
-// recall renders one history entry back into the input's own language.
-func (m *model) recall(i int) string {
-	e := m.history[i]
-	if e.Bash {
-		return "!" + e.Text
-	}
-	return e.Text
-}
-
 // completions lists slash commands matching the input, or files matching
 // the @path being typed at its end.
 func (m *model) completions() []command {

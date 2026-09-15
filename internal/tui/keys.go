@@ -190,13 +190,8 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.restoreQueued()
 			return nil, true
 		}
-		if m.histIdx < len(m.history) {
-			// Browsing the history: esc puts back what was being typed
-			// before ↑ went looking, rather than throwing it away.
-			m.input.SetValue(m.draft)
-			m.input.CursorEnd()
-			m.histIdx = len(m.history)
-			m.layout()
+		if draft, ok := m.hist.cancel(); ok {
+			m.setInput(draft)
 			m.refresh(false)
 			return nil, true
 		}
@@ -258,7 +253,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.opts.Typed.Note(text)
 			m.opts.Agent.Steer(m.inflatePastes(text))
 			m.steering = append(m.steering, text)
-			m.remember(text)
+			m.hist.remember(text)
 			m.input.Reset()
 			m.layout()
 		}
@@ -302,30 +297,21 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			m.refresh(false)
 			return nil, true
 		}
-		if m.input.Line() == 0 && len(m.history) > 0 && m.histIdx > 0 {
-			if m.histIdx == len(m.history) {
-				m.draft = m.input.Value()
+		if m.input.Line() == 0 {
+			if text, ok := m.hist.back(m.input.Value()); ok {
+				m.setInput(text)
+				return nil, true
 			}
-			m.histIdx--
-			m.input.SetValue(m.recall(m.histIdx))
-			m.input.CursorEnd()
-			m.layout()
-			return nil, true
 		}
 	case "down":
 		if m.moveMenu(1) {
 			return nil, true
 		}
-		if m.histIdx < len(m.history) && m.input.Line() == m.input.LineCount()-1 {
-			m.histIdx++
-			if m.histIdx == len(m.history) {
-				m.input.SetValue(m.draft)
-			} else {
-				m.input.SetValue(m.recall(m.histIdx))
+		if m.input.Line() == m.input.LineCount()-1 {
+			if text, ok := m.hist.forward(); ok {
+				m.setInput(text)
+				return nil, true
 			}
-			m.input.CursorEnd()
-			m.layout()
-			return nil, true
 		}
 	case "pgup", "pgdown", "ctrl+u", "ctrl+b", "ctrl+f":
 		// With text in the input these are the textarea's readline keys
@@ -362,7 +348,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		if m.running && !strings.HasPrefix(text, "/") {
 			// Queue it; finishTurn sends it once the model is done.
 			m.queued = append(m.queued, text)
-			m.remember(text)
+			m.hist.remember(text)
 			m.input.Reset()
 			m.layout()
 			m.status = fmt.Sprintf("queued %d · sends when this turn ends · esc cancels the turn and restores it", len(m.queued))
@@ -371,7 +357,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		m.input.Reset()
 		m.layout()
-		m.remember(text)
+		m.hist.remember(text)
 		if strings.HasPrefix(text, "/") {
 			return m.command(text), true
 		}
@@ -381,6 +367,14 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return m.submit(text), true
 	}
 	return nil, false
+}
+
+// setInput replaces what is being typed with a recalled line, leaving
+// the cursor at its end and the box sized for it.
+func (m *model) setInput(text string) {
+	m.input.SetValue(text)
+	m.input.CursorEnd()
+	m.layout()
 }
 
 // quitArmWindow is how long a first ctrl+c when idle stays armed.

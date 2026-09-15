@@ -3331,7 +3331,7 @@ func TestPasteNeverSubmitsItself(t *testing.T) {
 // same directory recalls them.
 func TestPromptHistoryOutlivesTheProcess(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
-	if h.m.histFile == "" {
+	if h.m.hist.file == "" {
 		t.Fatal("no history file for the session")
 	}
 	h.keys("first prompt")
@@ -3341,15 +3341,15 @@ func TestPromptHistoryOutlivesTheProcess(t *testing.T) {
 	h.enter()
 	h.pump(func() bool { return !h.m.running })
 
-	got := loadPromptHistory(h.m.histFile)
+	got := loadPromptHistory(h.m.hist.file)
 	want := []histEntry{{Text: "first prompt"}, {Text: "ls -l", Bash: true}}
 	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("history file = %+v", got)
 	}
 	// A fresh model in the same directory starts with them.
 	m2 := newModel(Options{Agent: h.m.opts.Agent, Session: h.m.opts.Session, Provider: "fake", Cwd: h.m.opts.Cwd, Version: "test"})
-	if len(m2.history) != 2 || m2.histIdx != 2 {
-		t.Fatalf("reloaded history = %+v idx=%d", m2.history, m2.histIdx)
+	if len(m2.hist.entries) != 2 || m2.hist.idx != 2 {
+		t.Fatalf("reloaded history = %+v idx=%d", m2.hist.entries, m2.hist.idx)
 	}
 	// Up browses; the "!" comes back with the command; esc restores the draft.
 	h.keys("draft")
@@ -3819,7 +3819,7 @@ func (h *harness) typed(s string) {
 // a sentence, and "home" jumped the cursor to the start of the line.
 func TestTypedWordsAreNotKeyPresses(t *testing.T) {
 	h := newHarness(t)
-	h.m.remember("first prompt")
+	h.m.hist.remember("first prompt")
 	for _, word := range []string{"right", "left", "up", "down", "home", "end", "delete", "esc", "enter", "tab", "insert", "pgup"} {
 		h.m.input.Reset()
 		h.typed("aa " + word + " bb")
@@ -3911,8 +3911,8 @@ func TestGoalRoundIsOneLine(t *testing.T) {
 		t.Fatalf("session title = %q", got)
 	}
 	// The model still receives the full continuation.
-	if !strings.Contains(h.m.lastUserText, "Rounds are a budget") {
-		t.Fatalf("the model got %q", h.m.lastUserText)
+	if !strings.Contains(h.m.hist.lastUser, "Rounds are a budget") {
+		t.Fatalf("the model got %q", h.m.hist.lastUser)
 	}
 }
 

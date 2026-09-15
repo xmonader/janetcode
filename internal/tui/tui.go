@@ -207,14 +207,9 @@ type model struct {
 	// pastes holds the text behind each "[paste #N +M lines]" chip in the
 	// input, in the order they were pasted.
 	pastes []string
-	// history of submitted prompts for up/down recall, loaded from and
+	// hist is the up/down recall of submitted prompts, loaded from and
 	// appended to a file per working directory (see history.go).
-	history  []histEntry
-	histFile string
-	// lastUserText is the prompt of the running or last turn.
-	lastUserText string
-	histIdx      int    // == len(history) when not browsing
-	draft        string // input saved while browsing history
+	hist historyState
 
 	running    bool
 	cancelling bool
@@ -333,9 +328,7 @@ func newModel(opts Options) *model {
 	m.clipboard = readClipboardImage
 	m.copyText = writeClipboardText
 	if opts.Session != nil {
-		m.histFile = histPath(dirOf(opts.Session), opts.Cwd)
-		m.history = loadPromptHistory(m.histFile)
-		m.histIdx = len(m.history)
+		m.hist.load(dirOf(opts.Session), opts.Cwd)
 	}
 	m.custom = map[string]prompt.Custom{}
 	for _, c := range prompt.CustomCommands(opts.Cwd, opts.ConfigDir) {
@@ -466,7 +459,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if first && m.opts.InitialPrompt != "" {
 			text := m.opts.InitialPrompt
 			m.opts.InitialPrompt = ""
-			m.remember(text)
+			m.hist.remember(text)
 			return m, m.submit(text)
 		}
 		return m, nil
@@ -679,7 +672,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case agentDoneMsg:
 		m.drainEvents()
 		cmd := m.finishTurn(msg)
-		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && (m.opts.Agent.LastTurnMutated() || memory.LooksLikeFeedback(m.lastUserText)) {
+		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && (m.opts.Agent.LastTurnMutated() || memory.LooksLikeFeedback(m.hist.lastUser)) {
 			cmd = tea.Batch(cmd, m.extractMemory())
 		}
 		if msg.err == nil && m.opts.AutoTitle && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && len(m.opts.Agent.Messages) >= 2 {
