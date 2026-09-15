@@ -12,7 +12,7 @@ package theme
 // theme, a low-saturation muted one, a near colourless mono theme built on
 // ANSI indices so it inherits the user's own sixteen colours, and a set of
 // well-known palettes (gruvbox, nord, catppuccin, dracula, tokyo-night,
-// one-dark, rose-pine, everforest, kanagawa, monokai, github-light).
+// one-dark, rose-pine, everforest, kanagawa, matrix, monokai, github-light).
 
 // Builtins returns a fresh copy of every shipped theme.
 func Builtins() []Theme {
@@ -390,6 +390,28 @@ var builtins = []Theme{
 			RoleBorderActive: solid("#ffa066"),
 			RoleDiffAdd:      solid("#98bb6c"),
 			RoleDiffDel:      solid("#ff5d62"),
+		},
+	},
+	{
+		Name:    "matrix",
+		Desc:    "phosphor rain: terminal green on a black ground",
+		Dark:    true,
+		Builtin: true,
+		Roles: map[string]Color{
+			RoleAccent:       solid("#5dff7a"),
+			RoleDim:          solid("#a8e6b4"),
+			RoleFaint:        solid("#7dcc8e"),
+			RoleWarn:         solid("#e8d44d"),
+			RoleErr:          solid("#ff6b7a"),
+			RoleOK:           solid("#5dff7a"),
+			RoleUser:         solid("#c8ff00"),
+			RoleTool:         solid("#39ff14"),
+			RoleHeadBg:       solid("#0a1f10"),
+			RoleHeadFg:       solid("#c8ff00"),
+			RoleBorder:       solid("#2d6b3a"),
+			RoleBorderActive: solid("#5dff7a"),
+			RoleDiffAdd:      solid("#5dff7a"),
+			RoleDiffDel:      solid("#ff6b7a"),
 		},
 	},
 	{

@@ -100,6 +100,7 @@ description):
 | `rose-pine` | dark | dusty rose and pine at dusk |
 | `everforest` | dark | moss and bark, low-glare greens |
 | `kanagawa` | dark | ink, gold and wave-blue |
+| `matrix` | dark | phosphor rain: terminal green on black |
 | `monokai` | dark | hot pink, lime and tangerine |
 | `github-light` | light | github's blue links on white paper |
 
@@ -110,10 +111,13 @@ that bar, so a shipped theme is always legible.
 ### Switching themes: `/theme`
 
 `/theme` alone opens a searchable list of every theme with its
-description; enter applies the highlighted one live — the whole transcript
-recolours in place, no restart — and saves the choice to the config file.
-`/theme <name>` switches directly, `/theme list` prints them, and
-`--theme <name>` sets one for a single run without touching the config.
+description. Moving the highlight restyles the whole interface as a
+preview (colour chips under the list show the roles); enter keeps the
+highlighted theme — the transcript recolours in place, no restart — and
+saves the choice to the config file; esc puts back whatever was active
+when the picker opened. `/theme <name>` switches directly, `/theme list`
+prints them, and `--theme <name>` sets one for a single run without
+touching the config.
 Switching never re-asks the terminal for its background, so no keystroke is
 lost; selecting a single-mode theme (a dark-only one, say) pins the light
 or dark assumption to that theme.

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/theme"
 )
@@ -54,6 +56,73 @@ func TestThemeSwitchLiveAndPersisted(t *testing.T) {
 	h.m.applyThemeChoice("does-not-exist", true)
 	if h.m.styles.themeName != "gruvbox" {
 		t.Errorf("unknown theme changed the palette to %q", h.m.styles.themeName)
+	}
+}
+
+func TestThemePickerListsMatrixAndPreviewsBeforeApply(t *testing.T) {
+	h := newHarness(t)
+	set, err := theme.Build(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !set.Has("matrix") {
+		t.Fatal("builtin set has no matrix theme")
+	}
+	h.m.opts.Themes = set
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(cfgPath, []byte(`{"theme":"auto"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h.m.opts.ConfigPath = cfgPath
+	h.m.opts.Config = &config.Config{Theme: "auto"}
+	h.m.opts.Theme = "auto"
+
+	h.keys("/theme")
+	h.enter()
+	if h.m.picker == nil {
+		t.Fatal("/theme should open the picker")
+	}
+	v := plain(h.m.View())
+	if !strings.Contains(v, "matrix") {
+		t.Fatalf("matrix not listed in /theme:\n%s", v)
+	}
+	if !strings.Contains(v, "phosphor") {
+		t.Fatalf("matrix description missing:\n%s", v)
+	}
+
+	h.keys("matrix")
+	if h.m.styles.themeName != "matrix" {
+		t.Fatalf("highlight should preview matrix, got %q", h.m.styles.themeName)
+	}
+	raw, _ := os.ReadFile(cfgPath)
+	if strings.Contains(string(raw), "matrix") {
+		t.Fatalf("preview wrote the config:\n%s", raw)
+	}
+
+	h.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if h.m.picker != nil {
+		t.Fatal("esc should close the picker")
+	}
+	if h.m.opts.Theme != "auto" {
+		t.Fatalf("esc should restore auto, got %q", h.m.opts.Theme)
+	}
+	if h.m.styles.themeName != theme.DefaultName {
+		t.Fatalf("esc should restore the default palette, got %q", h.m.styles.themeName)
+	}
+
+	h.keys("/theme")
+	h.enter()
+	h.keys("matrix")
+	h.enter()
+	if h.m.picker != nil {
+		t.Fatal("enter should close the picker")
+	}
+	if h.m.styles.themeName != "matrix" {
+		t.Fatalf("enter should keep matrix, got %q", h.m.styles.themeName)
+	}
+	raw, _ = os.ReadFile(cfgPath)
+	if !strings.Contains(string(raw), `"matrix"`) {
+		t.Fatalf("enter should persist matrix:\n%s", raw)
 	}
 }
 

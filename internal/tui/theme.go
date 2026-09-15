@@ -98,20 +98,26 @@ func (m *model) themeApplied(name string, th theme.Theme, mode string) string {
 	return fmt.Sprintf("theme: %s (%s) · %s", name, mode, th.Desc)
 }
 
-// openThemePicker shows the searchable list of themes, applying the one
-// chosen on enter. A row shows the name, its mode and its description; the
-// active theme is tagged.
+// openThemePicker shows the searchable list of themes. Moving the
+// highlight restyles the whole interface as a preview; enter keeps the
+// highlighted theme and writes it to the config; esc puts back whatever
+// was active when the picker opened.
 func (m *model) openThemePicker() tea.Cmd {
 	set := themeSetOr(m.opts.Themes)
+	saved := strings.TrimSpace(m.opts.Theme)
+	if saved == "" {
+		saved = "auto"
+	}
 	rows := []row{{
 		key:   "auto detect terminal background",
 		cells: []string{"auto", "auto", "follow the terminal background"},
 		name:  "auto",
 	}}
+	start := 0
 	for _, t := range set.Sorted() {
 		mode := t.Mode()
 		tag := ""
-		if t.Name == m.opts.Theme {
+		if t.Name == saved {
 			tag = "current"
 		}
 		rows = append(rows, row{
@@ -120,12 +126,24 @@ func (m *model) openThemePicker() tea.Cmd {
 			tag:   tag,
 			name:  t.Name,
 		})
+		if t.Name == saved {
+			start = len(rows) - 1
+		}
 	}
-	return m.openPicker(&picker{
+	if saved == "auto" {
+		start = 0
+		rows[0].tag = "current"
+	}
+	cmd := m.openPicker(&picker{
 		title:    "Switch theme",
-		hint:     "enter applies it live and saves the choice · type to search",
+		hint:     "↑↓ previews live · enter keeps it and saves · esc restores · type to search",
 		rows:     rows,
 		freeText: true,
+		preview: func(r row) {
+			if r.name != "" {
+				m.applyThemeChoice(r.name, false)
+			}
+		},
 		choose: func(r row, typed string) tea.Cmd {
 			name := r.name
 			if name == "" {
@@ -134,7 +152,31 @@ func (m *model) openThemePicker() tea.Cmd {
 			m.applyThemeChoice(name, true)
 			return nil
 		},
+		cancel: func() {
+			m.applyThemeChoice(saved, false)
+		},
 	})
+	if m.picker != nil {
+		m.picker.idx = start
+		m.picker.idxFor = ""
+		m.pickerPreview()
+	}
+	return cmd
+}
+
+// themeSwatch is the colour chips under the /theme list, drawn in the
+// palette currently previewed so you can see the roles before keeping it.
+func (m *model) themeSwatch() string {
+	chip := func(s lipgloss.Style, label string) string {
+		return s.Render("██ " + label)
+	}
+	return strings.Join([]string{
+		chip(m.styles.user, "you"),
+		chip(m.styles.accent, "accent"),
+		chip(m.styles.tool, "tool"),
+		chip(m.styles.ok, "ok"),
+		chip(m.styles.err, "err"),
+	}, "  ")
 }
 
 // completeTheme offers theme names for the /theme argument menu.

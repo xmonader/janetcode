@@ -109,7 +109,7 @@ var commandTopics = map[string][]string{
 	"/inspect":     {"state", "debug", "internals", "subject"},
 	"/plan":        {"planning", "design", "approve", "before"},
 	"/accept":      {"acceptance", "tdd", "test-first", "lock", "unlock", "approve", "gate", "tests"},
-	"/theme":       {"colour", "color", "palette", "dark", "light", "scheme", "contrast", "solarized", "gruvbox", "nord", "catppuccin", "dracula", "tokyo", "monokai", "kanagawa", "everforest"},
+	"/theme":       {"colour", "color", "palette", "dark", "light", "scheme", "contrast", "solarized", "gruvbox", "nord", "catppuccin", "dracula", "tokyo", "monokai", "kanagawa", "everforest", "matrix", "phosphor"},
 	"/add-dir":     {"directory", "root", "extra", "monorepo"},
 	"/btw":         {"aside", "side", "question"},
 	"/copy":        {"clipboard", "paste"},

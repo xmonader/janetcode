@@ -34,6 +34,11 @@ type picker struct {
 	// choose is called with the highlighted row, or with a zero row and
 	// the typed text when nothing matches and free text is allowed.
 	choose func(r row, typed string) tea.Cmd
+	// preview is called as the highlight moves, so a picker can try a
+	// choice live before enter keeps it. cancel restores whatever was
+	// in force when the picker opened; it is not called after choose.
+	preview func(r row)
+	cancel  func()
 	// freeText allows enter with no match, handing over the typed text.
 	freeText bool
 }
@@ -73,7 +78,11 @@ func (m *model) handlePickerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	p := m.picker
 	switch keyName(msg) {
 	case "esc", "ctrl+c":
+		cancel := p.cancel
 		m.closePicker()
+		if cancel != nil {
+			cancel()
+		}
 		return nil, true
 	case "up", "down", "ctrl+p", "ctrl+n":
 		rows, idx := m.pickerRows()
@@ -84,6 +93,7 @@ func (m *model) handlePickerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 			}
 			p.idx = (idx + d + len(rows)) % len(rows)
 			p.idxFor = p.field.Value()
+			m.pickerPreview()
 			m.refresh(false)
 		}
 		return nil, true
@@ -96,6 +106,7 @@ func (m *model) handlePickerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 				p.idx = min(idx+m.dialogStep(p.winRows), len(rows)-1)
 			}
 			p.idxFor = p.field.Value()
+			m.pickerPreview()
 			m.refresh(false)
 		}
 		return nil, true
@@ -116,8 +127,22 @@ func (m *model) handlePickerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	}
 	var cmd tea.Cmd
 	p.field, cmd = p.field.Update(msg)
+	m.pickerPreview()
 	m.refresh(false)
 	return cmd, true
+}
+
+// pickerPreview tells the picker about the highlighted row, if it asked.
+func (m *model) pickerPreview() {
+	p := m.picker
+	if p == nil || p.preview == nil {
+		return
+	}
+	rows, idx := m.pickerRows()
+	if len(rows) == 0 {
+		return
+	}
+	p.preview(rows[idx])
 }
 
 // pickerView draws the modal, in the same box the connect dialog uses.
@@ -143,8 +168,15 @@ func (m *model) pickerView(height int) string {
 		p.winRows = budget
 		lines = append(lines, renderRows(m.styles, rows, idx, inner, budget)...)
 	}
+	if p.preview != nil && len(rows) > 0 {
+		add("")
+		add(m.themeSwatch())
+	}
 	add("")
 	help := "↑↓ move · enter select · esc close"
+	if p.preview != nil {
+		help = "↑↓ preview · enter keep · esc restore"
+	}
 	if len(rows) == 0 && p.freeText && strings.TrimSpace(p.field.Value()) != "" {
 		help = "enter uses what you typed · esc close"
 	}
