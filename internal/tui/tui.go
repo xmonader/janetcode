@@ -245,9 +245,7 @@ type model struct {
 	custom        map[string]prompt.Custom // user-defined slash commands
 	clipboard     func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
 	copyText      func(string) error       // writes text to the clipboard; swapped in tests
-	compIdx       int                      // highlighted row of the completion menu
-	compArgs      bool                     // the menu is offering arguments, not commands
-	compFor       string                   // input value the highlight belongs to
+	comp          completionState          // highlight in the completion menu
 	finder        findState                // the last /find, so a repeat advances
 	picker        *picker                  // open searchable list
 	connect       *connect                 // open provider/model dialog

@@ -3464,7 +3464,7 @@ func TestCommandAvailabilityAndArgumentCompletion(t *testing.T) {
 	if len(c) == 0 || c[0].name != "/undo preview" {
 		t.Fatalf("/undo completions = %+v", c)
 	}
-	if !h.m.compArgs {
+	if !h.m.comp.args {
 		t.Fatal("an argument menu should be marked as one")
 	}
 }

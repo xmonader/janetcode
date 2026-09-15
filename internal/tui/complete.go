@@ -11,6 +11,40 @@ import (
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
+// completionState is the highlight in the completion menu: which row,
+// what the menu is offering, and the input the highlight was set for —
+// a keystroke rebuilds the rows, so a highlight that outlives the text it
+// belongs to would point at a different command.
+type completionState struct {
+	idx      int    // highlighted row of the completion menu
+	args     bool   // the menu is offering arguments, not commands
+	forInput string // input value the highlight belongs to
+}
+
+// highlight clamps the highlight for a menu of n rows drawn for input v,
+// resetting it whenever the input changed since it was set.
+func (c *completionState) highlight(v string, n int) int {
+	if v != c.forInput {
+		c.forInput, c.idx = v, 0
+	}
+	if c.idx >= n {
+		c.idx = n - 1
+	}
+	return c.idx
+}
+
+// move shifts the highlight by delta around a menu of n rows and pins it
+// to the input it now belongs to.
+func (c *completionState) move(v string, n, delta, idx int) {
+	c.idx = (idx + delta + n) % n
+	c.forInput = v
+}
+
+// pin puts the highlight back on the first row of the menu for v.
+func (c *completionState) pin(v string) {
+	c.forInput, c.idx = v, 0
+}
+
 func (m *model) completeJobs(partial string) []command {
 	p := strings.ToLower(partial)
 	var out []command

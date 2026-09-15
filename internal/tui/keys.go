@@ -336,7 +336,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		return nil, false
 	case "enter":
-		if c, idx := m.menu(); len(c) > 0 && !m.compArgs && strings.TrimSpace(m.input.Value()) != c[idx].name {
+		if c, idx := m.menu(); len(c) > 0 && !m.comp.args && strings.TrimSpace(m.input.Value()) != c[idx].name {
 			m.complete()
 			m.layout()
 			m.refresh(false)

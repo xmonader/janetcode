@@ -48,7 +48,7 @@ func (m *model) completions() []command {
 	if m.connect != nil || m.picker != nil || m.overlay != "" || m.asking != nil {
 		return nil
 	}
-	m.compArgs = false
+	m.comp.args = false
 	v := m.input.Value()
 	if strings.HasPrefix(v, "/") && !strings.ContainsAny(v, " \n") {
 		var exact, fuzzy []command
@@ -66,7 +66,7 @@ func (m *model) completions() []command {
 		if c, found := lookup(name); found && c.argsFor != nil {
 			// An argument menu offers; it never takes enter, so a typed
 			// argument still runs the command the moment you send it.
-			m.compArgs = true
+			m.comp.args = true
 			return c.argsFor(m, strings.TrimLeft(arg, " "))
 		}
 	}
@@ -143,13 +143,7 @@ func (m *model) menu() ([]command, int) {
 	if len(c) == 0 {
 		return nil, 0
 	}
-	if v := m.input.Value(); v != m.compFor {
-		m.compFor, m.compIdx = v, 0
-	}
-	if m.compIdx >= len(c) {
-		m.compIdx = len(c) - 1
-	}
-	return c, m.compIdx
+	return c, m.comp.highlight(m.input.Value(), len(c))
 }
 
 // moveMenu shifts the highlight; it reports whether a menu was open.
@@ -158,8 +152,7 @@ func (m *model) moveMenu(delta int) bool {
 	if len(c) == 0 {
 		return false
 	}
-	m.compIdx = (idx + delta + len(c)) % len(c)
-	m.compFor = m.input.Value()
+	m.comp.move(m.input.Value(), len(c), delta, idx)
 	m.layout()
 	m.refresh(false)
 	return true
@@ -192,7 +185,7 @@ func (m *model) complete() bool {
 	}
 	m.input.SetValue(v[:i+1] + name)
 	m.input.CursorEnd()
-	m.compFor, m.compIdx = m.input.Value(), 0
+	m.comp.pin(m.input.Value())
 	return true
 }
 
