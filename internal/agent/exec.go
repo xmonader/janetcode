@@ -94,23 +94,6 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 	return out, isErr, err
 }
 
-// allowSession marks name as allowed for the rest of this session,
-// initialising the map on first use. RunBlocks also initialises it before
-// its own loop starts, but that is a convenience for the common path, not
-// the thing that makes this safe: RunRecipe (see recipe.go) drives calls
-// through authorize without ever going through RunBlocks's turn setup, so
-// initialising only there left a straight-line path — a fresh agent whose
-// very first action is RunRecipe, with an approver that answers
-// AllowSession — straight into an assignment on a nil map. Initialising
-// here, at the point the map is actually written, is safe under every
-// caller rather than only the ones remembered to set it up first.
-func (a *Agent) allowSession(name string) {
-	if a.allowed == nil {
-		a.allowed = map[string]bool{}
-	}
-	a.allowed[name] = true
-}
-
 // authorize is everything that has to happen before a tool call may run:
 // the pre-tool hook (which can rewrite the input or refuse the call), the
 // preview and warning shown to the user, the permission rules, and the
@@ -120,24 +103,78 @@ func (a *Agent) allowSession(name string) {
 // It is separate from executeTool because a call made from inside a script
 // has to pass exactly the same gates as one the model made directly: a
 // script is a way to save round trips, not a way around the user.
+//
+// The steps below are in the order they must happen in: a hook sees the
+// call first and may rewrite the input everything after it works on; the
+// accept lock refuses before anything can allow; a deny rule refuses
+// before anything asks; and only what none of those settled reaches the
+// user.
 func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *ToolCall, emit func(Event)) ([]string, string, error) {
-	var hookNotes []string
-	hookAllowed := false
-	hooks := a.HookRunner()
-	if hooks.Has(hook.PreTool) {
-		res := hooks.Run(ctx, hook.Input{Event: hook.PreTool, Cwd: hooks.Cwd, Tool: u.Name, Input: u.Input})
-		if res.Denied {
-			return nil, "Blocked by a hook: " + res.Reason, nil
-		}
-		hookAllowed = res.Allowed
-		if !bytes.Equal(res.Input, u.Input) {
-			// The rewritten input is what gets previewed, approved and run.
-			u.Input = res.Input
-			call.Input = res.Input
-			hookNotes = append(hookNotes, "a hook rewrote this call's input to: "+string(res.Input))
-		}
-		hookNotes = append(hookNotes, res.Notes...)
+	hookNotes, hookAllowed, refusal := a.preToolHook(ctx, u, call)
+	if refusal != "" {
+		return nil, refusal, nil
 	}
+	mustAsk := a.describeCall(ctx, t, u, call)
+	// A locked accept-test file is refused like a denied permission rule:
+	// before anything asks the user, and with no way for AutoApprove or a
+	// saved rule to skip past it (see acceptDenial in accept_lock.go).
+	if t.Mutating() {
+		if reason := a.acceptDenial(t, u.Input); reason != "" {
+			return nil, reason, nil
+		}
+	}
+	subject, verdict, rule := a.ruleDecision(u)
+	if verdict == perm.Denied {
+		return nil, fmt.Sprintf("Denied by permission rule %s. Do not retry this call; choose another approach or ask the user to change the rule.", rule), nil
+	}
+	switch {
+	case verdict == perm.Allowed:
+		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by rule "+rule.String(), "; ")
+	case hookAllowed:
+		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by a hook", "; ")
+	}
+	if !a.mustPrompt(t, u, mustAsk, verdict, hookAllowed) {
+		return hookNotes, "", nil
+	}
+	if a.Approver == nil {
+		return nil, "Permission denied: no approver configured for mutating tools.", nil
+	}
+	d, reason, suggested, err := a.ask(ctx, u, call, subject, mustAsk)
+	if err != nil {
+		return nil, "", err
+	}
+	if refusal := a.applyDecision(d, reason, suggested, u.Name, mustAsk, emit); refusal != "" {
+		return nil, refusal, nil
+	}
+	return hookNotes, "", nil
+}
+
+// preToolHook runs the pre-tool hook, which may refuse the call outright,
+// allow it past the prompt, or rewrite the input everything after this
+// point — the preview, the approval and the call itself — works on.
+func (a *Agent) preToolHook(ctx context.Context, u *llm.Block, call *ToolCall) (notes []string, allowed bool, refusal string) {
+	hooks := a.HookRunner()
+	if !hooks.Has(hook.PreTool) {
+		return nil, false, ""
+	}
+	res := hooks.Run(ctx, hook.Input{Event: hook.PreTool, Cwd: hooks.Cwd, Tool: u.Name, Input: u.Input})
+	if res.Denied {
+		return nil, false, "Blocked by a hook: " + res.Reason
+	}
+	if !bytes.Equal(res.Input, u.Input) {
+		// The rewritten input is what gets previewed, approved and run.
+		u.Input = res.Input
+		call.Input = res.Input
+		notes = append(notes, "a hook rewrote this call's input to: "+string(res.Input))
+	}
+	return append(notes, res.Notes...), res.Allowed, ""
+}
+
+// describeCall fills in what the user would be shown about the call — the
+// preview and the warning — and reports whether the tool's own guard says
+// this input must be asked about however permissive the session is (a
+// command reaching outside the workspace).
+func (a *Agent) describeCall(ctx context.Context, t tool.Tool, u *llm.Block, call *ToolCall) (mustAsk bool) {
 	if pv, ok := t.(tool.Previewer); ok {
 		if p, err := pv.Preview(ctx, u.Input); err == nil {
 			call.Preview = p
@@ -148,9 +185,6 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	if w, ok := t.(tool.Warner); ok {
 		call.Warning = w.Warn(u.Input)
 	}
-	// A guarded input (a command reaching outside the workspace) asks even
-	// under auto-approve or a session-wide allow.
-	mustAsk := false
 	if g, ok := t.(tool.Guard); ok && t.Mutating() {
 		if ask, why := g.Guard(u.Input); ask {
 			mustAsk = true
@@ -159,98 +193,108 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 			}
 		}
 	}
-	// A locked accept-test file is refused like a denied permission rule:
-	// before anything asks the user, and with no way for AutoApprove or a
-	// saved rule to skip past it (see acceptDenial in accept_lock.go).
-	if t.Mutating() {
-		if reason := a.acceptDenial(t, u.Input); reason != "" {
-			return nil, reason, nil
-		}
+	return mustAsk
+}
+
+// ruleDecision is what the persistent permission rules say about this
+// call, with the subject they matched on (which the ask step needs too).
+func (a *Agent) ruleDecision(u *llm.Block) (subject string, verdict perm.Verdict, rule perm.Rule) {
+	subject = perm.SubjectIn(u.Name, u.Input, a.displayRoot())
+	verdict, rule = a.decideRule(u.Name, subject)
+	return subject, verdict, rule
+}
+
+// mustPrompt reports whether the user still has to be asked: only for a
+// mutating tool, and only when no approval shortcut covers it. A guarded
+// input (mustAsk) overrides every shortcut.
+func (a *Agent) mustPrompt(t tool.Tool, u *llm.Block, mustAsk bool, verdict perm.Verdict, hookAllowed bool) bool {
+	if !t.Mutating() {
+		return false
 	}
-	subject := perm.SubjectIn(u.Name, u.Input, a.displayRoot())
-	verdict, rule := a.decideRule(u.Name, subject)
-	if verdict == perm.Denied {
-		return nil, fmt.Sprintf("Denied by permission rule %s. Do not retry this call; choose another approach or ask the user to change the rule.", rule), nil
-	}
-	switch {
-	case verdict == perm.Allowed:
-		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by rule "+rule.String(), "; ")
-	case hookAllowed:
-		call.Warning = strings.TrimPrefix(call.Warning+"; allowed by a hook", "; ")
+	if mustAsk {
+		return true
 	}
 	modes := a.Settings()
 	autoEdit := (modes.AutoEdits || modes.AutoMode) && editTool(u.Name)
 	autoSafe := modes.AutoMode && a.autoAllows(*u)
-	if t.Mutating() && (mustAsk || !modes.AutoApprove && !autoEdit && !autoSafe && !a.allowed[u.Name] && verdict != perm.Allowed && !hookAllowed) {
-		if a.Approver == nil {
-			return nil, "Permission denied: no approver configured for mutating tools.", nil
+	return !modes.AutoApprove && !autoEdit && !autoSafe && !a.allowed[u.Name] && verdict != perm.Allowed && !hookAllowed
+}
+
+// ask puts the call to the user and records what came back. suggested is
+// the rule AllowAlways would save, which applyDecision needs.
+func (a *Agent) ask(ctx context.Context, u *llm.Block, call *ToolCall, subject string, mustAsk bool) (Decision, string, perm.Rule, error) {
+	if a.Impact != nil && editTool(u.Name) {
+		call.Impact = a.Impact(ctx, *call)
+	}
+	// suggested is the rule AllowAlways would save, and its string
+	// form is the shape the ledger tracks approvals and refusals
+	// under (see perm.Suggest): computed once and reused for both.
+	// A zero rule is a command no rule can capture safely: nothing is
+	// offered, learned or recorded for it.
+	suggested := perm.Suggest(u.Name, subject)
+	shape := suggested.String()
+	call.Rule = shape
+	if tally := a.Ledger.Get(shape); shape != "" && tally.Allowed >= perm.LearnAfter && tally.Denied == 0 && !mustAsk && call.Warning == "" {
+		call.Learned = fmt.Sprintf("approved %d× before, never refused", tally.Allowed)
+	}
+	var (
+		d      Decision
+		reason string
+		err    error
+	)
+	if ra, ok := a.Approver.(ReasonApprover); ok {
+		d, reason, err = ra.ApproveWithReason(ctx, *call)
+	} else {
+		d, err = a.Approver.Approve(ctx, *call)
+	}
+	if err != nil {
+		return 0, "", perm.Rule{}, err
+	}
+	// Recorded before applyDecision, which reports a refusal: the ledger
+	// has to see a refusal too, not only the allow variants.
+	a.stats.approval(d == Deny)
+	if shape != "" && (d != Deny || reason != CancelledReason) {
+		a.Ledger.Record(shape, d != Deny)
+	}
+	if shape != "" && call.Warning != "" && d != Deny {
+		a.Ledger.MarkWarned(shape)
+	}
+	return d, reason, suggested, nil
+}
+
+// applyDecision carries out what the user chose: widening the allow for
+// the session or saving a rule, or reporting the refusal the model sees.
+// A guarded call (mustAsk) is never widened — the answer covers this call
+// only.
+func (a *Agent) applyDecision(d Decision, reason string, suggested perm.Rule, name string, mustAsk bool, emit func(Event)) (refusal string) {
+	switch d {
+	case AllowSession:
+		if !mustAsk {
+			a.allowSession(name)
 		}
-		if a.Impact != nil && editTool(u.Name) {
-			call.Impact = a.Impact(ctx, *call)
-		}
-		// suggested is the rule AllowAlways would save, and its string
-		// form is the shape the ledger tracks approvals and refusals
-		// under (see perm.Suggest): computed once and reused for both.
-		// A zero rule is a command no rule can capture safely: nothing is
-		// offered, learned or recorded for it.
-		suggested := perm.Suggest(u.Name, subject)
-		shape := suggested.String()
-		call.Rule = shape
-		if tally := a.Ledger.Get(shape); shape != "" && tally.Allowed >= perm.LearnAfter && tally.Denied == 0 && !mustAsk && call.Warning == "" {
-			call.Learned = fmt.Sprintf("approved %d× before, never refused", tally.Allowed)
-		}
-		var (
-			d      Decision
-			reason string
-			err    error
-		)
-		if ra, ok := a.Approver.(ReasonApprover); ok {
-			d, reason, err = ra.ApproveWithReason(ctx, *call)
-		} else {
-			d, err = a.Approver.Approve(ctx, *call)
-		}
-		if err != nil {
-			return nil, "", err
-		}
-		// Recorded before the switch below, which returns early for a
-		// denial: the ledger has to see a refusal too, not only the
-		// allow variants.
-		a.stats.approval(d == Deny)
-		if shape != "" && (d != Deny || reason != CancelledReason) {
-			a.Ledger.Record(shape, d != Deny)
-		}
-		if shape != "" && call.Warning != "" && d != Deny {
-			a.Ledger.MarkWarned(shape)
-		}
-		switch d {
-		case AllowSession:
-			if !mustAsk {
-				a.allowSession(u.Name)
-			}
-		case AllowAlways:
-			if !mustAsk && !suggested.IsZero() {
-				a.AddRule(perm.Allowed, suggested)
-				if a.SaveRule != nil {
-					if err := a.SaveRule(suggested); err != nil {
-						emit(Event{Kind: EvNotice, Text: "could not save permission rule " + suggested.String() + ": " + err.Error()})
-					} else {
-						emit(Event{Kind: EvNotice, Text: "saved permission rule: " + suggested.String()})
-					}
+	case AllowAlways:
+		if !mustAsk && !suggested.IsZero() {
+			a.AddRule(perm.Allowed, suggested)
+			if a.SaveRule != nil {
+				if err := a.SaveRule(suggested); err != nil {
+					emit(Event{Kind: EvNotice, Text: "could not save permission rule " + suggested.String() + ": " + err.Error()})
+				} else {
+					emit(Event{Kind: EvNotice, Text: "saved permission rule: " + suggested.String()})
 				}
 			}
-		case Allow:
-		default:
-			if reason == CancelledReason {
-				return nil, CancelledMessage, nil
-			}
-			msg := DeniedMessage
-			if reason = strings.TrimSpace(reason); reason != "" {
-				msg += " The user said: " + reason
-			}
-			return nil, msg, nil
 		}
+	case Allow:
+	default:
+		if reason == CancelledReason {
+			return CancelledMessage
+		}
+		msg := DeniedMessage
+		if reason = strings.TrimSpace(reason); reason != "" {
+			msg += " The user said: " + reason
+		}
+		return msg
 	}
-	return hookNotes, "", nil
+	return ""
 }
 
 func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) (string, bool, error) {

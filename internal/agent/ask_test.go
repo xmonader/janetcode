@@ -8,12 +8,13 @@ import (
 )
 
 func TestAskToolReturnsChosenLabels(t *testing.T) {
-	ag := &Agent{Asker: AskFunc(func(_ context.Context, qs []Question) ([]Answer, error) {
+	ag := &Agent{}
+	ag.Asker = AskFunc(func(_ context.Context, qs []Question) ([]Answer, error) {
 		if len(qs) != 2 || qs[0].Prompt != "Goal?" || len(qs[0].Options) != 2 {
 			t.Fatalf("qs = %+v", qs)
 		}
 		return []Answer{{Label: "Performance"}, {Label: "Other", Reason: "ship it"}}, nil
-	})}
+	})
 	out, err := (&AskTool{Parent: ag}).Run(context.Background(), json.RawMessage(`{"questions":[
 		{"prompt":"Goal?","options":[{"label":"Performance"},{"label":"Readability"}]},
 		{"prompt":"Name?","options":[{"label":"Alpha"},{"label":"Beta"}]}

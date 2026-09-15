@@ -86,13 +86,14 @@ func (panicTool) Run(context.Context, json.RawMessage) (string, error) { panic("
 func newAgent(t *testing.T, f *fake, approver Approver) (*Agent, string) {
 	root := t.TempDir()
 	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha\n"), 0o644)
-	return &Agent{
+	a := &Agent{
 		Provider: f,
 		Tools:    tool.NewRegistry(tool.ReadFile{Root: root}, tool.WriteFile{Root: root}, panicTool{}),
-		Approver: approver,
 		System:   "sys",
 		Model:    "m",
-	}, root
+	}
+	a.Approver = approver
+	return a, root
 }
 
 func collect() (*[]Event, func(Event)) {
@@ -440,7 +441,8 @@ func TestGuardedToolAsksEvenWithAutoApprove(t *testing.T) {
 		return AllowSession, nil
 	})
 	f := &fake{responses: []*llm.Response{toolCall("1", "guarded", `{}`), toolCall("2", "guarded", `{}`), text("done")}}
-	a := &Agent{Provider: f, Tools: tool.NewRegistry(guardTool{ask: true}), Approver: approver, AutoApprove: true}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(guardTool{ask: true}), AutoApprove: true}
+	a.Approver = approver
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -450,7 +452,8 @@ func TestGuardedToolAsksEvenWithAutoApprove(t *testing.T) {
 	}
 	asked = 0
 	f = &fake{responses: []*llm.Response{toolCall("1", "guarded", `{}`), text("done")}}
-	a = &Agent{Provider: f, Tools: tool.NewRegistry(guardTool{ask: false}), Approver: approver, AutoApprove: true}
+	a = &Agent{Provider: f, Tools: tool.NewRegistry(guardTool{ask: false}), AutoApprove: true}
+	a.Approver = approver
 	if err := a.Run(context.Background(), "go", nil); err != nil || asked != 0 {
 		t.Fatalf("err=%v asked=%d", err, asked)
 	}

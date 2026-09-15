@@ -15,9 +15,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
-	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
-	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/verify"
@@ -120,6 +118,9 @@ type Agent struct {
 	// checkpoints owns undo, redo and the provenance record (see
 	// checkpoints.go). Embedded for the same reason.
 	checkpoints
+	// permissions owns what a tool call must satisfy before it runs
+	// (see permissions.go). Embedded for the same reason.
+	permissions
 
 	stats statsCounter
 	// Predictor, when set, scores the running turn from its trajectory
@@ -138,11 +139,8 @@ type Agent struct {
 	// front-end changes them while the turn goroutine reads them.
 	Provider llm.Provider
 	Tools    *tool.Registry
-	Approver Approver
-	// Asker, when set, answers labeled questions from the ask tool.
-	Asker  Asker
-	System string
-	Model  string
+	System   string
+	Model    string
 	// MaxTokens per model call. Zero lets the provider choose.
 	MaxTokens int
 	// MaxIterations caps model calls per user turn. Zero means 50.
@@ -160,9 +158,6 @@ type Agent struct {
 	// an ask for commands that leave the workspace or touch janetcode's
 	// own settings.
 	AutoMode bool
-	// Rules are persistent permission rules consulted before the Approver:
-	// a deny refuses the call outright, an allow skips the prompt.
-	Rules perm.Rules
 	// Off disables named behaviours for ablation runs: "coach" (edit
 	// coaching), "syntax" (syntax check and covering-test pointer after
 	// edits), "loops" (loop nudges and stuck detection), "prune"
@@ -209,13 +204,6 @@ type Agent struct {
 	// and returns a note (language-server diagnostics) appended to the
 	// tool result, or "".
 	Diagnose func(ctx context.Context, path string) string
-	// Impact, when set, is asked what an edit_file or write_file call
-	// reaches — the symbols it redefines, their references, their tests,
-	// and the checks that will run (see package impact) — and returns one
-	// line for ToolCall.Impact, or "". It is only ever asked right before
-	// a permission prompt is actually shown, on a short internal budget,
-	// so it never delays one noticeably.
-	Impact func(ctx context.Context, call ToolCall) string
 	// settingsMu guards the fields Settings mirrors, Rules and Pins: a
 	// front-end changes them while the turn goroutine and subagents read
 	// them (see settings.go).
@@ -225,15 +213,6 @@ type Agent struct {
 	// proofCommits are the commits this turn attached a proof note to
 	// (see checkCommitAttach), refreshed once the turn's gates have run.
 	proofCommits []string
-	// SaveRule, when set, persists a rule the user created with AllowAlways.
-	SaveRule func(perm.Rule) error
-	// Ledger, when set, remembers how permission prompts of each rule
-	// shape have been answered, across sessions, so a call approved
-	// several times running with no refusal can be flagged as learned
-	// (ToolCall.Learned) and offered in /permissions before the user ever
-	// saves a rule for it. Nil is a working default: perm.Ledger's
-	// methods are nil-safe no-ops.
-	Ledger *perm.Ledger
 	// Debug, when set, receives a timestamped line per event and model call.
 	Debug io.Writer
 
@@ -260,8 +239,6 @@ type Agent struct {
 	// Hooks, when set, runs user commands around tool calls, compaction
 	// and turn end (see package hook). Nil means no hooks.
 	Hooks *hook.Runner
-	// Sandbox, when set, is the optional wrapper around local bash.
-	Sandbox *shell.Sandbox
 	// Cron is the session-scoped scheduler; jobs die when the session ends.
 	Cron *Cron
 	// Accept is the /accept "acceptance tests you approve first" state,
@@ -282,7 +259,6 @@ type Agent struct {
 
 	mutated bool // a mutating tool ran successfully this turn
 
-	allowed map[string]bool
 	// callIDs is every tool-call id handed out this conversation, so a
 	// provider that repeats or omits one cannot collide with it.
 	callIDs map[string]bool
@@ -359,9 +335,6 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {
 		a.Tools = tool.NewRegistry()
-	}
-	if a.allowed == nil {
-		a.allowed = map[string]bool{}
 	}
 	maxIter := a.Settings().MaxIterations
 	if maxIter <= 0 {

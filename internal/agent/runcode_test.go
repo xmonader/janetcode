@@ -47,10 +47,10 @@ func TestRunCodeCallsRealToolAndDenialStillDenies(t *testing.T) {
 		return Deny, nil
 	})
 	blocked := &Agent{
-		Tools:    tool.NewRegistry(tool.WriteFile{Root: root}),
-		Log:      &session.Memory{},
-		Approver: deny,
+		Tools: tool.NewRegistry(tool.WriteFile{Root: root}),
+		Log:   &session.Memory{},
 	}
+	blocked.Approver = deny
 	rc2 := &RunCode{Parent: blocked}
 	blocked.Tools.Add(rc2)
 	got, err := rc2.Run(context.Background(), json.RawMessage(`{"code":[{"name":"write_file","input":{"path":"x.txt","content":"no"}}]}`))

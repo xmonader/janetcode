@@ -35,7 +35,9 @@ func TestImpactShownOnlyWhenAsking(t *testing.T) {
 		toolCall("e1", "edit_file", `{"path":"a.go","old_string":"package a","new_string":"package a // x"}`),
 		text("done"),
 	}}
-	a := &Agent{Provider: f, Tools: tool.NewRegistry(tool.EditFile{Root: root}), Approver: approver, Impact: impactFn, Model: "m"}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(tool.EditFile{Root: root}), Model: "m"}
+	a.Approver = approver
+	a.Impact = impactFn
 	if err := a.Run(context.Background(), "edit", func(Event) {}); err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +55,8 @@ func TestImpactShownOnlyWhenAsking(t *testing.T) {
 		toolCall("e2", "edit_file", `{"path":"a.go","old_string":"package a // x","new_string":"package a // y"}`),
 		text("done"),
 	}}
-	a2 := &Agent{Provider: f2, Tools: tool.NewRegistry(tool.EditFile{Root: root}), AutoApprove: true, Impact: impactFn, Model: "m"}
+	a2 := &Agent{Provider: f2, Tools: tool.NewRegistry(tool.EditFile{Root: root}), AutoApprove: true, Model: "m"}
+	a2.Impact = impactFn
 	if err := a2.Run(context.Background(), "edit", func(Event) {}); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +79,9 @@ func TestImpactNotAskedForNonEditTools(t *testing.T) {
 		toolCall("b1", "bash", `{"command":"echo hi"}`),
 		text("done"),
 	}}
-	a := &Agent{Provider: f, Tools: tool.NewRegistry(tool.Bash{Root: root}), Approver: approver, Impact: impactFn, Model: "m"}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(tool.Bash{Root: root}), Model: "m"}
+	a.Approver = approver
+	a.Impact = impactFn
 	if err := a.Run(context.Background(), "run it", func(Event) {}); err != nil {
 		t.Fatal(err)
 	}

@@ -491,10 +491,10 @@ func TestSubagentInheritsDenyRulesButNotAllow(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "secret.txt"), []byte("token"), 0o644)
 	parent := &Agent{
 		Provider: &scriptedByPrompt{}, Model: "m", System: "sys",
-		Rules: perm.Rules{
-			Deny:  []perm.Rule{{Tool: "read_file", Pattern: "secret.txt"}},
-			Allow: []perm.Rule{{Tool: "bash", Pattern: "rm -rf *"}},
-		},
+	}
+	parent.Rules = perm.Rules{
+		Deny:  []perm.Rule{{Tool: "read_file", Pattern: "secret.txt"}},
+		Allow: []perm.Rule{{Tool: "bash", Pattern: "rm -rf *"}},
 	}
 	task := &Task{Parent: parent, Root: root}
 	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
