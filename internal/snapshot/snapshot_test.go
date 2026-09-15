@@ -54,7 +54,7 @@ func status(t *testing.T, root string) string {
 func TestTakeAndRestoreCoversUntrackedAndDeleted(t *testing.T) {
 	root := initRepo(t)
 	ctx := context.Background()
-	r, err := Open(filepath.Join(root))
+	r, err := Open(context.Background(), filepath.Join(root))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestTakeAndRestoreCoversUntrackedAndDeleted(t *testing.T) {
 	if out, _ := cmd.Output(); len(out) != 0 {
 		t.Fatalf("ref not dropped: %s", out)
 	}
-	if _, err := Open(t.TempDir()); !errors.Is(err, ErrNotRepo) {
+	if _, err := Open(context.Background(), t.TempDir()); !errors.Is(err, ErrNotRepo) {
 		t.Fatalf("non-repo err = %v", err)
 	}
 }
@@ -122,7 +122,7 @@ func TestTakeAndRestoreCoversUntrackedAndDeleted(t *testing.T) {
 func TestRestoreRefusesWhenHeadMoved(t *testing.T) {
 	root := initRepo(t)
 	ctx := context.Background()
-	r, _ := Open(root)
+	r, _ := Open(context.Background(), root)
 	s, err := r.Take(ctx, "x")
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +149,7 @@ func TestTakeOnUnbornBranch(t *testing.T) {
 		t.Fatalf("%v: %s", err, out)
 	}
 	write(t, filepath.Join(root, "x.txt"), "x\n")
-	r, _ := Open(root)
+	r, _ := Open(context.Background(), root)
 	s, err := r.Take(context.Background(), "first")
 	if err != nil || s.Head != "" {
 		t.Fatalf("snap=%+v err=%v", s, err)
@@ -160,5 +160,30 @@ func TestTakeOnUnbornBranch(t *testing.T) {
 	}
 	if read(filepath.Join(root, "x.txt")) != "x\n" {
 		t.Fatal("x.txt not restored")
+	}
+}
+
+// A cancelled context is reported as such, not as a moved HEAD (which is
+// what reading HEAD as "" used to suggest).
+func TestRestoreWithCancelledContext(t *testing.T) {
+	root := initRepo(t)
+	r, err := Open(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := r.Take(context.Background(), "turn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := r.Restore(ctx, s); err == nil || errors.Is(err, ErrHeadMoved) {
+		t.Fatalf("Restore with a cancelled ctx: %v", err)
+	}
+	if _, err := r.Take(ctx, "turn"); err == nil {
+		t.Fatal("Take with a cancelled ctx succeeded")
+	}
+	if _, err := Open(ctx, root); err == nil {
+		t.Fatal("Open with a cancelled ctx succeeded")
 	}
 }

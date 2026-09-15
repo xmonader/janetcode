@@ -34,12 +34,12 @@ type Repo struct {
 }
 
 // Open finds the repository containing dir, or ErrNotRepo.
-func Open(dir string) (*Repo, error) {
-	top, err := gitx.Run(context.Background(), dir, nil, "rev-parse", "--show-toplevel")
+func Open(ctx context.Context, dir string) (*Repo, error) {
+	top, err := gitx.Run(ctx, dir, nil, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return nil, ErrNotRepo
 	}
-	gd, err := gitx.Run(context.Background(), dir, nil, "rev-parse", "--absolute-git-dir")
+	gd, err := gitx.Run(ctx, dir, nil, "rev-parse", "--absolute-git-dir")
 	if err != nil {
 		return nil, ErrNotRepo
 	}
@@ -60,7 +60,10 @@ func (r *Repo) Take(ctx context.Context, label string) (Snap, error) {
 		return Snap{}, err
 	}
 	defer cleanup()
-	head := r.head()
+	head, err := r.head(ctx)
+	if err != nil {
+		return Snap{}, err
+	}
 	if head != "" {
 		if _, err := r.run(ctx, idx, "read-tree", head); err != nil {
 			return Snap{}, err
@@ -93,7 +96,11 @@ func (r *Repo) Take(ctx context.Context, label string) (Snap, error) {
 // deleted since are rewritten and files created since are removed. The
 // real index is left alone. It returns a line per file it touched.
 func (r *Repo) Restore(ctx context.Context, s Snap) ([]string, error) {
-	if r.head() != s.Head {
+	head, err := r.head(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if head != s.Head {
 		return nil, ErrHeadMoved
 	}
 	if _, err := r.run(ctx, "", "cat-file", "-e", s.Commit+"^{commit}"); err != nil {
@@ -200,12 +207,15 @@ func (r *Repo) Diff(ctx context.Context, s Snap) ([]string, error) {
 	return lines, nil
 }
 
-func (r *Repo) head() string {
-	h, err := gitx.Run(context.Background(), r.Root, nil, "rev-parse", "--verify", "-q", "HEAD")
-	if err != nil {
-		return ""
+// head is the commit HEAD names, or "" on an unborn branch (rev-parse -q
+// exits 1 for a missing revision). Any other failure is an error, so a
+// cancelled ctx is not mistaken for an unborn branch.
+func (r *Repo) head(ctx context.Context) (string, error) {
+	h, err := gitx.Run(ctx, r.Root, nil, "rev-parse", "--verify", "-q", "HEAD")
+	if gitx.ExitCode(err) == 1 {
+		return "", nil
 	}
-	return h
+	return h, err
 }
 
 func (r *Repo) tempIndex() (string, func(), error) {

@@ -415,7 +415,7 @@ type Agent struct {
 // the message, numbers the turn, logs its start, opens the undo checkpoint
 // and resets the per-turn mutation counters. RunBlocks and RunRecipe both
 // open their turns here; the caller defers endTurn.
-func (a *Agent) beginTurn(blocks ...llm.Block) {
+func (a *Agent) beginTurn(ctx context.Context, blocks ...llm.Block) {
 	// The checkpoint remembers the conversation as it stood before this
 	// turn's prompt, so an undo can take the whole turn out, prompt
 	// included; a prompt left behind reads as a request to do it again.
@@ -424,7 +424,7 @@ func (a *Agent) beginTurn(blocks ...llm.Block) {
 	a.turnN++
 	a.stepN = 0
 	if a.turnN == 1 {
-		a.recordStart()
+		a.recordStart(ctx)
 	}
 	start := session.Event{Type: session.TypeTurnStart, Turn: a.turnN}
 	if phase, on := a.acceptPhase(); on {
@@ -481,8 +481,8 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 				"%s of attachment was already in the context word for word and was not sent again", textfmt.Tokens(repeated))})
 		}
 	}
-	a.beginTurn(blocks...)
-	defer a.endTurn()
+	a.beginTurn(ctx, blocks...)
+	defer a.endTurn(ctx)
 	// A note typed with ctrl+s reaches the model before the turn's next
 	// call. A turn that ends with its final answer has no next call, so
 	// the note stays queued for the turn after this one. Say so, rather

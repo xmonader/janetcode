@@ -18,7 +18,7 @@ import (
 // acceptance test file is locked with the given command.
 func acceptSession(t *testing.T, root, command string, prompts ...string) *session.Session {
 	t.Helper()
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestKeepIncludesLockedAcceptanceTests(t *testing.T) {
 // refusing to keep the task).
 func TestKeepCommandWarnsWhenCheckPassesAtBase(t *testing.T) {
 	root := initKeepRepo(t)
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestKeepCommandWarnsWhenCheckPassesAtBase(t *testing.T) {
 // so /eval keep says it was left out rather than dropping it silently.
 func TestKeepNotesDroppedDenialReasons(t *testing.T) {
 	root := initKeepRepo(t)
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}

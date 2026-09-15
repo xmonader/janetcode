@@ -90,7 +90,7 @@ func runGit(t *testing.T, dir string, args ...string) string {
 
 func TestKeepWritesTaskAndPatch(t *testing.T) {
 	root := initKeepRepo(t)
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestKeepWritesTaskAndPatch(t *testing.T) {
 // task is designed to feed.
 func TestPrepareWorktreeMatchesSnapshot(t *testing.T) {
 	root := initKeepRepo(t)
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestKeepUnbornRepo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,7 +328,7 @@ func TestKeepWithBaseOverride(t *testing.T) {
 // still prepares correctly once the source repository is gone entirely.
 func TestKeepSelfContained(t *testing.T) {
 	root := initKeepRepo(t)
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -381,7 +381,7 @@ func TestKeepBaseWarnings(t *testing.T) {
 	runGit(t, remote, "init", "-q", "--bare")
 	runGit(t, root, "remote", "add", "origin", remote)
 
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}

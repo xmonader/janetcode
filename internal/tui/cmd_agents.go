@@ -135,7 +135,7 @@ func (m *model) reviewCommand(arg string) tea.Cmd {
 		m.refresh(false)
 		return nil
 	}
-	diff, err := agent.ReviewDiff(m.opts.Cwd)
+	diff, err := agent.ReviewDiff(context.Background(), m.opts.Cwd)
 	if err != nil {
 		m.transcript.errorf("review: %v", err)
 		m.refresh(false)

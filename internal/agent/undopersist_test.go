@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -38,7 +39,7 @@ func TestFailedCaptureSurvivesTheUndoSidecar(t *testing.T) {
 	if len(b.cp.all) != 1 || !b.cp.all[0].Files[0].Failed {
 		t.Fatalf("the failed mark was lost: %+v", b.cp.all)
 	}
-	done, err := b.Undo()
+	done, err := b.Undo(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "could not be captured") {
 		t.Fatalf("done=%v err=%v, want the failure reported", done, err)
 	}

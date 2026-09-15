@@ -348,7 +348,7 @@ func (r *Runner) Run(ctx context.Context) (Report, error) {
 		return rep, nil
 	}
 	rep.Total = len(mutants)
-	repo, err := snapshot.Open(r.Root)
+	repo, err := snapshot.Open(ctx, r.Root)
 	if err != nil {
 		return rep, err
 	}

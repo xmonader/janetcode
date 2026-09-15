@@ -45,7 +45,7 @@ func TestUndoRestoresLastTurn(t *testing.T) {
 		t.Fatalf("y = %q", data)
 	}
 
-	done, err := a.Undo()
+	done, err := a.Undo(context.Background())
 	if err != nil || len(done) != 1 {
 		t.Fatalf("undo 1: %v %v", done, err)
 	}
@@ -53,7 +53,7 @@ func TestUndoRestoresLastTurn(t *testing.T) {
 		t.Fatalf("after undo 1, y = %q", data)
 	}
 
-	done, err = a.Undo()
+	done, err = a.Undo(context.Background())
 	if err != nil || len(done) != 2 {
 		t.Fatalf("undo 2: %v %v", done, err)
 	}
@@ -63,7 +63,7 @@ func TestUndoRestoresLastTurn(t *testing.T) {
 	if data, _ := os.ReadFile(filepath.Join(root, "y")); string(data) != "one" {
 		t.Fatalf("after undo 2, y = %q", data)
 	}
-	if _, err := a.Undo(); !errors.Is(err, ErrNothingToUndo) {
+	if _, err := a.Undo(context.Background()); !errors.Is(err, ErrNothingToUndo) {
 		t.Fatalf("third undo err = %v", err)
 	}
 }
@@ -91,7 +91,7 @@ func TestUndoPersistsAcrossAgents(t *testing.T) {
 	if n := len(b.Checkpoints()); n != 1 {
 		t.Fatalf("loaded %d checkpoints", n)
 	}
-	if _, err := b.Undo(); err != nil {
+	if _, err := b.Undo(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "x")); !errors.Is(err, os.ErrNotExist) {
@@ -102,16 +102,16 @@ func TestUndoPersistsAcrossAgents(t *testing.T) {
 	if err := c.LoadUndo(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.Redo(); err != nil {
+	if _, err := c.Redo(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "x")); err != nil {
 		t.Fatal("redo from a resumed agent did not recreate x")
 	}
-	if _, err := c.Undo(); err != nil {
+	if _, err := c.Undo(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	c.cp.dropRedo(nil)
+	c.cp.dropRedo(context.Background(), nil)
 	c.cp.changes = nil // provenance keeps the file otherwise
 	if err := c.SaveUndo(); err != nil {
 		t.Fatal(err)
@@ -150,7 +150,7 @@ func TestUndoRevertsShellChangesThroughGit(t *testing.T) {
 	a, root := newAgent(t, f, nil)
 	os.WriteFile(filepath.Join(root, "b.txt"), []byte("b\n"), 0o644)
 	gitInit(t, root)
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestUndoRevertsShellChangesThroughGit(t *testing.T) {
 	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "changed\n" {
 		t.Fatalf("a.txt = %q", data)
 	}
-	done, err := a.Undo()
+	done, err := a.Undo(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestUndoRevertsShellChangesThroughGit(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "made.txt")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("made.txt still there")
 	}
-	if _, err := a.Undo(); !errors.Is(err, ErrNothingToUndo) {
+	if _, err := a.Undo(context.Background()); !errors.Is(err, ErrNothingToUndo) {
 		t.Fatalf("second undo err = %v", err)
 	}
 	refs := func() string {
@@ -198,7 +198,7 @@ func TestUndoRevertsShellChangesThroughGit(t *testing.T) {
 		t.Fatalf("want exactly the redo snapshot ref, got:\n%s", refs())
 	}
 	// Redo brings the changes back and makes them undoable again.
-	done, err = a.Redo()
+	done, err = a.Redo(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,10 +208,10 @@ func TestUndoRevertsShellChangesThroughGit(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "made.txt")); err != nil {
 		t.Fatal("made.txt not recreated by redo")
 	}
-	if _, err := a.Redo(); !errors.Is(err, ErrNothingToRedo) {
+	if _, err := a.Redo(context.Background()); !errors.Is(err, ErrNothingToRedo) {
 		t.Fatalf("second redo err = %v", err)
 	}
-	preview, err := a.UndoPreview()
+	preview, err := a.UndoPreview(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +224,7 @@ func TestUndoRevertsShellChangesThroughGit(t *testing.T) {
 	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "changed\n" {
 		t.Fatal("preview changed the tree")
 	}
-	if _, err := a.Undo(); err != nil {
+	if _, err := a.Undo(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "alpha\n" {
@@ -235,7 +235,7 @@ func TestUndoRevertsShellChangesThroughGit(t *testing.T) {
 	if err := a.Run(context.Background(), "write c", func(Event) {}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.Redo(); !errors.Is(err, ErrNothingToRedo) {
+	if _, err := a.Redo(context.Background()); !errors.Is(err, ErrNothingToRedo) {
 		t.Fatalf("redo after new change err = %v", err)
 	}
 	if n := strings.Count(refs(), "\n"); n != 1 {
@@ -251,14 +251,14 @@ func TestUndoFallsBackToFileCopiesWhenHeadMoved(t *testing.T) {
 	}}
 	a, root := newAgent(t, f, nil)
 	gitInit(t, root)
-	a.Snapshots, _ = snapshot.Open(root)
+	a.Snapshots, _ = snapshot.Open(context.Background(), root)
 	a.AutoApprove = true
 	a.Tools = tool.NewRegistry(tool.Bash{Root: root}, tool.WriteFile{Root: root})
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}
 	gitInit(t, root) // the user commits: HEAD moves
-	done, err := a.Undo()
+	done, err := a.Undo(context.Background())
 	if !errors.Is(err, snapshot.ErrHeadMoved) || len(done) != 1 {
 		t.Fatalf("done=%v err=%v", done, err)
 	}
@@ -288,7 +288,7 @@ func TestUndoRollsBackTheConversation(t *testing.T) {
 	if before < 4 {
 		t.Fatalf("expected a full turn in the context, have %d messages", before)
 	}
-	if _, err := a.Undo(); err != nil {
+	if _, err := a.Undo(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "x")); !os.IsNotExist(err) {
@@ -377,16 +377,16 @@ func TestUndoReportsAFailedCapture(t *testing.T) {
 	}
 	a := &Agent{}
 	a.cp.beginTurn(1, 0)
-	a.cp.snapshot(nil, touchTool{paths: []string{path}}, nil)
+	a.cp.snapshot(context.Background(), nil, touchTool{paths: []string{path}}, nil)
 	cps := a.Checkpoints()
 	if len(cps) != 1 || len(cps[0].Files) != 1 || !cps[0].Files[0].Failed {
 		t.Fatalf("checkpoint = %+v", cps)
 	}
-	preview, err := a.UndoPreview()
+	preview, err := a.UndoPreview(context.Background())
 	if err != nil || len(preview) != 1 || !strings.Contains(preview[0], "cannot restore") {
 		t.Fatalf("preview = %v, %v", preview, err)
 	}
-	done, err := a.Undo()
+	done, err := a.Undo(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "could not be captured") {
 		t.Fatalf("err = %v", err)
 	}

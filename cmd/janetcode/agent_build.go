@@ -342,7 +342,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	ag.Tools.Intent = d.cfg.IntentEnabled()
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow})
 	ag.UndoPath = sess.UndoPath()
-	if snaps, serr := snapshot.Open(d.cwd); serr == nil {
+	if snaps, serr := snapshot.Open(context.Background(), d.cwd); serr == nil {
 		ag.Snapshots = snaps
 	}
 	if err := ag.LoadUndo(); err != nil {

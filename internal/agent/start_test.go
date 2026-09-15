@@ -33,7 +33,7 @@ func TestFirstTurnRecordsStartOnce(t *testing.T) {
 	f := &fake{responses: []*llm.Response{text("ok"), text("ok again")}}
 	a, root := newAgent(t, f, nil)
 	gitInit(t, root)
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}

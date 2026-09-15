@@ -152,7 +152,7 @@ func TestRunReplaysThenGoesLive(t *testing.T) {
 	runGit(t, root, "add", "-A")
 	runGit(t, root, "commit", "-q", "-m", "init")
 
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestRunRefusesOutOfRangeTurn(t *testing.T) {
 	}
 	runGit(t, root, "add", "-A")
 	runGit(t, root, "commit", "-q", "-m", "init")
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}

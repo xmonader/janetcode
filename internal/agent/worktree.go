@@ -26,7 +26,7 @@ type worktree struct {
 // newWorktree checks the current state of root out into a temp directory.
 // Uncommitted and untracked changes are included through a snapshot.
 func newWorktree(ctx context.Context, root string) (*worktree, error) {
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(ctx, root)
 	if err != nil {
 		return nil, fmt.Errorf("editing subagents need a git repository: %w", err)
 	}

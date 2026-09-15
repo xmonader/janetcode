@@ -97,8 +97,8 @@ func (a *Agent) RunRecipe(ctx context.Context, r recipe.Recipe, args map[string]
 		return "", nil, err
 	}
 
-	a.beginTurn(llm.Block{Type: llm.BlockText, Text: recipeLabel(r.Name, args), Synthetic: true})
-	defer a.endTurn()
+	a.beginTurn(ctx, llm.Block{Type: llm.BlockText, Text: recipeLabel(r.Name, args), Synthetic: true})
+	defer a.endTurn(ctx)
 
 	if emit == nil {
 		emit = func(Event) {}

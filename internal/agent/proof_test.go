@@ -49,7 +49,7 @@ func TestAutomaticProofAttachOnCommit(t *testing.T) {
 	}}
 	a, root := newAgent(t, f, nil)
 	gitInit(t, root)
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestProofNotesGateSkipsAutomaticAttach(t *testing.T) {
 	}}
 	a, root := newAgent(t, f, nil)
 	gitInit(t, root)
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestAutomaticProofDoesNotMisattributeAcrossCommits(t *testing.T) {
 	}}
 	a, root := newAgent(t, f, nil)
 	gitInit(t, root)
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,7 +373,7 @@ func TestAutomaticProofIncludesTheTurnsGateRuns(t *testing.T) {
 	}}
 	a, root := newAgent(t, f, nil)
 	gitInit(t, root)
-	repo, err := snapshot.Open(root)
+	repo, err := snapshot.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}

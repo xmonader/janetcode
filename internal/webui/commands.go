@@ -181,7 +181,7 @@ func (s *server) runCommand(text string) error {
 		}
 		switch {
 		case ua.Preview:
-			list, err := ag.UndoPreview()
+			list, err := ag.UndoPreview(context.Background())
 			if err != nil {
 				s.errf("undo: %v", err)
 				return nil
@@ -207,14 +207,14 @@ func (s *server) runCommand(text string) error {
 			})
 			return nil
 		}
-		done, err := ag.Undo()
+		done, err := ag.Undo(context.Background())
 		if err != nil {
 			s.errf("undo: %v", err)
 			return nil
 		}
 		s.notice("↶ " + strings.Join(done, ", "))
 	case "/redo":
-		done, err := ag.Redo()
+		done, err := ag.Redo(context.Background())
 		if err != nil {
 			s.errf("redo: %v", err)
 			return nil

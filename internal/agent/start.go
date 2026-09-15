@@ -15,7 +15,7 @@ import (
 // cwd is a git repository (Snapshots is then set by buildAgent). Failures
 // are silent: the only consequence is that /eval keep later cannot keep
 // this session.
-func (a *Agent) recordStart() {
+func (a *Agent) recordStart(ctx context.Context) {
 	if a.Snapshots == nil {
 		return
 	}
@@ -23,9 +23,9 @@ func (a *Agent) recordStart() {
 	if !ok || sess.Meta.Start != nil {
 		return
 	}
-	// A context of its own, like captureState's: the turn's own context
-	// may be cancelled before this ever gets a chance to run under it.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Not cancelled with the turn: the turn's own context may be cancelled
+	// before this ever gets a chance to run under it.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
 	snap, err := a.Snapshots.Take(ctx, "janetcode session start "+sess.Meta.ID)
 	if err != nil {

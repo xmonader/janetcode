@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/gitx"
 )
 
 // PlanApprovedPrompt is the turn /plan approve starts, in every front-end.
@@ -104,14 +105,14 @@ func ReviewTasks(focus, diff string) []TaskInput {
 
 // ReviewDiff is what /review hands its subagents: git status and the diff
 // against HEAD, capped so a large change does not fill their context.
-func ReviewDiff(cwd string) (string, error) {
-	status, _ := exec.Command("git", "-C", cwd, "status", "--short").CombinedOutput()
-	diff, err := exec.Command("git", "-C", cwd, "diff", "HEAD").CombinedOutput()
+func ReviewDiff(ctx context.Context, cwd string) (string, error) {
+	status, _ := gitx.Run(ctx, cwd, nil, "status", "--short")
+	diff, err := gitx.Run(ctx, cwd, nil, "diff", "HEAD")
 	if err != nil {
 		return "", fmt.Errorf("not a git repository")
 	}
-	out := strings.TrimSpace(string(status))
-	if d := strings.TrimSpace(string(diff)); d != "" {
+	out := strings.TrimSpace(status)
+	if d := strings.TrimSpace(diff); d != "" {
 		if out != "" {
 			out += "\n\n"
 		}

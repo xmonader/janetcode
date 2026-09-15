@@ -145,7 +145,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 		return shortPath(path)
 	}
 	if preview {
-		lines, err := m.opts.Agent.UndoPreview()
+		lines, err := m.opts.Agent.UndoPreview(context.Background())
 		if errors.Is(err, agent.ErrNothingToUndo) {
 			m.transcript.errorf("nothing to undo: no turn has changed anything yet")
 			return
@@ -174,14 +174,14 @@ func (m *model) undoCommand(cmd string, preview bool) {
 	)
 	if cmd == "/redo" {
 		mark = "↷"
-		done, err = m.opts.Agent.Redo()
+		done, err = m.opts.Agent.Redo(context.Background())
 		if errors.Is(err, agent.ErrNothingToRedo) {
 			m.transcript.errorf("nothing to redo: /redo only reapplies an /undo from before the next change")
 			return
 		}
 	} else {
 		spread := m.undoSpread()
-		done, err = m.opts.Agent.Undo()
+		done, err = m.opts.Agent.Undo(context.Background())
 		if err == nil && len(done) > 0 {
 			defer m.observeUndo(spread)
 		}

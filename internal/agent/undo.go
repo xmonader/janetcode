@@ -94,17 +94,17 @@ func (c *checkpointer) turnStart() int {
 // snapshot records the state before a mutating tool runs: a git snapshot
 // of the work tree on the first mutating call of the turn, and a copy of
 // every path a file tool will touch, once per turn per path.
-func (c *checkpointer) snapshot(repo *snapshot.Repo, t tool.Tool, input []byte) {
+func (c *checkpointer) snapshot(ctx context.Context, repo *snapshot.Repo, t tool.Tool, input []byte) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if repo != nil && !c.gitTried {
 		c.gitTried = true
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		snap, err := repo.Take(ctx, "before "+t.Name())
 		cancel()
 		if err == nil {
 			if !c.open {
-				c.openCheckpoint(repo)
+				c.openCheckpoint(ctx, repo)
 			}
 			c.all[len(c.all)-1].Snap = &snap
 			c.dirty = true
@@ -133,7 +133,7 @@ func (c *checkpointer) snapshot(repo *snapshot.Repo, t tool.Tool, input []byte) 
 			snap.Failed = true
 		}
 		if !c.open {
-			c.openCheckpoint(repo)
+			c.openCheckpoint(ctx, repo)
 		}
 		cur := &c.all[len(c.all)-1]
 		cur.Files = append(cur.Files, snap)
@@ -143,16 +143,19 @@ func (c *checkpointer) snapshot(repo *snapshot.Repo, t tool.Tool, input []byte) 
 
 // openCheckpoint starts a checkpoint for the running turn. A new change
 // makes the redo states unreachable, so they are dropped.
-func (c *checkpointer) openCheckpoint(repo *snapshot.Repo) {
+func (c *checkpointer) openCheckpoint(ctx context.Context, repo *snapshot.Repo) {
 	c.all = append(c.all, Checkpoint{When: time.Now(), Turn: c.turn, Messages: c.messages})
 	c.open = true
-	c.dropRedo(repo)
+	c.dropRedo(ctx, repo)
 }
 
-func (c *checkpointer) dropRedo(repo *snapshot.Repo) {
+// dropRedo forgets the redo states. Dropping their refs is cleanup that
+// should happen even when ctx was cancelled just before.
+func (c *checkpointer) dropRedo(ctx context.Context, repo *snapshot.Repo) {
+	ctx = context.WithoutCancel(ctx)
 	for _, r := range c.redo {
 		if repo != nil && r.Snap != nil {
-			repo.Drop(context.Background(), *r.Snap)
+			repo.Drop(ctx, *r.Snap)
 		}
 	}
 	c.redo = nil
@@ -175,7 +178,7 @@ func (a *Agent) UndoTurn() (turn int, ok bool) {
 
 // UndoPreview lists what Undo would do, one "verb path" per line, without
 // changing anything.
-func (a *Agent) UndoPreview() ([]string, error) {
+func (a *Agent) UndoPreview(ctx context.Context) ([]string, error) {
 	a.cp.mu.Lock()
 	defer a.cp.mu.Unlock()
 	n := len(a.cp.all)
@@ -186,7 +189,7 @@ func (a *Agent) UndoPreview() ([]string, error) {
 	var out []string
 	seen := map[string]bool{}
 	if cp.Snap != nil && a.Snapshots != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		diff, err := a.Snapshots.Diff(ctx, *cp.Snap)
 		cancel()
 		if err != nil {
@@ -225,7 +228,7 @@ func (a *Agent) UndoPreview() ([]string, error) {
 
 // Redo reapplies the most recently undone turn. It works until the next
 // change or the end of the session, and returns what it restored.
-func (a *Agent) Redo() ([]string, error) {
+func (a *Agent) Redo(ctx context.Context) ([]string, error) {
 	a.cp.mu.Lock()
 	defer a.cp.mu.Unlock()
 	n := len(a.cp.redo)
@@ -235,12 +238,12 @@ func (a *Agent) Redo() ([]string, error) {
 	entry := a.cp.redo[n-1]
 	a.cp.redo = a.cp.redo[:n-1]
 	// The state before redoing becomes undoable again.
-	if before, ok := a.captureState(entry, "before redo"); ok {
+	if before, ok := a.captureState(ctx, entry, "before redo"); ok {
 		a.cp.all = append(a.cp.all, before)
 		a.cp.open = false
 		a.cp.dirty = true
 	}
-	done, err := a.restore(entry)
+	done, err := a.restore(ctx, entry)
 	a.cp.mu.Unlock()
 	if serr := a.SaveUndo(); serr != nil {
 		a.debugf("save undo: %v", serr)
@@ -252,10 +255,10 @@ func (a *Agent) Redo() ([]string, error) {
 // captureState records the current tree as a checkpoint covering what
 // the given one covers, so the restore can be reversed. Called with the
 // lock held.
-func (a *Agent) captureState(like Checkpoint, label string) (Checkpoint, bool) {
+func (a *Agent) captureState(ctx context.Context, like Checkpoint, label string) (Checkpoint, bool) {
 	cp := Checkpoint{When: time.Now()}
 	if a.Snapshots != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		snap, err := a.Snapshots.Take(ctx, label)
 		cancel()
 		if err == nil {
@@ -336,17 +339,19 @@ func (a *Agent) LoadUndo() error {
 
 // endTurn drops the turn's checkpoint when its git snapshot shows nothing
 // changed (a shell command that only read), trims old checkpoints and
-// persists the rest.
-func (a *Agent) endTurn() {
+// persists the rest. It runs as the turn ends, cancelled or not, so its git
+// calls do not inherit ctx's cancellation.
+func (a *Agent) endTurn(ctx context.Context) {
+	ctx = context.WithoutCancel(ctx)
 	a.cp.mu.Lock()
 	if a.cp.open && a.Snapshots != nil {
 		cur := &a.cp.all[len(a.cp.all)-1]
 		if cur.Snap != nil && len(cur.Files) == 0 {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			changed, err := a.Snapshots.Changed(ctx, *cur.Snap)
+			cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			changed, err := a.Snapshots.Changed(cctx, *cur.Snap)
 			cancel()
 			if err == nil && !changed {
-				a.Snapshots.Drop(context.Background(), *cur.Snap)
+				a.Snapshots.Drop(ctx, *cur.Snap)
 				a.cp.all = a.cp.all[:len(a.cp.all)-1]
 				a.cp.open = false
 			}
@@ -354,7 +359,7 @@ func (a *Agent) endTurn() {
 	}
 	for len(a.cp.all) > maxCheckpoints {
 		if a.Snapshots != nil && a.cp.all[0].Snap != nil {
-			a.Snapshots.Drop(context.Background(), *a.cp.all[0].Snap)
+			a.Snapshots.Drop(ctx, *a.cp.all[0].Snap)
 		}
 		a.cp.all = a.cp.all[1:]
 		a.cp.dirty = true
@@ -388,7 +393,7 @@ func (a *Agent) Checkpoints() []Checkpoint {
 // and forgets that checkpoint. It returns what it restored, and an error
 // listing files that could not be restored. The state before undoing is
 // kept for Redo.
-func (a *Agent) Undo() ([]string, error) {
+func (a *Agent) Undo(ctx context.Context) ([]string, error) {
 	a.cp.mu.Lock()
 	defer a.cp.mu.Unlock()
 	n := len(a.cp.all)
@@ -399,10 +404,10 @@ func (a *Agent) Undo() ([]string, error) {
 	a.cp.all = a.cp.all[:n-1]
 	a.cp.open = false
 	a.cp.dirty = true
-	if now, ok := a.captureState(cp, "before undo"); ok {
+	if now, ok := a.captureState(ctx, cp, "before undo"); ok {
 		a.cp.redo = append(a.cp.redo, now)
 	}
-	done, err := a.restore(cp)
+	done, err := a.restore(ctx, cp)
 	a.cp.mu.Unlock()
 	if serr := a.SaveUndo(); serr != nil {
 		a.debugf("save undo: %v", serr)
@@ -450,24 +455,24 @@ func (a *Agent) LastUndoRemoved() int { return a.undoRemoved }
 // restore puts the tree back to a checkpoint: through git when it holds a
 // snapshot, else (or as a fallback) from the file copies. Called with the
 // lock held.
-func (a *Agent) restore(cp Checkpoint) ([]string, error) {
+func (a *Agent) restore(ctx context.Context, cp Checkpoint) ([]string, error) {
 	var (
 		done []string
 		errs []error
 	)
 	if cp.Snap != nil && a.Snapshots != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		done, err := a.Snapshots.Restore(ctx, *cp.Snap)
+		rctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		done, err := a.Snapshots.Restore(rctx, *cp.Snap)
 		cancel()
 		if err == nil || !errors.Is(err, snapshot.ErrHeadMoved) {
-			a.Snapshots.Drop(context.Background(), *cp.Snap)
+			a.Snapshots.Drop(context.WithoutCancel(ctx), *cp.Snap)
 			return done, err
 		}
 		if len(cp.Files) == 0 {
 			return nil, fmt.Errorf("%w: undo only knows how to revert this turn's shell changes through git, and HEAD is no longer where the snapshot was taken", err)
 		}
 		errs = append(errs, fmt.Errorf("%w; only the changes made through file tools were reverted", err))
-		a.Snapshots.Drop(context.Background(), *cp.Snap)
+		a.Snapshots.Drop(context.WithoutCancel(ctx), *cp.Snap)
 	}
 	// Restore in reverse so a file created then edited ends up removed.
 	files := append([]Snapshot(nil), cp.Files...)

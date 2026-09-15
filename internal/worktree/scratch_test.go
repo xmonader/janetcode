@@ -125,7 +125,7 @@ func TestAtStartMatchesSnapshot(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(repo, "new.txt"), []byte("untracked\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	sr, err := snapshot.Open(repo)
+	sr, err := snapshot.Open(context.Background(), repo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestAtStartUnbornRepo(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(repo, "main.go"), []byte("package main\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	sr, err := snapshot.Open(repo)
+	sr, err := snapshot.Open(context.Background(), repo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestAtStartUnbornRepo(t *testing.T) {
 func TestAtStartMissingBase(t *testing.T) {
 	ctx := context.Background()
 	repo := initRepo(t)
-	sr, err := snapshot.Open(repo)
+	sr, err := snapshot.Open(context.Background(), repo)
 	if err != nil {
 		t.Fatal(err)
 	}
