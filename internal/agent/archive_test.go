@@ -90,7 +90,8 @@ func TestLongOutputIsArchivedAndExpandable(t *testing.T) {
 		toolCall("t3", "expand_output", `{"id":"ctx-1","offset":2998,"limit":10}`),
 		text("done"),
 	}}
-	a := &Agent{Provider: f, Tools: reg, Model: "m", Archive: ar, CompactAt: -1}
+	a := &Agent{Provider: f, Tools: reg, Model: "m", Archive: ar}
+	a.CompactAt = -1
 	if err := a.Run(context.Background(), "go", nil); err != nil {
 		t.Fatal(err)
 	}

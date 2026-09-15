@@ -95,7 +95,8 @@ func TestAutoCompactBeforeCallAndOnOverflow(t *testing.T) {
 		text(`{"next":["note B"]}`), // compaction triggered by overflow
 		text("answer two"),          // retry
 	}, errs: []error{nil, nil, errors.New("400: prompt is too long: 210000 tokens > 200000 maximum")}}
-	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", CompactAt: 7_000}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m"}
+	a.CompactAt = 7_000
 	a.Messages = []llm.Message{llm.TextMessage(llm.RoleUser, big), llm.TextMessage(llm.RoleAssistant, "ok")}
 	var kinds []EventKind
 	emit := func(e Event) {
@@ -174,7 +175,8 @@ func TestCompactKeepsTheLastExchange(t *testing.T) {
 // notice: obeying it would compact before there is anything to compact.
 func TestCompactAtBelowTheFloorIsRaised(t *testing.T) {
 	f := &fake{responses: []*llm.Response{text("hello")}}
-	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", System: strings.Repeat("prompt ", 400), CompactAt: 900}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", System: strings.Repeat("prompt ", 400)}
+	a.CompactAt = 900
 	floor := a.MinCompactAt()
 	if floor <= 900 {
 		t.Fatalf("floor = %d", floor)
@@ -211,7 +213,8 @@ func TestCompactAtBelowTheFloorIsRaised(t *testing.T) {
 
 func TestEstimateTokensUsesRealUsage(t *testing.T) {
 	f := &fake{responses: []*llm.Response{{Message: llm.TextMessage(llm.RoleAssistant, "a"), StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 9000, CacheReadTokens: 1000}}}}
-	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", CompactAt: -1}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m"}
+	a.CompactAt = -1
 	if err := a.Run(context.Background(), "hi", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -264,13 +267,14 @@ func TestPruneDedupesReadsAndTrimsOldOutput(t *testing.T) {
 func TestCompactKeepsRecentTail(t *testing.T) {
 	f := &fake{responses: []*llm.Response{text("SUMMARY")}}
 	big := strings.Repeat("z", 8000)
-	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", CompactAt: 100, Messages: []llm.Message{
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", Messages: []llm.Message{
 		llm.TextMessage(llm.RoleUser, big),
 		llm.TextMessage(llm.RoleAssistant, "old answer"),
 		llm.TextMessage(llm.RoleUser, "second question"),
 		llm.TextMessage(llm.RoleAssistant, "recent answer"),
 		llm.TextMessage(llm.RoleUser, "pending"),
 	}}
+	a.CompactAt = 100
 	if err := a.ForceCompact(context.Background(), nil); err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +321,8 @@ func TestCompactThresholdFromWindow(t *testing.T) {
 		{-1, 128_000, 0},
 	}
 	for _, c := range cases {
-		a := &Agent{CompactAt: c.at, ContextWindow: c.window}
+		a := &Agent{}
+		a.CompactAt, a.ContextWindow = c.at, c.window
 		if got := a.CompactThreshold(); got != c.want {
 			t.Errorf("CompactAt=%d window=%d: got %d want %d", c.at, c.window, got, c.want)
 		}
@@ -425,7 +430,8 @@ func TestPruneToFollowsAttention(t *testing.T) {
 
 func TestCompactCooldownAfterFailedSummary(t *testing.T) {
 	f := &fake{errs: []error{errors.New("429 rate limited")}}
-	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", CompactAt: 1_000}
+	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m"}
+	a.CompactAt = 1_000
 	for i := 0; i < 20; i++ {
 		a.Messages = append(a.Messages, llm.TextMessage(llm.RoleUser, strings.Repeat("words and more words ", 60)), llm.TextMessage(llm.RoleAssistant, "ok"))
 	}

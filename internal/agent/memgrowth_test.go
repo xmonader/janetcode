@@ -73,8 +73,8 @@ func TestThirtyTurnsHoldOnlyTheTranscript(t *testing.T) {
 		Model:       "m",
 		Log:         sess,
 		AutoApprove: true,
-		CompactAt:   1 << 30, // never compact: this measures what is held, not what is dropped
 	}
+	a.CompactAt = 1 << 30 // never compact: this measures what is held, not what is dropped
 
 	runtime.GC()
 	var before runtime.MemStats

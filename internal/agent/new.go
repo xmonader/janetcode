@@ -34,21 +34,22 @@ func New(deps Deps, s Settings) (*Agent, error) {
 	case s.Provider != nil:
 		return nil, errors.New("agent: the provider goes in Deps, not Settings")
 	}
-	return &Agent{
+	a := &Agent{
 		Provider:      deps.Provider,
 		Tools:         deps.Tools,
 		Log:           deps.Log,
 		Model:         s.Model,
 		Price:         s.Price,
-		ContextWindow: s.ContextWindow,
 		MaxTokens:     s.MaxTokens,
 		MaxIterations: s.MaxIterations,
-		CompactAt:     s.CompactAt,
 		AutoApprove:   s.AutoApprove,
 		AutoEdits:     s.AutoEdits,
 		AutoMode:      s.AutoMode,
 		ReadOnly:      s.ReadOnly,
 		PlanMode:      s.PlanMode,
 		ProofNotes:    s.ProofNotes,
-	}, nil
+	}
+	// Promoted fields (see contextManager) cannot be set in the literal.
+	a.ContextWindow, a.CompactAt = s.ContextWindow, s.CompactAt
+	return a, nil
 }

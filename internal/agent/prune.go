@@ -73,8 +73,7 @@ func (a *Agent) Prune() int {
 		}
 	}
 	if saved > 0 {
-		a.lastInputTokens, a.lastInputMsgs = 0, 0
-		a.integ.shrunkOK, a.historyRewritten = true, true
+		a.contextManager.rewritten()
 	}
 	return saved
 }
@@ -138,8 +137,7 @@ func (a *Agent) pruneTo(target int) int {
 		}
 		a.setBlockText(c.i, c.j, ph)
 		replaced++
-		a.lastInputTokens, a.lastInputMsgs = 0, 0
-		a.integ.shrunkOK, a.historyRewritten = true, true
+		a.contextManager.rewritten()
 		if a.EstimateTokens() <= target {
 			return replaced
 		}

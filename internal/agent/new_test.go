@@ -9,6 +9,13 @@ import (
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
+// lit fills in the two settings a struct literal cannot: CompactAt and
+// ContextWindow are promoted from the embedded contextManager.
+func lit(a *Agent, window, compactAt int) *Agent {
+	a.ContextWindow, a.CompactAt = window, compactAt
+	return a
+}
+
 // TestNewMatchesLiteral builds the same agent by struct literal and by New
 // and compares what a front-end sees of it, so New's defaults cannot drift
 // from the literal's.
@@ -23,11 +30,11 @@ func TestNewMatchesLiteral(t *testing.T) {
 	}{
 		{"zero", Settings{}, &Agent{Provider: prov, Tools: tools, Log: log}},
 		{"session", Settings{Model: "m", Price: &llm.Price{Input: 3, Output: 15}, ContextWindow: 200000, MaxTokens: 8000, MaxIterations: 100, CompactAt: 150000, AutoEdits: true, ProofNotes: true},
-			&Agent{Provider: prov, Tools: tools, Log: log, Model: "m", Price: &llm.Price{Input: 3, Output: 15}, ContextWindow: 200000, MaxTokens: 8000, MaxIterations: 100, CompactAt: 150000, AutoEdits: true, ProofNotes: true}},
+			lit(&Agent{Provider: prov, Tools: tools, Log: log, Model: "m", Price: &llm.Price{Input: 3, Output: 15}, MaxTokens: 8000, MaxIterations: 100, AutoEdits: true, ProofNotes: true}, 200000, 150000)},
 		{"replay", Settings{AutoApprove: true, ReadOnly: true, MaxIterations: 200},
 			&Agent{Provider: prov, Tools: tools, Log: log, AutoApprove: true, ReadOnly: true, MaxIterations: 200}},
 		{"probe", Settings{Model: "m", MaxTokens: 1000, MaxIterations: 6, AutoApprove: true, CompactAt: -1},
-			&Agent{Provider: prov, Tools: tools, Log: log, Model: "m", MaxTokens: 1000, MaxIterations: 6, AutoApprove: true, CompactAt: -1}},
+			lit(&Agent{Provider: prov, Tools: tools, Log: log, Model: "m", MaxTokens: 1000, MaxIterations: 6, AutoApprove: true}, 0, -1)},
 		{"fork", Settings{AutoMode: true, PlanMode: true},
 			&Agent{Provider: prov, Tools: tools, Log: log, AutoMode: true, PlanMode: true}},
 	}

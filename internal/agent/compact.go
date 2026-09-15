@@ -121,11 +121,6 @@ func lastAssistantStart(msgs []llm.Message) int {
 	return -1
 }
 
-// TokenEstimate is the most recent EstimateTokens value. Unlike
-// EstimateTokens it reads no message state, so the UI can call it from
-// another goroutine while a turn is appending to the history.
-func (a *Agent) TokenEstimate() int { return int(a.estimate.Load()) }
-
 // toolTokens is the estimated size of the tool definitions, remembered
 // between calls. Building them means asking every tool to describe
 // itself and re-serialising its schema — 182µs and 434 allocations for
@@ -324,9 +319,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	if pending != nil {
 		mergedPending = a.appendUserBlocks(pending.Blocks...)
 	}
-	a.lastInputTokens = 0
-	a.lastInputMsgs = 0
-	a.integ.shrunkOK, a.historyRewritten = true, true
+	a.contextManager.rewritten()
 	after := a.EstimateTokens()
 	a.stats.compacted()
 	if a.Log != nil {

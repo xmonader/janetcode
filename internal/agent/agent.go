@@ -11,7 +11,6 @@ import (
 	"io"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/hook"
@@ -115,16 +114,12 @@ type Agent struct {
 	// chain and the experimental step router (see router.go). Embedded
 	// so its exported fields and methods stay on Agent.
 	modelRouter
+	// contextManager owns the request context: what fills the window,
+	// how big it is believed to be, and what happens when it fills up
+	// (see contextmgr.go). Embedded for the same reason.
+	contextManager
 
 	stats statsCounter
-	// summaryFailedAt starts the summaryCooldown after a failed summary.
-	summaryFailedAt time.Time
-
-	// compactFloorSaid stops the notice about a too-low compact_at from
-	// being repeated on every turn of the session.
-	compactFloorSaid bool
-	// working is the typed record carried across compactions.
-	working WorkingMemory
 	// Predictor, when set, scores the running turn from its trajectory
 	// features (see Trajectory) and warns the model once per turn when
 	// the score is low. Trained from eval runs with Train.
@@ -201,15 +196,9 @@ type Agent struct {
 	// called anyway. PlanMode does the same and asks for a plan.
 	ReadOnly bool
 	PlanMode bool
-	// Pins are user notes kept in the system prompt across compaction.
-	Pins []string
 	// Jobs, when set, is polled before each model call so finished
 	// background commands are reported to the model as they complete.
 	Jobs *tool.Jobs
-	// ContextWindow is the model's input limit when known; with CompactAt
-	// unset, compaction runs at three quarters of it (capped, see
-	// CompactThreshold) instead of DefaultCompactAt.
-	ContextWindow int
 	// PlanCheck, when set, is given the text the model wrote before a
 	// batch of tool calls (its plan) and returns a note about names in
 	// it the repository does not have, or "".
@@ -243,10 +232,6 @@ type Agent struct {
 	// saves a rule for it. Nil is a working default: perm.Ledger's
 	// methods are nil-safe no-ops.
 	Ledger *perm.Ledger
-	// CompactAt is the estimated token count that triggers automatic
-	// compaction before a model call. Zero means DefaultCompactAt; negative
-	// disables it.
-	CompactAt int
 	// Debug, when set, receives a timestamped line per event and model call.
 	Debug io.Writer
 
@@ -285,25 +270,6 @@ type Agent struct {
 	// Hooks, when set, runs user commands around tool calls, compaction
 	// and turn end (see package hook). Nil means no hooks.
 	Hooks *hook.Runner
-	// SystemExtra, when set, is appended to System. It is evaluated once
-	// and reused until compaction or RefreshExtra, so the cached prompt
-	// prefix stays valid while memory and skills change underneath.
-	SystemExtra func() string
-	// extraMu guards extraText/extraFrozen: a front-end refreshes them
-	// (/remember, /skills) and /btw builds a system prompt off the turn
-	// goroutine.
-	extraMu     sync.Mutex
-	extraText   string
-	extraFrozen bool
-	// PathRules, when set, is asked after each tool call which project
-	// rules the paths it touched bring in, and returns the text of those
-	// not sent yet (see package rules). Each arrives as harness text
-	// before the next model call, so instructions can be added to a
-	// session without being added to every request of it.
-	PathRules func(paths []string) []string
-	// PathSkills is the same hook for skill files that name `paths:` in
-	// their frontmatter.
-	PathSkills func(paths []string) []string
 	// Sandbox, when set, is the optional wrapper around local bash.
 	Sandbox *shell.Sandbox
 	// Cron is the session-scoped scheduler; jobs die when the session ends.
@@ -335,44 +301,25 @@ type Agent struct {
 	coachMu sync.Mutex // read_file runs in parallel goroutines
 	loops   loopDetector
 	loopMu  sync.Mutex
-	usageMu sync.Mutex  // the status bar reads Usage while a turn runs
-	msgMu   sync.Mutex  // guards Messages writes against off-turn readers (see MessagesSnapshot)
-	steerMu sync.Mutex  // guards steer, written from the UI goroutine
-	steer   []string    // notes for the running turn (see Steer)
-	harness []string    // harness text for the running turn (path rules)
-	turnUse llm.Usage   // what the turn in progress has cost so far
-	cache   cacheLedger // prefix paid for twice, and why
-	prefix  prefixWatch // where the cached prefix stopped matching
+	usageMu sync.Mutex // the status bar reads Usage while a turn runs
+	msgMu   sync.Mutex // guards Messages writes against off-turn readers (see MessagesSnapshot)
+	steerMu sync.Mutex // guards steer, written from the UI goroutine
+	steer   []string   // notes for the running turn (see Steer)
+	harness []string   // harness text for the running turn (path rules)
+	turnUse llm.Usage  // what the turn in progress has cost so far
 	// acceptMu guards Accept, which a front-end changes while tools read
 	// it (see accept.go).
 	acceptMu sync.Mutex
-	// historyRewritten says a prune or compaction edited messages since
-	// the last model call, so the next cache miss is expected and is not
-	// counted as waste. It is separate from integ.shrunkOK, which the
-	// integrity check consumes.
-	historyRewritten bool
 	// tools is this turn's tool list, held so that a server registering
 	// mid-turn cannot rewrite the cached prefix. Cleared at each turn.
-	tools    []llm.ToolDef
-	estimate atomic.Int64 // last EstimateTokens, published for the status bar
-	stuck    bool
-	integ    integrity
+	tools []llm.ToolDef
+	stuck bool
 
 	// emitNow is the current turn's event sink. A tool that dispatches
 	// further tool calls of its own — a script does — needs it to show
 	// them as they happen, and it is not on the Tool interface.
 	emitMu  sync.Mutex
 	emitNow func(Event)
-
-	// Real input size of the last call, and how many messages it covered,
-	// so EstimateTokens only has to guess about what came after.
-	lastInputTokens int
-	lastInputMsgs   int
-
-	// Estimated size of the tool definitions and the registry version it
-	// was measured at; see toolTokens.
-	toolTokensFor int
-	toolTokensAt  uint64
 }
 
 // beginTurn opens a logged turn whose user message is blocks: it appends
