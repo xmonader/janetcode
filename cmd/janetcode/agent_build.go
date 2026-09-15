@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
@@ -166,19 +168,43 @@ type builtAgent struct {
 	ruleInjector *rules.Injector
 	ws           *tool.Workspace
 	terms        *tool.Terms
+	// once guards close: the root closes the agent it built, and an
+	// error partway through the build closes it again on the way out.
+	once *sync.Once
 }
 
-// close releases what the agent held. It is the caller's job, since the
-// pieces outlive any single turn.
+// shutdownGrace bounds how long close waits for what it is shutting down.
+// A fork wedged in a provider call, or a language server that will not
+// answer, must not hold the process open; it is cancelled either way, and
+// this is only how long the wait for it lasts.
+const shutdownGrace = 5 * time.Second
+
+// close releases what the agent held: the session's scheduled loops, its
+// terminals, the subagents it started (cancelled and then awaited, so no
+// fork outlives the process that spawned it) and its language servers.
+// It is the caller's job, since the pieces outlive any single turn. It is
+// safe to call twice and never blocks longer than shutdownGrace.
 func (b builtAgent) close() {
-	if b.agent != nil && b.agent.Cron != nil {
-		b.agent.Cron.Close()
+	done := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
+		defer cancel()
+		if b.agent != nil && b.agent.Cron != nil {
+			b.agent.Cron.Close()
+		}
+		if b.terms != nil {
+			b.terms.CloseAll()
+		}
+		// Cancelling the forks and waiting for them comes before the
+		// language servers: a fork still running would otherwise go on
+		// asking a manager that has already shut down.
+		b.task.Close(ctx)
+		b.diag.Close()
 	}
-	if b.terms != nil {
-		b.terms.CloseAll()
+	if b.once == nil {
+		done()
+		return
 	}
-	b.task.Close(context.Background())
-	b.diag.Close()
+	b.once.Do(done)
 }
 
 // buildAgent wires one agent for a session: tools rooted at the project,
@@ -355,5 +381,5 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
 
-	return builtAgent{agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector, ws: ws, terms: terms}, nil
+	return builtAgent{once: &sync.Once{}, agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector, ws: ws, terms: terms}, nil
 }

@@ -33,7 +33,10 @@ type Task struct {
 	// refused rather than silently ignored.
 	Models func(model string) (llm.Provider, string, error)
 
-	mu       sync.Mutex
+	mu sync.Mutex
+	// running counts the fork goroutines that outlive the tool call that
+	// started them, so Close can wait for them rather than just cancelling.
+	running  sync.WaitGroup
 	usage    llm.Usage
 	children map[string]*subagent
 	order    []string // insertion order, for eviction
@@ -218,9 +221,14 @@ func (t *Task) ChildIDs() []string {
 	return append([]string(nil), t.order...)
 }
 
-// Close removes the worktrees of every editing subagent. Call it when the
-// parent session ends.
+// Close cancels the forks still running, waits for them, and removes the
+// worktrees of every editing subagent. Call it when the parent session
+// ends. It is safe to call twice, and it never waits past ctx: a fork
+// wedged in a provider call must not hold the process open.
 func (t *Task) Close(ctx context.Context) {
+	if t == nil {
+		return
+	}
 	t.mu.Lock()
 	if t.stop != nil {
 		t.stop()
@@ -230,10 +238,30 @@ func (t *Task) Close(ctx context.Context) {
 	kids := t.children
 	t.children, t.order = nil, nil
 	t.mu.Unlock()
+	t.Wait(ctx)
 	for _, c := range kids {
 		if c.wt != nil {
 			c.wt.remove(ctx)
 		}
+	}
+}
+
+// Wait blocks until every background fork has returned, or until ctx is
+// done. It reports whether they all finished.
+func (t *Task) Wait(ctx context.Context) bool {
+	if t == nil {
+		return true
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		t.running.Wait()
+	}()
+	select {
+	case <-done:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 
@@ -441,7 +469,9 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		if profile != nil && profile.MaxMinutes > 0 {
 			bg, cancel = context.WithTimeout(bg, time.Duration(profile.MaxMinutes)*time.Minute)
 		}
+		t.running.Add(1)
 		go func() {
+			defer t.running.Done()
 			if cancel != nil {
 				defer cancel()
 			}

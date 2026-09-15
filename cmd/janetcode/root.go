@@ -93,12 +93,16 @@ type root struct {
 
 func (r *root) onClose(f func()) { r.closers = append(r.closers, f) }
 
-// close releases everything the root started, newest first.
+// close releases everything the root started, newest first: the feature
+// counters, the debug log, the MCP servers, the agent (its subagents,
+// loops, terminals and language servers) and the background jobs. Each
+// piece bounds its own wait, and calling it twice runs nothing twice.
 func (r *root) close() {
-	for i := len(r.closers) - 1; i >= 0; i-- {
-		r.closers[i]()
-	}
+	closers := r.closers
 	r.closers = nil
+	for i := len(closers) - 1; i >= 0; i-- {
+		closers[i]()
+	}
 }
 
 // newRoot builds the agent for this session and the stores around it. It
