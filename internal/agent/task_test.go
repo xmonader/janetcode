@@ -519,7 +519,11 @@ func TestSubagentInheritsDenyRulesButNotAllow(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer wt.remove(context.Background())
-	if v, _ := task.editingChild(wt, nil).Rules.Decide("read_file", "secret.txt"); v != perm.Denied {
+	child, err := task.editingChild(wt, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := child.Rules.Decide("read_file", "secret.txt"); v != perm.Denied {
 		t.Fatalf("an editing subagent decided the denied path %q", v)
 	}
 }

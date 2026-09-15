@@ -59,13 +59,14 @@ func resolveSession(arg string) (path, dir, id string, err error) {
 // has no meaning inside a throwaway worktree. Run notes it in the report
 // when the original session actually used a tool outside this set, so the
 // gap is visible rather than silent.
-func buildAgent(workDir string, off map[string]bool, cfg *config.Config) (*agent.Agent, []string) {
+func buildAgent(workDir string, off map[string]bool, cfg *config.Config) (*agent.Agent, []string, error) {
 	var notes []string
 	archiveDir, aerr := os.MkdirTemp("", "janetcode-whatif-archive-")
 	if aerr != nil {
 		notes = append(notes, "tool-output archive unavailable: "+aerr.Error())
 	}
-	return minimal.New(workDir, cfg, nil, off, prompt.Override{}, archiveDir), notes
+	ag, err := minimal.New(workDir, cfg, nil, off, prompt.Override{}, archiveDir)
+	return ag, notes, err
 }
 
 // subUsage is a minus b, field by field; llm.Usage only ever accumulates
@@ -219,11 +220,11 @@ func foldFileStats(changes []agent.Change) []FileStat {
 // them for /undo on a resume, so both sides of the comparison are folded
 // by the one function (foldFileStats) rather than two.
 func loadOriginalFiles(sess *session.Session) ([]FileStat, error) {
-	tmp := &agent.Agent{UndoPath: sess.UndoPath()}
-	if err := tmp.LoadUndo(); err != nil {
+	changes, err := agent.LoadChanges(sess.UndoPath())
+	if err != nil {
 		return nil, err
 	}
-	return foldFileStats(tmp.Changes()), nil
+	return foldFileStats(changes), nil
 }
 
 // usedTools is the ordinary tool names (see toolCallSeq's exclusion) a

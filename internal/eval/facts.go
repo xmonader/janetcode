@@ -349,18 +349,25 @@ func ProbeFacts(ctx context.Context, ag *agent.Agent, probes []Probe, blind bool
 		if !blind && ag.Archive != nil {
 			tools = append(tools, &agent.ExpandOutput{Archive: ag.Archive})
 		}
-		clone := &agent.Agent{
-			Provider:      ag.Provider,
+		clone, err := agent.New(agent.Deps{
+			Provider: ag.Provider,
+			Tools:    tool.NewRegistry(tools...),
+		}, agent.Settings{
 			Model:         ag.Model,
 			MaxTokens:     ag.MaxTokens,
-			System:        ag.System,
-			Tools:         tool.NewRegistry(tools...),
-			Messages:      append([]llm.Message(nil), ag.Messages...),
 			MaxIterations: 6,
 			AutoApprove:   true,
-			Archive:       ag.Archive,
 			CompactAt:     -1,
+		})
+		if err != nil {
+			// A probe that could not even be built is reported as its own
+			// answer, so the run says so rather than scoring a silent miss.
+			p.Got = "probe could not start: " + err.Error()
+			continue
 		}
+		clone.System = ag.System
+		clone.Messages = append([]llm.Message(nil), ag.Messages...)
+		clone.Archive = ag.Archive
 		var out, excerpts strings.Builder
 		var mu sync.Mutex
 		fetched := false

@@ -219,11 +219,9 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	}
 	terms := &tool.Terms{}
 	expand := &agent.ExpandOutput{Archive: archive}
-	ag := &agent.Agent{
+	ag, err := agent.New(agent.Deps{
 		Provider: d.prov,
-		Archive:  archive,
 		Log:      sess,
-		Price:    d.cfg.PriceFor(d.cfg.Model),
 		Tools: tool.NewRegistry(
 			tool.ReadFile{Root: d.cwd, WS: ws, Seen: seen},
 			tool.WriteFile{Root: d.cwd, WS: ws, Seen: seen},
@@ -236,27 +234,33 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 			expand,
 			task,
 		),
-		Root:          d.cwd,
-		System:        prompt.SystemWith(d.cwd, d.promptOverride),
+	}, agent.Settings{
 		Model:         d.cfg.Model,
+		Price:         d.cfg.PriceFor(d.cfg.Model),
+		ContextWindow: d.cfg.MetaFor(d.cfg.Model).ContextWindow,
 		MaxTokens:     d.cfg.MaxTokens,
 		MaxIterations: d.cfg.MaxIterations,
+		CompactAt:     d.cfg.CompactAt,
 		AutoApprove:   d.cfg.AutoApprove,
 		AutoEdits:     d.autoEdits,
 		AutoMode:      d.autoMode,
-		Sandbox:       sb,
-		Cron:          cron,
 		ReadOnly:      d.readOnly,
-		CompactAt:     d.cfg.CompactAt,
-		Messages:      history,
-		Pins:          sess.Meta.Pins,
-		Jobs:          jobs,
-		ContextWindow: d.cfg.MetaFor(d.cfg.Model).ContextWindow,
-		Fallbacks:     d.cfg.FallbackModels,
-		Route:         d.models,
-		RouteCheap:    d.cfg.RouteCheap,
 		ProofNotes:    d.cfg.ProofNotesEnabled(),
+	})
+	if err != nil {
+		return builtAgent{}, err
 	}
+	ag.Archive = archive
+	ag.Root = d.cwd
+	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
+	ag.Sandbox = sb
+	ag.Cron = cron
+	ag.Messages = history
+	ag.Pins = sess.Meta.Pins
+	ag.Jobs = jobs
+	ag.Fallbacks = d.cfg.FallbackModels
+	ag.Route = d.models
+	ag.RouteCheap = d.cfg.RouteCheap
 	expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	ag.RestoreFromLog()      // plan mode and the turn counter of a resumed session
 	ag.Accept = sess.Meta.Accept
@@ -334,7 +338,6 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		}
 		return nil
 	})
-	var err error
 	if ag.Predictor, err = agent.LoadPredictor(filepath.Join(cfgDir, "critic.json")); err != nil {
 		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
 	}

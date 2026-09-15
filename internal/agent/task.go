@@ -365,7 +365,12 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		if werr != nil {
 			return "", werr
 		}
-		kid = &subagent{agent: t.editingChild(wt, profile), wt: wt}
+		ag, cerr := t.editingChild(wt, profile)
+		if cerr != nil {
+			wt.remove(ctx)
+			return "", cerr
+		}
+		kid = &subagent{agent: ag, wt: wt}
 	} else {
 		ag, cerr := t.child(in.Tools, profile)
 		if cerr != nil {

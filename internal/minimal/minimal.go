@@ -31,25 +31,29 @@ import (
 // Code execution follows a real session (cmd/janetcode's buildAgent):
 // execute_code when its runtime is available and not switched off,
 // run_code otherwise, so the agent always has one of the two.
-func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool, override prompt.Override, archiveDir string) *agent.Agent {
+func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool, override prompt.Override, archiveDir string) (*agent.Agent, error) {
 	repo := &repomap.Cache{Root: root}
 	archive := agent.NewArchive(archiveDir)
 	expand := &agent.ExpandOutput{Archive: archive}
-	ag := &agent.Agent{
-		Provider:      prov,
-		Off:           off,
-		Log:           &session.Memory{},
-		Archive:       archive,
-		Tools:         tools(root, repo, expand, off),
-		System:        prompt.SystemWith(root, override),
-		PlanCheck:     repo.CheckPlan,
+	ag, err := agent.New(agent.Deps{
+		Provider: prov,
+		Log:      &session.Memory{},
+		Tools:    tools(root, repo, expand, off),
+	}, agent.Settings{
 		Model:         cfg.Model,
 		MaxTokens:     cfg.MaxTokens,
 		MaxIterations: cfg.MaxIterations,
 		CompactAt:     cfg.CompactAt,
 		ContextWindow: cfg.MetaFor(cfg.Model).ContextWindow,
 		Price:         cfg.PriceFor(cfg.Model),
+	})
+	if err != nil {
+		return nil, err
 	}
+	ag.Off = off
+	ag.Archive = archive
+	ag.System = prompt.SystemWith(root, override)
+	ag.PlanCheck = repo.CheckPlan
 	expand.Log = ag.LogEvent // the archive's lookups go on the same trail
 	if !off["repomap"] {
 		ag.Prepare = repomap.TurnPrep(repo, 0)
@@ -65,7 +69,7 @@ func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool
 	// Intent follows the product default, so a measurement is of what
 	// users actually run; off["intent"] forces it off.
 	ag.Tools.Intent = cfg.IntentEnabled() && !off["intent"]
-	return ag
+	return ag, nil
 }
 
 // tools is the minimal agent's tool set before the tools that close over

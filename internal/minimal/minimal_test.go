@@ -16,7 +16,11 @@ func build(t *testing.T, csv string) *agent.Agent {
 		t.Fatal(err)
 	}
 	cfg := &config.Config{Model: "claude-sonnet-4-5", MaxIterations: 7, MaxTokens: 1234, CompactAt: 999}
-	return New(t.TempDir(), cfg, nil, off, prompt.Override{}, t.TempDir())
+	ag, err := New(t.TempDir(), cfg, nil, off, prompt.Override{}, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ag
 }
 
 // codeTool is the code-execution tool a real session would carry.

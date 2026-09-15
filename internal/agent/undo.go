@@ -309,6 +309,16 @@ type undoFile struct {
 	Seq         int          `json:"seq,omitempty"`
 }
 
+// LoadChanges reads the file changes a session's undo file (see UndoPath)
+// records, without an agent to restore them into.
+func LoadChanges(undoPath string) ([]Change, error) {
+	a := &Agent{UndoPath: undoPath}
+	if err := a.LoadUndo(); err != nil {
+		return nil, err
+	}
+	return a.Changes(), nil
+}
+
 // LoadUndo restores checkpoints saved by SaveUndo. A missing file is fine.
 func (a *Agent) LoadUndo() error {
 	if a.UndoPath == "" {

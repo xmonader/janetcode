@@ -16,7 +16,7 @@ import (
 // worktree. It runs without an approver: nothing it does reaches the real
 // tree, and the patch is reviewed before it is applied. Deny rules still
 // hold.
-func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) *Agent {
+func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) (*Agent, error) {
 	p := t.Parent
 	// A child is built on the task goroutine while the parent's front-end
 	// may be changing its settings; read them once, under their lock.
@@ -28,20 +28,24 @@ func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) *Agent 
 	if profile != nil && profile.MaxTurns > 0 {
 		maxIter = profile.MaxTurns
 	}
-	child := &Agent{
-		Provider:      ps.Provider,
-		Tools:         tool.NewRegistry(allowed(wt.tools(), profile)...),
-		System:        p.System + "\n\nYou are a subagent doing one delegated job for the main agent, in your own checkout of the project. Make the change requested, run the relevant build or tests, and finish with a short report of what you changed and how you verified it. Your edits are returned to the main agent as a patch; do not commit. Do not ask questions; make reasonable assumptions and state them.",
+	child, err := New(Deps{
+		Provider: ps.Provider,
+		Tools:    tool.NewRegistry(allowed(wt.tools(), profile)...),
+	}, Settings{
 		Model:         ps.Model,
 		MaxTokens:     ps.MaxTokens,
 		MaxIterations: maxIter,
 		AutoApprove:   true,
-		Rules:         perm.Rules{Deny: p.RulesSnapshot().Deny},
 		CompactAt:     ps.CompactAt,
 		ContextWindow: ps.ContextWindow,
-		Ledger:        p.Ledger,
-		Impact:        p.Impact,
+	})
+	if err != nil {
+		return nil, err
 	}
+	child.System = p.System + "\n\nYou are a subagent doing one delegated job for the main agent, in your own checkout of the project. Make the change requested, run the relevant build or tests, and finish with a short report of what you changed and how you verified it. Your edits are returned to the main agent as a patch; do not commit. Do not ask questions; make reasonable assumptions and state them."
+	child.Rules = perm.Rules{Deny: p.RulesSnapshot().Deny}
+	child.Ledger = p.Ledger
+	child.Impact = p.Impact
 	// An editing subagent approves its own calls because nothing it does
 	// reaches the real tree and the patch is reviewed before it is
 	// applied. A profile can ask for the other arrangement: the
@@ -52,7 +56,7 @@ func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) *Agent 
 		child.AutoApprove = false
 		child.Approver = bubbled{to: p.Approver, name: profile.Name}
 	}
-	return child
+	return child, nil
 }
 
 // bubbled sends a subagent's confirmation to the parent's approver,
@@ -145,27 +149,31 @@ func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, erro
 	if ro = allowed(ro, profile); len(ro) == 0 {
 		return nil, fmt.Errorf("the %s agent has no tools left once its disallowed_tools are removed", profile.Name)
 	}
-	return &Agent{
-		Provider:      ps.Provider,
-		Tools:         tool.NewRegistry(ro...),
-		System:        p.System + "\n\nYou are a subagent working on one delegated job for the main agent. You cannot edit files or run commands. Investigate with the tools you have, then reply with a complete, self-contained report of what you found: relevant file paths with line numbers, the facts requested, and anything surprising. Do not ask questions; make reasonable assumptions and state them.",
+	child, err := New(Deps{
+		Provider: ps.Provider,
+		Tools:    tool.NewRegistry(ro...),
+	}, Settings{
 		Model:         ps.Model,
 		MaxTokens:     ps.MaxTokens,
 		MaxIterations: maxIter,
 		CompactAt:     ps.CompactAt,
-		Archive:       p.Archive,
 		AutoApprove:   false,
-		// A deny rule holds for a subagent too, as it does for the
-		// editing one. Deny is consulted for read-only tools as well, so
-		// without this a path the user refused could be read simply by
-		// delegating the job. The allow list is deliberately not passed
-		// on: permission granted in the session is not permission the
-		// subagent asked for.
-		Rules:  perm.Rules{Deny: p.RulesSnapshot().Deny},
-		Debug:  p.Debug,
-		Ledger: p.Ledger,
-		Impact: p.Impact,
-	}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	child.System = p.System + "\n\nYou are a subagent working on one delegated job for the main agent. You cannot edit files or run commands. Investigate with the tools you have, then reply with a complete, self-contained report of what you found: relevant file paths with line numbers, the facts requested, and anything surprising. Do not ask questions; make reasonable assumptions and state them."
+	child.Archive = p.Archive
+	// A deny rule holds for a subagent too, as it does for the editing
+	// one. Deny is consulted for read-only tools as well, so without this
+	// a path the user refused could be read simply by delegating the job.
+	// The allow list is deliberately not passed on: permission granted in
+	// the session is not permission the subagent asked for.
+	child.Rules = perm.Rules{Deny: p.RulesSnapshot().Deny}
+	child.Debug = p.Debug
+	child.Ledger = p.Ledger
+	child.Impact = p.Impact
+	return child, nil
 }
 
 // forkChild builds a subagent that inherits the parent's conversation
@@ -197,30 +205,34 @@ func (t *Task) forkChild() (*Agent, error) {
 	if maxIter <= 0 {
 		maxIter = 50
 	}
-	child := &Agent{
-		Provider:      ps.Provider,
-		Tools:         tool.NewRegistry(ts...),
-		System:        p.System + "\n\nYou are a fork of the parent conversation and inherited its history. Complete the brief. You cannot spawn another fork.",
+	child, err := New(Deps{
+		Provider: ps.Provider,
+		Tools:    tool.NewRegistry(ts...),
+	}, Settings{
 		Model:         ps.Model,
 		MaxTokens:     ps.MaxTokens,
 		MaxIterations: maxIter,
-		// /agents fork starts this from a front-end goroutine while the
-		// parent's turn may still be appending; copy under its lock.
-		Messages:      copyMessages(p.MessagesSnapshot()),
 		AutoApprove:   ps.AutoApprove,
 		AutoEdits:     ps.AutoEdits,
 		AutoMode:      ps.AutoMode,
 		ReadOnly:      ps.ReadOnly,
 		PlanMode:      ps.PlanMode,
-		Rules:         p.RulesSnapshot(),
 		CompactAt:     ps.CompactAt,
 		ContextWindow: ps.ContextWindow,
-		Archive:       p.Archive,
-		Debug:         p.Debug,
-		Forked:        true,
-		Ledger:        p.Ledger,
-		Impact:        p.Impact,
+	})
+	if err != nil {
+		return nil, err
 	}
+	child.System = p.System + "\n\nYou are a fork of the parent conversation and inherited its history. Complete the brief. You cannot spawn another fork."
+	// /agents fork starts this from a front-end goroutine while the
+	// parent's turn may still be appending; copy under its lock.
+	child.Messages = copyMessages(p.MessagesSnapshot())
+	child.Rules = p.RulesSnapshot()
+	child.Archive = p.Archive
+	child.Debug = p.Debug
+	child.Forked = true
+	child.Ledger = p.Ledger
+	child.Impact = p.Impact
 	if !ps.AutoApprove && p.Approver != nil {
 		child.Approver = bubbled{to: p.Approver, name: "fork"}
 	}

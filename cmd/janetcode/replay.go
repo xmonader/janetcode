@@ -61,18 +61,18 @@ func replaySession(ctx context.Context, path string, progress io.Writer) (record
 		return nil, nil, err
 	}
 	defer os.RemoveAll(root)
-	ag := &agent.Agent{
-		Provider:    rp,
-		Log:         &session.Memory{},
-		AutoApprove: true,
-		ReadOnly:    true,
+	ag, err := agent.New(agent.Deps{
+		Provider: rp,
+		Log:      &session.Memory{},
 		Tools: tool.NewRegistry(
 			tool.ReadFile{Root: root}, tool.ListDir{Root: root},
 			tool.Glob{Root: root}, tool.Grep{Root: root},
 		),
-		System:        prompt.System(root),
-		MaxIterations: 200,
+	}, agent.Settings{AutoApprove: true, ReadOnly: true, MaxIterations: 200})
+	if err != nil {
+		return nil, nil, err
 	}
+	ag.System = prompt.System(root)
 	fmt.Fprintf(progress, "replaying %s: %d turn(s), %d recorded model call(s)\n", filepath.Base(path), len(turns), rp.Remaining())
 	for _, tp := range turns {
 		if rp.Remaining() == 0 {

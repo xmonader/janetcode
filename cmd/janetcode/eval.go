@@ -132,7 +132,10 @@ func runEval(ctx context.Context, cfg *config.Config, prov llm.Provider, o evalO
 		// The eval agent carries the tools a real session does, minus the
 		// ones that need a terminal or the network. A benchmark run
 		// against a smaller agent measures something nobody uses.
-		ag := minimal.New(root, cfg, llm.ForTaskOr(prov), off, o.prompt, filepath.Join(archiveDir, filepath.Base(root)))
+		ag, err := minimal.New(root, cfg, llm.ForTaskOr(prov), off, o.prompt, filepath.Join(archiveDir, filepath.Base(root)))
+		if err != nil {
+			return nil, err
+		}
 		ag.MaxIterations = maxIter
 		ag.CompactAt = compactAt
 		ag.Route = pool.For

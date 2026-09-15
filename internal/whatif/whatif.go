@@ -352,7 +352,10 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 		return Report{}, fmt.Errorf("load recording: %w", err)
 	}
 
-	ag, notes := buildAgent(workDir, off, opts.Config)
+	ag, notes, err := buildAgent(workDir, off, opts.Config)
+	if err != nil {
+		return Report{}, fmt.Errorf("build agent: %w", err)
+	}
 	ag.Rules = perm.Rules{Deny: denyRules}
 	ag.AutoApprove = true
 	notes = append(notes, "every tool call in the worktree was auto-approved with no prompt: safe here because the whole run took place in an isolated git worktree, "+worktreeFate(opts.Keep))
