@@ -299,7 +299,8 @@ func newModel(opts Options) *model {
 
 	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(styleAccent))
 
-	applyColorProfile(os.Getenv)
+	_, ansi := applyColorProfile(os.Getenv)
+	ansiOnly = ansi
 	// The terminal background is probed exactly once, here, before any
 	// theme pins lipgloss to a mode: a live /theme switch to a single-mode
 	// theme changes what lipgloss reports, so auto and adaptive themes must

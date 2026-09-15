@@ -38,6 +38,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/verify"
@@ -3587,32 +3588,28 @@ func TestPromptDoesNotJump(t *testing.T) {
 // sixteen-colour terminal gets ANSI slots instead of truecolor hex
 // quantised down to black.
 func TestColourFallbacks(t *testing.T) {
-	saved := []lipgloss.AdaptiveColor{colAccent, colDim, colFaint, colWarn, colErr, colOK, colUser, colTool, colHeadBg, colHeadFg, colBorder, colBorderA, colDiffAdd, colDiffDel}
 	profile := lipgloss.ColorProfile()
-	defer func() {
-		colAccent, colDim, colFaint, colWarn, colErr, colOK = saved[0], saved[1], saved[2], saved[3], saved[4], saved[5]
-		colUser, colTool, colHeadBg, colHeadFg = saved[6], saved[7], saved[8], saved[9]
-		colBorder, colBorderA, colDiffAdd, colDiffDel = saved[10], saved[11], saved[12], saved[13]
-		buildStyles()
-		lipgloss.SetColorProfile(profile)
-	}()
+	defer lipgloss.SetColorProfile(profile)
+	def := theme.Builtins()[0]
 
 	// Truecolor: the palette is hex and the styles carry SGR colours.
 	lipgloss.SetColorProfile(termenv.TrueColor)
-	buildStyles()
-	if !strings.Contains(styleErr.Render("x"), "\x1b[38;2;") {
-		t.Fatalf("truecolor error style = %q", styleErr.Render("x"))
+	st := newStyles(def, false)
+	if !strings.Contains(st.err.Render("x"), "\x1b[38;2;") {
+		t.Fatalf("truecolor error style = %q", st.err.Render("x"))
 	}
 
 	// Sixteen colours: ANSI slots, never a dark hex quantised to black.
 	lipgloss.SetColorProfile(termenv.ANSI)
-	if got := applyColorProfile(func(string) string { return "" }); got != termenv.ANSI {
-		t.Fatalf("profile = %v", got)
+	got, ansi := applyColorProfile(func(string) string { return "" })
+	if got != termenv.ANSI || !ansi {
+		t.Fatalf("profile = %v, ansi-only = %v", got, ansi)
 	}
-	if colErr.Dark != "9" || colAccent.Dark != "12" {
-		t.Fatalf("palette not switched: %+v %+v", colErr, colAccent)
+	st = newStyles(def, ansi)
+	if st.col.err.Dark != "9" || st.col.accent.Dark != "12" {
+		t.Fatalf("palette not switched: %+v %+v", st.col.err, st.col.accent)
 	}
-	out := styleErr.Render("x")
+	out := st.err.Render("x")
 	if !strings.Contains(out, "\x1b[9") && !strings.Contains(out, "\x1b[3") {
 		t.Fatalf("ansi error style = %q", out)
 	}
@@ -3621,15 +3618,17 @@ func TestColourFallbacks(t *testing.T) {
 	}
 
 	// NO_COLOR: nothing at all.
-	if got := applyColorProfile(func(k string) string {
+	got, ansi = applyColorProfile(func(k string) string {
 		if k == "NO_COLOR" {
 			return "1"
 		}
 		return ""
-	}); got != termenv.Ascii {
-		t.Fatalf("NO_COLOR profile = %v", got)
+	})
+	if got != termenv.Ascii || ansi {
+		t.Fatalf("NO_COLOR profile = %v, ansi-only = %v", got, ansi)
 	}
-	for _, s := range []lipgloss.Style{styleErr, styleAccent, styleWarn, styleKey, styleHeader} {
+	st = newStyles(def, ansi)
+	for _, s := range []lipgloss.Style{st.err, st.accent, st.warn, st.key, st.header} {
 		if got := s.Render("x"); strings.Contains(got, "\x1b[3") || strings.Contains(got, "\x1b[4") {
 			t.Fatalf("NO_COLOR left colour behind: %q", got)
 		}

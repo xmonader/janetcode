@@ -2,7 +2,7 @@ package tui
 
 import (
 	"github.com/charmbracelet/glamour/ansi"
-	"github.com/charmbracelet/glamour/styles"
+	glamourstyles "github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -22,9 +22,9 @@ import (
 // the thinking style gives — terminals with no italic face draw SGR italic
 // as reverse video, which is another unwanted block of colour.
 func markdownStyle(dark bool) ansi.StyleConfig {
-	c := styles.LightStyleConfig
+	c := glamourstyles.LightStyleConfig
 	if dark {
-		c = styles.DarkStyleConfig
+		c = glamourstyles.DarkStyleConfig
 	}
 	pick := func(a lipgloss.AdaptiveColor) *string {
 		s := a.Light
