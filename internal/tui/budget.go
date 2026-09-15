@@ -18,7 +18,7 @@ func (m *model) budgetCommand(arg string) {
 	a := m.opts.Agent
 	switch {
 	case arg == "":
-		if a.MaxCostUSD <= 0 {
+		if a.MaxCost() <= 0 {
 			m.note("no cost budget · /budget 0.50 stops the session once it has spent that much")
 			return
 		}
@@ -30,15 +30,15 @@ func (m *model) budgetCommand(arg string) {
 			return
 		}
 		if usd == 0 {
-			if a.MaxCostUSD <= 0 {
+			if a.MaxCost() <= 0 {
 				m.note("there was no cost budget")
 				return
 			}
-			a.MaxCostUSD = 0
+			a.SetMaxCost(0)
 			m.note("cost budget removed")
 			return
 		}
-		a.MaxCostUSD = usd
+		a.SetMaxCost(usd)
 		line := "cost budget " + m.budgetStatus() + " · the session stops when it crosses that, give or take the model call in flight"
 		snap := a.UsageSnapshot()
 		if _, known := snap.Cost(a.Settings().Price); !known && snap.InputTokens+snap.OutputTokens > 0 {
@@ -63,7 +63,7 @@ func (m *model) budgetCommand(arg string) {
 // for /budget itself.
 func (m *model) budgetStatus() string {
 	a := m.opts.Agent
-	s := llm.FormatUSDPrecise(a.MaxCostUSD)
+	s := llm.FormatUSDPrecise(a.MaxCost())
 	if spent, known := a.UsageSnapshot().Cost(a.Settings().Price); known {
 		s = llm.FormatUSDPrecise(spent) + " of " + s
 	}

@@ -73,13 +73,14 @@ func (s *server) inspect(arg string) {
 func (s *server) budget(arg string) {
 	ag := s.opts.Agent
 	if arg == "" {
-		if ag.MaxCostUSD <= 0 {
+		ceiling := ag.MaxCost()
+		if ceiling <= 0 {
 			s.notice("no spend ceiling · /budget 1.50 sets one")
 			return
 		}
 		u := ag.UsageSnapshot()
 		spent, _ := u.Cost(ag.Settings().Price)
-		s.notice(fmt.Sprintf("budget %s · spent %s · %s left", llm.FormatUSD(ag.MaxCostUSD), llm.FormatUSD(spent), llm.FormatUSD(ag.MaxCostUSD-spent)))
+		s.notice(fmt.Sprintf("budget %s · spent %s · %s left", llm.FormatUSD(ceiling), llm.FormatUSD(spent), llm.FormatUSD(ceiling-spent)))
 		return
 	}
 	v, err := agent.ParseBudget(arg)
@@ -88,11 +89,11 @@ func (s *server) budget(arg string) {
 		return
 	}
 	if v == 0 {
-		ag.MaxCostUSD = 0
+		ag.SetMaxCost(0)
 		s.notice("budget off")
 		return
 	}
-	ag.MaxCostUSD = v
+	ag.SetMaxCost(v)
 	s.notice("budget " + llm.FormatUSD(v))
 }
 
@@ -223,8 +224,8 @@ func (s *server) usageText() string {
 	u := ag.UsageSnapshot()
 	var sb strings.Builder
 	sb.WriteString(u.TokenLine() + "\n" + u.CostNote(ag.Settings().Price))
-	if ag.MaxCostUSD > 0 {
-		sb.WriteString(" · ceiling " + llm.FormatUSD(ag.MaxCostUSD))
+	if ceiling := ag.MaxCost(); ceiling > 0 {
+		sb.WriteString(" · ceiling " + llm.FormatUSD(ceiling))
 	}
 	return sb.String()
 }

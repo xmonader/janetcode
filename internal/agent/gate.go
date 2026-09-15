@@ -25,7 +25,8 @@ type gateState struct {
 // continues; a pass is reported. Checks rerun only after further changes,
 // and at most verify.MaxRounds failures are sent back.
 func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) bool {
-	if !a.Verify.Enabled() || a.mutations == 0 || a.mutations == g.seen {
+	gate, _ := a.VerifyGate()
+	if !gate.Enabled() || a.mutations == 0 || a.mutations == g.seen {
 		return false
 	}
 	// While /accept tests are being written or await approval they are
@@ -35,8 +36,8 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 		return false
 	}
 	g.seen = a.mutations
-	emit(Event{Kind: EvNotice, Text: "verifying: " + strings.Join(a.Verify.Config.Commands, " · ")})
-	res := a.Verify.Run(ctx)
+	emit(Event{Kind: EvNotice, Text: "verifying: " + strings.Join(gate.Config.Commands, " · ")})
+	res := gate.Run(ctx)
 	if ctx.Err() != nil {
 		return false
 	}
@@ -75,10 +76,11 @@ func (a *Agent) logGate(source string, res verify.Result) {
 // stopHook gives stop hooks a chance to send the model back to work. It
 // reports whether the turn continues.
 func (a *Agent) stopHook(ctx context.Context, text string, stops *int, emit func(Event)) bool {
-	if !a.Hooks.Has(hook.Stop) || *stops >= maxStopContinues {
+	hooks := a.HookRunner()
+	if !hooks.Has(hook.Stop) || *stops >= maxStopContinues {
 		return false
 	}
-	res := a.Hooks.Run(ctx, hook.Input{Event: hook.Stop, Cwd: a.Hooks.Cwd, Text: text})
+	res := hooks.Run(ctx, hook.Input{Event: hook.Stop, Cwd: hooks.Cwd, Text: text})
 	if res.Continue == "" {
 		return false
 	}

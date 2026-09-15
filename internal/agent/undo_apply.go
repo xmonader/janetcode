@@ -81,14 +81,15 @@ func (a *Agent) UndoSelection(ctx context.Context, sel Selection) (UndoReport, e
 // Each file gets its own line naming it, so the report never reads as a
 // bare "no problems" when some touched file was never examined at all.
 func (a *Agent) reportChecks(ctx context.Context, rep *UndoReport, sel Selection) {
-	if a.Verify.Enabled() {
-		res := a.Verify.Run(ctx)
+	gate, untrusted := a.VerifyGate()
+	if gate.Enabled() {
+		res := gate.Run(ctx)
 		ok := res.OK()
 		rep.ChecksOK = &ok
 		rep.Checks = res.Summary()
 		return
 	}
-	if a.VerifyUntrusted {
+	if untrusted {
 		rep.CheckNote = fmt.Sprintf("the project's %s is not trusted, so checks did not run (/verify trust)", verify.ProjectFile)
 	} else {
 		rep.CheckNote = "no checks configured (/verify set <cmd>)"

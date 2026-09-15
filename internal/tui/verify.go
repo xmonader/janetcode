@@ -62,7 +62,7 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 					return nil
 				}
 				o.ProjectTrusted = true
-				ag.Verify = &verify.Runner{Config: o.Config, Cwd: m.opts.Cwd, Mutate: mutate.ForVerify}
+				ag.SetVerify(&verify.Runner{Config: o.Config, Cwd: m.opts.Cwd, Mutate: mutate.ForVerify}, false)
 				m.note("trusted " + verify.ProjectFile + " · its checks run after every change")
 			}
 			return nil
@@ -111,11 +111,9 @@ func (m *model) reloadVerify(o *VerifyOptions) error {
 	o.ProjectTrusted = defined && o.Trust.Trusted(trust.VerifyKey(m.opts.Cwd), hash)
 	ag := m.opts.Agent
 	if o.ProjectTrusted {
-		ag.Verify = &verify.Runner{Config: cfg, Cwd: m.opts.Cwd, Mutate: mutate.ForVerify}
-		ag.VerifyUntrusted = false
+		ag.SetVerify(&verify.Runner{Config: cfg, Cwd: m.opts.Cwd, Mutate: mutate.ForVerify}, false)
 	} else {
-		ag.Verify = nil
-		ag.VerifyUntrusted = defined
+		ag.SetVerify(nil, defined)
 	}
 	return nil
 }
@@ -138,10 +136,11 @@ func (m *model) saveVerify(c verify.Config, done string) tea.Cmd {
 			m.transcript.errorf("record trust: %v", err)
 		}
 	}
+	_, untrusted := m.opts.Agent.VerifyGate()
 	if len(cfg.Commands) == 0 {
-		m.opts.Agent.Verify = nil
+		m.opts.Agent.SetVerify(nil, untrusted)
 	} else {
-		m.opts.Agent.Verify = &verify.Runner{Config: cfg, Cwd: m.opts.Cwd, Mutate: mutate.ForVerify}
+		m.opts.Agent.SetVerify(&verify.Runner{Config: cfg, Cwd: m.opts.Cwd, Mutate: mutate.ForVerify}, untrusted)
 	}
 	m.note(done + " · " + verifyLine(cfg))
 	return nil

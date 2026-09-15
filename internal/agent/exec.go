@@ -123,8 +123,9 @@ func (a *Agent) allowSession(name string) {
 func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *ToolCall, emit func(Event)) ([]string, string, error) {
 	var hookNotes []string
 	hookAllowed := false
-	if a.Hooks.Has(hook.PreTool) {
-		res := a.Hooks.Run(ctx, hook.Input{Event: hook.PreTool, Cwd: a.Hooks.Cwd, Tool: u.Name, Input: u.Input})
+	hooks := a.HookRunner()
+	if hooks.Has(hook.PreTool) {
+		res := hooks.Run(ctx, hook.Input{Event: hook.PreTool, Cwd: hooks.Cwd, Tool: u.Name, Input: u.Input})
 		if res.Denied {
 			return nil, "Blocked by a hook: " + res.Reason, nil
 		}
@@ -346,8 +347,8 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if out == "" {
 		out = "(no output)"
 	}
-	if a.Hooks.Has(hook.PostTool) {
-		res := a.Hooks.Run(ctx, hook.Input{Event: hook.PostTool, Cwd: a.Hooks.Cwd, Tool: u.Name, Input: u.Input, Output: out, IsError: isErr})
+	if hooks := a.HookRunner(); hooks.Has(hook.PostTool) {
+		res := hooks.Run(ctx, hook.Input{Event: hook.PostTool, Cwd: hooks.Cwd, Tool: u.Name, Input: u.Input, Output: out, IsError: isErr})
 		hookNotes = append(hookNotes, res.Notes...)
 	}
 	if a.Diagnose != nil && !isErr && editTool(u.Name) {

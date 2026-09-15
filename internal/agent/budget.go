@@ -27,14 +27,15 @@ var ErrBudget = errors.New("the run reached its cost budget")
 // ceiling, and stopping a run on a figure of zero would be worse than
 // letting it finish.
 func (a *Agent) overBudget() (spent float64, over bool) {
-	if a.MaxCostUSD <= 0 {
+	ceiling := a.MaxCost()
+	if ceiling <= 0 {
 		return 0, false
 	}
 	usd, ok := a.UsageSnapshot().Cost(a.Settings().Price)
 	if !ok {
 		return 0, false
 	}
-	return usd, usd >= a.MaxCostUSD
+	return usd, usd >= ceiling
 }
 
 // budgetErr is what a run that ran out of money returns. The figures are
@@ -42,7 +43,7 @@ func (a *Agent) overBudget() (spent float64, over bool) {
 // "spent $0.0000 of $0.0000" under the usual money format, which says
 // nothing about the thing it is reporting.
 func (a *Agent) budgetErr(spent float64) error {
-	return fmt.Errorf("%w: spent %s of %s", ErrBudget, llm.FormatUSDPrecise(spent), llm.FormatUSDPrecise(a.MaxCostUSD))
+	return fmt.Errorf("%w: spent %s of %s", ErrBudget, llm.FormatUSDPrecise(spent), llm.FormatUSDPrecise(a.MaxCost()))
 }
 
 // stopForBudget ends the turn on the budget. When the model had asked for

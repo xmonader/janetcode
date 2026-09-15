@@ -789,7 +789,7 @@ func (m *model) applyEvent(ev agent.Event) {
 		}
 		// A ceiling the session will stop on belongs where the spend is,
 		// not only in the message that announces it has been reached.
-		if m.opts.Agent.MaxCostUSD > 0 {
+		if m.opts.Agent.MaxCost() > 0 {
 			s += " · budget " + m.budgetStatus()
 		}
 		if ev.StopReason != "" && ev.StopReason != "end_turn" {

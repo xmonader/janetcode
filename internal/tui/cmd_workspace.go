@@ -152,11 +152,15 @@ func (m *model) hooksCommand(args []string) {
 				return
 			}
 			o.ProjectTrusted = true
-			if m.opts.Agent.Hooks == nil {
-				m.opts.Agent.Hooks = &hook.Runner{Cwd: m.opts.Cwd}
+			// A new runner rather than an edit of the live one, which a
+			// running turn may be reading.
+			hooks := hook.Runner{Cwd: m.opts.Cwd}
+			if live := m.opts.Agent.HookRunner(); live != nil {
+				hooks = *live
 			}
 			cfg, notes := hook.MergeScoped(o.Global, o.Project)
-			m.opts.Agent.Hooks.Config = cfg
+			hooks.Config = cfg
+			m.opts.Agent.SetHooks(&hooks)
 			for _, n := range notes {
 				m.note("hooks: " + n)
 			}

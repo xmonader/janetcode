@@ -13,19 +13,23 @@ import (
 )
 
 func hooksReport(a *agent.Agent) string {
-	if a == nil || a.Hooks == nil || a.Hooks.Config.Len() == 0 {
+	if a == nil {
 		return "no hooks are configured"
 	}
-	events := make([]string, 0, len(a.Hooks.Config.Hooks))
-	for e := range a.Hooks.Config.Hooks {
+	hooks := a.HookRunner()
+	if hooks == nil || hooks.Config.Len() == 0 {
+		return "no hooks are configured"
+	}
+	events := make([]string, 0, len(hooks.Config.Hooks))
+	for e := range hooks.Config.Hooks {
 		events = append(events, e)
 	}
 	sort.Strings(events)
 	var b strings.Builder
-	lim := a.Hooks.Config.Limits.WithDefaults()
-	fmt.Fprintf(&b, "hooks run in %s (limits: %ds timeout, %ds for a project hook, %d bytes of output, %d per event):\n", a.Hooks.Cwd, lim.Timeout, lim.ProjectTimeout, lim.Output, lim.PerEvent)
+	lim := hooks.Config.Limits.WithDefaults()
+	fmt.Fprintf(&b, "hooks run in %s (limits: %ds timeout, %ds for a project hook, %d bytes of output, %d per event):\n", hooks.Cwd, lim.Timeout, lim.ProjectTimeout, lim.Output, lim.PerEvent)
 	for _, e := range events {
-		for _, h := range a.Hooks.Config.For(e) {
+		for _, h := range hooks.Config.For(e) {
 			fmt.Fprintf(&b, "  %-14s %s\n", e, textfmt.Clip(strings.TrimSpace(h.Command), 80))
 		}
 	}
@@ -33,10 +37,14 @@ func hooksReport(a *agent.Agent) string {
 }
 
 func verifyReport(a *agent.Agent) string {
-	if a == nil || a.Verify == nil || !a.Verify.Enabled() {
+	if a == nil {
 		return "no verification is configured for this project"
 	}
-	c := a.Verify.Config
+	gate, _ := a.VerifyGate()
+	if !gate.Enabled() {
+		return "no verification is configured for this project"
+	}
+	c := gate.Config
 	var b strings.Builder
 	b.WriteString("a turn is not done until these pass:\n")
 	for _, cmd := range c.Commands {
@@ -189,8 +197,8 @@ func statsReport(a *agent.Agent) string {
 		} else {
 			b.WriteString(" · cost unknown: nothing prices this model")
 		}
-		if a.MaxCostUSD > 0 {
-			b.WriteString(" · budget " + llm.FormatUSDPrecise(a.MaxCostUSD))
+		if ceiling := a.MaxCost(); ceiling > 0 {
+			b.WriteString(" · budget " + llm.FormatUSDPrecise(ceiling))
 		}
 		b.WriteString("\n")
 	}

@@ -58,10 +58,11 @@ func (a *Agent) acceptPhase() (session.AcceptPhase, bool) {
 }
 
 func (a *Agent) verifyCommands() []string {
-	if a.Verify == nil {
+	gate, _ := a.VerifyGate()
+	if gate == nil {
 		return nil
 	}
-	return a.Verify.Config.Commands
+	return gate.Config.Commands
 }
 
 // acceptSystemText is appended to the system prompt while accept mode is

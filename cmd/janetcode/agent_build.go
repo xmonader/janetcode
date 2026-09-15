@@ -329,8 +329,8 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	// knows whether the project's verify config is trusted), so the
 	// checks are read at call time rather than captured now.
 	ag.Impact = impactHook(d.cwd, ws, diag, repo, func() []string {
-		if ag.Verify != nil {
-			return ag.Verify.Config.Commands
+		if gate, _ := ag.VerifyGate(); gate != nil {
+			return gate.Config.Commands
 		}
 		return nil
 	})

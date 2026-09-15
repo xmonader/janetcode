@@ -4,8 +4,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 // Settings is the part of an Agent's configuration a front-end may change
@@ -103,6 +105,55 @@ func (a *Agent) SwitchModel(model string, prov llm.Provider, price *llm.Price, w
 		s.Price = price
 		s.ContextWindow = window
 	})
+}
+
+// SetVerify replaces the project checks the agent runs after a turn that
+// changed something (nil runs none) and records whether checks exist but
+// are untrusted, safe while a turn runs: /verify set, add, clear and
+// trust go through it. The runner must not be changed after the call.
+func (a *Agent) SetVerify(gate *verify.Runner, untrusted bool) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	a.Verify, a.VerifyUntrusted = gate, untrusted
+}
+
+// VerifyGate is the live Verify runner and VerifyUntrusted, safe to read
+// while a turn runs.
+func (a *Agent) VerifyGate() (gate *verify.Runner, untrusted bool) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return a.Verify, a.VerifyUntrusted
+}
+
+// SetHooks replaces the hook runner (nil runs none), safe while a turn
+// runs: /hooks trust goes through it. The runner must not be changed
+// after the call; build a new one instead.
+func (a *Agent) SetHooks(h *hook.Runner) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	a.Hooks = h
+}
+
+// HookRunner is the live Hooks, safe to read while a turn runs.
+func (a *Agent) HookRunner() *hook.Runner {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return a.Hooks
+}
+
+// SetMaxCost sets the spend ceiling in USD (zero removes it), safe while
+// a turn runs: /budget goes through it.
+func (a *Agent) SetMaxCost(usd float64) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	a.MaxCostUSD = usd
+}
+
+// MaxCost is the live MaxCostUSD, safe to read while a turn runs.
+func (a *Agent) MaxCost() float64 {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return a.MaxCostUSD
 }
 
 // readOnly reports whether mutating tools are hidden and refused: in

@@ -209,8 +209,8 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 	}
 
 	var hookNotes []string
-	if a.Hooks.Has(hook.PreCompact) {
-		hookNotes = a.Hooks.Run(ctx, hook.Input{Event: hook.PreCompact, Cwd: a.Hooks.Cwd, Tokens: before}).Notes
+	if hooks := a.HookRunner(); hooks.Has(hook.PreCompact) {
+		hookNotes = hooks.Run(ctx, hook.Input{Event: hook.PreCompact, Cwd: hooks.Cwd, Tokens: before}).Notes
 	}
 
 	// The log seqs of the messages about to be replaced, aligned with
@@ -298,8 +298,8 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 		if !w.merge(summary) {
 			emit(Event{Kind: EvNotice, Text: "working memory: the model returned prose instead of the record; kept as notes"})
 		}
-		if a.Hooks != nil {
-			w.hash(a.Hooks.Cwd)
+		if hooks := a.HookRunner(); hooks != nil {
+			w.hash(hooks.Cwd)
 		}
 		note = w.Render()
 	}

@@ -9,10 +9,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/verify"
 )
 
 // TestFrontEndCallsDuringATurn is a race-detector test: what a front-end
@@ -156,6 +158,58 @@ func TestSettingsChangesDuringATurn(t *testing.T) {
 				t.Error(err)
 				return
 			}
+		}
+	}()
+	err := a.Run(context.Background(), "implement foo", func(Event) {})
+	close(done)
+	wg.Wait()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestVerifyHooksAndBudgetChangesDuringATurn is a race-detector test for
+// what /verify, /hooks trust and /budget change from a front-end's
+// goroutine while a turn runs tools, the hooks around them and the checks
+// at its end.
+func TestVerifyHooksAndBudgetChangesDuringATurn(t *testing.T) {
+	var responses []*llm.Response
+	for i := 0; i < 20; i++ {
+		responses = append(responses, toolCall(fmt.Sprintf("t%d", i), "write_file", fmt.Sprintf(`{"path":"impl.go","content":"package foo // %d\n"}`, i)))
+	}
+	responses = append(responses, text("done"), text("done again"))
+	a, root := newAgent(t, &fake{responses: responses}, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	gate := &verify.Runner{Config: verify.Config{Commands: []string{"exit 0"}}, Cwd: root}
+	hooks := &hook.Runner{Cwd: root, Config: hook.Config{Hooks: hook.Hooks{hook.PostTool: {{Match: "write_file", Command: "exit 0"}}}}}
+	a.SetVerify(gate, false)
+	a.SetHooks(hooks)
+
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; ; i++ {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			on := i%2 == 0
+			if on {
+				a.SetVerify(gate, false)
+				a.SetHooks(hooks)
+				a.SetMaxCost(1000)
+			} else {
+				a.SetVerify(nil, true)
+				a.SetHooks(nil)
+				a.SetMaxCost(0)
+			}
+			_, _ = a.VerifyGate()
+			_ = a.HookRunner()
+			_ = a.MaxCost()
 		}
 	}()
 	err := a.Run(context.Background(), "implement foo", func(Event) {})
