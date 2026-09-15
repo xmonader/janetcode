@@ -161,13 +161,13 @@ func (m *model) todosOverlayView(height int) string {
 	inner := w - 4
 	var lines []string
 	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
-	add(styleKey.Render("Plan"))
-	add(styleDim.Render("this session · live · esc closes"))
+	add(m.styles.key.Render("Plan"))
+	add(m.styles.dim.Render("this session · live · esc closes"))
 	add("")
 	todos := m.planTodos()
 	if len(todos) == 0 {
-		add(styleDim.Render("no plan has been written"))
-		add(styleFaint.Render("the model starts one with the todo tool when a task has several steps"))
+		add(m.styles.dim.Render("no plan has been written"))
+		add(m.styles.faint.Render("the model starts one with the todo tool when a task has several steps"))
 	} else {
 		done := 0
 		for _, t := range todos {
@@ -175,26 +175,26 @@ func (m *model) todosOverlayView(height int) string {
 				done++
 			}
 		}
-		add(styleKey.Render(fmt.Sprintf("%d of %d done", done, len(todos))))
+		add(m.styles.key.Render(fmt.Sprintf("%d of %d done", done, len(todos))))
 		add("")
 		for _, t := range todos {
-			mark, st := "[ ]", styleDim
+			mark, st := "[ ]", m.styles.dim
 			status := "pending"
 			switch t.Status {
 			case agent.TodoDone:
-				mark, st, status = "[x]", styleOK, "completed"
+				mark, st, status = "[x]", m.styles.ok, "completed"
 			case agent.TodoDoing:
-				mark, st, status = "[>]", styleWarn, "in_progress"
+				mark, st, status = "[>]", m.styles.warn, "in_progress"
 			}
-			line := st.Render(mark) + " " + t.Text + "  " + styleFaint.Render(status)
+			line := st.Render(mark) + " " + t.Text + "  " + m.styles.faint.Render(status)
 			if len(t.BlockedBy) > 0 && !t.Done() {
-				line += styleFaint.Render("  after " + strings.Join(t.BlockedBy, "; "))
+				line += m.styles.faint.Render("  after " + strings.Join(t.BlockedBy, "; "))
 			}
 			add(line)
 		}
 	}
 	add("")
-	add(styleFaint.Render("esc close · the sticky strip under the header stays while a plan exists"))
+	add(m.styles.faint.Render("esc close · the sticky strip under the header stays while a plan exists"))
 	viewH := height
 	maxScroll := max(len(lines)-viewH, 0)
 	if m.overlayScroll > maxScroll {
@@ -205,7 +205,7 @@ func (m *model) todosOverlayView(height int) string {
 	}
 	end := min(len(lines), m.overlayScroll+viewH)
 	shown := lines[m.overlayScroll:end]
-	box := styleDialog.Width(w - 2).Render(strings.Join(shown, "\n"))
+	box := m.styles.dialog.Width(w - 2).Render(strings.Join(shown, "\n"))
 	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
 
@@ -214,48 +214,48 @@ func (m *model) agentsListView(height int) string {
 	inner := w - 4
 	var lines []string
 	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
-	add(styleKey.Render("Subagents"))
-	add(styleDim.Render("this session · live · enter opens the transcript · ctrl+t"))
+	add(m.styles.key.Render("Subagents"))
+	add(m.styles.dim.Render("this session · live · enter opens the transcript · ctrl+t"))
 	add("")
 	kids := m.overlayKids()
 	if len(kids) == 0 {
-		add(styleDim.Render("no subagents yet"))
-		add(styleFaint.Render("the model starts one with the task tool · /agents new <brief> starts one now"))
+		add(m.styles.dim.Render("no subagents yet"))
+		add(m.styles.faint.Render("the model starts one with the task tool · /agents new <brief> starts one now"))
 	} else {
 		if m.overlayIdx >= len(kids) {
 			m.overlayIdx = len(kids) - 1
 		}
 		for i, k := range kids {
-			state, stateStyle := "done", styleOK
+			state, stateStyle := "done", m.styles.ok
 			if !k.Done {
-				state, stateStyle = "running", styleWarn
+				state, stateStyle = "running", m.styles.warn
 			}
 			age := textfmt.Duration(time.Since(k.Started))
 			mark := "  "
 			if i == m.overlayIdx {
-				mark = styleAccent.Render("▸ ")
+				mark = m.styles.accent.Render("▸ ")
 			}
 			add(mark + fmt.Sprintf("%s  %s  %s  %s",
-				styleKey.Render(k.ID),
+				m.styles.key.Render(k.ID),
 				stateStyle.Render(fmt.Sprintf("%-7s", state)),
-				styleFaint.Render(age),
+				m.styles.faint.Render(age),
 				k.Description))
 			if k.Last != "" {
 				label := "last"
 				if !k.Done {
 					label = "now"
 				}
-				add("    " + styleDim.Render(label+": "+k.Last))
+				add("    " + m.styles.dim.Render(label+": "+k.Last))
 			}
 			if k.Usage.InputTokens+k.Usage.OutputTokens > 0 {
-				add("    " + styleFaint.Render(fmt.Sprintf("tokens in=%s out=%s",
+				add("    " + m.styles.faint.Render(fmt.Sprintf("tokens in=%s out=%s",
 					textfmt.Tokens(k.Usage.InputTokens), textfmt.Tokens(k.Usage.OutputTokens))))
 			}
 			add("")
 		}
 	}
-	add(styleFaint.Render(`↑↓ choose · enter open · esc close · /agents new <brief> starts one · /agents <id> jumps`))
-	box := styleDialog.Width(w - 2).Render(strings.Join(lines, "\n"))
+	add(m.styles.faint.Render(`↑↓ choose · enter open · esc close · /agents new <brief> starts one · /agents <id> jumps`))
+	box := m.styles.dialog.Width(w - 2).Render(strings.Join(lines, "\n"))
 	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
 
@@ -271,16 +271,16 @@ func (m *model) agentDetailView(height int) string {
 		return m.agentsListView(height)
 	}
 	w := max(m.width-2, 20)
-	state, stateStyle := "done", styleOK
+	state, stateStyle := "done", m.styles.ok
 	if !log.Done {
-		state, stateStyle = "running", styleWarn
+		state, stateStyle = "running", m.styles.warn
 	}
 	head := fmt.Sprintf("%s  %s  %s  %s",
-		styleKey.Render(log.ID),
+		m.styles.key.Render(log.ID),
 		stateStyle.Render(state),
-		styleFaint.Render(textfmt.Duration(time.Since(log.Started))),
+		m.styles.faint.Render(textfmt.Duration(time.Since(log.Started))),
 		log.Description)
-	help := styleFaint.Render("esc back to the list · ↑↓ / pgup pgdn scroll · ctrl+c close")
+	help := m.styles.faint.Render("esc back to the list · ↑↓ / pgup pgdn scroll · ctrl+c close")
 	body := m.renderChildSteps(log, w)
 	viewH := height - 3
 	if viewH < 1 {
@@ -317,39 +317,39 @@ func (m *model) renderChildSteps(log agent.ChildLog, width int) []string {
 	}
 	if len(log.Steps()) == 0 {
 		if log.Last != "" {
-			add(styleDim.Render("now: " + log.Last))
+			add(m.styles.dim.Render("now: " + log.Last))
 		} else {
-			add(styleDim.Render("waiting for the first model call"))
+			add(m.styles.dim.Render("waiting for the first model call"))
 		}
 		return lines
 	}
 	for _, st := range log.Steps() {
 		switch st.Kind {
 		case "prompt":
-			add(styleUser.Render("❯ ") + st.Text)
+			add(m.styles.user.Render("❯ ") + st.Text)
 		case "think":
 			first, _, _ := strings.Cut(st.Text, "\n")
-			add(styleFaint.Render("· " + first))
+			add(m.styles.faint.Render("· " + first))
 		case "text":
 			wrap(st.Text)
 			lines = append(lines, "")
 		case "tool":
-			mark := styleFaint.Render("…")
+			mark := m.styles.faint.Render("…")
 			switch {
 			case st.Pending:
-				mark = styleWarn.Render("…")
+				mark = m.styles.warn.Render("…")
 			case st.OK:
-				mark = styleOK.Render("✓")
+				mark = m.styles.ok.Render("✓")
 			default:
-				mark = styleErr.Render("✗")
+				mark = m.styles.err.Render("✗")
 			}
-			add(mark + " " + styleTool.Render(st.Name) + " " + styleDim.Render(st.Text))
+			add(mark + " " + m.styles.tool.Render(st.Name) + " " + m.styles.dim.Render(st.Text))
 			if !st.Pending && st.Result != "" {
-				lines = append(lines, clipBody(st.Result, width, 8, 4)...)
+				lines = append(lines, clipBody(m.styles, st.Result, width, 8, 4)...)
 			}
 			lines = append(lines, "")
 		case "now":
-			add(styleWarn.Render("now: ") + st.Text)
+			add(m.styles.warn.Render("now: ") + st.Text)
 		}
 	}
 	return lines
@@ -357,7 +357,7 @@ func (m *model) renderChildSteps(log agent.ChildLog, width int) []string {
 
 // clipBody keeps the head and tail of a tool result so a failed build
 // still shows the error, not only the compiler preamble.
-func clipBody(s string, width, head, tail int) []string {
+func clipBody(sty *styles, s string, width, head, tail int) []string {
 	raw := strings.Split(strings.TrimRight(s, "\n"), "\n")
 	if len(raw) == 0 {
 		return nil
@@ -373,7 +373,7 @@ func clipBody(s string, width, head, tail int) []string {
 		return take(raw)
 	}
 	out := take(raw[:head])
-	out = append(out, styleFaint.Render(fmt.Sprintf("  … %d more lines", len(raw)-head-tail)))
+	out = append(out, sty.faint.Render(fmt.Sprintf("  … %d more lines", len(raw)-head-tail)))
 	return append(out, take(raw[len(raw)-tail:])...)
 }
 
@@ -472,39 +472,39 @@ func (m *model) jobsListView(height int) string {
 	inner := w - 4
 	var lines []string
 	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
-	add(styleKey.Render("Jobs"))
-	add(styleDim.Render("this session · live · enter tails the log"))
+	add(m.styles.key.Render("Jobs"))
+	add(m.styles.dim.Render("this session · live · enter tails the log"))
 	if m.overlayNote != "" {
-		add(styleWarn.Render(m.overlayNote))
+		add(m.styles.warn.Render(m.overlayNote))
 	}
 	add("")
 	jobs := m.overlayJobList()
 	if len(jobs) == 0 {
-		add(styleDim.Render("no background jobs"))
-		add(styleFaint.Render("the model starts one with bash background:true (a dev server, a long build)"))
+		add(m.styles.dim.Render("no background jobs"))
+		add(m.styles.faint.Render("the model starts one with bash background:true (a dev server, a long build)"))
 	} else {
 		if m.overlayIdx >= len(jobs) {
 			m.overlayIdx = len(jobs) - 1
 		}
 		for i, j := range jobs {
-			state, stateStyle := "done", styleOK
+			state, stateStyle := "done", m.styles.ok
 			if !j.Done {
-				state, stateStyle = "running", styleWarn
+				state, stateStyle = "running", m.styles.warn
 			}
 			mark := "  "
 			if i == m.overlayIdx {
-				mark = styleAccent.Render("▸ ")
+				mark = m.styles.accent.Render("▸ ")
 			}
 			add(mark + fmt.Sprintf("%s  %s  %s",
-				styleKey.Render(fmt.Sprintf("job %d", j.ID)),
+				m.styles.key.Render(fmt.Sprintf("job %d", j.ID)),
 				stateStyle.Render(fmt.Sprintf("%-7s", state)),
 				j.Command))
-			add("    " + styleFaint.Render(j.Summary()))
+			add("    " + m.styles.faint.Render(j.Summary()))
 			add("")
 		}
 	}
-	add(styleFaint.Render("↑↓ choose · enter open · k kill · esc close"))
-	box := styleDialog.Width(w - 2).Render(strings.Join(lines, "\n"))
+	add(m.styles.faint.Render("↑↓ choose · enter open · k kill · esc close"))
+	box := m.styles.dialog.Width(w - 2).Render(strings.Join(lines, "\n"))
 	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
 
@@ -520,22 +520,22 @@ func (m *model) jobDetailView(height int) string {
 		return m.jobsListView(height)
 	}
 	w := max(m.width-2, 20)
-	state, stateStyle := "done", styleOK
+	state, stateStyle := "done", m.styles.ok
 	if !job.Done {
-		state, stateStyle = "running", styleWarn
+		state, stateStyle = "running", m.styles.warn
 	}
 	head := fmt.Sprintf("%s  %s  %s",
-		styleKey.Render(fmt.Sprintf("job %d", job.ID)),
+		m.styles.key.Render(fmt.Sprintf("job %d", job.ID)),
 		stateStyle.Render(state),
 		job.Command)
-	help := styleFaint.Render("esc back · ↑↓ / pgup pgdn scroll · k kill · ctrl+c close")
+	help := m.styles.faint.Render("esc back · ↑↓ / pgup pgdn scroll · k kill · ctrl+c close")
 	if m.overlayNote != "" {
-		help = styleWarn.Render(m.overlayNote) + " · " + help
+		help = m.styles.warn.Render(m.overlayNote) + " · " + help
 	}
 	out, _ := m.opts.Jobs.Output(id, 0)
 	var body []string
 	if strings.TrimSpace(out) == "" {
-		body = []string{styleDim.Render("no output yet")}
+		body = []string{m.styles.dim.Render("no output yet")}
 	} else {
 		body = strings.Split(strings.TrimRight(out, "\n"), "\n")
 		for i, l := range body {

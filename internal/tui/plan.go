@@ -59,24 +59,24 @@ func (m *model) planLines() []string {
 		}
 		return []string{truncateLine(line, w)}
 	}
-	lines := []string{styleKey.Render(tally)}
+	lines := []string{m.styles.key.Render(tally)}
 	shown := selectPlanSteps(todos, planCapNormal-1)
 	for _, t := range shown {
-		mark, st := "[ ]", styleDim
+		mark, st := "[ ]", m.styles.dim
 		switch t.Status {
 		case agent.TodoDone:
-			mark, st = "[x]", styleOK
+			mark, st = "[x]", m.styles.ok
 		case agent.TodoDoing:
-			mark, st = "[>]", styleWarn
+			mark, st = "[>]", m.styles.warn
 		}
 		line := st.Render(mark) + " " + t.Text
 		if len(t.BlockedBy) > 0 && !t.Done() {
-			line += styleFaint.Render("  after " + strings.Join(t.BlockedBy, "; "))
+			line += m.styles.faint.Render("  after " + strings.Join(t.BlockedBy, "; "))
 		}
 		lines = append(lines, truncateLine(line, w))
 	}
 	if extra := len(todos) - len(shown); extra > 0 {
-		lines[0] = styleKey.Render(tally) + styleFaint.Render(fmt.Sprintf("  ·  %d more in /todos", extra))
+		lines[0] = m.styles.key.Render(tally) + m.styles.faint.Render(fmt.Sprintf("  ·  %d more in /todos", extra))
 	}
 	return lines
 }

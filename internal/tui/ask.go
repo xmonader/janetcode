@@ -203,40 +203,40 @@ func (m *model) askView(height int) string {
 	inner := w - 4
 	var lines []string
 	add := func(t string) { lines = append(lines, truncateLine(t, inner)) }
-	add(styleKey.Render("Question"))
+	add(m.styles.key.Render("Question"))
 	add(m.askTabStrip(inner))
 	add("")
 	q := s.questions[s.tab]
-	add(styleKey.Render(q.Prompt))
+	add(m.styles.key.Render(q.Prompt))
 	if q.Detail != "" {
-		add(styleDim.Render(q.Detail))
+		add(m.styles.dim.Render(q.Detail))
 	}
 	add("")
 	opts := s.options()
 	for i, o := range opts {
 		mark := "  "
 		if i == s.opt {
-			mark = styleAccent.Render("▸ ")
+			mark = m.styles.accent.Render("▸ ")
 		}
 		picked := ""
 		if s.answers[s.tab].Label == o.Label {
-			picked = styleOK.Render(" ✓")
+			picked = m.styles.ok.Render(" ✓")
 		}
 		desc := ""
 		if o.Description != "" {
-			desc = "  " + styleFaint.Render(o.Description)
+			desc = "  " + m.styles.faint.Render(o.Description)
 		}
 		add(mark + fmt.Sprintf("%d. ", i+1) + o.Label + picked + desc)
 	}
 	if s.othering {
 		add("")
-		add(styleAccent.Render("› ") + m.input.Value())
-		add(styleDim.Render("type your answer · enter sends · esc back to the list"))
+		add(m.styles.accent.Render("› ") + m.input.Value())
+		add(m.styles.dim.Render("type your answer · enter sends · esc back to the list"))
 	} else {
 		add("")
-		add(styleFaint.Render("tab / ←→ switch questions · ↑↓ choose · 1-9 or enter picks · esc skip remaining"))
+		add(m.styles.faint.Render("tab / ←→ switch questions · ↑↓ choose · 1-9 or enter picks · esc skip remaining"))
 	}
-	box := styleDialog.Width(w - 2).Render(strings.Join(lines, "\n"))
+	box := m.styles.dialog.Width(w - 2).Render(strings.Join(lines, "\n"))
 	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
 
@@ -248,9 +248,9 @@ func (m *model) askTabStrip(width int) string {
 		if a := s.answers[i].Label; a != "" {
 			label += " ✓"
 		}
-		st := styleDim
+		st := m.styles.dim
 		if i == s.tab {
-			st = styleKey
+			st = m.styles.key
 		}
 		parts = append(parts, st.Render(label))
 	}

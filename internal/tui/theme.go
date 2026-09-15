@@ -77,7 +77,7 @@ func (m *model) applyThemeChoice(name string, persist bool) {
 	if cfg := m.opts.Config; cfg != nil {
 		cfg.Theme = name
 	}
-	m.spinner.Style = styleAccent
+	m.spinner.Style = m.styles.accent
 	m.note(m.themeApplied(name, th, mode))
 	if persist && m.opts.ConfigPath != "" {
 		if err := config.UpdateKey(m.opts.ConfigPath, "theme", name); err != nil {

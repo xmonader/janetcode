@@ -81,7 +81,7 @@ const (
 // uniformly to the transcript's top-level lines, the header, the status
 // line and the input box, so one margin runs down the left of everything.
 func (m *model) gutter() int {
-	if activeGutter <= 0 {
+	if m.styles.gutter <= 0 {
 		return 0
 	}
 	switch {
@@ -93,7 +93,7 @@ func (m *model) gutter() int {
 	if m.gutterOff {
 		return 0
 	}
-	return activeGutter
+	return m.styles.gutter
 }
 
 func (m *model) layout() {

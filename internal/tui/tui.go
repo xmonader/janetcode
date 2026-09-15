@@ -299,7 +299,7 @@ func newModel(opts Options) *model {
 	ta.BlurredStyle.CursorLine = lipgloss.NewStyle()
 	ta.Focus()
 
-	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(styleAccent))
+	sp := spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(defaultStyles().accent))
 
 	_, ansi := applyColorProfile(os.Getenv)
 	ansiOnly = ansi
