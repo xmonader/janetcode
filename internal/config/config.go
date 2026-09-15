@@ -16,6 +16,7 @@ import (
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/weburl"
 	"github.com/xmonader/janetcode/internal/xdg"
@@ -142,6 +143,13 @@ type Config struct {
 	// nothing when a turn made no commit, so unlike Intent there is no
 	// per-request budget to weigh it against.
 	ProofNotes *bool `json:"proof_notes,omitempty"`
+	// Sandbox names the sandbox profile a session in this project starts
+	// under: "workspace", "read-only" or "strict" (see internal/shell's
+	// profile catalogue). Empty, or "off", is the default: no sandbox,
+	// bash runs on the workspace host. A project that sets it has every
+	// session start sandboxed, and /sandbox still changes it for one
+	// session.
+	Sandbox string `json:"sandbox,omitempty"`
 	// RouteCheap is an experimental, off-by-default model name: when set,
 	// a turn's mechanical steps (reads, listings, greps, a check that
 	// already passed) are sent to it instead of Model, which stays on
@@ -543,7 +551,23 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if err := validatePrices(cfg.Prices); err != nil {
 		return nil, badf("%s: %v", path, err)
 	}
+	if err := validateSandbox(cfg.Sandbox); err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
 	return cfg, nil
+}
+
+// validateSandbox accepts an empty value, "off", or a profile name the
+// shell package knows. A typo here would otherwise be discovered as a
+// session that quietly is not sandboxed.
+func validateSandbox(name string) error {
+	if name == "" || name == "off" {
+		return nil
+	}
+	if _, ok := shell.FindProfile(name); !ok {
+		return fmt.Errorf("sandbox %q is not a profile (want off, %s)", name, strings.Join(shell.ProfileNames(), ", "))
+	}
+	return nil
 }
 
 // validatePrices rejects a price table that cannot mean what it says. A

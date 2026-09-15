@@ -219,9 +219,22 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	seen := &tool.Seen{}
 	ws := tool.NewLocal(d.cwd)
 	sb := &shell.Sandbox{}
-	if d.sandboxOn {
+	// The sandbox config key names the profile a session in this project
+	// starts under; --sandbox turns one on without naming a profile, and
+	// means the default one.
+	profile := d.cfg.Sandbox
+	if profile == "off" {
+		profile = ""
+	}
+	if profile == "" && d.sandboxOn {
+		profile = shell.DefaultProfile
+	}
+	if profile != "" {
+		if err := sb.SetProfile(profile); err != nil {
+			return builtAgent{}, err
+		}
 		if err := sb.Enable(); err != nil {
-			return builtAgent{}, fmt.Errorf("--sandbox: %w", err)
+			return builtAgent{}, fmt.Errorf("sandbox %s: %w", profile, err)
 		}
 	}
 	if jobs != nil {

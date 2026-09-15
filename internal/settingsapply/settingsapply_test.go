@@ -5,6 +5,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -54,6 +55,10 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 			func(a *agent.Agent) { a.ProofNotes = true },
 			func(a *agent.Agent) any { return a.ProofNotes },
 			func(cfg *config.Config) any { return cfg.ProofNotesEnabled() }},
+		{"sandbox", "strict",
+			func(a *agent.Agent) { a.Sandbox = &shell.Sandbox{}; _ = a.Sandbox.SetProfile("read-only") },
+			func(a *agent.Agent) any { return a.Sandbox.ProfileName() },
+			func(cfg *config.Config) any { return cfg.Sandbox }},
 		{"route_cheap", "haiku",
 			func(a *agent.Agent) { a.RouteCheap = "starting-model" },
 			func(a *agent.Agent) any { return a.RouteCheap },

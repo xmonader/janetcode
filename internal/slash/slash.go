@@ -67,7 +67,7 @@ var Commands = withIdle([]Command{
 	{Name: "/yolo", Args: "", Help: "toggle auto-approve for tools"},
 	{Name: "/auto", Args: "", Help: "toggle auto mode: in-workspace edits and known-safe reads run, other commands ask"},
 	{Name: "/edits", Args: "", Help: "toggle auto-accept edits: file changes go through, commands still ask"},
-	{Name: "/sandbox", Args: "[on|off|image]", Help: "wrap local bash in docker (or sandbox-exec on macOS); off by default"},
+	{Name: "/sandbox", Args: "[on|off|workspace|read-only|strict|backend|image]", Help: "run local bash under a sandbox profile (docker, seatbelt or Landlock); off by default"},
 	{Name: "/review", Args: "[focus]", Help: "fan out two subagents over the current diff (bugs and tests)"},
 	{Name: "/loop", Args: "[duration] [prompt|off|cancel id]", Help: "session-scoped repeating prompt; restored on resume of this session"},
 	{Name: "/settle", Args: "", Help: "mark this session done with (or active again); settled sessions list last in /resume"},

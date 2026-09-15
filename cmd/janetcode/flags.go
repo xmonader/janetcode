@@ -117,7 +117,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	fs.StringVar(&o.effort, "effort", "", "anthropic effort: low, medium, high, xhigh, max")
 	fs.BoolVar(&o.yolo, "yolo", false, "auto-approve every tool call")
 	fs.BoolVar(&o.autoMode, "auto", false, "auto mode: in-workspace edits and known-safe reads run; other commands ask (/auto toggles it)")
-	fs.BoolVar(&o.sandboxOn, "sandbox", false, "wrap local bash in docker (or sandbox-exec on macOS); file tools stay on the host")
+	fs.BoolVar(&o.sandboxOn, "sandbox", false, "wrap local bash in the workspace sandbox profile (docker, seatbelt or Landlock); the sandbox config key picks another profile; file tools stay on the host")
 	fs.BoolVar(&o.readonly, "readonly", false, "read-only: no edits or commands, the model can only inspect")
 	fs.BoolVar(&o.continueC, "c", false, "short for -continue")
 	fs.StringVar(&o.resumeR, "r", "", "short for -resume <id>")

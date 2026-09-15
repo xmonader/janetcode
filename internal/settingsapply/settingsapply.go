@@ -48,6 +48,20 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.UpdateSettings(func(s *agent.Settings) { s.ProofNotes = cfg.ProofNotesEnabled() })
 	case "route_cheap":
 		a.SetRouteCheap(cfg.RouteCheap)
+	case "sandbox":
+		// The key is the project's default profile, so setting it
+		// changes what a running sandbox enforces but does not turn one
+		// on: that is /sandbox, which can report a backend failure to
+		// the person who asked for it.
+		switch {
+		case a.Sandbox == nil:
+		case cfg.Sandbox == "" || cfg.Sandbox == "off":
+			a.Sandbox.Disable()
+		default:
+			if err := a.Sandbox.SetProfile(cfg.Sandbox); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return applied, nil
 }
