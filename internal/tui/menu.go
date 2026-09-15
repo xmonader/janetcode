@@ -12,7 +12,7 @@ import (
 // completions lists slash commands matching the input, or files matching
 // the @path being typed at its end.
 func (m *model) completions() []command {
-	if m.connect != nil || m.picker != nil || m.overlay != "" || m.asking != nil {
+	if m.connect != nil || m.picker != nil || m.ov.kind != "" || m.asking != nil {
 		return nil
 	}
 	m.comp.args = false

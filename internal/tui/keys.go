@@ -74,7 +74,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	if m.asking != nil {
 		return m.handleAskKey(msg)
 	}
-	if m.overlay != "" {
+	if m.ov.kind != "" {
 		return m.handleOverlayKey(msg)
 	}
 	if m.picker != nil {

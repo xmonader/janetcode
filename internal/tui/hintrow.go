@@ -77,7 +77,7 @@ func (m *model) noteHint(record func(*hints.State)) {
 // whether the user is being asked something.
 func (m *model) refreshHintState() {
 	s := &m.hint.state
-	s.Blocked = m.pending != nil || m.picker != nil || m.connect != nil || m.denying || m.overlay != "" || m.asking != nil
+	s.Blocked = m.pending != nil || m.picker != nil || m.connect != nil || m.denying || m.ov.kind != "" || m.asking != nil
 	s.Promotable = m.opts.Running != nil
 	if m.opts.Verify != nil {
 		s.VerifyConfigured = len(m.opts.Verify.Config.Commands) > 0

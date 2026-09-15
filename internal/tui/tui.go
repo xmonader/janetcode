@@ -222,35 +222,30 @@ type model struct {
 	// openedAt is when this window opened. /stats used startedAt, which
 	// is the turn clock: before the first turn it was the zero time and
 	// the session was reported as up for 2562047h47m16.854775807s.
-	openedAt      time.Time
-	phase         string // what the agent is doing right now
-	pending       *permissionMsg
-	denying       bool // the input box is collecting a reason for a denial
-	status        string
-	lastTurn      string                   // usage summary of the last turn
-	lastVerdict   string                   // the last turn's verdict line
-	ticks         int                      // tick count, for slow periodic checks
-	lastUsage     llm.Usage                // the last turn's usage
-	hint          hintsState               // the one-time hint engine and what it watches
-	queued        []string                 // prompts typed while a turn was running
-	steering      []string                 // notes handed to the running turn (ctrl+s)
-	custom        map[string]prompt.Custom // user-defined slash commands
-	clipboard     func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
-	copyText      func(string) error       // writes text to the clipboard; swapped in tests
-	comp          completionState          // highlight in the completion menu
-	finder        findState                // the last /find, so a repeat advances
-	picker        *picker                  // open searchable list
-	connect       *connect                 // open provider/model dialog
-	overlay       string                   // live panel over the transcript (overlayAgents); empty is closed
-	overlayIdx    int                      // highlighted child in the /agents list
-	overlayChild  string                   // id whose transcript is open; empty is the list
-	overlayScroll int                      // line offset in the child transcript
-	overlayFollow bool                     // keep the child transcript pinned to the tail
-	overlayNote   string                   // kill/error line inside a jobs overlay
-	planH         int                      // last reserved plan-strip height, so a rewrite relayouts
-	connectGen    int
-	quitting      bool
-	branch        string
+	openedAt    time.Time
+	phase       string // what the agent is doing right now
+	pending     *permissionMsg
+	denying     bool // the input box is collecting a reason for a denial
+	status      string
+	lastTurn    string                   // usage summary of the last turn
+	lastVerdict string                   // the last turn's verdict line
+	ticks       int                      // tick count, for slow periodic checks
+	lastUsage   llm.Usage                // the last turn's usage
+	hint        hintsState               // the one-time hint engine and what it watches
+	queued      []string                 // prompts typed while a turn was running
+	steering    []string                 // notes handed to the running turn (ctrl+s)
+	custom      map[string]prompt.Custom // user-defined slash commands
+	clipboard   func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
+	copyText    func(string) error       // writes text to the clipboard; swapped in tests
+	comp        completionState          // highlight in the completion menu
+	finder      findState                // the last /find, so a repeat advances
+	picker      *picker                  // open searchable list
+	connect     *connect                 // open provider/model dialog
+	ov          overlayState             // live panel over the transcript; empty kind is closed
+	planH       int                      // last reserved plan-strip height, so a rewrite relayouts
+	connectGen  int
+	quitting    bool
+	branch      string
 	// gutterOff is the hysteresis latch for the transcript margin: it
 	// turns off below gutterCollapseWidth and stays off until the
 	// terminal is at least gutterRestoreWidth, so resizing around 88
@@ -511,7 +506,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// (or in the session's worktree) from outside; follow it.
 			m.followBranch()
 		}
-		if m.running || m.overlay != "" {
+		if m.running || m.ov.kind != "" {
 			m.refresh(false)
 		} else if notes := m.opts.Jobs.Finished(); len(notes) > 0 {
 			for _, n := range notes {
@@ -790,7 +785,7 @@ func (m *model) View() string {
 	if m.quitting {
 		return ""
 	}
-	if m.picker != nil || m.connect != nil || m.overlay != "" || m.asking != nil {
+	if m.picker != nil || m.connect != nil || m.ov.kind != "" || m.asking != nil {
 		// A modal is the input: give it the body plus the reserved
 		// footer so a short terminal still has room for the highlight.
 		bodyH := m.height - 2 // header, status

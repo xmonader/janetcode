@@ -1466,7 +1466,7 @@ func TestAgentsCommandEmpty(t *testing.T) {
 	h := newHarness(t)
 	attachTask(h)
 	runAgents(h)
-	if h.m.overlay != overlayAgents {
+	if h.m.ov.kind != overlayAgents {
 		t.Fatal("empty /agents should still open the overlay")
 	}
 	v := plain(h.m.View())
@@ -1479,7 +1479,7 @@ func TestAgentsCommandEmpty(t *testing.T) {
 		}
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlay != "" {
+	if h.m.ov.kind != "" {
 		t.Fatal("esc should close the empty overlay")
 	}
 }
@@ -1499,11 +1499,11 @@ func TestAgentsOverlayOpenEscAndNoDump(t *testing.T) {
 	}
 	id := kids[0].ID
 	runAgents(h)
-	if h.m.overlay != overlayAgents {
-		t.Fatalf("overlay = %q, want %s", h.m.overlay, overlayAgents)
+	if h.m.ov.kind != overlayAgents {
+		t.Fatalf("overlay = %q, want %s", h.m.ov.kind, overlayAgents)
 	}
-	if h.m.overlayChild != id {
-		t.Fatalf("one child should open its transcript, overlayChild = %q", h.m.overlayChild)
+	if h.m.ov.child != id {
+		t.Fatalf("one child should open its transcript, overlayChild = %q", h.m.ov.child)
 	}
 	v := plain(h.m.View())
 	for _, want := range []string{id, "explore the parser", "look at the parser", "found the parser", "esc back"} {
@@ -1517,7 +1517,7 @@ func TestAgentsOverlayOpenEscAndNoDump(t *testing.T) {
 		}
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlay == "" || h.m.overlayChild != "" {
+	if h.m.ov.kind == "" || h.m.ov.child != "" {
 		t.Fatal("esc from the transcript should return to the list")
 	}
 	v = plain(h.m.View())
@@ -1525,7 +1525,7 @@ func TestAgentsOverlayOpenEscAndNoDump(t *testing.T) {
 		t.Fatalf("list after esc:\n%s", v)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlay != "" {
+	if h.m.ov.kind != "" {
 		t.Fatal("esc on the list should close the overlay")
 	}
 	h.keys("still here")
@@ -1583,8 +1583,8 @@ func TestAgentsOverlayLiveUpdate(t *testing.T) {
 		t.Fatalf("want one running child, got %+v", kids)
 	}
 	runAgents(h)
-	if h.m.overlay != overlayAgents || h.m.overlayChild != kids[0].ID {
-		t.Fatalf("should open the running child's transcript, overlay=%q child=%q", h.m.overlay, h.m.overlayChild)
+	if h.m.ov.kind != overlayAgents || h.m.ov.child != kids[0].ID {
+		t.Fatalf("should open the running child's transcript, overlay=%q child=%q", h.m.ov.kind, h.m.ov.child)
 	}
 	v := plain(h.m.View())
 	for _, want := range []string{kids[0].ID, "survey tests", "running"} {
@@ -1615,7 +1615,7 @@ func TestAgentsOverlayLiveUpdate(t *testing.T) {
 	if strings.Contains(v, "running") {
 		t.Fatalf("still shows running after done:\n%s", v)
 	}
-	if h.m.overlay != overlayAgents || h.m.overlayChild != kids[0].ID {
+	if h.m.ov.kind != overlayAgents || h.m.ov.child != kids[0].ID {
 		t.Fatal("detail view should stay open across the live update")
 	}
 }
@@ -1641,11 +1641,11 @@ func TestAgentsOverlayDetailShowsToolCall(t *testing.T) {
 		}
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlayChild != "" {
+	if h.m.ov.child != "" {
 		t.Fatal("esc should leave the transcript")
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEnter})
-	if h.m.overlayChild == "" {
+	if h.m.ov.child == "" {
 		t.Fatal("enter on the list should reopen the transcript")
 	}
 	if v := plain(h.m.View()); !strings.Contains(v, "read_file") {
@@ -1657,7 +1657,7 @@ func TestJobsCommandAndIdleNotice(t *testing.T) {
 	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "ok"), StopReason: llm.StopEndTurn})
 	h.keys("/jobs")
 	h.enter()
-	if h.m.overlay != overlayJobs {
+	if h.m.ov.kind != overlayJobs {
 		t.Fatal("empty /jobs should open the overlay")
 	}
 	if v := plain(h.m.View()); !strings.Contains(v, "no background jobs") {
@@ -1683,15 +1683,15 @@ func TestJobsCommandAndIdleNotice(t *testing.T) {
 	}
 	h.keys("/jobs")
 	h.enter()
-	if h.m.overlay != overlayJobs || h.m.overlayChild != "1" {
-		t.Fatalf("one job should open its log, overlay=%q child=%q", h.m.overlay, h.m.overlayChild)
+	if h.m.ov.kind != overlayJobs || h.m.ov.child != "1" {
+		t.Fatalf("one job should open its log, overlay=%q child=%q", h.m.ov.kind, h.m.ov.child)
 	}
 	v := plain(h.m.View())
 	if !strings.Contains(v, "echo hi") || !strings.Contains(v, "hi") {
 		t.Fatalf("job log:\n%s", v)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlayChild != "" {
+	if h.m.ov.child != "" {
 		t.Fatal("esc should return to the list")
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
@@ -1742,14 +1742,14 @@ func TestTodosOverlayOpenLiveAndEsc(t *testing.T) {
 	h := newHarness(t)
 	h.keys("/todos")
 	h.enter()
-	if h.m.overlay != overlayTodos {
+	if h.m.ov.kind != overlayTodos {
 		t.Fatal("empty /todos should open the overlay")
 	}
 	if v := plain(h.m.View()); !strings.Contains(v, "no plan has been written") {
 		t.Fatalf("empty overlay:\n%s", v)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlay != "" {
+	if h.m.ov.kind != "" {
 		t.Fatal("esc should close the empty overlay")
 	}
 	h.m.opts.Agent.WriteTodos([]agent.Todo{
@@ -1779,7 +1779,7 @@ func TestTodosOverlayOpenLiveAndEsc(t *testing.T) {
 		t.Fatalf("expected two completed steps:\n%s", v)
 	}
 	h.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if h.m.overlay != "" {
+	if h.m.ov.kind != "" {
 		t.Fatal("esc should restore the prompt")
 	}
 	h.keys("still here")
@@ -4277,8 +4277,8 @@ func TestCtrlTOpensAgentsOverlay(t *testing.T) {
 	h := newHarness(t)
 	attachTask(h)
 	h.update(tea.KeyMsg{Type: tea.KeyCtrlT})
-	if h.m.overlay != overlayAgents {
-		t.Fatalf("overlay = %q, want %s", h.m.overlay, overlayAgents)
+	if h.m.ov.kind != overlayAgents {
+		t.Fatalf("overlay = %q, want %s", h.m.ov.kind, overlayAgents)
 	}
 	if v := plain(h.m.View()); !strings.Contains(v, "Subagents") {
 		t.Fatalf("view:\n%s", v)
@@ -4293,8 +4293,8 @@ func TestAgentsNewSpawnsGeneral(t *testing.T) {
 	attachTask(h)
 	h.keys("/agents new map the parser")
 	h.enter()
-	if h.m.overlay != overlayAgents {
-		t.Fatalf("overlay = %q", h.m.overlay)
+	if h.m.ov.kind != overlayAgents {
+		t.Fatalf("overlay = %q", h.m.ov.kind)
 	}
 	h.pump(func() bool {
 		kids := h.m.taskTool().Children()

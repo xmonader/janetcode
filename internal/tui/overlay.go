@@ -22,24 +22,96 @@ const (
 	overlayTodos  = "todos"
 )
 
+// overlayState is the live panel over the transcript: which panel, the
+// highlighted row of its list, and — once a row is opened — the id of
+// the pane, where it is scrolled and whether it still follows the tail.
+// Unlike the picker these are not snapshots: each View re-reads the
+// underlying list, so the highlight is clamped on every key.
+type overlayState struct {
+	kind   string // live panel over the transcript (overlayAgents); empty is closed
+	idx    int    // highlighted row in the list
+	child  string // id whose pane is open; empty is the list
+	scroll int    // line offset in the open pane
+	follow bool   // keep the open pane pinned to the tail
+	note   string // kill/error line inside a jobs overlay
+}
+
+// open puts a panel up, at the top of its list.
+func (o *overlayState) open(kind string) { *o = overlayState{kind: kind, follow: true} }
+
+// close takes the whole panel down.
+func (o *overlayState) close() { o.kind, o.child = "", "" }
+
+// openChild opens one row's pane, at its tail.
+func (o *overlayState) openChild(id string) { o.child, o.scroll, o.follow = id, 0, true }
+
+// closeChild goes back to the list.
+func (o *overlayState) closeChild() { o.child, o.follow = "", true }
+
+// clampIdx keeps the highlight inside a list that has shrunk since the
+// last frame — these panels are live, so it can.
+func (o *overlayState) clampIdx(n int) {
+	if o.idx >= n {
+		o.idx = max(n-1, 0)
+	}
+}
+
+// listKey moves the highlight over a list of n rows, wrapping. It
+// reports whether it moved, so the caller knows to redraw.
+func (o *overlayState) listKey(k string, n int) bool {
+	d := 0
+	switch k {
+	case "up", "ctrl+p":
+		d = -1
+	case "down", "ctrl+n":
+		d = 1
+	default:
+		return false
+	}
+	if n == 0 {
+		return false
+	}
+	o.idx = (o.idx + d + n) % n
+	return true
+}
+
+// paneKey scrolls the open pane, a line or a screenful of viewH at a
+// time. Scrolling back unpins the tail; scrolling forward does not pin
+// it again, because the view re-pins itself once it reaches the end.
+func (o *overlayState) paneKey(k string, viewH int) bool {
+	switch k {
+	case "up", "ctrl+p":
+		o.follow = false
+		o.scroll = max(o.scroll-1, 0)
+	case "down", "ctrl+n":
+		o.scroll++
+	case "pgup":
+		o.follow = false
+		o.scroll = max(o.scroll-viewH, 0)
+	case "pgdown":
+		o.scroll += viewH
+	default:
+		return false
+	}
+	return true
+}
+
 func (m *model) taskTool() *agent.Task { return m.opts.Agent.TaskTool() }
 
 func (m *model) openOverlay(kind string) {
-	m.overlay = kind
-	m.overlayIdx = 0
-	m.overlayChild = ""
-	m.overlayScroll = 0
-	m.overlayFollow = true
-	m.overlayNote = ""
+	m.ov.open(kind)
 	m.input.Blur()
 }
 
 func (m *model) closeOverlay() {
-	m.overlay = ""
-	m.overlayChild = ""
+	m.ov.close()
 	m.input.Focus()
 	m.refresh(false)
 }
+
+// paneHeight is the visible height of an open overlay pane, which is
+// how far pgup and pgdown move in one press.
+func (m *model) paneHeight() int { return max(m.height-6, 4) }
 
 func (m *model) overlayKids() []agent.ChildInfo {
 	if t := m.taskTool(); t != nil {
@@ -49,37 +121,25 @@ func (m *model) overlayKids() []agent.ChildInfo {
 }
 
 func (m *model) handleOverlayKey(msg tea.KeyMsg) (tea.Cmd, bool) {
-	if m.overlay == overlayJobs {
+	if m.ov.kind == overlayJobs {
 		return m.handleJobsKey(msg), true
 	}
-	if m.overlay == overlayTodos {
+	if m.ov.kind == overlayTodos {
 		return m.handleTodosKey(msg), true
 	}
-	if m.overlayChild != "" {
+	if m.ov.child != "" {
 		return m.handleAgentDetailKey(msg), true
 	}
 	kids := m.overlayKids()
-	if m.overlayIdx >= len(kids) {
-		m.overlayIdx = max(len(kids)-1, 0)
-	}
-	switch keyName(msg) {
-	case "esc", "ctrl+c":
+	m.ov.clampIdx(len(kids))
+	switch k := keyName(msg); {
+	case k == "esc", k == "ctrl+c":
 		m.closeOverlay()
-	case "up", "ctrl+p":
+	case m.ov.listKey(k, len(kids)):
+		m.refresh(false)
+	case k == "enter":
 		if len(kids) > 0 {
-			m.overlayIdx = (m.overlayIdx - 1 + len(kids)) % len(kids)
-			m.refresh(false)
-		}
-	case "down", "ctrl+n":
-		if len(kids) > 0 {
-			m.overlayIdx = (m.overlayIdx + 1) % len(kids)
-			m.refresh(false)
-		}
-	case "enter":
-		if len(kids) > 0 {
-			m.overlayChild = kids[m.overlayIdx].ID
-			m.overlayScroll = 0
-			m.overlayFollow = true
+			m.ov.openChild(kids[m.ov.idx].ID)
 			m.refresh(false)
 		}
 	}
@@ -87,43 +147,27 @@ func (m *model) handleOverlayKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 }
 
 func (m *model) handleAgentDetailKey(msg tea.KeyMsg) tea.Cmd {
-	viewH := max(m.height-6, 4)
-	switch keyName(msg) {
-	case "esc":
-		m.overlayChild = ""
-		m.overlayFollow = true
+	switch k := keyName(msg); {
+	case k == "esc":
+		m.ov.closeChild()
 		m.refresh(false)
-	case "ctrl+c":
+	case k == "ctrl+c":
 		m.closeOverlay()
-	case "up", "ctrl+p":
-		m.overlayFollow = false
-		if m.overlayScroll > 0 {
-			m.overlayScroll--
-		}
-		m.refresh(false)
-	case "down", "ctrl+n":
-		m.overlayScroll++
-		m.refresh(false)
-	case "pgup":
-		m.overlayFollow = false
-		m.overlayScroll = max(m.overlayScroll-viewH, 0)
-		m.refresh(false)
-	case "pgdown":
-		m.overlayScroll += viewH
+	case m.ov.paneKey(k, m.paneHeight()):
 		m.refresh(false)
 	}
 	return nil
 }
 
 func (m *model) overlayView(height int) string {
-	switch m.overlay {
+	switch m.ov.kind {
 	case overlayAgents:
-		if m.overlayChild != "" {
+		if m.ov.child != "" {
 			return m.agentDetailView(height)
 		}
 		return m.agentsListView(height)
 	case overlayJobs:
-		if m.overlayChild != "" {
+		if m.ov.child != "" {
 			return m.jobDetailView(height)
 		}
 		return m.jobsListView(height)
@@ -134,23 +178,10 @@ func (m *model) overlayView(height int) string {
 }
 
 func (m *model) handleTodosKey(msg tea.KeyMsg) tea.Cmd {
-	viewH := max(m.height-6, 4)
-	switch keyName(msg) {
-	case "esc", "ctrl+c":
+	switch k := keyName(msg); {
+	case k == "esc", k == "ctrl+c":
 		m.closeOverlay()
-	case "up", "ctrl+p":
-		if m.overlayScroll > 0 {
-			m.overlayScroll--
-		}
-		m.refresh(false)
-	case "down", "ctrl+n":
-		m.overlayScroll++
-		m.refresh(false)
-	case "pgup":
-		m.overlayScroll = max(m.overlayScroll-viewH, 0)
-		m.refresh(false)
-	case "pgdown":
-		m.overlayScroll += viewH
+	case m.ov.paneKey(k, m.paneHeight()):
 		m.refresh(false)
 	}
 	return nil
@@ -197,14 +228,14 @@ func (m *model) todosOverlayView(height int) string {
 	add(m.styles.faint.Render("esc close · the sticky strip under the header stays while a plan exists"))
 	viewH := height
 	maxScroll := max(len(lines)-viewH, 0)
-	if m.overlayScroll > maxScroll {
-		m.overlayScroll = maxScroll
+	if m.ov.scroll > maxScroll {
+		m.ov.scroll = maxScroll
 	}
-	if m.overlayScroll < 0 {
-		m.overlayScroll = 0
+	if m.ov.scroll < 0 {
+		m.ov.scroll = 0
 	}
-	end := min(len(lines), m.overlayScroll+viewH)
-	shown := lines[m.overlayScroll:end]
+	end := min(len(lines), m.ov.scroll+viewH)
+	shown := lines[m.ov.scroll:end]
 	box := m.styles.dialog.Width(w - 2).Render(strings.Join(shown, "\n"))
 	return clipHeight(lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box), height)
 }
@@ -222,8 +253,8 @@ func (m *model) agentsListView(height int) string {
 		add(m.styles.dim.Render("no subagents yet"))
 		add(m.styles.faint.Render("the model starts one with the task tool · /agents new <brief> starts one now"))
 	} else {
-		if m.overlayIdx >= len(kids) {
-			m.overlayIdx = len(kids) - 1
+		if m.ov.idx >= len(kids) {
+			m.ov.idx = len(kids) - 1
 		}
 		for i, k := range kids {
 			state, stateStyle := "done", m.styles.ok
@@ -232,7 +263,7 @@ func (m *model) agentsListView(height int) string {
 			}
 			age := textfmt.Duration(time.Since(k.Started))
 			mark := "  "
-			if i == m.overlayIdx {
+			if i == m.ov.idx {
 				mark = m.styles.accent.Render("▸ ")
 			}
 			add(mark + fmt.Sprintf("%s  %s  %s  %s",
@@ -262,12 +293,12 @@ func (m *model) agentsListView(height int) string {
 func (m *model) agentDetailView(height int) string {
 	task := m.taskTool()
 	if task == nil {
-		m.overlayChild = ""
+		m.ov.child = ""
 		return m.agentsListView(height)
 	}
-	log, ok := task.ChildLog(m.overlayChild)
+	log, ok := task.ChildLog(m.ov.child)
 	if !ok {
-		m.overlayChild = ""
+		m.ov.child = ""
 		return m.agentsListView(height)
 	}
 	w := max(m.width-2, 20)
@@ -287,18 +318,18 @@ func (m *model) agentDetailView(height int) string {
 		viewH = 1
 	}
 	maxScroll := max(len(body)-viewH, 0)
-	if m.overlayFollow {
-		m.overlayScroll = maxScroll
+	if m.ov.follow {
+		m.ov.scroll = maxScroll
 	}
-	if m.overlayScroll > maxScroll {
-		m.overlayScroll = maxScroll
-		m.overlayFollow = true
+	if m.ov.scroll > maxScroll {
+		m.ov.scroll = maxScroll
+		m.ov.follow = true
 	}
-	if m.overlayScroll < 0 {
-		m.overlayScroll = 0
+	if m.ov.scroll < 0 {
+		m.ov.scroll = 0
 	}
-	end := min(len(body), m.overlayScroll+viewH)
-	shown := body[m.overlayScroll:end]
+	end := min(len(body), m.ov.scroll+viewH)
+	shown := body[m.ov.scroll:end]
 	for len(shown) < viewH {
 		shown = append(shown, "")
 	}
@@ -385,68 +416,40 @@ func (m *model) overlayJobList() []tool.Job {
 }
 
 func (m *model) handleJobsKey(msg tea.KeyMsg) tea.Cmd {
-	if m.overlayChild != "" {
+	if m.ov.child != "" {
 		return m.handleJobDetailKey(msg)
 	}
 	jobs := m.overlayJobList()
-	if m.overlayIdx >= len(jobs) {
-		m.overlayIdx = max(len(jobs)-1, 0)
-	}
-	switch keyName(msg) {
-	case "esc", "ctrl+c":
+	m.ov.clampIdx(len(jobs))
+	switch k := keyName(msg); {
+	case k == "esc", k == "ctrl+c":
 		m.closeOverlay()
-	case "up", "ctrl+p":
+	case m.ov.listKey(k, len(jobs)):
+		m.refresh(false)
+	case k == "enter":
 		if len(jobs) > 0 {
-			m.overlayIdx = (m.overlayIdx - 1 + len(jobs)) % len(jobs)
+			m.ov.openChild(strconv.Itoa(jobs[m.ov.idx].ID))
 			m.refresh(false)
 		}
-	case "down", "ctrl+n":
+	case k == "k":
 		if len(jobs) > 0 {
-			m.overlayIdx = (m.overlayIdx + 1) % len(jobs)
-			m.refresh(false)
-		}
-	case "enter":
-		if len(jobs) > 0 {
-			m.overlayChild = strconv.Itoa(jobs[m.overlayIdx].ID)
-			m.overlayScroll = 0
-			m.overlayFollow = true
-			m.refresh(false)
-		}
-	case "k":
-		if len(jobs) > 0 {
-			m.killOverlayJob(jobs[m.overlayIdx].ID)
+			m.killOverlayJob(jobs[m.ov.idx].ID)
 		}
 	}
 	return nil
 }
 
 func (m *model) handleJobDetailKey(msg tea.KeyMsg) tea.Cmd {
-	viewH := max(m.height-6, 4)
-	switch keyName(msg) {
-	case "esc":
-		m.overlayChild = ""
-		m.overlayFollow = true
+	switch k := keyName(msg); {
+	case k == "esc":
+		m.ov.closeChild()
 		m.refresh(false)
-	case "ctrl+c":
+	case k == "ctrl+c":
 		m.closeOverlay()
-	case "up", "ctrl+p":
-		m.overlayFollow = false
-		if m.overlayScroll > 0 {
-			m.overlayScroll--
-		}
+	case m.ov.paneKey(k, m.paneHeight()):
 		m.refresh(false)
-	case "down", "ctrl+n":
-		m.overlayScroll++
-		m.refresh(false)
-	case "pgup":
-		m.overlayFollow = false
-		m.overlayScroll = max(m.overlayScroll-viewH, 0)
-		m.refresh(false)
-	case "pgdown":
-		m.overlayScroll += viewH
-		m.refresh(false)
-	case "k":
-		if id, err := strconv.Atoi(m.overlayChild); err == nil {
+	case k == "k":
+		if id, err := strconv.Atoi(m.ov.child); err == nil {
 			m.killOverlayJob(id)
 		}
 	}
@@ -455,14 +458,14 @@ func (m *model) handleJobDetailKey(msg tea.KeyMsg) tea.Cmd {
 
 func (m *model) killOverlayJob(id int) {
 	if m.opts.Jobs == nil {
-		m.overlayNote = "no jobs"
+		m.ov.note = "no jobs"
 		m.refresh(false)
 		return
 	}
 	if err := m.opts.Jobs.Kill(id); err != nil {
-		m.overlayNote = err.Error()
+		m.ov.note = err.Error()
 	} else {
-		m.overlayNote = fmt.Sprintf("killed job %d", id)
+		m.ov.note = fmt.Sprintf("killed job %d", id)
 	}
 	m.refresh(false)
 }
@@ -474,8 +477,8 @@ func (m *model) jobsListView(height int) string {
 	add := func(s string) { lines = append(lines, truncateLine(s, inner)) }
 	add(m.styles.key.Render("Jobs"))
 	add(m.styles.dim.Render("this session · live · enter tails the log"))
-	if m.overlayNote != "" {
-		add(m.styles.warn.Render(m.overlayNote))
+	if m.ov.note != "" {
+		add(m.styles.warn.Render(m.ov.note))
 	}
 	add("")
 	jobs := m.overlayJobList()
@@ -483,8 +486,8 @@ func (m *model) jobsListView(height int) string {
 		add(m.styles.dim.Render("no background jobs"))
 		add(m.styles.faint.Render("the model starts one with bash background:true (a dev server, a long build)"))
 	} else {
-		if m.overlayIdx >= len(jobs) {
-			m.overlayIdx = len(jobs) - 1
+		if m.ov.idx >= len(jobs) {
+			m.ov.idx = len(jobs) - 1
 		}
 		for i, j := range jobs {
 			state, stateStyle := "done", m.styles.ok
@@ -492,7 +495,7 @@ func (m *model) jobsListView(height int) string {
 				state, stateStyle = "running", m.styles.warn
 			}
 			mark := "  "
-			if i == m.overlayIdx {
+			if i == m.ov.idx {
 				mark = m.styles.accent.Render("▸ ")
 			}
 			add(mark + fmt.Sprintf("%s  %s  %s",
@@ -509,14 +512,14 @@ func (m *model) jobsListView(height int) string {
 }
 
 func (m *model) jobDetailView(height int) string {
-	id, err := strconv.Atoi(m.overlayChild)
+	id, err := strconv.Atoi(m.ov.child)
 	if err != nil || m.opts.Jobs == nil {
-		m.overlayChild = ""
+		m.ov.child = ""
 		return m.jobsListView(height)
 	}
 	job, ok := m.opts.Jobs.Get(id)
 	if !ok {
-		m.overlayChild = ""
+		m.ov.child = ""
 		return m.jobsListView(height)
 	}
 	w := max(m.width-2, 20)
@@ -529,8 +532,8 @@ func (m *model) jobDetailView(height int) string {
 		stateStyle.Render(state),
 		job.Command)
 	help := m.styles.faint.Render("esc back · ↑↓ / pgup pgdn scroll · k kill · ctrl+c close")
-	if m.overlayNote != "" {
-		help = m.styles.warn.Render(m.overlayNote) + " · " + help
+	if m.ov.note != "" {
+		help = m.styles.warn.Render(m.ov.note) + " · " + help
 	}
 	out, _ := m.opts.Jobs.Output(id, 0)
 	var body []string
@@ -547,18 +550,18 @@ func (m *model) jobDetailView(height int) string {
 		viewH = 1
 	}
 	maxScroll := max(len(body)-viewH, 0)
-	if m.overlayFollow {
-		m.overlayScroll = maxScroll
+	if m.ov.follow {
+		m.ov.scroll = maxScroll
 	}
-	if m.overlayScroll > maxScroll {
-		m.overlayScroll = maxScroll
-		m.overlayFollow = true
+	if m.ov.scroll > maxScroll {
+		m.ov.scroll = maxScroll
+		m.ov.follow = true
 	}
-	if m.overlayScroll < 0 {
-		m.overlayScroll = 0
+	if m.ov.scroll < 0 {
+		m.ov.scroll = 0
 	}
-	end := min(len(body), m.overlayScroll+viewH)
-	shown := body[m.overlayScroll:end]
+	end := min(len(body), m.ov.scroll+viewH)
+	shown := body[m.ov.scroll:end]
 	for len(shown) < viewH {
 		shown = append(shown, "")
 	}
@@ -608,16 +611,16 @@ func (m *model) jobsCommand(args []string) {
 	jobs := m.overlayJobList()
 	switch {
 	case len(args) == 1:
-		m.overlayChild = args[0]
+		m.ov.child = args[0]
 		if n, err := strconv.Atoi(args[0]); err == nil {
 			for i, j := range jobs {
 				if j.ID == n {
-					m.overlayIdx = i
+					m.ov.idx = i
 					break
 				}
 			}
 		}
 	case len(jobs) == 1:
-		m.overlayChild = strconv.Itoa(jobs[0].ID)
+		m.ov.child = strconv.Itoa(jobs[0].ID)
 	}
 }
