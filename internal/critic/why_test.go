@@ -1,7 +1,6 @@
-package agent
+package critic
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -82,7 +81,11 @@ func TestAVerdictThatAgreesIsNotAnIntervention(t *testing.T) {
 // produces the third of these, and it used to be invisible to /why.
 func TestEveryShapeOfRefusalIsSeenAsOne(t *testing.T) {
 	for _, out := range []string{
-		DeniedMessage,
+		// agent.DeniedMessage, spelled out: this package must not
+		// import the one that defines it. The agent-side test
+		// TestHarnessRefusalsAreVisibleToWhy checks the constant
+		// itself is still one of these shapes.
+		"The user denied permission for this tool call. Ask before retrying or choose another approach.",
 		"Permission denied: no approver configured for mutating tools.",
 		"Denied by permission rule read_file. Do not retry this call; choose another approach or ask the user to change the rule.",
 		"refused: read-only mode is on",
@@ -196,75 +199,3 @@ func TestNoticesAreClassifiedByWhatTheySay(t *testing.T) {
 		}
 	}
 }
-
-// TestNoticesReachTheLedger is the other half: /why can only explain
-// what was written down, and until this change most notices were a line
-// on the screen and nothing else.
-func TestNoticesReachTheLedger(t *testing.T) {
-	f := &fake{responses: []*llm.Response{text("done")}}
-	a, _ := newAgent(t, f, nil)
-	sess := &memLog{}
-	a.SetLog(sess)
-	a.Prepare = func(b []llm.Block) ([]llm.Block, string) {
-		return b, "a note from the harness"
-	}
-	if err := a.Run(t.Context(), "hello", nil); err != nil {
-		t.Fatal(err)
-	}
-	ivs := Interventions(sess.Events())
-	if len(ivs) == 0 {
-		t.Fatal("the notice never reached the ledger")
-	}
-	if ivs[0].Text != "a note from the harness" {
-		t.Fatalf("ledger holds %q", ivs[0].Text)
-	}
-}
-
-// TestARefusalReachesTheLedger: a call that never ran still has to be
-// written down, or /why cannot tell a refusal from a call never made.
-func TestARefusalReachesTheLedger(t *testing.T) {
-	f := &fake{responses: []*llm.Response{
-		toolCall("c1", "write_file", `{"path":"a.txt","content":"x"}`),
-		text("all right"),
-	}}
-	a, _ := newAgent(t, f, ApproverFunc(func(context.Context, ToolCall) (Decision, error) {
-		return Deny, nil
-	}))
-	sess := &memLog{}
-	a.SetLog(sess)
-	if err := a.Run(t.Context(), "write a.txt", nil); err != nil {
-		t.Fatal(err)
-	}
-	ivs := Interventions(sess.Events())
-	found := false
-	for _, iv := range ivs {
-		if iv.Kind == IvRefused && strings.Contains(iv.Text, "write_file") {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("the refusal is not in the ledger; interventions were %v", ivs)
-	}
-	// And it explains itself in the words a refusal deserves, wherever it
-	// sits in the ledger.
-	for n := 1; n <= len(ivs); n++ {
-		got := WhyLast(sess.Events(), n)
-		if strings.HasPrefix(got, string(IvRefused)) {
-			if !strings.Contains(got, "not allowed") {
-				t.Fatalf("/why did not explain the refusal:\n%s", got)
-			}
-			return
-		}
-	}
-	t.Fatal("/why never reached the refusal")
-}
-
-// memLog is a session log in memory, which is all Interventions needs.
-type memLog struct{ events []session.Event }
-
-func (m *memLog) Append(e session.Event) (int, error) {
-	e.Seq = len(m.events) + 1
-	m.events = append(m.events, e)
-	return e.Seq, nil
-}
-func (m *memLog) Events() []session.Event { return m.events }

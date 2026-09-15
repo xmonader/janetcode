@@ -1,4 +1,4 @@
-package agent
+package cron
 
 import (
 	"context"
@@ -24,7 +24,7 @@ func TestParseEvery(t *testing.T) {
 }
 
 func TestCronFiresThenCloseStops(t *testing.T) {
-	c := NewCron()
+	c := New()
 	got := make(chan string, 4)
 	c.OnFire = func(id, prompt string) { got <- id + ":" + prompt }
 	id, err := c.Add(time.Second, "check tests")
@@ -54,7 +54,7 @@ func TestCronFiresThenCloseStops(t *testing.T) {
 }
 
 func TestCronCancelAndList(t *testing.T) {
-	c := NewCron()
+	c := New()
 	id, err := c.Add(time.Hour, "later")
 	if err != nil {
 		t.Fatal(err)
@@ -74,8 +74,8 @@ func TestCronCancelAndList(t *testing.T) {
 }
 
 func TestCronTool(t *testing.T) {
-	c := NewCron()
-	tl := &CronTool{Cron: c}
+	c := New()
+	tl := &Tool{Cron: c}
 	out, err := tl.Run(context.Background(), json.RawMessage(`{"action":"add","every":"5m","prompt":"ping"}`))
 	if err != nil || !strings.Contains(out, "loop-1") {
 		t.Fatalf("add = %q %v", out, err)
@@ -96,7 +96,7 @@ func TestCronRestoreAndPersist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := NewCron()
+	c := New()
 	c.OnChange = func(specs []session.LoopSpec) { _ = s.SetLoops(specs) }
 	id, err := c.Add(time.Hour, "ping")
 	if err != nil {
@@ -106,7 +106,7 @@ func TestCronRestoreAndPersist(t *testing.T) {
 	if err != nil || len(re.Meta.Loops) != 1 || re.Meta.Loops[0].ID != id {
 		t.Fatalf("saved = %+v err=%v", re.Meta.Loops, err)
 	}
-	c2 := NewCron()
+	c2 := New()
 	if err := c2.Restore(re.Meta.Loops); err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestCronRestoreAndPersist(t *testing.T) {
 		t.Fatalf("cancel should persist empty, got %+v", re.Meta.Loops)
 	}
 	other, _ := session.New(dir, "/w", "p", "m")
-	c3 := NewCron()
+	c3 := New()
 	if err := c3.Restore(other.Meta.Loops); err != nil {
 		t.Fatal(err)
 	}
