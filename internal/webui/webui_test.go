@@ -660,8 +660,21 @@ func TestPermissionLadderPayloadAndChoice(t *testing.T) {
 		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "written"), StopReason: llm.StopEndTurn},
 	)
 	defer ts.Close()
+	// SaveRule runs on the turn's goroutine while the test reads what it
+	// saved, so both go through this mutex.
+	var mu sync.Mutex
 	var saved []string
-	ag.SaveRule = func(r perm.Rule) error { saved = append(saved, r.String()); return nil }
+	ag.SaveRule = func(r perm.Rule) error {
+		mu.Lock()
+		defer mu.Unlock()
+		saved = append(saved, r.String())
+		return nil
+	}
+	savedRules := func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]string(nil), saved...)
+	}
 
 	body, _ := json.Marshal(map[string]string{"text": "make it"})
 	pr, err := http.Post(ts.URL+"/api/prompt", "application/json", bytes.NewReader(body))
@@ -710,13 +723,38 @@ func TestPermissionLadderPayloadAndChoice(t *testing.T) {
 	if ar.StatusCode != 200 {
 		t.Fatalf("always %d", ar.StatusCode)
 	}
-	for time.Now().Before(deadline) && len(saved) == 0 {
+	for time.Now().Before(deadline) && len(savedRules()) == 0 {
 		time.Sleep(20 * time.Millisecond)
 	}
-	if len(saved) != 1 || saved[0] != "write_file(docs/n.txt)" {
-		t.Fatalf("saved = %v, want the rung the browser chose", saved)
+	if got := savedRules(); len(got) != 1 || got[0] != "write_file(docs/n.txt)" {
+		t.Fatalf("saved = %v, want the rung the browser chose", got)
 	}
 	if v, r := ag.RulesSnapshot().Decide("write_file", "docs/n.txt"); v != perm.Allowed || r.String() != "write_file(docs/n.txt)" {
 		t.Fatalf("rules = %v %s", v, r)
+	}
+	// The turn writes the file after the answer, so the test waits for it
+	// to finish: otherwise the cleanup of the temporary root races the
+	// write.
+	for done := false; !done && time.Now().Before(deadline); {
+		res, err := http.Get(ts.URL + "/api/state")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var snap struct {
+			Entries []entry `json:"entries"`
+		}
+		err = json.NewDecoder(res.Body).Decode(&snap)
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range snap.Entries {
+			if e.Kind == "assistant" && strings.Contains(e.Text, "written") {
+				done = true
+			}
+		}
+		if !done {
+			time.Sleep(20 * time.Millisecond)
+		}
 	}
 }
