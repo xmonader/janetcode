@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/agent"
-	"github.com/xmonader/janetcode/internal/llm/replay"
 	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/replay"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )

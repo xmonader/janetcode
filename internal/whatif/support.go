@@ -11,10 +11,10 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
-	"github.com/xmonader/janetcode/internal/llm/replay"
 	"github.com/xmonader/janetcode/internal/minimal"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
+	"github.com/xmonader/janetcode/internal/replay"
 	"github.com/xmonader/janetcode/internal/session"
 )
 

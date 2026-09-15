@@ -2,7 +2,7 @@
 // happened if...". Given a session that already ran and a turn N, it
 // reproduces the tree the session had right before turn N by replaying
 // turns 1..N-1 against the model's own recorded replies — no tokens
-// spent, see internal/llm/replay — in an isolated git worktree (see
+// spent, see internal/replay — in an isolated git worktree (see
 // worktree.AtStart), then runs the session's remaining user
 // prompts live against a changed setup: a different model, ablations, an
 // extra permission-deny rule, or a replacement prompt for turn N. It
@@ -26,8 +26,8 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/llm"
-	"github.com/xmonader/janetcode/internal/llm/replay"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/replay"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/verify"
