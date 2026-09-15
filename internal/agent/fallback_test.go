@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -42,6 +43,17 @@ func TestWorthFallback(t *testing.T) {
 	for _, s := range no {
 		if worthFallback(errors.New(s)) {
 			t.Errorf("%q should not be worth a fallback", s)
+		}
+	}
+	// A cancellation or deadline is never worth a fallback, however a
+	// provider wrapped it and whatever else its message says.
+	for _, err := range []error{
+		context.Canceled,
+		fmt.Errorf("server error 503: %w", context.Canceled),
+		fmt.Errorf("rate limit reached: %w", fmt.Errorf("stream: %w", context.DeadlineExceeded)),
+	} {
+		if worthFallback(err) {
+			t.Errorf("%v should not be worth a fallback", err)
 		}
 	}
 }

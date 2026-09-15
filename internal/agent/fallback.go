@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"strings"
 
@@ -82,9 +83,10 @@ func worthFallback(err error) bool {
 	return false
 }
 
+// errIsCancel reports whether err is a cancellation or a deadline, which
+// the providers return wrapped (%w) rather than restated.
 func errIsCancel(err error) bool {
-	return strings.Contains(err.Error(), context.Canceled.Error()) ||
-		strings.Contains(err.Error(), context.DeadlineExceeded.Error())
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 // fallback retries the call on each configured model in turn after a

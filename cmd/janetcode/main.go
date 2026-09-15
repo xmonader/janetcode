@@ -28,6 +28,8 @@ import (
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/inspect"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/llm/anthropic"
+	"github.com/xmonader/janetcode/internal/llm/openai"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/mutate"
@@ -92,7 +94,7 @@ func main() {
 	err := run(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "janetcode:", err)
-		if s := err.Error(); strings.Contains(s, "(HTTP 401)") || strings.Contains(s, "(HTTP 403)") {
+		if keyRejected(err) {
 			fmt.Fprintln(os.Stderr, "janetcode: the endpoint rejected the API key; check the key for the provider in use (janetcode --doctor shows which key each provider has)")
 		}
 	}
@@ -100,6 +102,18 @@ func main() {
 	// went wrong, so a script can tell a missing key from a turn limit
 	// without reading the message.
 	os.Exit(headless.ExitCode(err))
+}
+
+// keyRejected reports whether err is a provider's 401 or 403: the key was
+// sent and refused, as opposed to missing.
+func keyRejected(err error) bool {
+	status := 0
+	if oe := (*openai.APIError)(nil); errors.As(err, &oe) {
+		status = oe.Status
+	} else if ae := (*anthropic.APIError)(nil); errors.As(err, &ae) {
+		status = ae.Status
+	}
+	return status == 401 || status == 403
 }
 
 // printFlags is flag.PrintDefaults for the flags keep selects, so the

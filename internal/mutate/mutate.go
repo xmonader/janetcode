@@ -127,12 +127,19 @@ func maskStrings(s string) string {
 // are excluded. The map is path → sorted 1-based lines.
 func Changed(ctx context.Context, root string) (map[string][]int, error) {
 	out := map[string][]int{}
-	diff, err := gitx.Run(ctx, root, nil, "diff", "-U0", "--no-color", "HEAD", "--", ".")
-	if err != nil && !strings.Contains(err.Error(), "unknown revision") && !strings.Contains(err.Error(), "bad revision") {
-		return nil, err
-	}
-	if err == nil {
+	// A repository with no commit yet has no HEAD to diff against: every
+	// file is untracked, and ls-files below finds them. rev-parse -q
+	// exits 1 for a missing revision and 128 for anything worse.
+	_, err := gitx.Run(ctx, root, nil, "rev-parse", "--verify", "-q", "HEAD^{commit}")
+	switch {
+	case err == nil:
+		diff, err := gitx.Run(ctx, root, nil, "diff", "-U0", "--no-color", "HEAD", "--", ".")
+		if err != nil {
+			return nil, err
+		}
 		parseDiff(diff, out)
+	case gitx.ExitCode(err) != 1:
+		return nil, err
 	}
 	untracked, err := gitx.Run(ctx, root, nil, "ls-files", "--others", "--exclude-standard")
 	if err != nil {

@@ -161,3 +161,25 @@ func TestRunFindsUntestedBranch(t *testing.T) {
 		t.Fatalf("clean tree: %+v %v", rep, err)
 	}
 }
+
+// Changed works in a repository with no commit yet (every source file is
+// new) and fails outside a repository rather than reporting no changes.
+func TestChangedWithoutHEAD(t *testing.T) {
+	root := t.TempDir()
+	if out, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	if err := os.WriteFile(filepath.Join(root, "m.go"), []byte("package m\n\nvar X = 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := Changed(context.Background(), root)
+	if err != nil {
+		t.Fatalf("no commit yet: %v", err)
+	}
+	if got := changed["m.go"]; len(got) != 3 {
+		t.Fatalf("changed = %v, want the three lines of m.go", changed)
+	}
+	if _, err := Changed(context.Background(), t.TempDir()); err == nil {
+		t.Fatal("outside a repository: no error")
+	}
+}
