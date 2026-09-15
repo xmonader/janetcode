@@ -91,6 +91,9 @@ func (a *Agent) ApplyPendingUndo(ctx context.Context, force bool) (UndoReport, e
 		return UndoReport{}, ErrNoPendingUndo
 	}
 	if p.turn != nil {
+		if a.running.Load() {
+			return UndoReport{}, ErrTurnRunning
+		}
 		a.cp.mu.Lock()
 		defer a.cp.mu.Unlock()
 		if a.turnFingerprint() != p.fingerprint {

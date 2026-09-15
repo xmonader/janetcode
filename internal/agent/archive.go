@@ -298,3 +298,29 @@ func outputDigest(out string) string {
 	sum := sha256.Sum256([]byte(out))
 	return hex.EncodeToString(sum[:])[:12]
 }
+
+// Drop removes one archived output and forgets the tool call it came
+// from. It is how a conversation rewind (see rewind.go) takes the
+// outputs of the turns it drops off the disk: the messages that named
+// those ids are gone, so nothing can ask for them again, and leaving
+// them would let a later expand_output hand the model the output of work
+// that no longer exists. A missing entry is not an error — the archive
+// is shared by a project's sessions and evicts on its own.
+func (ar *Archive) Drop(id string) {
+	if ar == nil || seq(id) == 0 {
+		return
+	}
+	ar.mu.Lock()
+	defer ar.mu.Unlock()
+	if ar.load() != nil {
+		return
+	}
+	if err := os.Remove(filepath.Join(ar.Dir, id+".txt")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return
+	}
+	for use, got := range ar.byUse {
+		if got == id {
+			delete(ar.byUse, use)
+		}
+	}
+}

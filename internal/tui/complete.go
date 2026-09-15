@@ -149,7 +149,7 @@ func (m *model) completeUndo(partial string) []command {
 		return out
 	}
 	for _, t := range m.opts.Agent.RestorableTurns() {
-		out = append(out, command{name: fmt.Sprintf("/undo turn %d", t), help: "put the whole work tree back to before that turn"})
+		out = append(out, command{name: fmt.Sprintf("/undo turn %d", t), help: "put the work tree and the conversation back to before that turn (--files-only keeps the conversation)"})
 	}
 	for i, c := range m.opts.Agent.Changes() {
 		if c.Undone {

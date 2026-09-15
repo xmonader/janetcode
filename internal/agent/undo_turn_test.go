@@ -48,7 +48,7 @@ func TestRestoreToTurnPreviewsThenApplies(t *testing.T) {
 	if got := a.RestorableTurns(); len(got) != 3 || got[0] != 1 || got[2] != 3 {
 		t.Fatalf("restorable turns = %v", got)
 	}
-	tr, err := a.PreviewUndoTurn(context.Background(), 2)
+	tr, err := a.PreviewUndoTurn(context.Background(), 2, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,22 +105,31 @@ func TestRestoreToTurnPreviewsThenApplies(t *testing.T) {
 	if got := a.RestorableTurns(); len(got) != 1 || got[0] != 1 {
 		t.Fatalf("restorable turns after the restore = %v", got)
 	}
-	// The model is told, through the same path /undo apply uses.
+	// The conversation went back with the tree, and the note standing
+	// where the dropped turns were names what changed. TellModelUndone
+	// is still called the way a front-end calls it; it adds nothing on
+	// top of the rewind's own note.
 	a.TellModelUndone(rep)
+	if rep.Rewound == nil || rep.Rewound.FromTurn != 2 {
+		t.Fatalf("the restore did not rewind the conversation: %+v", rep.Rewound)
+	}
 	var told string
 	for _, m := range a.Messages {
-		if strings.Contains(m.Text(), "reverted some of your earlier changes") {
+		if strings.Contains(m.Text(), "this conversation was rewound") {
 			told = m.Text()
 		}
 	}
-	if !strings.Contains(told, "two.txt") {
+	if !strings.Contains(told, "two.txt") || !strings.Contains(told, "turn 2") {
 		t.Fatalf("the model was not told what was restored: %q", told)
+	}
+	if strings.Contains(strings.Join(texts(a.Messages), "\n"), "reverted some of your earlier changes") {
+		t.Fatal("a rewound restore also left the /undo apply note, so the model is told twice")
 	}
 }
 
 func TestRestoreToTurnRefusesAGoneSnapshot(t *testing.T) {
 	a, _ := threeTurns(t)
-	_, err := a.PreviewUndoTurn(context.Background(), 9)
+	_, err := a.PreviewUndoTurn(context.Background(), 9, false)
 	if !errors.Is(err, ErrNoTurnCheckpoint) {
 		t.Fatalf("err = %v", err)
 	}
@@ -132,7 +141,7 @@ func TestRestoreToTurnRefusesAGoneSnapshot(t *testing.T) {
 	if _, err := a.Undo(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.PreviewUndoTurn(context.Background(), 3); !errors.Is(err, ErrNoTurnCheckpoint) {
+	if _, err := a.PreviewUndoTurn(context.Background(), 3, false); !errors.Is(err, ErrNoTurnCheckpoint) {
 		t.Fatalf("a popped turn should no longer be restorable: %v", err)
 	}
 	if _, err := a.ApplyPendingUndo(context.Background(), false); !errors.Is(err, ErrNoPendingUndo) {
@@ -140,7 +149,7 @@ func TestRestoreToTurnRefusesAGoneSnapshot(t *testing.T) {
 	}
 	// A session with no checkpoints at all says so plainly.
 	b := &Agent{}
-	if _, err := b.PreviewUndoTurn(context.Background(), 1); !errors.Is(err, ErrNothingToRestore) {
+	if _, err := b.PreviewUndoTurn(context.Background(), 1, false); !errors.Is(err, ErrNothingToRestore) {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -148,7 +157,7 @@ func TestRestoreToTurnRefusesAGoneSnapshot(t *testing.T) {
 func TestRestoreToTurnRefusesWhenTheRepositoryMoved(t *testing.T) {
 	a, root := threeTurns(t)
 	gitInit(t, root) // the user commits: HEAD moves under the snapshots
-	_, err := a.PreviewUndoTurn(context.Background(), 2)
+	_, err := a.PreviewUndoTurn(context.Background(), 2, false)
 	if !errors.Is(err, snapshot.ErrHeadMoved) {
 		t.Fatalf("err = %v", err)
 	}
@@ -162,7 +171,7 @@ func TestRestoreToTurnRefusesWhenTheRepositoryMoved(t *testing.T) {
 
 func TestRestoreToTurnRefusesOnceTheTurnsMoved(t *testing.T) {
 	a, _ := threeTurns(t)
-	if _, err := a.PreviewUndoTurn(context.Background(), 2); err != nil {
+	if _, err := a.PreviewUndoTurn(context.Background(), 2, false); err != nil {
 		t.Fatal(err)
 	}
 	// Another turn's worth of checkpoints lands between the preview and
@@ -209,7 +218,7 @@ func TestRestoreToTurnOutsideGitUsesTheFileCopies(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := a.PreviewUndoTurn(context.Background(), 1); err != nil {
+	if _, err := a.PreviewUndoTurn(context.Background(), 1, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := a.ApplyPendingUndo(context.Background(), false); err != nil {
@@ -218,4 +227,14 @@ func TestRestoreToTurnOutsideGitUsesTheFileCopies(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "x")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("x should be gone: it did not exist before turn 1")
 	}
+}
+
+// texts is every message's text, for a test asserting something is not
+// anywhere in the conversation.
+func texts(msgs []llm.Message) []string {
+	out := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, m.Text())
+	}
+	return out
 }

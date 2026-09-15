@@ -39,6 +39,38 @@ janetcode --bg "fix the tests"
 Inside the TUI, `/resume` lists the sessions for the directory and
 `/resume 2` reopens one.
 
+## Rewinding a session
+
+`/undo turn n` (see
+[the interface manual](interface.md#going-back-to-before-a-turn-undo-turn-n))
+puts the work tree back to before turn n and rewinds the conversation
+with it. The session file is where that happens, and the rule the file
+lives by does not bend for it: the log is append-only, so nothing is cut
+out. The dropped turns' events stay on disk exactly as they were
+written. What is appended is one more record — a replacement event that
+shadows the surface events of those turns and stands in their place,
+carrying the note the model sees.
+
+That is the same mechanism compaction uses: a summary event replaces the
+messages it summarises rather than deleting them. Resuming a session
+folds the log into the model-visible conversation by following those
+replacements, so a `--resume` after a rewind sees the rewound
+conversation and not the dropped turns — and the live session sees it
+for the same reason, because the rewind re-folds the log rather than
+editing the messages in memory by hand. `janetcode --events <id>` still
+shows every event, dropped turns included: the file remains the full
+record of what happened, including the fact that it was rewound.
+
+Turn numbers are not reused. The log keeps the dropped turns, so the
+next turn carries on after the highest number the session has ever
+written rather than starting again at n — two different turns keyed the
+same number is exactly what a resume refuses to produce.
+
+A compaction between turn n and now is the one case a rewind declines:
+the summary replaced the messages that marked where turn n began, so
+that point can no longer be located in the conversation. The files go
+back anyway and the preview says why the conversation did not.
+
 ## Fork lineage in the listing
 
 Because `/fork` records which session a copy came from, every listing of

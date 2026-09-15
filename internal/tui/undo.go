@@ -57,7 +57,7 @@ func (m *model) changesCommand(args []string) {
 		m.transcript.info("no file changes in this session yet")
 		return
 	}
-	m.transcript.code(agent.FormatChangeGroups(groups, m.opts.Cwd, m.opts.Agent.RestorableTurns()) + "\n/changes <n> shows the hunks; /undo <n> reverts one change; /undo turn <n> puts the tree back to before a turn; /blame <path> attributes lines")
+	m.transcript.code(agent.FormatChangeGroups(groups, m.opts.Cwd, m.opts.Agent.RestorableTurns()) + "\n/changes <n> shows the hunks; /undo <n> reverts one change; /undo turn <n> puts the tree and the conversation back to before a turn; /blame <path> attributes lines")
 }
 
 // blameCommand attributes each line of a file to the change that wrote it.
@@ -286,14 +286,14 @@ func (m *model) finishUndoAbout(msg undoAboutMsg) tea.Cmd {
 }
 
 // undoTurnCommand previews putting the work tree back to how it stood
-// before turn n, without touching anything. It reads git, so it runs off
-// the UI goroutine the way /undo about does; "/undo apply" carries it
-// out.
-func (m *model) undoTurnCommand(n int) tea.Cmd {
+// before turn n — and, unless filesOnly, rewinding the conversation with
+// it — without touching anything. It reads git, so it runs off the UI
+// goroutine the way /undo about does; "/undo apply" carries it out.
+func (m *model) undoTurnCommand(n int, filesOnly bool) tea.Cmd {
 	ctx := m.startSideWork(fmt.Sprintf("listing what restoring the tree to before turn %d would change", n))
 	ag, send, cwd := m.opts.Agent, m.send, m.opts.Cwd
 	go func() {
-		res, err := ag.UndoToTurn(ctx, cwd, n)
+		res, err := ag.UndoToTurn(ctx, cwd, n, filesOnly)
 		send(undoAboutMsg{res: res, err: err})
 	}()
 	m.refresh(false)

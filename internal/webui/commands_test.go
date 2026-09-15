@@ -128,6 +128,11 @@ func TestWebUndoTurnPreviewsThenApplies(t *testing.T) {
 	if out := text(); !strings.Contains(out, "before turn 2") || !strings.Contains(out, "two.go") {
 		t.Fatalf("preview:\n%s", out)
 	}
+	// The preview says what leaves the conversation, not only what
+	// happens to the files.
+	if out := text(); !strings.Contains(out, "rewind this conversation") || !strings.Contains(out, "1 turn") {
+		t.Fatalf("the preview does not say what it would drop:\n%s", out)
+	}
 	if _, err := os.Stat(filepath.Join(root, "two.go")); err != nil {
 		t.Fatalf("the preview touched the tree: %v", err)
 	}
@@ -142,14 +147,21 @@ func TestWebUndoTurnPreviewsThenApplies(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "one.go")); err != nil {
 		t.Fatalf("turn 1's file went too: %v", err)
 	}
+	// The web UI gets the rewind too: turn 2 left the conversation with
+	// its files, and one note stands where it was.
 	var told bool
 	for _, m := range ag.Messages {
-		if strings.Contains(m.Text(), "reverted some of your earlier changes") && strings.Contains(m.Text(), "two.go") {
+		if strings.Contains(m.Text(), "this conversation was rewound") && strings.Contains(m.Text(), "two.go") {
 			told = true
 		}
 	}
 	if !told {
-		t.Fatal("the model was not told what the restore reverted")
+		t.Fatalf("the model was not told what the restore reverted: %+v", ag.Messages)
+	}
+	for _, m := range ag.Messages {
+		if strings.Contains(m.Text(), "write two") {
+			t.Fatal("turn 2's prompt is still in the context after a rewind")
+		}
 	}
 	// A turn with no snapshot is refused, not half-applied.
 	if err := s.runCommand("/undo turn 9"); err != nil {

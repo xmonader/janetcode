@@ -216,6 +216,7 @@ func (a *Agent) Redo(ctx context.Context) ([]string, error) {
 // persists the rest. It runs as the turn ends, cancelled or not, so its git
 // calls do not inherit ctx's cancellation.
 func (a *Agent) endTurn(ctx context.Context) {
+	a.running.Store(false)
 	ctx = context.WithoutCancel(ctx)
 	a.cp.mu.Lock()
 	repo := a.snaps()
