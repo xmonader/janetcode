@@ -349,12 +349,14 @@ func TestManualCommitsDoNotMisattributeAcrossCommits(t *testing.T) {
 	}
 }
 
+// commitAll relies on gitInit (undo_test.go) having already given root a
+// repo-local identity via gitxtest, so it needs no GIT_AUTHOR_* env of its
+// own.
 func commitAll(t *testing.T, root, msg string) {
 	t.Helper()
 	for _, args := range [][]string{{"add", "-A"}, {"commit", "-q", "-m", msg}} {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = root
-		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}

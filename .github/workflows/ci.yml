@@ -2,15 +2,44 @@ name: ci
 on:
   push:
   pull_request:
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go vet ./...
-      - run: go build ./...
-      - run: go test -race ./...
-      - run: GOOS=windows go vet ./internal/tool/
+          cache: true
+      # gofmt -l prints and exits 0 either way, so it is gated by hand —
+      # matches the Makefile's `check` target.
+      - name: gofmt
+        run: |
+          fmt_out="$(gofmt -l cmd internal)"
+          if [ -n "$fmt_out" ]; then
+            echo "$fmt_out"
+            echo "::error::gofmt -l found unformatted files (run: gofmt -w cmd internal)"
+            exit 1
+          fi
+      - name: vet
+        run: go vet ./...
+      - name: build
+        run: go build ./...
+      # Includes internal/archtest (the package-dependency-direction
+      # tests) and every other package under ./...; nothing here narrows
+      # or skips it.
+      - name: test (race)
+        run: go test -race ./...
+      # The other two platforms the Makefile's `check` target compile-checks:
+      # a build-tagged file that compiles on one OS and not another is
+      # otherwise only found by whoever happens to run `make cross`.
+      - name: vet (windows/amd64)
+        run: GOOS=windows GOARCH=amd64 go vet ./...
+      - name: build (windows/amd64)
+        run: GOOS=windows GOARCH=amd64 go build ./...
+      - name: vet (darwin/arm64)
+        run: GOOS=darwin GOARCH=arm64 go vet ./...

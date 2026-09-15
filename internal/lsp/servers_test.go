@@ -207,6 +207,18 @@ func TestTypeScriptServer(t *testing.T) {
 }
 
 func TestRustAnalyzer(t *testing.T) {
+	// rustup installs a shim at $bin/rust-analyzer even when the
+	// rust-analyzer component itself is not installed, so exec.LookPath
+	// alone (inside run) is not enough to tell "absent" from "present but
+	// unusable" the way it can for a plain binary. Probe it directly and
+	// skip on either failure, the way a well-behaved external-tool test
+	// does for a binary it cannot find at all.
+	if _, err := exec.LookPath("rust-analyzer"); err != nil {
+		t.Skip("rust-analyzer not installed")
+	}
+	if out, err := exec.Command("rust-analyzer", "--version").CombinedOutput(); err != nil {
+		t.Skipf("rust-analyzer not usable: %v: %s", err, out)
+	}
 	run(t, langCase{
 		name: "rust", bin: "rust-analyzer",
 		files: map[string]string{

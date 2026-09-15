@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xmonader/janetcode/internal/gitx/gitxtest"
 )
 
 func repo(t *testing.T) string {
@@ -18,9 +20,13 @@ func repo(t *testing.T) string {
 	dir := t.TempDir()
 	env := []string{"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com"}
 	ctx := context.Background()
-	if _, err := Run(ctx, dir, nil, "init", "-q"); err != nil {
-		t.Fatal(err)
-	}
+	// A repo-local identity (rather than relying on the env overrides
+	// below for every git invocation) means TestRunEnv's own partial
+	// override -- GIT_AUTHOR_NAME alone -- still resolves a valid email
+	// from config instead of git falling back to guessing one from the
+	// machine's hostname, which is not always resolvable to a valid
+	// address.
+	gitxtest.InitRepo(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("one\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

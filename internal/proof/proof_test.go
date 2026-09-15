@@ -7,23 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xmonader/janetcode/internal/gitx/gitxtest"
 )
 
 func initRepo(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	run := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		cmd.Dir = root
-		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	run("init", "-q")
-	run("config", "user.name", "t")
-	run("config", "user.email", "t@t")
+	gitxtest.InitRepo(t, root)
 	return root
 }
 

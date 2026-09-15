@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xmonader/janetcode/internal/gitx/gitxtest"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -127,12 +128,17 @@ func TestUndoPersistsAcrossAgents(t *testing.T) {
 	}
 }
 
+// gitInit creates a repo at root with a repo-local identity (see
+// gitxtest) and one commit, so both the test's own git commands and any
+// git command the agent under test issues on its own (through the bash
+// tool, with a scrubbed environment) can commit without a global git
+// config.
 func gitInit(t *testing.T, root string) {
 	t.Helper()
-	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}, {"commit", "-q", "-m", "init"}} {
+	gitxtest.InitRepo(t, root)
+	for _, args := range [][]string{{"add", "-A"}, {"commit", "-q", "-m", "init"}} {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = root
-		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}

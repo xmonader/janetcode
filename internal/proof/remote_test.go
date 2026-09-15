@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/xmonader/janetcode/internal/gitx/gitxtest"
 )
 
 // gitIn runs a git command in dir, failing the test on error.
@@ -28,10 +30,14 @@ func TestPushFetchRoundTripThroughBareRemote(t *testing.T) {
 	ctx := context.Background()
 
 	bare := t.TempDir()
-	gitIn(t, bare, "init", "-q", "--bare")
+	gitxtest.InitBareRepo(t, bare)
 
 	origin := t.TempDir()
 	gitIn(t, origin, "clone", "-q", bare, ".")
+	// A clone starts with no identity of its own; Attach below shells out
+	// to `git notes add` directly (not through the commit helper's env),
+	// so the clone needs a repo-local identity to commit against.
+	gitxtest.Configure(t, origin)
 	write(t, origin, "foo.go", "package foo\n")
 	sha := commit(t, origin, "add foo")
 	gitIn(t, origin, "push", "-q", "origin", "HEAD")
@@ -85,10 +91,11 @@ func TestPushWarnsWhenNotedCommitIsNotOnTheRemote(t *testing.T) {
 	ctx := context.Background()
 
 	bare := t.TempDir()
-	gitIn(t, bare, "init", "-q", "--bare")
+	gitxtest.InitBareRepo(t, bare)
 
 	origin := t.TempDir()
 	gitIn(t, origin, "clone", "-q", bare, ".")
+	gitxtest.Configure(t, origin)
 	write(t, origin, "seed.go", "package seed\n")
 	commit(t, origin, "seed")
 	gitIn(t, origin, "push", "-q", "origin", "HEAD")
