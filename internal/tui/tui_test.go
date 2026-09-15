@@ -4533,6 +4533,11 @@ func TestUndoTurnPreviewThenApply(t *testing.T) {
 	if !strings.Contains(v, "two.go") || !strings.Contains(v, "/undo apply") {
 		t.Fatalf("preview:\n%s", v)
 	}
+	// The preview says what leaves the conversation as well as what
+	// happens to the files.
+	if !strings.Contains(v, "rewind this conversation") {
+		t.Fatalf("the preview does not say the conversation goes back too:\n%s", v)
+	}
 	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "two.go")); err != nil {
 		t.Fatalf("the preview must not touch anything: %v", err)
 	}
@@ -4545,6 +4550,13 @@ func TestUndoTurnPreviewThenApply(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "one.go")); err != nil {
 		t.Fatalf("turn 1's file should have stayed: %v", err)
+	}
+	// And the conversation went back with the files: turn 2's prompt is
+	// no longer anything the model can see.
+	for _, m := range h.m.opts.Agent.MessagesSnapshot() {
+		if strings.Contains(m.Text(), "write two") {
+			t.Fatal("turn 2's prompt survived the rewind in the terminal")
+		}
 	}
 	// A turn with no snapshot left is refused, in as many words.
 	h.keys("/undo turn 9")
