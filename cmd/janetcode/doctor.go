@@ -25,6 +25,7 @@ import (
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/treesitter"
+	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/verify"
 )
 
@@ -173,8 +174,8 @@ func doctor(w io.Writer, ov config.Overrides) error {
 	if servers, hash, perr := mcp.LoadProject(cwd); perr != nil {
 		row(false, "mcp project", perr.Error())
 	} else if len(servers) > 0 {
-		trust := mcp.TrustStore{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
-		trusted := trust.Trusted(cwd, hash)
+		ts := trust.Store{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
+		trusted := ts.Trusted(cwd, hash)
 		for name, sc := range servers {
 			detail := describeServer(sc)
 			if !trusted {
@@ -183,8 +184,8 @@ func doctor(w io.Writer, ov config.Overrides) error {
 			row(true, "mcp "+name, detail)
 		}
 	}
-	trust := mcp.TrustStore{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
-	doctorProject(w, row, warn, cfg, cwd, filepath.Dir(cfgPath), sessDir, trust)
+	ts := trust.Store{Path: filepath.Join(filepath.Dir(cfgPath), "mcp-trust.json")}
+	doctorProject(w, row, warn, cfg, cwd, filepath.Dir(cfgPath), sessDir, ts)
 	fmt.Fprintln(w)
 	if failed > 0 {
 		return fmt.Errorf("%d check(s) failed", failed)
@@ -227,7 +228,7 @@ func writable(dir string) error {
 // doctorProject reports the per-project extras: hooks, verification
 // commands, permission rules, skills, memory and language servers. Rows
 // fail only for broken files; a missing feature is a note.
-func doctorProject(w io.Writer, row func(bool, string, string), warn func(string, string), cfg *config.Config, cwd, cfgDir, sessDir string, trust mcp.TrustStore) {
+func doctorProject(w io.Writer, row func(bool, string, string), warn func(string, string), cfg *config.Config, cwd, cfgDir, sessDir string, ts trust.Store) {
 	plural := func(n int, what string) string {
 		if n == 1 {
 			return "1 " + what
@@ -251,7 +252,7 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 		n := hooks.Len()
 		switch {
 		case n > 0:
-			row(true, "hooks", fmt.Sprintf("%s in %s · %s · %d global", plural(n, "hook"), hook.ProjectFile, trustNote(trust.Trusted(mcp.HooksTrustKey(cwd), hash), "/hooks trust"), global))
+			row(true, "hooks", fmt.Sprintf("%s in %s · %s · %d global", plural(n, "hook"), hook.ProjectFile, trustNote(ts.Trusted(trust.HooksKey(cwd), hash), "/hooks trust"), global))
 		case global > 0:
 			row(true, "hooks", fmt.Sprintf("%d global, none in %s", global, hook.ProjectFile))
 		default:
@@ -264,7 +265,7 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 	} else if len(vc.Commands) == 0 {
 		warn("verify", "no verification commands ("+verify.ProjectFile+"; /verify set <cmd> adds one)")
 	} else {
-		row(true, "verify", fmt.Sprintf("%s in %s · %s", plural(len(vc.Commands), "command"), verify.ProjectFile, trustNote(trust.Trusted(mcp.VerifyTrustKey(cwd), hash), "/verify trust")))
+		row(true, "verify", fmt.Sprintf("%s in %s · %s", plural(len(vc.Commands), "command"), verify.ProjectFile, trustNote(ts.Trusted(trust.VerifyKey(cwd), hash), "/verify trust")))
 	}
 
 	if rules, hash, err := perm.LoadProject(cwd); err != nil {
@@ -282,7 +283,7 @@ func doctorProject(w io.Writer, row func(bool, string, string), warn func(string
 	} else {
 		detail := fmt.Sprintf("%d allow / %d deny in %s", len(rules.Allow), len(rules.Deny), perm.ProjectFile)
 		if len(rules.Allow) > 0 {
-			detail += " · allow rules " + trustNote(trust.Trusted(mcp.PermissionsTrustKey(cwd), hash), "/permissions trust")
+			detail += " · allow rules " + trustNote(ts.Trusted(trust.PermissionsKey(cwd), hash), "/permissions trust")
 		}
 		row(true, "permissions", detail)
 	}

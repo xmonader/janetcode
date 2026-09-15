@@ -193,7 +193,7 @@ type Agent struct {
 	Verify *verify.Runner
 	// VerifyUntrusted is set at build time (see main.go) when the
 	// project's .janetcode/verify.json defines checks but they are not
-	// trusted (see mcp.VerifyTrustKey), so Verify itself is left nil.
+	// trusted (see trust.VerifyKey), so Verify itself is left nil.
 	// undo_apply.go's reportChecks uses it to say why no checks ran rather
 	// than staying silent, without re-reading the trust store itself.
 	VerifyUntrusted bool

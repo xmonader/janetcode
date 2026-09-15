@@ -38,6 +38,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/verify"
 	"github.com/xmonader/janetcode/internal/weburl"
 )
@@ -680,7 +681,7 @@ func TestMCPTrustFlow(t *testing.T) {
 	fake := mcp.ServerConfig{Command: os.Args[0], Args: []string{"-test.run=TestFakeMCPServerProcess"}, Env: map[string]string{"MCP_FAKE_SERVER": "1"}}
 	h.m.opts.MCP = &MCPOptions{
 		Manager: mgr, Project: map[string]mcp.ServerConfig{"proj": fake}, ProjectHash: "h1",
-		Trust: mcp.TrustStore{Path: filepath.Join(t.TempDir(), "trust.json")},
+		Trust: trust.Store{Path: filepath.Join(t.TempDir(), "trust.json")},
 	}
 	h.m.Init()
 	if v := plain(h.m.View()); !strings.Contains(v, "not been trusted") || !strings.Contains(v, "proj") {
@@ -1239,7 +1240,7 @@ func TestVerifyCommandSetsRunsAndGatesTurns(t *testing.T) {
 		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "fixed"), StopReason: llm.StopEndTurn},
 	)
 	h.m.opts.Agent.AutoApprove = true
-	h.m.opts.Verify = &VerifyOptions{Trust: mcp.TrustStore{Path: filepath.Join(t.TempDir(), "trust.json")}}
+	h.m.opts.Verify = &VerifyOptions{Trust: trust.Store{Path: filepath.Join(t.TempDir(), "trust.json")}}
 	h.keys("/verify")
 	h.enter()
 	if v := plain(h.m.View()); !strings.Contains(v, "no verification commands") {
@@ -1293,7 +1294,7 @@ func TestVerifyRereadsProjectFileEachCommand(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(h.m.opts.Cwd, verify.ProjectFile), []byte("{not valid json"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	h.m.opts.Verify = &VerifyOptions{Trust: mcp.TrustStore{Path: filepath.Join(t.TempDir(), "trust.json")}}
+	h.m.opts.Verify = &VerifyOptions{Trust: trust.Store{Path: filepath.Join(t.TempDir(), "trust.json")}}
 	h.keys("/verify")
 	h.enter()
 	if h.m.opts.Verify.ProjectTrusted {

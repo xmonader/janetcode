@@ -9,9 +9,9 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/hook"
-	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/trust"
 )
 
 func (m *model) sandboxCommand(arg string) {
@@ -146,7 +146,7 @@ func (m *model) hooksCommand(args []string) {
 		case o.ProjectTrusted:
 			m.note("project hooks are already trusted")
 		default:
-			if err := o.Trust.Trust(mcp.HooksTrustKey(m.opts.Cwd), o.ProjectHash); err != nil {
+			if err := o.Trust.Trust(trust.HooksKey(m.opts.Cwd), o.ProjectHash); err != nil {
 				m.transcript.errorf("record trust: %v", err)
 				return
 			}

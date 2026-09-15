@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/trust"
 )
 
 // TestMain doubles as a fake MCP server when MCP_FAKE_SERVER is set, so the
@@ -267,7 +268,7 @@ func TestProjectFileAndTrust(t *testing.T) {
 	if err != nil || len(servers) != 1 || servers["a"].Command != "x" || hash == "" {
 		t.Fatalf("servers = %+v hash %q err %v", servers, hash, err)
 	}
-	ts := TrustStore{Path: t.TempDir() + "/trust.json"}
+	ts := trust.Store{Path: t.TempDir() + "/trust.json"}
 	if ts.Trusted(cwd, hash) {
 		t.Fatal("untrusted by default")
 	}

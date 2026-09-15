@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/xmonader/janetcode/internal/mcp"
+	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/verify"
 )
 
@@ -16,7 +16,7 @@ type VerifyOptions struct {
 	Config         verify.Config
 	ProjectHash    string
 	ProjectTrusted bool
-	Trust          mcp.TrustStore
+	Trust          trust.Store
 }
 
 // verifyDoneMsg reports a manual /verify run.
@@ -56,7 +56,7 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 			case o.ProjectTrusted:
 				m.note("project verification is already trusted")
 			default:
-				if err := o.Trust.Trust(mcp.VerifyTrustKey(m.opts.Cwd), o.ProjectHash); err != nil {
+				if err := o.Trust.Trust(trust.VerifyKey(m.opts.Cwd), o.ProjectHash); err != nil {
 					m.transcript.errorf("record trust: %v", err)
 					return nil
 				}
@@ -107,7 +107,7 @@ func (m *model) reloadVerify(o *VerifyOptions) error {
 	}
 	o.Config, o.ProjectHash = cfg, hash
 	defined := len(cfg.Commands) > 0 || cfg.Mutate != ""
-	o.ProjectTrusted = defined && o.Trust.Trusted(mcp.VerifyTrustKey(m.opts.Cwd), hash)
+	o.ProjectTrusted = defined && o.Trust.Trusted(trust.VerifyKey(m.opts.Cwd), hash)
 	ag := m.opts.Agent
 	if o.ProjectTrusted {
 		ag.Verify = &verify.Runner{Config: cfg, Cwd: m.opts.Cwd}
@@ -133,7 +133,7 @@ func (m *model) saveVerify(c verify.Config, done string) tea.Cmd {
 	}
 	o.Config, o.ProjectHash, o.ProjectTrusted = cfg, hash, true
 	if o.Trust.Path != "" && hash != "" {
-		if err := o.Trust.Trust(mcp.VerifyTrustKey(m.opts.Cwd), hash); err != nil {
+		if err := o.Trust.Trust(trust.VerifyKey(m.opts.Cwd), hash); err != nil {
 			m.transcript.errorf("record trust: %v", err)
 		}
 	}

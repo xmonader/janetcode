@@ -33,6 +33,7 @@ import (
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/weburl"
 )
 
@@ -140,7 +141,7 @@ type MCPOptions struct {
 	Project        map[string]mcp.ServerConfig
 	ProjectHash    string
 	ProjectTrusted bool
-	Trust          mcp.TrustStore
+	Trust          trust.Store
 	// Tokens stores OAuth tokens for /mcp auth; nil disables it.
 	Tokens *mcp.TokenStore
 	// OpenURL opens the browser for /mcp auth; nil uses mcp.OpenBrowser.
@@ -153,7 +154,7 @@ type HookOptions struct {
 	Project        hook.Config
 	ProjectHash    string
 	ProjectTrusted bool
-	Trust          mcp.TrustStore
+	Trust          trust.Store
 }
 
 // PermOptions describes the permission rules in effect for /permissions.
@@ -161,7 +162,7 @@ type PermOptions struct {
 	Project        perm.Rules
 	ProjectHash    string
 	ProjectTrusted bool
-	Trust          mcp.TrustStore
+	Trust          trust.Store
 	// Save persists a rule to the config file.
 	Save func(kind string, r perm.Rule) error
 }

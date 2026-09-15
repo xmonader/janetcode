@@ -37,6 +37,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 	_ "github.com/xmonader/janetcode/internal/treesitter" // registers the grammar parser when built with -tags treesitter
+	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/tui"
 	"github.com/xmonader/janetcode/internal/verify"
 	"github.com/xmonader/janetcode/internal/webui"
@@ -509,7 +510,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if err != nil {
 		return err
 	}
-	trust := mcp.TrustStore{Path: filepath.Join(cfgDir, "mcp-trust.json")}
+	ts := trust.Store{Path: filepath.Join(cfgDir, "mcp-trust.json")}
 	tokens := &mcp.TokenStore{Path: filepath.Join(cfgDir, "mcp-auth.json")}
 	servers.Options.Tokens = tokens
 	if *mcpAuth != "" {
@@ -519,7 +520,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v (project hooks ignored)\n", err)
 	}
-	hooksTrusted := hooksCfg.Len() > 0 && trust.Trusted(mcp.HooksTrustKey(cwd), hooksHash)
+	hooksTrusted := hooksCfg.Len() > 0 && ts.Trusted(trust.HooksKey(cwd), hooksHash)
 	ag.Hooks = &hook.Runner{Config: cfg.Hooks, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[hook] %s\n", s) }}
 	if hooksTrusted {
 		var hookNotes []string
@@ -535,7 +536,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		fmt.Fprintf(os.Stderr, "warning: %v (project verification ignored)\n", err)
 	}
 	verifyDefined := len(verifyCfg.Commands) > 0 || verifyCfg.Mutate != ""
-	verifyTrusted := verifyDefined && trust.Trusted(mcp.VerifyTrustKey(cwd), verifyHash)
+	verifyTrusted := verifyDefined && ts.Trusted(trust.VerifyKey(cwd), verifyHash)
 	if verifyTrusted {
 		ag.Verify = &verify.Runner{Config: verifyCfg, Cwd: cwd, Log: func(s string) { fmt.Fprintf(os.Stderr, "[verify] %s\n", s) }}
 	} else if verifyDefined {
@@ -549,7 +550,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v (project permissions ignored)\n", err)
 	}
-	permTrusted := len(projRules.Allow) > 0 && trust.Trusted(mcp.PermissionsTrustKey(cwd), permHash)
+	permTrusted := len(projRules.Allow) > 0 && ts.Trusted(trust.PermissionsKey(cwd), permHash)
 	if permTrusted {
 		rules = perm.Merge(rules, projRules)
 	} else {
@@ -578,7 +579,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	// The ledger is keyed like the hint store below: per project, in the
 	// config directory, never in the project itself.
 	ag.Ledger = perm.OpenLedger(cfgDir, memory.Key(cwd))
-	projectTrusted := len(projectServers) > 0 && trust.Trusted(cwd, projectHash)
+	projectTrusted := len(projectServers) > 0 && ts.Trusted(cwd, projectHash)
 
 	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
@@ -810,10 +811,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		InitialPrompt: initial,
 		MCP: &tui.MCPOptions{
 			Manager: &servers, Global: cfg.MCPServers,
-			Project: projectServers, ProjectHash: projectHash, ProjectTrusted: projectTrusted, Trust: trust,
+			Project: projectServers, ProjectHash: projectHash, ProjectTrusted: projectTrusted, Trust: ts,
 			Tokens: tokens,
 		},
-		Hooks:    &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: trust},
+		Hooks:    &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: ts},
 		LSP:      diag,
 		Inspect:  subjects,
 		Features: catalog,
@@ -835,8 +836,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		Doctor: func(w io.Writer) error {
 			return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme})
 		},
-		Verify: &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: trust},
-		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: trust,
+		Verify: &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: ts},
+		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: ts,
 			Save: func(kind string, r perm.Rule) error { return config.AddPermission(cfgPath, kind, r) }},
 	})
 }

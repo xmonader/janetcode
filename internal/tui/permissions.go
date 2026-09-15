@@ -10,8 +10,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/agent"
-	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/trust"
 )
 
 // permissionsCommand lists rules, adds one, or trusts the project file.
@@ -45,7 +45,7 @@ func (m *model) permissionsCommand(args []string) {
 		case o.ProjectTrusted:
 			m.note("project rules are already trusted")
 		default:
-			if err := o.Trust.Trust(mcp.PermissionsTrustKey(m.opts.Cwd), o.ProjectHash); err != nil {
+			if err := o.Trust.Trust(trust.PermissionsKey(m.opts.Cwd), o.ProjectHash); err != nil {
 				m.transcript.errorf("record trust: %v", err)
 				return
 			}
