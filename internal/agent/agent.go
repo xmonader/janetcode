@@ -16,6 +16,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/plan"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -261,6 +262,10 @@ type Agent struct {
 	// Forked is true when this agent is a fork of a parent conversation
 	// and must not spawn another fork.
 	Forked bool
+	// planComments are the remarks the user has left on the plan file and
+	// not yet sent (see plancmd.go). The plan itself is never held here:
+	// it lives in .janetcode/plan.md and is read back from there.
+	planComments plan.Comments
 	// Prepare, when set, may add blocks to a user turn before it is sent
 	// (skills attach themselves this way). The returned note, if any, is
 	// emitted as a notice.
@@ -526,6 +531,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			if !a.Off["verdict"] && outcome.Verdict != VerdictNoChanges {
 				emit(Event{Kind: EvVerdict, Text: outcome.Line(), IsError: !outcome.OK()})
 			}
+			a.capturePlan(resp.Message.Text(), emit)
 			a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
 			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(resp.StopReason)})
 			emit(Event{Kind: EvTurnDone, Usage: a.TurnUsage(), StopReason: resp.StopReason})
