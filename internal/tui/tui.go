@@ -430,25 +430,16 @@ func tick() tea.Cmd {
 	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
+// Update is the loop. A window resize, a key and a spinner tick are
+// handled here because they are the three that can fall through to the
+// textarea and the viewport at the bottom of this function; everything
+// else is a message from somewhere that finished, and is routed to one
+// of the three handlers below.
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		first := !m.ready
-		m.width, m.height = msg.Width, msg.Height
-		m.layout()
-		m.refresh(true)
-		if first && m.opts.Connect {
-			m.opts.Connect = false
-			return m, m.openConnect(stepPick)
-		}
-		if first && m.opts.InitialPrompt != "" {
-			text := m.opts.InitialPrompt
-			m.opts.InitialPrompt = ""
-			m.hist.remember(text)
-			return m, m.submit(text)
-		}
-		return m, nil
+		return m, m.resize(msg)
 
 	case tea.KeyMsg:
 		// A word that spells a key name is text, not that key. It is
@@ -470,25 +461,83 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
-	case modelsMsg:
-		m.handleModels(msg)
-		return m, nil
+	case spinner.TickMsg:
+		if m.turn.running || (m.connect != nil && m.connect.loading) {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			cmds = append(cmds, cmd)
+			m.refresh(false)
+		}
 
+	default:
+		for _, h := range []func(tea.Msg) (tea.Cmd, bool){m.updateTerminal, m.updateTurn, m.updateBackground} {
+			if cmd, handled := h(msg); handled {
+				return m, cmd
+			}
+		}
+	}
+
+	var cmd tea.Cmd
+	// The footer height is reserved except for the completion menu; the
+	// viewport has to be told when the menu opens or closes, or the view
+	// is taller than the terminal and the transcript scrolls under it.
+	before := m.footerHeight()
+	m.input, cmd = m.input.Update(msg)
+	cmds = append(cmds, cmd)
+	if m.footerHeight() != before {
+		m.layout()
+		m.refresh(false)
+	}
+	// Typed letters must not move the transcript: the viewport's default
+	// keymap treats h/j/k/l/b/f/u/d and space as pager keys, so typing
+	// "/history …" used to scroll (and unpin) one line at a time.
+	if _, isKey := msg.(tea.KeyMsg); !isKey {
+		cmds = append(cmds, m.scroll(msg))
+	}
+	return m, tea.Batch(cmds...)
+}
+
+// resize relays out for a new terminal size. The first one is also when
+// the window exists at last, which is when a dialog or a prompt handed
+// in on the command line can finally be put up.
+func (m *model) resize(msg tea.WindowSizeMsg) tea.Cmd {
+	first := !m.ready
+	m.width, m.height = msg.Width, msg.Height
+	m.layout()
+	m.refresh(true)
+	if first && m.opts.Connect {
+		m.opts.Connect = false
+		return m.openConnect(stepPick)
+	}
+	if first && m.opts.InitialPrompt != "" {
+		text := m.opts.InitialPrompt
+		m.opts.InitialPrompt = ""
+		m.hist.remember(text)
+		return m.submit(text)
+	}
+	return nil
+}
+
+// updateTerminal handles what the terminal and the clock say: focus,
+// the mouse, and the half-second tick that keeps elapsed timers and
+// throttled live markdown moving when no event arrives.
+func (m *model) updateTerminal(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
 	case tea.FocusMsg:
 		m.term.focused = true
-		return m, nil
+		return nil, true
 
 	case tea.BlurMsg:
 		m.term.focused = false
-		return m, nil
+		return nil, true
 
 	case tea.MouseMsg:
 		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
 			if m.clickTranscript(msg.Y) {
-				return m, nil
+				return nil, true
 			}
 		}
-		return m, m.scroll(msg)
+		return m.scroll(msg), true
 
 	case tickMsg:
 		// Keeps elapsed timers and throttled live markdown moving even when
@@ -511,25 +560,24 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if expired {
 			m.refresh(false)
 		}
-		return m, tick()
+		return tick(), true
+	}
+	return nil, false
+}
 
-	case spinner.TickMsg:
-		if m.turn.running || (m.connect != nil && m.connect.loading) {
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			cmds = append(cmds, cmd)
-			m.refresh(false)
-		}
-
+// updateTurn handles the messages the running turn produces: its
+// events, the prompts it puts to the user, and its end.
+func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
 	case agentEventMsg:
 		m.applyEvent(msg.ev)
 		m.refresh(false)
-		return m, nil
+		return nil, true
 
 	case flushMsg:
 		m.drainEvents()
 		m.refresh(false)
-		return m, nil
+		return nil, true
 
 	case permissionMsg:
 		m.drainEvents() // the tool entry must exist before the prompt shows
@@ -537,13 +585,76 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.turn.setPhase("waiting for your approval")
 		m.term.announce("janetcode", "approval needed: "+msg.call.Name)
 		m.refresh(false)
-		return m, nil
+		return nil, true
 
 	case askMsg:
 		m.drainEvents()
 		m.openAsk(msg)
 		m.term.announce("janetcode", "a question for you")
-		return m, nil
+		return nil, true
+
+	case agentDoneMsg:
+		m.drainEvents()
+		cmd := m.finishTurn(msg)
+		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && (m.opts.Agent.LastTurnMutated() || memory.LooksLikeFeedback(m.hist.lastUser)) {
+			cmd = tea.Batch(cmd, m.extractMemory())
+		}
+		if msg.err == nil && m.opts.AutoTitle && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && len(m.opts.Agent.Messages) >= 2 {
+			cmd = tea.Batch(cmd, m.autoTitle())
+		}
+		m.refresh(false)
+		return cmd, true
+
+	case titleMsg:
+		if msg.gen == m.titleGen && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && msg.title != "" {
+			if err := m.opts.Session.SetTitle(msg.title); err != nil {
+				m.transcript.errorf("could not save the title: %v", err)
+			}
+			m.refresh(false)
+			return tea.SetWindowTitle(m.windowTitle()), true
+		}
+		return nil, true
+
+	case cronFireMsg:
+		if m.turn.running {
+			m.note("loop " + msg.id + " skipped · a turn is running")
+			m.refresh(false)
+			return nil, true
+		}
+		m.note("loop " + msg.id)
+		return m.submitAs(msg.prompt, "loop "+msg.id+" · "+msg.prompt), true
+
+	case mcpPromptMsg:
+		m.turn.running = false
+		m.turn.setPhase("")
+		if msg.err != nil {
+			m.transcript.errorf("%s: %v", msg.command, msg.err)
+			m.refresh(false)
+			return nil, true
+		}
+		return m.submit(msg.text), true
+
+	case memoryMsg:
+		if msg.err != nil {
+			m.note("memory: extraction failed: " + msg.err.Error())
+		}
+		for _, e := range msg.added {
+			m.note("remembered: " + memoryLine(e))
+		}
+		m.refresh(false)
+		return nil, true
+	}
+	return nil, false
+}
+
+// updateBackground handles work that was started and left to finish on
+// its own: subagents, recipes, /verify, MCP, shell commands, and the
+// commands that answer with a report.
+func (m *model) updateBackground(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case modelsMsg:
+		m.handleModels(msg)
+		return nil, true
 
 	case subagentDoneMsg:
 		if msg.err != nil {
@@ -552,10 +663,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.note("subagent finished · " + msg.desc + " · /agents to read it")
 		}
 		m.refresh(false)
-		return m, nil
+		return nil, true
 
 	case recipeDoneMsg:
-		return m, m.finishRecipe(msg)
+		return m.finishRecipe(msg), true
 
 	case btwMsg:
 		if msg.err != nil {
@@ -564,7 +675,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.transcript.info("btw " + msg.q + "\n" + msg.a)
 		}
 		m.refresh(false)
-		return m, nil
+		return nil, true
 
 	case doctorMsg:
 		if msg.report != "" {
@@ -574,46 +685,27 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.transcript.errorf("doctor: %v", msg.err)
 		}
 		m.refresh(false)
-		return m, nil
+		return nil, true
 
 	case undoAboutMsg:
 		cmd := m.finishUndoAbout(msg)
 		m.refresh(false)
-		return m, cmd
+		return cmd, true
 
 	case evalKeepMsg:
 		cmd := m.finishEvalKeep(msg)
 		m.refresh(false)
-		return m, cmd
+		return cmd, true
 
 	case undoApplyMsg:
 		cmd := m.finishUndoApply(msg)
 		m.refresh(false)
-		return m, cmd
-
-	case cronFireMsg:
-		if m.turn.running {
-			m.note("loop " + msg.id + " skipped · a turn is running")
-			m.refresh(false)
-			return m, nil
-		}
-		m.note("loop " + msg.id)
-		return m, m.submitAs(msg.prompt, "loop "+msg.id+" · "+msg.prompt)
+		return cmd, true
 
 	case verifyDoneMsg:
 		m.finishVerify(msg)
 		m.refresh(false)
-		return m, nil
-
-	case mcpPromptMsg:
-		m.turn.running = false
-		m.turn.setPhase("")
-		if msg.err != nil {
-			m.transcript.errorf("%s: %v", msg.command, msg.err)
-			m.refresh(false)
-			return m, nil
-		}
-		return m, m.submit(msg.text)
+		return nil, true
 
 	case mcpAuthMsg:
 		switch {
@@ -626,7 +718,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.restartMCP(msg.name)
 		}
 		m.refresh(false)
-		return m, nil
+		return nil, true
 
 	case mcpDoneMsg:
 		if msg.err != nil {
@@ -642,69 +734,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = ""
 		}
 		m.refresh(false)
-		return m, nil
+		return nil, true
 
 	case shellDoneMsg:
 		m.finishShell(msg)
 		var cmd tea.Cmd
-		if len(m.turn.queued) > 0 {
-			next := m.turn.queued[0]
-			m.turn.queued = m.turn.queued[1:]
+		if next, ok := m.turn.dequeue(); ok {
 			cmd = m.submit(next)
 		}
 		m.refresh(false)
-		return m, cmd
-
-	case agentDoneMsg:
-		m.drainEvents()
-		cmd := m.finishTurn(msg)
-		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && (m.opts.Agent.LastTurnMutated() || memory.LooksLikeFeedback(m.hist.lastUser)) {
-			cmd = tea.Batch(cmd, m.extractMemory())
-		}
-		if msg.err == nil && m.opts.AutoTitle && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && len(m.opts.Agent.Messages) >= 2 {
-			cmd = tea.Batch(cmd, m.autoTitle())
-		}
-		m.refresh(false)
-		return m, cmd
-	case titleMsg:
-		if msg.gen == m.titleGen && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && msg.title != "" {
-			if err := m.opts.Session.SetTitle(msg.title); err != nil {
-				m.transcript.errorf("could not save the title: %v", err)
-			}
-			m.refresh(false)
-			return m, tea.SetWindowTitle(m.windowTitle())
-		}
-		return m, nil
-
-	case memoryMsg:
-		if msg.err != nil {
-			m.note("memory: extraction failed: " + msg.err.Error())
-		}
-		for _, e := range msg.added {
-			m.note("remembered: " + memoryLine(e))
-		}
-		m.refresh(false)
-		return m, nil
+		return cmd, true
 	}
-
-	var cmd tea.Cmd
-	// The footer height is reserved except for the completion menu; the
-	// viewport has to be told when the menu opens or closes, or the view
-	// is taller than the terminal and the transcript scrolls under it.
-	before := m.footerHeight()
-	m.input, cmd = m.input.Update(msg)
-	cmds = append(cmds, cmd)
-	if m.footerHeight() != before {
-		m.layout()
-		m.refresh(false)
-	}
-	// Typed letters must not move the transcript: the viewport's default
-	// keymap treats h/j/k/l/b/f/u/d and space as pager keys, so typing
-	// "/history …" used to scroll (and unpin) one line at a time.
-	if _, isKey := msg.(tea.KeyMsg); !isKey {
-		cmds = append(cmds, m.scroll(msg))
-	}
-	return m, tea.Batch(cmds...)
+	return nil, false
 }
 
 func (m *model) drainEvents() {
