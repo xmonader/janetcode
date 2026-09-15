@@ -1,6 +1,7 @@
 // Package slash is the one table of slash commands. The terminal, the web
 // UI and the feature catalogue all read it, so a command's name, argument
-// shape, help and when-it-helps line are written once.
+// shape and help are written once. The when-it-helps lines live with the
+// catalogue, in internal/feature. It imports nothing from janetcode.
 package slash
 
 // Command is one built-in slash command.
@@ -13,7 +14,7 @@ type Command struct {
 }
 
 // Commands is every built-in command, in the order /help lists them.
-var Commands = []Command{
+var Commands = withIdle([]Command{
 	// No args here on purpose: enter on /help in the menu should print
 	// the sheet, not wait for a topic. /help <topic> still works typed.
 	{Name: "/help", Args: "", Help: "keys and commands, or /help <topic> to search every feature and the manual"},
@@ -82,7 +83,7 @@ var Commands = []Command{
 	{Name: "/recipe", Args: "[list | show <name> | save <name> [--turn n] [k=v...] | run <name> [--dry-run] [k=v...]]", Help: "crystallise a turn's tool calls into a replayable program under .janetcode/recipes and run it later with no model call; a failed step hands over to the model"},
 	{Name: "/proof", Args: "[commit | push [remote] | fetch [remote]]", Help: "which session, turn and intent wrote each file of a commit, and what actually demonstrated it worked (mutation score included when logged); attaches one from this session first if the commit (default HEAD) has none yet; push/fetch move notes to/from a remote, since they are local only until pushed"},
 	{Name: "/quit", Args: "", Help: "exit"},
-}
+})
 
 // idleOnly names the commands that cannot run while a turn is: they swap
 // the conversation or the backend under the turn's feet. Resolving one
@@ -92,14 +93,17 @@ var Commands = []Command{
 // while a turn is in flight would be a data race on the agent.
 var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/ssh", "/docker", "/eval", "/recipe"}
 
-func init() {
+// withIdle sets Idle on every command idleOnly names. It runs as part of
+// initialising Commands, so no reader ever sees the table without it.
+func withIdle(cmds []Command) []Command {
 	idle := map[string]bool{}
 	for _, n := range idleOnly {
 		idle[n] = true
 	}
-	for i := range Commands {
-		Commands[i].Idle = idle[Commands[i].Name]
+	for i := range cmds {
+		cmds[i].Idle = idle[cmds[i].Name]
 	}
+	return cmds
 }
 
 // Lookup finds a command by its table name (aliases are not resolved).
