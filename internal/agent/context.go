@@ -9,6 +9,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // maxPinFile caps how much of a /pin @path file lands in the system prompt.
@@ -48,6 +49,11 @@ type ContextReport struct {
 	Images, Messages, Turns                                   int
 	ByTool                                                    []ToolShare
 	Largest                                                   []ContextItem
+	// Prefix contributors inside System and Extra. System is Base+Project;
+	// Extra is Memory+Skills (unlabelled extra is counted in Extra only).
+	// Modes is the read-only / plan / accept text appended after System;
+	// it is sent but was not in System, so it is listed separately.
+	Base, Project, Modes, Memory, Skills, PinCount int
 }
 
 // ToolShare is one tool's calls and result size.
@@ -70,9 +76,16 @@ func (a *Agent) Context() ContextReport {
 	if r.CompactAt == 0 {
 		r.CompactAt = DefaultCompactAt
 	}
-	r.System = len(a.SystemPrompt()) / 4
-	r.Extra = len(a.extra()) / 4
-	for _, p := range a.PinsSnapshot() {
+	sys := a.SystemPrompt()
+	r.System = len(sys) / 4
+	r.Base, r.Project = splitPromptTokens(sys)
+	r.Modes = len(a.modeSystem()) / 4
+	extra := a.extra()
+	r.Extra = len(extra) / 4
+	r.Memory, r.Skills = splitExtraTokens(extra)
+	pins := a.PinsSnapshot()
+	r.PinCount = len(pins)
+	for _, p := range pins {
 		r.Pins += len(p)/4 + 4
 	}
 	for _, d := range a.Tools.Defs() {
@@ -138,6 +151,38 @@ func (a *Agent) Context() ContextReport {
 	}
 	r.Total = a.EstimateTokens()
 	return r
+}
+
+// PrefixLines is the system-prompt breakdown /context and --inspect
+// context share: where the prefix goes, in tokens.
+func (r ContextReport) PrefixLines() string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "  base          %6s   project %6s   modes %6s\n", textfmt.Tokens(r.Base), textfmt.Tokens(r.Project), textfmt.Tokens(r.Modes))
+	fmt.Fprintf(&sb, "  memory        %6s   skills  %6s   pins  %6s (%d)\n", textfmt.Tokens(r.Memory), textfmt.Tokens(r.Skills), textfmt.Tokens(r.Pins), r.PinCount)
+	return sb.String()
+}
+
+// splitPromptTokens cuts SystemPrompt into the harness's own text and
+// the project's instruction files (see prompt.writeEnvironment).
+func splitPromptTokens(s string) (base, project int) {
+	const mark = "\n# Project instructions"
+	i := strings.Index(s, mark)
+	if i < 0 {
+		return len(s) / 4, 0
+	}
+	return i / 4, (len(s) - i) / 4
+}
+
+// splitExtraTokens cuts the memory+skill index SystemExtra concatenates.
+func splitExtraTokens(s string) (memory, skills int) {
+	const skillsMark = "\n# Skills\n"
+	if i := strings.Index(s, skillsMark); i >= 0 {
+		return i / 4, (len(s) - i) / 4
+	}
+	if strings.Contains(s, "\n# Memory\n") || strings.HasPrefix(s, "# Memory\n") {
+		return len(s) / 4, 0
+	}
+	return 0, 0
 }
 
 // PinText resolves what /pin should store: arg unchanged, or for an

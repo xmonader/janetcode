@@ -107,7 +107,8 @@ func contextReport(a *agent.Agent) string {
 		name string
 		n    int
 	}{
-		{"system prompt", c.System}, {"project context", c.Extra}, {"pins", c.Pins},
+		{"base prompt", c.Base}, {"project instructions", c.Project}, {"mode texts", c.Modes},
+		{"memory index", c.Memory}, {"skills index", c.Skills}, {"pins", c.Pins},
 		{fmt.Sprintf("tool schemas (%d tools)", c.ToolCount), c.Tools}, {"deferred tools", c.Deferred},
 		{"your messages", c.UserText}, {"assistant text", c.AssistantText}, {"reasoning", c.Thinking},
 		{"tool calls", c.ToolCalls}, {"tool results", c.ToolResults}, {"images", c.Images},

@@ -57,3 +57,62 @@ func TestPinTextMissingFile(t *testing.T) {
 		t.Fatal("want error for a missing file")
 	}
 }
+
+func TestContextSplitsThePrefix(t *testing.T) {
+	a, _ := newAgent(t, &fake{}, nil)
+	a.System = "You are janetcode.\n# Environment\n- Date: today\n# Project instructions (from AGENTS.md)\ndo not rewrite history\n"
+	a.SystemExtra = func() string {
+		return "\n# Memory\n- user: likes tabs\n\n# Skills\n- gofmt: run gofmt\n"
+	}
+	a.PlanMode = true
+	a.ReadOnly = true
+	r := a.Context()
+	if r.Base == 0 || r.Project == 0 {
+		t.Fatalf("base/project = %d/%d, want both set", r.Base, r.Project)
+	}
+	if r.Base+r.Project != r.System {
+		t.Fatalf("base %d + project %d != system %d", r.Base, r.Project, r.System)
+	}
+	if r.Memory == 0 || r.Skills == 0 {
+		t.Fatalf("memory/skills = %d/%d, want both set", r.Memory, r.Skills)
+	}
+	if r.Memory+r.Skills != r.Extra {
+		t.Fatalf("memory %d + skills %d != extra %d", r.Memory, r.Skills, r.Extra)
+	}
+	if r.Modes == 0 {
+		t.Fatal("plan/read-only mode text missing from Modes")
+	}
+	lines := r.PrefixLines()
+	for _, want := range []string{"base", "project", "modes", "memory", "skills", "pins"} {
+		if !strings.Contains(lines, want) {
+			t.Fatalf("PrefixLines missing %q:\n%s", want, lines)
+		}
+	}
+}
+
+func TestSplitPromptAndExtra(t *testing.T) {
+	base, project := splitPromptTokens("hello\n# Project instructions (from X)\nworld")
+	if base == 0 || project == 0 {
+		t.Fatalf("base=%d project=%d", base, project)
+	}
+	base, project = splitPromptTokens("no project here")
+	if project != 0 || base == 0 {
+		t.Fatalf("no-project: base=%d project=%d", base, project)
+	}
+	mem, skills := splitExtraTokens("\n# Memory\n- a\n\n# Skills\n- b\n")
+	if mem == 0 || skills == 0 {
+		t.Fatalf("mem=%d skills=%d", mem, skills)
+	}
+	mem, skills = splitExtraTokens("\n# Memory\n- a\n")
+	if mem == 0 || skills != 0 {
+		t.Fatalf("memory-only: mem=%d skills=%d", mem, skills)
+	}
+	mem, skills = splitExtraTokens("\n# Skills\n- b\n")
+	if mem != 0 || skills == 0 {
+		t.Fatalf("skills-only: mem=%d skills=%d", mem, skills)
+	}
+	mem, skills = splitExtraTokens("unlabelled extra")
+	if mem != 0 || skills != 0 {
+		t.Fatalf("unlabelled: mem=%d skills=%d", mem, skills)
+	}
+}

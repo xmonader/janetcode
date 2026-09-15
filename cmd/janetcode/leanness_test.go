@@ -103,11 +103,10 @@ func TestLeannessTable(t *testing.T) {
 // buy, measured. Lowering one after a cut is free and welcome.
 const (
 	// emptyProjectSystemCeiling is the whole system prompt for a project
-	// with no git, no instruction file and no memory. This branch
-	// measures 5,652 bytes; the harness section is being reworded on
-	// master at the same time and is about 125 bytes longer there, so the
-	// ceiling is set to clear both rather than to fail the moment the two
-	// are merged. It still catches another section's worth of growth.
+	// with no git, no instruction file and no memory — the base prefix
+	// every session pays before a single file is read. Measured 5,777
+	// bytes on 2026-09-15 (feat/measurement); the ceiling is 6,000 so a
+	// new feature cannot quietly eat the leanness advantage.
 	emptyProjectSystemCeiling = 6000
 	// toolSchemaCeiling is name + description + schema over every tool a
 	// full session offers: 13,862 bytes for seventeen, after the

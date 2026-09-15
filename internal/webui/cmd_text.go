@@ -184,7 +184,7 @@ func (s *server) contextText() string {
 		pct = r.Total * 100 / r.CompactAt
 	}
 	fmt.Fprintf(&sb, "context ~%s tokens · compaction at %s (%d%%) · %d messages, %d turns\n", textfmt.Tokens(r.Total), textfmt.Tokens(r.CompactAt), pct, r.Messages, r.Turns)
-	fmt.Fprintf(&sb, "  system %s   extra %s   pins %s (%d)\n", textfmt.Tokens(r.System), textfmt.Tokens(r.Extra), textfmt.Tokens(r.Pins), len(s.opts.Agent.PinsSnapshot()))
+	sb.WriteString(r.PrefixLines())
 	fmt.Fprintf(&sb, "  tools  %s (%d)   user %s   assistant %s\n", textfmt.Tokens(r.Tools), r.ToolCount, textfmt.Tokens(r.UserText), textfmt.Tokens(r.AssistantText))
 	fmt.Fprintf(&sb, "  tool calls %s   results %s   thinking %s\n", textfmt.Tokens(r.ToolCalls), textfmt.Tokens(r.ToolResults), textfmt.Tokens(r.Thinking))
 	return sb.String()
