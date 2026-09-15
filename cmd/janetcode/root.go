@@ -26,6 +26,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/treesitter"
 	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/verify"
 	"github.com/xmonader/janetcode/internal/weburl"
@@ -123,7 +124,7 @@ func newRoot(fs *flag.FlagSet, o *options, cfg *config.Config, prov llm.Provider
 	typed := &weburl.Set{}
 	typed.Note(initial)
 	typed.Note(o.promptText)
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir}
+	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir, symbols: treesitter.Parser()}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return r, err

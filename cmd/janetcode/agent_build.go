@@ -144,6 +144,10 @@ type agentDeps struct {
 	running *tool.Running
 	// extraDirs are additional local roots file tools may use (--add-dir).
 	extraDirs []string
+	// symbols is the grammar-backed parser the repository map reads
+	// non-Go languages with, nil in a build without the grammars. The
+	// composition root supplies it; repomap registers nothing itself.
+	symbols repomap.Parser
 }
 
 // builtAgent is one session's agent and the pieces the caller still owns:
@@ -307,7 +311,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	ag.SystemExtra = func() string {
 		return mem.IndexWithin(indexBudget) + skill.IndexWithin(skills(), indexBudget)
 	}
-	repo := &repomap.Cache{Root: d.cwd}
+	repo := &repomap.Cache{Root: d.cwd, Parser: d.symbols}
 	// The search tools. On a measured fan-out set, offering these
 	// alongside bash cost 23% more context (x1.23 [1.10, 1.44]) for the
 	// same pass rate, because the model takes many small steps instead of

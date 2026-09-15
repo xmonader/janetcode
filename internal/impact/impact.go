@@ -349,10 +349,11 @@ func touchedDefs(in Input, rel string, defs []def, removed, inserted []int) (tou
 	// The old content is parsed the same way as the new, so names compare
 	// like for like whatever naming the source's own defs use.
 	oldAt := map[string]int{}
-	for _, d := range parsedDefs(rel, in.Old) {
+	sym := in.RepoIndex.Parser()
+	for _, d := range parsedDefs(rel, in.Old, sym) {
 		oldAt[d.Name] = d.Line
 	}
-	for _, d := range reaching(parsedDefs(rel, in.New), strings.Split(in.New, "\n"), inserted) {
+	for _, d := range reaching(parsedDefs(rel, in.New, sym), strings.Split(in.New, "\n"), inserted) {
 		line, existed := oldAt[d.Name]
 		if !existed {
 			added = append(added, d)
@@ -376,9 +377,9 @@ func sourceDef(defs []def, oldLines []string, d def, line int) def {
 }
 
 // parsedDefs is content's definitions as the repository map reads them.
-func parsedDefs(rel, content string) []def {
+func parsedDefs(rel, content string, sym repomap.Parser) []def {
 	var defs []def
-	for _, s := range repomap.Defs(rel, []byte(content)) {
+	for _, s := range repomap.Defs(rel, []byte(content), sym) {
 		defs = append(defs, def{Name: s.Name, Kind: s.Kind, Line: s.Line})
 	}
 	sortDefs(defs)

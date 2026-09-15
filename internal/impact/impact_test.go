@@ -119,7 +119,7 @@ func goModule(t *testing.T) string {
 
 func TestAnalyzeRepomapFallback(t *testing.T) {
 	root := goModule(t)
-	ix, err := repomap.Build(context.Background(), root)
+	ix, err := repomap.Build(context.Background(), root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestAnalyzeRepomapFallback(t *testing.T) {
 
 func TestAnalyzeNonCodeFile(t *testing.T) {
 	root := goModule(t)
-	ix, err := repomap.Build(context.Background(), root)
+	ix, err := repomap.Build(context.Background(), root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestAnalyzeTimesOutQuickly(t *testing.T) {
 	defer func() { Budget = orig }()
 
 	root := goModule(t)
-	ix, err := repomap.Build(context.Background(), root)
+	ix, err := repomap.Build(context.Background(), root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

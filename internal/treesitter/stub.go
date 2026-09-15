@@ -7,6 +7,12 @@
 // regular expressions for the languages it covers.
 package treesitter
 
+import "github.com/xmonader/janetcode/internal/repomap"
+
+// Parser returns the grammar-backed symbol parser. Without the build tag
+// there is none, so the repository map keeps its built-in patterns.
+func Parser() repomap.Parser { return nil }
+
 // Supported reports whether a grammar is compiled in for the file. Without
 // the build tag, none is.
 func Supported(string) bool { return false }

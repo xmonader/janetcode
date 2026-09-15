@@ -46,6 +46,7 @@ type Index struct {
 	Root        string
 	Fingerprint string
 	Files       []*File
+	sym         Parser
 	byPath      map[string]int
 	definers    map[string][]int // symbol name → files defining it
 	out         [][]edge         // file → files it depends on
@@ -68,13 +69,14 @@ const (
 
 var sourceExt = map[string]bool{".go": true, ".py": true, ".ts": true, ".tsx": true, ".js": true, ".jsx": true, ".mjs": true, ".rs": true, ".java": true, ".kt": true, ".rb": true, ".c": true, ".h": true, ".cc": true, ".cpp": true, ".hpp": true, ".cs": true, ".swift": true, ".zig": true, ".php": true, ".scala": true, ".ex": true, ".exs": true}
 
-// Build indexes the repository at root.
-func Build(ctx context.Context, root string) (*Index, error) {
+// Build indexes the repository at root. sym, when not nil, parses the
+// languages it covers with a grammar instead of the built-in patterns.
+func Build(ctx context.Context, root string, sym Parser) (*Index, error) {
 	paths, err := listFiles(ctx, root)
 	if err != nil {
 		return nil, err
 	}
-	ix := &Index{Root: root, Fingerprint: gitx.TreeFingerprint(root), byPath: map[string]int{}, definers: map[string][]int{}}
+	ix := &Index{Root: root, Fingerprint: gitx.TreeFingerprint(root), sym: sym, byPath: map[string]int{}, definers: map[string][]int{}}
 	for _, p := range paths {
 		abs := filepath.Join(root, filepath.FromSlash(p))
 		st, err := os.Stat(abs)
@@ -85,7 +87,7 @@ func Build(ctx context.Context, root string) (*Index, error) {
 		if err != nil {
 			return nil, err
 		}
-		f := parse(p, data)
+		f := parse(p, data, sym)
 		ix.byPath[p] = len(ix.Files)
 		ix.Files = append(ix.Files, f)
 		for _, d := range f.Defs {
@@ -147,26 +149,27 @@ var (
 	reCType  = regexp.MustCompile(`(?m)^\s*(?:typedef\s+)?(?:struct|enum|union|class)\s+([A-Za-z_]\w*)`)
 )
 
-// parse extracts definitions and identifier uses from one file.
-// SymbolParser, when set, extracts a file's definitions and the
-// identifiers it uses from a real grammar rather than from the regular
-// expressions below. The tree-sitter build registers one; without it the
+// A Parser extracts a file's definitions and the identifiers it uses from
+// a real grammar rather than from the regular expressions below. The
+// tree-sitter build (internal/treesitter, behind a build tag) supplies
+// one and the composition root hands it to the index; without it the
 // built-in parsers are used. It returns false for a file it cannot parse,
 // and the caller falls back.
 //
 // Go is never handed to it: the standard library's own parser is more
 // accurate than any grammar for Go, and it is always compiled in.
-var SymbolParser func(path string, src []byte) (defs []Symbol, refs []string, ok bool)
+type Parser func(path string, src []byte) (defs []Symbol, refs []string, ok bool)
 
-func parse(path string, data []byte) *File {
+// parse extracts definitions and identifier uses from one file.
+func parse(path string, data []byte, sym Parser) *File {
 	f := &File{Path: path, refs: map[string]int{}, size: len(data)}
 	if strings.HasSuffix(path, ".go") {
 		if parseGo(f, data) {
 			return f
 		}
 	}
-	if SymbolParser != nil {
-		if defs, refs, ok := SymbolParser(path, data); ok {
+	if sym != nil {
+		if defs, refs, ok := sym(path, data); ok {
 			f.Defs = dedupe(defs)
 			for _, id := range refs {
 				if len(id) > 2 {
@@ -717,8 +720,11 @@ func contains(xs []string, s string) bool {
 // Cache rebuilds the index when the tree changes.
 type Cache struct {
 	Root string
-	mu   sync.Mutex
-	ix   *Index
+	// Parser, when set, is the grammar-backed parser the index uses. The
+	// composition root supplies it; nothing here registers itself.
+	Parser Parser
+	mu     sync.Mutex
+	ix     *Index
 }
 
 // Get returns the current index, rebuilding it when files changed.
@@ -728,7 +734,7 @@ func (c *Cache) Get(ctx context.Context) (*Index, error) {
 	if c.ix != nil && c.ix.Fingerprint == gitx.TreeFingerprint(c.Root) {
 		return c.ix, nil
 	}
-	ix, err := Build(ctx, c.Root)
+	ix, err := Build(ctx, c.Root, c.Parser)
 	if err != nil {
 		return nil, err
 	}
@@ -755,6 +761,15 @@ func ChangedFiles(ctx context.Context, root string) []string {
 // Defs parses one file's definitions from content, the way Build indexes
 // a file on disk: for a caller that has content not yet written, such as
 // the planned result of an edit.
-func Defs(path string, content []byte) []Symbol {
-	return parse(path, content).Defs
+func Defs(path string, content []byte, sym Parser) []Symbol {
+	return parse(path, content, sym).Defs
+}
+
+// Parser is the grammar-backed parser this index was built with, so a
+// caller that has content not yet written can parse it the same way.
+func (ix *Index) Parser() Parser {
+	if ix == nil {
+		return nil
+	}
+	return ix.sym
 }

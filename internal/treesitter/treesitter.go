@@ -6,8 +6,9 @@
 // It is behind a build tag because the grammars are C: building it needs
 // cgo and a C toolchain, and the default build stays pure Go so it still
 // cross-compiles. Build with `-tags treesitter` (see the Makefile's
-// build-treesitter target) to compile it in; the package registers itself
-// with the repository map on init, so nothing else changes.
+// build-treesitter target) to compile it in; Parser then returns the
+// grammar-backed parser for the composition root to hand to the
+// repository map.
 //
 // Go is deliberately not handled here. The standard library's parser is
 // more accurate than a grammar for Go and is always available, so the map
@@ -31,7 +32,10 @@ import (
 	"github.com/xmonader/janetcode/internal/repomap"
 )
 
-func init() { repomap.SymbolParser = Symbols }
+// Parser returns the grammar-backed symbol parser, or nil in a build
+// without the grammars compiled in. The composition root passes it to the
+// repository map: nothing here registers itself.
+func Parser() repomap.Parser { return Symbols }
 
 // MaxBytes is the largest file this parses. A grammar builds a full tree
 // in memory, and a generated or minified file is neither cheap nor worth

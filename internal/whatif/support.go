@@ -15,6 +15,7 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/replay"
+	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/session"
 )
 
@@ -59,13 +60,13 @@ func resolveSession(arg string) (path, dir, id string, err error) {
 // has no meaning inside a throwaway worktree. Run notes it in the report
 // when the original session actually used a tool outside this set, so the
 // gap is visible rather than silent.
-func buildAgent(workDir string, off map[string]bool, cfg *config.Config) (*agent.Agent, []string, error) {
+func buildAgent(workDir string, off map[string]bool, cfg *config.Config, symbols repomap.Parser) (*agent.Agent, []string, error) {
 	var notes []string
 	archiveDir, aerr := os.MkdirTemp("", "janetcode-whatif-archive-")
 	if aerr != nil {
 		notes = append(notes, "tool-output archive unavailable: "+aerr.Error())
 	}
-	ag, err := minimal.New(workDir, cfg, nil, off, prompt.Override{}, archiveDir)
+	ag, err := minimal.New(workDir, cfg, nil, off, prompt.Override{}, archiveDir, symbols)
 	return ag, notes, err
 }
 

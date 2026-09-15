@@ -18,7 +18,6 @@ import (
 	"github.com/xmonader/janetcode/internal/llm/anthropic"
 	"github.com/xmonader/janetcode/internal/llm/openai"
 	"github.com/xmonader/janetcode/internal/session"
-	_ "github.com/xmonader/janetcode/internal/treesitter" // registers the grammar parser when built with -tags treesitter
 )
 
 // version is set at build time via -ldflags "-X main.version=...". A

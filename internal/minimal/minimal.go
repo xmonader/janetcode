@@ -31,8 +31,11 @@ import (
 // Code execution follows a real session (cmd/janetcode's buildAgent):
 // execute_code when its runtime is available and not switched off,
 // run_code otherwise, so the agent always has one of the two.
-func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool, override prompt.Override, archiveDir string) (*agent.Agent, error) {
-	repo := &repomap.Cache{Root: root}
+// symbols, when not nil, is the grammar-backed parser the repository map
+// reads non-Go languages with (see internal/treesitter); the caller is
+// the composition root, so nothing here reaches for a package global.
+func New(root string, cfg *config.Config, prov llm.Provider, off map[string]bool, override prompt.Override, archiveDir string, symbols repomap.Parser) (*agent.Agent, error) {
+	repo := &repomap.Cache{Root: root, Parser: symbols}
 	archive := agent.NewArchive(archiveDir)
 	expand := &agent.ExpandOutput{Archive: archive}
 	ag, err := agent.New(agent.Deps{

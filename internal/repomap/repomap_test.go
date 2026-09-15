@@ -37,7 +37,7 @@ func fixture(t *testing.T) string {
 
 func TestBuildLinksDefinersAndReferencers(t *testing.T) {
 	root := fixture(t)
-	ix, err := Build(context.Background(), root)
+	ix, err := Build(context.Background(), root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestBuildLinksDefinersAndReferencers(t *testing.T) {
 
 func TestRankIsPersonalisedByRequest(t *testing.T) {
 	root := fixture(t)
-	ix, err := Build(context.Background(), root)
+	ix, err := Build(context.Background(), root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +202,7 @@ func TestListFilesUsesGitWhenPresent(t *testing.T) {
 			t.Fatalf("git %v: %v %s", args, err, out)
 		}
 	}
-	ix, err := Build(context.Background(), root)
+	ix, err := Build(context.Background(), root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,18 +223,16 @@ func paths(fs []*File) []string {
 	return out
 }
 
-// A registered grammar parser replaces the built-in ones for the files it
+// An injected grammar parser replaces the built-in ones for the files it
 // handles, and a file it declines still gets the regular-expression path.
 func TestSymbolParserHook(t *testing.T) {
-	old := SymbolParser
-	defer func() { SymbolParser = old }()
-	SymbolParser = func(path string, src []byte) ([]Symbol, []string, bool) {
+	sym := Parser(func(path string, src []byte) ([]Symbol, []string, bool) {
 		if !strings.HasSuffix(path, ".py") {
 			return nil, nil, false
 		}
 		return []Symbol{{Name: "FromGrammar", Kind: "class", Line: 1}}, []string{"Referenced"}, true
-	}
-	f := parse("a.py", []byte("class Ignored: pass\n"))
+	})
+	f := parse("a.py", []byte("class Ignored: pass\n"), sym)
 	if len(f.Defs) != 1 || f.Defs[0].Name != "FromGrammar" {
 		t.Fatalf("hook not used: %+v", f.Defs)
 	}
@@ -242,11 +240,11 @@ func TestSymbolParserHook(t *testing.T) {
 		t.Fatalf("hook refs not used: %v", f.refs)
 	}
 	// Declined: the built-in parser handles it.
-	if g := parse("a.rb", []byte("def only_regex\nend\n")); len(g.Defs) == 0 || g.Defs[0].Name != "only_regex" {
+	if g := parse("a.rb", []byte("def only_regex\nend\n"), sym); len(g.Defs) == 0 || g.Defs[0].Name != "only_regex" {
 		t.Fatalf("fallback lost: %+v", g.Defs)
 	}
 	// Go never reaches the hook: its own parser is better.
-	if h := parse("a.go", []byte("package p\n\nfunc Native() {}\n")); len(h.Defs) != 1 || h.Defs[0].Name != "Native" {
+	if h := parse("a.go", []byte("package p\n\nfunc Native() {}\n"), sym); len(h.Defs) != 1 || h.Defs[0].Name != "Native" {
 		t.Fatalf("go should use the standard parser: %+v", h.Defs)
 	}
 }

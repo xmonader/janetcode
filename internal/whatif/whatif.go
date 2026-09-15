@@ -29,6 +29,7 @@ import (
 	"github.com/xmonader/janetcode/internal/mutate"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/replay"
+	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/verify"
@@ -56,6 +57,10 @@ type Options struct {
 	Config *config.Config
 	// Provider is the live backend used from FromTurn on.
 	Provider llm.Provider
+	// Symbols, when set, is the grammar-backed parser the repository map
+	// uses for non-Go languages (internal/treesitter, behind a build
+	// tag). The caller supplies it; nil keeps the built-in patterns.
+	Symbols repomap.Parser
 
 	// Off ablates named behaviours for the live part, same names and
 	// meaning as --eval-off / JANETCODE_OFF (see agent.KnownSwitch).
@@ -352,7 +357,7 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 		return Report{}, fmt.Errorf("load recording: %w", err)
 	}
 
-	ag, notes, err := buildAgent(workDir, off, opts.Config)
+	ag, notes, err := buildAgent(workDir, off, opts.Config, opts.Symbols)
 	if err != nil {
 		return Report{}, fmt.Errorf("build agent: %w", err)
 	}

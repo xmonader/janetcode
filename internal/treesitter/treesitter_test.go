@@ -117,13 +117,14 @@ func TestUnsupportedAndUnparsable(t *testing.T) {
 	}
 }
 
-// The parser is registered with the repository map by init, so building
-// with the tag is all it takes.
-func TestRegisteredWithRepomap(t *testing.T) {
-	if repomap.SymbolParser == nil {
-		t.Fatal("repomap.SymbolParser was not registered")
+// Parser is what the composition root hands to the repository map, so a
+// build with the tag has one and a build without it does not.
+func TestParserIsTheRepomapHook(t *testing.T) {
+	var sym repomap.Parser = Parser()
+	if sym == nil {
+		t.Fatal("Parser() returned nil in a treesitter build")
 	}
-	defs, _, ok := repomap.SymbolParser("a.py", []byte("def f(): pass\n"))
+	defs, _, ok := sym("a.py", []byte("def f(): pass\n"))
 	if !ok || len(defs) != 1 || defs[0].Name != "f" {
 		t.Fatalf("through the hook: ok=%v defs=%+v", ok, defs)
 	}

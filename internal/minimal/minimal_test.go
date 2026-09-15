@@ -16,7 +16,7 @@ func build(t *testing.T, csv string) *agent.Agent {
 		t.Fatal(err)
 	}
 	cfg := &config.Config{Model: "claude-sonnet-4-5", MaxIterations: 7, MaxTokens: 1234, CompactAt: 999}
-	ag, err := New(t.TempDir(), cfg, nil, off, prompt.Override{}, t.TempDir())
+	ag, err := New(t.TempDir(), cfg, nil, off, prompt.Override{}, t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
