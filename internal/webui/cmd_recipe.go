@@ -98,7 +98,7 @@ func (s *server) runRecipe(rest string) {
 	s.running = true
 	s.phase = "running recipe " + name
 	s.started = time.Now()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(s.life)
 	s.cancel = cancel
 	s.mu.Unlock()
 	s.emitStatus()

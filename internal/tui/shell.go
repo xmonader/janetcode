@@ -50,7 +50,7 @@ func (m *model) shell(cmdline string) tea.Cmd {
 	call := agent.ToolCall{ID: fmt.Sprintf("shell-%d", time.Now().UnixNano()), Name: "shell", Input: input}
 	m.transcript.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
 	m.startTurn("running your command")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(m.life)
 	m.turn.cancel = cancel
 	send, cwd := m.send, m.opts.Cwd
 	m.repin()

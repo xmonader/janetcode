@@ -174,7 +174,7 @@ func (m *model) submitAs(text, note string) tea.Cmd {
 	}
 	blocks := append([]llm.Block{{Type: llm.BlockText, Text: text}}, prompt.ImageBlocks(atts)...)
 	m.startTurn("thinking")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(m.life)
 	m.turn.cancel = cancel
 	ag, send, queue := m.opts.Agent, m.send, m.queue
 	m.repin()
@@ -212,7 +212,7 @@ func onOff(v bool) string {
 func (m *model) compact() tea.Cmd {
 	m.startTurn("compacting context")
 	m.turn.compacting = true
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(m.life)
 	m.turn.cancel = cancel
 	ag, send, queue := m.opts.Agent, m.send, m.queue
 	m.note(fmt.Sprintf("compacting ~%s tokens of context…", textfmt.Tokens(ag.EstimateTokens())))

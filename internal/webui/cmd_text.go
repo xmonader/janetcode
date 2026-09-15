@@ -56,7 +56,7 @@ func (s *server) inspect(arg string) {
 		s.errf("nothing is registered for inspection")
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(s.life, 30*time.Second)
 	defer cancel()
 	out, err := s.opts.Inspect.Report(ctx, arg)
 	if err != nil {
@@ -318,7 +318,7 @@ func (s *server) diffText(path string) string {
 	if path != "" {
 		args = append(args, "--", path)
 	}
-	out, err := gitx.RunBytes(context.Background(), s.opts.Cwd, nil, args...)
+	out, err := gitx.RunBytes(s.life, s.opts.Cwd, nil, args...)
 	if err != nil {
 		return err.Error()
 	}

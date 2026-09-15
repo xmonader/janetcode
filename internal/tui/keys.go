@@ -233,17 +233,25 @@ func (m *model) keyInterrupt(tea.KeyMsg) (tea.Cmd, bool) {
 		m.refresh(false)
 		return nil, true
 	}
-	m.quitting = true
-	return tea.Quit, true
+	return m.quit(), true
 }
 
 // keyEOF is ctrl+d: it quits, but only on an empty prompt.
 func (m *model) keyEOF(tea.KeyMsg) (tea.Cmd, bool) {
 	if m.input.Value() == "" {
-		m.quitting = true
-		return tea.Quit, true
+		return m.quit(), true
 	}
 	return nil, false
+}
+
+// quit ends the session. The life context goes with it, so a turn or a
+// background command still running is cancelled here rather than left to
+// finish into a program that has gone; the window is already blank by
+// then, so nothing it would have said is lost from the screen.
+func (m *model) quit() tea.Cmd {
+	m.quitting = true
+	m.endLife()
+	return tea.Quit
 }
 
 // keyEscape cancels the turn, leaves the history, or clears the input,

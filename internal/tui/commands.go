@@ -309,8 +309,7 @@ func (m *model) cmdHelp(text string, fields []string) (tea.Cmd, bool) {
 }
 
 func (m *model) cmdQuit(text string, fields []string) (tea.Cmd, bool) {
-	m.quitting = true
-	return tea.Quit, true
+	return m.quit(), true
 }
 
 func (m *model) cmdClear(text string, fields []string) (tea.Cmd, bool) {

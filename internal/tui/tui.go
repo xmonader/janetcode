@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -122,6 +123,7 @@ type Options struct {
 // Run starts the interactive UI and blocks until the user quits.
 func Run(opts Options) error {
 	m := newModel(opts)
+	defer m.endLife()
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus())
 	m.send = p.Send
 	m.queue.send = p.Send
@@ -169,6 +171,12 @@ type PermOptions struct {
 
 type model struct {
 	opts Options
+	// life ends when the window does. Every turn, background command and
+	// server this session starts derives its context from it, so quitting
+	// stops them rather than leaving them running against a program that
+	// is no longer there.
+	life    context.Context
+	endLife context.CancelFunc
 	// styles is what every view draws with; a theme switch replaces it.
 	styles *styles
 	// quitArmedAt is when ctrl+c was last pressed while idle.
@@ -303,6 +311,7 @@ func newModel(opts Options) *model {
 		spinner:    sp,
 		term:       newTermIntegration(),
 	}
+	m.life, m.endLife = context.WithCancel(context.Background())
 	if b, ok := prompt.GitBranch(opts.Cwd); ok {
 		m.branch = b
 		if b == "" {

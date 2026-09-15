@@ -83,7 +83,7 @@ func (m *model) autoTitle() tea.Cmd {
 	ag := m.opts.Agent
 	msgs := append([]llm.Message(nil), ag.Messages...)
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(m.life, 30*time.Second)
 		defer cancel()
 		title, err := session.GenerateTitle(ctx, ag.Settings().Provider, ag.Settings().Model, msgs)
 		if err != nil || title == "" {
@@ -137,7 +137,7 @@ func (m *model) btwCommand(q string) tea.Cmd {
 	}
 	send := m.send
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
 		defer cancel()
 		a, err := ag.AskOnce(ctx, q)
 		send(btwMsg{q: q, a: a, err: err})

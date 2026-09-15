@@ -44,7 +44,7 @@ func (m *model) startMCP() {
 	}
 	start := func(servers map[string]mcp.ServerConfig) {
 		for name, cfg := range servers {
-			o.Manager.Start(context.Background(), name, cfg, func(name string, c *mcp.Client, err error) {
+			o.Manager.Start(m.life, name, cfg, func(name string, c *mcp.Client, err error) {
 				n := 0
 				if c != nil {
 					n = len(c.Tools())
@@ -118,7 +118,7 @@ func (m *model) runMCPPrompt(name string, rest string) (tea.Cmd, bool) {
 			m.startTurn("rendering prompt from " + st.Name)
 			send, promptName := m.send, p.Name
 			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+				ctx, cancel := context.WithTimeout(m.life, 60*time.Second)
 				defer cancel()
 				text, err := c.GetPrompt(ctx, promptName, args)
 				send(mcpPromptMsg{command: name, text: text, err: err})
@@ -153,7 +153,7 @@ func (m *model) mcpCommand(args []string) {
 			o.ProjectTrusted = true
 			m.note("trusted " + mcp.ProjectFile + " · starting its servers")
 			for name, cfg := range o.Project {
-				o.Manager.Start(context.Background(), name, cfg, func(name string, c *mcp.Client, err error) {
+				o.Manager.Start(m.life, name, cfg, func(name string, c *mcp.Client, err error) {
 					n := 0
 					if c != nil {
 						n = len(c.Tools())
@@ -243,7 +243,7 @@ func (m *model) mcpAuth(args []string) {
 	}
 	m.transcript.info("mcp " + name + ": starting authorization · the browser will open; the URL is also printed here")
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel := context.WithTimeout(m.life, 5*time.Minute)
 		defer cancel()
 		_, err := mcp.Authorize(ctx, mcp.AuthOptions{
 			ServerURL: cfg.URL, Store: o.Tokens, ResourceMetadata: meta,
@@ -265,7 +265,7 @@ func (m *model) restartMCP(name string) {
 		}
 	}
 	o.Manager.Stop(name)
-	o.Manager.Start(context.Background(), name, cfg, func(name string, c *mcp.Client, err error) {
+	o.Manager.Start(m.life, name, cfg, func(name string, c *mcp.Client, err error) {
 		n := 0
 		if c != nil {
 			n = len(c.Tools())

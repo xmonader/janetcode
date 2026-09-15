@@ -18,7 +18,7 @@ func (s *server) btw(q string) {
 	}
 	ag := s.opts.Agent
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(s.life, 2*time.Minute)
 		defer cancel()
 		a, err := ag.AskOnce(ctx, q)
 		if err != nil {
@@ -84,7 +84,7 @@ func (s *server) goalRound() {
 // startTask runs a subagent in the background and reports when it ends.
 func (s *server) startTask(task *agent.Task, kind string, in agent.TaskInput) {
 	go func() {
-		_, runErr := task.Start(context.Background(), in)
+		_, runErr := task.Start(s.life, in)
 		if runErr != nil {
 			s.errf("%s %s: %v", kind, in.Description, runErr)
 			return
@@ -99,7 +99,7 @@ func (s *server) review(arg string) {
 		s.notice("no task tool")
 		return
 	}
-	diff, err := agent.ReviewDiff(context.Background(), s.opts.Cwd)
+	diff, err := agent.ReviewDiff(s.life, s.opts.Cwd)
 	if err != nil {
 		s.errf("review: %v", err)
 		return

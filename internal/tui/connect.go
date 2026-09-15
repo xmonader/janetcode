@@ -245,7 +245,7 @@ func (m *model) fetchModels() tea.Cmd {
 		if !ok {
 			return modelsMsg{gen: gen}
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(m.life, 20*time.Second)
 		defer cancel()
 		models, err := lister.ListModels(ctx)
 		return modelsMsg{gen: gen, models: models, err: err}

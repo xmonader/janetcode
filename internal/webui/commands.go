@@ -75,7 +75,7 @@ func (s *server) runBusy(phase string, fn func(ctx context.Context)) {
 	s.running = true
 	s.phase = phase
 	s.started = time.Now()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(s.life)
 	s.cancel = cancel
 	s.mu.Unlock()
 	s.emitStatus()
@@ -383,7 +383,7 @@ func (s *server) cmdUndo(arg string) (bool, error) {
 	}
 	switch {
 	case ua.Preview:
-		list, err := ag.UndoPreview(context.Background())
+		list, err := ag.UndoPreview(s.life)
 		if err != nil {
 			s.errf("undo: %v", err)
 			return true, nil
@@ -409,7 +409,7 @@ func (s *server) cmdUndo(arg string) (bool, error) {
 		})
 		return true, nil
 	}
-	done, err := ag.Undo(context.Background())
+	done, err := ag.Undo(s.life)
 	if err != nil {
 		s.errf("undo: %v", err)
 		return true, nil
@@ -420,7 +420,7 @@ func (s *server) cmdUndo(arg string) (bool, error) {
 
 func (s *server) cmdRedo(arg string) (bool, error) {
 	ag := s.opts.Agent
-	done, err := ag.Redo(context.Background())
+	done, err := ag.Redo(s.life)
 	if err != nil {
 		s.errf("redo: %v", err)
 		return true, nil

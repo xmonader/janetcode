@@ -97,7 +97,7 @@ func (m *model) runRecipe(rest string) tea.Cmd {
 		return nil
 	}
 	m.startTurn("running recipe " + name)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(m.life)
 	m.turn.cancel = cancel
 	ag, send, queue := m.opts.Agent, m.send, m.queue
 	m.refresh(false)

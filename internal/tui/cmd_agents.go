@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -135,7 +134,7 @@ func (m *model) reviewCommand(arg string) tea.Cmd {
 		m.refresh(false)
 		return nil
 	}
-	diff, err := agent.ReviewDiff(context.Background(), m.opts.Cwd)
+	diff, err := agent.ReviewDiff(m.life, m.opts.Cwd)
 	if err != nil {
 		m.transcript.errorf("review: %v", err)
 		m.refresh(false)
@@ -159,7 +158,7 @@ func (m *model) reviewCommand(arg string) tea.Cmd {
 func (m *model) startTask(task *agent.Task, in agent.TaskInput) {
 	send := m.send
 	go func() {
-		_, runErr := task.Start(context.Background(), in)
+		_, runErr := task.Start(m.life, in)
 		send(subagentDoneMsg{desc: in.Description, err: runErr})
 	}()
 }

@@ -1426,7 +1426,7 @@ func (m *model) previewCall(name string, input []byte) string {
 	if !ok {
 		return ""
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(m.life, 500*time.Millisecond)
 	defer cancel()
 	out, err := pv.Preview(ctx, input)
 	if err != nil {

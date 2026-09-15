@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"context"
-
 	"github.com/xmonader/janetcode/internal/proof"
 )
 
@@ -11,5 +9,5 @@ import (
 // attaching one from this session first if there is none yet, or move
 // proof notes to and from a remote.
 func (m *model) proofCommand(arg string) {
-	m.showResult(proof.Exec(context.Background(), m.opts.Cwd, proof.ParseArgs(arg), m.opts.Agent.AttachProof))
+	m.showResult(proof.Exec(m.life, m.opts.Cwd, proof.ParseArgs(arg), m.opts.Agent.AttachProof))
 }

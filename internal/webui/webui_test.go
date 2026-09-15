@@ -24,7 +24,7 @@ import (
 )
 
 // testHandler is the HTTP API and the embedded UI for one server.
-func testHandler(opts Options) http.Handler { return newServer(opts).handler() }
+func testHandler(opts Options) http.Handler { return newServer(context.Background(), opts).handler() }
 
 func TestListenAddr(t *testing.T) {
 	for _, c := range []struct{ in, want string }{
@@ -479,7 +479,7 @@ func TestTrajectoryLedgerFromSessionEvents(t *testing.T) {
 }
 
 func TestWebStatusDressesThinking(t *testing.T) {
-	s := newServer(Options{})
+	s := newServer(context.Background(), Options{})
 	s.running = true
 	s.phase = "thinking"
 	s.started = time.Unix(1_700_000_000, 0)

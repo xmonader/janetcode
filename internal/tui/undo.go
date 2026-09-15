@@ -103,7 +103,7 @@ func (m *model) blameCommand(path string) {
 // (see internal/proof.BlameCommitted). Used when this session never
 // changed the file itself.
 func (m *model) blameCommitted(abs string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(m.life, 15*time.Second)
 	defer cancel()
 	lines, err := proof.BlameCommitted(ctx, m.opts.Cwd, abs)
 	if err != nil {
@@ -145,7 +145,7 @@ func (m *model) undoCommand(cmd string, preview bool) {
 		return shortPath(path)
 	}
 	if preview {
-		lines, err := m.opts.Agent.UndoPreview(context.Background())
+		lines, err := m.opts.Agent.UndoPreview(m.life)
 		if errors.Is(err, agent.ErrNothingToUndo) {
 			m.transcript.errorf("nothing to undo: no turn has changed anything yet")
 			return
@@ -174,14 +174,14 @@ func (m *model) undoCommand(cmd string, preview bool) {
 	)
 	if cmd == "/redo" {
 		mark = "↷"
-		done, err = m.opts.Agent.Redo(context.Background())
+		done, err = m.opts.Agent.Redo(m.life)
 		if errors.Is(err, agent.ErrNothingToRedo) {
 			m.transcript.errorf("nothing to redo: /redo only reapplies an /undo from before the next change")
 			return
 		}
 	} else {
 		spread := m.undoSpread()
-		done, err = m.opts.Agent.Undo(context.Background())
+		done, err = m.opts.Agent.Undo(m.life)
 		if err == nil && len(done) > 0 {
 			defer m.observeUndo(spread)
 		}
@@ -253,7 +253,7 @@ func (m *model) undoAboutCommand(description string) tea.Cmd {
 // work, where a status note set here would outlive it.
 func (m *model) startSideWork(phase string) context.Context {
 	m.startTurn(phase)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(m.life)
 	m.turn.cancel = cancel
 	return ctx
 }

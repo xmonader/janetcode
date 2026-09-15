@@ -18,7 +18,7 @@ func (m *model) extractMemory() tea.Cmd {
 	ag, store := m.opts.Agent, m.opts.Memory
 	msgs := append([]llm.Message(nil), ag.Messages...)
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
 		defer cancel()
 		xs, err := memory.Extract(ctx, ag.Settings().Provider, ag.Settings().Model, msgs, store.Entries())
 		if err != nil {
@@ -95,7 +95,7 @@ func (m *model) memoryCommand(cmd, arg string) {
 			}
 			fmt.Fprintf(&sb, "%s\n%s\nsource %s · used %d× · %s\n", memoryLine(e), e.Body, e.Source, e.Uses, shortPath(e.Path))
 		case arg != "":
-			hits := store.SearchCtx(context.Background(), arg, 8)
+			hits := store.SearchCtx(m.life, arg, 8)
 			if len(hits) == 0 {
 				m.transcript.info("nothing remembered matches " + strconv.Quote(arg))
 				return

@@ -84,7 +84,7 @@ func (m *model) verifyCommand(args []string) tea.Cmd {
 		return nil
 	}
 	m.startTurn("verifying")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(m.life)
 	m.turn.cancel = cancel
 	r, send := &verify.Runner{Config: o.Config, Cwd: m.opts.Cwd, Mutate: mutate.ForVerify}, m.send
 	m.note("verifying: " + strings.Join(o.Config.Commands, " · "))
