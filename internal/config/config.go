@@ -107,6 +107,14 @@ type Config struct {
 	// Project rules go in <project>/.janetcode/permissions.json; its allow
 	// rules need a one-time approval, its deny rules always apply.
 	Permissions perm.File `json:"permissions,omitempty"`
+	// ProtectedPaths are extra path patterns a write always asks about,
+	// whatever the mode or the rules say: they are appended to
+	// perm.DefaultProtectedPaths (shell startup files, .git/config and
+	// hooks, .npmrc, .ssh, cloud credentials, janetcode's permission
+	// record) and never replace them. A pattern is matched the way a
+	// permission rule is — * spans anything, including separators — and a
+	// leading ~ is the home directory: "~/work/deploy/**".
+	ProtectedPaths []string `json:"protected_paths,omitempty"`
 	// EmbeddingModel, when set, is asked of the provider's /embeddings
 	// endpoint so memory recall ranks by meaning, not just words.
 	EmbeddingModel string `json:"embedding_model,omitempty"`

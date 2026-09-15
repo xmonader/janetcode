@@ -196,11 +196,15 @@ func (a *Agent) MergeRules(extra perm.Rules) {
 	a.Rules = perm.Merge(a.Rules, extra)
 }
 
-// decideRule is Rules.Decide under the settings lock.
-func (a *Agent) decideRule(toolName, subject string) (perm.Verdict, perm.Rule) {
+// decideCall is Rules.DecideCall under the settings lock. The call
+// carries its input, so a parameter rule (see perm.Params) can read the
+// fields it names.
+// fields it names. The third result is a hard deny's reason, set only
+// when the call is refused whatever the rules say.
+func (a *Agent) decideCall(c perm.Call) (perm.Verdict, perm.Rule, string) {
 	a.settingsMu.Lock()
 	defer a.settingsMu.Unlock()
-	return a.Rules.Decide(toolName, subject)
+	return a.Rules.DecideCall(c)
 }
 
 // PinsSnapshot is a copy of the pinned notes, safe to take from any

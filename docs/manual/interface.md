@@ -344,17 +344,51 @@ never climbs to the filesystem root, and a call `r` refuses to capture (see
 below) has no ladder either. The ledger counts the rung you actually
 saved, and the "approved N×" note beside it counts that same rule.
 
-A rule is `tool` or `tool(pattern)`; `*` spans anything and `?` one
-character, matched against the command for `bash`, the path for file
-tools and the URL for `fetch_url`. `*` spans shell operators too, so
+A rule is `tool`, `tool(pattern)` or `tool(param:pattern, ...)`; `*`
+spans anything and `?` one character. A bare pattern is matched against
+the call's subject: the command for `bash`, the path for file tools and
+the URL for `fetch_url`. `*` spans shell operators too, so
 `bash(go test *)` also matches `go test ./... && rm -rf x`; for that
 reason `r` offers no rule for a compound command (`&&`, `;`, `|`, `$( )`)
 or one led by `cd`, `sudo`, `env`, `sh -c` and similar wrappers. A leading
 `cd <project> &&`, which changes nothing, is ignored when matching and
 suggesting, so `go test` rules cover a model that prefixes every command
-that way. Deny wins over allow; a denied call is
-refused without a prompt and the model is told which rule did it.
+that way. Deny wins over allow, whichever order the two were written in and
+whichever is more specific; a denied call is refused without a prompt and
+the model is told which rule did it. Below both sits a tier no allow rule
+reaches: see [Protected paths](#protected-paths).
 Guarded commands (ones that reach outside the workspace) still ask.
+A parameter clause names a field of the call instead of the subject, for
+the things the subject cannot say:
+
+```
+task(model:opus)                   the task tool, but only on opus
+task(agent:explore, model:haiku*)  both clauses must match
+fetch_url(domain:*.example.com)    the host, not the whole URL
+edit_file(path:internal/**)        the path field, cleaned, with / as the separator
+```
+
+Clauses are separated by commas and every one of them must match; a name
+may be a dotted path into a nested object (`opts.model:opus`). The value
+is matched with the same wildcards as any other pattern, against the
+field as it reads: a number or a boolean as it is written, a list when
+any of its elements matches, and nothing at all when the field is absent,
+so `task(model:opus)` never matches a call that named no model.
+`fetch_url(domain:…)` is the one field computed rather than read — the
+host of the URL, with and without its port, because a host is what people
+mean when they trust a site. A pattern with no `name:` prefix keeps its
+old meaning exactly, so `bash(npm run *)`, `bash(git log --format=%h,%s)`
+and `fetch_url(https://pkg.go.dev/*)` are all still subject patterns, and
+no rule written before parameters existed changes behaviour. A malformed
+clause (`task(model:)`, `task(agent:explore, model)`, the same name
+twice) is refused when the rule is parsed rather than quietly matching
+nothing.
+
+The `r` key never proposes a parameter rule: the ladder is about breadth
+— this path, its directory, the tree above it — and a field is not a
+wider or narrower version of anything. Parameter rules are written by
+hand, in the config file or with `/permissions allow <rule>`.
+
 `/permissions` lists rules, `/permissions allow <rule>` and `/permissions
 deny <rule>` add one. A project can ship `.janetcode/permissions.json`
 with the same shape: its deny rules always apply, its allow rules only
@@ -485,6 +519,46 @@ This is defence in depth, not a boundary: a determined model has a
 hundred ways to write a file, and this catches the obvious ones. What it
 buys is that the single move which turns a limited session into an
 unlimited one is the one move always shown to a human.
+
+### Protected paths
+
+The same carve-out covers the files that are not janetcode's but are not
+work either — the ones whose effect outlives the session:
+
+- shell startup files and profiles (`~/.zshenv`, `~/.bashrc`,
+  `~/.profile`, `~/.config/fish/**`, `/etc/profile`, `/etc/profile.d/**`)
+- `.git/config` and `.git/hooks/**` in any repository, `~/.gitconfig`
+- publishing and package credentials (`.npmrc`, `.pypirc`, `.netrc`,
+  `~/.docker/config.json`, `~/.cargo/credentials`, `~/.config/gh/hosts.yml`)
+- keys and cloud credentials (`**/.ssh/**`, `**/.aws/credentials`,
+  `~/.gnupg/**`, `~/.kube/config`)
+- `.janetcode/permissions.json`, the trust store, and janetcode's own
+  binary when it sits inside the workspace
+- what runs at login or on a timer (LaunchAgents, user systemd units,
+  `/etc/cron.d/**`, autostart)
+
+Writing one of these always asks — under `/edits`, `/auto`, a saved allow
+rule and `--yolo` alike — and the prompt says why on the line it already
+uses for warnings: `protected path: ~/.zshenv`. The web UI shows the same
+text, because it is the same field. Through the shell it is what the
+command would *write* that decides, not how it is spelled: a `>` or `>>`
+redirect, `cp`, `mv`, `tee`, `sed -i` and the rest, through `sudo`,
+`env`, `timeout`, `sh -c` and `eval`. Reading any of them is unaffected.
+
+`--yolo` asking is deliberate. Yolo means the session does not stop for
+its own work, and this set is outside anyone's work: a session doing what
+it was asked never meets it, and the one that does is the one you would
+want to see. Nothing else about `--yolo` changes. The set is data —
+`protected_paths` in the config file is appended to it (see
+[Configuration](configuration.md#the-protected_paths-key)) and can only
+add.
+
+Below the rules entirely sits the hard deny: a command that destroys the
+machine (`rm -rf /`, `mkfs`, `dd of=/dev/…`, a download piped into a
+shell, a fork bomb) is refused before the rules are consulted at all. An
+allow rule, `--yolo` and a `pre_tool` hook all pass it by without being
+asked, and the model is told it was refused and not to retry it in
+another form.
 
 ### Encodings, byte-order marks and line endings
 
