@@ -96,7 +96,7 @@ func newHarness(t *testing.T, responses ...*llm.Response) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ag := &agent.Agent{Provider: &scripted{responses: responses}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", Log: sess}
+	ag := &agent.Agent{Provider: &scripted{responses: responses}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", Log: sess, Root: root}
 	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"})
 	m.term.out = io.Discard // no escape sequences into the test's stdout
 	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}

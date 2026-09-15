@@ -49,7 +49,7 @@ var Commands = withIdle([]Command{
 	{Name: "/reload", Args: "", Help: "rebuild the memory and skill indexes in the prompt now instead of at compaction"},
 	{Name: "/pin", Args: "[note or @file]", Help: "keep a note in the system prompt for the whole session; alone lists pins"},
 	{Name: "/unpin", Args: "<n>", Help: "remove a pin"},
-	{Name: "/plan", Args: "[request|approve|off]", Help: "plan mode: the model explores and writes a plan; approve executes it"},
+	{Name: "/plan", Args: "[request | review | comment <line> <text> | changes | approve | off]", Help: "plan mode: the model explores and writes a plan to .janetcode/plan.md; review reads it with line numbers, comment leaves a remark on a line, changes sends every comment back and stays in plan mode, approve executes it"},
 	{Name: "/accept", Args: "[<request> | approve | lock | unlock | command <cmd> | off]", Help: "acceptance tests you approve first: writes tests for a request and stops; approve locks them so no tool call can weaken them and their command gates the session; unlock/lock and off manage the mode; command replaces the verify command when the stated or inferred one is wrong"},
 	{Name: "/trajectory", Args: "[n|grep <words>]", Help: "event ledger of this session (turn/step/tool/compaction); n shows one record"},
 	{Name: "/why", Args: "[n]", Help: "explain the last thing the harness did on its own, in plain words; n goes further back"},

@@ -257,21 +257,18 @@ func formatChildLog(log agent.ChildLog) string {
 	return strings.TrimRight(sb.String(), "\n")
 }
 
+// plan is the web UI's half of /plan: agent.PlanCommand decides
+// everything, this renders the Result and starts the turn it hands over.
+// The plan itself is the file .janetcode/plan.md, shown here as a sheet
+// with line numbers, and a comment names a line because a browser has no
+// cursor in it.
 func (s *server) plan(arg string) {
-	ag := s.opts.Agent
-	switch arg {
-	case "", "on":
-		ag.SetPlanMode(true)
-		s.notice("plan mode on · the model explores and writes a plan; /plan approve runs it")
-	case "off":
-		ag.SetPlanMode(false)
-		s.notice("plan mode off")
-	case "approve":
-		ag.SetPlanMode(false)
-		s.notice("plan approved · executing it")
-		s.startTurn(agent.PlanApprovedPrompt)
-	default:
-		ag.SetPlanMode(true)
-		s.startTurn("Write a plan for: " + arg)
+	s.mu.Lock()
+	running := s.running
+	s.mu.Unlock()
+	res, err := s.opts.Agent.PlanCommand(arg, running)
+	s.showResult(res, err)
+	if err == nil && res.Handover != "" {
+		s.startTurn(res.Handover)
 	}
 }

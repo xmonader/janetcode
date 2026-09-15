@@ -31,6 +31,7 @@ var webArgs = map[string]string{
 	"/undo":        "[preview | about <description> | apply [--force]]",
 	"/accept":      "[<request> | approve | lock | unlock | command <cmd> | off]",
 	"/diff":        "[path]",
+	"/plan":        "[request | review | comment <line> <text> | changes | approve | off]",
 	"/loop":        "[duration] [prompt|off]",
 	"/jobs":        "[kill n]",
 	"/memory":      "[query]",
