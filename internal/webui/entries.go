@@ -69,10 +69,10 @@ func (s *server) apply(ev agent.Event) {
 		s.push(e)
 	case agent.EvToolStart:
 		s.closeOpen()
-		s.add(&entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID, Summary: summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, s.opts.Cwd)})
+		s.add(&entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID, Summary: summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, s.cwd())})
 	case agent.EvToolInput:
 		if e := s.findTool(ev.Call); e != nil {
-			e.Summary = summarizeInput(e.Name, e.Summary, 80, s.opts.Cwd)
+			e.Summary = summarizeInput(e.Name, e.Summary, 80, s.cwd())
 		}
 	case agent.EvToolRun:
 		e := s.findTool(ev.Call)
@@ -82,7 +82,7 @@ func (s *server) apply(ev agent.Event) {
 		e.Name = ev.Call.Name
 		e.CallID = ev.Call.ID
 		e.Running = true
-		e.Summary = summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, s.opts.Cwd)
+		e.Summary = summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, s.cwd())
 		if ev.Call.Preview != "" {
 			e.Preview = ev.Call.Preview
 		}

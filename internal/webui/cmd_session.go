@@ -73,6 +73,7 @@ func (s *server) fork(arg string) error {
 	}
 	old := s.opts.Session.Label()
 	s.opts.Session = ns
+	s.opts.CD.SetSession(ns)
 	if err := s.opts.Agent.ForkSession(ns); err != nil {
 		s.errf("fork: %v", err)
 	}
@@ -114,7 +115,7 @@ func (s *server) pin(arg string) {
 		s.sheet("pins", sb.String())
 		return
 	}
-	text, err := agent.PinText(s.opts.Cwd, arg)
+	text, err := agent.PinText(s.cwd(), arg)
 	if err != nil {
 		s.errf("pin: %v", err)
 		return
@@ -132,7 +133,7 @@ func (s *server) export(path string) {
 		return
 	}
 	if !filepath.IsAbs(path) {
-		path = filepath.Join(s.opts.Cwd, path)
+		path = filepath.Join(s.cwd(), path)
 	}
 	var sb strings.Builder
 	for _, e := range s.snapshotEntries() {

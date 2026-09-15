@@ -17,7 +17,7 @@ const maxPinFile = 16 * 1024
 // systemPrompt is the full system text sent with a request: the base
 // prompt, the dynamic extra (memory and skill indexes), pins and modes.
 func (a *Agent) systemPrompt() string {
-	system := a.System + a.extra()
+	system := a.SystemPrompt() + a.extra()
 	if pins := a.PinsSnapshot(); len(pins) > 0 {
 		var sb strings.Builder
 		sb.WriteString("\n\n# Pinned by the user\nThese notes stay in context for the whole session, including after compaction.\n")
@@ -70,7 +70,7 @@ func (a *Agent) Context() ContextReport {
 	if r.CompactAt == 0 {
 		r.CompactAt = DefaultCompactAt
 	}
-	r.System = len(a.System) / 4
+	r.System = len(a.SystemPrompt()) / 4
 	r.Extra = len(a.extra()) / 4
 	for _, p := range a.PinsSnapshot() {
 		r.Pins += len(p)/4 + 4

@@ -95,7 +95,7 @@ func (s *server) mcpListing() string {
 func (s *server) mcpEnv() mcpcmd.Env {
 	o := s.opts.MCP
 	env := mcpcmd.Env{
-		Cwd: s.opts.Cwd, Manager: o.Manager, Trust: o.Trust, Global: o.Global,
+		Cwd: s.cwd(), Manager: o.Manager, Trust: o.Trust, Global: o.Global,
 		Updated: func(servers map[string]mcp.ServerConfig, hash string) {
 			o.Project, o.ProjectHash = servers, hash
 		},

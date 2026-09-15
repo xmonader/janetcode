@@ -23,7 +23,7 @@ var webCommands = []string{
 	"/readonly", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/diff", "/open", "/context",
 	"/stats", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/init",
 	"/pin", "/unpin", "/title", "/model", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
-	"/settle", "/goal", "/why", "/trajectory", "/agents", "/ssh", "/docker", "/reload",
+	"/settle", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
 	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp",
 }
 
@@ -254,6 +254,10 @@ var webDispatch = map[string]webHandler{
 		s.agents(arg)
 		return false, nil
 	},
+	"/cd": func(s *server, arg string) (bool, error) {
+		s.cd(arg)
+		return false, nil
+	},
 	"/ssh": func(s *server, arg string) (bool, error) {
 		s.retarget("ssh", arg, tool.DialSSH)
 		return false, nil
@@ -414,12 +418,12 @@ func (s *server) cmdUndo(arg string) (bool, error) {
 			return true, nil
 		}
 		s.runBusy("matching changes", func(ctx context.Context) {
-			s.showResult(ag.UndoAbout(ctx, s.opts.Cwd, ua.Description))
+			s.showResult(ag.UndoAbout(ctx, s.cwd(), ua.Description))
 		})
 		return true, nil
 	case ua.Turn != 0:
 		s.runBusy("listing what a restore would change", func(ctx context.Context) {
-			s.showResult(ag.UndoToTurn(ctx, s.opts.Cwd, ua.Turn, ua.FilesOnly))
+			s.showResult(ag.UndoToTurn(ctx, s.cwd(), ua.Turn, ua.FilesOnly))
 		})
 		return true, nil
 	case ua.Apply:

@@ -773,3 +773,12 @@ func (ix *Index) Parser() Parser {
 	}
 	return ix.sym
 }
+
+// SetRoot points the cache at another directory and drops the index built
+// for the old one. /cd calls it: a map of the tree the session has left is
+// worse than no map, because it names files the model can no longer open.
+func (c *Cache) SetRoot(root string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.Root, c.ix = root, nil
+}

@@ -228,7 +228,7 @@ func (r *root) webMode() error {
 		Version: version, Addr: o.webAddr,
 		Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
 		Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For,
-		Workspace: built.ws, MCP: mcpOpts, Skills: built.skillInjector,
+		Workspace: built.ws, CD: built.cd, MCP: mcpOpts, Skills: built.skillInjector,
 		Doctor: func(w io.Writer) error {
 			// The front-ends report; --fix is the command line's, so a
 			// running session never changes files behind the user.
@@ -249,10 +249,17 @@ func (r *root) tuiMode() error {
 	verifyCfg, verifyHash, verifyDefined, verifyTrusted := r.verifyCfg, r.verifyHash, r.verifyDefined, r.verifyTrusted
 	projRules, permHash, permTrusted := r.projRules, r.permHash, r.permTrusted
 	hintEngine, usage := r.hints, r.usage
+	// Held on the root so /cd can re-point them at the directory it moved
+	// to: each describes the project's own files, which the move re-reads.
+	r.uiHooks = &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: ts}
+	r.uiVerify = &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: ts}
+	r.uiPerms = &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: ts,
+		Save: func(kind string, r perm.Rule) error { return config.AddPermission(cfgPath, kind, r) }}
 	return tui.Run(tui.Options{
 		Notes: cfg.Notes,
 		Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd, ConfigDir: cfgDir,
 		Workspace: built.ws,
+		CD:        built.cd,
 		Memory:    mem, AutoMemory: cfg.AutoMemory(),
 		Config: cfg, ConfigPath: cfgPath, Build: buildProvider, Connect: needsConnect,
 		Resumed: len(history), Version: version, Theme: cfg.Theme, Themes: cfg.ThemeSet,
@@ -262,7 +269,7 @@ func (r *root) tuiMode() error {
 			Project: projectServers, ProjectHash: projectHash, ProjectTrusted: projectTrusted, Trust: ts,
 			Tokens: tokens,
 		},
-		Hooks:    &tui.HookOptions{Global: cfg.Hooks, Project: hooksCfg, ProjectHash: hooksHash, ProjectTrusted: hooksTrusted, Trust: ts},
+		Hooks:    r.uiHooks,
 		LSP:      diag,
 		Inspect:  subjects,
 		Features: catalog,
@@ -287,8 +294,7 @@ func (r *root) tuiMode() error {
 			// running session never changes files behind the user.
 			return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme}, false)
 		},
-		Verify: &tui.VerifyOptions{Config: verifyCfg, ProjectHash: verifyHash, ProjectTrusted: verifyTrusted, Trust: ts},
-		Perms: &tui.PermOptions{Project: projRules, ProjectHash: permHash, ProjectTrusted: permTrusted, Trust: ts,
-			Save: func(kind string, r perm.Rule) error { return config.AddPermission(cfgPath, kind, r) }},
+		Verify: r.uiVerify,
+		Perms:  r.uiPerms,
 	})
 }

@@ -99,7 +99,7 @@ func (s *server) review(arg string) {
 		s.notice("no task tool")
 		return
 	}
-	diff, err := agent.ReviewDiff(s.life, s.opts.Cwd)
+	diff, err := agent.ReviewDiff(s.life, s.cwd())
 	if err != nil {
 		s.errf("review: %v", err)
 		return

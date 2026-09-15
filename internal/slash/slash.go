@@ -56,6 +56,7 @@ var Commands = withIdle([]Command{
 	{Name: "/feedback", Args: "up|down [note]", Help: "rate the last assistant message (not sent to the model)"},
 	{Name: "/goal", Args: "[objective|pause|resume|done]", Help: "set a goal and start on it now; the model keeps going round after round until it is complete or blocked"},
 	{Name: "/agents", Args: "[id|new <brief>|fork <brief>]", Help: "live overlay of continuable subagents; enter (or /agents <id>) opens one child's transcript; new starts a general subagent, fork one that inherits this conversation"},
+	{Name: "/cd", Args: "[path]", Help: "move this session's working directory without restarting; no argument says where it is"},
 	{Name: "/ssh", Args: "[user@host[:/path]|off]", Help: "run file tools and bash on a remote host over ssh; off returns here"},
 	{Name: "/docker", Args: "[container[:/path]|off]", Help: "run file tools and bash in a docker container; off returns here"},
 	{Name: "/readonly", Args: "", Help: "toggle read-only mode (no edits or commands)"},
@@ -93,7 +94,7 @@ var Commands = withIdle([]Command{
 // /budget is here for a different reason from the rest: the ceiling is
 // read by the turn that is running, so writing it from the key handler
 // while a turn is in flight would be a data race on the agent.
-var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/ssh", "/docker", "/eval", "/recipe"}
+var idleOnly = []string{"/compact", "/clear", "/new", "/resume", "/sessions", "/fork", "/connect", "/model", "/undo", "/redo", "/budget", "/cd", "/ssh", "/docker", "/eval", "/recipe"}
 
 // withIdle sets Idle on every command idleOnly names. It runs as part of
 // initialising Commands, so no reader ever sees the table without it.

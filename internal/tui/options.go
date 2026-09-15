@@ -96,8 +96,11 @@ type Options struct {
 	// Workspace is the shared host the file and shell tools use. /ssh
 	// and /docker retarget it in place. Nil keeps tools on Cwd.
 	Workspace *tool.Workspace
-	Resumed   int // messages loaded from a resumed session
-	Version   string
+	// CD is the session's working directory and everything rooted at it;
+	// /cd moves them together. Nil disables /cd.
+	CD      *agent.CD
+	Resumed int // messages loaded from a resumed session
+	Version string
 	// Theme is "auto"/"" (detect), "dark", "light", or the name of a
 	// builtin or user theme.
 	Theme string

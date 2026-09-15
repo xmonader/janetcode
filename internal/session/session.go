@@ -403,6 +403,13 @@ func (s *Session) SetExtraDirs(dirs []string) error {
 	return s.UpdateMeta(func(m *Meta) { m.ExtraDirs = append([]string(nil), dirs...) })
 }
 
+// SetCwd records the directory the session is rooted at and rewrites the
+// metadata line, so --resume comes back to where /cd left it rather than
+// to the directory the session was opened in.
+func (s *Session) SetCwd(cwd string) error {
+	return s.UpdateMeta(func(m *Meta) { m.Cwd = cwd })
+}
+
 // SetStart records the session's git start state and rewrites metadata.
 func (s *Session) SetStart(st StartState) error {
 	return s.UpdateMeta(func(m *Meta) { m.Start = &st })

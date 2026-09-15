@@ -208,7 +208,7 @@ func (s *server) permOf(c agent.ToolCall) permPayload {
 	return permPayload{
 		ID:        c.ID,
 		Name:      c.Name,
-		Summary:   summarizeInput(c.Name, string(c.Input), 80, s.opts.Cwd),
+		Summary:   summarizeInput(c.Name, string(c.Input), 80, s.cwd()),
 		Preview:   c.Preview,
 		Warning:   c.Warning,
 		Rule:      rule,

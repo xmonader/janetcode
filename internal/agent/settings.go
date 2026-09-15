@@ -243,3 +243,21 @@ func (a *Agent) Unpin(n int) bool {
 	a.Pins = slices.Delete(a.Pins, n-1, n)
 	return true
 }
+
+// SetRules replaces the permission rules wholesale, safe while a turn
+// runs: /cd rebuilds them from the configuration plus whatever the
+// directory it moved to allows, so the tree left behind stops granting
+// anything.
+func (a *Agent) SetRules(r perm.Rules) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	a.Rules = r
+}
+
+// SetLedger replaces the per-project record of how permission prompts
+// were answered. It is keyed by project, so /cd opens the new one.
+func (a *Agent) SetLedger(l *perm.Ledger) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	a.Ledger = l
+}
