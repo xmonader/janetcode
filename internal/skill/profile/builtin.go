@@ -1,4 +1,4 @@
-package skill
+package profile
 
 // Builtins are subagent profiles that ship with janetcode. They are
 // selectable with task agent=<name> without a file in .janetcode/agents.

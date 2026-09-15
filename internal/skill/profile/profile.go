@@ -1,4 +1,7 @@
-package skill
+// Package profile holds subagent profiles: the builtin ones and the
+// markdown files that define custom ones. It is separate from skill so the
+// agent can use profiles without the skill injector and memory store.
+package profile
 
 import (
 	"os"

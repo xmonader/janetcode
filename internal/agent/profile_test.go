@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/xmonader/janetcode/internal/skill"
+	agentprofile "github.com/xmonader/janetcode/internal/skill/profile"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -19,7 +19,7 @@ func TestProfileDisallowedToolsWinOverTheAllowlist(t *testing.T) {
 	parent := &Agent{Tools: tool.NewRegistry(tool.ReadFile{Root: root}, tool.Grep{Root: root}, tool.ListDir{Root: root})}
 	task := &Task{Parent: parent}
 	parent.Tools.Add(task)
-	profile := &skill.Profile{Name: "reader", Disallowed: []string{"grep"}}
+	profile := &agentprofile.Profile{Name: "reader", Disallowed: []string{"grep"}}
 	child, err := task.child([]string{"grep", "read_file"}, profile)
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +30,7 @@ func TestProfileDisallowedToolsWinOverTheAllowlist(t *testing.T) {
 	}
 	// Denying everything it was given leaves nothing to work with, and
 	// says so rather than starting a subagent with no tools.
-	if _, err := task.child([]string{"grep"}, &skill.Profile{Name: "empty", Disallowed: []string{"grep"}}); err == nil {
+	if _, err := task.child([]string{"grep"}, &agentprofile.Profile{Name: "empty", Disallowed: []string{"grep"}}); err == nil {
 		t.Fatal("a subagent with no tools left was accepted")
 	}
 }
@@ -39,7 +39,7 @@ func TestProfileCapsTurns(t *testing.T) {
 	root := t.TempDir()
 	parent := &Agent{Tools: tool.NewRegistry(tool.ReadFile{Root: root})}
 	task := &Task{Parent: parent}
-	child, err := task.child(nil, &skill.Profile{Name: "brief", MaxTurns: 3})
+	child, err := task.child(nil, &agentprofile.Profile{Name: "brief", MaxTurns: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestProfileParsesBudgetsAndApproval(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(agents, "fixer.md"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	ps := skill.LoadProfiles(dir, "")
+	ps := agentprofile.LoadProfiles(dir, "")
 	if len(ps) != 1 {
 		t.Fatalf("profiles = %+v", ps)
 	}
@@ -104,7 +104,7 @@ func TestProfileParsesBudgetsAndApproval(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(agents, "loose.md"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range skill.LoadProfiles(dir, "") {
+	for _, p := range agentprofile.LoadProfiles(dir, "") {
 		if p.Name == "loose" && (p.MaxTurns != 0 || p.Bubble()) {
 			t.Fatalf("profile = %+v", p)
 		}

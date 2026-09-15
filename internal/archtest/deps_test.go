@@ -108,6 +108,18 @@ func TestDependencyDirection(t *testing.T) {
 		{"feature", []string{"proof", "recipe", "slash", "slash/args"}},
 		// Providers do not know about the session store.
 		{"session", []string{"llm/..."}},
+		// The agent loop takes plain values and small interfaces from the
+		// app layer (settingsapply, verify.MutateFunc); it does not reach
+		// the config file, the servers and stores behind it, or the
+		// mutation runner.
+		{"config", []string{"agent", "verify"}},
+		{"lsp", []string{"agent"}},
+		{"mcp", []string{"agent"}},
+		{"theme", []string{"agent"}},
+		{"memory", []string{"agent"}},
+		{"skill", []string{"agent"}},
+		{"mutate", []string{"agent", "verify"}},
+		{"worktree", []string{"agent"}},
 	}
 	for _, r := range rules {
 		bad := internal(r.forbidden)

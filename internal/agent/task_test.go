@@ -13,7 +13,7 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
-	"github.com/xmonader/janetcode/internal/skill"
+	agentprofile "github.com/xmonader/janetcode/internal/skill/profile"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -206,8 +206,8 @@ func TestTaskRunsCustomAgentProfile(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n"), 0o644)
 	f := &fake{responses: []*llm.Response{text("review: fine")}}
 	parent := &Agent{Provider: f, Tools: tool.NewRegistry(tool.ReadFile{Root: root}, tool.Grep{Root: root}, tool.Bash{Root: root}), Model: "big", System: "sys"}
-	task := &Task{Parent: parent, Profiles: func() []skill.Profile {
-		return []skill.Profile{{Name: "reviewer", Description: "Reviews code", Tools: []string{"grep"}, Model: "small", Body: "Be strict about error handling."}}
+	task := &Task{Parent: parent, Profiles: func() []agentprofile.Profile {
+		return []agentprofile.Profile{{Name: "reviewer", Description: "Reviews code", Tools: []string{"grep"}, Model: "small", Body: "Be strict about error handling."}}
 	}}
 	parent.Tools.Add(task)
 	if d := task.Description(); !strings.Contains(d, "reviewer (Reviews code)") {

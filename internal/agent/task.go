@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
-	"github.com/xmonader/janetcode/internal/skill"
+	agentprofile "github.com/xmonader/janetcode/internal/skill/profile"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -22,7 +22,7 @@ type Task struct {
 	MaxIterations int
 	// Profiles, when set, supplies custom subagent definitions selectable
 	// with the agent parameter.
-	Profiles func() []skill.Profile
+	Profiles func() []agentprofile.Profile
 	// Root is the project directory; editing subagents check it out into
 	// a git worktree and return their changes as a patch.
 	Root string
@@ -190,12 +190,12 @@ func (t *Task) Description() string {
 	return d
 }
 
-func (t *Task) profiles() []skill.Profile {
-	var user []skill.Profile
+func (t *Task) profiles() []agentprofile.Profile {
+	var user []agentprofile.Profile
 	if t.Profiles != nil {
 		user = t.Profiles()
 	}
-	return skill.MergeProfiles(skill.Builtins(), user)
+	return agentprofile.MergeProfiles(agentprofile.Builtins(), user)
 }
 func (*Task) Mutating() bool { return false }
 func (*Task) Schema() json.RawMessage {
@@ -295,7 +295,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if in.Fork && t.Parent.Forked {
 		return "", fmt.Errorf("a fork cannot spawn another fork")
 	}
-	var profile *skill.Profile
+	var profile *agentprofile.Profile
 	if in.Agent != "" {
 		for _, p := range t.profiles() {
 			if strings.EqualFold(p.Name, in.Agent) {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
-	"github.com/xmonader/janetcode/internal/skill"
+	agentprofile "github.com/xmonader/janetcode/internal/skill/profile"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -16,7 +16,7 @@ import (
 // worktree. It runs without an approver: nothing it does reaches the real
 // tree, and the patch is reviewed before it is applied. Deny rules still
 // hold.
-func (t *Task) editingChild(wt *worktree, profile *skill.Profile) *Agent {
+func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) *Agent {
 	p := t.Parent
 	// A child is built on the task goroutine while the parent's front-end
 	// may be changing its settings; read them once, under their lock.
@@ -75,7 +75,7 @@ func (b bubbled) Approve(ctx context.Context, call ToolCall) (Decision, error) {
 // allowed drops the tools a profile refuses. It runs after the
 // allowlist, so a tool a profile denies cannot be let back in by naming
 // it in tools.
-func allowed(ts []tool.Tool, profile *skill.Profile) []tool.Tool {
+func allowed(ts []tool.Tool, profile *agentprofile.Profile) []tool.Tool {
 	if profile == nil || len(profile.Disallowed) == 0 {
 		return ts
 	}
@@ -106,7 +106,7 @@ func parentOnlyTool(tl tool.Tool) bool {
 // child builds the subagent: same provider and model, read-only tools only
 // (or the named subset of them), no approver (a mutating tool would be
 // denied outright).
-func (t *Task) child(only []string, profile *skill.Profile) (*Agent, error) {
+func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, error) {
 	p := t.Parent
 	// A child is built on the task goroutine while the parent's front-end
 	// may be changing its settings; read them once, under their lock.
