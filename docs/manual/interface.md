@@ -192,7 +192,8 @@ ctrl+g           move the command running in the foreground to the background, a
 ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, pngpaste on macOS)
 !command         run a shell command here; its output is shown and shared with the model
 /help      /quit      /clear (new session)     /yolo (toggle auto-approve)   /auto (edits and known-safe reads)   /edits (edits go through, commands ask)
-/plan <request> (plan mode: explore, write a plan; /plan approve executes it)
+/plan <request> (plan mode: explore, write a plan to .janetcode/plan.md)
+/plan review | comment <line> <text> | changes | approve  (read the plan, annotate a line, send the comments back, execute)
 /accept <request> (write acceptance tests first; /accept approve locks them as a gate)
 /readonly  (toggle read-only: the model can inspect but change nothing)
 /sandbox [on|off|image]  (wrap local bash in docker; file tools stay here)
@@ -1414,11 +1415,35 @@ first version got wrong and how it was fixed.
 
 `/plan add rate limiting to the API` puts the session in plan mode: the
 model only gets read-only tools, explores the code and writes a numbered
-plan under `## Plan` (files, order, verification, risks). Ask questions or
-request changes to the plan as normal messages; `/plan approve` leaves the
-mode and tells the model to execute the plan step by step, verifying each
-step. Every step is a normal turn, so `/undo` walks it back. `/plan off`
-leaves without executing. `shift+tab` cycles the four session modes
+plan under `## Plan` (files, order, verification, risks).
+
+That plan is written to `.janetcode/plan.md`, next to the project's other
+janetcode files, and the file is the plan: nothing else holds a copy of
+it, so what you review is what the model wrote. A later turn that revises
+the plan rewrites the file and keeps the version it replaced in
+`.janetcode/plan.md.prev`, which is one `diff` away from telling you what
+changed. A reply with no `## Plan` heading — a question on the way to a
+plan — leaves the file alone.
+
+`/plan review` shows the file with line numbers, the way `/open` shows any
+file. `/plan comment 12 this hits the database twice` attaches a remark to
+line 12; the line can also be written the way review prints it
+(`plan.md:12`). Comments collect, show up under their lines on the next
+`/plan review`, and go nowhere until you act on them:
+
+- `/plan changes` sends every collected comment to the model as one
+  message — each comment with the plan line it is about — and stays in
+  plan mode, so the model rewrites the plan instead of starting work. The
+  collection is emptied. If a turn is still running the comments steer it
+  rather than starting another.
+- `/plan approve` leaves plan mode and tells the model to execute the
+  plan step by step, verifying each step. Any comment you collected and
+  never sent is dropped, and the note says the plan file was approved.
+
+Every step of the execution is a normal turn, so `/undo` walks it back.
+`/plan off` leaves without executing. Questions and changes can still be
+typed as ordinary messages; the comments are for the parts of the plan
+that are easier to point at than to describe. `shift+tab` cycles the four session modes
 without typing a command: **ask** (edits and commands ask first) →
 **plan** → **auto** (`/auto`, in-workspace edits and known-safe reads
 run; other commands still ask) → **yolo** (`/yolo`, tools run without
