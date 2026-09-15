@@ -18,6 +18,7 @@ import (
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/xdg"
 )
 
 // ProviderConfig is the legacy "anthropic"/"openai" section; it is folded
@@ -264,15 +265,11 @@ const (
 
 // Path returns the config file location, honouring XDG_CONFIG_HOME.
 func Path() (string, error) {
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".config")
+	dir, err := xdg.ConfigDir(os.Getenv)
+	if err != nil {
+		return "", err
 	}
-	return filepath.Join(base, "janetcode", "config.json"), nil
+	return filepath.Join(dir, "config.json"), nil
 }
 
 // Example is the config file written by WriteExample.

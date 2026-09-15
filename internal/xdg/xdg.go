@@ -1,0 +1,61 @@
+// Package xdg resolves janetcode's per-user directories: configuration
+// under XDG_CONFIG_HOME (default ~/.config) and data — sessions, memory,
+// archives — under XDG_DATA_HOME (default ~/.local/share), each in a
+// janetcode subdirectory. The same rule applies on every platform; only
+// where the home directory comes from differs, exactly as os.UserHomeDir
+// decides it. It imports only the standard library.
+package xdg
+
+import (
+	"errors"
+	"path/filepath"
+	"runtime"
+)
+
+// App is the subdirectory janetcode owns under each base directory.
+const App = "janetcode"
+
+// ConfigDir is $XDG_CONFIG_HOME/janetcode, or ~/.config/janetcode when the
+// variable is unset or empty. getenv is normally os.Getenv.
+func ConfigDir(getenv func(string) string) (string, error) {
+	return dir(runtime.GOOS, getenv, "XDG_CONFIG_HOME", ".config")
+}
+
+// DataDir is $XDG_DATA_HOME/janetcode, or ~/.local/share/janetcode when
+// the variable is unset or empty. getenv is normally os.Getenv.
+func DataDir(getenv func(string) string) (string, error) {
+	return dir(runtime.GOOS, getenv, "XDG_DATA_HOME", filepath.Join(".local", "share"))
+}
+
+func dir(goos string, getenv func(string) string, env, fallback string) (string, error) {
+	if base := getenv(env); base != "" {
+		return filepath.Join(base, App), nil
+	}
+	home, err := homeDir(goos, getenv)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, fallback, App), nil
+}
+
+// homeDir is os.UserHomeDir with the environment and the OS supplied, so
+// the rule can be tested for every platform from any one of them.
+func homeDir(goos string, getenv func(string) string) (string, error) {
+	env, enverr := "HOME", "$HOME"
+	switch goos {
+	case "windows":
+		env, enverr = "USERPROFILE", "%userprofile%"
+	case "plan9":
+		env, enverr = "home", "$home"
+	}
+	if v := getenv(env); v != "" {
+		return v, nil
+	}
+	switch goos {
+	case "android":
+		return "/sdcard", nil
+	case "ios":
+		return "/", nil
+	}
+	return "", errors.New(enverr + " is not defined")
+}

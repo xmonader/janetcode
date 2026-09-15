@@ -22,6 +22,7 @@ import (
 	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
+	"github.com/xmonader/janetcode/internal/xdg"
 )
 
 // Meta is the first line of a session file.
@@ -102,15 +103,11 @@ type Session struct {
 
 // Dir returns the sessions directory, honouring XDG_DATA_HOME.
 func Dir() (string, error) {
-	base := os.Getenv("XDG_DATA_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".local", "share")
+	dir, err := xdg.DataDir(os.Getenv)
+	if err != nil {
+		return "", err
 	}
-	return filepath.Join(base, "janetcode", "sessions"), nil
+	return filepath.Join(dir, "sessions"), nil
 }
 
 // ArchiveDir is where full tool outputs for the project at cwd are kept,

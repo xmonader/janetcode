@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/shell"
+	"github.com/xmonader/janetcode/internal/xdg"
 )
 
 // Everything that decides what janetcode may do without asking — the
@@ -49,30 +50,18 @@ func under(abs, dir string) bool {
 	return abs == dir || strings.HasPrefix(abs, dir+string(filepath.Separator))
 }
 
-// janetConfigDir mirrors config.Path's rule without importing it: that
-// package already depends on this one.
+// janetConfigDir is the janetcode config directory (config.Path's), or ""
+// when it cannot be determined.
 func janetConfigDir() string {
-	if base := os.Getenv("XDG_CONFIG_HOME"); base != "" {
-		return filepath.Join(base, "janetcode")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".config", "janetcode")
+	dir, _ := xdg.ConfigDir(os.Getenv)
+	return dir
 }
 
-// janetDataDir mirrors session.Dir's rule; the memory store lives beside
-// the sessions under it.
+// janetDataDir is the janetcode data directory (session.Dir's parent); the
+// memory store lives beside the sessions under it. "" when unknown.
 func janetDataDir() string {
-	if base := os.Getenv("XDG_DATA_HOME"); base != "" {
-		return filepath.Join(base, "janetcode")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".local", "share", "janetcode")
+	dir, _ := xdg.DataDir(os.Getenv)
+	return dir
 }
 
 // selfPathToken resolves one shell token the way escapes does and asks
