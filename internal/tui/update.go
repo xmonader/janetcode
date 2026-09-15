@@ -63,9 +63,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	// The footer height is reserved except for the completion menu; the
-	// viewport has to be told when the menu opens or closes, or the view
-	// is taller than the terminal and the transcript scrolls under it.
+	// The footer height changes for two reasons: the completion menu
+	// opening or closing, and the composer growing or shrinking with
+	// what was just typed (see inputHeight, which is a pure function of
+	// the textarea's content and width). before is read from the old
+	// content, and the comparison from the new content once the key has
+	// been applied to m.input below, so this only relayouts — and only
+	// resizes the viewport — on a frame where the row count actually
+	// changed, never on every keystroke.
 	before := m.footerHeight()
 	m.input, cmd = m.input.Update(msg)
 	cmds = append(cmds, cmd)

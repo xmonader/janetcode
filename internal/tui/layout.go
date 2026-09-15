@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"strings"
+
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -21,8 +24,7 @@ func (m *model) menuRows() int {
 	return menuRows
 }
 
-// inputLimit is the tallest the prompt box may grow, which is also the
-// height the textarea itself is always given (see layout).
+// inputLimit is the tallest the prompt box may grow.
 func (m *model) inputLimit() int {
 	if m.compactMode() {
 		return 3
@@ -30,10 +32,50 @@ func (m *model) inputLimit() int {
 	return maxInputLines
 }
 
+// composerLines is how many display rows the given content takes at the
+// given width, using the textarea's own word-wrap rather than a bare
+// "\n" count — a line that wraps at the current width grows the box
+// exactly as an explicit newline would. Bubbles' textarea has no
+// exported "wrapped line count of arbitrary text" call, so each
+// "\n"-delimited paragraph is measured on a scratch textarea configured
+// like the real one (no prompt, no line numbers, same width) and its
+// LineInfo().Height — the real wrap the box would show — is summed; an
+// empty paragraph still costs one row, which is why an empty value (one
+// empty paragraph) comes back as 1 rather than 0.
+func composerLines(value string, width int) int {
+	if width <= 0 {
+		return minInputLines
+	}
+	scratch := textarea.New()
+	scratch.Prompt = ""
+	scratch.ShowLineNumbers = false
+	scratch.SetWidth(width)
+	total := 0
+	for _, line := range strings.Split(value, "\n") {
+		scratch.SetValue(line)
+		total += scratch.LineInfo().Height
+	}
+	if total < minInputLines {
+		total = minInputLines
+	}
+	return total
+}
+
+// inputHeight is how tall the prompt box is drawn right now: the
+// textarea's content at its current width, clamped to [1, inputLimit()].
+// It is a pure function of the input's current value and width — called
+// again after every keystroke, never cached — so it is always the
+// content AS IT STANDS AFTER the key that changed it was applied, which
+// is what keeps this out of the trap layout() describes: the textarea
+// itself is never resized to this value (see layout()), only the footer
+// reservation and the number of the textarea's own rendered lines that
+// are shown (see footerView) are.
 func (m *model) inputHeight() int {
-	// Reserved at the cap so wrapping or a permission prompt never
-	// moves the transcript. Extra lines scroll inside the box.
-	return m.inputLimit()
+	n := composerLines(m.input.Value(), m.input.Width())
+	if lim := m.inputLimit(); n > lim {
+		n = lim
+	}
+	return n
 }
 
 func (m *model) footerHeight() int {
@@ -100,12 +142,22 @@ func (m *model) layout() {
 	if m.width == 0 {
 		return
 	}
-	// The textarea is always as tall as the box may ever grow, and the
-	// box takes the top of what it draws. Sizing it to the current line
-	// count instead meant the textarea scrolled on the keystroke that
-	// added a line (its height was still the old one when it decided)
-	// and never scrolled back, so a two-line prompt showed only its
-	// second line and the first line of a paste was invisible.
+	// The textarea itself is always as tall as the box may ever grow.
+	// Sizing it to the current line count instead meant the textarea
+	// scrolled on the keystroke that added a line (its internal
+	// scrolling decides where to show the cursor using whatever height
+	// was set before that keystroke was applied, and there is no
+	// exported way to make it redecide afterwards with the grown
+	// height) and never scrolled back, so a two-line prompt showed only
+	// its second line and the first line of a paste was invisible.
+	//
+	// So the visible growth is done differently: the textarea is kept
+	// pinned at inputLimit() here, forever, and footerView instead draws
+	// only the top inputHeight() of its rendered lines (see
+	// composerLines and footerView) — which is the actual content
+	// whenever it fits, since the textarea only scrolls once the
+	// content exceeds inputLimit(), exactly the case where inputHeight
+	// equals inputLimit and nothing is cropped.
 	m.input.SetHeight(m.inputLimit())
 	vh := m.height - 1 - 1 - m.footerHeight() - m.planHeight() // header, status, sticky plan
 	if vh < 3 {

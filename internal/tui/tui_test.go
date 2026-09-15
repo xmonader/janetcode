@@ -3508,9 +3508,11 @@ func TestShortWindowScalesTheInterface(t *testing.T) {
 }
 
 // TestPromptDoesNotJump: the row above the input is reserved, so a
-// notice arriving or leaving never moves the input box. The input box
-// itself is reserved at the cap, and a permission prompt (warning
-// included) uses that same footer height.
+// notice arriving or leaving never moves the input box. A permission
+// prompt (warning included) uses that same reserved footer height, so
+// it doesn't move the box either. The composer growing with what's
+// typed does move the box — by exactly the number of rows it grew, with
+// the transcript staying pinned and not otherwise disturbed.
 func TestPromptDoesNotJump(t *testing.T) {
 	block := make(chan struct{})
 	rs := make([]*llm.Response, 5)
@@ -3546,9 +3548,13 @@ func TestPromptDoesNotJump(t *testing.T) {
 	close(block)
 	h.pump(func() bool { return !h.m.turn.running })
 
-	// Reserved input height: wrapping inside the cap, a permission
-	// prompt (warning included), and the prompt closing must not move
-	// the ❯ row or the transcript viewport.
+	// Reserved input height: a permission prompt (warning included) and
+	// the prompt closing must not move the ❯ row or the transcript
+	// viewport. Typing inside the cap now grows the box a line at a
+	// time (see composerLines), so that case is checked differently
+	// below: the prompt row and the viewport must move by exactly the
+	// number of lines the box grew, not by some other amount, and once
+	// the box shrinks back the frame must return to this baseline.
 	promptRowAndView := func() (int, int) {
 		h.m.layout()
 		h.m.refresh(false)
@@ -3558,13 +3564,21 @@ func TestPromptDoesNotJump(t *testing.T) {
 	if row < 0 {
 		t.Fatalf("no input box after the turn:\n%s", plain(h.m.View()))
 	}
+	beforeHeight := h.m.inputHeight()
 	h.keys("one")
 	h.update(tea.KeyMsg{Type: tea.KeyCtrlJ})
 	h.keys("two")
 	h.update(tea.KeyMsg{Type: tea.KeyCtrlJ})
 	h.keys("three")
-	if got, hgt := promptRowAndView(); got != row || hgt != vh {
-		t.Fatalf("wrapping inside the cap moved the prompt from %d/%d to %d/%d", row, vh, got, hgt)
+	grew := h.m.inputHeight() - beforeHeight
+	if grew != 2 {
+		t.Fatalf("a three-line prompt reported height %d, grown by %d, want +2", h.m.inputHeight(), grew)
+	}
+	if !h.m.pinned {
+		t.Fatalf("the transcript unpinned itself while the composer grew")
+	}
+	if got, hgt := promptRowAndView(); got != row-grew || hgt != vh-grew {
+		t.Fatalf("a %d-line growth moved the prompt from %d/%d to %d/%d, want %d/%d", grew, row, vh, got, hgt, row-grew, vh-grew)
 	}
 	h.m.input.Reset()
 	h.m.pending = &permissionMsg{call: agent.ToolCall{ID: "p1", Name: "write_file", Input: json.RawMessage(`{"path":"n.txt","content":"x"}`)}, reply: make(chan verdict, 1)}
