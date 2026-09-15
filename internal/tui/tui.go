@@ -225,7 +225,6 @@ type model struct {
 	// is the turn clock: before the first turn it was the zero time and
 	// the session was reported as up for 2562047h47m16.854775807s.
 	openedAt    time.Time
-	phase       string // what the agent is doing right now
 	pending     *permissionMsg
 	denying     bool // the input box is collecting a reason for a denial
 	status      string
@@ -234,8 +233,6 @@ type model struct {
 	ticks       int                      // tick count, for slow periodic checks
 	lastUsage   llm.Usage                // the last turn's usage
 	hint        hintsState               // the one-time hint engine and what it watches
-	queued      []string                 // prompts typed while a turn was running
-	steering    []string                 // notes handed to the running turn (ctrl+s)
 	custom      map[string]prompt.Custom // user-defined slash commands
 	clipboard   func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
 	copyText    func(string) error       // writes text to the clipboard; swapped in tests
@@ -253,7 +250,8 @@ type model struct {
 	// terminal is at least gutterRestoreWidth, so resizing around 88
 	// does not slam the margin on and off.
 	gutterOff bool
-	notice    noticeState
+	// notice is the one-shot line in the reserved row above the input.
+	notice noticeState
 	// term writes the escape sequences that let the terminal take part:
 	// OSC 133 zones, desktop notifications, the window title.
 	term *termIntegration
