@@ -37,7 +37,7 @@ func (ReadFile) Schema() json.RawMessage {
 "required":["path"],"additionalProperties":false}`)
 }
 
-func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) {
+func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Path    string `json:"path"`
 		Offset  int    `json:"offset"`
@@ -51,10 +51,10 @@ func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	if st, serr := statOf(t.WS, p); serr == nil && st.IsDir() {
+	if st, serr := statOf(ctx, t.WS, p); serr == nil && st.IsDir() {
 		return "", fmt.Errorf("%s is a directory; list_dir shows what is in it and glob finds files by pattern", in.Path)
 	}
-	data, err := readFileOf(t.WS, p)
+	data, err := readFileOf(ctx, t.WS, p)
 	if err != nil {
 		return "", err
 	}
@@ -135,7 +135,7 @@ func (WriteFile) Schema() json.RawMessage {
 "required":["path","content"],"additionalProperties":false}`)
 }
 
-func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error) {
+func (t WriteFile) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
@@ -147,13 +147,13 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 	if err != nil {
 		return "", err
 	}
-	if err := mkdirAllOf(t.WS, filepath.Dir(p), 0o755); err != nil {
+	if err := mkdirAllOf(ctx, t.WS, filepath.Dir(p), 0o755); err != nil {
 		return "", err
 	}
-	if err := t.Seen.CheckAt(t.WS, p, in.Path, "write"); err != nil {
+	if err := t.Seen.CheckAt(ctx, t.WS, p, in.Path, "write"); err != nil {
 		return "", err
 	}
-	old, readErr := readFileOf(t.WS, p)
+	old, readErr := readFileOf(ctx, t.WS, p)
 	existed := readErr == nil
 	// A file keeps the shape it had: its byte-order mark, its line endings
 	// and its charset. Otherwise the first write to a Windows or Latin-1
@@ -163,7 +163,7 @@ func (t WriteFile) Run(_ context.Context, input json.RawMessage) (string, error)
 		oldText, shape = decodeText(old)
 	}
 	data := encodeText(in.Content, shape)
-	if err := writeFileOf(t.WS, p, data); err != nil {
+	if err := writeFileOf(ctx, t.WS, p, data); err != nil {
 		return "", err
 	}
 	t.Seen.Record(p, data)
@@ -208,13 +208,13 @@ func (t WriteFile) Result(input json.RawMessage) (path, before, after string, er
 	if err != nil {
 		return "", "", "", err
 	}
-	if old, rerr := readFileOf(t.WS, p); rerr == nil && !isBinary(old) {
+	if old, rerr := readFileOf(context.Background(), t.WS, p); rerr == nil && !isBinary(old) {
 		before, _ = decodeText(old)
 	}
 	return p, before, in.Content, nil
 }
 
-func (t WriteFile) Preview(_ context.Context, input json.RawMessage) (string, error) {
+func (t WriteFile) Preview(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
@@ -226,7 +226,7 @@ func (t WriteFile) Preview(_ context.Context, input json.RawMessage) (string, er
 	if err != nil {
 		return "", err
 	}
-	old, err := readFileOf(t.WS, p)
+	old, err := readFileOf(ctx, t.WS, p)
 	if err != nil {
 		return diff.Unified(in.Path, "", in.Content, 0), nil
 	}
@@ -451,7 +451,7 @@ func (e oneEdit) apply(content, display string, index, total int) (string, int, 
 
 // checkSeen resolves the edit's path and asks Seen whether the file is
 // still the one the agent looked at.
-func (t EditFile) checkSeen(input json.RawMessage) error {
+func (t EditFile) checkSeen(ctx context.Context, input json.RawMessage) error {
 	var in struct {
 		Path string `json:"path"`
 	}
@@ -462,10 +462,10 @@ func (t EditFile) checkSeen(input json.RawMessage) error {
 	if err != nil {
 		return nil
 	}
-	return t.Seen.CheckAt(t.WS, p, displayPath(rootOf(t.Root, t.WS), in.Path), "edit")
+	return t.Seen.CheckAt(ctx, t.WS, p, displayPath(rootOf(t.Root, t.WS), in.Path), "edit")
 }
 
-func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
+func (t EditFile) plan(ctx context.Context, input json.RawMessage) (*editPlan, error) {
 	input = repairEdits(input)
 	var in struct {
 		Path       string    `json:"path"`
@@ -508,7 +508,7 @@ func (t EditFile) plan(input json.RawMessage) (*editPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := readFileOf(t.WS, p)
+	data, err := readFileOf(ctx, t.WS, p)
 	if err != nil {
 		return nil, err
 	}
@@ -772,19 +772,19 @@ func changed(before, after string) (first, last int, ok bool) {
 	return i, max(i, k), true
 }
 
-func (t EditFile) Run(_ context.Context, input json.RawMessage) (string, error) {
+func (t EditFile) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	// The state of the file is checked before the plan is built: a file
 	// that vanished since it was read must say so, not fail as an open
 	// error with no explanation of what happened to it.
-	if err := t.checkSeen(input); err != nil {
+	if err := t.checkSeen(ctx, input); err != nil {
 		return "", err
 	}
-	pl, err := t.plan(input)
+	pl, err := t.plan(ctx, input)
 	if err != nil {
 		return "", err
 	}
 	data := encodeText(pl.after, pl.shape)
-	if err := writeFileOf(t.WS, pl.path, data); err != nil {
+	if err := writeFileOf(ctx, t.WS, pl.path, data); err != nil {
 		return "", err
 	}
 	t.Seen.Record(pl.path, data)
@@ -819,8 +819,8 @@ func (t EditFile) Touches(input json.RawMessage) ([]string, error) {
 	return touchedPathOn(t.WS, t.Root, input)
 }
 
-func (t EditFile) Preview(_ context.Context, input json.RawMessage) (string, error) {
-	pl, err := t.plan(input)
+func (t EditFile) Preview(ctx context.Context, input json.RawMessage) (string, error) {
+	pl, err := t.plan(ctx, input)
 	if err != nil {
 		return "", err
 	}
@@ -833,7 +833,7 @@ func (t EditFile) Preview(_ context.Context, input json.RawMessage) (string, err
 // with what Run would actually do. internal/impact uses it to analyze the
 // reach of an edit before it is approved.
 func (t EditFile) Result(input json.RawMessage) (path, before, after string, err error) {
-	pl, err := t.plan(input)
+	pl, err := t.plan(context.Background(), input)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -857,7 +857,7 @@ func (ListDir) Schema() json.RawMessage {
 "additionalProperties":false}`)
 }
 
-func (t ListDir) Run(_ context.Context, input json.RawMessage) (string, error) {
+func (t ListDir) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Path string `json:"path"`
 	}
@@ -873,7 +873,7 @@ func (t ListDir) Run(_ context.Context, input json.RawMessage) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	entries, err := readDirOf(t.WS, p)
+	entries, err := readDirOf(ctx, t.WS, p)
 	if err != nil {
 		return "", err
 	}

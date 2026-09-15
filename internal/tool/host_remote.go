@@ -54,45 +54,45 @@ func (h *remoteHost) argv(ctx context.Context, stdin io.Reader, args ...string) 
 	return cmd.CombinedOutput()
 }
 
-func (h *remoteHost) ReadFile(path string) ([]byte, error) {
-	out, err := h.argv(context.Background(), nil, "cat", "--", path)
+func (h *remoteHost) ReadFile(ctx context.Context, path string) ([]byte, error) {
+	out, err := h.argv(ctx, nil, "cat", "--", path)
 	if err != nil {
 		return nil, remoteErr("read", path, out, err)
 	}
 	return out, nil
 }
 
-func (h *remoteHost) WriteFile(path string, data []byte, perm os.FileMode) error {
-	if err := h.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+func (h *remoteHost) WriteFile(ctx context.Context, path string, data []byte, perm os.FileMode) error {
+	if err := h.MkdirAll(ctx, filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	out, err := h.argv(context.Background(), bytes.NewReader(data), "tee", path)
+	out, err := h.argv(ctx, bytes.NewReader(data), "tee", path)
 	if err != nil {
 		return remoteErr("write", path, out, err)
 	}
 	if perm != 0 {
 		mode := fmt.Sprintf("%04o", perm.Perm())
-		if out, err := h.argv(context.Background(), nil, "chmod", mode, path); err != nil {
+		if out, err := h.argv(ctx, nil, "chmod", mode, path); err != nil {
 			return remoteErr("chmod", path, out, err)
 		}
 	}
 	return nil
 }
 
-func (h *remoteHost) Stat(path string) (os.FileInfo, error) {
-	if out, err := h.argv(context.Background(), nil, "test", "-d", path); err == nil {
+func (h *remoteHost) Stat(ctx context.Context, path string) (os.FileInfo, error) {
+	if out, err := h.argv(ctx, nil, "test", "-d", path); err == nil {
 		return remoteInfo{name: filepath.Base(path), dir: true}, nil
 	} else if isNotExistOutput(string(out)) {
 		return nil, os.ErrNotExist
 	}
-	if _, err := h.argv(context.Background(), nil, "test", "-e", path); err != nil {
+	if _, err := h.argv(ctx, nil, "test", "-e", path); err != nil {
 		return nil, os.ErrNotExist
 	}
 	return remoteInfo{name: filepath.Base(path), dir: false}, nil
 }
 
-func (h *remoteHost) ReadDir(path string) ([]os.DirEntry, error) {
-	out, err := h.argv(context.Background(), nil, "ls", "-1Ap", path)
+func (h *remoteHost) ReadDir(ctx context.Context, path string) ([]os.DirEntry, error) {
+	out, err := h.argv(ctx, nil, "ls", "-1Ap", path)
 	if err != nil {
 		return nil, remoteErr("list", path, out, err)
 	}
@@ -109,35 +109,35 @@ func (h *remoteHost) ReadDir(path string) ([]os.DirEntry, error) {
 	return entries, nil
 }
 
-func (h *remoteHost) MkdirAll(path string, _ os.FileMode) error {
+func (h *remoteHost) MkdirAll(ctx context.Context, path string, _ os.FileMode) error {
 	if path == "" || path == "." || path == "/" {
 		return nil
 	}
-	out, err := h.argv(context.Background(), nil, "mkdir", "-p", path)
+	out, err := h.argv(ctx, nil, "mkdir", "-p", path)
 	if err != nil {
 		return remoteErr("mkdir", path, out, err)
 	}
 	return nil
 }
 
-func (h *remoteHost) Remove(path string) error {
-	out, err := h.argv(context.Background(), nil, "rm", "-f", path)
+func (h *remoteHost) Remove(ctx context.Context, path string) error {
+	out, err := h.argv(ctx, nil, "rm", "-f", path)
 	if err != nil {
 		return remoteErr("remove", path, out, err)
 	}
 	return nil
 }
 
-func (h *remoteHost) Rename(oldpath, newpath string) error {
-	out, err := h.argv(context.Background(), nil, "mv", "-f", oldpath, newpath)
+func (h *remoteHost) Rename(ctx context.Context, oldpath, newpath string) error {
+	out, err := h.argv(ctx, nil, "mv", "-f", oldpath, newpath)
 	if err != nil {
 		return remoteErr("rename", oldpath, out, err)
 	}
 	return nil
 }
 
-func (h *remoteHost) Open(path string) (io.ReadCloser, error) {
-	data, err := h.ReadFile(path)
+func (h *remoteHost) Open(ctx context.Context, path string) (io.ReadCloser, error) {
+	data, err := h.ReadFile(ctx, path)
 	if err != nil {
 		return nil, err
 	}
@@ -148,8 +148,8 @@ type readSeekCloser struct{ *bytes.Reader }
 
 func (readSeekCloser) Close() error { return nil }
 
-func (h *remoteHost) WalkDir(root string, fn fs.WalkDirFunc) error {
-	out, err := h.argv(context.Background(), nil, "find", root)
+func (h *remoteHost) WalkDir(ctx context.Context, root string, fn fs.WalkDirFunc) error {
+	out, err := h.argv(ctx, nil, "find", root)
 	if err != nil {
 		return remoteErr("walk", root, out, err)
 	}
@@ -158,7 +158,7 @@ func (h *remoteHost) WalkDir(root string, fn fs.WalkDirFunc) error {
 		if p == "" {
 			continue
 		}
-		info, serr := h.Stat(p)
+		info, serr := h.Stat(ctx, p)
 		d := remoteEntry{name: filepath.Base(p), dir: serr == nil && info.IsDir()}
 		if err := fn(p, d, serr); err != nil {
 			if err == fs.SkipDir {

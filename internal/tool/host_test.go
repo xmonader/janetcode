@@ -55,10 +55,10 @@ func TestLocalWorkspaceMatchesOS(t *testing.T) {
 	dir := t.TempDir()
 	ws := NewLocal(dir)
 	p := filepath.Join(dir, "a.txt")
-	if err := ws.Host().WriteFile(p, []byte("hi\n"), 0o644); err != nil {
+	if err := ws.Host().WriteFile(context.Background(), p, []byte("hi\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	got, err := ws.Host().ReadFile(p)
+	got, err := ws.Host().ReadFile(context.Background(), p)
 	if err != nil || string(got) != "hi\n" {
 		t.Fatalf("got %q err=%v", got, err)
 	}
@@ -158,9 +158,14 @@ esac
 	if h.Kind() != "ssh" || h.Root() != fs {
 		t.Fatalf("host kind=%s root=%s", h.Kind(), h.Root())
 	}
-	got, err := h.ReadFile(filepath.Join(fs, "note.txt"))
+	got, err := h.ReadFile(context.Background(), filepath.Join(fs, "note.txt"))
 	if err != nil || string(got) != "remote-hi\n" {
 		t.Fatalf("read: %q err=%v", got, err)
+	}
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := h.ReadFile(cancelled, filepath.Join(fs, "note.txt")); err == nil {
+		t.Fatal("read with a cancelled context succeeded; the ssh helper ignored ctx")
 	}
 	ws := NewLocal(t.TempDir())
 	ws.Set(h)

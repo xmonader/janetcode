@@ -15,6 +15,28 @@ import (
 	"github.com/xmonader/janetcode/internal/shell"
 )
 
+// FS is the file half of a host: what the file tools read and write
+// through. Every call takes a context so a remote host's ssh or docker
+// helper can be cancelled with the tool call that started it.
+type FS interface {
+	ReadFile(ctx context.Context, path string) ([]byte, error)
+	WriteFile(ctx context.Context, path string, data []byte, perm os.FileMode) error
+	Stat(ctx context.Context, path string) (os.FileInfo, error)
+	ReadDir(ctx context.Context, path string) ([]os.DirEntry, error)
+	MkdirAll(ctx context.Context, path string, perm os.FileMode) error
+	Remove(ctx context.Context, path string) error
+	Rename(ctx context.Context, oldpath, newpath string) error
+	Open(ctx context.Context, path string) (io.ReadCloser, error)
+	WalkDir(ctx context.Context, root string, fn fs.WalkDirFunc) error
+}
+
+// Commander is the shell half of a host: what bash runs through.
+type Commander interface {
+	// Command is a local process that runs command in Root on this host.
+	// Stdin/Stdout/Stderr are left unset for the caller to attach.
+	Command(ctx context.Context, command string) (*exec.Cmd, error)
+}
+
 // Host is the machine the file and shell tools talk to. Local is the
 // process's own filesystem; SSH and Docker retarget the same tools in
 // place because they share one Workspace pointer rather than a copied
@@ -25,19 +47,8 @@ type Host interface {
 	Root() string
 	Close() error
 
-	ReadFile(path string) ([]byte, error)
-	WriteFile(path string, data []byte, perm os.FileMode) error
-	Stat(path string) (os.FileInfo, error)
-	ReadDir(path string) ([]os.DirEntry, error)
-	MkdirAll(path string, perm os.FileMode) error
-	Remove(path string) error
-	Rename(oldpath, newpath string) error
-	Open(path string) (io.ReadCloser, error)
-	WalkDir(root string, fn fs.WalkDirFunc) error
-
-	// Command is a local process that runs command in Root on this host.
-	// Stdin/Stdout/Stderr are left unset for the caller to attach.
-	Command(ctx context.Context, command string) (*exec.Cmd, error)
+	FS
+	Commander
 }
 
 // Workspace is the working directory and host the file and shell tools
@@ -195,24 +206,26 @@ func (l Local) Label() string { return l.root }
 func (l Local) Root() string  { return l.root }
 func (Local) Close() error    { return nil }
 
-func (Local) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
-func (Local) WriteFile(path string, data []byte, perm os.FileMode) error {
+func (Local) ReadFile(_ context.Context, path string) ([]byte, error) { return os.ReadFile(path) }
+func (Local) WriteFile(_ context.Context, path string, data []byte, perm os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	return fsutil.AtomicWrite(path, data)
 }
-func (Local) Stat(path string) (os.FileInfo, error)      { return os.Stat(path) }
-func (Local) ReadDir(path string) ([]os.DirEntry, error) { return os.ReadDir(path) }
-func (Local) MkdirAll(path string, perm os.FileMode) error {
+func (Local) Stat(_ context.Context, path string) (os.FileInfo, error) { return os.Stat(path) }
+func (Local) ReadDir(_ context.Context, path string) ([]os.DirEntry, error) {
+	return os.ReadDir(path)
+}
+func (Local) MkdirAll(_ context.Context, path string, perm os.FileMode) error {
 	return os.MkdirAll(path, perm)
 }
-func (Local) Remove(path string) error { return os.Remove(path) }
-func (Local) Rename(oldpath, newpath string) error {
+func (Local) Remove(_ context.Context, path string) error { return os.Remove(path) }
+func (Local) Rename(_ context.Context, oldpath, newpath string) error {
 	return os.Rename(oldpath, newpath)
 }
-func (Local) Open(path string) (io.ReadCloser, error) { return os.Open(path) }
-func (Local) WalkDir(root string, fn fs.WalkDirFunc) error {
+func (Local) Open(_ context.Context, path string) (io.ReadCloser, error) { return os.Open(path) }
+func (Local) WalkDir(_ context.Context, root string, fn fs.WalkDirFunc) error {
 	return filepath.WalkDir(root, fn)
 }
 func (l Local) Command(ctx context.Context, command string) (*exec.Cmd, error) {
@@ -242,51 +255,51 @@ func resolveOn(ws *Workspace, root, p string) (string, error) {
 	return confineIn(roots, p, eval)
 }
 
-func readFileOf(ws *Workspace, path string) ([]byte, error) {
+func readFileOf(ctx context.Context, ws *Workspace, path string) ([]byte, error) {
 	if ws != nil {
-		return ws.Host().ReadFile(path)
+		return ws.Host().ReadFile(ctx, path)
 	}
 	return os.ReadFile(path)
 }
 
-func writeFileOf(ws *Workspace, path string, data []byte) error {
+func writeFileOf(ctx context.Context, ws *Workspace, path string, data []byte) error {
 	if ws != nil {
-		return ws.Host().WriteFile(path, data, 0o644)
+		return ws.Host().WriteFile(ctx, path, data, 0o644)
 	}
 	return fsutil.AtomicWrite(path, data)
 }
 
-func statOf(ws *Workspace, path string) (os.FileInfo, error) {
+func statOf(ctx context.Context, ws *Workspace, path string) (os.FileInfo, error) {
 	if ws != nil {
-		return ws.Host().Stat(path)
+		return ws.Host().Stat(ctx, path)
 	}
 	return os.Stat(path)
 }
 
-func readDirOf(ws *Workspace, path string) ([]os.DirEntry, error) {
+func readDirOf(ctx context.Context, ws *Workspace, path string) ([]os.DirEntry, error) {
 	if ws != nil {
-		return ws.Host().ReadDir(path)
+		return ws.Host().ReadDir(ctx, path)
 	}
 	return os.ReadDir(path)
 }
 
-func mkdirAllOf(ws *Workspace, path string, perm os.FileMode) error {
+func mkdirAllOf(ctx context.Context, ws *Workspace, path string, perm os.FileMode) error {
 	if ws != nil {
-		return ws.Host().MkdirAll(path, perm)
+		return ws.Host().MkdirAll(ctx, path, perm)
 	}
 	return os.MkdirAll(path, perm)
 }
 
-func openOf(ws *Workspace, path string) (io.ReadCloser, error) {
+func openOf(ctx context.Context, ws *Workspace, path string) (io.ReadCloser, error) {
 	if ws != nil {
-		return ws.Host().Open(path)
+		return ws.Host().Open(ctx, path)
 	}
 	return os.Open(path)
 }
 
-func walkDirOf(ws *Workspace, root string, fn fs.WalkDirFunc) error {
+func walkDirOf(ctx context.Context, ws *Workspace, root string, fn fs.WalkDirFunc) error {
 	if ws != nil {
-		return ws.Host().WalkDir(root, fn)
+		return ws.Host().WalkDir(ctx, root, fn)
 	}
 	return filepath.WalkDir(root, fn)
 }
