@@ -53,8 +53,17 @@ func (m *Manager) Client(name string) (*mcp.Client, bool) {
 // a caller that waits on onDone has to know about.
 func (m *Manager) Start(ctx context.Context, name string, cfg mcp.ServerConfig, onDone func(name string, c *mcp.Client, err error)) bool {
 	m.mu.Lock()
+	// Close leaves an empty clients map behind, so each map is checked on
+	// its own: a start that lands after a shutdown must not write to a
+	// nil map.
 	if m.clients == nil {
-		m.clients, m.errs, m.starting = map[string]*mcp.Client{}, map[string]error{}, map[string]bool{}
+		m.clients = map[string]*mcp.Client{}
+	}
+	if m.errs == nil {
+		m.errs = map[string]error{}
+	}
+	if m.starting == nil {
+		m.starting = map[string]bool{}
 	}
 	if m.starting[name] || m.clients[name] != nil {
 		m.mu.Unlock()

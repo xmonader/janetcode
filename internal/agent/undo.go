@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -183,45 +182,7 @@ func (a *Agent) UndoPreview(ctx context.Context) ([]string, error) {
 	if n == 0 {
 		return nil, ErrNothingToUndo
 	}
-	cp := a.cp.all[n-1]
-	var out []string
-	seen := map[string]bool{}
-	if repo := a.snaps(); cp.Snap != nil && repo != nil {
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		diff, err := repo.Diff(ctx, *cp.Snap)
-		cancel()
-		if err != nil {
-			return nil, err
-		}
-		for _, d := range diff {
-			status, path, _ := strings.Cut(d, " ")
-			seen[path] = true
-			switch status {
-			case "A":
-				out = append(out, "remove "+path)
-			case "D":
-				out = append(out, "recreate "+path)
-			default:
-				out = append(out, "restore "+path)
-			}
-		}
-	}
-	for _, f := range cp.Files {
-		if seen[f.Path] {
-			continue
-		}
-		if f.Failed {
-			out = append(out, "cannot restore "+f.Path+" (not captured)")
-			continue
-		}
-		if f.Existed {
-			out = append(out, "restore "+f.Path)
-		} else {
-			out = append(out, "remove "+f.Path)
-		}
-	}
-	sort.Strings(out)
-	return out, nil
+	return a.checkpointPreview(ctx, a.cp.all[n-1])
 }
 
 // Redo reapplies the most recently undone turn. It works until the next
@@ -255,6 +216,7 @@ func (a *Agent) Redo(ctx context.Context) ([]string, error) {
 // persists the rest. It runs as the turn ends, cancelled or not, so its git
 // calls do not inherit ctx's cancellation.
 func (a *Agent) endTurn(ctx context.Context) {
+	a.running.Store(false)
 	ctx = context.WithoutCancel(ctx)
 	a.cp.mu.Lock()
 	repo := a.snaps()

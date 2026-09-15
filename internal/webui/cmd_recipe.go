@@ -19,7 +19,7 @@ func (s *server) recipeCommand(arg string) {
 	verb, rest, _ := strings.Cut(strings.TrimSpace(arg), " ")
 	switch verb {
 	case "", "list":
-		rs, err := recipe.List(s.opts.Cwd)
+		rs, err := recipe.List(s.cwd())
 		if err != nil {
 			s.errf("recipe list: %v", err)
 			return
@@ -41,7 +41,7 @@ func (s *server) showRecipe(name string) {
 		s.errf("usage: /recipe show <name>")
 		return
 	}
-	r, err := recipe.Load(s.opts.Cwd, name)
+	r, err := recipe.Load(s.cwd(), name)
 	if err != nil {
 		s.errf("recipe show: %v", err)
 		return
@@ -61,7 +61,7 @@ func (s *server) saveRecipe(rest string) {
 	if s.opts.Session != nil {
 		sessionID = s.opts.Session.Meta.ID
 	}
-	s.showResult(s.opts.Agent.RecipeSave(sessionID, s.opts.Cwd, rest))
+	s.showResult(s.opts.Agent.RecipeSave(sessionID, s.cwd(), rest))
 }
 
 // runRecipe implements /recipe run <name> [--dry-run] [k=v...]. A dry run
@@ -75,7 +75,7 @@ func (s *server) runRecipe(rest string) {
 		s.errf("%v", err)
 		return
 	}
-	r, err := recipe.Load(s.opts.Cwd, name)
+	r, err := recipe.Load(s.cwd(), name)
 	if err != nil {
 		s.errf("recipe run: %v", err)
 		return

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -88,6 +89,9 @@ type permissionMsg struct {
 type verdict struct {
 	d      agent.Decision
 	reason string
+	// rule is which rung of the call's ladder an "always" answer chose,
+	// "" for the one the prompt started on (see agent.ToolCall.Rungs).
+	rule string
 }
 
 // tuiApprover bridges agent permission requests into the UI loop.
@@ -99,13 +103,18 @@ func (a *tuiApprover) Approve(ctx context.Context, call agent.ToolCall) (agent.D
 }
 
 func (a *tuiApprover) ApproveWithReason(ctx context.Context, call agent.ToolCall) (agent.Decision, string, error) {
+	d, reason, _, err := a.ApproveWithRule(ctx, call)
+	return d, reason, err
+}
+
+func (a *tuiApprover) ApproveWithRule(ctx context.Context, call agent.ToolCall) (agent.Decision, string, string, error) {
 	reply := make(chan verdict, 1)
 	a.send(permissionMsg{call: call, reply: reply})
 	select {
 	case v := <-reply:
-		return v.d, v.reason, nil
+		return v.d, v.reason, v.rule, nil
 	case <-ctx.Done():
-		return agent.Deny, "", ctx.Err()
+		return agent.Deny, "", "", ctx.Err()
 	}
 }
 
@@ -113,7 +122,7 @@ func (m *model) answer(d agent.Decision, reason string) {
 	if m.pending == nil {
 		return
 	}
-	m.pending.reply <- verdict{d: d, reason: reason}
+	m.pending.reply <- verdict{d: d, reason: reason, rule: m.rungRule()}
 	m.transcript.permissionAnswered(m.pending.call, d)
 	call := m.pending.call
 	m.pending = nil
@@ -121,8 +130,14 @@ func (m *model) answer(d agent.Decision, reason string) {
 	m.denying = false
 	m.turn.setPhase("thinking")
 	// Named by the rule the r key would save, because that is the shape
-	// both hints below are about.
+	// both hints below are about — the highlighted rung, if the user
+	// moved along the ladder before answering.
 	shape := call.Rule
+	if d == agent.AllowAlways {
+		if r := rungAt(call, m.rung); r.Rule != "" {
+			shape = r.Rule
+		}
+	}
 	switch d {
 	case agent.Deny:
 		m.observeDenial(shape)
@@ -145,7 +160,41 @@ func learnedHeadline(s string) string {
 // the input box's placeholder (see placeholder).
 func (m *model) pendingKeys() string {
 	c := m.pending.call
-	return m.permissionKeys(c.Name, m.suggestedRule(c.Rule), c.Learned, pendingExpandable(c))
+	rule, learned := c.Rule, c.Learned
+	if r := rungAt(c, m.rung); r.Rule != "" {
+		rule, learned = r.Rule, r.Learned
+	}
+	return m.permissionKeysAt(c.Name, m.suggestedRule(rule), learned, pendingExpandable(c), m.rung, len(c.Rungs))
+}
+
+// rungRule is the rule the highlighted rung of the pending prompt would
+// save, "" when the call has no ladder.
+func (m *model) rungRule() string {
+	if m.pending == nil {
+		return ""
+	}
+	return rungAt(m.pending.call, m.rung).Rule
+}
+
+// rungAt is the i-th rung of a call's ladder, the zero rung when there
+// is none there: a call whose front-end never moved, or none at all.
+func rungAt(c agent.ToolCall, i int) agent.RuleRung {
+	if i < 0 || i >= len(c.Rungs) {
+		return agent.RuleRung{}
+	}
+	return c.Rungs[i]
+}
+
+// moveRung slides the highlight along the pending call's ladder, towards
+// a wider rule for d > 0 and a narrower one for d < 0. It stops at both
+// ends rather than wrapping: the ends are the floor and the ceiling of
+// what may be saved, and wrapping from one to the other at a permission
+// prompt is how a narrow rule becomes the widest by one keystroke.
+func (m *model) moveRung(d int) {
+	if m.pending == nil || len(m.pending.call.Rungs) < 2 {
+		return
+	}
+	m.rung = min(max(m.rung+d, 0), len(m.pending.call.Rungs)-1)
 }
 
 // permissionKeys is the key line of a permission prompt, in the longest
@@ -155,6 +204,13 @@ func (m *model) pendingKeys() string {
 // even for a two-line diff that was already shown whole. It is plain
 // text; the placeholder style colours it.
 func (m *model) permissionKeys(tool, rule, learned string, expandable bool) string {
+	return m.permissionKeysAt(tool, rule, learned, expandable, 0, 1)
+}
+
+// permissionKeysAt is permissionKeys for one rung of a ladder of rungs:
+// the hint that ← and → move along it rides with the rule, and is gone
+// when there is only one rung to stand on.
+func (m *model) permissionKeysAt(tool, rule, learned string, expandable bool, rung, rungs int) string {
 	type seg struct{ key, text string }
 	// Box width minus its border and padding, with two columns to spare
 	// so a line measured at the limit never wraps inside the box.
@@ -180,7 +236,15 @@ func (m *model) permissionKeys(tool, rule, learned string, expandable bool) stri
 	if learned != "" {
 		note = " · " + learnedHeadline(learned)
 	}
-	long := []seg{{"y", " allow once"}, {"a", " always for " + tool + " this session"}, {"r", " save rule " + rule + note}, {"n", " deny (and say why)"}, {"c", " cancel the turn"}}
+	// The ladder hint says both that the rule can be moved and where on
+	// the ladder it stands, so a rule that is not the default does not
+	// look like the only one there was. It goes with the note when the
+	// line narrows: a prompt with one rung has neither.
+	ladder := ""
+	if rungs > 1 {
+		ladder = fmt.Sprintf(" ←→ %d/%d", rung+1, rungs)
+	}
+	long := []seg{{"y", " allow once"}, {"a", " always for " + tool + " this session"}, {"r", " save rule " + rule + ladder + note}, {"n", " deny (and say why)"}, {"c", " cancel the turn"}}
 	if expandable {
 		long = append(long, seg{"", "(ctrl+o expands)"})
 	}
@@ -196,11 +260,14 @@ func (m *model) permissionKeys(tool, rule, learned string, expandable bool) stri
 	// "r rule" with no rule at all, which is the one wording that makes
 	// the key useless.
 	rule = shortenPaths(m.opts.Cwd, rule)
-	medium := []seg{{"y", " once"}, {"a", " always for " + tool}, {"r", " rule " + rule + note}, {"n", " deny"}, {"c", " cancel"}}
+	medium := []seg{{"y", " once"}, {"a", " always for " + tool}, {"r", " rule " + rule + ladder + note}, {"n", " deny"}, {"c", " cancel"}}
 	if s, w := render(medium, " · "); w <= room {
 		return s
 	}
-	narrow := []seg{{"y", ""}, {"a", " always"}, {"r", " rule " + rule}, {"n", " deny"}, {"c", " cancel"}}
+	// The hint outlives the learned note here: the note explains why r is
+	// worth pressing, but without the hint a widened rule reads as the
+	// only rule there ever was.
+	narrow := []seg{{"y", ""}, {"a", " always"}, {"r", " rule " + rule + ladder}, {"n", " deny"}, {"c", " cancel"}}
 	if s, w := render(narrow, " · "); w <= room {
 		return s
 	}

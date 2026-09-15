@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/xmonader/janetcode/internal/flavor"
+	"github.com/xmonader/janetcode/internal/mermaid"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -49,6 +50,18 @@ type renderOpts struct {
 	preview func(name string, input []byte) string
 	// renderer finds a tool that knows how to present itself.
 	renderer func(name string) (tool.Renderer, bool)
+	// now is the frame's clock, so every entry in one frame agrees about
+	// which finished calls are still flashing. Zero means "ask the clock",
+	// for the callers that render one entry outside a frame.
+	now time.Time
+}
+
+// at is the frame's clock.
+func (o renderOpts) at() time.Time {
+	if o.now.IsZero() {
+		return time.Now()
+	}
+	return o.now
 }
 
 // outputCap is the fold height for a viewport: a third of it, never fewer
@@ -106,6 +119,7 @@ func (t *transcript) render(o renderOpts) string {
 		}
 	}
 	now := time.Now()
+	o.now = now
 	var sb strings.Builder
 	// The whole transcript is concatenated every frame, so on a long one
 	// the builder's doubling is most of what the render allocates: five
@@ -135,10 +149,16 @@ func (t *transcript) render(o renderOpts) string {
 			if e.kind == entryTool {
 				e.toolStamp = toolStamp(e, o)
 			}
-		} else if e.kind == entryTool && e.running && e.toolBody != "" {
-			// Spinner and elapsed are chrome: splice them onto the cached
-			// body rather than rebuilding the result.
-			e.rendered = applyToolChrome(e.toolBody, toolIcon(t.styles, e, o), toolElapsed(t.styles, e))
+		} else if e.kind == entryTool && e.toolBody != "" && (e.running || e.flashed || flashing(t.styles, e, now)) {
+			// Spinner, elapsed and the finished-call flash are chrome:
+			// splice them onto the cached body rather than rebuilding the
+			// result. e.flashed carries the one frame after the flash has
+			// faded, where the cached render still holds the bright mark
+			// and nothing else would ask for it to be redrawn.
+			e.rendered = applyToolChrome(e.toolBody, toolIcon(t.styles, e, o), toolElapsed(t.styles, e, o))
+		}
+		if e.kind == entryTool {
+			e.flashed = flashing(t.styles, e, now)
 		}
 		// The gutter is applied on the way out, not baked into the cached
 		// render, so it costs nothing when it collapses to zero and the
@@ -243,7 +263,7 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 		}
 		return t.styles.faint.Render(wrap(thinkingView(e.text, e.done, e.thoughtFor(), e.started)))
 	case entryAssistant:
-		return t.renderMarkdown(e, width)
+		return t.renderMarkdown(e, width, o)
 	case entryTool:
 		return t.renderTool(e, width, o)
 	}
@@ -254,7 +274,7 @@ func (t *transcript) renderEntry(e *entry, width int, o renderOpts) string {
 // block whose source has not changed. While streaming only the last block
 // is re-rendered, which keeps the cost proportional to the tail rather than
 // the whole message.
-func (t *transcript) renderMarkdown(e *entry, width int) string {
+func (t *transcript) renderMarkdown(e *entry, width int, o renderOpts) string {
 	text := e.text
 	if strings.TrimSpace(text) == "" {
 		if e.done {
@@ -269,27 +289,38 @@ func (t *transcript) renderMarkdown(e *entry, width int) string {
 	if len(e.chunks) > len(blocks) {
 		e.chunks = e.chunks[:len(blocks)]
 	}
+	expanded := o.expand(e)
 	var sb strings.Builder
 	for i, src := range blocks {
 		last := i == len(blocks)-1
-		if last && !e.done && strings.Count(src, "```")%2 == 1 {
+		partial := last && !e.done
+		diagram := ""
+		if !partial {
+			diagram = t.renderDiagram(src, width, expanded)
+		}
+		if partial && strings.Count(src, "```")%2 == 1 {
 			// Close an unterminated fence so the partial code block still
 			// gets highlighted instead of swallowing the rest.
 			src += "\n```"
 		}
-		if i < len(e.chunks) && e.chunks[i].src == src && e.chunks[i].width == width {
+		if i < len(e.chunks) && e.chunks[i].src == src && e.chunks[i].width == width &&
+			e.chunks[i].expanded == expanded && e.chunks[i].partial == partial {
 			sb.WriteString(e.chunks[i].out)
 			continue
 		}
-		out, err := t.renderer.Render(joinListSoftBreaks(src))
-		if err != nil {
-			out = lipgloss.NewStyle().Width(width - 2).Render(src)
+		out := diagram
+		if out == "" {
+			var err error
+			out, err = t.renderer.Render(joinListSoftBreaks(src))
+			if err != nil {
+				out = lipgloss.NewStyle().Width(width - 2).Render(src)
+			}
 		}
 		out = strings.Trim(out, "\n") + "\n"
 		if i < len(e.chunks) {
-			e.chunks[i] = mdChunk{src, out, width}
+			e.chunks[i] = mdChunk{src, out, width, expanded, partial}
 		} else {
-			e.chunks = append(e.chunks, mdChunk{src, out, width})
+			e.chunks = append(e.chunks, mdChunk{src, out, width, expanded, partial})
 		}
 		sb.WriteString(out)
 	}
@@ -298,6 +329,87 @@ func (t *transcript) renderMarkdown(e *entry, width int) string {
 		out += t.styles.faint.Render(" ▍")
 	}
 	return out
+}
+
+// renderDiagram draws a ```mermaid block as a picture, or returns ""
+// for every block and every condition that has to keep the source: a
+// block that is not mermaid, a diagram kind the parser does not fully
+// support, a terminal too narrow or with only sixteen colours, and an
+// entry the reader has expanded — ctrl+o (and /verbose) swap the picture
+// for the source it was drawn from, the same way they open a folded tool
+// result, so the source is never lost.
+func (t *transcript) renderDiagram(block string, width int, expanded bool) string {
+	body, ok := mermaidFence(block)
+	if !ok || expanded || t.styles.ansiOnly {
+		return ""
+	}
+	// The two columns glamour indents a document by, on both sides.
+	lines, ok := mermaid.Render(body, width-4)
+	if !ok {
+		return ""
+	}
+	var sb strings.Builder
+	for _, l := range lines {
+		sb.WriteString("  " + diagramLine(t.styles, l) + "\n")
+	}
+	sb.WriteString("  " + t.styles.faint.Render("diagram · ctrl+o shows the mermaid source"))
+	return sb.String()
+}
+
+// mermaidFence returns the body of a fenced mermaid block, and false for
+// anything else.
+func mermaidFence(block string) (string, bool) {
+	lines := strings.Split(strings.TrimRight(block, "\n"), "\n")
+	if len(lines) < 3 {
+		return "", false
+	}
+	head := strings.TrimSpace(lines[0])
+	if !strings.HasPrefix(head, "```") || strings.TrimSpace(strings.TrimPrefix(head, "```")) != "mermaid" {
+		return "", false
+	}
+	if strings.TrimSpace(lines[len(lines)-1]) != "```" {
+		return "", false
+	}
+	return strings.Join(lines[1:len(lines)-1], "\n"), true
+}
+
+// diagramLine colours one line of a diagram: the frame in dim, the
+// labels in the body colour, so the boxes recede and the words read.
+func diagramLine(sty *styles, line string) string {
+	var sb strings.Builder
+	var run []rune
+	frame := false
+	flush := func() {
+		if len(run) == 0 {
+			return
+		}
+		if frame {
+			sb.WriteString(sty.dim.Render(string(run)))
+		} else {
+			sb.WriteString(string(run))
+		}
+		run = run[:0]
+	}
+	for _, r := range line {
+		if f := isFrame(r); f != frame {
+			flush()
+			frame = f
+		}
+		run = append(run, r)
+	}
+	flush()
+	return sb.String()
+}
+
+// isFrame reports whether a rune is part of a diagram's frame rather
+// than of a label. A space belongs to whichever run it is in, so a gap
+// inside a box does not split the label into two styled pieces.
+func isFrame(r rune) bool {
+	switch r {
+	case '─', '│', '┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼', '╌', '▶', '◀', '▲', '▼':
+		return true
+	}
+	return false
 }
 
 // listMarker matches the start of a list item: a bullet or a number.

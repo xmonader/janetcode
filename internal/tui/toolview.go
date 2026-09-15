@@ -47,7 +47,7 @@ func toolIcon(sty *styles, e *entry, o renderOpts) string {
 		icon = sty.err.Render("⊘")
 	case e.done && e.isError:
 		icon = sty.err.Render("✗")
-	case e.done && !e.ended.IsZero() && time.Since(e.ended) < flashFor:
+	case flashing(sty, e, o.at()):
 		// A call that has just finished flashes for a moment, so a glance
 		// away and back still says which line moved.
 		icon = sty.accent.Bold(true).Render("✓")
@@ -61,8 +61,12 @@ func toolIcon(sty *styles, e *entry, o renderOpts) string {
 	return icon
 }
 
-func toolElapsed(sty *styles, e *entry) string {
+func toolElapsed(sty *styles, e *entry, o renderOpts) string {
 	switch {
+	case e.dur != "" && flashing(sty, e, o.at()):
+		// Bright for the same moment the mark is: the two are one flash,
+		// and the text is the same text, so nothing moves.
+		return sty.accent.Render(" " + e.dur)
 	case e.dur != "":
 		return sty.faint.Render(" " + e.dur)
 	case e.running && !e.started.IsZero():
@@ -172,7 +176,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 
 func (t *transcript) finishTool(e *entry, body string, o renderOpts) string {
 	e.toolBody = body
-	return applyToolChrome(body, toolIcon(t.styles, e, o), toolElapsed(t.styles, e))
+	return applyToolChrome(body, toolIcon(t.styles, e, o), toolElapsed(t.styles, e, o))
 }
 
 // streamingSummary describes a tool call whose input is still arriving:
@@ -239,6 +243,22 @@ func splitDiagnostics(out string) (body, diag string) {
 
 // flashFor is how long a finished tool line stays bright.
 const flashFor = 400 * time.Millisecond
+
+// flashing reports whether this call finished recently enough to be drawn
+// brightly. It is a pure read of when the result arrived, so however many
+// calls finish together they all flash from the same frame and fade in the
+// same one — the model arms a single timer for the lot (see
+// model.scheduleFlash).
+//
+// There is no flash at all on a terminal that has only the sixteen ANSI
+// colours: the bright form would be the ordinary form, so it would say
+// nothing, and there is nothing to schedule. A failed or denied call is
+// not flashed either — its own mark already says what happened, and a
+// celebration of a failure reads wrong.
+func flashing(sty *styles, e *entry, now time.Time) bool {
+	return !sty.ansiOnly && e.done && !e.isError && !e.denied &&
+		!e.ended.IsZero() && now.Sub(e.ended) < flashFor
+}
 
 // How much of a call awaiting approval is shown before ctrl+o expands it.
 const (

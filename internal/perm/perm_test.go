@@ -244,3 +244,82 @@ func TestSubjectInDropsWorkspaceCd(t *testing.T) {
 		t.Fatalf("a cd elsewhere is part of the command: %q", s)
 	}
 }
+
+// TestSuggestLadder: every call that gets a rule gets a ladder of them,
+// narrowest first, with Suggest's answer somewhere in it.
+func TestSuggestLadder(t *testing.T) {
+	for _, c := range []struct {
+		tool, subject string
+		want          []string
+		def           int
+	}{
+		{"bash", "go test ./internal/...", []string{"bash(go test ./internal/...)", "bash(go test *)", "bash(go *)"}, 1},
+		{"bash", "go build", []string{"bash(go build)", "bash(go build *)", "bash(go *)"}, 1},
+		{"bash", "go -h", []string{"bash(go -h)", "bash(go *)"}, 1},
+		{"bash", "make", []string{"bash(make)"}, 0},
+		{"bash", "ls -la /tmp", []string{"bash(ls -la /tmp)", "bash(ls *)"}, 1},
+		{"bash", "git commit -m x", []string{"bash(git commit -m x)", "bash(git commit *)", "bash(git *)"}, 1},
+		{"bash", "go test ./... 2>&1", []string{"bash(go test ./... 2>&1)", "bash(go test *)", "bash(go *)"}, 1},
+		{"edit_file", "internal/agent/x.go", []string{"edit_file(internal/agent/x.go)", "edit_file(internal/agent/*)", "edit_file(internal/*)"}, 1},
+		{"read_file", "/etc/hosts", []string{"read_file(/etc/hosts)", "read_file(/etc/*)"}, 1},
+		{"write_file", "x.go", []string{"write_file(x.go)", "write_file"}, 1},
+		{"grep", ".", []string{"grep"}, 0},
+		{"fetch_url", "https://pkg.go.dev/net/http?tab=doc", []string{"fetch_url(https://pkg.go.dev/net/http?tab=doc)", "fetch_url(https://pkg.go.dev/net/*)", "fetch_url(https://pkg.go.dev/*)"}, 2},
+		{"fetch_url", "https://example.com", []string{"fetch_url(https://example.com)", "fetch_url(https://example.com/*)"}, 1},
+		{"mcp__x__y", "q", []string{"mcp__x__y"}, 0},
+	} {
+		rungs := SuggestLadder(c.tool, c.subject)
+		var got []string
+		for _, r := range rungs {
+			got = append(got, r.String())
+		}
+		if len(got) != len(c.want) {
+			t.Errorf("ladder(%s, %q) = %v, want %v", c.tool, c.subject, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("ladder(%s, %q) = %v, want %v", c.tool, c.subject, got, c.want)
+				break
+			}
+		}
+		if d := DefaultRung(rungs, Suggest(c.tool, c.subject)); d != c.def {
+			t.Errorf("default rung for (%s, %q) = %d (%v), want %d", c.tool, c.subject, d, got, c.def)
+		}
+	}
+}
+
+// TestSuggestLadderFloor: the ladder never reaches a rule broader than
+// the tool's own name, never offers one at all for a command Suggest
+// refuses, and every rung it does offer matches the call it came from.
+func TestSuggestLadderFloor(t *testing.T) {
+	for _, subject := range []string{"cd /tmp && rm -rf x", "sudo rm -rf /", "sh -c 'rm x'", "ls | xargs rm", "echo `id`", "echo $(id)", "cd /tmp"} {
+		if rungs := SuggestLadder("bash", subject); rungs != nil {
+			t.Errorf("SuggestLadder(bash, %q) = %v, want no ladder", subject, rungs)
+		}
+		if r := Suggest("bash", subject); !r.IsZero() {
+			t.Errorf("Suggest(bash, %q) = %s, want no rule", subject, r)
+		}
+	}
+	for _, c := range []struct{ tool, subject string }{
+		{"bash", "go test ./internal/..."}, {"bash", "make"}, {"bash", "ls -la /tmp"},
+		{"edit_file", "/home/u/p/internal/tui/x.go"}, {"read_file", "/etc/hosts"},
+		{"fetch_url", "https://pkg.go.dev/net/http"},
+	} {
+		for _, r := range SuggestLadder(c.tool, c.subject) {
+			if c.tool == "bash" && (r.Pattern == "" || r.Pattern == "*") {
+				t.Errorf("ladder(%s, %q) reaches %s: every bash call", c.tool, c.subject, r)
+			}
+			if !r.matches(c.tool, c.subject) {
+				t.Errorf("rung %s does not match the call it came from (%s, %q)", r, c.tool, c.subject)
+			}
+		}
+	}
+	// The tree rung stops one level above the file's directory: it never
+	// climbs to the root.
+	for _, r := range SuggestLadder("edit_file", "/a/b.go") {
+		if r.Pattern == "/*" {
+			t.Fatal("ladder reached the root directory")
+		}
+	}
+}

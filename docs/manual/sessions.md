@@ -39,6 +39,67 @@ janetcode --bg "fix the tests"
 Inside the TUI, `/resume` lists the sessions for the directory and
 `/resume 2` reopens one.
 
+## Rewinding a session
+
+`/undo turn n` (see
+[the interface manual](interface.md#going-back-to-before-a-turn-undo-turn-n))
+puts the work tree back to before turn n and rewinds the conversation
+with it. The session file is where that happens, and the rule the file
+lives by does not bend for it: the log is append-only, so nothing is cut
+out. The dropped turns' events stay on disk exactly as they were
+written. What is appended is one more record — a replacement event that
+shadows the surface events of those turns and stands in their place,
+carrying the note the model sees.
+
+That is the same mechanism compaction uses: a summary event replaces the
+messages it summarises rather than deleting them. Resuming a session
+folds the log into the model-visible conversation by following those
+replacements, so a `--resume` after a rewind sees the rewound
+conversation and not the dropped turns — and the live session sees it
+for the same reason, because the rewind re-folds the log rather than
+editing the messages in memory by hand. `janetcode --events <id>` still
+shows every event, dropped turns included: the file remains the full
+record of what happened, including the fact that it was rewound.
+
+Turn numbers are not reused. The log keeps the dropped turns, so the
+next turn carries on after the highest number the session has ever
+written rather than starting again at n — two different turns keyed the
+same number is exactly what a resume refuses to produce.
+
+A compaction between turn n and now is the one case a rewind declines:
+the summary replaced the messages that marked where turn n began, so
+that point can no longer be located in the conversation. The files go
+back anyway and the preview says why the conversation did not.
+
+## Fork lineage in the listing
+
+Because `/fork` records which session a copy came from, every listing of
+sessions — the `/resume` picker, `janetcode --sessions`, the web UI's
+session list — draws the branches instead of a flat run of rows:
+
+```
+20250915-101500-ab12  the parser rewrite
+└ 20250915-112000-cd34  the lexer branch
+  └ 20250915-131000-ef56  the lexer branch, without the cache
+20250915-090000-7788  a stray fork   (fork of 20250901-120000-9900, not listed here)
+```
+
+The rules are the same everywhere:
+
+- Sessions that are nobody's fork keep the order the listing already
+  used — most recent activity first, settled ones last. A fork follows
+  the session it came from, and forks of one session keep that same
+  order among themselves.
+- The session you are in is marked `current`, a settled one `settled`.
+- Indenting stops after three levels: a longer chain is still listed, at
+  that depth, with a `…` instead of the branch mark.
+- A fork whose parent is not in this listing — deleted, or made in
+  another directory — is listed at top level and says where its parent
+  went, rather than looking like a conversation that started on its own.
+- Typing in the `/resume` picker filters the list and keeps a match's
+  parents on screen, marked `parent of a match`, so a fork is never shown
+  adrift from the conversation it branched off.
+
 When the context grows past `compact_at` tokens (80k by default: far below
 any modern window, because a smaller working context is cheaper, caches
 better and is attended to better), or the model reports the prompt is too

@@ -20,6 +20,7 @@ janetcode --init     # writes ~/.config/janetcode/config.json
   "memory": true,
   "hints": true,
   "proof_notes": true,
+  "sandbox": "off",
   "theme": "auto",
   "providers": {
     "anthropic":  { "type": "anthropic", "api_key": "sk-ant-..." },
@@ -47,9 +48,70 @@ Environment: `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `OPENAI_API_KEY`,
 `JANETCODE_MODEL`, `JANETCODE_EFFORT`, `JANETCODE_THEME`. Keys from the
 environment are never copied into the config file.
 
-`effort` (Anthropic only) is `low`, `medium`, `high`, `xhigh` or `max`.
+`effort` is how hard the model thinks: `low`, `medium`, `high`, `xhigh` or
+`max`, in that order, or absent for whatever the provider does on its own.
+Anything else is a config error, both in the file and through `/config`.
+Only Anthropic models take a reasoning tier today; with another provider
+the setting is remembered and not sent, and `/effort` says so.
+
+It is a live setting. `/effort <tier>` changes the running session from
+the next model call onward and writes nothing; `/config effort=<tier>`
+does the same **and** saves it here for the next session, the way the
+other live keys (`model`, `max_tokens`, `compact_at`, `auto_approve`) do.
+`--effort` and `JANETCODE_EFFORT` set the tier a session starts at. A
+model that refuses the tier asked for is served the one below it, and the
+session shows any tier above the default on its status line.
+
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
+
+### The sandbox key
+
+`sandbox` names the sandbox profile a session in this project starts
+under, so commands are confined without anyone having to remember
+`/sandbox`:
+
+```json
+{ "sandbox": "workspace" }
+```
+
+`off` (the default, and what an absent key means) starts unsandboxed;
+`workspace`, `read-only` and `strict` are the profiles described in
+[The sandbox](interface.md#the-sandbox), which also lists what each
+backend — docker, macOS seatbelt, Linux Landlock — can and cannot
+enforce. A value that is not one of those is a config error, not a
+session that quietly is not sandboxed.
+
+`--sandbox` on the command line turns one on without naming a profile
+and means `workspace`; a config file that names another profile keeps
+it. `/sandbox <profile>` changes it for one session, and `/config
+sandbox=strict` changes the project default and what a running sandbox
+enforces — it does not turn a sandbox on, because a backend can fail and
+`/sandbox` is where you would want to hear about it.
+
+### The protected_paths key
+
+Some files are not work: a shell startup file, a git hook, an `.npmrc`,
+a key under `.ssh`. A write to one of those changes what happens the
+next time you open a terminal, commit, publish or connect — long after
+the session ended. They are protected: writing one always asks, under
+`/edits`, `/auto`, a saved allow rule and `--yolo` alike, and the prompt
+says which path it is asking about ("protected path: ~/.zshenv"). See
+[Protected paths](interface.md#protected-paths) for the whole set and
+the reasoning.
+
+`protected_paths` adds to that set:
+
+```json
+{ "protected_paths": ["~/work/deploy/**", "/srv/secrets.env"] }
+```
+
+Entries are **appended** to the built-in list and never replace it, so
+this key can only make a session ask about more, never about less. A
+pattern is matched the way a permission rule is — `*` spans anything,
+including `/` — a leading `~` is your home directory, and a pattern
+ending in `/*` or `/**` covers the directory itself as well as what is
+in it.
 
 ### What janetcode records about you
 
@@ -240,6 +302,19 @@ model, with the most specific one last. Without a repository only the
 working directory is read: there is no boundary to walk up to, and
 walking to the filesystem root would read whatever a home directory
 happens to hold.
+
+Nobody writes that file, because writing it from a blank page means
+deciding what a stranger needs to know. `/init` in a session, or
+`janetcode --init-project` on the command line, writes a starter one from
+what the repository already shows: the languages by file count, the
+commands it declares (`Makefile` targets, `package.json` scripts, `go.mod`,
+`Cargo.toml`, a Python project's files, and `.janetcode/verify.json` if it
+is there), the top-level layout, and a `Conventions` heading left empty
+because that part is yours. It is a page, not a dump — everything in it is
+paid for on every request. An existing `JANETCODE.md` is never overwritten:
+`/init force` replaces it, and the command line refuses and says so. When
+`AGENTS.md` or `CLAUDE.md` is already there, the generated file names it
+and its headings rather than repeating what it says.
 
 A line that is nothing but `@path` pulls another file in where it stands,
 which is how one standard is kept in one place and referred to from

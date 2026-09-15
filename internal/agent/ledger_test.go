@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -252,5 +253,77 @@ func TestPromptRuleIgnoresWorkspaceCdAndRefusesCompoundCommands(t *testing.T) {
 	}
 	if tally := a.Ledger.Get(""); tally.Allowed != 0 {
 		t.Fatalf("a call with no rule was recorded under an empty shape: %+v", tally)
+	}
+}
+
+// rungApprover answers every prompt with AllowAlways, saving the rung at
+// pick(call) instead of the one the prompt proposed.
+type rungApprover struct {
+	pick  func(ToolCall) int
+	calls []ToolCall
+}
+
+func (r *rungApprover) Approve(ctx context.Context, call ToolCall) (Decision, error) {
+	d, _, _, err := r.ApproveWithRule(ctx, call)
+	return d, err
+}
+
+func (r *rungApprover) ApproveWithReason(ctx context.Context, call ToolCall) (Decision, string, error) {
+	d, reason, _, err := r.ApproveWithRule(ctx, call)
+	return d, reason, err
+}
+
+func (r *rungApprover) ApproveWithRule(ctx context.Context, call ToolCall) (Decision, string, string, error) {
+	r.calls = append(r.calls, call)
+	i := r.pick(call)
+	if i < 0 || i >= len(call.Rungs) {
+		return AllowAlways, "", "", nil
+	}
+	return AllowAlways, "", call.Rungs[i].Rule, nil
+}
+
+// TestLedgerCountsTheRungTheUserChose: saving a rung other than the one
+// the prompt proposed saves that rule, tallies it under that rule, and
+// leaves the default rung uncounted — so the "approved N×" note beside a
+// rule always counts that same rule.
+func TestLedgerCountsTheRungTheUserChose(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"docs/a.md","content":"1"}`),
+		text("done"),
+	}}
+	ap := &rungApprover{pick: func(ToolCall) int { return 0 }} // the exact path
+	a, _ := newAgent(t, f, ap)
+	a.Ledger = perm.OpenLedger(t.TempDir(), "proj")
+	var saved []string
+	a.SaveRule = func(r perm.Rule) error { saved = append(saved, r.String()); return nil }
+	if err := a.Run(context.Background(), "write", nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(ap.calls) != 1 || len(ap.calls[0].Rungs) != 2 || ap.calls[0].RuleIndex != 1 {
+		t.Fatalf("prompt = %+v", ap.calls)
+	}
+	if len(saved) != 1 || saved[0] != "write_file(docs/a.md)" {
+		t.Fatalf("saved = %v", saved)
+	}
+	if tally := a.Ledger.Get("write_file(docs/a.md)"); tally.Allowed != 1 || tally.Denied != 0 {
+		t.Fatalf("chosen rung tally = %+v", tally)
+	}
+	if tally := a.Ledger.Get("write_file(docs/*)"); tally.Allowed != 0 {
+		t.Fatalf("the rung the user moved off was counted anyway: %+v", tally)
+	}
+	// What the ledger counted is what it would go on to propose, once the
+	// shape has been approved often enough for /permissions to mention it.
+	for i := 1; i < perm.LearnAfter; i++ {
+		a.Ledger.Record("write_file(docs/a.md)", true)
+	}
+	if c := a.Ledger.Candidates(perm.LearnAfter); len(c) != 1 || c[0].Rule != "write_file(docs/a.md)" || c[0].Allowed != perm.LearnAfter {
+		t.Fatalf("candidates = %+v", c)
+	}
+	if lines := perm.CandidateLines(a.Ledger, perm.Rules{}); len(lines) != 1 || lines[0] != fmt.Sprintf("/permissions allow write_file(docs/a.md) (approved %d×, never refused)", perm.LearnAfter) {
+		t.Fatalf("candidate lines = %v", lines)
+	}
+	// It is already saved, so /permissions stops proposing it.
+	if lines := perm.CandidateLines(a.Ledger, a.RulesSnapshot()); len(lines) != 0 {
+		t.Fatalf("a saved rule is still proposed: %v", lines)
 	}
 }

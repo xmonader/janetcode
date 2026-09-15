@@ -225,12 +225,58 @@ func (m *Manager) abs(path string) string {
 	if filepath.IsAbs(path) {
 		return filepath.Clean(path)
 	}
-	return filepath.Join(m.Root, path)
+	return filepath.Join(m.root(), path)
+}
+
+// root is the project directory. It is read under the lock because /cd
+// moves it while queries may be in flight.
+func (m *Manager) root() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.Root
+}
+
+// Reroot points the manager at another project and reports the servers it
+// had to stop to do it. A language server cannot be told to change its
+// root — the protocol has no message for it, and its index was built for
+// the tree it was started on — so a running one is stopped here and the
+// next query starts a fresh one in the new tree. The per-server failure
+// memory is cleared with it: a server that is missing for a Go project may
+// be exactly the one the next project needs.
+func (m *Manager) Reroot(dir string) []string {
+	if m == nil {
+		return nil
+	}
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return nil
+	}
+	clients := m.clients
+	m.clients = map[string]*client{}
+	m.failed = map[string]string{}
+	m.restarts = map[string]int{}
+	m.Root = dir
+	stop := m.stop
+	// A fresh lifetime, because the old one is about to be cancelled to
+	// end any handshake still in flight against the directory we left.
+	m.life, m.stop = context.WithCancel(context.Background())
+	m.mu.Unlock()
+	if stop != nil {
+		stop()
+	}
+	names := make([]string, 0, len(clients))
+	for name, c := range clients {
+		names = append(names, name)
+		c.close()
+	}
+	sort.Strings(names)
+	return names
 }
 
 func (m *Manager) format(abs string, ds []Diagnostic) []string {
 	rel := abs
-	if r, err := filepath.Rel(m.Root, abs); err == nil && !strings.HasPrefix(r, "..") {
+	if r, err := filepath.Rel(m.root(), abs); err == nil && !strings.HasPrefix(r, "..") {
 		rel = r
 	}
 	out := make([]string, 0, len(ds))
@@ -299,7 +345,7 @@ func (m *Manager) clientFor(ctx context.Context, path string) (*client, error) {
 	if life == nil {
 		life = context.Background()
 	}
-	c, err := start(life, m.Root, command, m.Log)
+	c, err := start(life, m.root(), command, m.Log)
 
 	m.mu.Lock()
 	delete(m.starting, name)

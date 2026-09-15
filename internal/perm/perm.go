@@ -1,8 +1,11 @@
 // Package perm holds persistent permission rules: which tool calls run
-// without asking and which are refused outright. A rule is "tool" or
-// "tool(pattern)", where the pattern is matched against the call's
-// subject: the command for bash, the path for file tools, the URL for
-// fetch_url. Deny rules win over allow rules; anything unmatched asks.
+// without asking and which are refused outright. A rule is "tool",
+// "tool(pattern)" or "tool(param:pattern, ...)". A bare pattern is
+// matched against the call's subject: the command for bash, the path for
+// file tools, the URL for fetch_url. A parameter clause names a field of
+// the call instead (see param.go), and every clause of a rule must match.
+// Deny rules win over allow rules, a hard deny (see HardDeny) wins over
+// both, and anything unmatched asks.
 package perm
 
 import (
@@ -42,7 +45,28 @@ func Parse(s string) (Rule, error) {
 	if !strings.HasSuffix(s, ")") || i == 0 {
 		return Rule{}, fmt.Errorf("bad rule %q: want tool(pattern)", s)
 	}
-	return Rule{Tool: strings.TrimSpace(s[:i]), Pattern: strings.TrimSpace(s[i+1 : len(s)-1])}, nil
+	r := Rule{Tool: strings.TrimSpace(s[:i]), Pattern: strings.TrimSpace(s[i+1 : len(s)-1])}
+	// A parameter rule is validated here rather than at match time, so a
+	// typo is reported to whoever wrote it instead of quietly matching
+	// nothing. Its spacing is canonicalised so the same rule written two
+	// ways is one rule to Add, to the ledger and to the eye.
+	ps, isParam, err := Params(r.Pattern)
+	if err != nil {
+		return Rule{}, err
+	}
+	if isParam {
+		r.Pattern = FormatParams(ps)
+	}
+	return r, nil
+}
+
+// FormatParams writes parameter clauses the canonical way.
+func FormatParams(ps []Param) string {
+	parts := make([]string, 0, len(ps))
+	for _, p := range ps {
+		parts = append(parts, p.Name+":"+p.Pattern)
+	}
+	return strings.Join(parts, ", ")
 }
 
 // IsZero reports whether r is no rule at all: what Suggest returns for a
@@ -86,19 +110,49 @@ func ParseAll(ss []string) ([]Rule, error) {
 	return out, nil
 }
 
-// Decide matches a call. Deny wins; the matching rule is returned.
+// Call is one tool call as the rules see it: the tool's name, the subject
+// a bare pattern is matched against (see Subject), and the raw input a
+// parameter clause reads its fields from. Root is the workspace, used by
+// the checks that judge what a command would write.
+//
+// A Call with no Input still matches every rule that existed before
+// parameters did; a parameter rule simply never matches one, because
+// nothing was given for it to look at.
+type Call struct {
+	Tool    string
+	Subject string
+	Input   json.RawMessage
+	Root    string
+}
+
+// Decide matches a call by tool and subject alone. Deny wins; the
+// matching rule is returned. Parameter rules cannot match here — use
+// DecideCall, which carries the call's input.
 func (rs Rules) Decide(tool, subject string) (Verdict, Rule) {
+	v, r, _ := rs.DecideCall(Call{Tool: tool, Subject: subject})
+	return v, r
+}
+
+// DecideCall matches a whole call. The order is the order of authority:
+// a hard deny (see HardDeny) refuses whatever the rules say and comes
+// back with the reason; then deny rules, so a deny always outranks an
+// allow however the two were written; then allow rules; anything
+// unmatched asks.
+func (rs Rules) DecideCall(c Call) (Verdict, Rule, string) {
+	if why := HardDeny(c); why != "" {
+		return Denied, Rule{Tool: c.Tool}, why
+	}
 	for _, r := range rs.Deny {
-		if r.matches(tool, subject) {
-			return Denied, r
+		if r.matchesCall(c) {
+			return Denied, r, ""
 		}
 	}
 	for _, r := range rs.Allow {
-		if r.matches(tool, subject) {
-			return Allowed, r
+		if r.matchesCall(c) {
+			return Allowed, r, ""
 		}
 	}
-	return Ask, Rule{}
+	return Ask, Rule{}, ""
 }
 
 // Add appends a rule unless an equal one exists.
@@ -139,10 +193,43 @@ func Merge(a, b Rules) Rules {
 }
 
 func (r Rule) matches(tool, subject string) bool {
-	if r.Tool != tool && r.Tool != "*" {
+	return r.matchesCall(Call{Tool: tool, Subject: subject})
+}
+
+// matchesCall is the whole matcher: the tool has to be the call's (or
+// "*"), and then either the bare pattern matches the subject or every
+// parameter clause matches its field.
+func (r Rule) matchesCall(c Call) bool {
+	if r.Tool != c.Tool && r.Tool != "*" {
 		return false
 	}
-	return r.Pattern == "" || Match(r.Pattern, subject)
+	if r.Pattern == "" {
+		return true
+	}
+	ps, isParam, err := Params(r.Pattern)
+	if err != nil || !isParam {
+		return Match(r.Pattern, c.Subject)
+	}
+	if len(c.Input) == 0 {
+		return false
+	}
+	for _, p := range ps {
+		if !matchAny(p.Pattern, FieldValues(c.Tool, c.Input, p.Name)) {
+			return false
+		}
+	}
+	return true
+}
+
+// matchAny reports whether the pattern matches any of a field's values;
+// a field that is absent has none, so a clause naming it never matches.
+func matchAny(pattern string, vals []string) bool {
+	for _, v := range vals {
+		if Match(pattern, v) {
+			return true
+		}
+	}
+	return false
 }
 
 // Match is a wildcard match where * spans anything (including / and
@@ -242,40 +329,143 @@ func SubjectIn(tool string, input json.RawMessage, root string) string {
 // or one led by a builtin or a wrapper that runs something else (cd, sudo,
 // sh -c, env, xargs, ...) — it returns the zero Rule: a pattern ending in
 // * would allow whatever follows the leading words (see Match).
+//
+// Suggest is one rung of SuggestLadder: the one a front-end starts on.
 func Suggest(tool, subject string) Rule {
+	rungs, def := ladder(tool, subject)
+	if len(rungs) == 0 {
+		return Rule{}
+	}
+	return rungs[def]
+}
+
+// SuggestLadder is the range of rules the user may choose between when
+// saving one for a call, ordered narrowest first: for
+// `go test ./internal/...` it is bash(go test ./internal/...),
+// bash(go test *), bash(go *); for a file tool the exact path, its
+// directory, then the directory above. The widest rung is still narrower
+// than the tool itself, so no rung ever amounts to bash(*).
+//
+// A call Suggest refuses to capture (see above) has no ladder either:
+// widening is only offered where a rule was safe to propose at all.
+func SuggestLadder(tool, subject string) []Rule {
+	rungs, _ := ladder(tool, subject)
+	return rungs
+}
+
+// DefaultRung is the index in rungs of the rule Suggest proposes, or 0
+// when it is not among them. Front-ends start the user there, so that
+// answering without moving saves exactly what it used to.
+func DefaultRung(rungs []Rule, r Rule) int {
+	for i, e := range rungs {
+		if e == r {
+			return i
+		}
+	}
+	return 0
+}
+
+// ladder builds the rungs and says which one is the default.
+func ladder(tool, subject string) ([]Rule, int) {
 	switch tool {
 	case "bash":
-		words := strings.Fields(subject)
-		if len(words) == 0 {
-			return Rule{Tool: tool}
-		}
-		// 2>&1 joins two outputs; it is not a second command.
-		if bare := strings.ReplaceAll(subject, "2>&1", ""); strings.ContainsAny(bare, ";|&`\n") || strings.Contains(bare, "$(") || notCapturable[words[0]] {
-			return Rule{}
-		}
-		if len(words) == 1 {
-			return Rule{Tool: tool, Pattern: words[0]}
-		}
-		// Runners take a subcommand that decides what the command does, so
-		// the rule keeps it: "go test *" rather than "go *".
-		n := 1
-		if runners[words[0]] && !strings.HasPrefix(words[1], "-") && isWordy(words[1]) {
-			n = 2
-		}
-		return Rule{Tool: tool, Pattern: strings.Join(words[:n], " ") + " *"}
+		return bashLadder(tool, subject)
 	case "fetch_url":
-		if u, err := url.Parse(subject); err == nil && u.Host != "" {
-			return Rule{Tool: tool, Pattern: u.Scheme + "://" + u.Host + "/*"}
-		}
-		return Rule{Tool: tool}
+		return urlLadder(tool, subject)
 	case "read_file", "write_file", "edit_file", "list_dir", "glob", "grep":
-		dir := filepath.Dir(subject)
-		if dir == "." || dir == "/" || subject == "" {
-			return Rule{Tool: tool}
-		}
-		return Rule{Tool: tool, Pattern: dir + "/*"}
+		return pathLadder(tool, subject)
 	}
-	return Rule{Tool: tool}
+	return []Rule{{Tool: tool}}, 0
+}
+
+func bashLadder(tool, subject string) ([]Rule, int) {
+	words := strings.Fields(subject)
+	if len(words) == 0 {
+		return []Rule{{Tool: tool}}, 0
+	}
+	// 2>&1 joins two outputs; it is not a second command.
+	if bare := strings.ReplaceAll(subject, "2>&1", ""); strings.ContainsAny(bare, ";|&`\n") || strings.Contains(bare, "$(") || notCapturable[words[0]] {
+		return nil, 0
+	}
+	// The exact command is the narrowest rung: no wildcard at all.
+	rungs := []Rule{{Tool: tool, Pattern: strings.Join(words, " ")}}
+	// Runners take a subcommand that decides what the command does, so
+	// there is a rung that keeps it — "go test *" — above which sits the
+	// runner alone, "go *". The floor is the leading word: never bash
+	// itself, which would be bash(*).
+	if len(words) > 1 && runners[words[0]] && !strings.HasPrefix(words[1], "-") && isWordy(words[1]) {
+		rungs = append(rungs, Rule{Tool: tool, Pattern: words[0] + " " + words[1] + " *"})
+	}
+	// A one-word command has nowhere to widen to: "make *" does not even
+	// match `make`, and bash alone is bash(*).
+	if len(words) == 1 {
+		return rungs, 0
+	}
+	rungs = append(rungs, Rule{Tool: tool, Pattern: words[0] + " *"})
+	rungs = dedupe(rungs)
+	// The default is what Suggest has always proposed: the leading words
+	// plus *, which is the widest rung unless the subcommand made one.
+	def := len(rungs) - 1
+	if len(rungs) > 2 {
+		def = len(rungs) - 2
+	}
+	return rungs, def
+}
+
+func urlLadder(tool, subject string) ([]Rule, int) {
+	u, err := url.Parse(subject)
+	if err != nil || u.Host == "" {
+		return []Rule{{Tool: tool}}, 0
+	}
+	host := u.Scheme + "://" + u.Host
+	rungs := []Rule{{Tool: tool, Pattern: subject}}
+	// One rung for the section of the site the page is in, so trusting
+	// one host's docs does not have to mean trusting the whole host.
+	if seg := strings.SplitN(strings.TrimPrefix(u.Path, "/"), "/", 2)[0]; seg != "" {
+		rungs = append(rungs, Rule{Tool: tool, Pattern: host + "/" + seg + "/*"})
+	}
+	rungs = append(rungs, Rule{Tool: tool, Pattern: host + "/*"})
+	rungs = dedupe(rungs)
+	return rungs, len(rungs) - 1
+}
+
+func pathLadder(tool, subject string) ([]Rule, int) {
+	if subject == "" || subject == "." {
+		return []Rule{{Tool: tool}}, 0
+	}
+	rungs := []Rule{{Tool: tool, Pattern: subject}}
+	dir := filepath.Dir(subject)
+	if dir == "." || dir == "/" {
+		// Nothing to widen to but the tool itself, which is what
+		// Suggest has always proposed here.
+		return append(rungs, Rule{Tool: tool}), 1
+	}
+	rungs = append(rungs, Rule{Tool: tool, Pattern: dir + "/*"})
+	// One level above the directory is the tree the file sits in. Higher
+	// than that is guesswork, and the root is never a rung.
+	if up := filepath.Dir(dir); up != "." && up != "/" && up != dir {
+		rungs = append(rungs, Rule{Tool: tool, Pattern: up + "/*"})
+	}
+	return dedupe(rungs), 1
+}
+
+// dedupe drops rungs equal to one already in the list, keeping order: a
+// one-word command and a path with a single parent both collapse.
+func dedupe(rungs []Rule) []Rule {
+	out := rungs[:0:0]
+	for _, r := range rungs {
+		seen := false
+		for _, e := range out {
+			if e == r {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // notCapturable are leading words a rule must not be made of: navigation

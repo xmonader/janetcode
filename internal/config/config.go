@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/xmonader/janetcode/internal/lsp"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/perm"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/theme"
 	"github.com/xmonader/janetcode/internal/weburl"
 	"github.com/xmonader/janetcode/internal/xdg"
@@ -106,6 +108,14 @@ type Config struct {
 	// Project rules go in <project>/.janetcode/permissions.json; its allow
 	// rules need a one-time approval, its deny rules always apply.
 	Permissions perm.File `json:"permissions,omitempty"`
+	// ProtectedPaths are extra path patterns a write always asks about,
+	// whatever the mode or the rules say: they are appended to
+	// perm.DefaultProtectedPaths (shell startup files, .git/config and
+	// hooks, .npmrc, .ssh, cloud credentials, janetcode's permission
+	// record) and never replace them. A pattern is matched the way a
+	// permission rule is — * spans anything, including separators — and a
+	// leading ~ is the home directory: "~/work/deploy/**".
+	ProtectedPaths []string `json:"protected_paths,omitempty"`
 	// EmbeddingModel, when set, is asked of the provider's /embeddings
 	// endpoint so memory recall ranks by meaning, not just words.
 	EmbeddingModel string `json:"embedding_model,omitempty"`
@@ -142,6 +152,13 @@ type Config struct {
 	// nothing when a turn made no commit, so unlike Intent there is no
 	// per-request budget to weigh it against.
 	ProofNotes *bool `json:"proof_notes,omitempty"`
+	// Sandbox names the sandbox profile a session in this project starts
+	// under: "workspace", "read-only" or "strict" (see internal/shell's
+	// profile catalogue). Empty, or "off", is the default: no sandbox,
+	// bash runs on the workspace host. A project that sets it has every
+	// session start sandboxed, and /sandbox still changes it for one
+	// session.
+	Sandbox string `json:"sandbox,omitempty"`
 	// RouteCheap is an experimental, off-by-default model name: when set,
 	// a turn's mechanical steps (reads, listings, greps, a check that
 	// already passed) are sent to it instead of Model, which stays on
@@ -243,6 +260,23 @@ var ErrNoCredentials = errors.New("no API key")
 var ErrBadConfig = errors.New("bad configuration")
 
 // badf builds an ErrBadConfig error with a message of its own.
+// Keys are the config file's top-level keys, read off the struct's json
+// tags so the list cannot drift from what load accepts. The feature
+// catalogue documents them and the doctor uses them to recognise a
+// misspelling.
+func Keys() []string {
+	t := reflect.TypeOf(Config{})
+	out := make([]string, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ",")
+		if name == "" || name == "-" {
+			continue
+		}
+		out = append(out, name)
+	}
+	return out
+}
+
 func badf(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrBadConfig, fmt.Sprintf(format, args...))
 }
@@ -494,10 +528,8 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	default:
 		return nil, badf("provider %q has type %q (want anthropic or openai)", cfg.Provider, active.Type)
 	}
-	switch cfg.Effort {
-	case "", "low", "medium", "high", "xhigh", "max":
-	default:
-		return nil, badf("invalid effort %q (want low, medium, high, xhigh or max)", cfg.Effort)
+	if !llm.ValidEffort(cfg.Effort) {
+		return nil, badf("invalid effort %q (want %s)", cfg.Effort, llm.EffortList())
 	}
 	// Build the theme set from the builtins, the config "themes" object and
 	// any theme files in <cfgDir>/themes. A bad user theme is a config
@@ -543,7 +575,23 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if err := validatePrices(cfg.Prices); err != nil {
 		return nil, badf("%s: %v", path, err)
 	}
+	if err := validateSandbox(cfg.Sandbox); err != nil {
+		return nil, badf("%s: %v", path, err)
+	}
 	return cfg, nil
+}
+
+// validateSandbox accepts an empty value, "off", or a profile name the
+// shell package knows. A typo here would otherwise be discovered as a
+// session that quietly is not sandboxed.
+func validateSandbox(name string) error {
+	if name == "" || name == "off" {
+		return nil
+	}
+	if _, ok := shell.FindProfile(name); !ok {
+		return fmt.Errorf("sandbox %q is not a profile (want off, %s)", name, strings.Join(shell.ProfileNames(), ", "))
+	}
+	return nil
 }
 
 // validatePrices rejects a price table that cannot mean what it says. A

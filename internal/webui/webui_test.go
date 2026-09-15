@@ -19,6 +19,7 @@ import (
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/flavor"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -88,6 +89,7 @@ func testApp(t *testing.T, responses ...*llm.Response) (*httptest.Server, *agent
 		Tools:    tool.NewRegistry(tool.WriteFile{Root: root}),
 		Model:    "m",
 		Log:      sess,
+		Root:     root,
 	}
 	h := testHandler(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"})
 	return httptest.NewServer(h), ag
@@ -645,5 +647,186 @@ func TestColorTokensUnchanged(t *testing.T) {
 		if !bytes.Contains(css, []byte(tok)) {
 			t.Errorf("stylesheet lost %q", tok)
 		}
+	}
+}
+
+// TestPermissionLadderPayloadAndChoice: the card is given the whole
+// ladder of rules and which one to start on, and "always" saves the rung
+// the browser sends back rather than the one the server proposed.
+func TestPermissionLadderPayloadAndChoice(t *testing.T) {
+	ts, ag := testApp(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"docs/n.txt","content":"x\n"}`)},
+		}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "written"), StopReason: llm.StopEndTurn},
+	)
+	defer ts.Close()
+	// SaveRule runs on the turn's goroutine while the test reads what it
+	// saved, so both go through this mutex.
+	var mu sync.Mutex
+	var saved []string
+	ag.SaveRule = func(r perm.Rule) error {
+		mu.Lock()
+		defer mu.Unlock()
+		saved = append(saved, r.String())
+		return nil
+	}
+	savedRules := func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]string(nil), saved...)
+	}
+
+	body, _ := json.Marshal(map[string]string{"text": "make it"})
+	pr, err := http.Post(ts.URL+"/api/prompt", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr.Body.Close()
+
+	var p permPayload
+	deadline := time.Now().Add(4 * time.Second)
+	for time.Now().Before(deadline) {
+		res, err := http.Get(ts.URL + "/api/state")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var snap struct {
+			Permission *permPayload `json:"permission"`
+		}
+		err = json.NewDecoder(res.Body).Decode(&snap)
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if snap.Permission != nil && snap.Permission.Name == "write_file" {
+			p = *snap.Permission
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if p.Name != "write_file" {
+		t.Fatal("no permission prompt")
+	}
+	if len(p.Rungs) != 2 || p.Rungs[0].Rule != "write_file(docs/n.txt)" || p.Rungs[1].Rule != "write_file(docs/*)" || p.RuleIndex != 1 {
+		t.Fatalf("rungs = %+v index = %d", p.Rungs, p.RuleIndex)
+	}
+	if p.Rule != p.Rungs[p.RuleIndex].Rule {
+		t.Fatalf("rule %q is not the rung it starts on: %+v", p.Rule, p.Rungs)
+	}
+	// The narrowest rung, which is not the one the server proposed.
+	dec, _ := json.Marshal(map[string]string{"decision": "always", "rule": p.Rungs[0].Rule})
+	ar, err := http.Post(ts.URL+"/api/permission", "application/json", bytes.NewReader(dec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ar.Body.Close()
+	if ar.StatusCode != 200 {
+		t.Fatalf("always %d", ar.StatusCode)
+	}
+	for time.Now().Before(deadline) && len(savedRules()) == 0 {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if got := savedRules(); len(got) != 1 || got[0] != "write_file(docs/n.txt)" {
+		t.Fatalf("saved = %v, want the rung the browser chose", got)
+	}
+	if v, r := ag.RulesSnapshot().Decide("write_file", "docs/n.txt"); v != perm.Allowed || r.String() != "write_file(docs/n.txt)" {
+		t.Fatalf("rules = %v %s", v, r)
+	}
+	// The turn writes the file after the answer, so the test waits for it
+	// to finish: otherwise the cleanup of the temporary root races the
+	// write.
+	for done := false; !done && time.Now().Before(deadline); {
+		res, err := http.Get(ts.URL + "/api/state")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var snap struct {
+			Entries []entry `json:"entries"`
+		}
+		err = json.NewDecoder(res.Body).Decode(&snap)
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range snap.Entries {
+			if e.Kind == "assistant" && strings.Contains(e.Text, "written") {
+				done = true
+			}
+		}
+		if !done {
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+}
+
+// TestWebSessionListCarriesForkLineage: the web UI's session list gets
+// the same shape the terminal picker draws — a fork under the session it
+// was copied from, and a fork whose parent is not listed saying so.
+func TestWebSessionListCarriesForkLineage(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	root := t.TempDir()
+	dir, err := session.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(s *session.Session, text string) {
+		msg := llm.Message{Role: llm.RoleUser, Blocks: []llm.Block{{Text: text}}}
+		if _, err := s.Append(session.Event{Type: session.TypeUserMessage, Message: &msg}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	parent, err := session.New(dir, root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(parent, "the original")
+	child, err := session.Fork(dir, parent, "the fork")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stray, err := session.New(dir, root, "fake", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(stray, "a stray fork")
+	stray.Meta.ForkOf = "20000101-000000-dead"
+	if err := stray.SetTitle("a stray fork"); err != nil {
+		t.Fatal(err)
+	}
+
+	ag := &agent.Agent{Provider: &scripted{}, Model: "m", Log: parent}
+	ts := httptest.NewServer(testHandler(Options{Agent: ag, Session: parent, Cwd: root, Version: "test"}))
+	defer ts.Close()
+	res, err := http.Get(ts.URL + "/api/sessions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var rows []struct {
+		ID      string `json:"id"`
+		Depth   int    `json:"depth"`
+		Prefix  string `json:"prefix"`
+		Note    string `json:"note"`
+		Current bool   `json:"current"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&rows); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]int{}
+	for i, r := range rows {
+		byID[r.ID] = i
+	}
+	pi, ci, si := byID[parent.Meta.ID], byID[child.Meta.ID], byID[stray.Meta.ID]
+	if rows[pi].Depth != 0 || !rows[pi].Current {
+		t.Fatalf("parent row = %+v", rows[pi])
+	}
+	if rows[ci].Depth != 1 || ci != pi+1 || rows[ci].Prefix == "" {
+		t.Fatalf("fork row = %+v (parent at %d, fork at %d)", rows[ci], pi, ci)
+	}
+	if rows[si].Depth != 0 || !strings.Contains(rows[si].Note, "not listed here") {
+		t.Fatalf("stray row = %+v", rows[si])
 	}
 }

@@ -28,6 +28,7 @@ type Settings struct {
 	Price         *llm.Price
 	ContextWindow int
 	MaxTokens     int
+	Effort        string
 	MaxIterations int
 	CompactAt     int
 	AutoApprove   bool
@@ -53,6 +54,7 @@ func (a *Agent) settingsLocked() Settings {
 		Price:         a.Price,
 		ContextWindow: a.ContextWindow,
 		MaxTokens:     a.MaxTokens,
+		Effort:        a.Effort,
 		MaxIterations: a.MaxIterations,
 		CompactAt:     a.CompactAt,
 		AutoApprove:   a.AutoApprove,
@@ -80,6 +82,7 @@ func (a *Agent) UpdateSettings(change func(*Settings)) {
 	a.Price = s.Price
 	a.ContextWindow = s.ContextWindow
 	a.MaxTokens = s.MaxTokens
+	a.Effort = s.Effort
 	a.MaxIterations = s.MaxIterations
 	a.CompactAt = s.CompactAt
 	a.AutoApprove = s.AutoApprove
@@ -193,11 +196,15 @@ func (a *Agent) MergeRules(extra perm.Rules) {
 	a.Rules = perm.Merge(a.Rules, extra)
 }
 
-// decideRule is Rules.Decide under the settings lock.
-func (a *Agent) decideRule(toolName, subject string) (perm.Verdict, perm.Rule) {
+// decideCall is Rules.DecideCall under the settings lock. The call
+// carries its input, so a parameter rule (see perm.Params) can read the
+// fields it names.
+// fields it names. The third result is a hard deny's reason, set only
+// when the call is refused whatever the rules say.
+func (a *Agent) decideCall(c perm.Call) (perm.Verdict, perm.Rule, string) {
 	a.settingsMu.Lock()
 	defer a.settingsMu.Unlock()
-	return a.Rules.Decide(toolName, subject)
+	return a.Rules.DecideCall(c)
 }
 
 // PinsSnapshot is a copy of the pinned notes, safe to take from any
@@ -235,4 +242,22 @@ func (a *Agent) Unpin(n int) bool {
 	}
 	a.Pins = slices.Delete(a.Pins, n-1, n)
 	return true
+}
+
+// SetRules replaces the permission rules wholesale, safe while a turn
+// runs: /cd rebuilds them from the configuration plus whatever the
+// directory it moved to allows, so the tree left behind stops granting
+// anything.
+func (a *Agent) SetRules(r perm.Rules) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	a.Rules = r
+}
+
+// SetLedger replaces the per-project record of how permission prompts
+// were answered. It is keyed by project, so /cd opens the new one.
+func (a *Agent) SetLedger(l *perm.Ledger) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	a.Ledger = l
 }

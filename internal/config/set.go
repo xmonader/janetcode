@@ -4,13 +4,15 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/llm"
 )
 
 // SettableKeys are the catalogued config.json keys /config can set.
 var SettableKeys = []string{
 	"thinking", "show_thinking", "lean_tools", "intent", "auto_approve",
 	"compact_at", "max_tokens", "max_iterations", "model", "effort",
-	"theme", "hints", "memory", "proof_notes", "route_cheap",
+	"theme", "hints", "memory", "proof_notes", "route_cheap", "sandbox",
 }
 
 // ApplyKV sets a catalogued config key on cfg and returns the stored value.
@@ -105,6 +107,12 @@ func ApplyKV(cfg *Config, key, val string) (any, error) {
 		cfg.Model = val
 		return val, nil
 	case "effort":
+		// Refused here as well as at load: a tier that only fails on the
+		// next start would be written to the file and silently ignored
+		// for the rest of the session that set it.
+		if !llm.ValidEffort(val) {
+			return nil, fmt.Errorf("effort wants one of %s (or empty for the provider's own)", llm.EffortList())
+		}
 		cfg.Effort = val
 		return val, nil
 	case "route_cheap":
@@ -114,6 +122,15 @@ func ApplyKV(cfg *Config, key, val string) (any, error) {
 		return val, nil
 	case "theme":
 		cfg.Theme = val
+		return val, nil
+	case "sandbox":
+		if val == "" {
+			val = "off"
+		}
+		if err := validateSandbox(val); err != nil {
+			return nil, err
+		}
+		cfg.Sandbox = val
 		return val, nil
 	default:
 		return nil, fmt.Errorf("unknown key %q", key)

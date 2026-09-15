@@ -115,6 +115,18 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 		return nil, refusal, nil
 	}
 	mustAsk := a.describeCall(ctx, t, u, call)
+	// A write to a protected path always asks, under /edits, /auto, an
+	// allow rule and --yolo alike, and the prompt says which path it is
+	// asking about. It rides on the warning line the prompt already has,
+	// so both front-ends show it without knowing about any of this.
+	if t.Mutating() {
+		if why := a.Protected.Reason(perm.Call{Tool: u.Name, Input: u.Input, Root: a.displayRoot()}); why != "" {
+			mustAsk = true
+			if !strings.Contains(call.Warning, why) {
+				call.Warning = strings.TrimPrefix(call.Warning+"; "+why, "; ")
+			}
+		}
+	}
 	// A locked accept-test file is refused like a denied permission rule:
 	// before anything asks the user, and with no way for AutoApprove or a
 	// saved rule to skip past it (see accept.Mode.Denial).
@@ -123,7 +135,13 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 			return nil, reason, nil
 		}
 	}
-	subject, verdict, rule := a.ruleDecision(u)
+	subject, verdict, rule, hard := a.ruleDecision(u)
+	// The hard deny tier: a command that destroys the machine is refused
+	// before the rules are consulted at all, so no allow rule and no mode
+	// can put it in front of the user as something to approve.
+	if hard != "" {
+		return nil, fmt.Sprintf("Refused: this command %s. janetcode never runs it, not even with auto-approve or an allow rule; do not retry it in another form.", hard), nil
+	}
 	if verdict == perm.Denied {
 		return nil, fmt.Sprintf("Denied by permission rule %s. Do not retry this call; choose another approach or ask the user to change the rule.", rule), nil
 	}
@@ -198,10 +216,15 @@ func (a *Agent) describeCall(ctx context.Context, t tool.Tool, u *llm.Block, cal
 
 // ruleDecision is what the persistent permission rules say about this
 // call, with the subject they matched on (which the ask step needs too).
-func (a *Agent) ruleDecision(u *llm.Block) (subject string, verdict perm.Verdict, rule perm.Rule) {
+func (a *Agent) ruleDecision(u *llm.Block) (subject string, verdict perm.Verdict, rule perm.Rule, hard string) {
 	subject = perm.SubjectIn(u.Name, u.Input, a.displayRoot())
-	verdict, rule = a.decideRule(u.Name, subject)
-	return subject, verdict, rule
+	verdict, rule, hard = a.decideCall(a.permCall(u.Name, u.Input, subject))
+	return subject, verdict, rule, hard
+}
+
+// permCall is one call as the permission rules see it.
+func (a *Agent) permCall(name string, input json.RawMessage, subject string) perm.Call {
+	return perm.Call{Tool: name, Subject: subject, Input: input, Root: a.displayRoot()}
 }
 
 // mustPrompt reports whether the user still has to be asked: only for a
@@ -234,21 +257,42 @@ func (a *Agent) ask(ctx context.Context, u *llm.Block, call *ToolCall, subject s
 	suggested := perm.Suggest(u.Name, subject)
 	shape := suggested.String()
 	call.Rule = shape
-	if tally := a.Ledger.Get(shape); shape != "" && tally.Allowed >= perm.LearnAfter && tally.Denied == 0 && !mustAsk && call.Warning == "" {
-		call.Learned = fmt.Sprintf("approved %d× before, never refused", tally.Allowed)
+	// The ladder the user may move along before saving: each rung with
+	// the ledger's note about that exact rule, so the "approved N×" note
+	// always counts the rule shown beside it.
+	rungs := perm.SuggestLadder(u.Name, subject)
+	call.RuleIndex = perm.DefaultRung(rungs, suggested)
+	call.Rungs = nil
+	for _, r := range rungs {
+		call.Rungs = append(call.Rungs, RuleRung{Rule: r.String(), Learned: a.learnedNote(r.String(), mustAsk, call.Warning)})
 	}
+	call.Learned = a.learnedNote(shape, mustAsk, call.Warning)
 	var (
 		d      Decision
 		reason string
+		chosen string
 		err    error
 	)
-	if ra, ok := a.Approver.(ReasonApprover); ok {
-		d, reason, err = ra.ApproveWithReason(ctx, *call)
-	} else {
+	switch ap := a.Approver.(type) {
+	case RuleApprover:
+		d, reason, chosen, err = ap.ApproveWithRule(ctx, *call)
+	case ReasonApprover:
+		d, reason, err = ap.ApproveWithReason(ctx, *call)
+	default:
 		d, err = a.Approver.Approve(ctx, *call)
 	}
 	if err != nil {
 		return 0, "", perm.Rule{}, err
+	}
+	// Saving a wider or narrower rung than the default makes that rung
+	// the shape this answer is about, so it is the one the ledger counts.
+	if d == AllowAlways && chosen != "" {
+		for _, r := range rungs {
+			if r.String() == chosen {
+				suggested, shape = r, chosen
+				break
+			}
+		}
 	}
 	// Recorded before applyDecision, which reports a refusal: the ledger
 	// has to see a refusal too, not only the allow variants.
@@ -260,6 +304,19 @@ func (a *Agent) ask(ctx context.Context, u *llm.Block, call *ToolCall, subject s
 		a.Ledger.MarkWarned(shape)
 	}
 	return d, reason, suggested, nil
+}
+
+// learnedNote is the ledger's note for one rule shape, or "" when the
+// shape is new, has ever been refused, or the prompt is unusual enough
+// that a "you have allowed this before" note would be misleading.
+func (a *Agent) learnedNote(shape string, mustAsk bool, warning string) string {
+	if shape == "" || mustAsk || warning != "" {
+		return ""
+	}
+	if t := a.Ledger.Get(shape); t.Allowed >= perm.LearnAfter && t.Denied == 0 {
+		return fmt.Sprintf("approved %d× before, never refused", t.Allowed)
+	}
+	return ""
 }
 
 // applyDecision carries out what the user chose: widening the allow for

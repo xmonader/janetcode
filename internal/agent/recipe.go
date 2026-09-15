@@ -494,9 +494,6 @@ func anchoredEditText(before, after []string, h Hunk) (oldText, newText string, 
 // over-report; that is the safe direction to be wrong in.
 func (a *Agent) StepsNeedingApproval(steps []recipe.Step) []string {
 	s := a.Settings()
-	if s.AutoApprove {
-		return nil
-	}
 	var need []string
 	for i, st := range steps {
 		t, ok := a.Tools.Get(st.Tool)
@@ -509,11 +506,20 @@ func (a *Agent) StepsNeedingApproval(steps []recipe.Step) []string {
 				mustAsk = true
 			}
 		}
-		verdict, _ := a.decideRule(st.Tool, perm.SubjectIn(st.Tool, st.Input, a.displayRoot()))
+		subject := perm.SubjectIn(st.Tool, st.Input, a.displayRoot())
+		verdict, _, hard := a.decideCall(a.permCall(st.Tool, st.Input, subject))
+		if hard != "" {
+			continue // refused outright by authorize; no prompt involved
+		}
+		if a.Protected.Reason(a.permCall(st.Tool, st.Input, subject)) != "" {
+			mustAsk = true // a protected path asks under every mode
+		}
 		if !mustAsk {
 			switch {
 			case verdict == perm.Denied:
 				continue // authorize refuses this on its own; no prompt involved
+			case s.AutoApprove:
+				continue
 			case verdict == perm.Allowed:
 				continue
 			case (s.AutoEdits || s.AutoMode) && editTool(st.Tool):

@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -42,7 +41,7 @@ var flagWhen = map[string]string{
 	"effort":               "an Anthropic model and a task worth more or less thinking",
 	"yolo":                 "a sandbox, a container, or work you have already decided to trust",
 	"auto":                 "you trust in-workspace edits and read-only commands but still want to see the rest",
-	"sandbox":              "you want bash isolated in docker without retargeting file tools",
+	"sandbox":              "you want bash isolated in a sandbox profile without retargeting file tools",
 	"readonly":             "you want answers about a repository with no chance of it being changed",
 	"c":                    "carry on where the last session in this directory left off",
 	"r":                    "reopen one session by id",
@@ -79,6 +78,8 @@ var flagWhen = map[string]string{
 	"mcp-auth":             "a remote MCP server needs an OAuth login once",
 	"append-system-prompt": "an experiment that adds instructions, recorded so the A/B is traceable",
 	"doctor":               "something is not working and you want to know which part",
+	"init-project":         "a repository janetcode has never seen: it writes the instruction file every session here will read",
+	"fix":                  "the doctor listed repairs you want carried out: the safe, obvious ones only",
 	"proof":                "code review, or months later: which session and turn wrote a committed file and what actually demonstrated it worked",
 	"theme":                "one run in a different colour scheme without changing the config",
 	"web":                  "you want the session in a browser, on another screen or from a phone on the same machine",
@@ -120,6 +121,7 @@ var configWhen = map[string][2]string{
 	"mcp_servers":         {"MCP servers started for every project", "a tool server you use everywhere"},
 	"hooks":               {"commands run around tool calls and turns", "you want a formatter, a guard or a notifier in the loop"},
 	"permissions":         {"persistent allow and deny rules", "the same approval keeps coming up, or something must never run"},
+	"protected_paths":     {"extra paths a write always asks about, appended to the built-in set", "a file of yours has effects that outlive the session"},
 	"embedding_model":     {"model asked of /embeddings so memory recall ranks by meaning", "word overlap is not finding the memory you meant"},
 	"lsp":                 {"language servers consulted for diagnostics after edits", "you want the compiler's opinion before the tests'"},
 	"search":              {"the web_search backend: DuckDuckGo, or Brave with a key", "you want better results than the free backend gives"},
@@ -129,6 +131,7 @@ var configWhen = map[string][2]string{
 	"memory":              {"extract project memory automatically after turns that changed something", "you would rather decide yourself what is remembered (/remember always works)"},
 	"hints":               {"one-time hints about features you have not used", "you know the harness and want the transcript quiet"},
 	"proof_notes":         {"attach evidence of this session's changes to a commit it makes, as a git note", "you review commits without the session that made them, or want the write skipped"},
+	"sandbox":             {"the sandbox profile a session in this project starts under: off, workspace, read-only or strict", "this project's commands should always be confined, not only when you remember to type /sandbox"},
 	"route_cheap":         {"experimental: send a turn's mechanical steps (reads, greps, checks that already passed) to this model instead", "an eval run showed it saves cost without moving the pass rate; empty is off"},
 }
 
@@ -138,9 +141,9 @@ var configWhen = map[string][2]string{
 // the harness has already done.
 var harnessFeatures = []feature.Feature{
 	{Name: "undo checkpoints", Kind: feature.KindBehave, Invoke: "/undo", Manual: "interface",
-		What:   "every turn that changes files is checkpointed first, in git where there is a repository and by file copy where there is not",
-		When:   "you never have to ask for a backup before letting the model edit",
-		Topics: []string{"backup", "revert", "safety", "checkpoint", "snapshot"}},
+		What:   "every turn that changes files is checkpointed first, in git where there is a repository and by file copy where there is not; /undo turn <n> goes back to any of them at once, rewinding the conversation with the files so the model stops believing it did the reverted work (--files-only keeps the conversation)",
+		When:   "you never have to ask for a backup before letting the model edit, and a whole run of turns can be rolled back as one",
+		Topics: []string{"backup", "revert", "safety", "checkpoint", "snapshot", "restore", "rollback", "turn", "rewind"}},
 	{Name: "verify gate", Kind: feature.KindBehave, Invoke: "/verify set <cmd>", Manual: "interface",
 		What:   "configured check commands run after a turn that changed code, and failures go back to the model to fix",
 		When:   "you want the loop closed without watching it",
@@ -226,19 +229,7 @@ func buildCatalog(fs *flag.FlagSet, tools *tool.Registry) *feature.Catalog {
 
 // configKeys lists the json keys of the Config struct, which is the only
 // list of them that cannot be out of date.
-func configKeys() []string {
-	t := reflect.TypeOf(config.Config{})
-	var out []string
-	for i := 0; i < t.NumField(); i++ {
-		tag := t.Field(i).Tag.Get("json")
-		name, _, _ := strings.Cut(tag, ",")
-		if name == "" || name == "-" {
-			continue
-		}
-		out = append(out, name)
-	}
-	return out
-}
+func configKeys() []string { return config.Keys() }
 
 // firstSentence trims a usage or description string to its first
 // sentence, so a catalogue row stays one line.

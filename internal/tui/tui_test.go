@@ -27,7 +27,9 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/flavor"
+	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/mcp/mcptest"
@@ -96,7 +98,7 @@ func newHarness(t *testing.T, responses ...*llm.Response) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ag := &agent.Agent{Provider: &scripted{responses: responses}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", Log: sess}
+	ag := &agent.Agent{Provider: &scripted{responses: responses}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", Log: sess, Root: root}
 	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"})
 	m.term.out = io.Discard // no escape sequences into the test's stdout
 	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
@@ -4373,5 +4375,287 @@ func TestAliasesObeyTheIdleGate(t *testing.T) {
 		}
 		close(block)
 		h.pump(func() bool { return !h.m.turn.running })
+	}
+}
+
+// TestPermissionPromptLadderMovesAndSaves: ← and → move along the rules
+// the prompt offers, and r saves the one that is highlighted, not the
+// one the prompt opened on.
+func TestPermissionPromptLadderMovesAndSaves(t *testing.T) {
+	save := func(t *testing.T, move []tea.KeyMsg) []string {
+		t.Helper()
+		h := newHarness(t,
+			&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{{Type: llm.BlockToolUse, ID: "t1", Name: "write_file", Input: json.RawMessage(`{"path":"docs/a.md","content":"1"}`)}}}, StopReason: llm.StopToolUse},
+			&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "wrote"), StopReason: llm.StopEndTurn},
+		)
+		var saved []string
+		h.m.opts.Agent.SaveRule = func(r perm.Rule) error { saved = append(saved, r.String()); return nil }
+		h.keys("write it")
+		h.enter()
+		h.pump(func() bool { return h.m.pending != nil })
+		// The prompt opens on what r has always saved, and says where
+		// that stands on the ladder.
+		if v := plain(h.m.View()); !strings.Contains(v, "write_file(docs/*)") || !strings.Contains(v, "2/2") {
+			t.Fatalf("prompt view:\n%s", v)
+		}
+		for _, k := range move {
+			h.update(k)
+		}
+		h.keys("r")
+		h.pump(func() bool { return !h.m.turn.running })
+		return saved
+	}
+	left := tea.KeyMsg{Type: tea.KeyLeft}
+	right := tea.KeyMsg{Type: tea.KeyRight}
+	for _, c := range []struct {
+		name string
+		move []tea.KeyMsg
+		want string
+	}{
+		{"default", nil, "write_file(docs/*)"},
+		{"narrowed", []tea.KeyMsg{left}, "write_file(docs/a.md)"},
+		{"back again", []tea.KeyMsg{left, right}, "write_file(docs/*)"},
+		{"clamped at the narrow end", []tea.KeyMsg{left, left, left}, "write_file(docs/a.md)"},
+		{"clamped at the wide end", []tea.KeyMsg{right, right}, "write_file(docs/*)"},
+		{"shift+tab narrows too", []tea.KeyMsg{{Type: tea.KeyShiftTab}}, "write_file(docs/a.md)"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if saved := save(t, c.move); len(saved) != 1 || saved[0] != c.want {
+				t.Fatalf("saved = %v, want [%s]", saved, c.want)
+			}
+		})
+	}
+}
+
+// TestPermissionKeysShowTheLadderHint: the key line says the rule can be
+// moved and where it stands, still fits the widths the prompt has to fit,
+// and says nothing at all when there is only one rule to save.
+func TestPermissionKeysShowTheLadderHint(t *testing.T) {
+	h := newHarness(t)
+	for _, w := range []int{60, 80, 160} {
+		h.m.width = w
+		line := plain(h.m.permissionKeysAt("bash", "bash(go test *)", "", false, 1, 3))
+		if lipgloss.Width(line) > w-6 {
+			t.Fatalf("width %d: %d cols: %q", w, lipgloss.Width(line), line)
+		}
+		if w >= 80 && (!strings.Contains(line, "←→") || !strings.Contains(line, "2/3")) {
+			t.Fatalf("width %d dropped the ladder hint: %q", w, line)
+		}
+		if one := plain(h.m.permissionKeysAt("bash", "bash(go test *)", "", false, 0, 1)); strings.Contains(one, "←→") || strings.Contains(one, "1/1") {
+			t.Fatalf("width %d: a single rung got ladder chrome: %q", w, one)
+		}
+	}
+}
+
+// TestResumePickerShowsForkLineage: the fork /fork stay made is listed
+// indented under the conversation it was copied from, and searching for
+// the fork keeps the parent on screen for context.
+func TestResumePickerShowsForkLineage(t *testing.T) {
+	h := newHarness(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "the original answer"), StopReason: llm.StopEndTurn})
+	h.keys("about the parser")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	h.keys("/fork stay the lexer branch")
+	h.enter()
+	h.keys("/clear")
+	h.enter()
+	h.keys("/resume")
+	h.enter()
+	if h.m.picker == nil {
+		t.Fatal("/resume should open the picker")
+	}
+	v := plain(h.m.View())
+	var forkLine, parentLine string
+	for _, l := range strings.Split(v, "\n") {
+		if strings.Contains(l, "the lexer branch") {
+			forkLine = l
+		}
+		if strings.Contains(l, "about the parser") {
+			parentLine = l
+		}
+	}
+	if parentLine == "" || forkLine == "" {
+		t.Fatalf("listing lacks the pair:\n%s", v)
+	}
+	if !strings.Contains(forkLine, "└ ") {
+		t.Fatalf("the fork is not drawn under its parent:\n%s", v)
+	}
+	if strings.Contains(parentLine, "└ ") {
+		t.Fatalf("the parent is indented:\n%s", v)
+	}
+	// Searching for the fork keeps its parent, marked as context.
+	h.keys("lexer")
+	v = plain(h.m.View())
+	if !strings.Contains(v, "the lexer branch") || !strings.Contains(v, "about the parser") {
+		t.Fatalf("filtering dropped the match's parent:\n%s", v)
+	}
+	if !strings.Contains(v, "parent of a match") {
+		t.Fatalf("the parent is not marked as context:\n%s", v)
+	}
+}
+
+// TestUndoTurnPreviewThenApply drives "restore to before a turn" through
+// the terminal: /undo turn 2 lists what it would change and touches
+// nothing, and the same /undo apply that carries out /undo about carries
+// this out too.
+func TestUndoTurnPreviewThenApply(t *testing.T) {
+	h := newHarness(t,
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "Add the first file."},
+			{Type: llm.BlockToolUse, ID: "w1", Name: "write_file", Input: json.RawMessage(`{"path":"one.go","content":"package one\n"}`)},
+		}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+		&llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "Add the second file."},
+			{Type: llm.BlockToolUse, ID: "w2", Name: "write_file", Input: json.RawMessage(`{"path":"two.go","content":"package two\n"}`)},
+		}}, StopReason: llm.StopToolUse},
+		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "done"), StopReason: llm.StopEndTurn},
+	)
+	h.m.opts.Agent.AutoApprove = true
+	h.m.opts.Agent.Tools = tool.NewRegistry(tool.WriteFile{Root: h.m.opts.Cwd})
+	for _, p := range []string{"write one", "write two"} {
+		h.keys(p)
+		h.enter()
+		h.pump(func() bool { return !h.m.turn.running })
+	}
+	// /changes says which turn can be restored to.
+	h.keys("/changes")
+	h.enter()
+	if v := plain(h.m.View()); !strings.Contains(v, "[restorable]") || !strings.Contains(v, "/undo turn") {
+		t.Fatalf("/changes does not offer a turn to restore to:\n%s", v)
+	}
+
+	h.keys("/undo turn 2")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	v := plain(h.m.View())
+	if !strings.Contains(v, "before turn 2") {
+		t.Fatalf("preview does not say what it would restore to:\n%s", v)
+	}
+	if !strings.Contains(v, "two.go") || !strings.Contains(v, "/undo apply") {
+		t.Fatalf("preview:\n%s", v)
+	}
+	// The preview says what leaves the conversation as well as what
+	// happens to the files.
+	if !strings.Contains(v, "rewind this conversation") {
+		t.Fatalf("the preview does not say the conversation goes back too:\n%s", v)
+	}
+	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "two.go")); err != nil {
+		t.Fatalf("the preview must not touch anything: %v", err)
+	}
+
+	h.keys("/undo apply")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "two.go")); !os.IsNotExist(err) {
+		t.Fatalf("turn 2's file should be gone: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(h.m.opts.Cwd, "one.go")); err != nil {
+		t.Fatalf("turn 1's file should have stayed: %v", err)
+	}
+	// And the conversation went back with the files: turn 2's prompt is
+	// no longer anything the model can see.
+	for _, m := range h.m.opts.Agent.MessagesSnapshot() {
+		if strings.Contains(m.Text(), "write two") {
+			t.Fatal("turn 2's prompt survived the rewind in the terminal")
+		}
+	}
+	// A turn with no snapshot left is refused, in as many words.
+	h.keys("/undo turn 9")
+	h.enter()
+	h.pump(func() bool { return !h.m.turn.running })
+	if v := plain(h.m.View()); !strings.Contains(v, "no snapshot for that turn") {
+		t.Fatalf("a turn with no snapshot was not refused:\n%s", v)
+	}
+}
+
+// TestTheBoxNamesBothQueueingAndSteering: enter and ctrl+s are one key
+// apart and do opposite things with the same text — after this turn, or
+// into it. The placeholder has to say so, and has to go on saying both
+// when the terminal is too narrow for the sentence.
+func TestTheBoxNamesBothQueueingAndSteering(t *testing.T) {
+	h := newHarness(t)
+	h.m.turn.running = true
+	for _, width := range []int{110, 80, 50, 34} {
+		h.m.input.SetWidth(width)
+		got := h.m.placeholder()
+		if lipgloss.Width(got) > width-2 {
+			t.Errorf("at %d columns the placeholder overflows: %q", width, got)
+		}
+		if !strings.Contains(got, "enter queues") || !strings.Contains(got, "ctrl+s steers") {
+			t.Errorf("at %d columns the placeholder names only one of the two: %q", width, got)
+		}
+	}
+	// The wordings really do differ, so the narrow ones are a fit and not
+	// the same sentence cut short.
+	h.m.input.SetWidth(110)
+	wide := h.m.placeholder()
+	h.m.input.SetWidth(34)
+	if narrow := h.m.placeholder(); narrow == wide {
+		t.Fatalf("the placeholder did not give way at 34 columns: %q", narrow)
+	}
+}
+
+// TestQueueingSaysHowToSteerInstead: pressing enter during a turn puts
+// the message somewhere it will sit until the turn ends. Both places
+// that say so — the status line at the moment it happens, and the
+// reserved row for as long as it waits — name the other key.
+func TestQueueingSaysHowToSteerInstead(t *testing.T) {
+	h := newHarness(t)
+	h.m.turn.running = true
+	h.keys("look at the other file too")
+	h.enter()
+	if len(h.m.turn.queued) != 1 {
+		t.Fatalf("queued = %v", h.m.turn.queued)
+	}
+	for _, want := range []string{"queued 1", "sends when this turn ends", "ctrl+s"} {
+		if !strings.Contains(h.m.status, want) {
+			t.Errorf("the queue note does not mention %q: %q", want, h.m.status)
+		}
+	}
+	h.m.width = 200
+	row := plain(h.m.footerNotice())
+	for _, want := range []string{"queued 1", "look at the other file too", "up takes it back", "ctrl+s steers it into this turn"} {
+		if !strings.Contains(row, want) {
+			t.Errorf("the reserved row does not mention %q: %q", want, row)
+		}
+	}
+}
+
+// TestTheFirstQueuedMessageTeachesCtrlS: the hint engine says it once
+// per project, and never to somebody who already steers.
+func TestTheFirstQueuedMessageTeachesCtrlS(t *testing.T) {
+	queue := func(h *harness, text string) {
+		h.m.turn.running = true
+		h.keys(text)
+		h.enter()
+	}
+	tips := func(h *harness) []string {
+		var out []string
+		for _, e := range h.m.transcript.entries {
+			if e.kind == entryTip {
+				out = append(out, e.text)
+			}
+		}
+		return out
+	}
+
+	h := newHarness(t)
+	h.m.hint.engine = hints.New(nil, nil)
+	queue(h, "one")
+	queue(h, "two")
+	got := tips(h)
+	if len(got) != 1 || !strings.Contains(got[0], "ctrl+s") {
+		t.Fatalf("the first queued message should teach ctrl+s exactly once: %q", got)
+	}
+
+	// Somebody who has already steered is told nothing.
+	h2 := newHarness(t)
+	h2.m.hint.engine = hints.New(nil, nil)
+	h2.m.opts.Usage = feature.OpenUsage(t.TempDir())
+	h2.m.noteUse("ctrl+s")
+	queue(h2, "one")
+	if got := tips(h2); len(got) != 0 {
+		t.Fatalf("taught ctrl+s to a user who already steers: %q", got)
 	}
 }

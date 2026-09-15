@@ -43,16 +43,23 @@ type pendingUndo struct {
 	description string
 	fingerprint string
 	sel         Selection
+	// turn and cp are set instead of sel when the preview was "/undo
+	// turn n": the whole work tree goes back to the checkpoint that turn
+	// started from, rather than a chosen set of changes coming out of it
+	// (see undo_turn.go). One pending selection, two things it can hold,
+	// so both are confirmed and applied the same way.
+	turn *TurnRestore
+	cp   Checkpoint
 }
 
 // ErrNoPendingUndo is returned by ApplyPendingUndo when no "/undo about"
 // has been previewed yet this session (or it was already applied).
-var ErrNoPendingUndo = errors.New("no previewed undo to apply; run /undo about <description> first")
+var ErrNoPendingUndo = errors.New("no previewed undo to apply; run /undo about <description> or /undo turn <n> first")
 
 // ErrUndoSelectionStale is returned by ApplyPendingUndo when the
 // session's undoable changes moved since the preview: something was
 // undone, reverted, or added.
-var ErrUndoSelectionStale = errors.New("the session's changes moved since /undo about; run it again")
+var ErrUndoSelectionStale = errors.New("the session's changes moved since the preview; run /undo about or /undo turn again")
 
 // ErrUndoNeedsForce is returned by ApplyPendingUndo when the previewed
 // selection has a change the model flagged as Mixed, or the deterministic
@@ -72,14 +79,28 @@ func (a *Agent) PreviewUndoAbout(ctx context.Context, description string) (Selec
 	return sel, nil
 }
 
-// ApplyPendingUndo reverts the selection from the last PreviewUndoAbout.
-// Unless force is true, it refuses when the selection has any Mixed
-// change or coupling Warning, leaving the preview in place so the caller
-// can re-run with force rather than having to preview again.
+// ApplyPendingUndo carries out the last preview: the selection from
+// PreviewUndoAbout, or the whole-tree restore from PreviewUndoTurn.
+// Unless force is true, it refuses when a selection has any Mixed change
+// or coupling Warning, leaving the preview in place so the caller can
+// re-run with force rather than having to preview again; a turn restore
+// has neither, so force means nothing to it.
 func (a *Agent) ApplyPendingUndo(ctx context.Context, force bool) (UndoReport, error) {
 	p := a.pendingUndo
 	if p == nil {
 		return UndoReport{}, ErrNoPendingUndo
+	}
+	if p.turn != nil {
+		if a.running.Load() {
+			return UndoReport{}, ErrTurnRunning
+		}
+		a.cp.mu.Lock()
+		defer a.cp.mu.Unlock()
+		if a.turnFingerprint() != p.fingerprint {
+			return UndoReport{}, ErrUndoSelectionStale
+		}
+		a.pendingUndo = nil
+		return a.applyTurnRestore(ctx, *p.turn, p.cp)
 	}
 	if undoabout.Fingerprint(a.undoCandidates()) != p.fingerprint {
 		return UndoReport{}, ErrUndoSelectionStale
@@ -115,8 +136,8 @@ func (a *Agent) UndoAbout(ctx context.Context, root, description string) (cmdres
 	return cmdresult.Result{Sheet: undoabout.FormatSelection(root, sel), SheetTitle: "undo about"}, nil
 }
 
-// UndoApply runs /undo apply [--force] for every front-end: it reverts
-// the selection from the last /undo about, under UndoApplyTimeout. The
+// UndoApply runs /undo apply [--force] for every front-end: it carries
+// out the last /undo about or /undo turn preview, under UndoApplyTimeout. The
 // caller must pass the returned report to TellModelUndone — at the point
 // where it owns the agent's history — so the model does not go on
 // believing the changes are still there.
@@ -127,6 +148,7 @@ func (a *Agent) UndoApply(ctx context.Context, force bool) (UndoReport, cmdresul
 	if err != nil {
 		return UndoReport{}, cmdresult.Result{}, fmt.Errorf("undo apply: %w", err)
 	}
+
 	return rep, cmdresult.Result{Sheet: undoabout.FormatUndoReport(rep), SheetTitle: "undo"}, nil
 }
 
@@ -134,8 +156,8 @@ func (a *Agent) UndoApply(ctx context.Context, force bool) (UndoReport, cmdresul
 // to: Root, or the process working directory when Root is unset; "" (show
 // absolute paths) when neither is known.
 func (a *Agent) displayRoot() string {
-	if a.Root != "" {
-		return a.Root
+	if r := a.RootDir(); r != "" {
+		return r
 	}
 	d, _ := os.Getwd()
 	return d

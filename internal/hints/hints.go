@@ -102,6 +102,11 @@ type State struct {
 	// case /undo about reverts only part of.
 	UndoneMixed int
 
+	// Queued is set the first time the user types a message while a turn
+	// is running and presses enter, which queues it for afterwards
+	// rather than handing it to the turn in front of them.
+	Queued bool
+
 	// TestFirstPrompt is set when the user asks for tests to be written,
 	// or for a large feature, in a prompt: what /accept is for.
 	TestFirstPrompt bool
@@ -360,6 +365,19 @@ func Rules() []Rule {
 			When: func(s *State) bool { return s.RepeatedTurnShape != "" },
 			Text: func(s *State) string {
 				return "this turn made the same changes as an earlier one (" + s.RepeatedTurnShape + ") — /recipe save <name> keeps them as a program that /recipe run <name> repeats with no model call"
+			},
+		},
+		{
+			// Enter and ctrl+s are one keystroke apart and do opposite
+			// things with the same text. The box names both while a turn
+			// runs; this says it once, in the transcript, at the moment
+			// somebody has just queued something and may well have meant
+			// the running turn to hear it. Feature is ctrl+s, so anyone
+			// who already steers is never told.
+			ID: "steer-or-queue", Feature: "ctrl+s",
+			When: func(s *State) bool { return s.Queued },
+			Text: func(_ *State) string {
+				return "that message is queued and goes out when this turn ends — ctrl+s instead hands what you have typed to the turn that is running, which reads it before its next step; ↑ takes the queued one back"
 			},
 		},
 		{

@@ -93,6 +93,9 @@ func FormatUndoReport(rep UndoReport) string {
 	if rep.Refused != "" {
 		fmt.Fprintf(&sb, "stopped: %s\n", rep.Refused)
 	}
+	if r := rep.Rewound; r != nil {
+		fmt.Fprintf(&sb, "the conversation was rewound to before turn %d: %s dropped\n", r.FromTurn, r.Line())
+	}
 	switch {
 	case rep.Checks != "":
 		fmt.Fprintf(&sb, "%s\n", rep.Checks)

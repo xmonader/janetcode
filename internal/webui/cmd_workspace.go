@@ -30,6 +30,29 @@ func (s *server) addDir(arg string) {
 	s.notice("file tools can use " + arg)
 }
 
+// cd moves the session's working directory, the web form of the same
+// move the terminal does. The browser keeps its thread: nothing about the
+// conversation is reset.
+func (s *server) cd(arg string) {
+	cd := s.opts.CD
+	if cd == nil {
+		s.errf("this session has no working directory to change")
+		return
+	}
+	if a := strings.TrimSpace(arg); a == "" || a == "status" {
+		s.sheet("cd", cd.Where())
+		return
+	}
+	status, err := cd.Change(arg)
+	if err != nil {
+		s.errf("%v", err)
+		return
+	}
+	s.setCwd(cd.Dir())
+	s.notice(status)
+	s.emitStatus()
+}
+
 func (s *server) sandbox(arg string) {
 	var sb *shell.Sandbox
 	if ag := s.opts.Agent; ag != nil {
@@ -44,7 +67,7 @@ func (s *server) sandbox(arg string) {
 }
 
 func (s *server) retarget(kind, arg string, dial func(string) (tool.Host, error)) {
-	status, err := tool.Retarget(s.opts.Workspace, s.opts.Cwd, kind, arg, dial)
+	status, err := tool.Retarget(s.opts.Workspace, s.cwd(), kind, arg, dial)
 	if err != nil {
 		s.errf("%v", err)
 		return

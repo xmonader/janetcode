@@ -10,6 +10,7 @@ import (
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/feature"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/projectinit"
 	"github.com/xmonader/janetcode/internal/rules"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/settingsapply"
@@ -115,6 +116,10 @@ var dispatch = map[string]cmdHandler{
 		m.agentsCommand(cmdArg(text, fields))
 		return nil, false
 	},
+	"/cd": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.cdCommand(cmdArg(text, fields))
+		return nil, false
+	},
 	"/ssh": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.sshCommand(cmdArg(text, fields))
 		return nil, false
@@ -139,7 +144,9 @@ var dispatch = map[string]cmdHandler{
 	},
 	"/model": (*model).cmdModel,
 	"/mcp": func(m *model, text string, fields []string) (tea.Cmd, bool) {
-		m.mcpCommand(fields[1:])
+		if cmd := m.mcpCommand(fields[1:]); cmd != nil {
+			return cmd, true
+		}
 		return nil, false
 	},
 	"/hooks": func(m *model, text string, fields []string) (tea.Cmd, bool) {
@@ -211,6 +218,7 @@ var dispatch = map[string]cmdHandler{
 		}
 		return nil, false
 	},
+	"/init":     (*model).cmdInit,
 	"/skills":   (*model).cmdSkills,
 	"/rules":    (*model).cmdRules,
 	"/memory":   (*model).cmdMemory,
@@ -235,6 +243,10 @@ var dispatch = map[string]cmdHandler{
 		return nil, false
 	},
 	"/usage": (*model).cmdUsage, "/cost": (*model).cmdUsage,
+	"/effort": func(m *model, text string, fields []string) (tea.Cmd, bool) {
+		m.effortCommand(cmdArg(text, fields))
+		return nil, false
+	},
 	"/budget": func(m *model, text string, fields []string) (tea.Cmd, bool) {
 		m.budgetCommand(cmdArg(text, fields))
 		return nil, false
@@ -320,6 +332,7 @@ func (m *model) cmdClear(text string, fields []string) (tea.Cmd, bool) {
 		return nil, false
 	}
 	m.opts.Session = sess
+	m.opts.CD.SetSession(sess)
 	if err := m.opts.Agent.OpenSession(sess, nil); err != nil {
 		m.transcript.errorf("%v", err)
 	}
@@ -456,18 +469,29 @@ func (m *model) cmdInspect(text string, fields []string) (tea.Cmd, bool) {
 	return nil, false
 }
 
-func (m *model) cmdSkills(text string, fields []string) (tea.Cmd, bool) {
-	skills := skill.Load(m.opts.Cwd, m.opts.ConfigDir)
-	if len(skills) == 0 {
-		m.transcript.info("no skills found: add .janetcode/skills/<name>/SKILL.md (or <name>.md) to the project, or skills/ under " + shortPath(m.opts.ConfigDir) + "; .claude/skills is read too")
-		return nil, false
-	}
-	var sb strings.Builder
-	for _, s := range skills {
-		fmt.Fprintf(&sb, "%-20s %s  (%s)\n", s.Name, s.Description, s.Source)
-	}
-	m.transcript.info(strings.TrimRight(sb.String(), "\n"))
+// cmdInit writes the project's starter instruction file. It never
+// overwrites one without "force": the existing file is the user's.
+func (m *model) cmdInit(text string, fields []string) (tea.Cmd, bool) {
+	force := strings.EqualFold(strings.TrimSpace(cmdArg(text, fields)), "force")
+	m.showResult(projectinit.Run(m.opts.Cwd, force))
 	return nil, false
+}
+
+func (m *model) cmdSkills(text string, fields []string) (tea.Cmd, bool) {
+	where := "add .janetcode/skills/<name>/SKILL.md (or <name>.md) to the project, or skills/ under " + shortPath(m.opts.ConfigDir) + "; .claude/skills is read too"
+	m.showResult(skill.Report(skill.Load(m.opts.Cwd, m.opts.ConfigDir), m.opts.Skills.Stats(), m.prefixTokens(), where), nil)
+	return nil, false
+}
+
+// prefixTokens estimates the part of the request that is the same every
+// turn — system prompt, project context, pins and tool schemas — which
+// is what a skill's index line is a share of.
+func (m *model) prefixTokens() int {
+	if m.opts.Agent == nil {
+		return 0
+	}
+	c := m.opts.Agent.Context()
+	return c.System + c.Extra + c.Pins + c.Tools
 }
 
 func (m *model) cmdRules(text string, fields []string) (tea.Cmd, bool) {
@@ -507,6 +531,8 @@ func (m *model) cmdUndo(text string, fields []string) (tea.Cmd, bool) {
 	switch {
 	case ua.Apply:
 		return m.undoApplyCommand(ua.Force), true
+	case ua.Turn != 0:
+		return m.undoTurnCommand(ua.Turn, ua.FilesOnly), true
 	case ua.About:
 		if ua.Description == "" {
 			m.transcript.errorf("usage: /undo about <description>")

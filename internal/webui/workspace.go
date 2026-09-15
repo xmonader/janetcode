@@ -140,8 +140,8 @@ func (s *server) workspace() workspace {
 		}
 		add, del := c.Stats()
 		path := c.Path
-		if s.opts.Cwd != "" {
-			path = textfmt.RelTo(s.opts.Cwd, path)
+		if s.cwd() != "" {
+			path = textfmt.RelTo(s.cwd(), path)
 		}
 		ws.Files = append(ws.Files, fileItem{Seq: c.Seq, Path: path, Tool: c.Tool, Add: add, Del: del})
 	}
@@ -208,8 +208,8 @@ func (s *server) changeAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := c.Path
-	if s.opts.Cwd != "" {
-		path = textfmt.RelTo(s.opts.Cwd, path)
+	if s.cwd() != "" {
+		path = textfmt.RelTo(s.cwd(), path)
 	}
 	writeJSON(w, map[string]any{
 		"seq":  c.Seq,
@@ -268,11 +268,12 @@ func (s *server) startNewSession() error {
 	if s.opts.Agent != nil {
 		model = s.opts.Agent.Settings().Model
 	}
-	sess, err := session.New(dir, s.opts.Cwd, provider, model)
+	sess, err := session.New(dir, s.cwd(), provider, model)
 	if err != nil {
 		return err
 	}
 	s.opts.Session = sess
+	s.opts.CD.SetSession(sess)
 	if s.opts.Agent != nil {
 		if err := s.opts.Agent.OpenSession(sess, nil); err != nil {
 			return err
@@ -324,11 +325,12 @@ func (s *server) loadSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	if s.opts.Cwd != "" && sess.Meta.Cwd != "" && sess.Meta.Cwd != s.opts.Cwd {
+	if s.cwd() != "" && sess.Meta.Cwd != "" && sess.Meta.Cwd != s.cwd() {
 		http.Error(w, "that session belongs to a different directory", http.StatusBadRequest)
 		return
 	}
 	s.opts.Session = sess
+	s.opts.CD.SetSession(sess)
 	if s.opts.Agent != nil {
 		if err := s.opts.Agent.OpenSession(sess, append([]llm.Message(nil), msgs...)); err != nil {
 			s.errf("%v", err)
@@ -365,7 +367,7 @@ func (s *server) replayHistory(msgs []llm.Message) {
 				}
 			case llm.BlockToolUse:
 				e := s.add(&entry{Kind: "tool", Name: b.Name, CallID: b.ID, Running: true,
-					Summary: summarizeInput(b.Name, string(b.Input), 80, s.opts.Cwd)})
+					Summary: summarizeInput(b.Name, string(b.Input), 80, s.cwd())})
 				open[b.ID] = e
 			case llm.BlockToolResult:
 				e := open[b.ToolUseID]
@@ -394,7 +396,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
 		return
 	}
-	if s.opts.Cwd == "" {
+	if s.cwd() == "" {
 		http.Error(w, "no working directory", http.StatusConflict)
 		return
 	}
@@ -402,7 +404,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad upload", http.StatusBadRequest)
 		return
 	}
-	dir := filepath.Join(s.opts.Cwd, ".janetcode", "uploads")
+	dir := filepath.Join(s.cwd(), ".janetcode", "uploads")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -435,7 +437,7 @@ func (s *server) upload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out.Close()
-		paths = append(paths, textfmt.RelTo(s.opts.Cwd, dst))
+		paths = append(paths, textfmt.RelTo(s.cwd(), dst))
 	}
 	writeJSON(w, map[string]any{"ok": "1", "paths": paths})
 }

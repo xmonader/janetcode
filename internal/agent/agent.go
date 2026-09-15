@@ -12,10 +12,12 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/hook"
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/plan"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -55,6 +57,15 @@ type ToolCall struct {
 	// front-end offers its r key only when it is set. Set only when the
 	// call is about to ask.
 	Rule string
+	// Rungs is the ladder of rules AllowAlways could save for this call,
+	// narrowest first (see perm.SuggestLadder), each with its own ledger
+	// note; Rule is Rungs[RuleIndex].String(). A front-end may let the
+	// user move along it before saving; one rung (or none) means there is
+	// nothing to choose and the prompt looks exactly as it always has.
+	Rungs []RuleRung
+	// RuleIndex is the rung a front-end starts on: the one Suggest
+	// proposes, so an answer given without moving saves what it used to.
+	RuleIndex int
 	// Learned notes that the ledger has seen this call's shape (see
 	// perm.Suggest) approved perm.LearnAfter times with no refusal, e.g.
 	// "approved 4× before, never refused". Set only when the call is
@@ -71,6 +82,13 @@ type ToolCall struct {
 	Impact string
 }
 
+// RuleRung is one rule the user may choose to save at a permission
+// prompt, with the ledger's note about that exact rule.
+type RuleRung struct {
+	Rule    string
+	Learned string
+}
+
 // Approver decides whether a mutating tool call may run. Implementations
 // block until the user answers; ctx cancellation aborts the turn.
 type Approver interface {
@@ -82,6 +100,15 @@ type Approver interface {
 type ReasonApprover interface {
 	Approver
 	ApproveWithReason(ctx context.Context, call ToolCall) (Decision, string, error)
+}
+
+// RuleApprover is a ReasonApprover that can also name which rung of the
+// call's ladder an AllowAlways answer chose (see ToolCall.Rungs). An
+// empty or unknown rule means the default rung, so an approver that does
+// not offer the choice need not implement this at all.
+type RuleApprover interface {
+	ReasonApprover
+	ApproveWithRule(ctx context.Context, call ToolCall) (d Decision, reason, rule string, err error)
 }
 
 // DeniedMessage is the tool result the model sees after a denial. The user's
@@ -127,7 +154,7 @@ type Agent struct {
 	// Embedded for the same reason.
 	turnMonitor
 
-	// Model, MaxTokens, MaxIterations, CompactAt, AutoApprove, AutoEdits,
+	// Model, MaxTokens, Effort, MaxIterations, CompactAt, AutoApprove, AutoEdits,
 	// AutoMode, ReadOnly, PlanMode, ProofNotes, Rules and Pins are filled
 	// in when the agent is built. Once a turn may be running they change
 	// and are read only through settings.go (Settings, UpdateSettings,
@@ -139,6 +166,10 @@ type Agent struct {
 	Model    string
 	// MaxTokens per model call. Zero lets the provider choose.
 	MaxTokens int
+	// Effort is the reasoning tier every model call asks for, one of
+	// llm.EffortTiers; empty lets the provider choose. It rides on each
+	// llm.Request, so /effort changes what the very next call asks for.
+	Effort string
 	// MaxIterations caps model calls per user turn. Zero means 50.
 	MaxIterations int
 	// AutoApprove skips the Approver for every tool.
@@ -177,7 +208,9 @@ type Agent struct {
 	// Root is the directory the session works in. Paths shown to the user
 	// and the model by /undo about are relative to it; empty means the
 	// process working directory, which is only right for a front-end
-	// started in the project (the web UI may not be).
+	// started in the project (the web UI may not be). It is set once at
+	// build time and thereafter only through SetRoot, which /cd calls
+	// while a turn may be reading it; read it back with RootDir.
 	Root string
 	// ProofNotes gates the automatic side of internal/proof: when a bash
 	// call this session runs looks like `git commit` and HEAD actually
@@ -236,12 +269,22 @@ type Agent struct {
 	// Forked is true when this agent is a fork of a parent conversation
 	// and must not spawn another fork.
 	Forked bool
+	// planComments are the remarks the user has left on the plan file and
+	// not yet sent (see plancmd.go). The plan itself is never held here:
+	// it lives in .janetcode/plan.md and is read back from there.
+	planComments plan.Comments
 	// Prepare, when set, may add blocks to a user turn before it is sent
 	// (skills attach themselves this way). The returned note, if any, is
 	// emitted as a notice.
 	Prepare func(blocks []llm.Block) ([]llm.Block, string)
 
 	mutated bool // a mutating tool ran successfully this turn
+	// running is set between beginTurn and endTurn, so a command that
+	// rewrites the conversation ("/undo turn n", see rewind.go) can
+	// refuse rather than race the turn goroutine that is appending to
+	// it. The front-ends keep such commands off the key handler while a
+	// turn runs (slash.idleOnly); this is the agent's own check.
+	running atomic.Bool
 
 	// callIDs is every tool-call id handed out this conversation, so a
 	// provider that repeats or omits one cannot collide with it.
@@ -283,6 +326,7 @@ func (a *Agent) beginTurn(ctx context.Context, blocks ...llm.Block) {
 	a.logEvent(start)
 	a.logUserMessage(merged)
 	a.cp.beginTurn(a.turnN, before)
+	a.running.Store(true)
 	a.mutated, a.mutations = false, 0
 	a.proofCommits = nil
 }
@@ -501,6 +545,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 			if !a.Off["verdict"] && outcome.Verdict != VerdictNoChanges {
 				emit(Event{Kind: EvVerdict, Text: outcome.Line(), IsError: !outcome.OK()})
 			}
+			a.capturePlan(resp.Message.Text(), emit)
 			a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
 			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(resp.StopReason)})
 			emit(Event{Kind: EvTurnDone, Usage: a.TurnUsage(), StopReason: resp.StopReason})

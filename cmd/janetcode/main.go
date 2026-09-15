@@ -245,12 +245,23 @@ func printSessions() error {
 		fmt.Println("no sessions for", cwd)
 		return nil
 	}
-	for _, in := range infos {
-		fork := ""
-		if in.Meta.ForkOf != "" {
-			fork = " (fork of " + in.Meta.ForkOf + ")"
+	// Forks are listed under the session they were copied from, the same
+	// shape /resume's picker draws (see session.Lineage).
+	forked := false
+	for _, n := range session.Lineage(infos, "") {
+		in := n.Info
+		aside := ""
+		if m := n.Mark(); m != "" {
+			aside = "  (" + m + ")"
 		}
-		fmt.Printf("%s  %s  %-3d msgs  %s/%s  %s%s\n", in.Meta.ID, in.Meta.Created.Local().Format("2006-01-02 15:04"), in.Messages, in.Meta.Provider, in.Meta.Model, in.Label(), fork)
+		if note := n.Note(); note != "" {
+			aside += "  (" + note + ")"
+		}
+		forked = forked || n.Depth > 0 || n.Orphan
+		fmt.Printf("%s%s  %s  %-3d msgs  %s/%s  %s%s\n", n.Prefix(), in.Meta.ID, in.Meta.Created.Local().Format("2006-01-02 15:04"), in.Messages, in.Meta.Provider, in.Meta.Model, in.Label(), aside)
+	}
+	if forked {
+		fmt.Println("\nindented sessions are forks of the one above them")
 	}
 	fmt.Println("\nresume with: janetcode --resume <id>   (or --continue for the newest)")
 	return nil

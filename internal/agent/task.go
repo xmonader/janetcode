@@ -590,3 +590,22 @@ func tokens(n int) string {
 	}
 	return fmt.Sprintf("%d", n)
 }
+
+// SetRoot moves the project directory editing subagents check out from.
+// Children already running keep the worktree they were given — it is a
+// checkout of the tree they were asked about — so the count of those is
+// reported rather than silently changed under them.
+func (t *Task) SetRoot(dir string) (running int) {
+	if t == nil {
+		return 0
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.Root = dir
+	for _, c := range t.children {
+		if !c.done {
+			running++
+		}
+	}
+	return running
+}

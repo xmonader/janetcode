@@ -8,6 +8,7 @@ package undoabout
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -57,8 +58,47 @@ type UnavailableChange struct {
 	Why    string
 }
 
+// Rewind is what dropping the conversation from a turn on costs: the
+// turn it goes back to, how many turns and model-visible messages stop
+// being part of the context, and how many archived tool outputs go with
+// them. It is the conversation half of "/undo turn n"; internal/agent
+// computes it (see rewind.go) and every front-end words it from here, so
+// the preview and the report say the same thing.
+type Rewind struct {
+	FromTurn int
+	Turns    int
+	Messages int
+	Archived int
+}
+
+// Line is "3 turns, 27 messages" — what a rewind drops, in the wording
+// the preview and the report share. The archived outputs are named too
+// when there are any, since they stop being retrievable with the turns
+// that made them.
+func (r Rewind) Line() string {
+	out := fmt.Sprintf("%s, %s", plural(r.Turns, "turn"), plural(r.Messages, "message"))
+	if r.Archived > 0 {
+		out += fmt.Sprintf(" and %s", plural(r.Archived, "archived tool output"))
+	}
+	return out
+}
+
+// plural is "1 turn" / "3 turns" without reaching for internal/textfmt,
+// which this package does not otherwise need.
+func plural(n int, unit string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, unit)
+	}
+	return fmt.Sprintf("%d %ss", n, unit)
+}
+
 // UndoReport is what UndoSelection did.
 type UndoReport struct {
+	// Rewound, when set, says the conversation went back with the work
+	// tree: "/undo turn n" without --files-only. The model is told
+	// through the rewound conversation itself (the note standing where
+	// the dropped turns were), not by a second note after the fact.
+	Rewound *Rewind
 	// Reverted is one line per change actually undone, newest first (the
 	// order they were applied), in UndoChange's own wording.
 	Reverted []string
@@ -118,11 +158,26 @@ type Args struct {
 	// selection has a Mixed change or a coupling Warning.
 	Apply bool
 	Force bool
+	// Turn previews putting the whole work tree back to how it was
+	// before that turn, and the conversation with it, without touching
+	// anything (see PreviewUndoTurn); zero when not given. Like About it
+	// is only a preview: the same "/undo apply" carries it out.
+	Turn int
+	// FilesOnly is "--files-only" on a turn restore: put the work tree
+	// back but leave the conversation alone, which is what "/undo turn"
+	// did before it learned to rewind. The default is both, because a
+	// model still holding its memory of work that no longer exists is
+	// the confusion the command is there to end.
+	FilesOnly bool
 }
 
 // errArgsUsage documents /undo's argument shape (kept in step with
 // slash.Command "/undo" and webArgs["/undo"]).
-var errArgsUsage = errors.New("usage: /undo [preview | n | about <description> | apply [--force]]")
+var errArgsUsage = errors.New("usage: /undo [preview | n | turn <n> [--files-only] | about <description> | apply [--force]]")
+
+// errTurnUsage documents "/undo turn" on its own, since it is parsed
+// before the general tokenizer gets a look at the line.
+var errTurnUsage = errors.New("usage: /undo turn <n> [--files-only], the number of the turn to put the work tree and the conversation back to the state before; --files-only leaves the conversation alone")
 
 // ParseArgs parses the text after "/undo" (leading/trailing space
 // trimmed by the caller or here either way): the one shared parser both
@@ -135,6 +190,16 @@ func ParseArgs(rest string) (Args, error) {
 		return Args{}, nil
 	case "about":
 		return Args{About: true, Description: strings.TrimSpace(after)}, nil
+	case "turn":
+		tk, err := argspkg.Tokenize(after, argspkg.Spec{Bool: []string{"--files-only"}})
+		if err != nil || len(tk.Positional) != 1 {
+			return Args{}, errTurnUsage
+		}
+		n, err := strconv.Atoi(tk.Positional[0])
+		if err != nil || n < 1 {
+			return Args{}, errTurnUsage
+		}
+		return Args{Turn: n, FilesOnly: tk.Has("--files-only")}, nil
 	}
 	t, err := argspkg.Tokenize(after, argspkg.Spec{Bool: []string{"--force"}})
 	if err != nil {

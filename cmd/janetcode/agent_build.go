@@ -82,9 +82,9 @@ func diagnoseNote(m *lsp.Manager) func(context.Context, string) string {
 // step with what the real call would write. checks is read lazily so it
 // sees verify's project config once main has decided whether to trust it,
 // even though this hook is wired up before that happens.
-func impactHook(cwd string, ws *tool.Workspace, diag *lsp.Manager, repo *repomap.Cache, checks func() []string) func(context.Context, agent.ToolCall) string {
-	edit := tool.EditFile{Root: cwd, WS: ws}
-	write := tool.WriteFile{Root: cwd, WS: ws}
+func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repomap.Cache, checks func() []string) func(context.Context, agent.ToolCall) string {
+	edit := tool.EditFile{Root: cd.Dir(), WS: ws}
+	write := tool.WriteFile{Root: cd.Dir(), WS: ws}
 	return func(ctx context.Context, call agent.ToolCall) string {
 		var path, before, after string
 		var err error
@@ -105,7 +105,7 @@ func impactHook(cwd string, ws *tool.Workspace, diag *lsp.Manager, repo *repomap
 		ctx, cancel := context.WithTimeout(ctx, impact.Budget)
 		defer cancel()
 		ix, _ := repo.Get(ctx)
-		in := impact.Input{Path: path, Old: before, New: after, Cwd: cwd, LSP: diag, RepoIndex: ix, Checks: checks()}
+		in := impact.Input{Path: path, Old: before, New: after, Cwd: cd.Dir(), LSP: diag, RepoIndex: ix, Checks: checks()}
 		return impact.Analyze(ctx, in).Line()
 	}
 }
@@ -166,8 +166,14 @@ type builtAgent struct {
 	// which of them this session has already sent.
 	rules        func() []rules.Rule
 	ruleInjector *rules.Injector
-	ws           *tool.Workspace
-	terms        *tool.Terms
+	// skillInjector says which skills this session has attached, so
+	// /skills can say which of them earned their tokens.
+	skillInjector *skill.Injector
+	ws            *tool.Workspace
+	terms         *tool.Terms
+	// cd is the session's working directory and everything rooted at it;
+	// /cd moves them together (see agent.CD).
+	cd *agent.CD
 	// once guards close: the root closes the agent it built, and an
 	// error partway through the build closes it again on the way out.
 	once *sync.Once
@@ -211,6 +217,7 @@ func (b builtAgent) close() {
 // the system prompt, skills and memory, diagnostics, the repository map
 // and the trajectory critic.
 func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (builtAgent, error) {
+	cd := agent.NewCD(d.cwd)
 	task := &agent.Task{Root: d.cwd, Models: d.models}
 	jobs := d.jobs
 	cfgDir := d.cfgDir
@@ -219,9 +226,22 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	seen := &tool.Seen{}
 	ws := tool.NewLocal(d.cwd)
 	sb := &shell.Sandbox{}
-	if d.sandboxOn {
+	// The sandbox config key names the profile a session in this project
+	// starts under; --sandbox turns one on without naming a profile, and
+	// means the default one.
+	profile := d.cfg.Sandbox
+	if profile == "off" {
+		profile = ""
+	}
+	if profile == "" && d.sandboxOn {
+		profile = shell.DefaultProfile
+	}
+	if profile != "" {
+		if err := sb.SetProfile(profile); err != nil {
+			return builtAgent{}, err
+		}
 		if err := sb.Enable(); err != nil {
-			return builtAgent{}, fmt.Errorf("--sandbox: %w", err)
+			return builtAgent{}, fmt.Errorf("sandbox %s: %w", profile, err)
 		}
 	}
 	if jobs != nil {
@@ -269,6 +289,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		Price:         d.cfg.PriceFor(d.cfg.Model),
 		ContextWindow: d.cfg.MetaFor(d.cfg.Model).ContextWindow,
 		MaxTokens:     d.cfg.MaxTokens,
+		Effort:        d.cfg.Effort,
 		MaxIterations: d.cfg.MaxIterations,
 		CompactAt:     d.cfg.CompactAt,
 		AutoApprove:   d.cfg.AutoApprove,
@@ -304,22 +325,24 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	// execute_code and run_code are one feature: run_code is the
 	// Python-less form, offered only where execute_code cannot run, so the
 	// model is never asked to choose between two ways to batch tool calls.
-	if script := (&agent.Script{Parent: ag, Root: d.cwd}); !envOff()["script"] && script.Available() {
+	script := &agent.Script{Parent: ag, Root: d.cwd}
+	if !envOff()["script"] && script.Available() {
 		ag.Tools.Add(script)
 	} else {
+		script = nil
 		ag.Tools.Add(&agent.RunCode{Parent: ag})
 	}
 	ag.Tools.Add(&agent.Workflow{Parent: ag})
-	skills := func() []skill.Skill { return skill.Load(d.cwd, cfgDir) }
+	skills := func() []skill.Skill { return skill.Load(cd.Dir(), cfgDir) }
 	skillInj := &skill.Injector{Skills: skills}
 	// Path-scoped rules: nothing is sent until a call touches a path a
 	// rule names, and then once for the session.
-	ruleSet := func() []rules.Rule { return rules.Load(d.cwd, cfgDir) }
+	ruleSet := func() []rules.Rule { return rules.Load(cd.Dir(), cfgDir) }
 	injector := &rules.Injector{Rules: ruleSet}
 	ag.PathRules = injector.For
 	ag.PathSkills = skillInj.ForPaths
-	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(d.cwd, cfgDir) }
-	ag.Tools.Add(&skill.Tool{Skills: skills})
+	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(cd.Dir(), cfgDir) }
+	ag.Tools.Add(&skill.Tool{Skills: skills, Used: skillInj.MarkUsed})
 	ag.Tools.Add(&agent.CronTool{Cron: cron})
 	ag.Tools.Add(&memory.Tool{Store: mem})
 	diag := lsp.New(d.cwd, d.cfg.LSP)
@@ -361,7 +384,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	// ag.Verify is not wired up yet at this point (main.go sets it once it
 	// knows whether the project's verify config is trusted), so the
 	// checks are read at call time rather than captured now.
-	ag.Impact = impactHook(d.cwd, ws, diag, repo, func() []string {
+	ag.Impact = impactHook(cd, ws, diag, repo, func() []string {
 		if gate, _ := ag.VerifyGate(); gate != nil {
 			return gate.Config.Commands
 		}
@@ -381,5 +404,8 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
 
-	return builtAgent{once: &sync.Once{}, agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector, ws: ws, terms: terms}, nil
+	cd.Bind(ws, ag, sess)
+	registerRooted(cd, rootedDeps{d: d, ag: ag, task: task, script: script, diag: diag, repo: repo, mem: mem, terms: terms, jobs: jobs, running: d.running, skills: skills, rules: ruleSet})
+
+	return builtAgent{once: &sync.Once{}, agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector, skillInjector: skillInj, ws: ws, terms: terms, cd: cd}, nil
 }

@@ -7,6 +7,8 @@
   const ask = document.getElementById("ask");
   const askLine = document.getElementById("ask-line");
   const askRule = document.getElementById("ask-rule");
+  const askRungs = document.getElementById("ask-rungs");
+  const askRung = document.getElementById("ask-rung");
   const askImpact = document.getElementById("ask-impact");
   const askPreview = document.getElementById("ask-preview");
   const questionsEl = document.getElementById("questions");
@@ -193,6 +195,7 @@
     statusEl.textContent = bits.join(" · ");
     statusEl.classList.toggle("busy", !!st.running);
     if (st.mode) setModeChip(st.mode);
+    setEffortChip(st.effort);
     if (st.phase) lastFlavor = st.phase;
     relabelThinking();
     refreshWorkspace();
@@ -216,6 +219,15 @@
     chip.dataset.mode = m;
   }
 
+  // The reasoning tier is shown only when it is not the provider's own
+  // default, so a session at max says so without anyone asking.
+  function setEffortChip(effort) {
+    const chip = document.getElementById("effort-chip");
+    if (!chip) return;
+    chip.hidden = !effort;
+    chip.textContent = effort ? "effort " + effort : "";
+  }
+
   function showAsk(p) {
     pending = p && p.name ? p : null;
     ask.hidden = !pending;
@@ -223,10 +235,34 @@
     askLine.textContent = "Allow " + p.name + (p.summary ? " — " + p.summary : "") + (p.warning ? "  Warning: " + p.warning : "") + "?";
     askRule.hidden = !p.rule;
     if (p.rule) askRule.textContent = "rule: " + p.rule + (p.learned ? "  ·  " + p.learned : "");
+    showRungs(p);
     askImpact.hidden = !p.impact;
     if (p.impact) askImpact.textContent = p.impact;
     askPreview.hidden = !p.preview;
     if (p.preview) askPreview.innerHTML = diffHTML(p.preview);
+  }
+
+  // The ladder of rules "Remember this rule" may save, narrowest first
+  // (see perm.SuggestLadder). One rung is no choice at all, so the card
+  // stays as it was and the line above already names the rule.
+  function showRungs(p) {
+    const rungs = Array.isArray(p.rungs) ? p.rungs : [];
+    askRungs.hidden = rungs.length < 2;
+    askRung.innerHTML = "";
+    if (askRungs.hidden) return;
+    rungs.forEach((r, i) => {
+      const o = document.createElement("option");
+      o.value = r.rule;
+      o.textContent = r.rule + (r.learned ? "  ·  " + r.learned : "");
+      o.selected = i === (p.ruleIndex || 0);
+      askRung.appendChild(o);
+    });
+  }
+
+  // chosenRule is the rung the card has selected, "" when it offers no
+  // choice — the server then saves the one it proposed.
+  function chosenRule() {
+    return askRungs.hidden ? "" : askRung.value;
   }
 
   function showQuestions(qs) {
@@ -400,7 +436,7 @@
       const map = { y: "allow", a: "session", r: "always", n: "deny", c: "cancel" };
       if (map[ev.key.toLowerCase()]) {
         ev.preventDefault();
-        await post("/api/permission", { decision: map[ev.key.toLowerCase()] });
+        await post("/api/permission", { decision: map[ev.key.toLowerCase()], rule: chosenRule() });
       }
     }
     if (ev.key === "s" && ev.ctrlKey && running) {
@@ -415,7 +451,7 @@
   ask.addEventListener("click", async (ev) => {
     const b = ev.target.closest("button[data-d]");
     if (!b) return;
-    await post("/api/permission", { decision: b.dataset.d });
+    await post("/api/permission", { decision: b.dataset.d, rule: chosenRule() });
   });
   document.querySelector(".switches").addEventListener("click", async (ev) => {
     const b = ev.target.closest("button[data-cmd]");
@@ -541,7 +577,7 @@
       const ul = document.getElementById("sessions");
       if (!rows.length) { ul.innerHTML = `<li class="quiet">No other sessions</li>`; return; }
       ul.innerHTML = rows.slice(0, 40).map((r) =>
-        `<li class="${r.current ? "on" : ""}" data-id="${esc(r.id)}" title="Resume this conversation"><span>${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}</span></li>`
+        `<li class="${r.current ? "on" : ""}" data-id="${esc(r.id)}" title="${esc(r.note || "Resume this conversation")}" style="padding-left:${8 + (r.depth || 0) * 10}px"><span>${esc(r.prefix || "")}${esc(r.label)}</span><span class="when">${esc(relTime(r.updated))}${r.note ? " · parent elsewhere" : ""}</span></li>`
       ).join("");
     } catch (_) {}
   }

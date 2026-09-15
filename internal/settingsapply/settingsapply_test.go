@@ -5,6 +5,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -46,6 +47,10 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 			func(a *agent.Agent) { a.MaxIterations = 1 },
 			func(a *agent.Agent) any { return a.MaxIterations },
 			func(cfg *config.Config) any { return cfg.MaxIterations }},
+		{"effort", "xhigh",
+			func(a *agent.Agent) { a.Effort = "low" },
+			func(a *agent.Agent) any { return a.Effort },
+			func(cfg *config.Config) any { return cfg.Effort }},
 		{"model", "some-other-model",
 			func(a *agent.Agent) { a.Model = "starting-model" },
 			func(a *agent.Agent) any { return a.Model },
@@ -54,6 +59,10 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 			func(a *agent.Agent) { a.ProofNotes = true },
 			func(a *agent.Agent) any { return a.ProofNotes },
 			func(cfg *config.Config) any { return cfg.ProofNotesEnabled() }},
+		{"sandbox", "strict",
+			func(a *agent.Agent) { a.Sandbox = &shell.Sandbox{}; _ = a.Sandbox.SetProfile("read-only") },
+			func(a *agent.Agent) any { return a.Sandbox.ProfileName() },
+			func(cfg *config.Config) any { return cfg.Sandbox }},
 		{"route_cheap", "haiku",
 			func(a *agent.Agent) { a.RouteCheap = "starting-model" },
 			func(a *agent.Agent) any { return a.RouteCheap },
@@ -69,7 +78,6 @@ func TestApplyUpdatesLiveAgent(t *testing.T) {
 		"thinking":      "read via cfg.ThinkingEnabled() when building each provider request",
 		"show_thinking": "read via cfg.ThinkingShown() when building each provider request",
 		"lean_tools":    "read via cfg.LeanTools() when tools are built for a request",
-		"effort":        "read from cfg.Effort when building each provider request",
 		"theme":         "read from cfg.Theme by the front-end's theme picker",
 		"hints":         "read via cfg.ShowHints() by the hint engine",
 		"memory":        "read via cfg.AutoMemory() where memory extraction is scheduled",

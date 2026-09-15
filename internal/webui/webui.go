@@ -24,6 +24,7 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/prompt"
 	"github.com/xmonader/janetcode/internal/session"
+	"github.com/xmonader/janetcode/internal/skill"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/weburl"
@@ -31,7 +32,10 @@ import (
 
 // Options configures the browser UI.
 type Options struct {
-	Agent    *agent.Agent
+	Agent *agent.Agent
+	// Skills says which skills this session has attached and what they
+	// cost, for /skills to price them.
+	Skills   *skill.Injector
 	Session  *session.Session
 	Provider string
 	Cwd      string
@@ -46,6 +50,9 @@ type Options struct {
 	Jobs      *tool.Jobs
 	Features  *feature.Catalog
 	ConfigDir string
+	// CD is the session's working directory and everything rooted at it;
+	// /cd moves them together. Nil disables /cd.
+	CD *agent.CD
 	// Workspace is the shared host file tools use; /ssh and /docker retarget it.
 	Workspace *tool.Workspace
 
@@ -56,6 +63,8 @@ type Options struct {
 	ConfigPath string
 	// Models switches the session onto another model's provider.
 	Models func(string) (llm.Provider, string, error)
+	// MCP describes the MCP servers, for /mcp.
+	MCP *MCPOptions
 	// Doctor is the same checkup janetcode --doctor prints.
 	Doctor func(io.Writer) error
 }
@@ -161,6 +170,26 @@ type server struct {
 	asking  *askReq
 	status  string
 	verbose bool
+
+	// dirMu guards dir, the directory this session is rooted at. It is
+	// separate from mu because the hello payload reads it while mu is
+	// held.
+	dirMu sync.RWMutex
+	dir   string
+}
+
+// cwd is the directory this session is rooted at.
+func (s *server) cwd() string {
+	s.dirMu.RLock()
+	defer s.dirMu.RUnlock()
+	return s.dir
+}
+
+// setCwd records where /cd moved the session.
+func (s *server) setCwd(dir string) {
+	s.dirMu.Lock()
+	defer s.dirMu.Unlock()
+	s.dir = dir
 }
 
 type envelope struct {
@@ -202,9 +231,12 @@ type statusPayload struct {
 	Plan     bool   `json:"plan"`
 	ReadOnly bool   `json:"readonly"`
 	Mode     string `json:"mode"`
-	Verbose  bool   `json:"verbose"`
-	Status   string `json:"status,omitempty"`
-	Cost     string `json:"cost,omitempty"`
+	// Effort is the reasoning tier the session asks for, empty when it
+	// is the provider's own default — the chip beside the mode.
+	Effort  string `json:"effort,omitempty"`
+	Verbose bool   `json:"verbose"`
+	Status  string `json:"status,omitempty"`
+	Cost    string `json:"cost,omitempty"`
 }
 
 type permPayload struct {
@@ -215,6 +247,12 @@ type permPayload struct {
 	Warning    string `json:"warning,omitempty"`
 	Rule       string `json:"rule,omitempty"`
 	Expandable bool   `json:"expandable,omitempty"`
+	// Rungs is the ladder of rules the "remember this rule" button may
+	// save, narrowest first, and RuleIndex the one it starts on — the
+	// same choice the terminal offers with its arrow keys (see
+	// perm.SuggestLadder). One rung means there is nothing to choose.
+	Rungs     []permRung `json:"rungs,omitempty"`
+	RuleIndex int        `json:"ruleIndex,omitempty"`
 	// Learned is the ledger's note that this call's shape has been
 	// approved several times with no refusal (see agent.ToolCall), shown
 	// next to Rule so the "remember this rule" button explains itself.
@@ -227,10 +265,18 @@ type permPayload struct {
 	Impact string `json:"impact,omitempty"`
 }
 
+// permRung is one choosable rule on a prompt's ladder, with the ledger's
+// note about that exact rule.
+type permRung struct {
+	Rule    string `json:"rule"`
+	Learned string `json:"learned,omitempty"`
+}
+
 func newServer(life context.Context, opts Options) *server {
 	s := &server{
 		opts: opts,
 		life: life,
+		dir:  opts.Cwd,
 		subs: map[chan envelope]struct{}{},
 	}
 	if opts.Agent != nil {
@@ -300,7 +346,7 @@ func (s *server) handler() http.Handler {
 
 func (s *server) hello() helloPayload {
 	h := helloPayload{
-		Cwd:      s.opts.Cwd,
+		Cwd:      s.cwd(),
 		Provider: s.opts.Provider,
 		Version:  s.opts.Version,
 	}
@@ -399,7 +445,7 @@ func (s *server) events(w http.ResponseWriter, r *http.Request) {
 // completeAPI lists @path completions for the composer, the same source
 // the TUI's tab completion uses.
 func (s *server) completeAPI(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, prompt.CompletePath(s.opts.Cwd, r.URL.Query().Get("q")))
+	writeJSON(w, prompt.CompletePath(s.cwd(), r.URL.Query().Get("q")))
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -498,7 +544,7 @@ func (s *server) startTurn(text string) {
 		s.opts.Typed.Note(text)
 	}
 	blocks := []llm.Block{{Type: llm.BlockText, Text: text}}
-	expanded, atts := prompt.ExpandMentions(s.opts.Cwd, text)
+	expanded, atts := prompt.ExpandMentions(s.cwd(), text)
 	if len(atts) > 0 {
 		names := make([]string, len(atts))
 		for i, a := range atts {
@@ -624,7 +670,7 @@ func (s *server) runShell(cmdline string) {
 	call := agent.ToolCall{ID: fmt.Sprintf("shell-%d", time.Now().UnixNano()), Name: "shell", Input: input}
 	s.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
 	s.emitStatus()
-	cwd := s.opts.Cwd
+	cwd := s.cwd()
 	go func() {
 		start := time.Now()
 		out, err := tool.Bash{Root: cwd}.Run(ctx, input)
@@ -656,6 +702,7 @@ func (s *server) statusLocked() statusPayload {
 		st.Plan = modes.PlanMode
 		st.ReadOnly = modes.ReadOnly
 		st.Mode = sessionMode(s.opts.Agent)
+		st.Effort = modes.Effort
 		st.Verbose = s.verbose
 		if usd, ok := s.opts.Agent.UsageSnapshot().Cost(s.opts.Agent.Settings().Price); ok {
 			st.Cost = llm.FormatUSD(usd)

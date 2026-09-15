@@ -30,6 +30,32 @@ func (m *model) sandboxCommand(arg string) {
 	m.refresh(false)
 }
 
+// cdCommand moves the session's working directory. It is the local form
+// of the retarget /ssh and /docker do: the same workspace moves, and so
+// does everything else the session roots at the project (see agent.CD).
+// The conversation is untouched -- this is a move, not a new session.
+func (m *model) cdCommand(arg string) {
+	cd := m.opts.CD
+	if cd == nil {
+		m.transcript.errorf("this session has no working directory to change")
+		return
+	}
+	if a := strings.TrimSpace(arg); a == "" || a == "status" {
+		m.transcript.info(cd.Where())
+		return
+	}
+	status, err := cd.Change(arg)
+	if err != nil {
+		m.transcript.errorf("%v", err)
+		m.refresh(false)
+		return
+	}
+	m.opts.Cwd = cd.Dir()
+	m.transcript.cwd = m.opts.Cwd
+	m.status = status
+	m.refresh(false)
+}
+
 func (m *model) sshCommand(arg string) {
 	m.retargetWorkspace("ssh", arg, tool.DialSSH)
 }

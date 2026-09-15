@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -84,6 +85,8 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return m.handlePickerKey(msg)
 	case m.connect != nil:
 		return m.handleConnectKey(msg)
+	case m.wiz != nil:
+		return m.handleWizardKey(msg)
 	}
 	if m.pending == nil && msg.Paste && bigPaste(string(msg.Runes)) {
 		return m.chipPaste(string(msg.Runes))
@@ -151,6 +154,15 @@ func (m *model) handlePendingKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		m.noteUse("r")
 		m.answer(agent.AllowAlways, "")
+	case "left", "shift+tab":
+		// Along the ladder of rules r could save (see perm.SuggestLadder):
+		// left narrows, right widens. Both are free here — the prompt has
+		// the whole keyboard — and neither answers anything by itself.
+		m.moveRung(-1)
+		m.refresh(false)
+	case "right", "tab":
+		m.moveRung(1)
+		m.refresh(false)
 	case "n", "N":
 		// Ask why so the model can adapt; enter with nothing skips.
 		m.denying = true
@@ -197,6 +209,7 @@ var promptKeys = map[string]keyAction{
 	"ctrl+l":    (*model).keyClearScreen,
 	"shift+tab": (*model).keyCycleMode,
 	"ctrl+t":    (*model).keyAgents,
+	"ctrl+r":    (*model).keyCycleEffort,
 	"ctrl+v":    (*model).keyPasteImage,
 	"tab":       (*model).keyComplete,
 	"up":        (*model).keyUp,
@@ -462,7 +475,8 @@ func (m *model) keyEnter(tea.KeyMsg) (tea.Cmd, bool) {
 		m.hist.remember(text)
 		m.input.Reset()
 		m.layout()
-		m.status = fmt.Sprintf("queued %d · sends when this turn ends · esc cancels the turn and restores it", len(m.turn.queued))
+		m.status = fmt.Sprintf("queued %d · sends when this turn ends · ctrl+s would have steered it into this turn instead · esc cancels the turn and restores it", len(m.turn.queued))
+		m.noteHint(func(s *hints.State) { s.Queued = true })
 		m.refresh(false)
 		return nil, true
 	}

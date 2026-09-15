@@ -73,8 +73,11 @@ type entry struct {
 	denied  bool
 	dur     string
 	started time.Time
-	// ended is when the call finished, for the brief flash that says so.
-	ended time.Time
+	// ended is when the call finished, for the brief flash that says so,
+	// and flashed is whether the last frame drew that flash — the frame
+	// after it fades has to splice the ordinary mark back on.
+	ended   time.Time
+	flashed bool
 
 	// expanded shows this one entry in full, whatever the global
 	// /verbose flag says. ctrl+o sets it on the last turn's entries and a
@@ -107,6 +110,16 @@ type entry struct {
 type mdChunk struct {
 	src, out string
 	width    int
+	// expanded is whether the block was rendered for a reader who asked
+	// to see it in full: a mermaid diagram is drawn when it is folded and
+	// shown as its source when it is expanded, so the cache has to know
+	// which of the two it holds.
+	expanded bool
+	// partial marks a block whose fence was still open when it was
+	// rendered. The text is the same once the fence closes — the renderer
+	// closes it itself — so without this the finished block would be
+	// served from the cache and never drawn.
+	partial bool
 }
 
 // transcript is the ordered list of things shown in the viewport.
@@ -122,6 +135,10 @@ type transcript struct {
 	// lastRender is the size of the frame just built, so the next one can
 	// size its builder in one allocation instead of growing into it.
 	lastRender int
+	// flashUntil is when the newest finished-call flash fades. One value
+	// for the whole transcript: twenty calls returning together still
+	// come to one deadline, and so to one timer.
+	flashUntil time.Time
 }
 
 // liveRenderInterval throttles markdown rendering of streaming text.
@@ -220,6 +237,7 @@ func (t *transcript) apply(ev agent.Event) {
 		e.running = false
 		e.done = true
 		e.ended = time.Now()
+		t.flashUntil = e.ended.Add(flashFor)
 		e.output = ev.Output
 		e.isError = ev.IsError
 		if ev.Duration > 0 {
@@ -456,6 +474,10 @@ func (e *entry) expandable() bool {
 		return e.output != "" || e.call.Preview != "" || e.input.Len() > 0
 	case entryThinking:
 		return e.done && strings.TrimSpace(e.text) != ""
+	case entryAssistant:
+		// A message is expandable when something in it was drawn rather
+		// than shown: ctrl+o swaps the diagram for its mermaid source.
+		return e.done && strings.Contains(e.text, "```mermaid")
 	}
 	return false
 }

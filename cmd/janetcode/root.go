@@ -28,6 +28,7 @@ import (
 	"github.com/xmonader/janetcode/internal/tool"
 	"github.com/xmonader/janetcode/internal/treesitter"
 	"github.com/xmonader/janetcode/internal/trust"
+	"github.com/xmonader/janetcode/internal/tui"
 	"github.com/xmonader/janetcode/internal/verify"
 	"github.com/xmonader/janetcode/internal/weburl"
 )
@@ -85,6 +86,13 @@ type root struct {
 	projRules      perm.Rules
 	permHash       string
 	permTrusted    bool
+	// uiHooks, uiVerify and uiPerms are the front-end's view of the
+	// project's own files, held here so /cd can re-point them at the
+	// directory it moved to. They are set by the mode that builds them
+	// and stay nil in the modes that do not.
+	uiHooks  *tui.HookOptions
+	uiVerify *tui.VerifyOptions
+	uiPerms  *tui.PermOptions
 
 	// closers are run in reverse on the way out, the order the defers
 	// they replace ran in.
@@ -191,40 +199,21 @@ func (r *root) wireProject() error {
 			fmt.Fprintf(os.Stderr, "[verify] %s is not trusted yet; open the TUI and run /verify trust\n", verify.ProjectFile)
 		}
 	}
-	rules, _ := cfg.Permissions.Rules() // validated by config.Load
-	projRules, permHash, err := perm.LoadProject(cwd)
+	rules, projRules, permHash, permTrusted, err := r.permissionRules(cwd)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: %v (project permissions ignored)\n", err)
+		return err
 	}
-	permTrusted := len(projRules.Allow) > 0 && ts.Trusted(trust.PermissionsKey(cwd), permHash)
-	if permTrusted {
-		rules = perm.Merge(rules, projRules)
-	} else {
-		rules = perm.Merge(rules, perm.Rules{Deny: projRules.Deny}) // deny rules need no trust
-		if len(projRules.Allow) > 0 && o.promptText != "" {
-			fmt.Fprintf(os.Stderr, "[permissions] %s has allow rules that are not trusted yet; open the TUI and run /permissions trust\n", perm.ProjectFile)
-		}
-	}
-	for _, spec := range []struct {
-		flag string
-		v    perm.Verdict
-	}{{o.allow, perm.Allowed}, {o.deny, perm.Denied}} {
-		for _, part := range strings.Split(spec.flag, ",") {
-			if strings.TrimSpace(part) == "" {
-				continue
-			}
-			pr, err := perm.Parse(part)
-			if err != nil {
-				return err
-			}
-			rules.Add(spec.v, pr)
-		}
+	if !permTrusted && len(projRules.Allow) > 0 && o.promptText != "" {
+		fmt.Fprintf(os.Stderr, "[permissions] %s has allow rules that are not trusted yet; open the TUI and run /permissions trust\n", perm.ProjectFile)
 	}
 	ag.Rules = rules
 	ag.SaveRule = func(r perm.Rule) error { return config.AddPermission(cfgPath, "allow", r) }
 	// The ledger is keyed like the hint store below: per project, in the
 	// config directory, never in the project itself.
 	ag.Ledger = perm.OpenLedger(cfgDir, memory.Key(cwd))
+	// Paths a write always asks about, whatever the mode: the defaults
+	// plus whatever protected_paths adds to them.
+	ag.Protected = perm.NewProtected(cfg.ProtectedPaths)
 	projectTrusted := len(projectServers) > 0 && ts.Trusted(cwd, projectHash)
 
 	if path := os.Getenv("JANETCODE_DEBUG"); path != "" {
@@ -259,5 +248,41 @@ func (r *root) wireProject() error {
 	r.projRules, r.permHash, r.permTrusted = projRules, permHash, permTrusted
 	r.projectTrusted = projectTrusted
 	r.subjects, r.catalog = subjects, catalog
+	r.registerProjectRooted(r.built.cd)
 	return nil
+}
+
+// permissionRules assembles the permission rules for a project at cwd:
+// the configuration's, then the project's own file as far as it is
+// trusted (deny rules need no trust), then this run's --allow/--deny.
+// /cd runs it again for the directory it moved to.
+func (r *root) permissionRules(cwd string) (rules, projRules perm.Rules, hash string, trusted bool, err error) {
+	rules, _ = r.cfg.Permissions.Rules() // validated by config.Load
+	projRules, hash, err = perm.LoadProject(cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v (project permissions ignored)\n", err)
+		err = nil
+	}
+	trusted = len(projRules.Allow) > 0 && r.trust.Trusted(trust.PermissionsKey(cwd), hash)
+	if trusted {
+		rules = perm.Merge(rules, projRules)
+	} else {
+		rules = perm.Merge(rules, perm.Rules{Deny: projRules.Deny}) // deny rules need no trust
+	}
+	for _, spec := range []struct {
+		flag string
+		v    perm.Verdict
+	}{{r.opts.allow, perm.Allowed}, {r.opts.deny, perm.Denied}} {
+		for _, part := range strings.Split(spec.flag, ",") {
+			if strings.TrimSpace(part) == "" {
+				continue
+			}
+			pr, perr := perm.Parse(part)
+			if perr != nil {
+				return rules, projRules, hash, trusted, perr
+			}
+			rules.Add(spec.v, pr)
+		}
+	}
+	return rules, projRules, hash, trusted, nil
 }

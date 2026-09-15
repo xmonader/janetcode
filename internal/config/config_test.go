@@ -532,3 +532,52 @@ func TestInvalidThemeIsRefused(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// TestSandboxKeyRoundTrip: the sandbox key names a profile the shell
+// package knows, survives a write and a reload, and a typo is a config
+// error rather than a session that quietly is not sandboxed.
+func TestSandboxKeyRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(path, []byte(`{"sandbox": "strict"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := load(path, env(map[string]string{"ANTHROPIC_API_KEY": "sk"}), Overrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Sandbox != "strict" {
+		t.Fatalf("sandbox = %q", cfg.Sandbox)
+	}
+	// /config sandbox=read-only, saved and read back.
+	v, err := ApplyKV(cfg, "sandbox", "read-only")
+	if err != nil || v != "read-only" || cfg.Sandbox != "read-only" {
+		t.Fatalf("ApplyKV = %v, %v; cfg = %q", v, err, cfg.Sandbox)
+	}
+	if err := UpdateKey(path, "sandbox", v); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = load(path, env(map[string]string{"ANTHROPIC_API_KEY": "sk"}), Overrides{})
+	if err != nil || cfg.Sandbox != "read-only" {
+		t.Fatalf("after save: sandbox = %q err = %v", cfg.Sandbox, err)
+	}
+	if _, err := ApplyKV(cfg, "sandbox", "off"); err != nil || cfg.Sandbox != "off" {
+		t.Fatalf("off: %v %q", err, cfg.Sandbox)
+	}
+	if _, err := ApplyKV(cfg, "sandbox", "strictt"); err == nil {
+		t.Error("a mistyped profile was accepted")
+	}
+	if err := os.WriteFile(path, []byte(`{"sandbox": "nonesuch"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := load(path, env(map[string]string{"ANTHROPIC_API_KEY": "sk"}), Overrides{}); err == nil || !errors.Is(err, ErrBadConfig) {
+		t.Fatalf("an unknown profile in the file gave %v", err)
+	}
+	// No key at all means no sandbox, which is the default.
+	if err := os.WriteFile(path, []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err := load(path, env(map[string]string{"ANTHROPIC_API_KEY": "sk"}), Overrides{}); err != nil || cfg.Sandbox != "" {
+		t.Fatalf("default sandbox = %q err = %v", cfg.Sandbox, err)
+	}
+}

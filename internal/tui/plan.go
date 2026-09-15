@@ -128,37 +128,21 @@ func (m *model) planView() string {
 	return out
 }
 
-// planCommand enters plan mode, approves the plan, or leaves the mode.
+// planCommand is the terminal's half of /plan: it parses nothing the
+// core does not already parse, hands the argument to agent.PlanCommand
+// and renders what comes back. The one thing it decides for itself is
+// whether a turn is running, which the core cannot see.
 func (m *model) planCommand(arg string) tea.Cmd {
-	ag := m.opts.Agent
-	switch arg {
-	case "approve", "go", "execute":
-		if !ag.Settings().PlanMode {
-			m.transcript.errorf("not in plan mode: /plan <request> writes a plan first")
-			m.refresh(false)
-			return nil
-		}
-		if m.turn.running {
-			m.transcript.errorf("wait for the plan to finish")
-			m.refresh(false)
-			return nil
-		}
-		ag.SetPlanMode(false)
-		m.status = "plan approved · executing · /undo reverts a step"
-		return m.submit(agent.PlanApprovedPrompt)
-	case "off", "cancel", "exit":
-		ag.SetPlanMode(false)
-		m.noteMode()
+	if a := strings.TrimSpace(arg); m.turn.running && (a == "approve" || a == "go" || a == "execute") {
+		m.transcript.errorf("wait for the plan to finish")
 		m.refresh(false)
 		return nil
 	}
-	if !ag.Settings().PlanMode {
-		ag.SetPlanMode(true)
-		m.noteMode()
+	res, err := m.opts.Agent.PlanCommand(arg, m.turn.running)
+	m.showResult(res, err)
+	m.refresh(false)
+	if err == nil && res.Handover != "" {
+		return m.submit(res.Handover)
 	}
-	if arg == "" {
-		m.refresh(false)
-		return nil
-	}
-	return m.submit(arg)
+	return nil
 }

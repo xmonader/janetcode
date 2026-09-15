@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/projectinit"
 	"github.com/xmonader/janetcode/internal/slash"
 	"github.com/xmonader/janetcode/internal/tool"
 )
@@ -20,23 +21,25 @@ import (
 var webCommands = []string{
 	"/help", "/clear", "/compact", "/yolo", "/auto", "/edits", "/sandbox", "/review", "/loop",
 	"/readonly", "/plan", "/accept", "/verbose", "/undo", "/redo", "/changes", "/diff", "/open", "/context",
-	"/stats", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills",
-	"/pin", "/unpin", "/title", "/model", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
-	"/settle", "/goal", "/why", "/trajectory", "/agents", "/ssh", "/docker", "/reload",
-	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe",
+	"/stats", "/usage", "/budget", "/todos", "/jobs", "/memory", "/remember", "/forget", "/skills", "/init",
+	"/pin", "/unpin", "/title", "/model", "/effort", "/fork", "/add-dir", "/btw", "/copy", "/config", "/doctor",
+	"/settle", "/goal", "/why", "/trajectory", "/agents", "/cd", "/ssh", "/docker", "/reload",
+	"/inspect", "/permissions", "/export", "/feedback", "/eval", "/proof", "/recipe", "/mcp",
 }
 
 var webArgs = map[string]string{
 	"/help":        "[topic]",
-	"/undo":        "[preview | about <description> | apply [--force]]",
+	"/undo":        "[preview | turn <n> [--files-only] | about <description> | apply [--force]]",
 	"/accept":      "[<request> | approve | lock | unlock | command <cmd> | off]",
 	"/diff":        "[path]",
+	"/plan":        "[request | review | comment <line> <text> | changes | approve | off]",
 	"/loop":        "[duration] [prompt|off]",
 	"/jobs":        "[kill n]",
 	"/memory":      "[query]",
 	"/remember":    "[-g] <fact>",
 	"/permissions": "",
 	"/eval":        "keep [name] [--check cmd]",
+	"/mcp":         "[add <name> <command|url> | add --from <repo> --yes | remove <name> --yes]",
 }
 
 var commandSpecs = func() []slash.Command {
@@ -166,6 +169,10 @@ var webDispatch = map[string]webHandler{
 		s.sheet("usage", s.usageText())
 		return false, nil
 	},
+	"/effort": func(s *server, arg string) (bool, error) {
+		s.effort(arg)
+		return false, nil
+	},
 	"/budget": func(s *server, arg string) (bool, error) {
 		s.budget(arg)
 		return false, nil
@@ -192,6 +199,10 @@ var webDispatch = map[string]webHandler{
 	},
 	"/skills": func(s *server, arg string) (bool, error) {
 		s.sheet("skills", s.skillsText())
+		return false, nil
+	},
+	"/init": func(s *server, arg string) (bool, error) {
+		s.showResult(projectinit.Run(s.opts.Cwd, strings.EqualFold(strings.TrimSpace(arg), "force")))
 		return false, nil
 	},
 	"/pin": func(s *server, arg string) (bool, error) {
@@ -243,6 +254,10 @@ var webDispatch = map[string]webHandler{
 		s.agents(arg)
 		return false, nil
 	},
+	"/cd": func(s *server, arg string) (bool, error) {
+		s.cd(arg)
+		return false, nil
+	},
 	"/ssh": func(s *server, arg string) (bool, error) {
 		s.retarget("ssh", arg, tool.DialSSH)
 		return false, nil
@@ -270,6 +285,10 @@ var webDispatch = map[string]webHandler{
 	},
 	"/recipe": func(s *server, arg string) (bool, error) {
 		s.recipeCommand(arg)
+		return false, nil
+	},
+	"/mcp": func(s *server, arg string) (bool, error) {
+		s.mcpCommand(arg)
 		return false, nil
 	},
 	"/feedback": func(s *server, arg string) (bool, error) {
@@ -399,7 +418,12 @@ func (s *server) cmdUndo(arg string) (bool, error) {
 			return true, nil
 		}
 		s.runBusy("matching changes", func(ctx context.Context) {
-			s.showResult(ag.UndoAbout(ctx, s.opts.Cwd, ua.Description))
+			s.showResult(ag.UndoAbout(ctx, s.cwd(), ua.Description))
+		})
+		return true, nil
+	case ua.Turn != 0:
+		s.runBusy("listing what a restore would change", func(ctx context.Context) {
+			s.showResult(ag.UndoToTurn(ctx, s.cwd(), ua.Turn, ua.FilesOnly))
 		})
 		return true, nil
 	case ua.Apply:

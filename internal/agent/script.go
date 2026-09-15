@@ -51,10 +51,26 @@ var scriptSkip = map[string]bool{"execute_code": true, "run_code": true, "workfl
 // Script runs a Python program that can call the session's tools.
 type Script struct {
 	Parent *Agent
-	// Root is the directory the script runs in.
+	// Root is the directory the script runs in. /cd moves it, so it is
+	// written through SetRoot and read through root().
 	Root string
 	// Python is the interpreter to run. Empty means look for python3.
 	Python string
+
+	mu sync.Mutex
+}
+
+// SetRoot moves the directory scripts run in.
+func (s *Script) SetRoot(dir string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Root = dir
+}
+
+func (s *Script) root() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Root
 }
 
 func (*Script) Name() string { return "execute_code" }
@@ -293,7 +309,7 @@ func (s *Script) Run(ctx context.Context, input json.RawMessage) (string, error)
 	go srv.serve(ctx, ln)
 
 	cmd := exec.CommandContext(ctx, py, script)
-	cmd.Dir = s.Root
+	cmd.Dir = s.root()
 	cmd.Env = append(os.Environ(),
 		"JANETCODE_RPC_SOCKET="+sock,
 		"PYTHONPATH="+dir,
