@@ -13,7 +13,6 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -141,123 +140,25 @@ func printFlags(fs *flag.FlagSet, keep func(*flag.Flag) bool) {
 	})
 }
 
-// declaredFlags holds the flag set of the most recent run, for the
-// catalogue drift test. Nothing in the program reads it.
-var declaredFlags atomic.Pointer[flag.FlagSet]
-
 func run(args []string) error {
-	fs := flag.NewFlagSet("janetcode", flag.ContinueOnError)
-	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), `janetcode %s - a terminal coding agent
-
-Usage: janetcode [flags] [prompt]   interactive session in the current directory,
-                                     optionally starting with a prompt
-       janetcode -p "prompt" [flags] run one prompt headless and exit
-
-Flags:
-`, version)
-		isEval := func(name string) bool { return name == "eval" || strings.HasPrefix(name, "eval-") }
-		printFlags(fs, func(f *flag.Flag) bool { return !isEval(f.Name) })
-		fmt.Fprintf(fs.Output(), "\nEval and benchmark flags (see docs/manual/evals.md):\n")
-		printFlags(fs, func(f *flag.Flag) bool { return isEval(f.Name) })
-		fmt.Fprintf(fs.Output(), `
-Environment: ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL, OPENAI_API_KEY, OPENAI_BASE_URL
-             (a key may be a comma-separated list; they are rotated on rate limits),
-             JANETCODE_PROVIDER, JANETCODE_MODEL, JANETCODE_EFFORT, JANETCODE_THEME
-             JANETCODE_OFF=<names> disables behaviours for a session (see -eval-off)
-             JANETCODE_SYSTEM_MD=<file> replaces the base system prompt
-             JANETCODE_DEBUG=<file> appends a timestamped event log
-Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode/config.json)
-`)
-	}
-	var (
-		promptText   = fs.String("p", "", "run this prompt headless and exit")
-		outFormat    = fs.String("output-format", "text", "with -p: how the run reports itself. text prints the answer on stdout and activity on stderr; json prints one result object on stdout (answer, usage, cost and where the figure came from, turns, tool calls, permission denials, verdict, session id, duration); stream-json prints one JSON object per line as things happen, ending with that result")
-		maxCost      = fs.Float64("max-cost", 0, "with -p: stop once the run has spent this much in USD (exit 55), checked after every model call. The figure is the provider's when it reports one, otherwise list price")
-		maxTurns     = fs.Int("max-turns", 0, "cap the model calls one turn may make (0: the configured max_iterations). The same cap --eval-max-turns applies to an eval run, so a benchmark can give a headless run and an eval run the same budget")
-		compactAt    = fs.Int("compact-at", 0, "compact the history at this many estimated tokens instead of the configured value; the same knob --eval-compact-at applies to an eval run")
-		until        = fs.String("until", "", "with -p: shell command that must exit 0 before the run is done (re-loops up to 5 times)")
-		watchCmd     = fs.String("watch", "", "watch mode: re-run this shell command whenever files change and have the model fix failures (use with --yolo)")
-		provider     = fs.String("provider", "", "configured provider or preset name, e.g. anthropic, openai, openrouter, ollama")
-		model        = fs.String("model", "", "model id (default claude-opus-5 for anthropic)")
-		effort       = fs.String("effort", "", "anthropic effort: low, medium, high, xhigh, max")
-		yolo         = fs.Bool("yolo", false, "auto-approve every tool call")
-		autoMode     = fs.Bool("auto", false, "auto mode: in-workspace edits and known-safe reads run; other commands ask (/auto toggles it)")
-		sandboxOn    = fs.Bool("sandbox", false, "wrap local bash in docker (or sandbox-exec on macOS); file tools stay on the host")
-		readonly     = fs.Bool("readonly", false, "read-only: no edits or commands, the model can only inspect")
-		continueC    = fs.Bool("c", false, "short for -continue")
-		resumeR      = fs.String("r", "", "short for -resume <id>")
-		autoEdits    = fs.Bool("auto-edits", false, "auto-accept file edits; commands still ask (/edits toggles it)")
-		evalPath     = fs.String("eval", "", "run the eval tasks in this file or directory against the configured provider and exit")
-		evalJobs     = fs.Int("eval-jobs", 2, "eval tasks to run at once")
-		evalOnly     = fs.String("eval-only", "", "comma-separated task names or tags to run")
-		evalJSON     = fs.String("eval-json", "", "write eval results to this JSON file")
-		replayPath   = fs.String("replay", "", "re-run a saved session against the current code, with the model's replies read from the recording instead of bought: reports the tool calls it makes now against the ones recorded, and needs no API key")
-		whatIf       = fs.String("what-if", "", "counterfactual replay: replay this session (id or path) in an isolated git worktree. Turns before --from-turn re-run from the recording (no tokens spent); from there the session's remaining prompts run live against whatever changed (--model, --provider, --off, --deny, --prompt). Prints a comparison with the original run -- where they first diverged, per-turn verdicts, files changed, a check run in the worktree, tool calls, tokens and cost -- and exits 0; see docs/manual/sessions.md")
-		whatIfFrom   = fs.Int("from-turn", 0, "with --what-if: the first turn (1-based) to run live instead of from the recording")
-		whatIfOff    = fs.String("off", "", "with --what-if: comma-separated behaviours to disable for the live part (same names as --eval-off / JANETCODE_OFF)")
-		whatIfPrompt = fs.String("prompt", "", "with --what-if: replacement text for --from-turn's prompt, instead of the session's own recorded one")
-		whatIfKeep   = fs.Bool("what-if-keep", false, "with --what-if: leave the worktree on disk instead of removing it, and print its path")
-		jsonOut      = fs.Bool("json", false, "with --what-if: write the comparison report as JSON to stdout instead of text")
-		evalReport   = fs.String("eval-report", "", "re-read a saved results file and print its report and tool adoption, without running anything; with --eval-compare it prints the paired comparison of two saved files")
-		evalKeep     = fs.Bool("eval-keep", false, "keep eval work directories")
-		evalRuns     = fs.Int("eval-runs", 1, "repeat every eval task this many times (rates instead of coin flips). One run per task is a coin flip: this set swings 21% between identical runs, so a comparison wants 3 or more")
-		evalCompare  = fs.String("eval-compare", "", "results file of a baseline run to compare against (paired by task, bootstrap interval)")
-		evalOff      = fs.String("eval-off", "", "comma-separated agent behaviours to disable for an ablation run: coach, syntax, loops, prune, verify, repomap, working, plan, critic")
-		evalRoute    = fs.String("eval-route", "", "set route_cheap for this run: send a turn's mechanical steps (reads, greps, checks that already passed) to this model instead of the session's, and record the variant in the results file so a comparison shows what it bought (see docs/manual/evals.md, \"Measuring step routing\")")
-		evalLabel    = fs.String("eval-label", "", "name recorded in the results file for this variant")
-		evalTrain    = fs.String("eval-train", "", "train the trajectory critic from these eval result files (comma-separated files or directories) and exit")
-		evalTimeout  = fs.Duration("eval-timeout", 0, "replace every task's timeout with this wall budget (benchmarks give each harness the same)")
-		evalTurns    = fs.Int("eval-max-turns", 0, "cap model calls per task run (0: the default of 50)")
-		evalNoLimit  = fs.Bool("eval-no-tool-limit", false, "ignore the tasks' max_tool_calls, which other harnesses do not enforce")
-		inspectWhat  = fs.String("inspect", "", "print one part of the session state and exit: context, events, archive, retrieval, compaction, tools, config, lsp, mcp, jobs, skills, repomap and more; `list` names them all")
-		wtBranch     = fs.String("worktree", "", "run the session in a git worktree on this branch, in a checkout under .git: the real tree is untouched, two sessions can work on one repository at once, and the result is a branch to review and merge")
-		acpMode      = fs.Bool("acp", false, "serve the Agent Client Protocol on stdin/stdout, for an ACP editor that launches janetcode as a subprocess (nothing but protocol messages goes to stdout)")
-		evalFacts    = fs.Int("eval-facts", 0, "after each run that compacted, probe up to N facts mined from what compaction removed (exit codes, output lines, file lines) and record how many the model still recalls")
-		evalBlind    = fs.Bool("eval-facts-blind", false, "probe without expand_output: what the compacted context alone retains")
-		evalCompact  = fs.Int("eval-compact-at", 0, "compact the history at this many estimated tokens instead of the default: a low value forces compaction on tasks that would not otherwise reach it, to measure what it costs and what it loses")
-		allow        = fs.String("allow", "", "comma-separated permission rules to allow for this run, e.g. 'bash(go test *),edit_file'")
-		deny         = fs.String("deny", "", "comma-separated permission rules to refuse for this run")
-		cont         = fs.Bool("continue", false, "resume the latest session for this directory")
-		resume       = fs.String("resume", "", "resume the session with this id")
-		showVersion  = fs.Bool("version", false, "print version and exit")
-		listSess     = fs.Bool("sessions", false, "list saved sessions for this directory and exit")
-		initCfg      = fs.Bool("init", false, "write an example config file and exit")
-		mcpAuth      = fs.String("mcp-auth", "", "log in to the named remote MCP server with OAuth (browser flow) and exit")
-		appendSystem = fs.String("append-system-prompt", "", "text (or @file) appended to the system prompt; JANETCODE_SYSTEM_MD=<file> replaces the base prompt. Both are recorded in eval results so a prompt A/B is traceable")
-		runDoctor    = fs.Bool("doctor", false, "check config, credentials, a live model call, directories, MCP servers, hooks, verification, permissions, skills, memory and language servers, then exit")
-		runProof     = fs.Bool("proof", false, "print the proof note (see internal/proof) attached to a commit -- which session, turn and intent wrote each of its files, and what actually demonstrated the work -- then exit; positional argument is a commit (default HEAD), or push [remote] | fetch [remote] to move proof notes to/from a remote, since they are local only until pushed")
-		recipeName   = fs.String("recipe", "", "replay a saved recipe (.janetcode/recipes/<name>.json, see /recipe save) as tool calls with no model call and no tokens, then exit; extra positional arguments are k=v parameter substitutions; a step that fails, or the project's verify gate once every step has succeeded, hands over to the model if a provider is configured, otherwise the run exits non-zero")
-		themeFlag    = fs.String("theme", "", "colour theme for this run: auto, dark, light, or the name of a builtin or user theme (--inspect themes lists them)")
-		web          = fs.Bool("web", false, "serve the session in a browser instead of the terminal")
-		webAddr      = fs.String("web-addr", "127.0.0.1:8787", "listen address for --web. Loopback by default; anyone who can reach the port can approve commands in this directory")
-		bg           = fs.Bool("bg", false, "run the prompt in the background, print the session id, and return; reopen with --resume <id>")
-		addDir       stringList
-	)
-	fs.Var(&addDir, "add-dir", "additional local directory file tools may read and edit (repeatable)")
-	// The flag set is published so the catalogue tests can walk exactly
-	// the flags this program declares. Declaring them in a helper instead
-	// would mean renaming forty-odd locals whose names (version, model,
-	// resume) collide with package-level ones — a rename with nothing to
-	// gain but a tidier test.
-	declaredFlags.Store(fs)
+	fs, o := newFlagSet()
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
 	}
-	if *continueC {
-		*cont = true
+	if o.continueC {
+		o.cont = true
 	}
-	if *resumeR != "" {
-		*resume = *resumeR
+	if o.resumeR != "" {
+		o.resume = o.resumeR
 	}
-	if *showVersion {
+	if o.showVersion {
 		fmt.Println("janetcode", version)
 		return nil
 	}
-	if *initCfg {
+	if o.initCfg {
 		p, err := config.WriteExample()
 		if err != nil {
 			return err
@@ -265,13 +166,13 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		fmt.Println("wrote", p)
 		return nil
 	}
-	if *listSess {
+	if o.listSess {
 		return printSessions()
 	}
-	if *runDoctor {
-		return doctor(os.Stdout, config.Overrides{Provider: *provider, Model: *model, Effort: *effort, Theme: *themeFlag})
+	if o.runDoctor {
+		return doctor(os.Stdout, config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag})
 	}
-	if *runProof {
+	if o.runProof {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return err
@@ -279,39 +180,39 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		return runProofFlag(os.Stdout, cwd, strings.TrimSpace(strings.Join(fs.Args(), " ")))
 	}
 	initial := strings.TrimSpace(strings.Join(fs.Args(), " "))
-	format, err := headless.ParseFormat(*outFormat)
+	format, err := headless.ParseFormat(o.outFormat)
 	if err != nil {
 		return fmt.Errorf("%w: %v", headless.ErrBadInput, err)
 	}
 	// Flags that do not combine, and flags that need another: the first
 	// row that holds is the error. A row's condition names the flags it is
 	// about, so adding a mode means adding its rows here.
-	recipeRun, whatIfRun := *recipeName != "", *whatIf != ""
+	recipeRun, whatIfRun := o.recipeName != "", o.whatIf != ""
 	for _, bad := range []struct {
 		holds bool
 		msg   string
 	}{
-		{initial != "" && *promptText != "", "give the prompt either with -p or as an argument, not both"},
-		{*until != "" && *promptText == "", "--until needs a headless prompt (-p)"},
-		{format != headless.FormatText && *promptText == "" && *watchCmd == "", "--output-format applies to a headless run (-p)"},
-		{*watchCmd != "" && *until != "", "--watch and --until cannot be combined"},
-		{*web && *acpMode, "--web and --acp cannot be combined"},
-		{*web && *promptText != "", "--web is a session, not a one-shot; drop -p"},
-		{*bg && *web, "--bg and --web cannot be combined"},
-		{*bg && *acpMode, "--bg and --acp cannot be combined"},
-		{recipeRun && *promptText != "", "--recipe and -p do not combine; a recipe hands over to the model on its own if a step fails"},
-		{recipeRun && *watchCmd != "", "--recipe and --watch do not combine"},
-		{recipeRun && *web, "--web is a session, not a one-shot; drop --recipe"},
-		{recipeRun && *acpMode, "--recipe and --acp do not combine"},
-		{recipeRun && *bg, "--recipe and --bg do not combine"},
-		{whatIfRun && *promptText != "", "--what-if and -p do not combine"},
-		{whatIfRun && (*evalPath != "" || *evalReport != ""), "--what-if and --eval do not combine"},
-		{whatIfRun && *replayPath != "", "--what-if and --replay do not combine"},
+		{initial != "" && o.promptText != "", "give the prompt either with -p or as an argument, not both"},
+		{o.until != "" && o.promptText == "", "--until needs a headless prompt (-p)"},
+		{format != headless.FormatText && o.promptText == "" && o.watchCmd == "", "--output-format applies to a headless run (-p)"},
+		{o.watchCmd != "" && o.until != "", "--watch and --until cannot be combined"},
+		{o.web && o.acpMode, "--web and --acp cannot be combined"},
+		{o.web && o.promptText != "", "--web is a session, not a one-shot; drop -p"},
+		{o.bg && o.web, "--bg and --web cannot be combined"},
+		{o.bg && o.acpMode, "--bg and --acp cannot be combined"},
+		{recipeRun && o.promptText != "", "--recipe and -p do not combine; a recipe hands over to the model on its own if a step fails"},
+		{recipeRun && o.watchCmd != "", "--recipe and --watch do not combine"},
+		{recipeRun && o.web, "--web is a session, not a one-shot; drop --recipe"},
+		{recipeRun && o.acpMode, "--recipe and --acp do not combine"},
+		{recipeRun && o.bg, "--recipe and --bg do not combine"},
+		{whatIfRun && o.promptText != "", "--what-if and -p do not combine"},
+		{whatIfRun && (o.evalPath != "" || o.evalReport != ""), "--what-if and --eval do not combine"},
+		{whatIfRun && o.replayPath != "", "--what-if and --replay do not combine"},
 		{whatIfRun && recipeRun, "--what-if and --recipe do not combine"},
-		{whatIfRun && *web, "--web is a session, not a one-shot; drop --what-if"},
-		{whatIfRun && *acpMode, "--what-if and --acp do not combine"},
-		{whatIfRun && *bg, "--what-if and --bg do not combine"},
-		{whatIfRun && *whatIfFrom <= 0, "--what-if needs --from-turn <n> (1-based)"},
+		{whatIfRun && o.web, "--web is a session, not a one-shot; drop --what-if"},
+		{whatIfRun && o.acpMode, "--what-if and --acp do not combine"},
+		{whatIfRun && o.bg, "--what-if and --bg do not combine"},
+		{whatIfRun && o.whatIfFrom <= 0, "--what-if needs --from-turn <n> (1-based)"},
 	} {
 		if bad.holds {
 			return fmt.Errorf("%w: %s", headless.ErrBadInput, bad.msg)
@@ -321,33 +222,33 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	// Re-reading saved results and replaying a recording buy nothing, so
 	// they must not need a provider or a key: they run before the config
 	// is loaded, where a missing key would stop them.
-	if *evalReport != "" {
-		return reportEval(*evalReport, *evalCompare)
+	if o.evalReport != "" {
+		return reportEval(o.evalReport, o.evalCompare)
 	}
-	if *replayPath != "" {
-		return runReplay(*replayPath)
+	if o.replayPath != "" {
+		return runReplay(o.replayPath)
 	}
-	if *evalTrain != "" {
+	if o.evalTrain != "" {
 		cfgPath, _ := config.Path()
-		return trainCritic(strings.Split(*evalTrain, ","), filepath.Join(filepath.Dir(cfgPath), "critic.json"), os.Stdout)
+		return trainCritic(strings.Split(o.evalTrain, ","), filepath.Join(filepath.Dir(cfgPath), "critic.json"), os.Stdout)
 	}
-	cfg, cerr := config.Load(config.Overrides{Provider: *provider, Model: *model, Effort: *effort, Theme: *themeFlag, AutoApprove: *yolo})
+	cfg, cerr := config.Load(config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag, AutoApprove: o.yolo})
 	err = cerr
 	// Interactive first run: open the TUI and ask for a provider instead
 	// of failing. Headless runs still need working credentials.
-	needsConnect := err != nil && errors.Is(err, config.ErrNoCredentials) && *promptText == "" && term.IsTerminal(int(os.Stdin.Fd()))
+	needsConnect := err != nil && errors.Is(err, config.ErrNoCredentials) && o.promptText == "" && term.IsTerminal(int(os.Stdin.Fd()))
 	// Inspecting the configuration is what you reach for when the
 	// configuration is the problem, so it must not need a working one.
 	// The subjects that describe a running session are unavailable, and
 	// the listing says which those are.
-	if *inspectWhat != "" && err != nil && errors.Is(err, config.ErrNoCredentials) {
+	if o.inspectWhat != "" && err != nil && errors.Is(err, config.ErrNoCredentials) {
 		r := inspect.New()
 		cfgPath, _ := config.Path()
 		cwd, _ := os.Getwd()
 		registerOfflineSubjects(r, cfg, cfgPath, cwd, err)
 		registerFeatureSubject(r, buildCatalog(fs, nil))
 		registerThemeSubject(r, cfg)
-		return inspectOnce(r, *inspectWhat, os.Stdout)
+		return inspectOnce(r, o.inspectWhat, os.Stdout)
 	}
 	if err == nil {
 		// Prices for models the file does not list come from LiteLLM's
@@ -377,7 +278,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			}
 		}
 	}
-	if err == nil && *promptText != "" {
+	if err == nil && o.promptText != "" {
 		for _, n := range cfg.Notes {
 			fmt.Fprintln(os.Stderr, "janetcode:", n)
 		}
@@ -399,18 +300,18 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	// plumbing: a headless run driven by a benchmark needs the same two
 	// knobs the eval runner takes, and applying them to the config means
 	// every path downstream -- headless, TUI and ACP -- reads one value.
-	if *maxTurns > 0 {
-		cfg.MaxIterations = *maxTurns
+	if o.maxTurns > 0 {
+		cfg.MaxIterations = o.maxTurns
 	}
-	if *compactAt > 0 {
-		cfg.CompactAt = *compactAt
+	if o.compactAt > 0 {
+		cfg.CompactAt = o.compactAt
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	if *wtBranch != "" {
-		wt, err := worktree.Open(context.Background(), cwd, *wtBranch)
+	if o.wtBranch != "" {
+		wt, err := worktree.Open(context.Background(), cwd, o.wtBranch)
 		if err != nil {
 			return err
 		}
@@ -429,33 +330,33 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 		cwd = wt.Path
 	}
-	if *whatIf != "" {
+	if o.whatIf != "" {
 		if prov == nil {
 			return errors.New("--what-if needs a configured provider for the live part")
 		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		return runWhatIf(ctx, cfg, prov, whatIfOptions{
-			session: *whatIf, fromTurn: *whatIfFrom, off: *whatIfOff, deny: *deny, prompt: *whatIfPrompt,
-			keep: *whatIfKeep, json: *jsonOut,
+			session: o.whatIf, fromTurn: o.whatIfFrom, off: o.whatIfOff, deny: o.deny, prompt: o.whatIfPrompt,
+			keep: o.whatIfKeep, json: o.jsonOut,
 		})
 	}
 	// Re-reading saved results needs no provider and no money: the data is
 	// already on disk, and a comparison that was printed once should be
 	// printable again when the statistics behind it change.
-	if *evalPath != "" {
+	if o.evalPath != "" {
 		if prov == nil {
 			return errors.New("--eval needs a configured provider")
 		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		ov, err := prompt.LoadOverride(os.Getenv, *appendSystem)
+		ov, err := prompt.LoadOverride(os.Getenv, o.appendSystem)
 		if err != nil {
 			return err
 		}
-		return runEval(ctx, cfg, prov, evalOptions{path: *evalPath, jobs: *evalJobs, only: *evalOnly, jsonOut: *evalJSON, keep: *evalKeep,
-			runs: *evalRuns, compare: *evalCompare, off: *evalOff, route: *evalRoute, label: *evalLabel, prompt: ov,
-			timeout: *evalTimeout, maxTurns: *evalTurns, noToolLimit: *evalNoLimit, compactAt: *evalCompact, facts: *evalFacts, factsBlind: *evalBlind})
+		return runEval(ctx, cfg, prov, evalOptions{path: o.evalPath, jobs: o.evalJobs, only: o.evalOnly, jsonOut: o.evalJSON, keep: o.evalKeep,
+			runs: o.evalRuns, compare: o.evalCompare, off: o.evalOff, route: o.evalRoute, label: o.evalLabel, prompt: ov,
+			timeout: o.evalTimeout, maxTurns: o.evalTurns, noToolLimit: o.evalNoLimit, compactAt: o.evalCompact, facts: o.evalFacts, factsBlind: o.evalBlind})
 	}
 
 	sessDir, err := session.Dir()
@@ -465,9 +366,9 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	var (
 		sess     *session.Session
 		history  []llm.Message
-		resumeID = *resume
+		resumeID = o.resume
 	)
-	if *cont && resumeID == "" {
+	if o.cont && resumeID == "" {
 		if resumeID, err = session.Latest(sessDir, cwd); err != nil {
 			return err
 		}
@@ -481,15 +382,15 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 			return fmt.Errorf("create session: %w", err)
 		}
 	}
-	if *bg {
-		prompt := strings.TrimSpace(*promptText)
+	if o.bg {
+		prompt := strings.TrimSpace(o.promptText)
 		if prompt == "" {
 			prompt = initial
 		}
 		if prompt == "" {
 			return fmt.Errorf("%w: --bg needs a prompt (-p or an argument)", headless.ErrBadInput)
 		}
-		return launchBackground(sess, prompt, addDir)
+		return launchBackground(sess, prompt, o.addDir)
 	}
 
 	cfgPath, _ := config.Path()
@@ -502,14 +403,14 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		mem.Embed = func(ctx context.Context, texts []string) ([][]float32, error) { return em.Embed(ctx, model, texts) }
 	}
 	pool := newProviderPool(cfg, prov)
-	promptOv, err := prompt.LoadOverride(os.Getenv, *appendSystem)
+	promptOv, err := prompt.LoadOverride(os.Getenv, o.appendSystem)
 	if err != nil {
 		return err
 	}
 	typed := &weburl.Set{}
 	typed.Note(initial)
-	typed.Note(*promptText)
-	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: *readonly, autoEdits: *autoEdits, autoMode: *autoMode, sandboxOn: *sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: addDir}
+	typed.Note(o.promptText)
+	deps := agentDeps{prov: prov, cfg: cfg, cwd: cwd, cfgDir: cfgDir, sessDir: sessDir, mem: mem, jobs: jobs, version: version, readOnly: o.readonly, autoEdits: o.autoEdits, autoMode: o.autoMode, sandboxOn: o.sandboxOn, models: pool.For, promptOverride: promptOv, typed: typed, running: &tool.Running{}, extraDirs: o.addDir}
 	built, err := buildAgent(deps, sess, history)
 	if err != nil {
 		return err
@@ -529,8 +430,8 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	ts := trust.Store{Path: filepath.Join(cfgDir, "mcp-trust.json")}
 	tokens := &mcp.TokenStore{Path: filepath.Join(cfgDir, "mcp-auth.json")}
 	servers.Options.Tokens = tokens
-	if *mcpAuth != "" {
-		return authorizeMCP(*mcpAuth, cfg.MCPServers, projectServers, tokens)
+	if o.mcpAuth != "" {
+		return authorizeMCP(o.mcpAuth, cfg.MCPServers, projectServers, tokens)
 	}
 	hooksCfg, hooksHash, err := hook.LoadProject(cwd)
 	if err != nil {
@@ -544,7 +445,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		for _, n := range hookNotes {
 			fmt.Fprintf(os.Stderr, "[hooks] %s\n", n)
 		}
-	} else if hooksCfg.Len() > 0 && *promptText != "" {
+	} else if hooksCfg.Len() > 0 && o.promptText != "" {
 		fmt.Fprintf(os.Stderr, "[hook] %s is not trusted yet; open the TUI and run /hooks trust\n", hook.ProjectFile)
 	}
 	verifyCfg, verifyHash, err := verify.Load(cwd)
@@ -557,7 +458,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		ag.Verify = &verify.Runner{Config: verifyCfg, Cwd: cwd, Mutate: mutate.ForVerify, Log: func(s string) { fmt.Fprintf(os.Stderr, "[verify] %s\n", s) }}
 	} else if verifyDefined {
 		ag.VerifyUntrusted = true
-		if *promptText != "" {
+		if o.promptText != "" {
 			fmt.Fprintf(os.Stderr, "[verify] %s is not trusted yet; open the TUI and run /verify trust\n", verify.ProjectFile)
 		}
 	}
@@ -571,14 +472,14 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		rules = perm.Merge(rules, projRules)
 	} else {
 		rules = perm.Merge(rules, perm.Rules{Deny: projRules.Deny}) // deny rules need no trust
-		if len(projRules.Allow) > 0 && *promptText != "" {
+		if len(projRules.Allow) > 0 && o.promptText != "" {
 			fmt.Fprintf(os.Stderr, "[permissions] %s has allow rules that are not trusted yet; open the TUI and run /permissions trust\n", perm.ProjectFile)
 		}
 	}
 	for _, spec := range []struct {
 		flag string
 		v    perm.Verdict
-	}{{*allow, perm.Allowed}, {*deny, perm.Denied}} {
+	}{{o.allow, perm.Allowed}, {o.deny, perm.Denied}} {
 		for _, part := range strings.Split(spec.flag, ",") {
 			if strings.TrimSpace(part) == "" {
 				continue
@@ -623,17 +524,17 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	// Deferred: the model gets the schema only after asking for it, so a
 	// session that never wonders about the harness never pays for it.
 	ag.Tools.AddDeferred(feature.Introspect{Catalog: catalog})
-	if *inspectWhat != "" {
-		return inspectOnce(subjects, *inspectWhat, os.Stdout)
+	if o.inspectWhat != "" {
+		return inspectOnce(subjects, o.inspectWhat, os.Stdout)
 	}
 
-	if *recipeName != "" {
+	if o.recipeName != "" {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		if sess != nil {
 			defer func() { _ = sess.Sync() }()
 		}
-		r, err := recipe.Load(cwd, *recipeName)
+		r, err := recipe.Load(cwd, o.recipeName)
 		if err != nil {
 			return fmt.Errorf("--recipe: %w", err)
 		}
@@ -684,7 +585,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 	defer func() { _ = usage.Flush() }()
 	fs.Visit(func(f *flag.Flag) { usage.Note(f.Name) })
 
-	if *acpMode {
+	if o.acpMode {
 		// The editor owns stdout: only ACP frames may go there, so every
 		// other message in this mode is already on stderr.
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -741,10 +642,10 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		return srv.Serve(ctx)
 	}
 
-	if *promptText != "" || *watchCmd != "" {
+	if o.promptText != "" || o.watchCmd != "" {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		text, atts := prompt.ExpandMentions(cwd, *promptText)
+		text, atts := prompt.ExpandMentions(cwd, o.promptText)
 		for _, a := range atts {
 			fmt.Fprintf(os.Stderr, "[attached] %s\n", a.Path)
 		}
@@ -777,11 +678,11 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		return headless.Run(ctx, headless.Options{
 			Agent: ag, Session: sess, Prompt: text, Images: prompt.ImageBlocks(atts),
 			Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin,
-			Until: *until, Watch: *watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
-			Format: format, MaxCostUSD: *maxCost,
+			Until: o.until, Watch: o.watchCmd, Cwd: cwd, Memory: mem, AutoMemory: cfg.AutoMemory(),
+			Format: format, MaxCostUSD: o.maxCost,
 		})
 	}
-	if *web {
+	if o.web {
 		if needsConnect {
 			return fmt.Errorf("no credentials yet: run janetcode without --web and use /connect, or set a key")
 		}
@@ -808,7 +709,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		}
 		return webui.Run(ctx, webui.Options{
 			Agent: ag, Session: sess, Provider: cfg.Provider, Cwd: cwd,
-			Version: version, Addr: *webAddr,
+			Version: version, Addr: o.webAddr,
 			Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
 			Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For,
 			Workspace: built.ws,

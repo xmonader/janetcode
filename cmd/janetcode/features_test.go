@@ -12,27 +12,11 @@ import (
 	"github.com/xmonader/janetcode/internal/hints"
 )
 
-// flagSet runs the cheapest command there is so that run() declares its
-// flags, then takes the flag set it published. The tests below therefore
-// see exactly the flags the program has, not a copy of them.
+// flagSet declares the program's flags the same way run() does, so the
+// tests below see exactly the flags the program has, not a copy of them.
 func flagSet(t *testing.T) *flag.FlagSet {
 	t.Helper()
-	stdout := os.Stdout
-	devnull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	os.Stdout = devnull
-	err = run([]string{"-version"})
-	os.Stdout = stdout
-	devnull.Close()
-	if err != nil {
-		t.Fatalf("run -version: %v", err)
-	}
-	fs := declaredFlags.Load()
-	if fs == nil {
-		t.Fatal("run() published no flag set")
-	}
+	fs, _ := newFlagSet()
 	return fs
 }
 
