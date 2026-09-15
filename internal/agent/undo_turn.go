@@ -31,12 +31,22 @@ var ErrNoTurnCheckpoint = errors.New("no snapshot for that turn")
 var ErrNothingToRestore = errors.New("no turn in this session has changed anything yet, so there is nothing to restore to")
 
 // TurnRestore is what "/undo turn n" would do: the turn it goes back to,
-// when that turn started, and one "verb path" line per file, the same
-// wording UndoPreview uses.
+// when that turn started, one "verb path" line per file, the same
+// wording UndoPreview uses, and what it would drop from the
+// conversation.
 type TurnRestore struct {
 	Turn  int
 	When  time.Time
 	Lines []string
+	// Conversation is what rewinding the context to before the turn
+	// would cost, or nil when there is nothing there to rewind (a
+	// checkpoint older than the turn/message bookkeeping, or a turn that
+	// left no messages). Always nil when FilesOnly.
+	Conversation *ConversationRewind
+	// FilesOnly is the "--files-only" spelling: put the tree back and
+	// leave the conversation as it is, which is what "/undo turn" did
+	// before it learned to rewind.
+	FilesOnly bool
 }
 
 // RestorableTurns lists the turns whose "before" state is still on hand,
@@ -102,16 +112,20 @@ func (k *checkpoints) noTurnCheckpoint(n int) error {
 }
 
 // PreviewUndoTurn lists what putting the work tree back to before turn n
-// would change, and remembers it as the session's pending undo for a
-// following ApplyPendingUndo. Nothing is touched.
-func (a *Agent) PreviewUndoTurn(ctx context.Context, n int) (TurnRestore, error) {
+// would change — and, unless filesOnly, what rewinding the conversation
+// to that point would drop — and remembers it as the session's pending
+// undo for a following ApplyPendingUndo. Nothing is touched.
+func (a *Agent) PreviewUndoTurn(ctx context.Context, n int, filesOnly bool) (TurnRestore, error) {
+	if a.running.Load() {
+		return TurnRestore{}, ErrTurnRunning
+	}
 	a.cp.mu.Lock()
 	defer a.cp.mu.Unlock()
 	cp, ok := a.checkpointForTurn(n)
 	if !ok {
 		return TurnRestore{}, a.noTurnCheckpoint(n)
 	}
-	tr := TurnRestore{Turn: n, When: cp.When}
+	tr := TurnRestore{Turn: n, When: cp.When, FilesOnly: filesOnly}
 	repo := a.snaps()
 	if cp.Snap != nil && repo != nil {
 		mctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -132,12 +146,17 @@ func (a *Agent) PreviewUndoTurn(ctx context.Context, n int) (TurnRestore, error)
 		return TurnRestore{}, err
 	}
 	tr.Lines = lines
+	if !filesOnly {
+		tr.Conversation = a.previewRewind(cp)
+	}
 	a.pendingUndo = &pendingUndo{fingerprint: a.turnFingerprint(), turn: &tr, cp: cp}
 	return tr, nil
 }
 
 // applyTurnRestore carries out a previewed turn restore: the tree goes
-// back to the checkpoint, every file it touched is recorded as a change
+// back to the checkpoint, the conversation is rewound with it unless the
+// preview said --files-only (see rewind.go), every file it touched is
+// recorded as a change
 // (so the restore is itself undoable, and shows up in /changes and
 // /blame like any other edit), and the checkpoints of that turn and
 // everything after it are dropped, since the states they describe are no
@@ -196,6 +215,13 @@ func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpo
 	sort.Strings(rep.Reverted)
 	if len(rep.Reverted) == 0 {
 		rep.Reverted = append(rep.Reverted, fmt.Sprintf("the work tree already matched its state before turn %d", tr.Turn))
+	}
+	// The tree is back; now the context, so the model is not left
+	// asserting the contents of files that just changed under it. The
+	// files go first so a refused restore never rewinds a conversation
+	// about work that is still there (see rewind.go).
+	if !tr.FilesOnly {
+		rep.Rewound = a.rewindConversation(cp, rep.Reverted)
 	}
 	a.reportChecks(ctx, &rep, Selection{})
 	a.cp.mu.Lock()
@@ -299,7 +325,18 @@ func FormatTurnRestore(root string, tr TurnRestore) string {
 	if len(tr.Lines) == 0 {
 		sb.WriteString("  nothing: the tree already matches that state\n")
 	}
+	switch {
+	case tr.FilesOnly:
+		sb.WriteString("\nthe conversation is left alone (--files-only), so the model goes on believing it did that work\n")
+	case tr.Conversation != nil:
+		fmt.Fprintf(&sb, "\nand rewind this conversation to that point, dropping %s from the model's context\n", tr.Conversation.Line())
+	default:
+		sb.WriteString("\nthe conversation holds nothing from that turn on, so there is nothing to rewind\n")
+	}
 	sb.WriteString("\n/undo apply carries it out; the restore is itself recorded as a change, so /undo <n> takes it back")
+	if !tr.FilesOnly {
+		sb.WriteString("\n/undo turn " + strconv.Itoa(tr.Turn) + " --files-only restores the files only")
+	}
 	return sb.String()
 }
 
@@ -307,13 +344,14 @@ func FormatTurnRestore(root string, tr TurnRestore) string {
 // it would change, in every front-end.
 const UndoTurnTimeout = 2 * time.Minute
 
-// UndoToTurn runs "/undo turn <n>" for every front-end: it previews
-// putting the work tree back to before turn n, shown relative to root.
+// UndoToTurn runs "/undo turn <n> [--files-only]" for every front-end:
+// it previews putting the work tree back to before turn n, and the
+// conversation with it unless filesOnly, shown relative to root.
 // Nothing is touched; "/undo apply" carries it out.
-func (a *Agent) UndoToTurn(ctx context.Context, root string, n int) (cmdresult.Result, error) {
+func (a *Agent) UndoToTurn(ctx context.Context, root string, n int, filesOnly bool) (cmdresult.Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, UndoTurnTimeout)
 	defer cancel()
-	tr, err := a.PreviewUndoTurn(ctx, n)
+	tr, err := a.PreviewUndoTurn(ctx, n, filesOnly)
 	if err != nil {
 		return cmdresult.Result{}, fmt.Errorf("undo turn %d: %w", n, err)
 	}

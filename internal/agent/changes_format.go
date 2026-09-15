@@ -66,7 +66,7 @@ func FormatChangeGroups(groups []ChangeGroup, root string, restorable []int) str
 		i = j
 	}
 	if marked {
-		sb.WriteString("\n[restorable] /undo turn <n> puts the whole work tree back to before that turn\n")
+		sb.WriteString("\n[restorable] /undo turn <n> puts the whole work tree back to before that turn, and rewinds the conversation with it (--files-only keeps the conversation)\n")
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }

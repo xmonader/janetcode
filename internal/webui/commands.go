@@ -28,7 +28,7 @@ var webCommands = []string{
 
 var webArgs = map[string]string{
 	"/help":        "[topic]",
-	"/undo":        "[preview | turn <n> | about <description> | apply [--force]]",
+	"/undo":        "[preview | turn <n> [--files-only] | about <description> | apply [--force]]",
 	"/accept":      "[<request> | approve | lock | unlock | command <cmd> | off]",
 	"/diff":        "[path]",
 	"/plan":        "[request | review | comment <line> <text> | changes | approve | off]",
@@ -414,7 +414,7 @@ func (s *server) cmdUndo(arg string) (bool, error) {
 		return true, nil
 	case ua.Turn != 0:
 		s.runBusy("listing what a restore would change", func(ctx context.Context) {
-			s.showResult(ag.UndoToTurn(ctx, s.opts.Cwd, ua.Turn))
+			s.showResult(ag.UndoToTurn(ctx, s.opts.Cwd, ua.Turn, ua.FilesOnly))
 		})
 		return true, nil
 	case ua.Apply:

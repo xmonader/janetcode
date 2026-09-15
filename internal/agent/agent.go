@@ -12,6 +12,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/hook"
@@ -276,6 +277,12 @@ type Agent struct {
 	Prepare func(blocks []llm.Block) ([]llm.Block, string)
 
 	mutated bool // a mutating tool ran successfully this turn
+	// running is set between beginTurn and endTurn, so a command that
+	// rewrites the conversation ("/undo turn n", see rewind.go) can
+	// refuse rather than race the turn goroutine that is appending to
+	// it. The front-ends keep such commands off the key handler while a
+	// turn runs (slash.idleOnly); this is the agent's own check.
+	running atomic.Bool
 
 	// callIDs is every tool-call id handed out this conversation, so a
 	// provider that repeats or omits one cannot collide with it.
@@ -317,6 +324,7 @@ func (a *Agent) beginTurn(ctx context.Context, blocks ...llm.Block) {
 	a.logEvent(start)
 	a.logUserMessage(merged)
 	a.cp.beginTurn(a.turnN, before)
+	a.running.Store(true)
 	a.mutated, a.mutations = false, 0
 	a.proofCommits = nil
 }

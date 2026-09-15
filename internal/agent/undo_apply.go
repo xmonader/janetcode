@@ -91,11 +91,19 @@ func (a *Agent) reportChecks(ctx context.Context, rep *UndoReport, sel Selection
 
 // TellModelUndone adds a note to the conversation naming what a /undo
 // apply reverted, so the model does not go on believing those changes are
-// still there. It is a harness note of its own (a synthetic block ending
+// still there. A rewinding "/undo turn" has already said it in the
+// conversation it rewound, so this adds nothing there. It is a harness note of its own (a synthetic block ending
 // its paragraph), not words put in the user's mouth, so the prompt typed
 // next reads as what it is. Call it between turns.
 func (a *Agent) TellModelUndone(rep UndoReport) {
 	if len(rep.Reverted) == 0 {
+		return
+	}
+	if rep.Rewound != nil {
+		// A turn restore that rewound the conversation has already put
+		// its own note where the dropped turns were, naming the same
+		// files (see rewind.go). A second note here would speak about
+		// the turns from outside them and say it twice.
 		return
 	}
 	a.AddHarnessContext("[harness] The user ran /undo apply, which reverted some of your earlier changes:\n" + strings.Join(rep.Reverted, "\n") + "\nLater changes to the same files stayed.\n")
