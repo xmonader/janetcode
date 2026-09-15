@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"github.com/xmonader/janetcode/internal/shell"
 	"strings"
 	"testing"
 
@@ -265,8 +266,8 @@ func TestCheckDetectionOnRealCommands(t *testing.T) {
 		"cat access.log":              false,
 		"git status":                  false,
 	} {
-		if got := isCheck(cmd); got != want {
-			t.Fatalf("isCheck(%q) = %v, want %v", cmd, got, want)
+		if got := shell.IsCheck(cmd); got != want {
+			t.Fatalf("shell.IsCheck(%q) = %v, want %v", cmd, got, want)
 		}
 	}
 }

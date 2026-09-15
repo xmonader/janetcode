@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xmonader/janetcode/internal/accept"
 	"io"
 	"strings"
 	"sync"
@@ -229,14 +230,9 @@ type Agent struct {
 	Hooks *hook.Runner
 	// Cron is the session-scoped scheduler; jobs die when the session ends.
 	Cron *Cron
-	// Accept is the /accept "acceptance tests you approve first" state,
-	// or nil when the mode has never been used this session (see
-	// accept.go). It is a *session.AcceptMeta rather than a private type
-	// so it can be persisted as-is.
-	Accept *session.AcceptMeta
-	// OnAcceptChange, when set, is called after Accept changes so the
-	// session file can keep it — the same shape as Cron.OnChange.
-	OnAcceptChange func(*session.AcceptMeta)
+	// accept is the /accept mode (see package accept and acceptgate.go),
+	// nil until the mode is first used this session.
+	accept *accept.Mode
 	// Forked is true when this agent is a fork of a parent conversation
 	// and must not spawn another fork.
 	Forked bool
@@ -254,9 +250,6 @@ type Agent struct {
 	steerMu sync.Mutex // guards steer, written from the UI goroutine
 	steer   []string   // notes for the running turn (see Steer)
 	harness []string   // harness text for the running turn (path rules)
-	// acceptMu guards Accept, which a front-end changes while tools read
-	// it (see accept.go).
-	acceptMu sync.Mutex
 	// tools is this turn's tool list, held so that a server registering
 	// mid-turn cannot rewrite the cached prefix. Cleared at each turn.
 	tools []llm.ToolDef

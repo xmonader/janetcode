@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -30,10 +32,10 @@ func TestAcceptLockDeniesEditFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.Accept = &session.AcceptMeta{
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptLocked, Request: "add foo", Root: root,
 		Files: []string{testPath}, Hashes: map[string]string{testPath: sum}, Command: "go test ./...",
-	}
+	}, nil)
 	evs, emit := collect()
 	if err := a.Run(context.Background(), "tweak the test", emit); err != nil {
 		t.Fatal(err)
@@ -59,10 +61,10 @@ func TestAcceptLockDeniesWriteFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	sum, _ := hashFile(testPath)
-	a.Accept = &session.AcceptMeta{
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptLocked, Request: "add foo", Root: root,
 		Files: []string{testPath}, Hashes: map[string]string{testPath: sum}, Command: "go test ./...",
-	}
+	}, nil)
 	evs, emit := collect()
 	if err := a.Run(context.Background(), "tweak the test", emit); err != nil {
 		t.Fatal(err)
@@ -91,10 +93,10 @@ func TestAcceptLockDeniesBashWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	sum, _ := hashFile(testPath)
-	a.Accept = &session.AcceptMeta{
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptLocked, Request: "add foo", Root: root,
 		Files: []string{testPath}, Hashes: map[string]string{testPath: sum}, Command: "go test ./...",
-	}
+	}, nil)
 	evs, emit := collect()
 	if err := a.Run(context.Background(), "tweak the test", emit); err != nil {
 		t.Fatal(err)
@@ -124,13 +126,13 @@ func TestAcceptUnlockAllowsEditAndRefreshesHash(t *testing.T) {
 		t.Fatal(err)
 	}
 	sum, _ := hashFile(testPath)
-	a.Accept = &session.AcceptMeta{
+	a.SetAccept(&session.AcceptMeta{
 		// Command is "true", not a real test command: this test is about
 		// the edit and the hash refresh, not the gate run that follows it
 		// (that path is covered by TestAcceptGateDetectsTamperAndFailsWithoutRunning).
 		Phase: session.AcceptUnlocked, Request: "add foo", Root: root,
 		Files: []string{testPath}, Hashes: map[string]string{testPath: sum}, Command: "true",
-	}
+	}, nil)
 	if err := a.Run(context.Background(), "fix the test", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -145,8 +147,8 @@ func TestAcceptUnlockAllowsEditAndRefreshesHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.Accept.Hashes[testPath] != newSum {
-		t.Fatalf("hash was not refreshed after the unlocked edit: got %s want %s", a.Accept.Hashes[testPath], newSum)
+	if a.AcceptMeta().Hashes[testPath] != newSum {
+		t.Fatalf("hash was not refreshed after the unlocked edit: got %s want %s", a.AcceptMeta().Hashes[testPath], newSum)
 	}
 }
 
@@ -170,10 +172,10 @@ func TestAcceptGateDetectsTamperAndFailsWithoutRunning(t *testing.T) {
 	sum, _ := hashFile(testPath)
 	// A command that would obviously succeed: if it ran, Gate.Passed
 	// would be true, so seeing it stay nil shows the command never ran.
-	a.Accept = &session.AcceptMeta{
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptLocked, Request: "add foo", Root: root,
 		Files: []string{testPath}, Hashes: map[string]string{testPath: sum}, Command: "true",
-	}
+	}, nil)
 	// Tamper with the locked file outside any tool call.
 	if err := os.WriteFile(testPath, []byte("package foo // tampered\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -182,11 +184,11 @@ func TestAcceptGateDetectsTamperAndFailsWithoutRunning(t *testing.T) {
 	if err := a.Run(context.Background(), "add the foo endpoint", emit); err != nil {
 		t.Fatal(err)
 	}
-	if a.Accept.Tamper == "" {
+	if a.AcceptMeta().Tamper == "" {
 		t.Fatal("Accept.Tamper was not recorded")
 	}
-	if a.Accept.Gate != nil {
-		t.Fatalf("the gate command ran despite tampering: %+v", a.Accept.Gate)
+	if a.AcceptMeta().Gate != nil {
+		t.Fatalf("the gate command ran despite tampering: %+v", a.AcceptMeta().Gate)
 	}
 	found := false
 	for _, e := range *evs {
@@ -207,10 +209,11 @@ func TestAcceptApproveLocksFilesAndRecordsHashes(t *testing.T) {
 	if err := os.WriteFile(testPath, []byte("package foo\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	a := &Agent{Accept: &session.AcceptMeta{
+	a := &Agent{}
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptProposed, Request: "add foo", Root: root,
 		Files: []string{testPath}, Proposed: "go test ./...",
-	}}
+	}, nil)
 	cmd, err := a.AcceptApprove()
 	if err != nil {
 		t.Fatal(err)
@@ -218,11 +221,11 @@ func TestAcceptApproveLocksFilesAndRecordsHashes(t *testing.T) {
 	if cmd != "go test ./..." {
 		t.Fatalf("command = %q", cmd)
 	}
-	if a.Accept.Phase != session.AcceptLocked {
-		t.Fatalf("phase = %s, want locked", a.Accept.Phase)
+	if a.AcceptMeta().Phase != session.AcceptLocked {
+		t.Fatalf("phase = %s, want locked", a.AcceptMeta().Phase)
 	}
 	want, _ := hashFile(testPath)
-	if a.Accept.Hashes[testPath] != want {
+	if a.AcceptMeta().Hashes[testPath] != want {
 		t.Fatalf("hash not recorded for %s", testPath)
 	}
 }
@@ -271,14 +274,14 @@ func TestAcceptWritingPhaseCapturesProposedCommand(t *testing.T) {
 	if err := a.Run(context.Background(), "write acceptance tests", nil); err != nil {
 		t.Fatal(err)
 	}
-	if a.Accept.Phase != session.AcceptProposed {
-		t.Fatalf("phase = %s, want proposed", a.Accept.Phase)
+	if a.AcceptMeta().Phase != session.AcceptProposed {
+		t.Fatalf("phase = %s, want proposed", a.AcceptMeta().Phase)
 	}
-	if a.Accept.Proposed != "go test ./..." {
-		t.Fatalf("proposed = %q", a.Accept.Proposed)
+	if a.AcceptMeta().Proposed != "go test ./..." {
+		t.Fatalf("proposed = %q", a.AcceptMeta().Proposed)
 	}
-	if len(a.Accept.Files) != 1 || !strings.HasSuffix(a.Accept.Files[0], "foo_test.go") {
-		t.Fatalf("files = %v", a.Accept.Files)
+	if len(a.AcceptMeta().Files) != 1 || !strings.HasSuffix(a.AcceptMeta().Files[0], "foo_test.go") {
+		t.Fatalf("files = %v", a.AcceptMeta().Files)
 	}
 }
 
@@ -303,7 +306,7 @@ func TestAcceptStateSurvivesResume(t *testing.T) {
 	a, root := newAgent(t, f, nil)
 	a.AutoApprove = true
 	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root}, tool.EditFile{Root: root})
-	a.OnAcceptChange = func(am *session.AcceptMeta) { _ = sess.SetAccept(am) }
+	a.SetAccept(nil, func(am *session.AcceptMeta) { _ = sess.SetAccept(am) })
 	a.AcceptStart("add a foo endpoint", root)
 	if err := a.Run(context.Background(), "write acceptance tests", nil); err != nil {
 		t.Fatal(err)
@@ -324,9 +327,9 @@ func TestAcceptStateSurvivesResume(t *testing.T) {
 	}
 	b := &Agent{Provider: f, Tools: tool.NewRegistry(tool.WriteFile{Root: root}, tool.EditFile{Root: root}), Model: "m"}
 	b.AutoApprove = true
-	b.Accept = reopened.Meta.Accept
-	if b.Accept == nil || b.Accept.Phase != session.AcceptLocked {
-		t.Fatalf("restored accept state: %+v", b.Accept)
+	b.SetAccept(reopened.Meta.Accept, nil)
+	if b.AcceptMeta() == nil || b.AcceptMeta().Phase != session.AcceptLocked {
+		t.Fatalf("restored accept state: %+v", b.AcceptMeta())
 	}
 
 	f2 := &fake{responses: []*llm.Response{
@@ -365,10 +368,10 @@ func TestAcceptProposedPhaseRefusesNonTestFileEdits(t *testing.T) {
 	if err := os.WriteFile(testPath, []byte("package foo\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	a.Accept = &session.AcceptMeta{
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptProposed, Request: "add foo", Root: root,
 		Files: []string{testPath}, Proposed: "go test ./...",
-	}
+	}, nil)
 	evs, emit := collect()
 	if err := a.Run(context.Background(), "go ahead and implement it now", emit); err != nil {
 		t.Fatal(err)
@@ -393,10 +396,10 @@ func TestAcceptProposedPhaseRefusesBash(t *testing.T) {
 	a, root := newAgent(t, f, nil)
 	a.AutoApprove = true
 	a.Tools = tool.NewRegistry(tool.Bash{Root: root})
-	a.Accept = &session.AcceptMeta{
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptProposed, Request: "add foo", Root: root,
 		Files: []string{filepath.Join(root, "foo_test.go")}, Proposed: "go test ./...",
-	}
+	}, nil)
 	evs, emit := collect()
 	if err := a.Run(context.Background(), "run something", emit); err != nil {
 		t.Fatal(err)
@@ -428,12 +431,12 @@ func TestAcceptLockedFileRestoredAfterUntrackedBashWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	sum, _ := hashFile(testPath)
-	a.Accept = &session.AcceptMeta{
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptLocked, Request: "add foo", Root: root,
 		Files: []string{testPath}, Hashes: map[string]string{testPath: sum},
 		Contents: map[string][]byte{testPath: []byte(orig)},
 		Command:  "true",
-	}
+	}, nil)
 	evs, emit := collect()
 	if err := a.Run(context.Background(), "fix the code so the test passes", emit); err != nil {
 		t.Fatal(err)
@@ -474,12 +477,12 @@ func TestAcceptExternalTamperIsRestoredWithoutBlamingTheCall(t *testing.T) {
 		t.Fatal(err)
 	}
 	sum, _ := hashFile(testPath)
-	a.Accept = &session.AcceptMeta{
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptLocked, Request: "add foo", Root: root,
 		Files: []string{testPath}, Hashes: map[string]string{testPath: sum},
 		Contents: map[string][]byte{testPath: []byte(orig)},
 		Command:  "true",
-	}
+	}, nil)
 	if err := os.WriteFile(testPath, []byte("package foo // weakened\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -506,19 +509,20 @@ func TestAcceptExternalTamperIsRestoredWithoutBlamingTheCall(t *testing.T) {
 // exactly how "===: command not found" (exit 127) was produced from a
 // gate command that ran fine by hand.
 func TestAcceptCaptureStripsBacktickWrappedCommand(t *testing.T) {
-	a := &Agent{Accept: &session.AcceptMeta{
+	a := &Agent{}
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptWriting, Request: "slug fix", Files: []string{"foo_test.go"},
-	}}
+	}, nil)
 	text := "Wrote the acceptance test.\n\nACCEPT-VERIFY: `cd pkg && go test -v -run TestSlug`\n\n=== RUN   TestSlug\n--- PASS: TestSlug (0.00s)\nPASS\n"
 	nudged := false
 	if more := a.acceptCapture(text, &nudged, func(Event) {}); more {
 		t.Fatal("capture should have moved to proposed, not asked again")
 	}
-	if strings.ContainsAny(a.Accept.Proposed, "`") {
-		t.Fatalf("proposed command kept its backtick wrapping: %q", a.Accept.Proposed)
+	if strings.ContainsAny(a.AcceptMeta().Proposed, "`") {
+		t.Fatalf("proposed command kept its backtick wrapping: %q", a.AcceptMeta().Proposed)
 	}
-	if a.Accept.Proposed != "cd pkg && go test -v -run TestSlug" {
-		t.Fatalf("proposed command = %q", a.Accept.Proposed)
+	if a.AcceptMeta().Proposed != "cd pkg && go test -v -run TestSlug" {
+		t.Fatalf("proposed command = %q", a.AcceptMeta().Proposed)
 	}
 }
 
@@ -535,11 +539,12 @@ func TestAcceptGateStopsImmediatelyOnCommandNotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 	sum, _ := hashFile(testPath)
-	a := &Agent{Accept: &session.AcceptMeta{
+	a := &Agent{}
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptLocked, Request: "add foo", Root: root,
 		Files: []string{testPath}, Hashes: map[string]string{testPath: sum},
 		Command: "this-command-does-not-exist-anywhere-xyz",
-	}}
+	}, nil)
 	a.mutations = 1
 	g := &gateState{}
 	evs, emit := collect()
@@ -578,10 +583,11 @@ func TestAcceptApproveShowsTheCommandAndASecondApproveSaysLocked(t *testing.T) {
 	if err := os.WriteFile(testPath, []byte("package clip\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	a := &Agent{Accept: &session.AcceptMeta{
+	a := &Agent{}
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptProposed, Request: "clip", Root: root,
 		Files: []string{testPath}, Proposed: "go test -run TestClip ./...",
-	}}
+	}, nil)
 	res, err := a.AcceptCommand(AcceptArgs{Approve: true}, root)
 	if err != nil {
 		t.Fatal(err)
@@ -607,15 +613,15 @@ func TestAcceptRevisingProposedTestsRecapturesTheCommand(t *testing.T) {
 	a.AutoApprove = true
 	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
 	testPath := filepath.Join(root, "clip_test.go")
-	a.Accept = &session.AcceptMeta{
+	a.SetAccept(&session.AcceptMeta{
 		Phase: session.AcceptProposed, Request: "clip", Root: root,
 		Files: []string{testPath}, Proposed: "go test -run 'TestClipBytes|TestOneLineExactBoundary' ./...",
-	}
+	}, nil)
 	if err := a.Run(context.Background(), "drop the boundary test", nil); err != nil {
 		t.Fatal(err)
 	}
-	if a.Accept.Phase != session.AcceptProposed || a.Accept.Proposed != "go test -run TestClipBytes ./..." {
-		t.Fatalf("accept = %+v, want the revised command proposed", a.Accept)
+	if a.AcceptMeta().Phase != session.AcceptProposed || a.AcceptMeta().Proposed != "go test -run TestClipBytes ./..." {
+		t.Fatalf("accept = %+v, want the revised command proposed", a.AcceptMeta())
 	}
 }
 
@@ -623,7 +629,8 @@ func TestAcceptRevisingProposedTestsRecapturesTheCommand(t *testing.T) {
 // what the model needs: read-only shell and a test run pass the mode gate
 // (the approval prompt still applies); anything else is still refused.
 func TestAcceptWritingPhaseAllowsReadsAndTestRuns(t *testing.T) {
-	a := &Agent{Root: "/work/repo", Accept: &session.AcceptMeta{Phase: session.AcceptWriting, Request: "clip", Root: "/work/repo"}}
+	a := &Agent{Root: "/work/repo"}
+	a.SetAccept(&session.AcceptMeta{Phase: session.AcceptWriting, Request: "clip", Root: "/work/repo"}, nil)
 	bash := tool.Bash{Root: "/work/repo"}
 	for cmd, allowed := range map[string]bool{
 		"find . -name '*_test.go'":                    true,
@@ -641,7 +648,9 @@ func TestAcceptWritingPhaseAllowsReadsAndTestRuns(t *testing.T) {
 		}
 	}
 	// Proposed: the proposed command itself runs too.
-	a.Accept.Phase, a.Accept.Proposed = session.AcceptProposed, "make acceptance"
+	proposed := a.AcceptMeta()
+	proposed.Phase, proposed.Proposed = session.AcceptProposed, "make acceptance"
+	a.SetAccept(proposed, nil)
 	in, _ := json.Marshal(map[string]string{"command": "make acceptance"})
 	if _, denied := a.toolGate(bash, in); denied {
 		t.Error("the proposed command was refused in the proposed phase")
@@ -680,4 +689,16 @@ func TestAcceptWritingTurnIsNotSentBackOrJudgedFailed(t *testing.T) {
 	if !strings.Contains(verdict, string(VerdictTestsWritten)) || strings.Contains(verdict, "✗") {
 		t.Fatalf("verdict = %q, want tests written", verdict)
 	}
+}
+
+// hashFile is the sha256 of a file's content, the same thing accept mode
+// records for a locked test; here so these tests can check a hash without
+// reaching into that package.
+func hashFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), nil
 }

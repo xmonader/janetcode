@@ -135,22 +135,6 @@ func exercised(out string) (ran, nothing bool) {
 	return ran, nothing
 }
 
-// checkRe recognises a command that checks something. It is looser than
-// the trajectory features' pattern on purpose: that one matches whole
-// words, so `python test_ini.py` — a real test run — slipped past it,
-// because "_" is a word character and \btest\b never reached the "test"
-// in "test_ini". A detector that misses a check accuses the model of not
-// running one, which is worse than counting a stray command.
-var checkRe = regexp.MustCompile(`(?i)(test|spec|pytest|jest|vitest|mocha|rspec|junit|check|verify|assert|vet\b|lint|tsc\b|mypy|ruff|clippy|build|make\b|ctest|tox|nox|gradle|mvn\b)`)
-
-// isCheck reports whether a shell command is checking something.
-func isCheck(cmd string) bool { return cmd != "" && checkRe.MatchString(cmd) }
-
-// testRunRe recognises a command that runs tests, as opposed to one that
-// only builds or lints: what a passing verify gate, which keeps no output,
-// is taken to have exercised.
-var testRunRe = regexp.MustCompile(`(?i)\b(test|tests|pytest|jest|vitest|mocha|rspec|ctest|tox|nox)\b`)
-
 // refusalPrefixes begin the tool results of calls the harness refused
 // without running them (see authorize and toolGate). A log written before
 // session.Event.Denied existed is recognised by these.
@@ -173,7 +157,7 @@ func runFailed(e session.Event) bool {
 	switch code := e.Output[last[2]:last[3]]; {
 	case code == "0":
 		return false
-	case code == "1" && tool.NoMatchMeaning(commandOf(e.Arguments), 1) != "":
+	case code == "1" && tool.NoMatchMeaning(shell.CommandOf(e.Arguments), 1) != "":
 		return false
 	}
 	return true
@@ -318,8 +302,8 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		if e.Type != session.TypeToolResult || e.CallID == "" || refused(e) {
 			continue
 		}
-		cmd := shell.TrimWorkspaceCd(commandOf(e.Arguments), root)
-		check := e.Name == "bash" && isCheck(cmd)
+		cmd := shell.TrimWorkspaceCd(shell.CommandOf(e.Arguments), root)
+		check := e.Name == "bash" && shell.IsCheck(cmd)
 		if e.Turn != turn {
 			// Earlier in the session: remember what was red, so a pass in
 			// this turn can be told from a check that was always green.
@@ -365,7 +349,7 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 			ranTests = true
 		case nothing:
 			foundNothing = true
-		case run.gate == session.GateVerify && run.output == "" && testRunRe.MatchString(cmd):
+		case run.gate == session.GateVerify && run.output == "" && shell.IsTestRun(cmd):
 			// A passing verify gate keeps no output; a test command in it
 			// ran tests all the same.
 			ranTests = true
@@ -492,18 +476,6 @@ func (a *Agent) logOutcome(o TurnOutcome) {
 		Type: session.TypeVerdict, Turn: a.turnN, Name: string(o.Verdict),
 		Output: o.Why, IsError: !o.OK(), Extra: raw,
 	})
-}
-
-// commandOf is the shell command of a bash call, for comparing one run
-// with another.
-func commandOf(arguments string) string {
-	var in struct {
-		Command string `json:"command"`
-	}
-	if json.Unmarshal([]byte(arguments), &in) != nil {
-		return ""
-	}
-	return strings.TrimSpace(in.Command)
 }
 
 // argPathOf is the file a write or edit named.

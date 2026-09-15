@@ -121,8 +121,8 @@ func TestResumedSessionEnforcesAcceptLock(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer built.close()
-	if built.agent.Accept == nil || built.agent.Accept.Phase != session.AcceptLocked {
-		t.Fatalf("the agent built for the resumed session does not have the lock: %+v", built.agent.Accept)
+	if meta := built.agent.AcceptMeta(); meta == nil || meta.Phase != session.AcceptLocked {
+		t.Fatalf("the agent built for the resumed session does not have the lock: %+v", meta)
 	}
 
 	var evs []agent.Event
@@ -180,7 +180,7 @@ func TestResumedSessionEnforcesAcceptLock(t *testing.T) {
 }
 
 // acceptFixture reads path and returns its sha256 and content, the same
-// pair Agent.rehashAccept/captureAcceptContents would record when locking
+// pair accept.Mode's own rehash/captureContents would record when locking
 // it — this test builds the session file by hand (it is checking resume,
 // not /accept approve itself), so it has to match that shape.
 func acceptFixture(t *testing.T, path string) (sum string, data []byte) {

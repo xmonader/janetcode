@@ -26,15 +26,15 @@ func TestModeGateSameForModelAndScriptCalls(t *testing.T) {
 		{"read-only", func(a *Agent, _, _ string) { a.ReadOnly = true }, implInput},
 		{"plan", func(a *Agent, _, _ string) { a.PlanMode = true }, implInput},
 		{"accept writing", func(a *Agent, root, _ string) {
-			a.Accept = &session.AcceptMeta{Phase: session.AcceptWriting, Request: "add foo", Root: root}
+			a.SetAccept(&session.AcceptMeta{Phase: session.AcceptWriting, Request: "add foo", Root: root}, nil)
 		}, implInput},
 		{"accept proposed", func(a *Agent, root, _ string) {
-			a.Accept = &session.AcceptMeta{Phase: session.AcceptProposed, Request: "add foo", Root: root, Proposed: "go test ./..."}
+			a.SetAccept(&session.AcceptMeta{Phase: session.AcceptProposed, Request: "add foo", Root: root, Proposed: "go test ./..."}, nil)
 		}, implInput},
 		{"accept locked", func(a *Agent, root, lockedTest string) {
 			sum, _ := hashFile(lockedTest)
-			a.Accept = &session.AcceptMeta{Phase: session.AcceptLocked, Request: "add foo", Root: root,
-				Files: []string{lockedTest}, Hashes: map[string]string{lockedTest: sum}, Command: "true"}
+			a.SetAccept(&session.AcceptMeta{Phase: session.AcceptLocked, Request: "add foo", Root: root,
+				Files: []string{lockedTest}, Hashes: map[string]string{lockedTest: sum}, Command: "true"}, nil)
 		}, func(_, _ string) string { return `{"path":"foo_test.go","content":"package foo // changed\n"}` }},
 	}
 	for _, c := range cases {

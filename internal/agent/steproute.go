@@ -2,6 +2,7 @@ package agent
 
 import (
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 // Step-level model routing (experimental, off by default — see RouteCheap
@@ -74,7 +75,7 @@ func stepMechanical(name string, input []byte, isErr bool) bool {
 	if mechanicalTools[name] {
 		return true
 	}
-	return name == "bash" && isCheck(commandOf(string(input)))
+	return name == "bash" && shell.IsCheck(shell.CommandOf(string(input)))
 }
 
 // allMechanicalStep reports whether every tool call in one step was

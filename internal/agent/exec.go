@@ -117,9 +117,9 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 	mustAsk := a.describeCall(ctx, t, u, call)
 	// A locked accept-test file is refused like a denied permission rule:
 	// before anything asks the user, and with no way for AutoApprove or a
-	// saved rule to skip past it (see acceptDenial in accept_lock.go).
+	// saved rule to skip past it (see accept.Mode.Denial).
 	if t.Mutating() {
-		if reason := a.acceptDenial(t, u.Input); reason != "" {
+		if reason := a.locks().Denial(t, u.Input); reason != "" {
 			return nil, reason, nil
 		}
 	}
@@ -347,7 +347,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	// runs, so a move can be detected after: see checkCommitAttach. The
 	// read only happens for a command that already matched, so an
 	// ordinary bash call costs nothing extra.
-	checkingCommit := u.Name == "bash" && looksLikeGitCommit(commandOf(string(u.Input)))
+	checkingCommit := u.Name == "bash" && looksLikeGitCommit(shell.CommandOf(string(u.Input)))
 	var commitPreHead string
 	if checkingCommit {
 		commitPreHead = a.headForCommitCheck(ctx)
@@ -368,7 +368,7 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 		a.mutated = true
 		a.mutations++
 		if editTool(u.Name) {
-			a.acceptTrackEdit(t, u.Input)
+			a.locks().TrackEdit(t, u.Input)
 		}
 		// The content guarantee behind the lock: whatever just ran, and
 		// whatever the pre-execution checks did or did not recognise

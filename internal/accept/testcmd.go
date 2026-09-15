@@ -1,6 +1,7 @@
-package agent
+package accept
 
 import (
+	"github.com/xmonader/janetcode/internal/shell"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -19,7 +20,7 @@ import (
 // purpose, so approval is never blocked waiting on a better guess.
 func InferTestCommand(files []string, root string, verifyCommands []string) string {
 	for _, c := range verifyCommands {
-		if isCheck(c) {
+		if shell.IsCheck(c) {
 			return c
 		}
 	}

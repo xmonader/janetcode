@@ -26,13 +26,13 @@ func (a *Agent) readOnly() bool { return a.Settings().readOnly() }
 // toolGate is the mode check a tool call must pass before authorize runs:
 // read-only and plan mode refuse every mutating tool, and the /accept
 // writing and proposed phases refuse every mutating tool except a test
-// file edit (see acceptWritingDenial). It reports the refusal the model
+// file edit (see accept.Mode.WritingDenial). It reports the refusal the model
 // sees and whether the call is denied.
 //
 // executeTool (the model's own calls) and runNested (calls made from a
 // script or a recipe) both call it, so a script is never a way around a
 // mode. A locked acceptance test is refused inside authorize instead
-// (acceptDenial), after the pre-tool hook, because that check has to see
+// (accept.Mode.Denial), after the pre-tool hook, because that check has to see
 // the input a hook may have rewritten.
 func (a *Agent) toolGate(t tool.Tool, input json.RawMessage) (reason string, denied bool) {
 	if !t.Mutating() {
@@ -41,7 +41,7 @@ func (a *Agent) toolGate(t tool.Tool, input json.RawMessage) (reason string, den
 	if s := a.Settings(); s.readOnly() {
 		return fmt.Sprintf("%s is not available: this session is read-only (%s). Describe what you would do instead.", t.Name(), s.modeName()), true
 	}
-	if reason := a.acceptWritingDenial(t, input); reason != "" {
+	if reason := a.locks().WritingDenial(t, input); reason != "" {
 		return reason, true
 	}
 	return "", false
@@ -57,7 +57,7 @@ func (a *Agent) modeSystem() string {
 			text += planSystem
 		}
 	}
-	return text + a.acceptSystemText()
+	return text + a.accept.SystemText()
 }
 
 // routingAllowed reports whether the active modes let a step be routed to

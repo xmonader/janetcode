@@ -37,7 +37,7 @@ func TestFrontEndCallsDuringATurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	sum, _ := hashFile(testPath)
-	a.Accept = &session.AcceptMeta{
+	meta := &session.AcceptMeta{
 		Phase: session.AcceptLocked, Request: "add foo", Root: root,
 		Files: []string{testPath}, Hashes: map[string]string{testPath: sum}, Command: "true",
 	}
@@ -45,11 +45,11 @@ func TestFrontEndCallsDuringATurn(t *testing.T) {
 	// whichever goroutine saves next.
 	var kept *session.AcceptMeta
 	var keptMu sync.Mutex
-	a.OnAcceptChange = func(am *session.AcceptMeta) {
+	a.SetAccept(meta, func(am *session.AcceptMeta) {
 		keptMu.Lock()
 		kept = am
 		keptMu.Unlock()
-	}
+	})
 
 	done := make(chan struct{})
 	var wg sync.WaitGroup
