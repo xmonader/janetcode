@@ -5,62 +5,38 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/diff"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/recipe"
+	"github.com/xmonader/janetcode/internal/recipe/run"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
-// mcpToolPrefix names a tool an MCP server contributed to the registry:
-// internal/mcp's Client.AgentTools registers every one of a server's
-// tools (and its resource helpers) through ToolName as
-// "mcp__<server>__<tool>". It is the only marker a recipe step carries
-// that says an MCP server has to be running for it to work.
-const mcpToolPrefix = "mcp__"
+// mcpToolPrefix, NeedsMCP, RecipeFailure, RecipeHandover and the replay
+// loop itself live in internal/recipe/run, which has no conversation
+// behind it. These keep the names the front-ends already call.
+
+// RecipeFailure is the step a recipe stopped on; see run.Failure.
+type RecipeFailure = run.Failure
 
 // NeedsMCP reports whether any step of r calls a tool an MCP server
-// provides. A caller building the agent for `janetcode --recipe` uses
-// this to decide whether starting configured MCP servers — each its own
-// process, handshake and tool listing — is worth the time at all: most
-// recipes are plain file and shell steps and never need one.
-func NeedsMCP(r recipe.Recipe) bool {
-	for _, st := range r.Steps {
-		if strings.HasPrefix(st.Tool, mcpToolPrefix) {
-			return true
-		}
-	}
-	return false
-}
+// provides; see run.NeedsMCP.
+func NeedsMCP(r recipe.Recipe) bool { return run.NeedsMCP(r) }
 
-// RecipeFailure is the step a recipe stopped on: enough for the model to
-// pick up where it left off (see RecipeHandover), and for a front-end to
-// say what happened. A failure of the project's verify gate, run after
-// every step has already succeeded, is reported the same way with Step
-// left at its zero value, Tool "verify" and Verify set, rather than as a
-// new kind of result the front-ends would need a second case for.
-type RecipeFailure struct {
-	Step   int
-	Tool   string
-	Output string
-	// Verify marks a failure of the project's verify gate rather than of
-	// a step: every step succeeded, but the checks that ran afterwards
-	// did not.
-	Verify bool
-	// Denied marks a failure that was the harness itself refusing the
-	// call — a permission rule, a hook block, a "no" from the approver,
-	// read-only mode, or a failed Expect precondition — rather than the
-	// tool running and failing on its own. A front-end must not hand a
-	// denial to the model: the model's own retry would be refused by the
-	// very same rule or precondition, so the only effect of handing it
-	// over is spending a turn to learn nothing. Report it instead (see
-	// cmd/janetcode's runRecipeFlag and the tui/webui recipe commands).
-	Denied bool
+// RecipeHandover is the prompt given to the model after a recipe failed;
+// see run.Handover.
+func RecipeHandover(r recipe.Recipe, f RecipeFailure) string { return run.Handover(r, f) }
+
+// Execute runs one tool call the way a call the model made runs, so a
+// recipe replay passes every gate a turn does (see runNested). It is
+// what makes *Agent a run.Dispatcher.
+func (a *Agent) Execute(ctx context.Context, id, name string, input json.RawMessage) (string, bool, bool) {
+	return a.runNested(ctx, id, name, input)
 }
 
 // RunRecipe replays a recipe's steps through exactly the pipeline a model
@@ -97,7 +73,7 @@ func (a *Agent) RunRecipe(ctx context.Context, r recipe.Recipe, args map[string]
 		return "", nil, err
 	}
 
-	a.beginTurn(ctx, llm.Block{Type: llm.BlockText, Text: recipeLabel(r.Name, args), Synthetic: true})
+	a.beginTurn(ctx, llm.Block{Type: llm.BlockText, Text: run.Label(r.Name, args), Synthetic: true})
 	defer a.endTurn(ctx)
 
 	if emit == nil {
@@ -126,33 +102,20 @@ func (a *Agent) RunRecipe(ctx context.Context, r recipe.Recipe, args map[string]
 		return strings.TrimRight(text, "\n"), fail, nil
 	}
 
+	logStep := func(ev session.Event) {
+		ev.Turn = a.turnN
+		a.logEvent(ev)
+	}
+	text, stepIDs, failed, cerr := run.Steps(ctx, a, a.Tools, r.Name, steps, logStep)
 	var b strings.Builder
-	fmt.Fprintf(&b, "recipe %s (%s)\n", r.Name, textfmt.Plural(len(steps), "step"))
-	stepIDs := make(map[string]bool, len(steps))
-	for i, st := range steps {
-		if err := ctx.Err(); err != nil {
-			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "cancelled"})
-			return strings.TrimRight(b.String(), "\n"), nil, err
-		}
-		// A step's precondition (see recipe.Expect) is checked before it
-		// ever reaches runNested: the whole point of Expect is that this
-		// step must not run at all when what it is about to touch is not
-		// what the recording verified, so there is nothing for authorize
-		// or the tool itself to weigh in on here.
-		if msg := a.checkExpect(st); msg != "" {
-			fmt.Fprintf(&b, "## step %d: %s\n%s\n", i+1, st.Tool, msg)
-			a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Name: st.Tool, Output: msg, IsError: true})
-			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "recipe-failed"})
-			return finish(b.String(), &RecipeFailure{Step: i + 1, Tool: st.Tool, Output: msg, Denied: true})
-		}
-		id := fmt.Sprintf("recipe-%s-%d", r.Name, i+1)
-		stepIDs[id] = true
-		out, isErr, denied := a.runNested(ctx, id, st.Tool, st.Input)
-		fmt.Fprintf(&b, "## step %d: %s\n%s\n", i+1, st.Tool, strings.TrimRight(out, "\n"))
-		if isErr {
-			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "recipe-failed"})
-			return finish(b.String(), &RecipeFailure{Step: i + 1, Tool: st.Tool, Output: out, Denied: denied})
-		}
+	b.WriteString(text)
+	switch {
+	case cerr != nil:
+		a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "cancelled"})
+		return strings.TrimRight(b.String(), "\n"), nil, cerr
+	case failed != nil:
+		a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "recipe-failed"})
+		return finish(b.String(), failed)
 	}
 
 	// Verify gate: the same function RunBlocks calls after a model turn
@@ -228,44 +191,6 @@ func recipeDiffStat(changes []Change, ids map[string]bool) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// checkExpect reports why st must not run, or "" when it may proceed. Only
-// steps with an Expect precondition (see recipe.Expect) are checked; every
-// other step returns "" here; and the actual pre-existing check (a rule,
-// a hook, the approver) still runs afterwards, from runNested, exactly as
-// for any other call.
-func (a *Agent) checkExpect(st recipe.Step) string {
-	if st.Expect == nil || !st.Expect.Absent {
-		return ""
-	}
-	t, ok := a.Tools.Get(st.Tool)
-	if !ok {
-		return "" // an unknown tool is reported by runNested, same as ever
-	}
-	tc, ok := t.(tool.Toucher)
-	if !ok {
-		return ""
-	}
-	paths, err := tc.Touches(st.Input)
-	if err != nil || len(paths) == 0 {
-		return ""
-	}
-	var in struct {
-		Content string `json:"content"`
-	}
-	_ = json.Unmarshal(st.Input, &in)
-	data, rerr := os.ReadFile(paths[0])
-	switch {
-	case errors.Is(rerr, os.ErrNotExist):
-		return "" // absent, exactly as it was when this was recorded
-	case rerr != nil:
-		return fmt.Sprintf("could not check %s before writing it: %v", paths[0], rerr)
-	case string(data) == in.Content:
-		return "" // already holds exactly what this step would write
-	default:
-		return fmt.Sprintf("%s did not exist when this recipe was recorded, but it exists now with different content; refusing to overwrite it rather than guess. Check it by hand, or update the recipe.", paths[0])
-	}
-}
-
 // maybeCompactAfterRecipe applies the same compaction check RunBlocks
 // makes before every model call (see its loop in RunBlocks), once, at
 // the end of a recipe's own turn. The gap this closes is narrow: a
@@ -295,51 +220,6 @@ func (a *Agent) maybeCompactAfterRecipe(ctx context.Context, emit func(Event)) {
 	if err := a.Compact(ctx, emit); err != nil && !errors.Is(err, ErrNothingToCompact) {
 		emit(Event{Kind: EvNotice, Text: "recipe: compaction failed: " + err.Error()})
 	}
-}
-
-// recipeLabel is the synthetic user message a recipe run's turn carries,
-// so a session read back later shows what happened. session.Synthetic
-// treats it as machinery, the same as an undo or a goal round.
-func recipeLabel(name string, args map[string]string) string {
-	s := "/recipe run " + name
-	for k, v := range args {
-		s += " " + k + "=" + v
-	}
-	return s
-}
-
-// RecipeHandover is the prompt given to the model after a recipe failed —
-// either a step, or the project's verify gate once every step had
-// succeeded: which is which, its output, which steps already succeeded,
-// and the recipe's own description as the goal to finish. A front-end
-// starts an ordinary turn with it (Run/RunBlocks), so everything
-// downstream — approvals, verify, verdicts — behaves exactly as it would
-// for anything else the user asked for.
-func RecipeHandover(r recipe.Recipe, f RecipeFailure) string {
-	var b strings.Builder
-	if f.Verify {
-		fmt.Fprintf(&b, "The recipe %q ran all %s and every one of them succeeded, but the project's checks failed afterwards.\n", r.Name, textfmt.Plural(len(r.Steps), "step"))
-		fmt.Fprintf(&b, "\n%s\n", strings.TrimSpace(f.Output))
-		if d := strings.TrimSpace(r.Description); d != "" {
-			fmt.Fprintf(&b, "\nWhat this recipe is for: %s\n", d)
-		}
-		b.WriteString("\nFix it, then finish the job yourself, using whatever tools and judgement it takes.")
-		return b.String()
-	}
-	fmt.Fprintf(&b, "The recipe %q stopped at step %d of %d: %s failed.\n", r.Name, f.Step, len(r.Steps), f.Tool)
-	if f.Step > 1 {
-		names := make([]string, 0, f.Step-1)
-		for _, st := range r.Steps[:f.Step-1] {
-			names = append(names, st.Tool)
-		}
-		fmt.Fprintf(&b, "Already ran and succeeded: %s.\n", strings.Join(names, ", "))
-	}
-	fmt.Fprintf(&b, "\n%s's output:\n%s\n", f.Tool, strings.TrimSpace(f.Output))
-	if d := strings.TrimSpace(r.Description); d != "" {
-		fmt.Fprintf(&b, "\nWhat this recipe is for: %s\n", d)
-	}
-	b.WriteString("\nWork out why this step failed and finish the job yourself, using whatever tools and judgement it takes.")
-	return b.String()
 }
 
 // RecipeSteps is what /recipe save crystallises a turn into. It starts
