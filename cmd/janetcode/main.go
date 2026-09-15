@@ -693,7 +693,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 		used := false
 		srv := acp.New(acp.Options{
 			In: os.Stdin, Out: os.Stdout, Log: os.Stderr, Version: version,
-			NewAgent: func(sessionCwd, resume string) (*agent.Agent, *session.Session, error) {
+			NewAgent: func(sessionCwd, resume string) (acp.TurnRunner, *session.Session, error) {
 				// The editor says which directory the session is for, and
 				// it is not necessarily the one janetcode was launched
 				// from — an editor opens a workspace, not a terminal. Every
@@ -725,7 +725,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 				// the session is for the directory it was built for.
 				if !used && resume == "" && root == cwd {
 					used = true
-					return first.agent, s, nil
+					return acp.Wrap(first.agent), s, nil
 				}
 				used = true
 				d := deps
@@ -734,7 +734,7 @@ Config file: $XDG_CONFIG_HOME/janetcode/config.json (default ~/.config/janetcode
 				if err != nil {
 					return nil, nil, err
 				}
-				return b.agent, s, nil
+				return acp.Wrap(b.agent), s, nil
 			},
 		})
 		fmt.Fprintf(os.Stderr, "janetcode %s serving ACP on stdio (%s/%s in %s)\n", version, cfg.Provider, cfg.Model, cwd)
