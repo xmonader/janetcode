@@ -43,6 +43,11 @@ type TurnRestore struct {
 	// checkpoint older than the turn/message bookkeeping, or a turn that
 	// left no messages). Always nil when FilesOnly.
 	Conversation *ConversationRewind
+	// NoRewind is why Conversation is nil although a rewind was asked
+	// for: the turn's place in the context cannot be found any more, or
+	// there is nothing there to drop. Empty when FilesOnly, or when
+	// Conversation is set.
+	NoRewind string
 	// FilesOnly is the "--files-only" spelling: put the tree back and
 	// leave the conversation as it is, which is what "/undo turn" did
 	// before it learned to rewind.
@@ -147,7 +152,7 @@ func (a *Agent) PreviewUndoTurn(ctx context.Context, n int, filesOnly bool) (Tur
 	}
 	tr.Lines = lines
 	if !filesOnly {
-		tr.Conversation = a.previewRewind(cp)
+		tr.Conversation, tr.NoRewind = a.previewRewind(cp)
 	}
 	a.pendingUndo = &pendingUndo{fingerprint: a.turnFingerprint(), turn: &tr, cp: cp}
 	return tr, nil
@@ -331,7 +336,7 @@ func FormatTurnRestore(root string, tr TurnRestore) string {
 	case tr.Conversation != nil:
 		fmt.Fprintf(&sb, "\nand rewind this conversation to that point, dropping %s from the model's context\n", tr.Conversation.Line())
 	default:
-		sb.WriteString("\nthe conversation holds nothing from that turn on, so there is nothing to rewind\n")
+		fmt.Fprintf(&sb, "\nthe conversation stays as it is: %s\n", tr.NoRewind)
 	}
 	sb.WriteString("\n/undo apply carries it out; the restore is itself recorded as a change, so /undo <n> takes it back")
 	if !tr.FilesOnly {

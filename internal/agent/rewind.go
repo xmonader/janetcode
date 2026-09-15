@@ -45,20 +45,71 @@ var ErrTurnRunning = errors.New("a turn is running: wait for it to finish before
 const rewindNoteFiles = 20
 
 // previewRewind is what rewinding the conversation to a checkpoint would
-// cost, without touching anything; nil when there is nothing to rewind —
-// a checkpoint from before turns were recorded, or one whose turn left
-// no messages behind.
-func (a *Agent) previewRewind(cp Checkpoint) *ConversationRewind {
-	if cp.Turn <= 0 || cp.Messages < 0 || cp.Messages >= len(a.Messages) {
-		return nil
+// cost, without touching anything. It is nil when the turn's place in
+// the live conversation cannot be found any more, and why then says
+// which of the reasons it is, for the preview to pass on: leaving the
+// user to guess whether the model will still believe in the reverted
+// work is worse than a line of explanation.
+func (a *Agent) previewRewind(cp Checkpoint) (rw *ConversationRewind, why string) {
+	keep, ok, why := a.rewindCut(cp)
+	if !ok {
+		return nil, why
 	}
 	turns, archived, _ := a.rewindScan(cp.Turn)
 	return &ConversationRewind{
 		FromTurn: cp.Turn,
 		Turns:    turns,
-		Messages: len(a.Messages) - cp.Messages,
+		Messages: len(a.Messages) - keep,
 		Archived: len(archived),
+	}, ""
+}
+
+// rewindCut is where the live conversation would be cut to go back to
+// before the checkpoint's turn: how many of its messages are kept. The
+// checkpoint records the message count at the moment its turn began, and
+// that is an index into a history the harness may since have rewritten —
+// a compaction replaces a whole head with one summary — so the index is
+// checked against the log rather than trusted. ok is false when the
+// point cannot be located, and why says so in words a preview can show.
+func (a *Agent) rewindCut(cp Checkpoint) (keep int, ok bool, why string) {
+	if cp.Turn <= 0 {
+		return 0, false, "this checkpoint is older than the conversation bookkeeping, so where its turn began in the context was never recorded"
 	}
+	moved := fmt.Sprintf("the conversation has been rewritten since turn %d began (a compaction), so that point can no longer be located in it", cp.Turn)
+	nothing := fmt.Sprintf("the conversation holds nothing from turn %d on", cp.Turn)
+	if cp.Messages < 0 || cp.Messages > len(a.Messages) {
+		return 0, false, moved
+	}
+	if a.Log == nil {
+		// Nothing to check the index against; the conversation is only
+		// in memory anyway, so the count is all there is.
+		if cp.Messages == len(a.Messages) {
+			return 0, false, nothing
+		}
+		return cp.Messages, true, ""
+	}
+	ev := a.Log.Events()
+	seqs := session.CurrentSeqs(ev)
+	if len(seqs) != len(a.Messages) {
+		return 0, false, moved
+	}
+	if cp.Messages == len(seqs) {
+		return 0, false, nothing
+	}
+	turnOf := make(map[int]int, len(ev))
+	for _, e := range ev {
+		turnOf[e.Seq] = e.Turn
+	}
+	// The message at the cut must be the turn's own, and the one before
+	// it must not be: that is what says the index still points at the
+	// boundary it was taken at.
+	if turnOf[seqs[cp.Messages]] < cp.Turn {
+		return 0, false, moved
+	}
+	if cp.Messages > 0 && turnOf[seqs[cp.Messages-1]] >= cp.Turn {
+		return 0, false, moved
+	}
+	return cp.Messages, true, ""
 }
 
 // rewindScan reads the session log once for everything a rewind needs to
@@ -102,18 +153,19 @@ func (a *Agent) rewindScan(n int) (turns int, archived []string, plan bool) {
 // restore never leaves the model told about a revert that did not
 // happen. Returns nil when there was nothing to rewind.
 func (a *Agent) rewindConversation(cp Checkpoint, restored []string) *ConversationRewind {
-	rw := a.previewRewind(cp)
+	rw, _ := a.previewRewind(cp)
 	if rw == nil {
 		return nil
 	}
+	keep, _, _ := a.rewindCut(cp)
 	_, archived, plan := a.rewindScan(cp.Turn)
 	note := llm.HarnessMessage(llm.RoleUser, rewindNote(*rw, restored))
-	if !a.rewindThroughLog(cp, note) {
+	if !a.rewindThroughLog(keep, note) {
 		// No log, or a log whose surface no longer lines up with the
 		// live messages one for one. The conversation is still cut at
 		// the checkpoint's mark — the same truncation an /undo of a
 		// single turn does — it just cannot be recorded for a resume.
-		a.setMessages(append(a.Messages[:cp.Messages:cp.Messages], note))
+		a.setMessages(append(a.Messages[:keep:keep], note))
 	}
 	a.undoRemoved = rw.Messages
 
@@ -155,21 +207,21 @@ func (a *Agent) rewindConversation(cp Checkpoint, restored []string) *Conversati
 	return rw
 }
 
-// rewindThroughLog appends the replacement event that takes the dropped
-// turns off the model-visible surface and re-folds the conversation from
-// the log, the way Open does on a resume. It reports whether it could:
-// the live messages and the log's current surface must still line up one
-// for one, which is the same assumption compaction makes when it shadows
-// a head by index.
-func (a *Agent) rewindThroughLog(cp Checkpoint, note llm.Message) bool {
+// rewindThroughLog appends the replacement event that takes everything
+// past keep off the model-visible surface and re-folds the conversation
+// from the log, the way Open does on a resume. It reports whether it
+// could: the live messages and the log's current surface must still line
+// up one for one, which is the same assumption compaction makes when it
+// shadows a head by index.
+func (a *Agent) rewindThroughLog(keep int, note llm.Message) bool {
 	if a.Log == nil {
 		return false
 	}
 	seqs := session.CurrentSeqs(a.Log.Events())
-	if len(seqs) != len(a.Messages) || cp.Messages > len(seqs) {
+	if len(seqs) != len(a.Messages) || keep > len(seqs) {
 		return false
 	}
-	dropped := append([]int(nil), seqs[cp.Messages:]...)
+	dropped := append([]int(nil), seqs[keep:]...)
 	if len(dropped) == 0 {
 		return false
 	}
