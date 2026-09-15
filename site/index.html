@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>janetcode</title>
+<meta name="description" content="janetcode is a terminal coding agent in a single Go binary: it reads and edits code, runs commands, and shows every mutating action as a diff before it happens.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="index.html">janetcode</a>
+  <nav class="site-nav" aria-label="Primary">
+    <a href="index.html" aria-current="page">Home</a>
+    <a href="features.html">Features</a>
+    <a href="how-it-works.html">How it works</a>
+    <a href="reference.html">Reference</a>
+    <a href="https://github.com/xmonader/janetcode">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <h1>janetcode</h1>
+  <p class="lede">A terminal coding agent in a single Go binary. It reads and
+  edits code, runs commands, and iterates on the result, with every
+  mutating action shown to you as a diff before it happens.</p>
+
+  <section id="what-it-is">
+    <h2>What it is</h2>
+    <p>janetcode is a command-line program you run inside a project
+    directory. You give it a task in plain language; it reads files,
+    searches the code, proposes edits, runs shell commands, and checks its
+    own work, going back and forth with a language model until the task is
+    done or it needs your input. It works with Anthropic's Messages API and
+    with any OpenAI-compatible endpoint &mdash; OpenAI, xAI, Qwen, DeepSeek,
+    OpenRouter, vLLM, Ollama and others &mdash; so it is not tied to one
+    model provider.</p>
+    <p>Everything that changes a file or runs a command is shown to you
+    first, as a diff or the command itself, before it happens (unless you
+    have explicitly told it not to ask). Nothing is hidden after the fact:
+    every change, every command and every model call is written to a local
+    session log you can read, search and undo.</p>
+  </section>
+
+  <section id="why">
+    <h2>Why</h2>
+    <p>Most of what makes an agent trustworthy is not the model &mdash; it
+    is the harness around it: what it asks permission for, what it
+    remembers, what it can undo, and whether it tells the truth about what
+    a change actually demonstrated. janetcode's design leans on a few
+    ideas:</p>
+    <ul>
+      <li><strong>Ask before acting.</strong> Editing a file, running a
+      shell command, fetching a URL &mdash; each is a permission prompt
+      with a diff or the exact command, until you decide it does not need
+      to ask any more (see <a href="features.html#permissions">permission
+      rules</a>).</li>
+      <li><strong>Verdicts, not claims.</strong> When the model says
+      &ldquo;done, tests pass&rdquo;, janetcode checks: it watched which
+      commands actually ran and what they returned, and reports a
+      <a href="features.html#verdicts">verdict</a> based on that, not on
+      the model's own words.</li>
+      <li><strong>Nothing is silently lost.</strong> When the context
+      window (the amount of conversation a model call can carry) fills up,
+      the old part is summarised rather than deleted &mdash; a step called
+      <em>compaction</em> &mdash; and the full text stays on disk so a fact
+      the model needs later can still be looked up
+      (see <a href="features.html#sessions">sessions and compaction</a>).</li>
+      <li><strong>Everything is local and readable.</strong> Sessions,
+      memory and permission rules are plain files on your machine. There is
+      no account and no telemetry endpoint.</li>
+    </ul>
+    <div class="callout caution">
+      <p><strong>On the numbers below:</strong> janetcode's own benchmark
+      report found a 21% spread between three identical runs of one task
+      set, and warns that a single-run comparison is not evidence. Anything
+      cited here names what was measured and points at the report that
+      measured it; treat any single figure as an estimate, not a
+      guarantee.</p>
+    </div>
+    <p>A few measured results, each with what it measured and where the
+    run lives in the repository:</p>
+    <ul>
+      <li>Against Claude Code, on the same Claude models, all twelve test
+      cells passed for both; on Haiku janetcode read 2.6M tokens against
+      Claude Code's 4.2M and cost $0.54 against $1.49 (<code>docs/benchmarks/harnesses/claude/</code>).</li>
+      <li>Across eleven models and five harnesses, three runs each (3,300
+      task runs, 2026-09-10), janetcode passed 651/660 &mdash; the most of
+      the five &mdash; at the lowest cost per solved task
+      (<code>docs/benchmarks/harnesses/eleven-models/</code>).</li>
+      <li>Compaction (summarising the conversation when it grows large) lost
+      no tasks in an eval that forced it on early: 11/11 passed either way.</li>
+    </ul>
+    <p class="small">See <a href="how-it-works.html#verification">verification
+    gates and verdicts</a> for what &ldquo;passed&rdquo; means here, and the
+    repository's <code>docs/benchmarks/</code> directory for every run behind
+    these numbers.</p>
+  </section>
+
+  <section id="install">
+    <h2>Install</h2>
+    <p>Requires Go 1.25 or newer. Linux and macOS are where janetcode is
+    developed and tested; Windows support is best effort (the cheapest path
+    there today is WSL).</p>
+    <div class="code-block">
+      <pre><code>git clone https://github.com/xmonader/janetcode
+cd janetcode
+make install        # puts janetcode on your $GOPATH/bin</code></pre>
+    </div>
+    <p class="small">There is no pre-built binary download: installing means
+    cloning the source and building it with the Go toolchain you already
+    have.</p>
+  </section>
+
+  <section id="quick-start">
+    <h2>60-second quick start</h2>
+    <p>Set a key for a provider, then run <code>janetcode</code> inside a
+    project. With Anthropic:</p>
+    <div class="code-block">
+      <pre><code>export ANTHROPIC_API_KEY=sk-ant-...
+cd your/project
+janetcode</code></pre>
+    </div>
+    <p>Or point it at any OpenAI-compatible endpoint. Alibaba's Qwen coding
+    plan and OpenRouter are both tested live:</p>
+    <div class="code-block">
+      <pre><code># Alibaba Model Studio (Qwen coding plan)
+export OPENAI_API_KEY=sk-...
+export OPENAI_BASE_URL=https://coding-intl.dashscope.aliyuncs.com/v1
+janetcode --model qwen3.7-plus
+
+# OpenRouter
+export OPENAI_API_KEY=sk-or-...
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1
+janetcode --model deepseek/deepseek-v4-flash
+
+# Ollama (local, no key needed)
+export OPENAI_BASE_URL=http://localhost:11434/v1
+janetcode --model qwen3-coder</code></pre>
+    </div>
+    <p>Or skip the environment variables entirely and run
+    <code>/connect</code> inside the program: pick a preset provider, paste a
+    key, choose a model, and the choice is saved to the config file.</p>
+    <p>A prompt given as an argument starts the session with it, and
+    <code>-p</code> runs one prompt non-interactively (&ldquo;headless&rdquo;)
+    and exits &mdash; the shape you would use from a script or CI:</p>
+    <div class="code-block">
+      <pre><code>janetcode "explain how requests flow through this service"
+
+# one-shot, scriptable: assistant text on stdout, tool activity on stderr
+janetcode -p "add a --verbose flag to cmd/server" --yolo</code></pre>
+    </div>
+    <p><code>--yolo</code> means &ldquo;run mutating tools without asking&rdquo;
+    &mdash; use it once you trust the task and the sandbox you are running
+    it in. Without it, a headless run with no terminal to ask simply denies
+    anything that would change a file or run a command.</p>
+    <p>Run <code>janetcode --web</code> to get the same session in a browser
+    on <code>127.0.0.1:8787</code> instead of the terminal, or
+    <code>janetcode --doctor</code> to check your configuration, provider
+    keys, git, local tools and language servers in one pass.</p>
+  </section>
+
+  <section id="features-overview">
+    <h2>Features, in brief</h2>
+    <p>The full list with plain-language explanations is on the
+    <a href="features.html">features page</a>; this is the short version.</p>
+    <ul>
+      <li><strong>Permission rules and modes</strong> &mdash; ask, plan,
+      auto or yolo; save a rule once and stop being asked the same
+      question. <a href="features.html#permissions">Details &rarr;</a></li>
+      <li><strong>Sessions</strong> &mdash; every conversation is saved,
+      resumable, forkable and searchable, and long ones are summarised
+      rather than truncated. <a href="features.html#sessions">Details
+      &rarr;</a></li>
+      <li><strong>Undo and provenance</strong> &mdash; revert a whole turn
+      or one change, and see which turn wrote which line of a file.
+      <a href="features.html#undo">Details &rarr;</a></li>
+      <li><strong>Verification gates and verdicts</strong> &mdash; the
+      project defines what &ldquo;done&rdquo; means, and janetcode reports
+      what actually ran rather than what the model claimed.
+      <a href="features.html#verdicts">Details &rarr;</a></li>
+      <li><strong>Recipes and evals</strong> &mdash; replay a turn's tool
+      calls for free, or turn a real session into a regression test.
+      <a href="features.html#recipes">Details &rarr;</a></li>
+      <li><strong>Subagents and background jobs</strong> &mdash; a
+      <em>subagent</em> is a second, smaller conversation the main model
+      starts to do one side task in its own context, optionally on a
+      cheaper model, without filling up the main conversation.
+      <a href="features.html#subagents">Details &rarr;</a></li>
+      <li><strong>MCP, language servers, skills, hooks</strong> &mdash;
+      <em>MCP</em> (Model Context Protocol) is a standard way to plug in
+      extra tools, such as a browser; a language server (<em>LSP</em>) is
+      the same background process your editor uses for autocomplete and
+      compile errors. Both, plus skills and hooks, extend what janetcode
+      can reach and how it behaves, all through plain files.
+      <a href="features.html#extending">Details &rarr;</a></li>
+    </ul>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>janetcode is a terminal coding agent. Source and issues:
+  <a href="https://github.com/xmonader/janetcode">github.com/xmonader/janetcode</a>.
+  This site is generated from the project's own manual in
+  <code>docs/manual/</code> &mdash; see <a href="reference.html">the reference
+  page</a> for commands, flags and configuration keys.</p>
+</footer>
+<script src="js/copy.js"></script>
+</body>
+</html>

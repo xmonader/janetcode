@@ -1,0 +1,489 @@
+/* janetcode site — one accent colour, system fonts, light/dark via
+   prefers-color-scheme. No frameworks, no external requests. */
+
+:root {
+  --bg: #ffffff;
+  --bg-alt: #f4f5f7;
+  --fg: #1b1e24;
+  --fg-dim: #52596a;
+  --border: #d9dce2;
+  --accent: #1f5fa8;
+  --accent-fg: #ffffff;
+  --code-bg: #eef0f4;
+  --code-fg: #1b1e24;
+  --table-stripe: #f7f8fa;
+  --focus: #b3400e;
+  --max-text: 70ch;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --bg-alt: #1b1e24;
+    --fg: #e7e9ee;
+    --fg-dim: #a8adb9;
+    --border: #33384433;
+    --border: #3a3f4a;
+    --accent: #6fa8dc;
+    --accent-fg: #0b1220;
+    --code-bg: #1e2229;
+    --code-fg: #e7e9ee;
+    --table-stripe: #191c22;
+    --focus: #ffb454;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  line-height: 1.65;
+  font-size: 17px;
+  padding-inline: 1.25rem;
+}
+
+img {
+  max-width: 100%;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+a {
+  color: var(--accent);
+}
+
+a:visited {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---------- layout ---------- */
+
+.site-header,
+.site-footer {
+  max-width: 78ch;
+  margin: 0 auto;
+}
+
+main {
+  max-width: 78ch;
+  margin: 0 auto;
+  padding-bottom: 3rem;
+}
+
+main.wide {
+  max-width: 96ch;
+}
+
+h1, h2, h3, h4 {
+  line-height: 1.25;
+  scroll-margin-top: 1rem;
+}
+
+h1 {
+  font-size: 2rem;
+  margin: 1.5rem 0 0.5rem;
+}
+
+h2 {
+  font-size: 1.4rem;
+  margin: 2.2rem 0 0.6rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border);
+}
+
+h2:first-of-type {
+  border-top: none;
+}
+
+h3 {
+  font-size: 1.1rem;
+  margin: 1.4rem 0 0.4rem;
+}
+
+p, ul, ol, dl {
+  max-width: var(--max-text);
+}
+
+.lede {
+  font-size: 1.15rem;
+  color: var(--fg-dim);
+  max-width: var(--max-text);
+}
+
+.tagline {
+  color: var(--fg-dim);
+  font-size: 1rem;
+  margin-top: -0.25rem;
+}
+
+/* ---------- header / nav ---------- */
+
+.site-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.brand:hover {
+  text-decoration: underline;
+}
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  font-size: 0.95rem;
+}
+
+.site-nav a {
+  text-decoration: none;
+  padding: 0.25rem 0.1rem;
+  border-bottom: 2px solid transparent;
+}
+
+.site-nav a:hover,
+.site-nav a[aria-current="page"] {
+  border-bottom-color: var(--accent);
+}
+
+.site-nav a[aria-current="page"] {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* ---------- footer ---------- */
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding-block: 1.25rem;
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  color: var(--fg-dim);
+  font-size: 0.9rem;
+}
+
+.site-footer p {
+  max-width: none;
+}
+
+/* ---------- generic content blocks ---------- */
+
+section {
+  margin-bottom: 2rem;
+}
+
+.callout {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 4px;
+  padding: 0.9rem 1.1rem;
+  max-width: var(--max-text);
+}
+
+.callout p:last-child {
+  margin-bottom: 0;
+}
+
+.caution {
+  border-left-color: var(--focus);
+}
+
+/* ---------- code ---------- */
+
+code, kbd, pre, samp {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.88em;
+}
+
+code {
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  word-break: break-word;
+}
+
+kbd {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.05em 0.4em;
+}
+
+pre {
+  position: relative;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 0.9rem 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  max-width: 100%;
+  border: 1px solid var(--border);
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  white-space: pre;
+}
+
+.code-block {
+  position: relative;
+  max-width: var(--max-text);
+}
+
+main.wide .code-block {
+  max-width: 90ch;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 0.75rem;
+  background: var(--bg);
+  color: var(--fg-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+.copy-btn:hover {
+  color: var(--fg);
+}
+
+/* ---------- tables ---------- */
+
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 0.75rem 0 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 32rem;
+  font-size: 0.92rem;
+}
+
+main.wide table {
+  min-width: 40rem;
+}
+
+caption {
+  text-align: left;
+  padding: 0.6rem 0.8rem 0.3rem;
+  font-weight: 600;
+  color: var(--fg-dim);
+  font-size: 0.85rem;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th {
+  background: var(--bg-alt);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+tbody tr:nth-child(even) {
+  background: var(--table-stripe);
+}
+
+td code {
+  white-space: nowrap;
+}
+
+/* ---------- feature entries ---------- */
+
+.feature {
+  max-width: var(--max-text);
+  padding-bottom: 1.1rem;
+  margin-bottom: 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.feature:last-child {
+  border-bottom: none;
+}
+
+.feature h3 {
+  margin-bottom: 0.3rem;
+}
+
+.feature dl {
+  margin: 0.5rem 0 0;
+}
+
+.feature dt {
+  font-weight: 600;
+  color: var(--fg-dim);
+  margin-top: 0.55rem;
+}
+
+.feature dd {
+  margin: 0.15rem 0 0;
+}
+
+.feature-group h2 {
+  margin-top: 2.6rem;
+}
+
+.toc {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  max-width: var(--max-text);
+}
+
+.toc h2 {
+  border-top: none;
+  margin-top: 0;
+  font-size: 1.05rem;
+}
+
+.toc ul {
+  columns: 1;
+  padding-left: 1.1rem;
+}
+
+@media (min-width: 640px) {
+  .toc ul {
+    columns: 2;
+    column-gap: 2rem;
+  }
+}
+
+/* ---------- how-it-works flow ---------- */
+
+.flow {
+  list-style: none;
+  padding: 0;
+  margin: 1.25rem 0 1.75rem;
+  max-width: var(--max-text);
+}
+
+.flow li {
+  position: relative;
+  padding: 0.75rem 1rem 0.9rem 3rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+  background: var(--bg-alt);
+}
+
+.flow li::before {
+  content: counter(flow-step);
+  counter-increment: flow-step;
+  position: absolute;
+  left: 0.75rem;
+  top: 0.7rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.flow {
+  counter-reset: flow-step;
+}
+
+.flow strong {
+  display: block;
+  margin-bottom: 0.15rem;
+}
+
+.flow-arrow {
+  text-align: center;
+  color: var(--fg-dim);
+  margin: -0.4rem 0 0.4rem;
+}
+
+/* ---------- misc ---------- */
+
+.tight {
+  max-width: none;
+}
+
+.small {
+  font-size: 0.88rem;
+  color: var(--fg-dim);
+}
+
+.pill {
+  display: inline-block;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+  color: var(--fg-dim);
+  margin-left: 0.4rem;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 16px;
+  }
+  h1 {
+    font-size: 1.6rem;
+  }
+  .site-nav {
+    font-size: 0.9rem;
+    gap: 0.3rem 0.7rem;
+  }
+}

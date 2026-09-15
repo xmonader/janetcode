@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How it works &mdash; janetcode</title>
+<meta name="description" content="The turn loop behind janetcode: prompt, model, tool calls with approval, verification and a verdict, all written to a session record; plus permissions, sessions, undo and subagents.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="index.html">janetcode</a>
+  <nav class="site-nav" aria-label="Primary">
+    <a href="index.html">Home</a>
+    <a href="features.html">Features</a>
+    <a href="how-it-works.html" aria-current="page">How it works</a>
+    <a href="reference.html">Reference</a>
+    <a href="https://github.com/xmonader/janetcode">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <h1>How it works</h1>
+  <p class="lede">One exchange with the model &mdash; from the moment you
+  press enter to the moment janetcode is ready for your next message &mdash;
+  is called a <strong>turn</strong>. Every turn follows the same loop.</p>
+
+  <section id="the-loop">
+    <h2>The loop</h2>
+    <ol class="flow">
+      <li><strong>1. You send a prompt.</strong> Typed at the terminal,
+      given as a command-line argument, or piped in with <code>-p</code>
+      for a one-shot, non-interactive (&ldquo;headless&rdquo;) run.</li>
+      <li><strong>2. janetcode assembles the request.</strong> A ranked
+      map of the repository (which files and symbols matter for this
+      request), any project instructions (<code>JANETCODE.md</code>,
+      <code>AGENTS.md</code> or <code>CLAUDE.md</code>), path-scoped rules
+      that apply to files the request is likely to touch, recalled memory,
+      matching skills, and pinned notes are added to the conversation
+      before it goes to the model. See
+      <a href="features.html#repo-map">the repository map</a> and
+      <a href="features.html#memory">memory</a>.</li>
+      <li><strong>3. The model replies.</strong> It streams markdown text
+      and, when it wants to do something, structured tool calls: read a
+      file, search the code, edit a file, run a shell command, and so on.
+      Read-only tool calls (reading, listing, searching) run at once and
+      concurrently; calls that change something run one at a time, in
+      order.</li>
+      <li><strong>4. A mutating call asks for approval.</strong> Editing or
+      writing a file shows a diff; a shell command shows the exact command
+      and, for destructive-looking ones (recursive deletes, force pushes,
+      <code>sudo</code>, piping a download into a shell), a warning. You
+      can allow it once, allow that tool for the rest of the session, deny
+      it with a reason the model gets to read, or save a permission rule so
+      the same shape of call never asks again. See
+      <a href="#permissions">permissions and modes</a>, below.</li>
+      <li><strong>5. The result goes back to the model.</strong> Tool
+      output, and for code files any compiler or type errors a language
+      server reports, are added to the conversation, and the loop returns
+      to step 3. This repeats until the model has nothing further to do, or
+      hits a limit (a model-call cap, a cost ceiling, a loop the harness
+      notices and stops).</li>
+      <li><strong>6. Verification gates run.</strong> If the turn changed
+      anything and the project defines commands that must pass (a build, a
+      test suite), they run now. A failure goes back to the model as
+      another round of step 3-5, up to three times, before janetcode gives
+      up and tells you.</li>
+      <li><strong>7. janetcode computes a verdict.</strong> Not from what
+      the model said, but from what was actually observed: did a check run
+      and pass, did it pass only because the test itself was edited this
+      turn, was nothing run at all. See
+      <a href="#verification">verification and verdicts</a>, below.</li>
+      <li><strong>8. The turn is written to the session record.</strong>
+      Every tool call, its result, the model's stated reason for each
+      change, and the verdict are appended to a local, plain-text log. This
+      is what <code>/undo</code>, <code>/changes</code>, <code>/blame</code>
+      and <code>/proof</code> all read from later.</li>
+    </ol>
+    <p>A turn that needs no tools at all &mdash; a question about the code
+    &mdash; is the same loop with steps 4 through 7 simply having nothing to
+    do.</p>
+  </section>
+
+  <section id="permissions">
+    <h2>Permissions and modes</h2>
+    <p>janetcode has four modes, cycled with <kbd>shift+tab</kbd> or set
+    with a flag: <strong>ask</strong> (the default: every edit and command
+    asks first), <strong>plan</strong> (the model can only look, not
+    change anything, until you approve a written plan), <strong>auto</strong>
+    (in-workspace file edits and reads it already knows are safe run
+    without asking; other commands still ask), and <strong>yolo</strong>
+    (nothing asks; use this once you trust the task).</p>
+    <p>A few safety rules hold in every mode, including yolo: commands that
+    would damage the machine itself (deleting <code>/</code> or the home
+    directory, formatting a disk, a fork bomb, piping a download straight
+    into a shell) are refused outright, and a command that reaches outside
+    the working directory always asks, however the mode is set.</p>
+    <p>At a permission prompt, pressing <kbd>r</kbd> instead of
+    <kbd>y</kbd> saves a rule so the same shape of call &mdash; the same
+    tool, the same command pattern or path &mdash; never asks again in any
+    session:</p>
+    <div class="code-block">
+      <pre><code>"permissions": {
+  "allow": ["read_file", "bash(go test *)", "edit_file(internal/*)"],
+  "deny":  ["bash(git push*)", "bash(rm -rf *)"]
+}</code></pre>
+    </div>
+    <p><code>/permissions</code> lists and adds rules; a project can ship
+    its own <code>.janetcode/permissions.json</code>, whose deny rules
+    always apply and whose allow rules take a one-time
+    <code>/permissions trust</code> before they do &mdash; the same
+    caution that applies to anything a cloned repository asks to run
+    automatically.</p>
+    <p>janetcode also keeps a private, per-project ledger of how you
+    answered past prompts. It never saves a rule on its own; once a call's
+    shape has been approved three times running with no refusal, the
+    prompt itself notes that (&ldquo;approved 4&times; before, never
+    refused&rdquo;) next to the rule that <kbd>r</kbd> would save, so the
+    decision to stop asking is always one you make on purpose, just made
+    easier to reach.</p>
+  </section>
+
+  <section id="sessions-undo">
+    <h2>Sessions and undo</h2>
+    <p>Every conversation is saved, append-only, to a local file. You can
+    resume the newest one (<code>--continue</code>), resume a specific one
+    by id (<code>--resume &lt;id&gt;</code>), or list what exists for the
+    current directory (<code>/resume</code> inside the program). Long
+    conversations are <em>compacted</em>: once the conversation grows past
+    a size threshold, the old part is condensed into a short working-memory
+    record instead of being sent in full on every request, and the full
+    text of everything condensed is kept in a local archive that a tool
+    called <code>expand_output</code> can search and page back through
+    &mdash; so a detail lost from the summary is not lost from the disk.</p>
+    <p><code>/undo</code> puts the working tree back to how it was before
+    the last turn that changed anything, and removes that turn from what
+    the model remembers too, so it cannot later refer to file contents that
+    no longer exist. Inside a git repository this uses a hidden snapshot
+    taken before the turn's first change, so shell-command edits and
+    deletions revert along with tracked file edits; outside git, only the
+    changes made through the file-editing tools are reversible.
+    <code>/undo about &lt;description&gt;</code> is finer-grained: it
+    previews which of the session's recorded changes match a description
+    (&ldquo;the logging changes but keep the rename&rdquo;) and reverts
+    only those, checking first whether undoing one change would break code
+    a kept change still relies on.</p>
+    <p>Every change is also recorded with the model's stated reason for
+    making it, which is what <code>/changes</code> (list them, grouped by
+    turn and intent) and <code>/blame &lt;path&gt;</code> (which turn wrote
+    which line) read. This record &mdash; which turn, and stated why, wrote
+    a given line &mdash; is what janetcode calls <em>provenance</em>; when a
+    session commits its work, the same evidence can be attached to the
+    commit itself as a git note (see
+    <a href="features.html#proof">proof notes</a>).</p>
+    <p>Full detail: <a href="features.html#sessions">sessions</a> and
+    <a href="features.html#undo">undo</a> on the features page.</p>
+  </section>
+
+  <section id="verification">
+    <h2>Verification gates and verdicts</h2>
+    <p>A project can say what &ldquo;done&rdquo; means by listing commands
+    in <code>.janetcode/verify.json</code> &mdash; typically a build and a
+    test run. After any turn that changed something, those commands run;
+    a failure is fed back to the model as another round of work, and a
+    pass is shown as <code>verified: &hellip;</code>.</p>
+    <p>Passing a check is not the same as the change being good, which is
+    why janetcode reports a <strong>verdict</strong> for every turn that
+    changed code &mdash; a judgment about what was actually demonstrated,
+    computed from what ran and what it returned, not from the model's own
+    summary:</p>
+    <div class="table-scroll">
+    <table>
+      <caption>Verdicts and what they mean</caption>
+      <thead><tr><th>Verdict</th><th>What it means</th></tr></thead>
+      <tbody>
+        <tr><td><code>verified</code></td><td>tests ran and passed afterwards (and it says so when a failing check flipped to green)</td></tr>
+        <tr><td><code>self-checked</code></td><td>tests passed, but the tests themselves were edited in the same turn</td></tr>
+        <tr><td><code>not demonstrated</code></td><td>a check passed without exercising anything, or code ran with nothing asserting the result</td></tr>
+        <tr><td><code>unverified</code></td><td>code was edited and nothing was run against it</td></tr>
+        <tr><td><code>check failed</code></td><td>something ran and came back red</td></tr>
+        <tr><td><code>vacuous</code></td><td>a check exited 0 having found no tests to run</td></tr>
+        <tr><td><code>tests written</code></td><td>an acceptance-test writing turn wrote only test files, and they fail, as they should until the implementation exists</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>When the model's own answer claims something the turn does not
+    show &mdash; &ldquo;tests pass&rdquo; when none ran &mdash; it is told
+    once, with what was actually observed, and asked to run the check or
+    say plainly that it did not. This behaviour was calibrated by replaying
+    97 real turns and checking each verdict by hand; the breakdown from
+    that run (42% verified, 32% self-checked, 10% not demonstrated, 10%
+    unverified, no false accusations) is in
+    <code>docs/benchmarks/compaction/FACTS.md</code>.</p>
+  </section>
+
+  <section id="subagents-overview">
+    <h2>Subagents</h2>
+    <p>A <strong>subagent</strong> is a second conversation the main model
+    starts with the <code>task</code> tool to do one bounded job in its own
+    context: explore part of the codebase, fix one failing test, review a
+    diff. It can run on the same model or a different, perhaps cheaper one,
+    and several can run in parallel. Its work does not fill up the main
+    conversation &mdash; only its final report comes back, unless you open
+    its transcript yourself (<code>/agents</code>, or <kbd>ctrl+t</kbd> for
+    a live overlay).</p>
+    <p>A subagent given <code>edit: true</code> gets the full tool set
+    inside a throwaway <strong>worktree</strong> &mdash; a second checkout
+    of the same repository, on its own branch, that git can create without
+    disturbing your actual working directory &mdash; so it can edit files
+    and run commands there without asking, and hands back a reviewable
+    patch rather than having touched your real tree directly. The
+    <code>--worktree &lt;branch&gt;</code> flag does the same thing for an
+    entire session, not just a subagent, so two sessions can work on one
+    repository at once.</p>
+    <p>Full detail, including custom named subagents and how a job is
+    routed to another model: <a href="features.html#subagents">subagents
+    and teams</a> on the features page.</p>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>janetcode is a terminal coding agent. Source and issues:
+  <a href="https://github.com/xmonader/janetcode">github.com/xmonader/janetcode</a>.
+  Drawn from <code>docs/manual/interface.md</code> and
+  <code>docs/manual/sessions.md</code>.</p>
+</footer>
+<script src="js/copy.js"></script>
+</body>
+</html>

@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reference &mdash; janetcode</title>
+<meta name="description" content="Command-line reference for janetcode: every slash command, flag, exit code, configuration key, environment variable and project file, generated from the source tables the program itself runs on.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="index.html">janetcode</a>
+  <nav class="site-nav" aria-label="Primary">
+    <a href="index.html">Home</a>
+    <a href="features.html">Features</a>
+    <a href="how-it-works.html">How it works</a>
+    <a href="reference.html" aria-current="page">Reference</a>
+    <a href="https://github.com/xmonader/janetcode">GitHub</a>
+  </nav>
+</header>
+
+<main class="wide">
+  <h1>Reference</h1>
+  <p class="lede">Commands, flags, exit codes, configuration keys and
+  project files. The command and flag tables are generated from
+  <code>internal/slash/slash.go</code> and <code>docs/manual/cli.md</code>
+  &mdash; the same tables janetcode's own <code>--inspect features</code>
+  reads &mdash; so they cannot drift from what the program actually does.
+  For what a feature is <em>for</em>, see <a href="features.html">features</a>;
+  for how the pieces fit together, see
+  <a href="how-it-works.html">how it works</a>.</p>
+
+  <nav class="toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#commands">Slash commands</a></li>
+      <li><a href="#flags">Command-line flags</a></li>
+      <li><a href="#exit-codes">Exit codes</a></li>
+      <li><a href="#tools">Tools the model can call</a></li>
+      <li><a href="#config">Configuration keys</a></li>
+      <li><a href="#env">Environment variables</a></li>
+      <li><a href="#files">Project files and directories</a></li>
+    </ul>
+  </nav>
+
+  <section id="commands">
+    <h2>Slash commands</h2>
+    <p>Typed at the prompt inside a session. <kbd>Tab</kbd> completes a
+    command or its argument for the ones that take one (<code>/resume</code>,
+    <code>/model</code>, <code>/forget</code>, <code>/undo</code>,
+    <code>/open</code>, <code>/diff</code>); a partial name matches on its
+    letters in order, so <code>/rsm</code> finds <code>/resume</code>.
+    Aliases: <code>/?</code> for <code>/help</code>, <code>/exit</code> and
+    <code>/q</code> for <code>/quit</code>, <code>/new</code> for
+    <code>/clear</code>, <code>/perms</code> for <code>/permissions</code>,
+    <code>/ctx</code> for <code>/context</code>, <code>/todo</code> for
+    <code>/todos</code>, <code>/i</code> for <code>/inspect</code>,
+    <code>/search</code> for <code>/find</code>, <code>/sessions</code>
+    for <code>/resume</code>, <code>/cost</code> for <code>/usage</code>.</p>
+<div class="table-scroll">
+<table>
+<caption>Slash commands (typed inside a session)</caption>
+<thead><tr><th>Command</th><th>Arguments</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>/help</code></td><td></td><td>keys and commands, or /help &lt;topic&gt; to search every feature and the manual</td></tr>
+<tr><td><code>/compact</code></td><td></td><td>summarise the conversation to free context</td></tr>
+<tr><td><code>/clear</code></td><td></td><td>start a new session</td></tr>
+<tr><td><code>/resume</code></td><td><code>[n|id]</code></td><td>reopen an earlier session here: alone opens a searchable list, or name one</td></tr>
+<tr><td><code>/open</code></td><td><code>&lt;path[:line]&gt;</code></td><td>show a file inline, centred on a line</td></tr>
+<tr><td><code>/diff</code></td><td><code>[path|revert path:n]</code></td><td>changes against HEAD; a file&#x27;s hunks; revert one hunk</td></tr>
+<tr><td><code>/fork</code></td><td><code>[stay] [title]</code></td><td>copy this conversation into a new session; stay keeps this one live</td></tr>
+<tr><td><code>/add-dir</code></td><td><code>&lt;path&gt;</code></td><td>grant file tools another local directory for this session</td></tr>
+<tr><td><code>/btw</code></td><td><code>&lt;question&gt;</code></td><td>ask a side question that is not stored as a user turn</td></tr>
+<tr><td><code>/copy</code></td><td></td><td>copy the last assistant reply to the clipboard</td></tr>
+<tr><td><code>/config</code></td><td><code>[key=value]</code></td><td>set a catalogued config key, or list settable keys</td></tr>
+<tr><td><code>/doctor</code></td><td></td><td>run a setup checkup; reports facts, changes nothing</td></tr>
+<tr><td><code>/title</code></td><td><code>&lt;text&gt;</code></td><td>name this session (titles are generated after the first turn)</td></tr>
+<tr><td><code>/history</code></td><td><code>&lt;words&gt;</code></td><td>find earlier sessions in any directory whose conversation mentions the words</td></tr>
+<tr><td><code>/find</code></td><td><code>&lt;text&gt;</code></td><td>jump to the next line matching text; repeat to continue</td></tr>
+<tr><td><code>/stats</code></td><td></td><td>session statistics: turns, model calls, tool calls per tool, tokens, cost</td></tr>
+<tr><td><code>/undo</code></td><td><code>[preview | n | about &lt;description&gt; | apply [--force]]</code></td><td>revert everything the last turn changed (git snapshot; file copies outside git); preview only lists it; n reverts one change from /changes; about &lt;description&gt; previews only the changes matching it, apply reverts that preview (--force if the preview has mixed changes or a coupling warning)</td></tr>
+<tr><td><code>/changes</code></td><td><code>[n]</code></td><td>this session&#x27;s file changes grouped by turn and intent; n shows one change&#x27;s hunks</td></tr>
+<tr><td><code>/blame</code></td><td><code>&lt;path&gt;</code></td><td>which change wrote each line of a file changed this session</td></tr>
+<tr><td><code>/redo</code></td><td></td><td>reapply what the last /undo reverted (until the next change)</td></tr>
+<tr><td><code>/mcp</code></td><td><code>[trust|auth &lt;server&gt;|logout &lt;server&gt;]</code></td><td>MCP servers and their tools; trust starts the project&#x27;s .mcp.json servers; auth logs in to a remote server with OAuth</td></tr>
+<tr><td><code>/hooks</code></td><td><code>[trust]</code></td><td>hooks in effect; trust enables the project&#x27;s .janetcode/hooks.json</td></tr>
+<tr><td><code>/permissions</code></td><td><code>[allow|deny &lt;rule&gt;|trust]</code></td><td>permission rules; add one, or trust the project&#x27;s .janetcode/permissions.json</td></tr>
+<tr><td><code>/verify</code></td><td><code>[set &lt;cmd&gt;|add &lt;cmd&gt;|mutate &lt;test cmd&gt;|clear|trust]</code></td><td>run the project&#x27;s checks now; set replaces .janetcode/verify.json&#x27;s commands with one, add appends one; mutate requires tests to catch mutations of changed lines</td></tr>
+<tr><td><code>/lsp</code></td><td></td><td>language servers and the diagnostics they reported</td></tr>
+<tr><td><code>/jobs</code></td><td><code>[id|kill &lt;n&gt;|stdin &lt;n&gt; &lt;text&gt;]</code></td><td>live overlay of background jobs; enter tails the log, k kills, stdin writes a line to a running job</td></tr>
+<tr><td><code>/context</code></td><td></td><td>what fills the context window: prompt, tools, messages, largest tool results</td></tr>
+<tr><td><code>/todos</code></td><td></td><td>live overlay of the plan: every step and its status; esc closes</td></tr>
+<tr><td><code>/inspect</code></td><td><code>[subject]</code></td><td>look at any part of the session: context, events, archive, retrieval, config, tools, lsp, mcp, jobs, repomap&hellip; (no subject lists them)</td></tr>
+<tr><td><code>/reload</code></td><td></td><td>rebuild the memory and skill indexes in the prompt now instead of at compaction</td></tr>
+<tr><td><code>/pin</code></td><td><code>[note or @file]</code></td><td>keep a note in the system prompt for the whole session; alone lists pins</td></tr>
+<tr><td><code>/unpin</code></td><td><code>&lt;n&gt;</code></td><td>remove a pin</td></tr>
+<tr><td><code>/plan</code></td><td><code>[request|approve|off]</code></td><td>plan mode: the model explores and writes a plan; approve executes it</td></tr>
+<tr><td><code>/accept</code></td><td><code>[&lt;request&gt; | approve | lock | unlock | command &lt;cmd&gt; | off]</code></td><td>acceptance tests you approve first: writes tests for a request and stops; approve locks them so no tool call can weaken them and their command gates the session; unlock/lock and off manage the mode; command replaces the verify command when the stated or inferred one is wrong</td></tr>
+<tr><td><code>/trajectory</code></td><td><code>[n|grep &lt;words&gt;]</code></td><td>event ledger of this session (turn/step/tool/compaction); n shows one record</td></tr>
+<tr><td><code>/why</code></td><td><code>[n]</code></td><td>explain the last thing the harness did on its own, in plain words; n goes further back</td></tr>
+<tr><td><code>/feedback</code></td><td><code>up|down [note]</code></td><td>rate the last assistant message (not sent to the model)</td></tr>
+<tr><td><code>/goal</code></td><td><code>[objective|pause|resume|done]</code></td><td>set a goal and start on it now; the model keeps going round after round until it is complete or blocked</td></tr>
+<tr><td><code>/agents</code></td><td><code>[id|new &lt;brief&gt;|fork &lt;brief&gt;]</code></td><td>live overlay of continuable subagents; enter (or /agents &lt;id&gt;) opens one child&#x27;s transcript; new starts a general subagent, fork one that inherits this conversation</td></tr>
+<tr><td><code>/ssh</code></td><td><code>[user@host[:/path]|off]</code></td><td>run file tools and bash on a remote host over ssh; off returns here</td></tr>
+<tr><td><code>/docker</code></td><td><code>[container[:/path]|off]</code></td><td>run file tools and bash in a docker container; off returns here</td></tr>
+<tr><td><code>/readonly</code></td><td></td><td>toggle read-only mode (no edits or commands)</td></tr>
+<tr><td><code>/memory</code></td><td></td><td>what janetcode remembers about this project</td></tr>
+<tr><td><code>/skills</code></td><td></td><td>skill files available to the model</td></tr>
+<tr><td><code>/rules</code></td><td></td><td>path-scoped project rules: what brings each in, and which have been sent this session</td></tr>
+<tr><td><code>/remember</code></td><td><code>&lt;fact&gt;</code></td><td>add a fact to the project memory</td></tr>
+<tr><td><code>/forget</code></td><td><code>&lt;n&gt;</code></td><td>remove memory entry n</td></tr>
+<tr><td><code>/yolo</code></td><td></td><td>toggle auto-approve for tools</td></tr>
+<tr><td><code>/auto</code></td><td></td><td>toggle auto mode: in-workspace edits and known-safe reads run, other commands ask</td></tr>
+<tr><td><code>/edits</code></td><td></td><td>toggle auto-accept edits: file changes go through, commands still ask</td></tr>
+<tr><td><code>/sandbox</code></td><td><code>[on|off|image]</code></td><td>wrap local bash in docker (or sandbox-exec on macOS); off by default</td></tr>
+<tr><td><code>/review</code></td><td><code>[focus]</code></td><td>fan out two subagents over the current diff (bugs and tests)</td></tr>
+<tr><td><code>/loop</code></td><td><code>[duration] [prompt|off|cancel id]</code></td><td>session-scoped repeating prompt; restored on resume of this session</td></tr>
+<tr><td><code>/settle</code></td><td></td><td>mark this session done with (or active again); settled sessions list last in /resume</td></tr>
+<tr><td><code>/connect</code></td><td></td><td>connect to a provider (preset or custom API) and pick a model</td></tr>
+<tr><td><code>/model</code></td><td><code>[name]</code></td><td>pick a model from a list, or set one by name</td></tr>
+<tr><td><code>/usage</code></td><td></td><td>tokens and cost for this session</td></tr>
+<tr><td><code>/budget</code></td><td><code>[usd|off]</code></td><td>stop the session once it has spent this much; alone says what the ceiling is and what is left</td></tr>
+<tr><td><code>/export</code></td><td><code>[file.md]</code></td><td>write this session as a Markdown transcript</td></tr>
+<tr><td><code>/theme</code></td><td><code>[name]</code></td><td>switch the colour theme: alone opens a searchable list, or name a builtin or user theme; the choice is saved</td></tr>
+<tr><td><code>/verbose</code></td><td></td><td>toggle expanded tool output for the whole transcript (ctrl+o expands one turn)</td></tr>
+<tr><td><code>/hints</code></td><td><code>[on|off]</code></td><td>one-time hints about features this session could have used; alone says how many have been given</td></tr>
+<tr><td><code>/eval</code></td><td><code>keep [name] [--check cmd] [--base rev] [--self-contained]</code></td><td>keep turns this session into a regression eval task under .janetcode/evals, runnable later with janetcode --eval; --check sets its check command, else the project&#x27;s verify.json</td></tr>
+<tr><td><code>/recipe</code></td><td><code>[list | show &lt;name&gt; | save &lt;name&gt; [--turn n] [k=v...] | run &lt;name&gt; [--dry-run] [k=v...]]</code></td><td>crystallise a turn&#x27;s tool calls into a replayable program under .janetcode/recipes and run it later with no model call; a failed step hands over to the model</td></tr>
+<tr><td><code>/proof</code></td><td><code>[commit | push [remote] | fetch [remote]]</code></td><td>which session, turn and intent wrote each file of a commit, and what actually demonstrated it worked (mutation score included when logged); attaches one from this session first if the commit (default HEAD) has none yet; push/fetch move notes to/from a remote, since they are local only until pushed</td></tr>
+<tr><td><code>/quit</code></td><td></td><td>exit</td></tr>
+</tbody></table></div>
+  </section>
+
+  <section id="flags">
+    <h2>Command-line flags</h2>
+    <p><code>janetcode [flags] [prompt]</code> starts an interactive session;
+    <code>janetcode -p "prompt" [flags]</code> runs one prompt headless and
+    exits. Flags for evals (<code>--eval</code> and the rest) are on the
+    <a href="features.html#evals">evals feature entry</a> and in
+    <code>docs/manual/evals.md</code>.</p>
+<div class="table-scroll">
+<table>
+<caption>Command-line flags</caption>
+<thead><tr><th>Flag</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>-p &quot;&lt;prompt&gt;&quot;</code></td><td>run one prompt headless; assistant text on stdout, tool activity on stderr</td></tr>
+<tr><td><code>--output-format text|json|stream-json</code></td><td>with <code>-p</code>: how the run reports itself</td></tr>
+<tr><td><code>--max-cost &lt;usd&gt;</code></td><td>with <code>-p</code>: stop once the run has spent this much, and exit 55. Checked after every model call, so a long turn stops within one call of the ceiling; a model nothing can price is not held to it</td></tr>
+<tr><td><code>--max-turns &lt;n&gt;</code></td><td>cap the model calls one turn may make; the eval runner&#x27;s <code>--eval-max-turns</code> with the everyday spelling, so a benchmark can give a headless run and an eval run the same budget</td></tr>
+<tr><td><code>--compact-at &lt;tokens&gt;</code></td><td>compact the history at this size instead of the configured one; <code>--eval-compact-at</code> with the everyday spelling</td></tr>
+<tr><td><code>--model</code>, <code>--provider</code></td><td>override the configured model or backend for this run</td></tr>
+<tr><td><code>--effort</code></td><td>reasoning effort where the provider supports it</td></tr>
+<tr><td><code>--theme &lt;name&gt;</code></td><td>colour theme for this run: <code>auto</code>, <code>dark</code>, <code>light</code>, or a builtin or user theme name. Overrides the config for this run only; <code>--inspect themes</code> lists them</td></tr>
+<tr><td><code>--yolo</code></td><td>run mutating tools without asking</td></tr>
+<tr><td><code>--auto</code></td><td>auto mode: in-workspace file edits and known-safe reads run without asking; other commands still ask. <code>/auto</code> toggles it; shift+tab cycles ask &rarr; plan &rarr; auto &rarr; yolo</td></tr>
+<tr><td><code>--sandbox</code></td><td>wrap local bash in docker (or sandbox-exec on macOS). File tools stay on the workspace host. Off by default; <code>/sandbox</code> toggles it</td></tr>
+<tr><td><code>--auto-edits</code></td><td>auto-accept file edits; commands still ask. <code>/edits</code> toggles the same thing mid-session</td></tr>
+<tr><td><code>--readonly</code></td><td>read, search and answer, but change nothing</td></tr>
+<tr><td><code>--continue</code> (or <code>-c</code>), <code>--resume &lt;id&gt;</code> (or <code>-r</code>)</td><td>carry on the last session here, or a named one (including one started with <code>--bg</code>)</td></tr>
+<tr><td><code>--bg</code></td><td>run the prompt in the background, print the session id, and return; reopen with <code>--resume</code></td></tr>
+<tr><td><code>--add-dir &lt;path&gt;</code></td><td>extra local directory file tools may read and edit this session (repeatable)</td></tr>
+<tr><td><code>--replay &lt;session&gt;</code></td><td>re-run a saved session against the current code, with the model&#x27;s replies read from the recording instead of bought: it reports the tool calls it makes now against the ones recorded, and needs no API key</td></tr>
+<tr><td><code>--what-if &lt;session&gt;</code></td><td>counterfactual replay: see <a href="features.html#what-if">what-if replay</a></td></tr>
+<tr><td><code>--from-turn &lt;n&gt;</code></td><td>with <code>--what-if</code>: the first turn (1-based) to run live instead of from the recording</td></tr>
+<tr><td><code>--off &lt;names&gt;</code></td><td>with <code>--what-if</code>: comma-separated behaviours to disable for the live part, the same names as <code>--eval-off</code> / <code>JANETCODE_OFF</code></td></tr>
+<tr><td><code>--prompt &quot;&lt;text&gt;&quot;</code></td><td>with <code>--what-if</code>: replacement text for <code>--from-turn</code>&#x27;s prompt, instead of the session&#x27;s own recorded one</td></tr>
+<tr><td><code>--what-if-keep</code></td><td>with <code>--what-if</code>: leave the worktree on disk instead of removing it, and print its path</td></tr>
+<tr><td><code>--json</code></td><td>with <code>--what-if</code>: write the comparison report as JSON to stdout instead of text</td></tr>
+<tr><td><code>--sessions</code></td><td>list the sessions recorded for this directory</td></tr>
+<tr><td><code>--worktree &lt;branch&gt;</code></td><td>run the session in a git worktree on that branch</td></tr>
+<tr><td><code>--until &quot;&lt;cmd&gt;&quot;</code></td><td>keep going until the command exits 0, at most five rounds</td></tr>
+<tr><td><code>--watch &quot;&lt;cmd&gt;&quot;</code></td><td>stay running, re-run the command when files change, fix failures</td></tr>
+<tr><td><code>--acp</code></td><td>speak the Agent Client Protocol on stdio, for an editor</td></tr>
+<tr><td><code>--web</code></td><td>serve the session in a browser instead of the terminal</td></tr>
+<tr><td><code>--web-addr &lt;host:port&gt;</code></td><td>listen address for <code>--web</code> (default <code>127.0.0.1:8787</code>). Loopback unless you name another host; anyone who can reach the port can approve commands</td></tr>
+<tr><td><code>--inspect &lt;subject&gt;</code></td><td>print one part of the session state and exit; <code>list</code> names them</td></tr>
+<tr><td><code>--inspect features</code></td><td>print the whole feature catalogue: commands, keys, flags, tools, config keys. <code>--inspect &quot;features &lt;query&gt;&quot;</code> searches it and the embedded manual</td></tr>
+<tr><td><code>--doctor</code></td><td>check config, credentials, providers, tools and report what is wrong</td></tr>
+<tr><td><code>--proof [commit]</code></td><td>print the proof note attached to a commit (default <code>HEAD</code>): which session, turn and intent wrote each of its files, and what actually demonstrated the work; &quot;no proof for <code>&lt;sha&gt;</code>&quot; when none is attached, then exit</td></tr>
+<tr><td><code>--recipe &lt;name&gt; [k=v ...]</code></td><td>replay a saved recipe (<code>.janetcode/recipes/&lt;name&gt;.json</code>, see <a href="features.html#recipes">recipes</a>) as tool calls, no model call and no tokens unless a step fails or, once every step has succeeded, the project&#x27;s own <a href="features.html#verdicts">verify gate</a> fails; <code>k=v</code> substitutes the recipe&#x27;s parameters. Either failure hands over to the configured model the way <code>-p</code> running under <code>--until</code> does, or exits non-zero without one. MCP servers are started first only when a step calls one of their tools</td></tr>
+<tr><td><code>--init</code></td><td>write a starter config file</td></tr>
+<tr><td><code>--allow</code>, <code>--deny</code></td><td>add a permission rule for this run</td></tr>
+<tr><td><code>--mcp-auth &lt;server&gt;</code></td><td>run the OAuth flow for an MCP server</td></tr>
+<tr><td><code>--version</code></td><td>print the version</td></tr>
+</tbody></table></div>
+
+    <h3>Output formats (<code>--output-format</code>, with <code>-p</code>)</h3>
+    <p><code>text</code> (default) prints the assistant's answer on stdout
+    and everything else on stderr, unchanged. <code>json</code> prints one
+    result object at the end, with fields including <code>result</code>,
+    <code>is_error</code>, <code>exit_code</code>, <code>session_id</code>,
+    <code>usage</code> (token counts), <code>cost_usd</code> and
+    <code>cost_source</code> (<code>reported</code>, <code>list price</code>
+    or <code>unpriced</code>), <code>num_turns</code>, <code>tool_calls</code>,
+    <code>verdict</code>, <code>duration_ms</code>, a <code>recoveries</code>
+    object (rescues the harness had to make: prose read back as tool calls,
+    stalled streams killed, model fallbacks used) and <code>retries</code>
+    (model calls that failed transiently and then succeeded).
+    <code>stream-json</code> prints the same events as newline-delimited
+    JSON as they happen, ending with the same result object as its last
+    line.</p>
+  </section>
+
+  <section id="exit-codes">
+    <h2>Exit codes</h2>
+    <div class="table-scroll">
+    <table>
+      <caption>Process exit codes</caption>
+      <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>0</code></td><td>the run finished</td></tr>
+        <tr><td><code>1</code></td><td>anything else</td></tr>
+        <tr><td><code>41</code></td><td>no API key, or the endpoint rejected it (HTTP 401/403)</td></tr>
+        <tr><td><code>42</code></td><td>the flags or the prompt do not make sense</td></tr>
+        <tr><td><code>52</code></td><td>the configuration file cannot be used</td></tr>
+        <tr><td><code>53</code></td><td>the turn hit its model-call cap</td></tr>
+        <tr><td><code>55</code></td><td>the run reached <code>--max-cost</code></td></tr>
+        <tr><td><code>130</code></td><td>interrupted, as a shell reports a SIGINT</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="small">The code is also in the <code>exit_code</code> field of
+    the <code>--output-format json</code> result object, so a caller reading
+    only stdout still has it.</p>
+  </section>
+
+  <section id="tools">
+    <h2>Tools the model can call</h2>
+    <p>These are the built-in tools available inside a normal session (an
+    eval run or a <code>--what-if</code> live run uses a smaller, fixed
+    subset). All paths are confined to the working directory, symlinks
+    included. Read-only tools run concurrently; mutating tools run one at
+    a time, in the order the model called them.</p>
+    <div class="table-scroll">
+    <table>
+      <caption>Built-in tools</caption>
+      <thead><tr><th>Tool</th><th>Purpose</th><th>Asks permission</th></tr></thead>
+      <tbody>
+        <tr><td><code>read_file</code></td><td>Read a file with line numbers, windowed</td><td>no</td></tr>
+        <tr><td><code>list_dir</code></td><td>List a directory</td><td>no</td></tr>
+        <tr><td><code>glob</code></td><td>Find files by pattern (<code>**/*.go</code>)</td><td>no</td></tr>
+        <tr><td><code>grep</code></td><td>Search file contents with a regex</td><td>no</td></tr>
+        <tr><td><code>edit_file</code></td><td>Replace text in a file, located by exact string, line range or content anchor; several edits in one call</td><td>yes, shows a diff</td></tr>
+        <tr><td><code>write_file</code></td><td>Create or overwrite a file</td><td>yes, shows a diff</td></tr>
+        <tr><td><code>bash</code></td><td>Run a shell command with a timeout</td><td>yes</td></tr>
+        <tr><td><code>fetch_url</code></td><td>Fetch a web page or API response as text</td><td>yes</td></tr>
+        <tr><td><code>repo_map</code></td><td>Rank files for a query, or a symbol&#x27;s blast radius (definers and users)</td><td>no</td></tr>
+        <tr><td><code>web_search</code></td><td>Search the web (DuckDuckGo, or Brave Search with a key) for titles, URLs and snippets</td><td>yes</td></tr>
+        <tr><td><code>task</code></td><td>Delegate a job to a subagent with its own context, optionally on another model; <code>agent: explore</code> is a built-in read-only explorer; several run in parallel</td><td>no</td></tr>
+        <tr><td><code>symbols</code></td><td>Ask the language server where a name is defined, who uses it, its type, what a file declares</td><td>no</td></tr>
+        <tr><td><code>expand_output</code></td><td>Read back tool output and conversation that compaction archived, by search or by line</td><td>no</td></tr>
+        <tr><td><code>execute_code</code></td><td>Run a Python script that calls these tools, so a chain of calls costs one turn and their output stays out of the context</td><td>yes, shows the code</td></tr>
+        <tr><td><code>run_code</code></td><td>Where no Python is available (or <code>JANETCODE_OFF=script</code>), stands in for <code>execute_code</code>: a fixed JSON list of real tool calls in one turn (approvals and guards still apply)</td><td>yes</td></tr>
+        <tr><td><code>workflow</code></td><td>Start real <code>task</code> children from a short script and return their reports</td><td>no</td></tr>
+        <tr><td><code>terminal</code></td><td>Persistent shell session: cwd and environment survive across sends</td><td>yes</td></tr>
+        <tr><td><code>todo</code></td><td>Keep the plan for a multi-step task and mark steps off; triggered by a countable rule (three or more distinct steps)</td><td>no</td></tr>
+        <tr><td><code>ask</code></td><td>Put one or more labeled questions in front of you as tabs; Other is free text</td><td>no</td></tr>
+        <tr><td><code>inspect</code></td><td>Look at the session&#x27;s own state: context, archive, verdicts, config, servers</td><td>no</td></tr>
+        <tr><td><code>diagnostics</code></td><td>Compile and type errors from the language server, for a file or the project</td><td>no</td></tr>
+        <tr><td><code>job</code></td><td>List, read, wait on, kill, or write stdin to a background job</td><td>no</td></tr>
+        <tr><td><code>memory</code></td><td>Remember a fact about the project, or search what is remembered</td><td>no</td></tr>
+        <tr><td><code>skill</code></td><td>Load a skill&#x27;s instructions on demand</td><td>no</td></tr>
+        <tr><td><code>goal_status</code></td><td>Mark the session goal complete or blocked</td><td>no</td></tr>
+        <tr><td><code>tool_search</code></td><td>Find a tool by what it does, when many are loaded</td><td>no</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="small"><code>route_cheap</code> (<a href="features.html#step-routing">step
+    routing</a>, experimental and off by default) is not a tool: it
+    reroutes some existing tool calls within a turn to a second model,
+    rather than adding a new one.</p>
+  </section>
+
+  <section id="config">
+    <h2>Configuration keys</h2>
+    <p>Precedence is command-line flags, then environment variables, then
+    the config file. <code>janetcode --init</code> writes a starter file at
+    <code>~/.config/janetcode/config.json</code> (honouring
+    <code>XDG_CONFIG_HOME</code>).</p>
+<div class="code-block">
+<pre><code>{
+  "provider": "anthropic",
+  "model": "claude-opus-5",
+  "max_tokens": 16000,
+  "effort": "high",
+  "auto_approve": false,
+  "max_iterations": 50,
+  "compact_at": 80000,
+  "memory": true,
+  "hints": true,
+  "proof_notes": true,
+  "theme": "auto",
+  "providers": {
+    "anthropic":  { "type": "anthropic", "api_key": "sk-ant-..." },
+    "openrouter": { "type": "openai", "base_url": "https://openrouter.ai/api/v1",
+                    "api_key": "sk-or-1", "api_keys": ["sk-or-2"], "model": "deepseek/deepseek-v4-flash" },
+    "ollama":     { "type": "openai", "base_url": "http://localhost:11434/v1" }
+  }
+}</code></pre>
+</div>
+    <div class="table-scroll">
+    <table>
+      <caption>Top-level configuration keys</caption>
+      <thead><tr><th>Key</th><th>Type / example</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>provider</code></td><td>string</td><td>which entry of <code>providers</code> to use</td></tr>
+        <tr><td><code>model</code></td><td>string</td><td>model name for the selected provider</td></tr>
+        <tr><td><code>max_tokens</code></td><td>integer</td><td>maximum output tokens per model response</td></tr>
+        <tr><td><code>effort</code></td><td><code>low|medium|high|xhigh|max</code></td><td>reasoning effort (Anthropic only); adaptive thinking is on by default for Claude 4.6+ and off for Haiku</td></tr>
+        <tr><td><code>auto_approve</code></td><td>boolean</td><td>persisted equivalent of <code>--yolo</code></td></tr>
+        <tr><td><code>max_iterations</code></td><td>integer, default 50</td><td>model-call cap per turn</td></tr>
+        <tr><td><code>compact_at</code></td><td>integer tokens, default 80000</td><td>history size that triggers compaction</td></tr>
+        <tr><td><code>memory</code></td><td>boolean, default true</td><td>automatic fact extraction after a turn; the <code>memory</code> tool and <code>/remember</code> still work when off</td></tr>
+        <tr><td><code>hints</code></td><td>boolean, default true</td><td>one-time feature hints (see <a href="features.html#hints">hints</a>)</td></tr>
+        <tr><td><code>proof_notes</code></td><td>boolean, default true</td><td>attach a git note to commits this session makes (see <a href="features.html#proof">proof</a>)</td></tr>
+        <tr><td><code>theme</code></td><td>string, default <code>auto</code></td><td>colour theme; a builtin name or one defined in <code>themes</code></td></tr>
+        <tr><td><code>themes</code></td><td>object</td><td>user-defined theme palettes, each with an optional <code>base</code> to inherit from</td></tr>
+        <tr><td><code>providers</code></td><td>object</td><td>named backends; each has <code>type</code> (<code>anthropic</code> or <code>openai</code>), <code>base_url</code>, <code>api_key</code>/<code>api_keys</code>, and remembers its last <code>model</code></td></tr>
+        <tr><td><code>routes</code></td><td>object</td><td>explicit model name &rarr; provider name, for <code>task</code> jobs sent to another model</td></tr>
+        <tr><td><code>fallback_models</code></td><td>array, at most 3 used</td><td>models tried in order when a call fails in a way another model could survive (quota, rate limit, server error)</td></tr>
+        <tr><td><code>route_cheap</code></td><td>string, default empty (off)</td><td><span class="pill">experimental</span> sends a turn&#x27;s mechanical steps to this model instead of the session&#x27;s own; see <a href="features.html#step-routing">step routing</a></td></tr>
+        <tr><td><code>stream_idle_timeout</code></td><td>seconds, default 240</td><td>ends a streamed call that stops producing output; negative disables it</td></tr>
+        <tr><td><code>stream_max_duration</code></td><td>seconds, default 900</td><td>hard cap on one streamed call however steadily it streams; negative disables it</td></tr>
+        <tr><td><code>hooks</code></td><td>object</td><td><code>pre_tool</code>/<code>post_tool</code>/<code>pre_compact</code>/<code>stop</code> hook lists, plus a <code>limits</code> object (<code>timeout</code>, <code>project_timeout</code>, <code>output</code>, <code>per_event</code>); see <a href="features.html#hooks">hooks</a></td></tr>
+        <tr><td><code>permissions</code></td><td>object</td><td><code>allow</code> and <code>deny</code> rule lists; see <a href="features.html#permissions">permission rules</a></td></tr>
+        <tr><td><code>lsp</code></td><td>object</td><td>per-language-server <code>command</code>, <code>extensions</code>, <code>timeout</code>, or <code>disabled</code>; see <a href="features.html#diagnostics">diagnostics</a></td></tr>
+        <tr><td><code>prices</code></td><td>object</td><td>per-model token prices, taking precedence over a provider&#x27;s own listing or the LiteLLM public rate table</td></tr>
+        <tr><td><code>embedding_model</code></td><td>string</td><td>enables meaning-based memory recall via a provider&#x27;s <code>/v1/embeddings</code> endpoint, in addition to word matching</td></tr>
+        <tr><td><code>search</code></td><td>object, e.g. <code>{"provider": "brave", "key": "${BRAVE_API_KEY}"}</code></td><td>configures <code>web_search</code>; defaults to scraping DuckDuckGo&#x27;s HTML endpoint, no key needed</td></tr>
+        <tr><td><code>mcp_servers</code></td><td>object</td><td>MCP servers started with every session; see <a href="features.html#extending">MCP servers</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="small">Environment variables always win over the config
+    file's own stored values but lose to command-line flags; a key from
+    the environment is never written back into the config file.</p>
+  </section>
+
+  <section id="env">
+    <h2>Environment variables</h2>
+    <div class="table-scroll">
+    <table>
+      <caption>Environment variables</caption>
+      <thead><tr><th>Variable</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>ANTHROPIC_API_KEY</code></td><td>API key for Anthropic's Messages API</td></tr>
+        <tr><td><code>ANTHROPIC_BASE_URL</code></td><td>override the Anthropic endpoint</td></tr>
+        <tr><td><code>OPENAI_API_KEY</code></td><td>key for an OpenAI-compatible endpoint (may be a comma-separated list to rotate through)</td></tr>
+        <tr><td><code>OPENAI_BASE_URL</code></td><td>the OpenAI-compatible endpoint to use (OpenRouter, Ollama, vLLM, and so on)</td></tr>
+        <tr><td><code>JANETCODE_PROVIDER</code></td><td>selects a configured provider without <code>--provider</code></td></tr>
+        <tr><td><code>JANETCODE_MODEL</code></td><td>selects a model without <code>--model</code></td></tr>
+        <tr><td><code>JANETCODE_EFFORT</code></td><td>sets reasoning effort without <code>--effort</code></td></tr>
+        <tr><td><code>JANETCODE_THEME</code></td><td>sets the colour theme without <code>--theme</code></td></tr>
+        <tr><td><code>JANETCODE_OFF</code></td><td>comma-separated harness behaviours to disable for a real session, the same names <code>--eval-off</code> takes</td></tr>
+        <tr><td><code>JANETCODE_NOTIFY</code></td><td>set to <code>0</code> to turn off desktop notifications and the terminal bell</td></tr>
+        <tr><td><code>JANETCODE_SYSTEM_MD</code></td><td>replaces the base system-prompt instructions with a file, for prompt experiments (see <a href="reference.html#config">evals</a> in the manual)</td></tr>
+        <tr><td><code>BRAVE_API_KEY</code></td><td>referenced from the config file's <code>search</code> key as <code>${BRAVE_API_KEY}</code>, not read directly</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section id="files">
+    <h2>Project files and directories</h2>
+    <div class="table-scroll">
+    <table>
+      <caption>Files janetcode reads from a project, and where it keeps its own state</caption>
+      <thead><tr><th>Path</th><th>What it is</th></tr></thead>
+      <tbody>
+        <tr><td><code>JANETCODE.md</code>, <code>AGENTS.md</code>, <code>CLAUDE.md</code></td><td>project instructions, read from the working directory up to the repository root (first name found in a directory wins)</td></tr>
+        <tr><td><code>.janetcode/rules/*.md</code></td><td>path-scoped rules, sent only when a call touches a matching path</td></tr>
+        <tr><td><code>.janetcode/verify.json</code></td><td>verification gate commands, and an optional <code>mutate</code> command</td></tr>
+        <tr><td><code>.janetcode/permissions.json</code></td><td>project permission rules; deny rules apply at once, allow rules need <code>/permissions trust</code></td></tr>
+        <tr><td><code>.janetcode/hooks.json</code></td><td>project hooks; needs <code>/hooks trust</code>; cannot reach the network and is capped at <code>project_timeout</code></td></tr>
+        <tr><td><code>.mcp.json</code></td><td>project MCP servers (same format Claude Code uses); needs <code>/mcp trust</code></td></tr>
+        <tr><td><code>.janetcode/agents/&lt;name&gt;.md</code></td><td>a custom subagent profile</td></tr>
+        <tr><td><code>.janetcode/commands/&lt;name&gt;.md</code></td><td>a custom slash command's prompt template</td></tr>
+        <tr><td><code>.janetcode/skills/&lt;name&gt;/SKILL.md</code></td><td>a skill's instructions, optionally with scripts and reference files alongside it</td></tr>
+        <tr><td><code>.janetcode/recipes/&lt;name&gt;.json</code></td><td>a saved, replayable recipe</td></tr>
+        <tr><td><code>.janetcode/evals/&lt;name&gt;.json</code></td><td>a kept regression eval task, written by <code>/eval keep</code></td></tr>
+        <tr><td><code>~/.config/janetcode/config.json</code></td><td>the main configuration file (honours <code>XDG_CONFIG_HOME</code>)</td></tr>
+        <tr><td><code>~/.config/janetcode/themes/&lt;name&gt;.json</code></td><td>a theme defined in its own file instead of inline in the config</td></tr>
+        <tr><td><code>~/.local/share/janetcode/sessions/</code></td><td>append-only JSONL session logs</td></tr>
+        <tr><td><code>~/.local/share/janetcode/memory/</code></td><td>the memory store: one markdown file per remembered fact</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>janetcode is a terminal coding agent. Source and issues:
+  <a href="https://github.com/xmonader/janetcode">github.com/xmonader/janetcode</a>.
+  Command and flag tables generated from <code>internal/slash/slash.go</code>
+  and <code>docs/manual/cli.md</code>; everything else drawn from
+  <code>docs/manual/configuration.md</code> and
+  <code>docs/manual/interface.md</code>.</p>
+</footer>
+<script src="js/copy.js"></script>
+</body>
+</html>
