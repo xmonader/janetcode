@@ -111,6 +111,11 @@ func (f ApproverFunc) Approve(ctx context.Context, call ToolCall) (Decision, err
 
 // Agent holds one conversation and the machinery to advance it.
 type Agent struct {
+	// modelRouter owns which model each call goes to: the fallback
+	// chain and the experimental step router (see router.go). Embedded
+	// so its exported fields and methods stay on Agent.
+	modelRouter
+
 	stats statsCounter
 	// summaryFailedAt starts the summaryCooldown after a failed summary.
 	summaryFailedAt time.Time
@@ -127,22 +132,6 @@ type Agent struct {
 	turnStart time.Time
 	warned    bool
 	lastScore float64
-	// stepRoute is the turn-scoped state the step-routing policy (see
-	// steproute.go) reads and updates: whether anything in this turn
-	// already means the rest of it must stay on Model, and whether the
-	// step just finished was a clean, mechanical batch worth trusting
-	// the next call to RouteCheap.
-	stepRoute stepRoute
-	// routeCheapState caches the one-time resolution of RouteCheap to a
-	// provider (see resolveRouteCheap): whether it has been attempted,
-	// whether it failed (routing is then off for the rest of the
-	// session and the one notice already fired), and, on success, the
-	// provider, its resolved model name, and whether that provider is
-	// the one Model already runs on.
-	routeCheapState routeCheapState
-	// routeMu guards RouteCheap and routeCheapState: /config route_cheap
-	// changes them from a front-end while the turn goroutine routes.
-	routeMu sync.Mutex
 
 	// Model, MaxTokens, MaxIterations, CompactAt, AutoApprove, AutoEdits,
 	// AutoMode, ReadOnly, PlanMode, ProofNotes, Rules and Pins are filled
@@ -212,26 +201,6 @@ type Agent struct {
 	// called anyway. PlanMode does the same and asks for a plan.
 	ReadOnly bool
 	PlanMode bool
-	// Fallbacks are models tried in order when a call fails in a way
-	// another model could survive: an exhausted quota, or rate limits
-	// and server errors that outlived the provider's own retries. At
-	// most MaxFallbacks are used; the one that works becomes the
-	// session's model.
-	Fallbacks []string
-	// Route, when set, resolves a model name to the provider that serves
-	// it, so a fallback can be on a different backend. Without it a
-	// fallback is sent to the provider already in use.
-	Route func(model string) (llm.Provider, string, error)
-	// RouteCheap is the model mechanical steps of a turn are sent to
-	// instead of Model -- reads, listings, greps and checks that already
-	// passed -- while planning, edits and anything that goes wrong stay
-	// on Model. Empty (the default) is off: this is experimental, and
-	// stays off by default until an eval run justifies turning it on
-	// (see docs/manual/evals.md, "Measuring step routing"). Resolved
-	// through Route at call time, the same way a Fallback is; when it
-	// cannot be routed, routing is off for the session and one notice
-	// says so. See steproute.go for the policy.
-	RouteCheap string
 	// Pins are user notes kept in the system prompt across compaction.
 	Pins []string
 	// Jobs, when set, is polled before each model call so finished
@@ -399,11 +368,6 @@ type Agent struct {
 	// so EstimateTokens only has to guess about what came after.
 	lastInputTokens int
 	lastInputMsgs   int
-	// lastCallModel is the model that answered the most recent call --
-	// Model on an ordinary step, a fallback's model, or RouteCheap when
-	// the step router sent it there -- so the assistant event logged for
-	// it can say which (see session.Event.Model).
-	lastCallModel string
 
 	// Estimated size of the tool definitions and the registry version it
 	// was measured at; see toolTokens.
@@ -499,7 +463,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}()
 	a.loops.reset()
 	a.turnStart, a.warned = time.Now(), false
-	a.stepRoute = stepRoute{}
+	a.modelRouter.newTurn()
 	a.integ.userText = ""
 	for _, b := range blocks {
 		if b.Type == llm.BlockText && b.Text != "" {

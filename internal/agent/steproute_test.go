@@ -81,16 +81,16 @@ func routableAgent(sameProvider bool) *Agent {
 	}
 	cheap := &fake{name: cheapName}
 	a := &Agent{
-		Provider:   main,
-		Tools:      tool.NewRegistry(),
-		Model:      "main-model",
-		RouteCheap: "cheap-model",
-		Route: func(model string) (llm.Provider, string, error) {
-			return cheap, model, nil
-		},
-		stepN:     2,
-		stepRoute: stepRoute{prevMechanical: true},
+		Provider: main,
+		Tools:    tool.NewRegistry(),
+		Model:    "main-model",
+		stepN:    2,
 	}
+	a.RouteCheap = "cheap-model"
+	a.Route = func(model string) (llm.Provider, string, error) {
+		return cheap, model, nil
+	}
+	a.stepRoute.prevMechanical = true
 	return a
 }
 
