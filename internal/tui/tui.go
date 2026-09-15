@@ -231,10 +231,7 @@ type model struct {
 	lastVerdict   string                   // the last turn's verdict line
 	ticks         int                      // tick count, for slow periodic checks
 	lastUsage     llm.Usage                // the last turn's usage
-	hints         *hints.Engine            // event-driven one-time hints; nil disables them
-	hintState     hints.State              // what the hint rules are allowed to look at
-	bangSeen      map[string]int           // !commands the user ran, by command line
-	hintObs       hintObservations         // what the hint observers remember between events
+	hint          hintsState               // the one-time hint engine and what it watches
 	queued        []string                 // prompts typed while a turn was running
 	steering      []string                 // notes handed to the running turn (ctrl+s)
 	custom        map[string]prompt.Custom // user-defined slash commands
@@ -334,7 +331,7 @@ func newModel(opts Options) *model {
 	for _, c := range prompt.CustomCommands(opts.Cwd, opts.ConfigDir) {
 		m.custom["/"+c.Name] = c
 	}
-	m.hints = opts.Hints
+	m.hint.engine = opts.Hints
 	var firstRun string
 	if opts.Resumed > 0 {
 		m.transcript.banner(m.welcome(resumedLine(opts.Session.Meta.ID, opts.Resumed)))
@@ -348,10 +345,10 @@ func newModel(opts Options) *model {
 		// morning for a year is not orientation, it is noise, and a
 		// project with no .janetcode directory of its own never grew one
 		// to notice.
-		if !m.hints.Given(firstRunID) && !m.hints.Silent() {
+		if !m.hint.engine.Given(firstRunID) && !m.hint.engine.Silent() {
 			if firstRun = m.firstRunLine(); firstRun != "" {
 				m.transcript.tip(firstRun)
-				m.hints.MarkShown(firstRunID)
+				m.hint.engine.MarkShown(firstRunID)
 			}
 		}
 	}
@@ -362,11 +359,11 @@ func newModel(opts Options) *model {
 	if firstRun != "" && strings.Contains(firstRun, "/verify set") {
 		// Already proposed, above; the rule that would propose it again
 		// three turns from now is spent here.
-		m.hints.MarkSpent("verify-gate")
+		m.hint.engine.MarkSpent("verify-gate")
 	}
-	m.hintState.Untrusted = opts.Untrusted
-	m.hintState.UnpricedModel = opts.UnpricedModel
-	m.hintState.ResumedAfterCompaction = opts.Resumed > 0 && resumedAfterCompaction(opts.Session)
+	m.hint.state.Untrusted = opts.Untrusted
+	m.hint.state.UnpricedModel = opts.UnpricedModel
+	m.hint.state.ResumedAfterCompaction = opts.Resumed > 0 && resumedAfterCompaction(opts.Session)
 	m.noteHint(nil)
 	return m
 }
