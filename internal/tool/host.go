@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/xmonader/janetcode/internal/fsutil"
 )
 
 // Host is the machine the file and shell tools talk to. Local is the
@@ -197,7 +199,7 @@ func (Local) WriteFile(path string, data []byte, perm os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return atomicWrite(path, data)
+	return fsutil.AtomicWrite(path, data)
 }
 func (Local) Stat(path string) (os.FileInfo, error)      { return os.Stat(path) }
 func (Local) ReadDir(path string) ([]os.DirEntry, error) { return os.ReadDir(path) }
@@ -250,7 +252,7 @@ func writeFileOf(ws *Workspace, path string, data []byte) error {
 	if ws != nil {
 		return ws.Host().WriteFile(path, data, 0o644)
 	}
-	return atomicWrite(path, data)
+	return fsutil.AtomicWrite(path, data)
 }
 
 func statOf(ws *Workspace, path string) (os.FileInfo, error) {

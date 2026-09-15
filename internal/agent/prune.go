@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -231,18 +232,18 @@ func canonical(raw []byte) string {
 // archived first (unless it already was) so the model can get it back.
 func (a *Agent) trimOld(toolUse, name, subject, text string) string {
 	if a.Archive == nil {
-		return tool.TruncateTo(text, pruneKeep)
+		return textfmt.TruncateTo(text, pruneKeep)
 	}
 	if id := a.Archive.IDFor(toolUse); id != "" {
 		// Already archived: keep the note that names the id, trim the rest.
 		if i := strings.Index(text, "\n"); i > 0 && strings.HasPrefix(text, "[output is ") {
-			return text[:i+1] + tool.TruncateTo(text[i+1:], pruneKeep)
+			return text[:i+1] + textfmt.TruncateTo(text[i+1:], pruneKeep)
 		}
-		return archiveNote(id, len(text), pruneKeep, outputDigest(text)) + tool.EscapeDelimiters(tool.TruncateTo(text, pruneKeep))
+		return archiveNote(id, len(text), pruneKeep, outputDigest(text)) + tool.EscapeDelimiters(textfmt.TruncateTo(text, pruneKeep))
 	}
 	id, err := a.Archive.PutSubject(toolUse, name, subject, text)
 	if err != nil {
-		return tool.TruncateTo(text, pruneKeep)
+		return textfmt.TruncateTo(text, pruneKeep)
 	}
-	return archiveNote(id, len(text), pruneKeep, outputDigest(text)) + tool.EscapeDelimiters(tool.TruncateTo(text, pruneKeep))
+	return archiveNote(id, len(text), pruneKeep, outputDigest(text)) + tool.EscapeDelimiters(textfmt.TruncateTo(text, pruneKeep))
 }

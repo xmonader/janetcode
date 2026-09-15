@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Per-edit feedback that costs no model call: a syntax check with the
@@ -53,7 +53,7 @@ func syntaxFeedback(ctx context.Context, abs string) string {
 	if msg == "" {
 		msg = err.Error()
 	}
-	return fmt.Sprintf("Syntax check (%s) failed on %s:\n%s", argv[0], filepath.Base(abs), tool.TruncateTo(msg, 1500))
+	return fmt.Sprintf("Syntax check (%s) failed on %s:\n%s", argv[0], filepath.Base(abs), textfmt.TruncateTo(msg, 1500))
 }
 
 // coveringTest names the test file that most likely covers abs, if one

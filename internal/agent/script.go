@@ -328,7 +328,7 @@ func (s *Script) report(stdout, stderr string, runErr error, calls int, ctxErr e
 	case runErr != nil:
 		nl(&b)
 		b.WriteString("[the script failed: " + runErr.Error() + "]")
-		if tail := strings.TrimSpace(tool.TruncateTo(stderr, 4000)); tail != "" {
+		if tail := strings.TrimSpace(textfmt.TruncateTo(stderr, 4000)); tail != "" {
 			b.WriteString("\n" + tail)
 		}
 	}

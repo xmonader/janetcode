@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -230,9 +231,9 @@ func ranEdited(cmd string, edited map[string]bool) bool {
 // tell those apart, so it says which kind of green this is and leaves the
 // judgement to the reader.
 //
-// The pattern itself lives in package tool (see tool.IsTestFile), shared
+// The pattern itself lives in package tool (see project.IsTestFile), shared
 // with internal/impact.
-func isTestFile(path string) bool { return tool.IsTestFile(path) }
+func isTestFile(path string) bool { return project.IsTestFile(path) }
 
 // claimRe matches an assertion a check could have demonstrated. It is
 // deliberately narrow: a claim about tests, builds or verification, not

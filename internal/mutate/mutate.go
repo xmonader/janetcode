@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/gitx"
+	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/snapshot"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -138,7 +139,7 @@ func Changed(ctx context.Context, root string) (map[string][]int, error) {
 		return nil, err
 	}
 	for _, p := range strings.Split(strings.TrimSpace(untracked), "\n") {
-		if p == "" || !sourceExt[filepath.Ext(p)] || tool.IsTestFile(p) {
+		if p == "" || !sourceExt[filepath.Ext(p)] || project.IsTestFile(p) {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(root, p))
@@ -171,7 +172,7 @@ func parseDiff(diff string, out map[string][]int) {
 		switch {
 		case strings.HasPrefix(line, "+++ "):
 			path = strings.TrimPrefix(strings.TrimPrefix(line, "+++ "), "b/")
-			if path == "/dev/null" || !sourceExt[filepath.Ext(path)] || tool.IsTestFile(path) {
+			if path == "/dev/null" || !sourceExt[filepath.Ext(path)] || project.IsTestFile(path) {
 				path = ""
 			}
 		case strings.HasPrefix(line, "@@"):

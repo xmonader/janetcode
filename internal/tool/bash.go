@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Bash runs a shell command in the working directory.
@@ -161,7 +163,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		var ee *exec.ExitError
 		switch {
 		case errors.Is(ctx.Err(), context.DeadlineExceeded):
-			return Truncate(result + fmt.Sprintf("\n[command timed out after %s and was killed]", timeout)), nil
+			return textfmt.Truncate(result + fmt.Sprintf("\n[command timed out after %s and was killed]", timeout)), nil
 		case errors.Is(ctx.Err(), context.Canceled):
 			return "", ctx.Err()
 		case errors.As(err, &ee):
@@ -179,7 +181,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if exit != 0 {
 		result += exitNote(in.Command, exit)
 	}
-	result = Truncate(result)
+	result = textfmt.Truncate(result)
 	if (t.WS == nil || t.WS.Local()) && (t.Sandbox == nil || !t.Sandbox.Enabled()) {
 		t.Cache.put(cacheKey, result)
 	}

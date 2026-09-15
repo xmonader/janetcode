@@ -21,7 +21,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/gitx"
 )
 
 // Symbol is a top-level definition.
@@ -74,7 +74,7 @@ func Build(ctx context.Context, root string) (*Index, error) {
 	if err != nil {
 		return nil, err
 	}
-	ix := &Index{Root: root, Fingerprint: tool.TreeFingerprint(root), byPath: map[string]int{}, definers: map[string][]int{}}
+	ix := &Index{Root: root, Fingerprint: gitx.TreeFingerprint(root), byPath: map[string]int{}, definers: map[string][]int{}}
 	for _, p := range paths {
 		abs := filepath.Join(root, filepath.FromSlash(p))
 		st, err := os.Stat(abs)
@@ -244,7 +244,7 @@ func parseGo(f *File, data []byte) bool {
 			}
 		}
 	}
-	// Package qualifiers ("tool.Truncate") are not symbol uses: skip the
+	// Package qualifiers ("textfmt.Truncate") are not symbol uses: skip the
 	// import names, and the identifier right before a selector dot.
 	imports := map[string]bool{}
 	for _, im := range af.Imports {
@@ -725,7 +725,7 @@ type Cache struct {
 func (c *Cache) Get(ctx context.Context) (*Index, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.ix != nil && c.ix.Fingerprint == tool.TreeFingerprint(c.Root) {
+	if c.ix != nil && c.ix.Fingerprint == gitx.TreeFingerprint(c.Root) {
 		return c.ix, nil
 	}
 	ix, err := Build(ctx, c.Root)

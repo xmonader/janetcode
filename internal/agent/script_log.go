@@ -7,7 +7,6 @@ import (
 
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // PTCRun is one execute_code or run_code invocation folded from the
@@ -142,7 +141,7 @@ func RenderScripts(events []session.Event) string {
 		}
 		if r.result != "" {
 			b.WriteString("  printed:\n")
-			for _, line := range strings.Split(strings.TrimRight(tool.TruncateTo(r.result, 2000), "\n"), "\n") {
+			for _, line := range strings.Split(strings.TrimRight(textfmt.TruncateTo(r.result, 2000), "\n"), "\n") {
 				b.WriteString("    " + line + "\n")
 			}
 		}

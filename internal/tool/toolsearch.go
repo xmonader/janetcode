@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // ToolSearch exposes deferred tools on demand: the model asks for what it
@@ -87,7 +88,7 @@ func (t *ToolSearch) Run(ctx context.Context, input json.RawMessage) (string, er
 		for _, d := range defs {
 			fmt.Fprintf(&sb, "%s\t%s\n", d.Name, firstSentence(d.Description))
 		}
-		return Truncate(sb.String()), nil
+		return textfmt.Truncate(sb.String()), nil
 	}
 	type hit struct {
 		i     int
@@ -132,7 +133,7 @@ func (t *ToolSearch) Run(ctx context.Context, input json.RawMessage) (string, er
 		fmt.Fprintf(&sb, "\nAlso loaded, and callable from here on, because they fit alongside: %s\n", strings.Join(rest, ", "))
 		sb.WriteString("Call tool_search with one of these names to see its schema.\n")
 	}
-	return Truncate(sb.String()), nil
+	return textfmt.Truncate(sb.String()), nil
 }
 
 // revealRest activates the rest of the deferred set, once, when their

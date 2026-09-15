@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/diff"
+	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -373,7 +374,7 @@ func (a *Agent) UndoChange(seq int) (string, error) {
 			h := c.Hunks()[badHunk-1]
 			return "", fmt.Errorf("hunk %d of #%d (%s) no longer applies: those lines were edited since", badHunk, seq, h.Header())
 		}
-		if err := tool.AtomicWrite(c.Path, []byte(strings.Join(reverted, ""))); err != nil {
+		if err := fsutil.AtomicWrite(c.Path, []byte(strings.Join(reverted, ""))); err != nil {
 			return "", err
 		}
 		verb = "restored"

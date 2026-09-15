@@ -253,16 +253,16 @@ func (a *Agent) stash(toolUse, name, subject, out string) string {
 		return out
 	}
 	if a.Archive == nil {
-		return tool.TruncateTo(out, budget)
+		return textfmt.TruncateTo(out, budget)
 	}
 	id, err := a.Archive.PutSubject(toolUse, name, subject, out)
 	if err != nil {
-		return tool.TruncateTo(out, budget) + "\n[archive unavailable: " + err.Error() + "]"
+		return textfmt.TruncateTo(out, budget) + "\n[archive unavailable: " + err.Error() + "]"
 	}
 	a.logEvent(session.Event{Type: session.TypeSpillSave, Name: name, CallID: toolUse, Output: id, Tokens: len(out)})
 	// The preview is untrusted text standing where a whole result was, so
 	// it cannot be allowed to close or open one of the harness's own tags.
-	return archiveNote(id, len(out), budget, outputDigest(out)) + tool.EscapeDelimiters(tool.TruncateTo(out, budget))
+	return archiveNote(id, len(out), budget, outputDigest(out)) + tool.EscapeDelimiters(textfmt.TruncateTo(out, budget))
 }
 
 // inlineBudget is how much of a tool's output stays in the conversation;

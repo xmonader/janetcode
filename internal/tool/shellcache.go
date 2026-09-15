@@ -3,13 +3,11 @@ package tool
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/gitx"
 )
 
 // ShellCache returns the previous result of a command when it is run again
@@ -47,7 +45,7 @@ func (c *ShellCache) key(root, command string) string {
 	if c == nil || strings.Contains(command, noCacheMarker) {
 		return ""
 	}
-	fp := treeFingerprint(root)
+	fp := gitx.TreeState(root)
 	if fp == "" {
 		return ""
 	}
@@ -89,41 +87,6 @@ func (c *ShellCache) put(key, out string) {
 		c.m = map[string]shellEntry{}
 	}
 	c.m[key] = shellEntry{out: out, when: time.Now()}
-}
-
-// treeFingerprint identifies the working tree state, or "" outside git.
-func treeFingerprint(root string) string {
-	git := func(args ...string) (string, bool) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = root
-		out, err := cmd.Output()
-		if err != nil {
-			return "", false
-		}
-		return string(out), true
-	}
-	head, ok := git("rev-parse", "HEAD")
-	if !ok {
-		return ""
-	}
-	status, ok := git("status", "--porcelain", "-z", "--untracked-files=all")
-	if !ok {
-		return ""
-	}
-	var sb strings.Builder
-	sb.WriteString(head)
-	for _, entry := range strings.Split(status, "\x00") {
-		if len(entry) < 4 {
-			continue
-		}
-		sb.WriteString(entry)
-		p := filepath.Join(root, entry[3:])
-		if st, err := os.Stat(p); err == nil {
-			fmt.Fprintf(&sb, "|%d|%d", st.Size(), st.ModTime().UnixNano())
-		}
-		sb.WriteByte('\n')
-	}
-	return sb.String()
 }
 
 // invalidate forgets every cached result; a background job may change the

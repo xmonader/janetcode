@@ -12,10 +12,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // pinCommand adds a pin or lists them.
@@ -213,7 +213,7 @@ func (m *model) export(path string) {
 		m.transcript.errorf("export: %v", err)
 		return
 	}
-	if err := tool.AtomicWrite(path, []byte(md)); err != nil {
+	if err := fsutil.AtomicWrite(path, []byte(md)); err != nil {
 		m.transcript.errorf("export: %v", err)
 		return
 	}

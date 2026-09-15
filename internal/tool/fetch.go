@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // FetchURL downloads a web page or API response for the model. HTML is
@@ -125,7 +127,7 @@ func (t FetchURL) Run(ctx context.Context, input json.RawMessage) (string, error
 	if rewritten {
 		fmt.Fprintf(&sb, "[%s is the page around the file; this is the file itself]\n\n", in.URL)
 	}
-	sb.WriteString(EscapeDelimiters(Truncate(text)))
+	sb.WriteString(EscapeDelimiters(textfmt.Truncate(text)))
 	if truncated {
 		sb.WriteString("\n[response truncated at 1 MB]")
 	}

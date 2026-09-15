@@ -17,7 +17,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/mutate"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -74,7 +76,7 @@ func Save(root string, c Config) error {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
-	return tool.AtomicWrite(p, append(data, '\n'))
+	return fsutil.AtomicWrite(p, append(data, '\n'))
 }
 
 // Result is the outcome of one verification run.
@@ -118,7 +120,7 @@ func (r Result) Feedback() string {
 		return r.Mutation.Feedback()
 	}
 	return fmt.Sprintf("Verification failed. This project requires the following to pass before a change is done.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nFix the cause, then finish. Do not disable or skip the check.",
-		r.Failed, r.Exit, tool.TruncateTo(strings.TrimSpace(r.Output), 6000))
+		r.Failed, r.Exit, textfmt.TruncateTo(strings.TrimSpace(r.Output), 6000))
 }
 
 // Runner runs the commands in a directory.

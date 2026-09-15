@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Job is one background command.
@@ -377,7 +379,7 @@ func (j *Jobs) Finished() []string {
 		tail, _ := j.Output(job.ID, 20)
 		note := job.Summary()
 		if strings.TrimSpace(tail) != "" {
-			note += "\nlast output:\n" + TruncateTo(tail, 2000)
+			note += "\nlast output:\n" + textfmt.TruncateTo(tail, 2000)
 		}
 		notes = append(notes, note)
 	}
@@ -451,7 +453,7 @@ func (t JobTool) Run(ctx context.Context, input json.RawMessage) (string, error)
 		if strings.TrimSpace(out) == "" {
 			out = "(no output yet)"
 		}
-		return job.Summary() + "\n" + Truncate(out), nil
+		return job.Summary() + "\n" + textfmt.Truncate(out), nil
 	case "wait":
 		timeout := clampTimeout(in.TimeoutMS, 2*time.Minute, 10*time.Minute)
 		wctx, cancel := context.WithTimeout(ctx, timeout)
@@ -465,7 +467,7 @@ func (t JobTool) Run(ctx context.Context, input json.RawMessage) (string, error)
 			return "", err
 		}
 		out, _ := t.Jobs.Output(in.ID, 100)
-		return job.Summary() + "\n" + Truncate(out), nil
+		return job.Summary() + "\n" + textfmt.Truncate(out), nil
 	case "kill":
 		if err := t.Jobs.Kill(in.ID); err != nil {
 			return "", err

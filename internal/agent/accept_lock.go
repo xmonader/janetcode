@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/fsutil"
+	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
@@ -111,7 +113,7 @@ func (a *Agent) acceptRestoreTamperedLocked(toolName string) string {
 			unrestorable = append(unrestorable, name)
 			continue
 		}
-		if werr := tool.AtomicWrite(p, content); werr != nil {
+		if werr := fsutil.AtomicWrite(p, content); werr != nil {
 			unrestorable = append(unrestorable, fmt.Sprintf("%s (could not restore it: %s)", name, werr))
 			continue
 		}
@@ -234,7 +236,7 @@ func (a *Agent) acceptWritingDenial(t tool.Tool, input json.RawMessage) string {
 		paths := resolvedTouches(t, input)
 		allTests := len(paths) > 0
 		for _, p := range paths {
-			if !tool.IsTestFile(p) {
+			if !project.IsTestFile(p) {
 				allTests = false
 				break
 			}
@@ -295,14 +297,14 @@ func (a *Agent) acceptTrackEdit(t tool.Tool, input json.RawMessage) {
 		// The proposed command was stated for the tests as they were; a
 		// revision can drop or rename what it runs. Back to writing, so
 		// the turn ends by stating the command again (see acceptCapture).
-		if slices.ContainsFunc(paths, tool.IsTestFile) {
+		if slices.ContainsFunc(paths, project.IsTestFile) {
 			a.Accept.Phase = session.AcceptWriting
 			changed = true
 		}
 		fallthrough
 	case session.AcceptWriting:
 		for _, p := range paths {
-			if !tool.IsTestFile(p) || slices.Contains(a.Accept.Files, p) {
+			if !project.IsTestFile(p) || slices.Contains(a.Accept.Files, p) {
 				continue
 			}
 			a.Accept.Files = append(a.Accept.Files, p)

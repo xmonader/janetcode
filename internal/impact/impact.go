@@ -28,9 +28,9 @@ import (
 
 	"github.com/xmonader/janetcode/internal/diff"
 	"github.com/xmonader/janetcode/internal/lsp"
+	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/repomap"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // Budget bounds the whole of Analyze. It is a var, not a const, so a test
@@ -201,7 +201,7 @@ func Analyze(ctx context.Context, in Input) Impact {
 		partial = partial || refPartial
 		syms = append(syms, Symbol{Name: d.Name, Kind: d.Kind, Refs: refs, RefFiles: len(files)})
 		for _, f := range files {
-			if tool.IsTestFile(f) {
+			if project.IsTestFile(f) {
 				tests[f] = true
 			}
 		}
@@ -525,7 +525,7 @@ func relPath(cwd, path string) string {
 // in, when that file exists. rel itself is never offered as its own
 // sibling.
 func siblingTestFile(cwd, rel string) string {
-	if tool.IsTestFile(rel) {
+	if project.IsTestFile(rel) {
 		return ""
 	}
 	ext := filepath.Ext(rel)

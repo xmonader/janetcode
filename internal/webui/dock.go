@@ -7,7 +7,6 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 func (s *server) agentAPI(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +151,7 @@ func formatPTC(r agent.PTCRun) string {
 	for _, c := range r.Calls {
 		b.WriteString("→ " + c.Name + " " + textfmt.OneLine(c.Input) + "\n")
 		if c.Output != "" {
-			b.WriteString(tool.TruncateTo(c.Output, 1500) + "\n")
+			b.WriteString(textfmt.TruncateTo(c.Output, 1500) + "\n")
 		}
 	}
 	if r.Result != "" {

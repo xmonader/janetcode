@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
-	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 const extractSystem = `You maintain the long-term memory of a coding agent. It is read at the start of every future session, so it must hold only durable knowledge a future session would need and could not learn in a minute from the code or git history. Record what this conversation ESTABLISHED, never what it did or the state of the task.
@@ -48,7 +48,7 @@ func Extract(ctx context.Context, p llm.Provider, model string, msgs []llm.Messa
 			case llm.BlockThinking:
 				continue
 			case llm.BlockToolResult:
-				b.Text = tool.TruncateTo(b.Text, 600)
+				b.Text = textfmt.TruncateTo(b.Text, 600)
 			case llm.BlockText:
 				if strings.HasPrefix(b.Text, "<skill ") || strings.HasPrefix(b.Text, "<memory ") {
 					continue // attached context, not conversation

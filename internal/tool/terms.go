@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 const (
@@ -315,7 +317,7 @@ func (t TermTool) Run(ctx context.Context, input json.RawMessage) (string, error
 		if out == "" {
 			return "(no output)", nil
 		}
-		return Truncate(out), nil
+		return textfmt.Truncate(out), nil
 	case "read":
 		return t.Terms.Read(in.ID, 8000)
 	case "close", "signal":

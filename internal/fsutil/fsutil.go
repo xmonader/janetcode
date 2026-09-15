@@ -47,3 +47,14 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	}
 	return nil
 }
+
+// AtomicWrite replaces the file at p with data via a temp file and rename,
+// so a crash mid-write never leaves a truncated file. An existing file keeps
+// its mode; a new one is created 0644.
+func AtomicWrite(p string, data []byte) error {
+	mode := os.FileMode(0o644)
+	if st, err := os.Stat(p); err == nil {
+		mode = st.Mode().Perm()
+	}
+	return WriteFileAtomic(p, data, mode)
+}

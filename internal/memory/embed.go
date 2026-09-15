@@ -11,7 +11,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/fsutil"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // EmbedFunc turns texts into vectors. When a Store has one, recall ranks
@@ -87,7 +88,7 @@ func (s *Store) semantic(ctx context.Context, text string, max int) ([]Entry, bo
 		s.loadVecs()
 	}
 	// Embed the query together with every entry whose text changed.
-	texts := []string{tool.TruncateTo(text, 2000)}
+	texts := []string{textfmt.TruncateTo(text, 2000)}
 	var missing []int
 	for i, e := range entries {
 		key := e.Scope + "/" + e.Name
@@ -138,7 +139,7 @@ func (s *Store) semantic(ctx context.Context, text string, max int) ([]Entry, bo
 }
 
 func embedText(e Entry) string {
-	return tool.TruncateTo(e.Name+": "+e.Description+"\n"+e.Body, 2000)
+	return textfmt.TruncateTo(e.Name+": "+e.Description+"\n"+e.Body, 2000)
 }
 
 func entryHash(e Entry) string {
@@ -184,5 +185,5 @@ func (s *Store) saveVecs() {
 	if err := os.MkdirAll(s.Root, 0o755); err != nil {
 		return
 	}
-	_ = tool.AtomicWrite(s.vecPath(), data)
+	_ = fsutil.AtomicWrite(s.vecPath(), data)
 }

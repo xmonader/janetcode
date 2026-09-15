@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -69,7 +70,7 @@ func (t *resourceListTool) Run(ctx context.Context, _ json.RawMessage) (string, 
 		}
 		sb.WriteString("\n")
 	}
-	return tool.Truncate(strings.TrimRight(sb.String(), "\n")), nil
+	return textfmt.Truncate(strings.TrimRight(sb.String(), "\n")), nil
 }
 
 // resourceReadTool exposes resources/read to the model.
@@ -94,7 +95,7 @@ func (t *resourceReadTool) Run(ctx context.Context, input json.RawMessage) (stri
 	if err != nil {
 		return "", err
 	}
-	return frameResource(in.URI, tool.Truncate(out)), nil
+	return frameResource(in.URI, textfmt.Truncate(out)), nil
 }
 
 // frameResource wraps a server's resource in a delimiter the resource
@@ -196,7 +197,7 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if res.IsError {
 		return "", fmt.Errorf("%s", firstNonEmpty(res.Text, "tool reported an error"))
 	}
-	return tool.Truncate(res.Text), nil
+	return textfmt.Truncate(res.Text), nil
 }
 
 func firstNonEmpty(a, b string) string {

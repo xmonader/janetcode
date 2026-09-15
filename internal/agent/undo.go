@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/snapshot"
@@ -293,7 +294,7 @@ func (a *Agent) SaveUndo() error {
 	if err != nil {
 		return err
 	}
-	return tool.AtomicWrite(a.UndoPath, data)
+	return fsutil.AtomicWrite(a.UndoPath, data)
 }
 
 // undoFile is the on-disk shape of UndoPath. Older files hold a bare
@@ -478,7 +479,7 @@ func (a *Agent) restore(cp Checkpoint) ([]string, error) {
 			continue
 		}
 		if f.Existed {
-			err = tool.AtomicWrite(f.Path, f.Data)
+			err = fsutil.AtomicWrite(f.Path, f.Data)
 		} else if err = os.Remove(f.Path); errors.Is(err, os.ErrNotExist) {
 			err = nil
 		}

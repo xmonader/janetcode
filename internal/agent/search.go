@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/xmonader/janetcode/internal/tool"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Ranked search over the archive. A model recovering an exact value it no
@@ -343,7 +343,7 @@ func searchArchive(ar *Archive, ids []string, query string, budget int) string {
 		return fmt.Sprintf("No archived output mentions any of: %s.", strings.Join(q, ", "))
 	}
 	if sb.Len() > budget {
-		return tool.Truncate(sb.String()[:budget]) + "\n[more matches not shown; narrow the query or give an id]"
+		return textfmt.Truncate(sb.String()[:budget]) + "\n[more matches not shown; narrow the query or give an id]"
 	}
 	return sb.String()
 }

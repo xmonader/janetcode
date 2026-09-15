@@ -23,7 +23,6 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/perm"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // Skill is one loaded skill file.
@@ -477,7 +476,7 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			continue
 		}
 		if strings.EqualFold(s.Name, strings.TrimSpace(in.Name)) {
-			return tool.Truncate(s.Block().Text), nil
+			return textfmt.Truncate(s.Block().Text), nil
 		}
 		names = append(names, s.Name)
 	}

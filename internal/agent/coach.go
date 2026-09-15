@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -87,7 +88,7 @@ func (c *coach) after(ctx context.Context, tools *tool.Registry, t tool.Tool, na
 			req, _ := json.Marshal(map[string]any{"path": p, "limit": coachReadLines})
 			if body, err := rf.Run(ctx, req); err == nil {
 				c.read[p] = true
-				notes = append(notes, fmt.Sprintf("You edited %s without reading it first. Here is its current content (up to %d lines) so the next edit can match exactly:\n%s", p, coachReadLines, tool.TruncateTo(body, coachReadBytes)))
+				notes = append(notes, fmt.Sprintf("You edited %s without reading it first. Here is its current content (up to %d lines) so the next edit can match exactly:\n%s", p, coachReadLines, textfmt.TruncateTo(body, coachReadBytes)))
 			}
 		}
 	}

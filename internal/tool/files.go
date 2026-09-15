@@ -6,13 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/diff"
-	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -95,7 +93,7 @@ func (t ReadFile) Run(_ context.Context, input json.RawMessage) (string, error) 
 	if end < len(lines) {
 		fmt.Fprintf(&sb, "... (%d more lines)\n", len(lines)-end)
 	}
-	out := Truncate(sb.String())
+	out := textfmt.Truncate(sb.String())
 	if note := shape.Note(); note != "" {
 		out += "[" + note + "]\n"
 	}
@@ -269,19 +267,6 @@ func touchedPathOn(ws *Workspace, root string, input json.RawMessage) ([]string,
 		return nil, err
 	}
 	return []string{p}, nil
-}
-
-// AtomicWrite replaces the file at p with data via a temp file and rename,
-// so a crash mid-write never leaves a truncated file.
-func AtomicWrite(p string, data []byte) error { return atomicWrite(p, data) }
-
-// atomicWrite is AtomicWrite, preserving the mode of an existing file.
-func atomicWrite(p string, data []byte) error {
-	mode := os.FileMode(0o644)
-	if st, err := os.Stat(p); err == nil {
-		mode = st.Mode().Perm()
-	}
-	return fsutil.WriteFileAtomic(p, data, mode)
 }
 
 // EditFile replaces an exact substring in a file.
@@ -904,5 +889,5 @@ func (t ListDir) Run(_ context.Context, input json.RawMessage) (string, error) {
 	if len(names) == 0 {
 		return "(empty directory)", nil
 	}
-	return Truncate(strings.Join(names, "\n")), nil
+	return textfmt.Truncate(strings.Join(names, "\n")), nil
 }

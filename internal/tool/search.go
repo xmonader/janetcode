@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // skipDirs are never descended into by glob/grep.
@@ -96,7 +98,7 @@ func (t Glob) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if truncated {
 		fmt.Fprintf(&sb, "(showing first %d matches; narrow the pattern)\n", maxGlobResults)
 	}
-	return Truncate(sb.String()), nil
+	return textfmt.Truncate(sb.String()), nil
 }
 
 // walkOn visits every entry under dir, skipping skipDirs, calling fn with
@@ -299,7 +301,7 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	if err == errLimit {
 		fmt.Fprintf(&sb, "(stopped at %d matches; narrow the pattern)\n", maxGrepResults)
 	}
-	return Truncate(sb.String()), nil
+	return textfmt.Truncate(sb.String()), nil
 }
 
 var errLimit = fmt.Errorf("limit reached")

@@ -21,10 +21,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/md"
 	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // MarkerFile, when present in the project, pins its identity to the
@@ -230,7 +230,7 @@ func (s *Store) write(e Entry) error {
 	if len(e.Ecosystems) > 0 {
 		meta["ecosystem"] = strings.Join(e.Ecosystems, ",")
 	}
-	return tool.AtomicWrite(e.Path, []byte(md.Render(meta, e.Body)))
+	return fsutil.AtomicWrite(e.Path, []byte(md.Render(meta, e.Body)))
 }
 
 // Get finds an entry by name in either scope.

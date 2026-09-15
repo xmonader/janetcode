@@ -15,6 +15,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/xmonader/janetcode/internal/agent"
+	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/session"
@@ -116,7 +117,7 @@ func run(ctx context.Context, opts Options, rec *recorder) error {
 		if round >= rounds {
 			return fmt.Errorf("%w after %d rounds: %s", ErrUntilFailed, rounds, textfmt.Clip(textfmt.OneLine(out), 300))
 		}
-		blocks = []llm.Block{{Type: llm.BlockText, Synthetic: true, Text: fmt.Sprintf("The check command has not passed yet.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nKeep working until this command exits 0, then stop.", opts.Until, exit, tool.TruncateTo(strings.TrimSpace(out), 4000))}}
+		blocks = []llm.Block{{Type: llm.BlockText, Synthetic: true, Text: fmt.Sprintf("The check command has not passed yet.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nKeep working until this command exits 0, then stop.", opts.Until, exit, textfmt.TruncateTo(strings.TrimSpace(out), 4000))}}
 	}
 }
 
@@ -135,7 +136,7 @@ func watch(ctx context.Context, opts Options, rec *recorder) error {
 	last := ""
 	fixes := 0
 	for {
-		fp := tool.TreeFingerprint(opts.Cwd)
+		fp := gitx.TreeFingerprint(opts.Cwd)
 		if fp == last {
 			select {
 			case <-ctx.Done():
@@ -164,7 +165,7 @@ func watch(ctx context.Context, opts Options, rec *recorder) error {
 		if opts.Prompt != "" && len(opts.Agent.Messages) == 0 {
 			sb.WriteString(opts.Prompt + "\n\n")
 		}
-		fmt.Fprintf(&sb, "The watched command failed after files changed.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nFind the cause and fix it (fix attempt %d of %d). Do not weaken the check itself.", opts.Watch, exit, tool.TruncateTo(strings.TrimSpace(out), 4000), fixes, rounds)
+		fmt.Fprintf(&sb, "The watched command failed after files changed.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nFind the cause and fix it (fix attempt %d of %d). Do not weaken the check itself.", opts.Watch, exit, textfmt.TruncateTo(strings.TrimSpace(out), 4000), fixes, rounds)
 		fmt.Fprintf(opts.Stderr, "[watch] asking the model to fix it (%d/%d)\n", fixes, rounds)
 		if err := turn(ctx, opts, rec, []llm.Block{{Type: llm.BlockText, Synthetic: true, Text: sb.String()}}); err != nil {
 			if ctx.Err() != nil {

@@ -172,3 +172,29 @@ func HeadingLine(s string, max int) string {
 	}
 	return Clip(line, max)
 }
+
+// MaxOutput is the hard cap on what a tool returns, in bytes. The agent
+// archives anything over its inline limit, so this only bounds memory.
+const MaxOutput = 256 * 1024
+
+// Truncate clips s to about MaxOutput bytes, keeping the head and the tail
+// with a marker in between: the failure in a long test run is at the end.
+func Truncate(s string) string {
+	return TruncateTo(s, MaxOutput)
+}
+
+// TruncateTo is Truncate with an explicit byte budget.
+func TruncateTo(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	head, tail := max*2/3, max/3
+	// Cut on line boundaries where possible so no line is left half-shown.
+	if i := strings.LastIndexByte(s[:head], '\n'); i > head/2 {
+		head = i
+	}
+	if i := strings.IndexByte(s[len(s)-tail:], '\n'); i >= 0 && i < tail/2 {
+		tail -= i + 1
+	}
+	return s[:head] + fmt.Sprintf("\n... [%d bytes omitted; the output continues] ...\n", len(s)-head-tail) + s[len(s)-tail:]
+}

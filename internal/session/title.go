@@ -6,7 +6,6 @@ import (
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 const titleSystem = "Name this coding conversation. Reply with a title of at most six words, plain text, no quotes or trailing punctuation."
@@ -20,7 +19,7 @@ func GenerateTitle(ctx context.Context, p llm.Provider, model string, msgs []llm
 		if t == "" {
 			continue
 		}
-		sb.WriteString(string(m.Role) + ": " + tool.TruncateTo(t, 800) + "\n\n")
+		sb.WriteString(string(m.Role) + ": " + textfmt.TruncateTo(t, 800) + "\n\n")
 		if n++; n >= 4 {
 			break
 		}

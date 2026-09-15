@@ -9,7 +9,6 @@ import (
 
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/textfmt"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // ExpandOutput retrieves archived tool output: a slice of one entry by id,
@@ -91,7 +90,7 @@ func (t *ExpandOutput) Run(ctx context.Context, input json.RawMessage) (string, 
 		if out == "" {
 			return fmt.Sprintf("%s (%s, %d lines): no line matches %q", e.ID, e.Name, len(lines), in.Grep), nil
 		}
-		return tool.Truncate(fmt.Sprintf("%s (%s, %d lines), lines matching %q:\n%s", e.ID, e.Name, len(lines), in.Grep, out)), nil
+		return textfmt.Truncate(fmt.Sprintf("%s (%s, %d lines), lines matching %q:\n%s", e.ID, e.Name, len(lines), in.Grep, out)), nil
 	}
 	if in.Offset < 1 {
 		in.Offset = 1
@@ -114,7 +113,7 @@ func (t *ExpandOutput) Run(ctx context.Context, input json.RawMessage) (string, 
 	if end < len(lines) {
 		fmt.Fprintf(&sb, "[%d more lines; continue with offset %d]\n", len(lines)-end, end+1)
 	}
-	return tool.Truncate(sb.String()), nil
+	return textfmt.Truncate(sb.String()), nil
 }
 
 // record logs one lookup. A result that only says nothing was found is
@@ -169,14 +168,14 @@ func (t *ExpandOutput) grepAll(re *regexp.Regexp) string {
 		if out := grepLines(strings.Split(strings.TrimSuffix(body, "\n"), "\n"), re, 20); out != "" {
 			fmt.Fprintf(&sb, "%s (%s):\n%s\n", e.ID, e.Name, out)
 		}
-		if sb.Len() > tool.MaxOutput {
+		if sb.Len() > textfmt.MaxOutput {
 			break
 		}
 	}
 	if sb.Len() == 0 {
 		return fmt.Sprintf("No archived output has a line matching %q.", re.String())
 	}
-	return tool.Truncate(sb.String())
+	return textfmt.Truncate(sb.String())
 }
 
 func grepLines(lines []string, re *regexp.Regexp, limit int) string {
