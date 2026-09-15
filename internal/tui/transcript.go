@@ -1410,44 +1410,6 @@ func sanitize(s string) string {
 	}, s)
 }
 
-var ansiSeq = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
-
-func (m *model) find(q string) {
-	// A repeat continues past the previous hit even when the viewport could
-	// not scroll down to it (matches near the bottom).
-	from := m.viewport.YOffset
-	if q == m.lastFind && m.lastFindAt > from {
-		from = m.lastFindAt
-	} else if q != m.lastFind {
-		from = -1
-	}
-	m.lastFind = q
-	lines := strings.Split(m.lastContent, "\n")
-	needle := strings.ToLower(q)
-	var hits []int
-	for i, l := range lines {
-		if strings.Contains(strings.ToLower(ansiSeq.ReplaceAllString(l, "")), needle) {
-			hits = append(hits, i)
-		}
-	}
-	if len(hits) == 0 {
-		m.status = fmt.Sprintf("no match for %q", q)
-		return
-	}
-	next := hits[0]
-	idx := 0
-	for i, h := range hits {
-		if h > from {
-			next, idx = h, i
-			break
-		}
-	}
-	m.lastFindAt = next
-	m.viewport.SetYOffset(next)
-	m.pinned = m.viewport.AtBottom()
-	m.status = fmt.Sprintf("match %d/%d for %q on line %d · /find again for the next", idx+1, len(hits), q, next+1)
-}
-
 // previewCall asks a tool what a call would do, for a call whose
 // arguments have finished streaming but which has not run yet. The edit
 // tools answer with a unified diff against the file on disk; anything

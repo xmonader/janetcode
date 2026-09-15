@@ -524,7 +524,7 @@ func (m *model) cmdUndo(text string, fields []string) (tea.Cmd, bool) {
 func (m *model) cmdFind(text string, fields []string) (tea.Cmd, bool) {
 	q := strings.TrimSpace(strings.TrimPrefix(text, fields[0]))
 	if q == "" {
-		q = m.lastFind
+		q = m.finder.query
 	}
 	if q == "" {
 		m.transcript.errorf("usage: /find <text>")

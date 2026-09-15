@@ -248,8 +248,7 @@ type model struct {
 	compIdx       int                      // highlighted row of the completion menu
 	compArgs      bool                     // the menu is offering arguments, not commands
 	compFor       string                   // input value the highlight belongs to
-	lastFind      string                   // last /find query, for repeats
-	lastFindAt    int                      // line of the last hit, so repeats advance past it
+	finder        findState                // the last /find, so a repeat advances
 	picker        *picker                  // open searchable list
 	connect       *connect                 // open provider/model dialog
 	overlay       string                   // live panel over the transcript (overlayAgents); empty is closed
