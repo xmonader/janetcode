@@ -44,7 +44,16 @@ func runRecipeFlag(ctx context.Context, ag *agent.Agent, cwd string, r recipe.Re
 		return err
 	}
 	if ag.Approver == nil {
-		ag.Approver = headless.NewStdinApprover(stdin, stderr)
+		// The approver owns a goroutine reading stdin, so it is closed on
+		// every way out of this function -- including the handover to
+		// headless.Run below, which finds the approver already set and so
+		// installs (and closes) none of its own.
+		sa := headless.NewStdinApprover(stdin, stderr)
+		defer func() {
+			_ = sa.Close()
+			ag.Approver = nil
+		}()
+		ag.Approver = sa
 	}
 	report, failed, err := ag.RunRecipe(ctx, r, args, nil)
 	if report != "" {
