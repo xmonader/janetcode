@@ -50,11 +50,15 @@ func (a *Agent) MessagesSnapshot() []llm.Message {
 	return out
 }
 
-// LastAssistantText is the last assistant reply, for /copy.
+// LastAssistantText is the last assistant reply, for /copy. Under msgMu
+// like every other off-turn reader: /copy is not idle-only, so the turn
+// goroutine may be appending while this walks backwards.
 func (a *Agent) LastAssistantText() string {
 	if a == nil {
 		return ""
 	}
+	a.msgMu.Lock()
+	defer a.msgMu.Unlock()
 	for i := len(a.Messages) - 1; i >= 0; i-- {
 		if a.Messages[i].Role == llm.RoleAssistant {
 			if t := strings.TrimSpace(a.Messages[i].Text()); t != "" {
