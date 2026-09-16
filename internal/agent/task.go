@@ -369,7 +369,7 @@ func (t *Task) releaseChild(kid *subagent) {
 // worktree an editing subagent was still working in, and drop the only
 // handle by which a running fork could be cancelled. When every child is
 // still running the list is left over its bound until one of them ends.
-func (t *Task) remember(id string, c *subagent) {
+func (t *Task) remember(ctx context.Context, id string, c *subagent) {
 	t.mu.Lock()
 	if t.children == nil {
 		t.children = map[string]*subagent{}
@@ -390,9 +390,20 @@ func (t *Task) remember(id string, c *subagent) {
 	}
 	t.mu.Unlock()
 	if evicted != nil && evicted.wt != nil {
-		evicted.wt.remove(context.Background())
+		// Cleanup, so it outlives a cancelled caller — but on the
+		// caller's context all the same, and bounded: `git worktree
+		// remove` on a checkout something else is holding can block for
+		// as long as it likes, and this used to run on a
+		// context.Background() with no deadline at all.
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), evictTimeout)
+		defer cancel()
+		evicted.wt.remove(rctx)
 	}
 }
+
+// evictTimeout bounds the git work that removing an evicted subagent's
+// worktree does.
+const evictTimeout = 2 * time.Minute
 
 // Usage is the total spent by subagents so far.
 func (t *Task) Usage() llm.Usage {
@@ -539,7 +550,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		t.nextID++
 		childID = fmt.Sprintf("task-%d", t.nextID)
 		t.mu.Unlock()
-		t.remember(childID, kid)
+		t.remember(ctx, childID, kid)
 	}
 	child, wt := kid.agent, kid.wt
 	start := time.Now()

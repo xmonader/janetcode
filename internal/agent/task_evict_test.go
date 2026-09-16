@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"testing"
 )
@@ -12,10 +13,10 @@ import (
 func TestEvictionSkipsChildrenThatAreStillRunning(t *testing.T) {
 	tk := &Task{}
 	for i := 0; i < maxChildren; i++ {
-		tk.remember(fmt.Sprintf("task-%d", i), &subagent{agent: &Agent{}, done: i != 0})
+		tk.remember(context.Background(), fmt.Sprintf("task-%d", i), &subagent{agent: &Agent{}, done: i != 0})
 	}
 	// task-0 is still running; the oldest finished child is task-1.
-	tk.remember("task-new", &subagent{agent: &Agent{}})
+	tk.remember(context.Background(), "task-new", &subagent{agent: &Agent{}})
 	ids := tk.ChildIDs()
 	if len(ids) != maxChildren {
 		t.Fatalf("children = %v, want %d of them", ids, maxChildren)
@@ -33,7 +34,7 @@ func TestEvictionSkipsChildrenThatAreStillRunning(t *testing.T) {
 func TestEvictionKeepsEveryoneWhenNobodyHasFinished(t *testing.T) {
 	tk := &Task{}
 	for i := 0; i < maxChildren+2; i++ {
-		tk.remember(fmt.Sprintf("task-%d", i), &subagent{agent: &Agent{}})
+		tk.remember(context.Background(), fmt.Sprintf("task-%d", i), &subagent{agent: &Agent{}})
 	}
 	if n := len(tk.ChildIDs()); n != maxChildren+2 {
 		t.Fatalf("kept %d children, want all %d: none of them has finished", n, maxChildren+2)
