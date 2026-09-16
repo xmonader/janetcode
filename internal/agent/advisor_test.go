@@ -23,7 +23,7 @@ func TestAdvisorIsASideQueryWithoutTools(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "parse.go") {
+	if !strings.Contains(out, "parse.go") || !strings.Contains(out, "[advisor strong-model]") {
 		t.Fatalf("out = %q", out)
 	}
 	if len(f.requests) != 1 {
@@ -62,7 +62,7 @@ func TestAdvisorRoutesToItsOwnProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "read parse.go next" {
+	if !strings.Contains(out, "[advisor z-ai/glm-5.3]") || !strings.Contains(out, "read parse.go next") {
 		t.Fatalf("out = %q", out)
 	}
 	if len(exec.requests) != 0 {
@@ -70,6 +70,15 @@ func TestAdvisorRoutesToItsOwnProvider(t *testing.T) {
 	}
 	if len(advProv.requests) != 1 || advProv.requests[0].Model != "z-ai/glm-5.3" {
 		t.Fatalf("advisor requests = %+v", advProv.requests)
+	}
+}
+
+func TestAdvisorReplyUsesThinkingWhenContentEmpty(t *testing.T) {
+	msg := llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+		{Type: llm.BlockThinking, Text: "1) list the directory\n2) do not invent files"},
+	}}
+	if got := advisorReplyText(msg); !strings.Contains(got, "list the directory") {
+		t.Fatalf("got %q", got)
 	}
 }
 

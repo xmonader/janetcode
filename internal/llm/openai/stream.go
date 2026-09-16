@@ -222,6 +222,17 @@ func (s *streamState) add(ch wireChunk) {
 			s.thinking.WriteString(rc)
 			s.emit(llm.Event{Type: llm.EventThinkingDelta, Text: rc})
 		}
+		for _, p := range d.ReasoningDetails {
+			rc := p.Text
+			if rc == "" {
+				rc = p.Summary
+			}
+			if rc == "" {
+				continue
+			}
+			s.thinking.WriteString(rc)
+			s.emit(llm.Event{Type: llm.EventThinkingDelta, Text: rc})
+		}
 		if d.Content != "" {
 			s.text.WriteString(d.Content)
 			s.emit(llm.Event{Type: llm.EventTextDelta, Text: d.Content})

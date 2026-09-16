@@ -103,6 +103,7 @@ type wireChunk struct {
 			Content          string              `json:"content"`
 			ReasoningContent string              `json:"reasoning_content"`
 			Reasoning        string              `json:"reasoning"`
+			ReasoningDetails []wireReasoningPart `json:"reasoning_details"`
 			ToolCalls        []wireDeltaToolCall `json:"tool_calls"`
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
@@ -112,6 +113,13 @@ type wireChunk struct {
 }
 
 // wireDeltaToolCall is one tool-call fragment in a streamed delta.
+// wireReasoningPart is one OpenRouter/Z.AI reasoning fragment.
+type wireReasoningPart struct {
+	Type    string `json:"type"`
+	Text    string `json:"text"`
+	Summary string `json:"summary"`
+}
+
 type wireDeltaToolCall struct {
 	Index    *int   `json:"index"`
 	ID       string `json:"id"`

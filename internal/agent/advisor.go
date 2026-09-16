@@ -79,6 +79,7 @@ func (a *Agent) Advise(ctx context.Context, question string) (string, error) {
 			model = resolved
 		}
 	}
+	a.debugf("advisor calling %s via %s", model, prov.Name())
 	resp, err := prov.Stream(ctx, llm.Request{
 		Model:     model,
 		System:    advisorSystem,
@@ -93,11 +94,30 @@ func (a *Agent) Advise(ctx context.Context, question string) (string, error) {
 		return "", fmt.Errorf("empty advisor reply")
 	}
 	a.addUsage(resp.Usage)
-	text := strings.TrimSpace(resp.Message.Text())
+	a.lastCallModel = model
+	text := advisorReplyText(resp.Message)
 	if text == "" {
 		return "", fmt.Errorf("empty advisor reply")
 	}
-	return text, nil
+	// Stamp the model so a session log can prove who answered.
+	return fmt.Sprintf("[advisor %s]\n%s", model, text), nil
+}
+
+func advisorReplyText(msg llm.Message) string {
+	if t := strings.TrimSpace(msg.Text()); t != "" {
+		return t
+	}
+	// glm-5.3 and similar reasoning models put the answer in thinking
+	// and leave content empty.
+	var last string
+	for _, b := range msg.Blocks {
+		if b.Type == llm.BlockThinking {
+			if t := strings.TrimSpace(b.Text); t != "" {
+				last = t
+			}
+		}
+	}
+	return last
 }
 
 func advisorMessages(src []llm.Message) []llm.Message {
