@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPreToolDenyRewriteAndFailOpen(t *testing.T) {
@@ -183,6 +185,45 @@ func TestLimitsBoundTimeoutOutputAndCount(t *testing.T) {
 	}
 	if !said {
 		t.Fatalf("nothing said the limit stopped a hook: %q", logs)
+	}
+}
+
+// A hook's timeout has to bound the whole tree it started. Killing the
+// shell alone leaves a grandchild holding the output pipes, and the wait
+// on those pipes used to hold the turn open for as long as the
+// grandchild lived — far past the timeout that was supposed to end it.
+func TestHookTimeoutKillsTheWholeTree(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("posix shell command")
+	}
+	var logs []string
+	r := &Runner{Cwd: t.TempDir(), Log: func(s string) { logs = append(logs, s) },
+		Config: Config{Hooks: Hooks{PreTool: {{Command: "sleep 60 & wait", Timeout: 1}}}}}
+	start := time.Now()
+	res := r.Run(context.Background(), Input{Event: PreTool, Tool: "bash", Input: json.RawMessage(`{}`)})
+	if elapsed := time.Since(start); elapsed > 20*time.Second {
+		t.Fatalf("hook ran for %s despite a 1s timeout", elapsed)
+	}
+	if res.Denied {
+		t.Fatalf("a timed-out hook must fail open: %+v", res)
+	}
+	if len(logs) != 1 || !strings.Contains(logs[0], "timed out") {
+		t.Fatalf("logs = %q", logs)
+	}
+}
+
+// A hook whose match pattern cannot compile is reported, not silently
+// skipped for the rest of the session.
+func TestBadMatchIsReported(t *testing.T) {
+	var logs []string
+	r := &Runner{Cwd: t.TempDir(), Log: func(s string) { logs = append(logs, s) },
+		Config: Config{Hooks: Hooks{PreTool: {{Match: "([", Command: "exit 2"}}}}}
+	res := r.Run(context.Background(), Input{Event: PreTool, Tool: "bash", Input: json.RawMessage(`{}`)})
+	if res.Denied {
+		t.Fatalf("a hook with an unusable match must not run: %+v", res)
+	}
+	if len(logs) != 1 || !strings.Contains(logs[0], "not a valid regexp") {
+		t.Fatalf("logs = %q", logs)
 	}
 }
 
