@@ -542,12 +542,11 @@ func fmtDuration(d time.Duration) string {
 	return d.String()
 }
 
+// trimExcerpt keeps the tail of a harness's stderr — what it printed last
+// is what says why it failed — as valid UTF-8; the byte slice it used to
+// do could cut a rune in half.
 func trimExcerpt(s string, n int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= n {
-		return s
-	}
-	return s[len(s)-n:]
+	return textfmt.TailBytes(strings.TrimSpace(s), n)
 }
 
 // MergeBenchResults overlays neu onto old by task name. Tasks only in old
