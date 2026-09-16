@@ -126,7 +126,7 @@ func (m *model) liveWork() string {
 func (m *model) footerNotice() string {
 	room := m.width - 4
 	switch {
-	case m.denying && m.pending != nil:
+	case m.mode() == modeDeny:
 		return "  " + m.styles.warn.Bold(true).Render("denied "+m.pending.call.Name) + m.styles.dim.Render(" · tell the model why (optional) · enter sends · esc skips")
 	case m.pending != nil:
 		return m.permissionNotice()
@@ -330,7 +330,7 @@ func (m *model) contextGauge() string {
 // comment in styles.go says what each colour means.
 func (m *model) inputBox() lipgloss.Style {
 	switch {
-	case m.denying, m.pending != nil:
+	case m.pending != nil:
 		return m.styles.boxWarn
 	case m.turn.running:
 		return m.styles.boxBusy
@@ -361,7 +361,7 @@ func (m *model) placeholder() string {
 	// The box draws "❯ " before the textarea's own width.
 	room := m.input.Width() - 2
 	switch {
-	case m.denying:
+	case m.mode() == modeDeny:
 		return fitPhrase(room,
 			"Why? the model reads this · enter sends · esc skips",
 			"Why? enter sends · esc skips",
@@ -415,7 +415,7 @@ func (m *model) footerView() string {
 	}
 	// The command menu and the @path menu are the same menu: same rows,
 	// same highlight, same footer line, same height whatever is in them.
-	if m.pending == nil && !m.denying {
+	if m.mode() == modePrompt {
 		if c, idx := m.menu(); len(c) > 0 {
 			rows := m.menuRows()
 			start := 0
@@ -440,7 +440,7 @@ func (m *model) footerView() string {
 	box := m.inputBox()
 	prompt := m.styles.accent.Render("❯ ")
 	switch {
-	case m.denying, m.pending != nil:
+	case m.pending != nil:
 		prompt = m.styles.warn.Render("❯ ")
 	case m.turn.running:
 		prompt = m.styles.faint.Render("❯ ")

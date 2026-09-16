@@ -255,14 +255,12 @@ func (m *model) cancelTurn() {
 
 func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	compacting := m.turn.finish()
-	m.pending = nil
-	m.pendingClosedAt = time.Now()
 	// Whatever the turn was asking goes with the turn. A prompt left up
 	// over a turn that has ended answers into a channel nobody reads: the
 	// question stays on screen, and the denial reason being typed keeps
 	// the composer in a mode ("Why? the model reads this") that no longer
 	// means anything.
-	m.denying = false
+	m.closePending()
 	if m.asking != nil {
 		m.finishAsk()
 	}

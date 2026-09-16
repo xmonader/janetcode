@@ -136,9 +136,9 @@ func (m *model) btwCommand(q string) tea.Cmd {
 		m.refresh(false)
 		return nil
 	}
-	send := m.send
+	send, life := m.send, m.life
 	go func() {
-		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
+		ctx, cancel := context.WithTimeout(life, 2*time.Minute)
 		defer cancel()
 		a, err := ag.AskOnce(ctx, q)
 		send(btwMsg{q: q, a: a, err: err})

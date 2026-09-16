@@ -607,3 +607,22 @@ func TestSwitchingModelAfterATurnOffersWhatIf(t *testing.T) {
 		t.Fatalf("switching model mid-session did not offer --what-if:\n%s", v)
 	}
 }
+
+// TestBangSeenIsBounded: only test-shaped lines get into the counter,
+// but a session can type an unbounded number of distinct ones -- "go
+// test ./a", "go test ./b", one per package -- and nothing used to trim
+// the map, so it grew for the life of the window.
+func TestBangSeenIsBounded(t *testing.T) {
+	var h hintsState
+	for i := 0; i < maxBangSeen*3; i++ {
+		h.bang(fmt.Sprintf("go test ./pkg%d", i))
+	}
+	if len(h.bangSeen) > maxBangSeen {
+		t.Fatalf("bangSeen holds %d entries, over the %d bound", len(h.bangSeen), maxBangSeen)
+	}
+	// And the only thing the rule asks of it still works.
+	h.bang("go test ./x")
+	if n := h.bang("go test ./x"); n != 2 {
+		t.Fatalf("the same command seen twice counted %d", n)
+	}
+}

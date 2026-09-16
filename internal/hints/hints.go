@@ -125,9 +125,10 @@ type State struct {
 	SessionID     string
 
 	// Used reports whether the user has already used a catalogue
-	// feature. Rules that point at a feature the user knows are skipped,
-	// and among the rest the unused ones go first. Nil means "unknown",
-	// which is treated as unused.
+	// feature. A rule pointing at a feature the user knows is spent
+	// silently rather than said, and the walk carries on to the next
+	// rule; the order of the rules themselves is fixed (see Rules).
+	// Nil means "unknown", which is treated as unused.
 	Used func(feature string) bool
 }
 
@@ -159,6 +160,10 @@ func (r Rule) usage() string {
 }
 
 // Engine holds the rules and what has already been said.
+//
+// It is not safe for concurrent use and does not need to be: the
+// terminal evaluates on its own event loop, one event at a time, and
+// every field here is read and written from there.
 type Engine struct {
 	Rules []Rule
 	// Off disables every hint ("hints": false, or /hints off).
@@ -416,8 +421,11 @@ func Rules() []Rule {
 			},
 		},
 		{
+			// Only when there is a command to name: the hint's whole
+			// point is what to type, and an entry nothing here knows
+			// about used to produce a line ending in a bare colon.
 			ID: "trust-project", Feature: "/permissions",
-			When: func(s *State) bool { return len(s.Untrusted) > 0 },
+			When: func(s *State) bool { return anyTrustCommand(s.Untrusted) },
 			Text: func(s *State) string {
 				return "this project ships " + list(s.Untrusted) + ", which " + verb(len(s.Untrusted)) + " waiting for your approval: " + trustCommands(s.Untrusted)
 			},
@@ -472,23 +480,48 @@ func verb(n int) string {
 	return "are"
 }
 
+// trustable maps what an untrusted path is recognised by to the command
+// that enables it, in the order the markers are tried. A table rather
+// than a chain of conditions: one line adds a kind, and trustCommands
+// and anyTrustCommand cannot drift apart.
+var trustable = []struct{ marker, command string }{
+	{"mcp", "/mcp trust"},
+	{"hooks", "/hooks trust"},
+	{"permissions", "/permissions trust"},
+	{"verify", "/verify trust"},
+	{"skills", "/skills lists them"},
+}
+
+// trustCommand names the command that enables one untrusted thing.
+func trustCommand(path string) (string, bool) {
+	for _, t := range trustable {
+		if strings.Contains(path, t.marker) {
+			return t.command, true
+		}
+	}
+	return "", false
+}
+
+// anyTrustCommand reports whether anything in xs has a command, without
+// building a string: it is on the evaluation path, which allocates
+// nothing until a rule actually fires.
+func anyTrustCommand(xs []string) bool {
+	for _, x := range xs {
+		if _, ok := trustCommand(x); ok {
+			return true
+		}
+	}
+	return false
+}
+
 // trustCommands names the command for each untrusted thing. Project
 // files are not enabled by being present, so the hint has to say what
 // enables them.
 func trustCommands(xs []string) string {
 	var out []string
 	for _, x := range xs {
-		switch {
-		case strings.Contains(x, "mcp"):
-			out = append(out, "/mcp trust")
-		case strings.Contains(x, "hooks"):
-			out = append(out, "/hooks trust")
-		case strings.Contains(x, "permissions"):
-			out = append(out, "/permissions trust")
-		case strings.Contains(x, "verify"):
-			out = append(out, "/verify trust")
-		case strings.Contains(x, "skills"):
-			out = append(out, "/skills lists them")
+		if cmd, ok := trustCommand(x); ok {
+			out = append(out, cmd)
 		}
 	}
 	return list(dedupe(out))
