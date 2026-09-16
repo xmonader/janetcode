@@ -17,8 +17,14 @@ test:
 race:
 	go test -race $(PKG)
 
+# staticcheck is optional locally (go install honnef.co/go/tools/cmd/staticcheck@latest)
+# but the gate fails on its findings whenever it is installed, so CI and a
+# developer with it on PATH see the same bar.
+STATICCHECK := $(shell command -v staticcheck 2>/dev/null || ls $(HOME)/go/bin/staticcheck 2>/dev/null)
+
 lint:
 	go vet $(PKG)
+	@if [ -n "$(STATICCHECK)" ]; then $(STATICCHECK) $(PKG); else echo "staticcheck not installed; skipping"; fi
 
 # The ordinary gate: formatting, vet, the tests, and the other two
 # platforms compile-checked. The cross-compile belongs here rather than
