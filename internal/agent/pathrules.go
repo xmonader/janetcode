@@ -90,12 +90,3 @@ func (a *Agent) applyPathRules(t tool.Tool, input json.RawMessage, emit func(Eve
 		}
 	}
 }
-
-// queueHarness holds text for the running turn, delivered as a synthetic
-// user block before the next model call (see deliverSteering). Tools run
-// in parallel goroutines, so it is guarded like steering is.
-func (a *Agent) queueHarness(text string) {
-	a.steerMu.Lock()
-	a.harness = append(a.harness, text)
-	a.steerMu.Unlock()
-}

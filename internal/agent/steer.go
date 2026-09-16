@@ -15,18 +15,13 @@ func (a *Agent) Steer(text string) {
 	if strings.TrimSpace(text) == "" {
 		return
 	}
-	a.steerMu.Lock()
-	a.steer = append(a.steer, text)
-	a.steerMu.Unlock()
+	a.queueSteer(text)
 }
 
 // deliverSteering hands any queued notes to the model. It runs on the
 // turn goroutine, just before the call that will read them.
 func (a *Agent) deliverSteering(emit func(Event)) {
-	a.steerMu.Lock()
-	notes, harness := a.steer, a.harness
-	a.steer, a.harness = nil, nil
-	a.steerMu.Unlock()
+	notes, harness := a.takeSteering()
 	if len(harness) > 0 {
 		// Harness text — a path-scoped rule this turn brought in — is
 		// delivered the same way but marked synthetic, so nothing

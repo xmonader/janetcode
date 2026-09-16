@@ -220,9 +220,7 @@ func (a *Agent) endTurn(ctx context.Context) {
 	// The turn's event sink goes with the turn: emitter() promises a sink
 	// that drops events when no turn is running, and without this it kept
 	// handing out the finished turn's one.
-	a.emitMu.Lock()
-	a.emitNow = nil
-	a.emitMu.Unlock()
+	a.setEmitter(nil)
 	ctx = context.WithoutCancel(ctx)
 	a.cp.mu.Lock()
 	repo := a.snaps()

@@ -12,7 +12,6 @@ import (
 	"io"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/hook"
@@ -153,6 +152,11 @@ type Agent struct {
 	// three things that notice a turn going wrong (see turnmon.go).
 	// Embedded for the same reason.
 	turnMonitor
+	// turnState is what belongs to the turn in progress and nothing
+	// else: whether one is running, what it changed, what is queued for
+	// it, its frozen tool list and its event sink (see turnstate.go).
+	// Embedded for the same reason.
+	turnState
 
 	// Model, MaxTokens, Effort, MaxIterations, CompactAt, AutoApprove, AutoEdits,
 	// AutoMode, ReadOnly, PlanMode, ProofNotes, Rules and Pins are filled
@@ -199,14 +203,6 @@ type Agent struct {
 	// routing never leaves Model, undo-about uses keyword overlap
 	// instead of the model, and mermaid is drawn as source.
 	Off map[string]bool
-	// keepReverts is how many times this goal has had a round put back
-	// in a row; lastGoalOut is the previous round's verdict, for the
-	// comparison; steeredThisTurn is set when the user steered, so a
-	// turn they directed is never reverted (see keepOrRevert).
-	keepReverts     int
-	lastGoalOut     TurnOutcome
-	goalOutSet      bool
-	steeredThisTurn bool
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
@@ -249,11 +245,6 @@ type Agent struct {
 	// front-end changes them while the turn goroutine and subagents read
 	// them (see settings.go).
 	settingsMu sync.Mutex
-	// mutations counts successful mutating tool calls this turn.
-	mutations int
-	// proofCommits are the commits this turn attached a proof note to
-	// (see checkCommitAttach), refreshed once the turn's gates have run.
-	proofCommits []string
 	// Debug, when set, receives a timestamped line per event and model call.
 	Debug io.Writer
 
@@ -293,30 +284,10 @@ type Agent struct {
 	// than leave them running on a context of their own.
 	Prepare func(ctx context.Context, blocks []llm.Block) ([]llm.Block, string)
 
-	mutated bool // a mutating tool ran successfully this turn
-	// running is set between beginTurn and endTurn, so a command that
-	// rewrites the conversation ("/undo turn n", see rewind.go) can
-	// refuse rather than race the turn goroutine that is appending to
-	// it. The front-ends keep such commands off the key handler while a
-	// turn runs (slash.idleOnly); this is the agent's own check.
-	running atomic.Bool
-
 	// callIDs is every tool-call id handed out this conversation, so a
 	// provider that repeats or omits one cannot collide with it.
 	callIDs map[string]bool
 	msgMu   sync.Mutex // guards Messages writes against off-turn readers (see MessagesSnapshot)
-	steerMu sync.Mutex // guards steer, written from the UI goroutine
-	steer   []string   // notes for the running turn (see Steer)
-	harness []string   // harness text for the running turn (path rules)
-	// tools is this turn's tool list, held so that a server registering
-	// mid-turn cannot rewrite the cached prefix. Cleared at each turn.
-	tools []llm.ToolDef
-
-	// emitNow is the current turn's event sink. A tool that dispatches
-	// further tool calls of its own — a script does — needs it to show
-	// them as they happen, and it is not on the Tool interface.
-	emitMu  sync.Mutex
-	emitNow func(Event)
 }
 
 // beginTurn opens a logged turn whose user message is blocks: it appends
@@ -341,10 +312,7 @@ func (a *Agent) beginTurn(ctx context.Context, blocks ...llm.Block) {
 	a.logEvent(start)
 	a.logUserMessage(merged)
 	a.cp.beginTurn(a.turnN, before)
-	a.running.Store(true)
-	a.mutated, a.mutations = false, 0
-	a.proofCommits = nil
-	a.steeredThisTurn = false
+	a.turnState.begin()
 }
 
 // ErrMaxIterations is returned when a turn exceeds MaxIterations model calls.
@@ -395,10 +363,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	// the note stays queued for the turn after this one. Say so, rather
 	// than letting the user watch what they typed disappear.
 	defer func() {
-		a.steerMu.Lock()
-		n := len(a.steer)
-		a.steerMu.Unlock()
-		if n > 0 {
+		if n := a.pendingSteer(); n > 0 {
 			emit(Event{Kind: EvNotice, Text: fmt.Sprintf(
 				"%d steering note(s) arrived after the turn's last model call; they go with your next message",
 				n)})
