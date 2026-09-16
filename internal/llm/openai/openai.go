@@ -232,12 +232,14 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	defer wd.Stop()
 	// Spacing imposed by earlier rate limits, if any. Costs nothing on a
 	// session the provider has never refused.
+	wd.Expect(p.pace.Gap())
 	if err := p.pace.Wait(ctx); err != nil {
 		// A bound that fired while the call was waiting its turn is the
 		// reason it was cancelled; without this the user sees a bare
 		// "context canceled".
 		return nil, wd.Wrap(err)
 	}
+
 	w, err := buildRequest(req)
 	if err != nil {
 		return nil, err
@@ -304,6 +306,11 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		}
 		retried.Attempts, retried.Reason, retried.Wait = attempt+1, retryReason(err), retried.Wait+wait
 		emit(llm.Event{Type: llm.EventStatus, Text: fmt.Sprintf("retrying %d/%d · %s · in %s", attempt+1, p.cfg.MaxRetries, retryReason(err), wait.Round(time.Second/10))})
+		// A backoff is a wait the harness chose; without telling the
+		// watchdog so, a couple of long Retry-Afters trip the idle bound
+		// and the call dies reporting a stall that never happened. The
+		// lifetime bound still holds — it is not resettable.
+		wd.Expect(wait)
 		select {
 		case <-ctx.Done():
 			return nil, wd.Wrap(ctx.Err())

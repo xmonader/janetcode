@@ -193,3 +193,31 @@ func TestNegativeMaxRetriesDisablesRetrying(t *testing.T) {
 		t.Fatalf("%d requests, want 1", n)
 	}
 }
+
+// A retry backoff is a wait the harness chose. Without telling the
+// watchdog so, a backoff longer than the idle bound cancelled the call
+// in the middle of the wait and reported a stall that never happened.
+func TestRetryBackoffDoesNotTripTheIdleWatchdog(t *testing.T) {
+	var calls atomic.Int32
+	cfg := Config{
+		MaxRetries: 2,
+		// Shorter than the 500ms first backoff, so the old behaviour
+		// fired during the wait; the lifetime bound stays generous.
+		Limits: llm.StreamLimits{Idle: 150 * time.Millisecond, Max: 30 * time.Second},
+	}
+	p := newTestProviderWith(t, cfg, func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			http.Error(w, `{"error":{"message":"slow down"}}`, http.StatusTooManyRequests)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}`))
+	})
+	resp, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	if err != nil {
+		t.Fatalf("the backoff was read as a stall: %v", err)
+	}
+	if resp.Message.Text() != "ok" {
+		t.Fatalf("text = %q", resp.Message.Text())
+	}
+}
