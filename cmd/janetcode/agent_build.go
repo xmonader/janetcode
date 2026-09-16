@@ -90,9 +90,9 @@ func impactHook(cd *agent.CD, ws *tool.Workspace, diag *lsp.Manager, repo *repom
 		var err error
 		switch call.Name {
 		case "edit_file":
-			path, before, after, err = edit.Result(call.Input)
+			path, before, after, err = edit.Result(ctx, call.Input)
 		case "write_file":
-			path, before, after, err = write.Result(call.Input)
+			path, before, after, err = write.Result(ctx, call.Input)
 		default:
 			return ""
 		}

@@ -84,8 +84,6 @@ func (t WriteFile) Guard(input json.RawMessage) (bool, string) {
 	return guardSelfModify(rootOf(t.Root, t.WS), input)
 }
 
-// Preview implements Previewer: a diff against the existing file, or the
-// head of a new file.
 // Touches reports the file the write will replace or create.
 func (t WriteFile) Touches(input json.RawMessage) ([]string, error) {
 	return touchedPathOn(t.WS, t.Root, input)
@@ -94,8 +92,10 @@ func (t WriteFile) Touches(input json.RawMessage) ([]string, error) {
 // Result computes what this write would produce, without writing: the
 // resolved path, and the file's content before (empty for a file that
 // does not exist yet) and after. internal/impact uses it to analyze the
-// reach of a write before it is approved.
-func (t WriteFile) Result(input json.RawMessage) (path, before, after string, err error) {
+// reach of a write before it is approved. The read it does to work out
+// "before" can cross a network (a remote workspace), so it takes the
+// caller's context rather than inventing one.
+func (t WriteFile) Result(ctx context.Context, input json.RawMessage) (path, before, after string, err error) {
 	var in struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
@@ -107,12 +107,14 @@ func (t WriteFile) Result(input json.RawMessage) (path, before, after string, er
 	if err != nil {
 		return "", "", "", err
 	}
-	if old, rerr := readFileOf(context.Background(), t.WS, p); rerr == nil && !isBinary(old) {
+	if old, rerr := readFileOf(ctx, t.WS, p); rerr == nil && !isBinary(old) {
 		before, _ = decodeText(old)
 	}
 	return p, before, in.Content, nil
 }
 
+// Preview implements Previewer: a diff against the existing file, or the
+// head of a new file.
 func (t WriteFile) Preview(ctx context.Context, input json.RawMessage) (string, error) {
 	var in struct {
 		Path    string `json:"path"`

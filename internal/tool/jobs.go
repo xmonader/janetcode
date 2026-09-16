@@ -78,6 +78,9 @@ func (j *Jobs) StartOn(ws *Workspace, root, command string) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Not the caller's context: a background job outlives the tool call
+	// that started it, and is stopped through Kill rather than by the
+	// turn ending.
 	cmd, err := localShell(context.Background(), ws, j.Sandbox, root, command)
 	if err != nil {
 		out.Close()

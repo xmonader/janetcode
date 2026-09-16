@@ -127,8 +127,10 @@ func (t *Terms) Open(dir string) (*Term, error) {
 	id := t.next
 	t.mu.Unlock()
 
-	ctx := context.Background()
-	cmd := interactiveShell(ctx, dir)
+	// Not the caller's context: the shell is the point — it outlives the
+	// call that opened it and lives until Close, which is what cancels
+	// it (cmd.Cancel, which CommandContext is what installs).
+	cmd := interactiveShell(context.Background(), dir)
 	pr, pw, err := os.Pipe()
 	if err != nil {
 		return nil, err
