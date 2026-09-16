@@ -30,7 +30,7 @@ func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) (*Agent
 	}
 	child, err := New(Deps{
 		Provider: ps.Provider,
-		Tools:    tool.NewRegistry(allowed(wt.tools(), profile)...),
+		Tools:    tool.NewRegistry(allowed(wt.tools(p.Files), profile)...),
 	}, Settings{
 		Model:         ps.Model,
 		MaxTokens:     ps.MaxTokens,
@@ -58,6 +58,8 @@ func (t *Task) editingChild(wt *worktree, profile *agentprofile.Profile) (*Agent
 		child.AutoApprove = false
 		child.Approver = bubbled{to: p.Approver, name: profile.Name}
 	}
+	child.Files = p.Files
+	withholdFromChild(child.Tools, profile)
 	return child, nil
 }
 
@@ -177,7 +179,27 @@ func (t *Task) child(only []string, profile *agentprofile.Profile) (*Agent, erro
 	child.Ledger = p.Ledger
 	child.Protected = p.Protected
 	child.Impact = p.Impact
+	child.Files = p.Files
+	withholdFromChild(child.Tools, profile)
 	return child, nil
+}
+
+func withholdFromChild(r *tool.Registry, profile *agentprofile.Profile) {
+	if r == nil {
+		return
+	}
+	for _, n := range []string{"ask", "task", "goal_status", "workflow"} {
+		r.Withhold(n, "this tool stays on the parent session")
+	}
+	if profile == nil {
+		return
+	}
+	for _, n := range profile.Disallowed {
+		n = strings.TrimSpace(n)
+		if n != "" {
+			r.Withhold(n, "excluded by the "+profile.Name+" agent's disallowed_tools")
+		}
+	}
 }
 
 // forkChild builds a subagent that inherits the parent's conversation
@@ -239,6 +261,8 @@ func (t *Task) forkChild() (*Agent, error) {
 	child.Ledger = p.Ledger
 	child.Protected = p.Protected
 	child.Impact = p.Impact
+	child.Files = p.Files
+	withholdFromChild(child.Tools, nil)
 	if !ps.AutoApprove && p.Approver != nil {
 		child.Approver = bubbled{to: p.Approver, name: "fork"}
 	}

@@ -22,6 +22,7 @@ type EditFile struct {
 	// NoLines withdraws the line-range form, leaving only exact-string
 	// matching. It exists so the two can be measured against each other.
 	NoLines bool
+	Cache   *IOCache
 }
 
 func (EditFile) Name() string { return "edit_file" }
@@ -530,6 +531,7 @@ func (t EditFile) Run(ctx context.Context, input json.RawMessage) (string, error
 	if err := writeFileOf(ctx, t.WS, pl.path, data); err != nil {
 		return "", err
 	}
+	t.Cache.Drop(pl.path)
 	t.Seen.Record(pl.path, data)
 	added, removed := diff.Stats(pl.before, pl.after)
 	out := fmt.Sprintf("Edited %s (%s, +%d -%d lines)", pl.display, textfmt.Plural(pl.replacements, "replacement"), added, removed)

@@ -15,9 +15,10 @@ import (
 // ReadManyFiles concatenates several text files into one result. It is
 // deferred behind tool_search so its schema is not on every request.
 type ReadManyFiles struct {
-	Root string
-	WS   *Workspace
-	Seen *Seen
+	Root  string
+	WS    *Workspace
+	Seen  *Seen
+	Cache *IOCache
 }
 
 func (ReadManyFiles) Name() string { return "read_many_files" }
@@ -84,10 +85,23 @@ func (t ReadManyFiles) Run(ctx context.Context, input json.RawMessage) (string, 
 			fmt.Fprintf(&sb, "===== %s =====\n(error: directory; list_dir or glob instead)\n\n", rel)
 			continue
 		}
-		data, err := readFileOf(ctx, t.WS, p)
-		if err != nil {
-			fmt.Fprintf(&sb, "===== %s =====\n(error: %v)\n\n", rel, err)
-			continue
+		st, serr := statOf(ctx, t.WS, p)
+		var data []byte
+		if serr == nil {
+			if cached, ok := t.Cache.Get(p, st.ModTime(), st.Size()); ok {
+				data = cached
+			}
+		}
+		if data == nil {
+			var err error
+			data, err = readFileOf(ctx, t.WS, p)
+			if err != nil {
+				fmt.Fprintf(&sb, "===== %s =====\n(error: %v)\n\n", rel, err)
+				continue
+			}
+			if st2, e2 := statOf(ctx, t.WS, p); e2 == nil {
+				t.Cache.Put(p, st2.ModTime(), st2.Size(), data)
+			}
 		}
 		if isBinary(data) {
 			fmt.Fprintf(&sb, "===== %s =====\n(error: binary file, %d bytes)\n\n", rel, len(data))

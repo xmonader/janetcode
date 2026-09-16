@@ -74,6 +74,20 @@ func TestVerdicts(t *testing.T) {
 	}
 }
 
+func TestGamingNotesDoNotChangeTheVerdict(t *testing.T) {
+	ev := []session.Event{
+		result(1, "write_file", `{"path":"mod.py","content":"def __eq__(self, other):\n    return True\n"}`, "ok", false),
+		result(1, "bash", `{"command":"go test ./..."}`, "ok  \texample.com/x\t0.02s\n[exit code 0]", false),
+	}
+	got := FoldOutcome(ev, 1)
+	if got.Verdict != VerdictVerified {
+		t.Fatalf("verdict %q, want verified (gaming must not gate)", got.Verdict)
+	}
+	if len(got.Gaming) == 0 || !strings.Contains(got.Line(), "always-true-equality") {
+		t.Fatalf("gaming missing: %+v line=%q", got.Gaming, got.Line())
+	}
+}
+
 // A build passing is not a test passing. Compiling proves the change is
 // valid, not that it works, and the reason has to say so.
 func TestBuildAloneIsNotADemonstration(t *testing.T) {

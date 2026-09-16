@@ -50,6 +50,8 @@ func Apply(cfg *config.Config, a *agent.Agent, path, key, val string) (any, erro
 		a.UpdateSettings(func(s *agent.Settings) { s.ProofNotes = cfg.ProofNotesEnabled() })
 	case "route_cheap":
 		a.SetRouteCheap(cfg.RouteCheap)
+	case "advisor_model":
+		a.AdvisorModel = cfg.AdvisorModel
 	case "sandbox":
 		// The key is the project's default profile, so setting it
 		// changes what a running sandbox enforces but does not turn one

@@ -17,7 +17,8 @@ type WriteFile struct {
 	WS   *Workspace
 	// Seen, when set, refuses to overwrite a file that changed since the
 	// agent last read or wrote it.
-	Seen *Seen
+	Seen  *Seen
+	Cache *IOCache
 }
 
 func (WriteFile) Name() string { return "write_file" }
@@ -63,6 +64,7 @@ func (t WriteFile) Run(ctx context.Context, input json.RawMessage) (string, erro
 	if err := writeFileOf(ctx, t.WS, p, data); err != nil {
 		return "", err
 	}
+	t.Cache.Drop(p)
 	t.Seen.Record(p, data)
 	root := rootOf(t.Root, t.WS)
 	if !existed {

@@ -396,6 +396,9 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	}
 	t, ok := a.Tools.Get(u.Name)
 	if !ok {
+		if why, withheld := a.Tools.Withheld(u.Name); withheld {
+			return refuse(fmt.Sprintf("tool %q is withheld by policy (%s). It is not available in this session; do not search for a workaround.", u.Name, why), false)
+		}
 		return refuse(fmt.Sprintf("Unknown tool %q. Available: %s", u.Name, a.toolNames()), false)
 	}
 	if reason, denied := a.toolGate(t, u.Input); denied {

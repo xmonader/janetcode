@@ -13,7 +13,7 @@ var SettableKeys = []string{
 	"thinking", "show_thinking", "lean_tools", "intent", "auto_approve",
 	"compact_at", "max_tokens", "max_iterations", "model", "effort",
 	"theme", "hints", "memory", "proof_notes", "route_cheap", "sandbox",
-	"followup", "computer_use",
+	"followup", "computer_use", "advisor_model",
 }
 
 // ApplyKV sets a catalogued config key on cfg and returns the stored value.
@@ -134,6 +134,9 @@ func ApplyKV(cfg *Config, key, val string) (any, error) {
 		// Empty is a valid value: it is how the experimental router is
 		// turned back off (see RouteCheap's doc comment).
 		cfg.RouteCheap = val
+		return val, nil
+	case "advisor_model":
+		cfg.AdvisorModel = val
 		return val, nil
 	case "theme":
 		cfg.Theme = val

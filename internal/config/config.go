@@ -178,6 +178,10 @@ type Config struct {
 	// ComputerUse starts Cua Driver as an MCP server when cua-driver (or
 	// open-computer-use) is on PATH. Nil means off; /cua on sets it.
 	ComputerUse *bool `json:"computer_use,omitempty"`
+	// AdvisorModel is the model the deferred advisor tool consults.
+	// Empty uses the session model. The tool is never on the always-on
+	// schema list.
+	AdvisorModel string `json:"advisor_model,omitempty"`
 }
 
 // StreamLimits are the watchdog bounds for one streamed model call.

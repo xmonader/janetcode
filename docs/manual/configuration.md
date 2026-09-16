@@ -133,6 +133,10 @@ is the session log, which is also local and which `/history` and
 
 ### Hints
 
+`"advisor_model": "anthropic/claude-sonnet-4"` is who the deferred
+`advisor` tool consults. Empty uses the session model. The tool is not
+on every request; `tool_search` finds it.
+
 `"computer_use": true` starts Cua Driver as an MCP server when
 `cua-driver` or `open-computer-use` is on PATH. Off by default. `/cua on`
 sets it and starts the server in the running session.

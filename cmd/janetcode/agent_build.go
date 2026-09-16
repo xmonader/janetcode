@@ -269,13 +269,14 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	}
 	terms := &tool.Terms{}
 	expand := &agent.ExpandOutput{Archive: archive}
+	files := &tool.IOCache{}
 	ag, err := agent.New(agent.Deps{
 		Provider: d.prov,
 		Log:      sess,
 		Tools: tool.NewRegistry(
-			tool.ReadFile{Root: d.cwd, WS: ws, Seen: seen},
-			tool.WriteFile{Root: d.cwd, WS: ws, Seen: seen},
-			tool.EditFile{Root: d.cwd, WS: ws, Seen: seen, NoLines: envOff()["lineedit"]},
+			tool.ReadFile{Root: d.cwd, WS: ws, Seen: seen, Cache: files},
+			tool.WriteFile{Root: d.cwd, WS: ws, Seen: seen, Cache: files},
+			tool.EditFile{Root: d.cwd, WS: ws, Seen: seen, NoLines: envOff()["lineedit"], Cache: files},
 			tool.Bash{Root: d.cwd, WS: ws, Cache: &tool.ShellCache{}, Jobs: jobs, Running: d.running, Sandbox: sb},
 			tool.JobTool{Jobs: jobs},
 			tool.TermTool{Terms: terms, Root: d.cwd, WS: ws},
@@ -303,6 +304,8 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	}
 	ag.Archive = archive
 	ag.Root = d.cwd
+	ag.Files = files
+	ag.AdvisorModel = d.cfg.AdvisorModel
 	ag.Off = envOff()
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
 	ag.Sandbox = sb
@@ -383,8 +386,9 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	}
 	// Extra retrieval and desktop tools stay behind tool_search so they
 	// cannot eat the prefix the leanness ceiling is guarding.
-	ag.Tools.AddDeferred(tool.ReadManyFiles{Root: d.cwd, WS: ws, Seen: seen})
+	ag.Tools.AddDeferred(tool.ReadManyFiles{Root: d.cwd, WS: ws, Seen: seen, Cache: files})
 	ag.Tools.AddDeferred(tool.Computer{Root: d.cwd})
+	ag.Tools.AddDeferred(&agent.AdvisorTool{Parent: ag})
 	ag.PlanCheck = repo.CheckPlan
 	// ag.Verify is not wired up yet at this point (main.go sets it once it
 	// knows whether the project's verify config is trusted), so the

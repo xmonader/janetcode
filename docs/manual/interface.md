@@ -1575,6 +1575,24 @@ it for the session.
 `read_many_files` concatenates several text files (or a glob) in one
 call. It stays behind `tool_search` so it does not sit on every request.
 
+`advisor` is the same kind of extra: a consult the executor calls when
+stuck. The harness forwards the recent transcript (no session system
+prompt, no tool schemas). At most three uses per turn. It is never on
+the always-on schema list; `tool_search` finds it. `"advisor_model"` in
+the config, if set, is who it asks; otherwise the session model.
+
+A tool a profile or the parent session has removed is **withheld**, not
+unknown: the model is told the policy reason and not to hunt for a
+workaround.
+
+File reads share an I/O cache with subagents, so a child that looks at a
+file the parent already read does not hit disk again. Writes drop the
+path.
+
+Edits that look like they faked a green (always-true `__eq__`, a call
+counter as the answer, a rewritten test expectation) are **reported** on
+the verdict line. They never change the verdict and never block.
+
 ### Cua Driver
 
 Desktop automation that is not pixel-guessing: [Cua Driver](https://cua.ai/docs/how-to-guides/driver/install)

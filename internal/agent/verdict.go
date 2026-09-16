@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/xmonader/janetcode/internal/gaming"
 	"github.com/xmonader/janetcode/internal/project"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
@@ -76,6 +77,9 @@ type TurnOutcome struct {
 	Checks []string `json:"checks,omitempty"`
 	// Why is the one-line reason for the verdict.
 	Why string `json:"why"`
+	// Gaming is report-only: signs the edits may have faked a green.
+	// It never changes the verdict.
+	Gaming []string `json:"gaming,omitempty"`
 	// Claimed is what the model asserted about verification, when it
 	// asserted anything a check could have shown.
 	Claimed string `json:"claimed,omitempty"`
@@ -105,7 +109,11 @@ func (o TurnOutcome) Line() string {
 	case VerdictUnverified, VerdictNotDemonstrated, VerdictSelfChecked:
 		mark = "⚠"
 	}
-	return fmt.Sprintf("%s %s: %s", mark, o.Verdict, o.Why)
+	line := fmt.Sprintf("%s %s: %s", mark, o.Verdict, o.Why)
+	if len(o.Gaming) > 0 {
+		line += " · " + strings.Join(o.Gaming, "; ")
+	}
+	return line
 }
 
 // Reading a check's output for what it actually exercised. Exit 0 is not
@@ -253,6 +261,7 @@ type checkRun struct {
 func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 	o := TurnOutcome{Verdict: VerdictNoChanges, Why: "nothing here edited code"}
 	edited := map[string]bool{}
+	var deltas []gaming.Delta
 	// Commands that failed earlier in the session, so a pass now is a
 	// flip rather than a state that was already green.
 	failedBefore := map[string]bool{}
@@ -322,6 +331,9 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 			} else {
 				edited[fmt.Sprintf("call:%s", e.CallID)] = true
 			}
+			if d := gamingDelta(e.Name, e.Arguments); d.Path != "" {
+				deltas = append(deltas, d)
+			}
 		case e.Name == "bash":
 			turnCmds = append(turnCmds, struct {
 				cmd   string
@@ -374,6 +386,9 @@ func FoldOutcomeIn(events []session.Event, turn int, root string) TurnOutcome {
 		o.TestsEdited = append(o.TestsEdited, p)
 	}
 	sort.Strings(o.TestsEdited)
+	for _, s := range gaming.Scan(deltas) {
+		o.Gaming = append(o.Gaming, s.String())
+	}
 
 	switch {
 	case o.Edited == 0 && o.Ran == 0:
@@ -479,6 +494,40 @@ func (a *Agent) logOutcome(o TurnOutcome) {
 }
 
 // argPathOf is the file a write or edit named.
+func gamingDelta(name, arguments string) gaming.Delta {
+	var in struct {
+		Path      string `json:"path"`
+		OldString string `json:"old_string"`
+		NewString string `json:"new_string"`
+		Content   string `json:"content"`
+		Edits     []struct {
+			OldString string `json:"old_string"`
+			NewString string `json:"new_string"`
+		} `json:"edits"`
+	}
+	if json.Unmarshal([]byte(arguments), &in) != nil || in.Path == "" {
+		return gaming.Delta{}
+	}
+	d := gaming.Delta{Path: in.Path}
+	add := func(old, neu string) {
+		if old != "" {
+			d.Removed = append(d.Removed, strings.Split(old, "\n")...)
+		}
+		if neu != "" {
+			d.Added = append(d.Added, strings.Split(neu, "\n")...)
+		}
+	}
+	if name == "write_file" {
+		add("", in.Content)
+	} else {
+		add(in.OldString, in.NewString)
+		for _, e := range in.Edits {
+			add(e.OldString, e.NewString)
+		}
+	}
+	return d
+}
+
 func argPathOf(arguments string) string {
 	var in struct {
 		Path string `json:"path"`

@@ -46,6 +46,9 @@ type Registry struct {
 	mu       sync.RWMutex
 	tools    map[string]Tool
 	deferred map[string]bool
+	// withheld names a tool that policy removed, and why. Distinct from
+	// a typo: "unknown" invites a hunt, "withheld" ends one.
+	withheld map[string]string
 	// Intent adds a short "why this call" field to every tool's schema.
 	// It is set on the registry rather than per tool so that MCP tools and
 	// anything registered at runtime carry it too. Set it before the
@@ -163,6 +166,30 @@ func (r *Registry) Remove(name string) {
 	delete(r.tools, name)
 	delete(r.deferred, name)
 	r.version++
+}
+
+// Withhold records that name is absent because of policy, not a typo.
+func (r *Registry) Withhold(name, reason string) {
+	if r == nil || name == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.withheld == nil {
+		r.withheld = map[string]string{}
+	}
+	r.withheld[name] = reason
+}
+
+// Withheld reports why a missing tool was removed, if it was.
+func (r *Registry) Withheld(name string) (string, bool) {
+	if r == nil {
+		return "", false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	s, ok := r.withheld[name]
+	return s, ok
 }
 
 // Defs returns the tool definitions in stable (sorted) order so the request

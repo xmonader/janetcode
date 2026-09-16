@@ -135,6 +135,7 @@ var configWhen = map[string][2]string{
 	"route_cheap":         {"experimental: send a turn's mechanical steps (reads, greps, checks that already passed) to this model instead", "an eval run showed it saves cost without moving the pass rate; empty is off"},
 	"followup":            {"cheap next-prompt ghost text after a turn; tab accepts", "you want a suggested next prompt in the input box without another full turn"},
 	"computer_use":        {"start Cua Driver as an MCP server when cua-driver is on PATH", "you want the model to operate the desktop through accessibility, not pixel clicks"},
+	"advisor_model":       {"model the deferred advisor tool consults when the executor is stuck; empty is the session model", "you want a stronger model to advise a cheap executor without putting advisor on every request"},
 }
 
 // harnessFeatures are the things janetcode does without being asked.
@@ -182,6 +183,10 @@ var harnessFeatures = []feature.Feature{
 		What:   "the status line cycles through seeded Claude verbs and Qwen loading phrases while waiting on the model",
 		When:   "the spinner would otherwise sit on the word thinking",
 		Topics: []string{"spinner", "thinking", "flavor", "status", "fun", "moonwalking", "qwen"}},
+	{Name: "advisor", Kind: feature.KindBehave, Invoke: "advisor (model tool)", Manual: "interface",
+		What:   "a deferred consult the executor calls when stuck; the harness forwards the transcript; at most 3 uses per turn; never on the always-on schema list",
+		When:   "a cheap executor is spinning and a stronger model has an information edge from the transcript",
+		Topics: []string{"stuck", "advise", "consult", "oversight", "planner"}},
 	{Name: "Cua Driver", Kind: feature.KindBehave, Invoke: "/cua on", Manual: "interface",
 		What:   "Cua Driver (cua-driver or open-computer-use) is started as an MCP server so the model can observe accessibility trees and act on element tokens; screenshots from the driver are attached as images",
 		When:   "you want desktop automation that is not raw xdotool clicks",

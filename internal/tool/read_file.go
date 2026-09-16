@@ -18,6 +18,9 @@ type ReadFile struct {
 	WS *Workspace
 	// Seen, when set, records what was read for later conflict checks.
 	Seen *Seen
+	// Cache, when set, is shared with subagents so a second read of the
+	// same unchanged file does not hit disk.
+	Cache *IOCache
 }
 
 func (ReadFile) Name() string { return "read_file" }
@@ -47,12 +50,25 @@ func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error
 	if err != nil {
 		return "", err
 	}
-	if st, serr := statOf(ctx, t.WS, p); serr == nil && st.IsDir() {
+	st, serr := statOf(ctx, t.WS, p)
+	if serr == nil && st.IsDir() {
 		return "", fmt.Errorf("%s is a directory; list_dir shows what is in it and glob finds files by pattern", in.Path)
 	}
-	data, err := readFileOf(ctx, t.WS, p)
-	if err != nil {
-		return "", err
+	var data []byte
+	if serr == nil {
+		if cached, ok := t.Cache.Get(p, st.ModTime(), st.Size()); ok {
+			data = cached
+		}
+	}
+	if data == nil {
+		var err error
+		data, err = readFileOf(ctx, t.WS, p)
+		if err != nil {
+			return "", err
+		}
+		if st2, e2 := statOf(ctx, t.WS, p); e2 == nil {
+			t.Cache.Put(p, st2.ModTime(), st2.Size(), data)
+		}
 	}
 	if isBinary(data) {
 		return "", fmt.Errorf("%s is a binary file (%d bytes)", in.Path, len(data))

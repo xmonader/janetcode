@@ -164,6 +164,12 @@ type Agent struct {
 	Tools    *tool.Registry
 	System   string
 	Model    string
+	// AdvisorModel, when set, is the model advisor consults. Empty uses
+	// the session model. The tool itself is deferred.
+	AdvisorModel string
+	advisorUses  int32
+	// Files is the I/O cache shared with subagents. Nil disables it.
+	Files *tool.IOCache
 	// MaxTokens per model call. Zero lets the provider choose.
 	MaxTokens int
 	// Effort is the reasoning tier every model call asks for, one of
@@ -357,6 +363,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	}
 	a.stats.turn()
 	a.startTurn()
+	atomic.StoreInt32(&a.advisorUses, 0)
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {
