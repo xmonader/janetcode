@@ -282,7 +282,7 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 	e.Description = oneLine(e.Description, MaxIndexLine)
 	e.Body = strings.TrimSpace(e.Body)
 	if len(e.Body) > MaxBody {
-		e.Body = e.Body[:MaxBody-1] + "…"
+		e.Body = textfmt.ClipBytes(e.Body, MaxBody)
 	}
 	if e.Description == "" && e.Body == "" {
 		return Entry{}, Unchanged, errors.New("nothing to remember")

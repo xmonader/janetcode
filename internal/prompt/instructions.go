@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Project instructions are not one file. A repository says something
@@ -94,7 +96,7 @@ func readInstruction(dir, root string, budget *int) (Instruction, bool) {
 			continue
 		}
 		if len(text) > maxInstructionBytes {
-			text = text[:maxInstructionBytes] + "\n... (truncated)"
+			text = textfmt.CutBytes(text, maxInstructionBytes) + "\n... (truncated)"
 		}
 		*budget -= len(text)
 		label := name
@@ -174,7 +176,7 @@ func importedText(ref, dir, root string, seen map[string]bool, depth int, budget
 	seen[key] = true
 	body := strings.TrimSpace(string(data))
 	if len(body) > *budget {
-		body = body[:max(*budget, 0)] + "\n... (truncated)"
+		body = textfmt.CutBytes(body, max(*budget, 0)) + "\n... (truncated)"
 	}
 	return expandImports(body, filepath.Dir(target), root, seen, depth+1, budget)
 }

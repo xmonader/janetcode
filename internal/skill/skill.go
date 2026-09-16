@@ -347,7 +347,7 @@ func IndexWithin(skills []Skill, budget int) string {
 func (s Skill) Block() llm.Block {
 	body := s.Body
 	if len(body) > MaxBody {
-		body = body[:MaxBody] + "\n[skill truncated]"
+		body = textfmt.CutBytes(body, MaxBody) + "\n[skill truncated]"
 	}
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "<skill name=%q source=%q>\n%s\n", s.Name, s.Path, body)
