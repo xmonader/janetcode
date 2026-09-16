@@ -81,9 +81,16 @@ func writeClipboardText(s string) error {
 			continue
 		}
 		tried = append(tried, c.name)
-		cmd := exec.Command(c.name, c.args...)
+		// Bounded like the read above: this runs on the UI goroutine, and
+		// a helper that does not return (a Wayland clipboard manager that
+		// holds the selection in the foreground) would freeze the window
+		// rather than fail to copy.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cmd := exec.CommandContext(ctx, c.name, c.args...)
 		cmd.Stdin = strings.NewReader(s)
-		if err := cmd.Run(); err == nil {
+		err := cmd.Run()
+		cancel()
+		if err == nil {
 			return nil
 		}
 	}

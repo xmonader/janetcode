@@ -117,6 +117,69 @@ func TestUnsupportedAndUnparsable(t *testing.T) {
 	}
 }
 
+// A decorated function is one declaration. The Python query used to
+// name it twice — once as a function_definition and once as the
+// definition inside the decorated_definition wrapping it — so every
+// decorated function went into the map twice.
+func TestNoDeclarationIsCapturedTwice(t *testing.T) {
+	cases := []struct{ path, src string }{
+		{"a.py", "@app.route(\"/\")\ndef handler(req):\n    return req\n\n@dataclass\nclass Thing:\n    pass\n"},
+		{"a.ts", "export class Store { put(k: string) {} }\nexport function load(): Store { return new Store() }\n"},
+		{"a.rs", "pub struct Store { n: usize }\npub fn load() -> Store { Store { n: 0 } }\n"},
+	}
+	for _, c := range cases {
+		defs, _, ok := Symbols(c.path, []byte(c.src))
+		if !ok {
+			t.Fatalf("%s: not parsed", c.path)
+		}
+		seen := map[repomap.Symbol]bool{}
+		for _, d := range defs {
+			if seen[d] {
+				t.Errorf("%s: %+v captured twice (all: %+v)", c.path, d, defs)
+			}
+			seen[d] = true
+		}
+	}
+	// And the decorated function is still found.
+	defs, _, _ := Symbols("a.py", []byte("@app.route(\"/\")\ndef handler(req):\n    return req\n"))
+	if got := names(defs); got["handler"] != "func" {
+		t.Fatalf("decorated function lost: %v", got)
+	}
+}
+
+// Every extension of one language shares a single grammar value, so the
+// grammar and its query are loaded and compiled once rather than once
+// per extension.
+func TestOneGrammarPerLanguage(t *testing.T) {
+	for _, group := range [][]string{
+		{".js", ".jsx", ".mjs", ".cjs"},
+		{".ts", ".mts", ".cts"},
+		{".c", ".h"},
+	} {
+		first := languages[group[0]]
+		if first == nil {
+			t.Fatalf("no grammar for %s", group[0])
+		}
+		for _, ext := range group[1:] {
+			if languages[ext] != first {
+				t.Errorf("%s and %s do not share a grammar value", group[0], ext)
+			}
+		}
+	}
+	// And the queries still compile: a typo in a pattern is rejected by
+	// the grammar, not silently ignored.
+	seen := map[*language]bool{}
+	for ext, l := range languages {
+		if seen[l] {
+			continue
+		}
+		seen[l] = true
+		if err := l.load(); err != nil {
+			t.Errorf("%s (%s): %v", ext, l.name, err)
+		}
+	}
+}
+
 // Parser is what the composition root hands to the repository map, so a
 // build with the tag has one and a build without it does not.
 func TestParserIsTheRepomapHook(t *testing.T) {

@@ -166,9 +166,19 @@ func (r *modelRouter) resolveCheap(cur llm.Provider, emit func(Event)) (llm.Prov
 	} else if prov, model, err := r.Route(name); err != nil {
 		st.disabled = true
 		notice = "route_cheap: cannot route to " + name + ": " + err.Error() + "; step routing is off for this session"
+	} else if prov == nil && cur == nil {
+		// Nothing to send the call to: routing with a nil provider would
+		// be a panic one step later.
+		st.disabled = true
+		notice = "route_cheap: " + name + " resolved to no provider; step routing is off for this session"
 	} else {
-		same := cur != nil && prov != nil && prov.Name() == cur.Name()
-		st.prov, st.model, st.sameProvider = prov, model, same
+		if prov == nil {
+			// A router that answers with no provider means the session's
+			// own serves that model (see sideQuery).
+			prov = cur
+		}
+		st.prov, st.model = prov, model
+		st.sameProvider = cur != nil && prov.Name() == cur.Name()
 	}
 	r.routeMu.Lock()
 	if r.RouteCheap == name {

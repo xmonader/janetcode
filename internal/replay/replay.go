@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -125,7 +126,7 @@ func Read(r io.Reader) (*Provider, error) {
 		return nil, err
 	}
 	if len(p.responses) == 0 {
-		return nil, fmt.Errorf("replay: %s holds no assistant messages", "the recording")
+		return nil, errors.New("replay: the recording holds no assistant messages")
 	}
 	return p, nil
 }

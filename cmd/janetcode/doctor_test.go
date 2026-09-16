@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,7 +42,7 @@ func TestDoctorReportsProjectFeatures(t *testing.T) {
 	t.Cleanup(func() { os.Chdir(old) })
 
 	var out bytes.Buffer
-	err := doctor(&out, config.Overrides{}, false)
+	err := doctor(context.Background(), &out, config.Overrides{}, false)
 	if err == nil || !strings.Contains(err.Error(), "check(s) failed") {
 		t.Fatalf("err = %v; want a credential failure", err)
 	}
@@ -63,7 +65,7 @@ func TestDoctorReportsProjectFeatures(t *testing.T) {
 	// A broken hooks file is a failure, not a crash.
 	os.WriteFile(filepath.Join(work, ".janetcode", "hooks.json"), []byte(`{"bogus_event": []}`), 0o644)
 	out.Reset()
-	doctor(&out, config.Overrides{}, false)
+	doctor(context.Background(), &out, config.Overrides{}, false)
 	if !strings.Contains(out.String(), "[FAIL] hooks") {
 		t.Fatalf("broken hooks not reported:\n%s", out.String())
 	}
@@ -93,21 +95,36 @@ func TestDoctorFixListsThenRepairs(t *testing.T) {
 	t.Cleanup(func() { os.Chdir(old) })
 
 	var out bytes.Buffer
-	doctor(&out, config.Overrides{}, false)
+	doctor(context.Background(), &out, config.Overrides{}, false)
 	if !strings.Contains(out.String(), "would fix: trust .janetcode/verify.json") {
 		t.Fatalf("the checkup did not offer the repair:\n%s", out.String())
 	}
 	out.Reset()
-	doctor(&out, config.Overrides{}, true)
+	doctor(context.Background(), &out, config.Overrides{}, true)
 	if !strings.Contains(out.String(), "fixed: trust .janetcode/verify.json") {
 		t.Fatalf("--fix did not report the repair:\n%s", out.String())
 	}
 	out.Reset()
-	doctor(&out, config.Overrides{}, true)
+	doctor(context.Background(), &out, config.Overrides{}, true)
 	if strings.Contains(out.String(), "fixed: ") || !strings.Contains(out.String(), "nothing to fix") {
 		t.Fatalf("--fix repeated itself:\n%s", out.String())
 	}
 	if !strings.Contains(out.String(), "verify         1 command in .janetcode/verify.json · trusted") {
 		t.Errorf("verify is not reported as trusted after the repair:\n%s", out.String())
+	}
+}
+
+// The checkup reads the whole machine and calls the model. A caller that
+// no longer wants the answer -- a quit TUI, a ctrl+c'd terminal -- gets
+// out of it instead of waiting for the provider's own timeout.
+func TestDoctorHonoursCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var out bytes.Buffer
+	if err := doctor(ctx, &out, config.Overrides{}, false); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("wrote a report for a cancelled checkup:\n%s", out.String())
 	}
 }

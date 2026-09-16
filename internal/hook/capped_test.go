@@ -34,17 +34,23 @@ func TestCappedStopsOnARuneBoundary(t *testing.T) {
 	}
 }
 
-func TestMatchesToolIsCachedAndSafe(t *testing.T) {
-	if !matchesTool("^bash$", "bash") || matchesTool("^bash$", "read_file") {
+func TestMatchReIsCachedAndSafe(t *testing.T) {
+	re, err := matchRe("^bash$")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !re.MatchString("bash") || re.MatchString("read_file") {
 		t.Fatal("a valid pattern matched wrongly")
 	}
-	// Twice, to go through the memo.
-	if !matchesTool("^bash$", "bash") {
-		t.Fatal("the cached pattern stopped matching")
+	// Twice: the second answer is the memoised one, the same compiled
+	// pattern back.
+	re2, err := matchRe("^bash$")
+	if err != nil || re2 != re {
+		t.Fatal("the cached pattern was not the one returned first")
 	}
-	// A pattern that does not compile matches nothing; Validate is what
-	// reports it to whoever wrote it.
-	if matchesTool("([", "bash") {
-		t.Fatal("a broken pattern should match nothing")
+	// A pattern that does not compile is an error the runner logs, not a
+	// hook that silently never runs.
+	if _, err := matchRe("(["); err == nil {
+		t.Fatal("a broken pattern must be reported")
 	}
 }

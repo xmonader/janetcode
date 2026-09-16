@@ -124,7 +124,7 @@ func applyLandlock(spec landlockSpec) error {
 	attr := unix.LandlockRulesetAttr{Access_fs: handledAccess(abi)}
 	if !spec.Net {
 		if abi < 4 {
-			return fmt.Errorf("this kernel's Landlock ABI is %d: it cannot take the network away (needs ABI 4)", abi)
+			return fmt.Errorf("this kernel's Landlock ABI is %d, which cannot take the network away (needs ABI 4)", abi)
 		}
 		attr.Access_net = unix.LANDLOCK_ACCESS_NET_BIND_TCP | unix.LANDLOCK_ACCESS_NET_CONNECT_TCP
 	}

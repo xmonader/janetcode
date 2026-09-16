@@ -147,3 +147,28 @@ func TestProbeFactsRunsEachOnACopy(t *testing.T) {
 		t.Fatalf("probing changed the agent's history: %d messages", len(ag.Messages))
 	}
 }
+
+// A line that reports a problem is worth +10, and that is the fact a
+// resumed agent actually needs. The scores were compared against
+// len(anchor) — the length of the anchor picked so far, not a score at
+// all — so a later ordinary line could displace an error line whose
+// chosen anchor happened to be a short word.
+func TestAnchoredLinePrefersTheLineThatReportsAProblem(t *testing.T) {
+	// The error line's own anchor is short, and the line after it carries
+	// more identifiers than that anchor has characters — which is exactly
+	// the comparison the old code made.
+	out := strings.Join([]string{
+		"error: cannot open datum store",
+		"finished walking directories alpha gamma delta epsilon theta",
+	}, "\n")
+	anchor, line := anchoredLine(out)
+	if !strings.HasPrefix(line, "error:") {
+		t.Fatalf("anchored line = %q, want the error line", line)
+	}
+	if anchor == "" || !strings.Contains(line, anchor) {
+		t.Fatalf("anchor %q is not in the line %q", anchor, line)
+	}
+	if len(anchor) >= len(line)/2 {
+		t.Fatalf("anchor %q is most of the answer %q", anchor, line)
+	}
+}

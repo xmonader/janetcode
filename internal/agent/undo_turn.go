@@ -124,12 +124,20 @@ func (a *Agent) PreviewUndoTurn(ctx context.Context, n int, filesOnly bool) (Tur
 	if a.running.Load() {
 		return TurnRestore{}, ErrTurnRunning
 	}
+	// Phase 1 (locked): find the checkpoint and fingerprint the stack it
+	// came from. Everything after this works on copies, so the git calls
+	// below — a Moved and a Diff, up to thirty seconds each — run with
+	// cp.mu dropped.
 	a.cp.mu.Lock()
-	defer a.cp.mu.Unlock()
 	cp, ok := a.checkpointForTurn(n)
 	if !ok {
-		return TurnRestore{}, a.noTurnCheckpoint(n)
+		err := a.noTurnCheckpoint(n)
+		a.cp.mu.Unlock()
+		return TurnRestore{}, err
 	}
+	fingerprint := a.turnFingerprint()
+	a.cp.mu.Unlock()
+
 	tr := TurnRestore{Turn: n, When: cp.When, FilesOnly: filesOnly}
 	repo := a.snaps()
 	if cp.Snap != nil && repo != nil {
@@ -154,7 +162,7 @@ func (a *Agent) PreviewUndoTurn(ctx context.Context, n int, filesOnly bool) (Tur
 	if !filesOnly {
 		tr.Conversation, tr.NoRewind = a.previewRewind(cp)
 	}
-	a.pendingUndo = &pendingUndo{fingerprint: a.turnFingerprint(), turn: &tr, cp: cp}
+	a.pendingUndo = &pendingUndo{fingerprint: fingerprint, turn: &tr, cp: cp}
 	return tr, nil
 }
 
@@ -165,9 +173,20 @@ func (a *Agent) PreviewUndoTurn(ctx context.Context, n int, filesOnly bool) (Tur
 // (so the restore is itself undoable, and shows up in /changes and
 // /blame like any other edit), and the checkpoints of that turn and
 // everything after it are dropped, since the states they describe are no
-// longer ahead of the tree. Called with cp.mu held; it unlocks around
-// the work the way Undo does.
-func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpoint) (UndoReport, error) {
+// longer ahead of the tree.
+//
+// It takes cp.mu itself, in the same phases Undo uses: check the stack is
+// still the one the preview described (locked), put the tree back
+// (unlocked, up to a minute of git), drop the checkpoints the restore
+// invalidated (locked), then persist and report (unlocked). fingerprint
+// is the stack as PreviewUndoTurn saw it.
+func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpoint, fingerprint string) (UndoReport, error) {
+	a.cp.mu.Lock()
+	stale := a.turnFingerprint() != fingerprint
+	a.cp.mu.Unlock()
+	if stale {
+		return UndoReport{}, ErrUndoSelectionStale
+	}
 	paths := previewPaths(tr.Lines)
 	before := make(map[string][]byte, len(paths))
 	existed := make(map[string]bool, len(paths))
@@ -197,6 +216,7 @@ func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpo
 	if err != nil {
 		return UndoReport{}, err
 	}
+	a.cp.mu.Lock()
 	a.dropFromTurn(ctx, tr.Turn)
 	a.cp.dirty = true
 	a.cp.mu.Unlock()
@@ -229,7 +249,6 @@ func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpo
 		rep.Rewound = a.rewindConversation(cp, rep.Reverted)
 	}
 	a.reportChecks(ctx, &rep, Selection{})
-	a.cp.mu.Lock()
 	return rep, nil
 }
 
@@ -257,7 +276,8 @@ func (a *Agent) dropFromTurn(ctx context.Context, n int) {
 }
 
 // checkpointPreview lists what restoring a checkpoint would change, one
-// "verb path" line per file. Called with cp.mu held.
+// "verb path" line per file. cp is a copy, so it takes no lock, and its
+// git diff must not run with cp.mu held.
 func (a *Agent) checkpointPreview(ctx context.Context, cp Checkpoint) ([]string, error) {
 	var out []string
 	seen := map[string]bool{}

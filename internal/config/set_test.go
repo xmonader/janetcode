@@ -1,6 +1,74 @@
 package config
 
-import "testing"
+import (
+	"sort"
+	"testing"
+)
+
+// SettableKeys is what /config advertises. It is derived from the table
+// now, but the contract is what matters: nothing advertised that cannot
+// be set, nothing settable that is not advertised, and a stable order so
+// the listing does not shuffle between runs.
+func TestSettableKeysMatchTheTable(t *testing.T) {
+	if len(SettableKeys) != len(setters) {
+		t.Fatalf("%d keys advertised, %d implemented", len(SettableKeys), len(setters))
+	}
+	for _, k := range SettableKeys {
+		if _, ok := setters[k]; !ok {
+			t.Errorf("%q is advertised but not implemented", k)
+		}
+	}
+	if !sort.StringsAreSorted(SettableKeys) {
+		t.Errorf("SettableKeys is not sorted: %v", SettableKeys)
+	}
+	for _, want := range []string{"model", "effort", "theme", "sandbox", "auto_approve", "max_tokens"} {
+		if _, ok := setters[want]; !ok {
+			t.Errorf("%q is no longer settable", want)
+		}
+	}
+}
+
+// Every catalogued key refuses an unusable value rather than storing it,
+// and none of them panics on one.
+func TestEverySettableKeyRefusesJunk(t *testing.T) {
+	// Keys whose value is an opaque name this package cannot check: a
+	// model id, a route, a theme. They are validated where they are used.
+	free := map[string]bool{"route_cheap": true, "advisor_model": true, "theme": true, "model": true}
+	for _, k := range SettableKeys {
+		if free[k] {
+			continue
+		}
+		if _, err := ApplyKV(&Config{}, k, "!! not a value !!"); err == nil {
+			t.Errorf("%s accepted junk", k)
+		}
+	}
+	// model does refuse the one value it can judge.
+	if _, err := ApplyKV(&Config{}, "model", ""); err == nil {
+		t.Error("an empty model was accepted")
+	}
+	if _, err := ApplyKV(&Config{}, "no_such_key", "1"); err == nil {
+		t.Error("an unknown key was accepted")
+	}
+	if _, err := ApplyKV(nil, "model", "m"); err == nil {
+		t.Error("a nil config was accepted")
+	}
+}
+
+// The two capped integers refuse zero and below: that is not a smaller
+// budget, it is a session that cannot make a call.
+func TestPositiveIntKeysRefuseZero(t *testing.T) {
+	for _, k := range []string{"max_tokens", "max_iterations"} {
+		for _, v := range []string{"0", "-1"} {
+			if _, err := ApplyKV(&Config{}, k, v); err == nil {
+				t.Errorf("%s accepted %s", k, v)
+			}
+		}
+	}
+	// compact_at is not capped that way: 0 means "use the default".
+	if _, err := ApplyKV(&Config{}, "compact_at", "0"); err != nil {
+		t.Errorf("compact_at=0: %v", err)
+	}
+}
 
 func TestApplyKVThinking(t *testing.T) {
 	cfg := &Config{}

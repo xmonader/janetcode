@@ -25,9 +25,13 @@ const maxRestarts = 2
 
 // client is one running language server.
 type client struct {
-	// warmOnce guards opening the project's files for the first
-	// project-wide query.
-	warmOnce sync.Once
+	// warmMu guards warmed, which says the project's other files have
+	// been opened for this server. It is held across the walk, so a
+	// second project-wide query waits rather than walking the tree again;
+	// a walk that gave up on its caller's context does not set it, so the
+	// next query tries again instead of asking a cold server.
+	warmMu sync.Mutex
+	warmed bool
 	// synced is the content hash last sent per document, so a query does
 	// not make the server re-parse a file that has not changed.
 	synced map[string][32]byte
@@ -42,12 +46,17 @@ type client struct {
 	docs   map[string]int           // uri → version sent
 	diags  map[string]diagState     // uri → latest
 	waits  map[string]chan struct{} // uri → closed on the next publish
-	done   chan struct{}
+	// done is closed when the server stopped writing, for whatever
+	// reason; alive and every waiting call watch it.
+	done chan struct{}
 	// reaped is closed once cmd.Wait has returned. done only says the
 	// server stopped writing; stopping the process group has to wait for
 	// the real exit, or close returns while a zombie is still there.
 	reaped chan struct{}
-	err    error
+	// err is why the server stopped answering, guarded by pendM. The
+	// first reason wins: a frame the reader refused explains more than
+	// the exit status that follows it.
+	err error
 }
 
 type diagState struct {
@@ -100,13 +109,7 @@ func start(ctx context.Context, root string, command []string, log func(string))
 	go func() {
 		err := cmd.Wait()
 		close(c.reaped)
-		c.pendM.Lock()
-		c.err = fmt.Errorf("%s exited: %v %s", command[0], err, strings.TrimSpace(stderr.String()))
-		for id, ch := range c.pend {
-			close(ch)
-			delete(c.pend, id)
-		}
-		c.pendM.Unlock()
+		c.fail(fmt.Errorf("%s exited: %v %s", command[0], err, strings.TrimSpace(stderr.String())))
 	}()
 	ictx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -178,7 +181,8 @@ func (c *client) diagnose(ctx context.Context, abs, text string, timeout time.Du
 	}
 	// Servers that support didSave often run their heavier checks then.
 	_ = c.notify("textDocument/didSave", map[string]any{"textDocument": map[string]any{"uri": uri}})
-	deadline := time.After(timeout)
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
 	for {
 		c.docM.Lock()
 		st := c.diags[uri]
@@ -189,7 +193,7 @@ func (c *client) diagnose(ctx context.Context, abs, text string, timeout time.Du
 		}
 		select {
 		case <-wait:
-		case <-deadline:
+		case <-deadline.C:
 			return st.items, false, nil
 		case <-ctx.Done():
 			return nil, false, ctx.Err()
@@ -236,6 +240,21 @@ func (c *client) exitError() error {
 	return errors.New("language server closed its output")
 }
 
+// fail records why the server stopped answering and wakes every call
+// waiting for one. The first reason wins, because the reader usually
+// knows more than the exit status that follows it.
+func (c *client) fail(err error) {
+	c.pendM.Lock()
+	defer c.pendM.Unlock()
+	if c.err == nil {
+		c.err = err
+	}
+	for id, ch := range c.pend {
+		close(ch)
+		delete(c.pend, id)
+	}
+}
+
 // close asks the server to shut down, then stops its whole process group
 // so nothing it forked outlives the session.
 func (c *client) close() {
@@ -277,6 +296,15 @@ func (c *client) call(ctx context.Context, method string, params any) (json.RawM
 		delete(c.pend, id)
 		c.pendM.Unlock()
 		return nil, ctx.Err()
+	case <-c.done:
+		// The reader is gone, so no answer is coming — but the process
+		// may well still be running, so nothing else would notice and
+		// this call would have waited out its whole deadline, as would
+		// every call after it.
+		c.pendM.Lock()
+		delete(c.pend, id)
+		c.pendM.Unlock()
+		return nil, c.exitError()
 	}
 }
 
@@ -312,6 +340,14 @@ func (c *client) read(r *bufio.Reader) {
 	for {
 		body, err := readMessage(r)
 		if err != nil {
+			// An end of stream is the server exiting, which the reaper
+			// reports with its stderr. Anything else is the stream itself
+			// going wrong — a frame bigger than the limit, a header that
+			// is not LSP — and is the only account anyone will get of it,
+			// since the process may keep running.
+			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+				c.fail(err)
+			}
 			return
 		}
 		var msg struct {

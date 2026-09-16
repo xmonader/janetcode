@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/agent"
-	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
@@ -20,10 +19,7 @@ func cdModel(t *testing.T) (m *model, cd *agent.CD, here, sib string) {
 			t.Fatal(err)
 		}
 	}
-	sess, err := session.New(t.TempDir(), here, "fake", "m")
-	if err != nil {
-		t.Fatal(err)
-	}
+	sess := newSession(t, here)
 	ws := tool.NewLocal(here)
 	ag := &agent.Agent{Tools: tool.NewRegistry(tool.WriteFile{Root: here, WS: ws}), Model: "m", Log: sess, Root: here}
 	cd = agent.NewCD(here)

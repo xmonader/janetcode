@@ -356,7 +356,13 @@ func (c Comparison) ContextSignificant() bool {
 // bootstrap. Means are per run of that task, passed or not: a change that
 // makes runs cheaper by failing sooner is a change worth seeing, and the
 // pass-rate delta printed beside it is what says whether that happened.
+//
+// name is carried so pairCosts can order the slice by it. The bootstrap's
+// rng is seeded, so the sequence of resampled *indices* is fixed; unless
+// the pairs behind those indices are in a fixed order too, the interval
+// still moves from run to run and a reproducible seed buys nothing.
 type pair struct {
+	name            string
 	base, cur       float64
 	baseCtx, curCtx float64
 	baseOut, curOut float64
@@ -372,10 +378,8 @@ func ratioCI(pairs []pair, pick func(pair) (float64, float64)) (ratio, lo, hi fl
 	// overclaim this file exists to prevent, so below minPairs the ratio
 	// is reported without an interval and never called significant.
 	const minPairs = 3
-	if len(pairs) < minPairs {
-		if len(pairs) == 0 {
-			return 0, 0, 0, false
-		}
+	if len(pairs) == 0 {
+		return 0, 0, 0, false
 	}
 	sum := func(idx []int) (b, c float64) {
 		for _, i := range idx {
@@ -476,11 +480,14 @@ func (c *Comparison) pairCosts(base, cur []Result) {
 		if !ok {
 			continue
 		}
-		pairs = append(pairs, pair{base: b, cur: cv, baseCtx: bctx[name], curCtx: cctx[name], baseOut: bout[name], curOut: cout[name]})
+		pairs = append(pairs, pair{name: name, base: b, cur: cv, baseCtx: bctx[name], curCtx: cctx[name], baseOut: bout[name], curOut: cout[name]})
 	}
 	if len(pairs) == 0 {
 		return
 	}
+	// Map iteration order is randomised per run; sort so the seeded
+	// bootstrap below resamples the same tasks every time (see pair).
+	sort.Slice(pairs, func(i, j int) bool { return pairs[i].name < pairs[j].name })
 	c.Paired = true
 	if bknown && cknown {
 		c.CostRatio, c.CostRatioLo, c.CostRatioHi, _ = ratioCI(pairs, func(p pair) (float64, float64) { return p.base, p.cur })

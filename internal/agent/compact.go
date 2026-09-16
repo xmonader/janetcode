@@ -279,7 +279,7 @@ func (a *Agent) compact(ctx context.Context, emit func(Event), force bool) error
 			emit(Event{Kind: EvCompacted, Text: fmt.Sprintf("context pruned: ~%d → ~%d tokens (%d old results condensed, no summary needed)", before, a.EstimateTokens(), replaced)})
 			return nil
 		}
-		if since := time.Since(a.summaryFailedAt); a.summaryFailedAt.IsZero() == false && since < summaryCooldown {
+		if since := time.Since(a.summaryFailedAt); !a.summaryFailedAt.IsZero() && since < summaryCooldown {
 			emit(Event{Kind: EvNotice, Text: fmt.Sprintf("context summary skipped: the last summary call failed %s ago; pruned to ~%d tokens instead", since.Round(time.Second), a.EstimateTokens())})
 			return nil
 		}
@@ -512,6 +512,13 @@ func sortedKeys(m map[string]bool) []string {
 // which was most of what a summary cost. A model that answers the
 // instruction with a tool call instead of text gets one cold retry with
 // the instruction as the system prompt and no tools.
+//
+// The tool array has to be the turn's own (turnTools), not the whole
+// registry: under read-only or plan mode the turn hides the mutating
+// tools, and a server that registers mid-turn is deliberately held back
+// until the next turn. Sending a different array here moves the prefix
+// and re-bills the replayed head as fresh input, which is the one thing
+// this arrangement exists to avoid.
 func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction string, schema *llm.Schema) (*llm.Response, error) {
 	msgs := append(append([]llm.Message{}, head...), llm.TextMessage(llm.RoleUser, instruction+"\n\nReply with text only; do not call tools."))
 	s := a.Settings()
@@ -519,7 +526,7 @@ func (a *Agent) summarise(ctx context.Context, head []llm.Message, instruction s
 		Model:     s.Model,
 		System:    a.systemPrompt(),
 		Messages:  msgs,
-		Tools:     a.Tools.Defs(),
+		Tools:     a.turnTools(),
 		MaxTokens: s.MaxTokens,
 		Effort:    s.Effort,
 		Schema:    schema,

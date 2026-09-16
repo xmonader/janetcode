@@ -35,10 +35,10 @@ func (s *server) trajectoryAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) trajectoryRows() []trajRow {
-	if s.opts.Session == nil {
+	if s.sess() == nil {
 		return []trajRow{}
 	}
-	ev := s.opts.Session.Events()
+	ev := s.sess().Events()
 	hidden := session.Shadowed(ev)
 	out := make([]trajRow, 0, len(ev))
 	for _, e := range ev {
@@ -66,11 +66,11 @@ func (s *server) trajectoryRows() []trajRow {
 }
 
 func (s *server) trajectoryDetail(w http.ResponseWriter, n int) {
-	if s.opts.Session == nil {
+	if s.sess() == nil {
 		http.Error(w, "no session", http.StatusNotFound)
 		return
 	}
-	ev := s.opts.Session.Events()
+	ev := s.sess().Events()
 	for _, e := range ev {
 		if e.Seq != n {
 			continue
@@ -113,11 +113,11 @@ func (s *server) trajectoryDetail(w http.ResponseWriter, n int) {
 }
 
 func (s *server) trajectory(arg string) {
-	if s.opts.Session == nil {
+	if s.sess() == nil {
 		s.errf("no session")
 		return
 	}
-	ev := s.opts.Session.Events()
+	ev := s.sess().Events()
 	if strings.HasPrefix(arg, "grep ") {
 		q := strings.TrimSpace(strings.TrimPrefix(arg, "grep "))
 		hits := session.QueryEvents(ev, session.QueryFilter{Text: q})

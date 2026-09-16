@@ -27,15 +27,17 @@ import (
 )
 
 // chainPrep runs turn-preparation hooks in order, joining their notes.
-func chainPrep(hooks ...func([]llm.Block) ([]llm.Block, string)) func([]llm.Block) ([]llm.Block, string) {
-	return func(blocks []llm.Block) ([]llm.Block, string) {
+// Each is given the turn's context, so cancelling the turn cancels the
+// preparation with it.
+func chainPrep(hooks ...func(context.Context, []llm.Block) ([]llm.Block, string)) func(context.Context, []llm.Block) ([]llm.Block, string) {
+	return func(ctx context.Context, blocks []llm.Block) ([]llm.Block, string) {
 		var notes []string
 		for _, h := range hooks {
 			if h == nil {
 				continue
 			}
 			var note string
-			blocks, note = h(blocks)
+			blocks, note = h(ctx, blocks)
 			if note != "" {
 				notes = append(notes, note)
 			}
@@ -213,77 +215,170 @@ func (b builtAgent) close() {
 	b.once.Do(done)
 }
 
-// buildAgent wires one agent for a session: tools rooted at the project,
-// the system prompt, skills and memory, diagnostics, the repository map
-// and the trajectory critic.
-func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (builtAgent, error) {
-	cd := agent.NewCD(d.cwd)
-	task := &agent.Task{Root: d.cwd, Models: d.models}
-	jobs := d.jobs
-	cfgDir := d.cfgDir
-	archive := agent.NewArchive(session.ArchiveDir(d.sessDir, d.cwd))
-	mem := d.mem
-	seen := &tool.Seen{}
-	ws := tool.NewLocal(d.cwd)
-	sb := &shell.Sandbox{}
-	// The sandbox config key names the profile a session in this project
-	// starts under; --sandbox turns one on without naming a profile, and
-	// means the default one.
-	profile := d.cfg.Sandbox
-	if profile == "off" {
-		profile = ""
+// sandboxProfile decides which sandbox profile a session starts under.
+// The config key names the profile a session in this project starts with;
+// "off" is the explicit opt-out and beats --sandbox, which only asks for
+// "a sandbox" and so means the default profile. "" is no sandbox.
+func sandboxProfile(configured string, sandboxFlag bool) string {
+	if configured == "off" {
+		return ""
 	}
-	if profile == "" && d.sandboxOn {
-		profile = shell.DefaultProfile
+	if configured != "" {
+		return configured
 	}
+	if sandboxFlag {
+		return shell.DefaultProfile
+	}
+	return ""
+}
+
+// agentBuilder assembles one session's agent in named steps. It exists
+// because the wiring is long, order-dependent and hard to see: every
+// field below is produced by one step and consumed by a later one, so
+// the dependencies are written down rather than implied by the order of
+// two hundred statements. Each step is a method that can be run on its
+// own in a test with whatever pieces it actually needs.
+type agentBuilder struct {
+	d       agentDeps
+	sess    *session.Session
+	history []llm.Message
+	// off is JANETCODE_OFF read once. It was read four times, which meant
+	// a session could in principle disagree with itself about what is
+	// switched off.
+	off map[string]bool
+
+	// Produced by the steps, in the order they run.
+	cd      *agent.CD
+	task    *agent.Task
+	archive *agent.Archive
+	ws      *tool.Workspace
+	seen    *tool.Seen
+	files   *tool.IOCache
+	sb      *shell.Sandbox
+	cron    *agent.Cron
+	terms   *tool.Terms
+	expand  *agent.ExpandOutput
+	ag      *agent.Agent
+	script  *agent.Script
+	diag    *lsp.Manager
+	repo    *repomap.Cache
+	skills  func() []skill.Skill
+	rules   func() []rules.Rule
+	skillIn *skill.Injector
+	ruleIn  *rules.Injector
+}
+
+func newAgentBuilder(d agentDeps, sess *session.Session, history []llm.Message) *agentBuilder {
+	return &agentBuilder{
+		d: d, sess: sess, history: history, off: envOff(),
+		cd:      agent.NewCD(d.cwd),
+		task:    &agent.Task{Root: d.cwd, Models: d.models},
+		archive: agent.NewArchive(session.ArchiveDir(d.sessDir, d.cwd)),
+		ws:      tool.NewLocal(d.cwd),
+		seen:    &tool.Seen{},
+		files:   &tool.IOCache{},
+		sb:      &shell.Sandbox{},
+		terms:   &tool.Terms{},
+	}
+}
+
+// buildSteps is the build, in order. Naming the steps means a failure
+// says which part of the wiring refused rather than only what it said.
+func (b *agentBuilder) buildSteps() []struct {
+	name string
+	fn   func() error
+} {
+	return []struct {
+		name string
+		fn   func() error
+	}{
+		{"sandbox", b.stepSandbox},
+		{"workspace", b.stepWorkspace},
+		{"loops", b.stepLoops},
+		{"core", b.stepCore},
+		{"session state", b.stepSessionState},
+		{"agent tools", b.stepAgentTools},
+		{"knowledge", b.stepKnowledge},
+		{"diagnostics", b.stepDiagnostics},
+		{"search tools", b.stepSearchTools},
+		{"turn hooks", b.stepTurnHooks},
+		{"undo", b.stepUndo},
+	}
+}
+
+// stepSandbox turns on the shell sandbox this session runs under, if any,
+// and hands it to the background job runner as well: a job started from a
+// sandboxed session is sandboxed too.
+func (b *agentBuilder) stepSandbox() error {
+	profile := sandboxProfile(b.d.cfg.Sandbox, b.d.sandboxOn)
 	if profile != "" {
-		if err := sb.SetProfile(profile); err != nil {
-			return builtAgent{}, err
+		if err := b.sb.SetProfile(profile); err != nil {
+			return err
 		}
-		if err := sb.Enable(); err != nil {
-			return builtAgent{}, fmt.Errorf("sandbox %s: %w", profile, err)
-		}
-	}
-	if jobs != nil {
-		jobs.Sandbox = sb
-	}
-	cron := agent.NewCron()
-	if len(sess.Meta.Loops) > 0 {
-		if err := cron.Restore(sess.Meta.Loops); err != nil {
-			return builtAgent{}, fmt.Errorf("restore loops: %w", err)
+		if err := b.sb.Enable(); err != nil {
+			return fmt.Errorf("sandbox %s: %w", profile, err)
 		}
 	}
-	cron.OnChange = func(specs []session.LoopSpec) {
-		_ = sess.SetLoops(specs)
+	if b.d.jobs != nil {
+		b.d.jobs.Sandbox = b.sb
 	}
-	for _, d := range sess.Meta.ExtraDirs {
-		_ = ws.AddDir(d)
+	return nil
+}
+
+// stepWorkspace settles which local roots the file tools may touch: the
+// project, whatever the session already recorded, and this run's
+// --add-dir. A directory the session recorded but that has since gone is
+// dropped silently; one named on this command line is an error, because
+// the user just asked for it.
+func (b *agentBuilder) stepWorkspace() error {
+	for _, dir := range b.sess.Meta.ExtraDirs {
+		_ = b.ws.AddDir(dir)
 	}
-	for _, d := range d.extraDirs {
-		if err := ws.AddDir(d); err != nil {
-			return builtAgent{}, fmt.Errorf("--add-dir %s: %w", d, err)
+	for _, dir := range b.d.extraDirs {
+		if err := b.ws.AddDir(dir); err != nil {
+			return fmt.Errorf("--add-dir %s: %w", dir, err)
 		}
 	}
-	if extras := ws.ExtraDirs(); len(extras) > 0 {
-		_ = sess.SetExtraDirs(extras)
+	if extras := b.ws.ExtraDirs(); len(extras) > 0 {
+		_ = b.sess.SetExtraDirs(extras)
 	}
-	terms := &tool.Terms{}
-	expand := &agent.ExpandOutput{Archive: archive}
-	files := &tool.IOCache{}
+	return nil
+}
+
+// stepLoops restores the session's armed /loop jobs and keeps the session
+// record in step with them from here on.
+func (b *agentBuilder) stepLoops() error {
+	b.cron = agent.NewCron()
+	if len(b.sess.Meta.Loops) > 0 {
+		if err := b.cron.Restore(b.sess.Meta.Loops); err != nil {
+			return fmt.Errorf("restore loops: %w", err)
+		}
+	}
+	sess := b.sess
+	b.cron.OnChange = func(specs []session.LoopSpec) { _ = sess.SetLoops(specs) }
+	return nil
+}
+
+// stepCore builds the agent itself: the provider, the settings the
+// configuration and this run's flags settle on, and the tools that are
+// plain functions of the project directory.
+func (b *agentBuilder) stepCore() error {
+	d := b.d
+	b.expand = &agent.ExpandOutput{Archive: b.archive}
 	ag, err := agent.New(agent.Deps{
 		Provider: d.prov,
-		Log:      sess,
+		Log:      b.sess,
 		Tools: tool.NewRegistry(
-			tool.ReadFile{Root: d.cwd, WS: ws, Seen: seen, Cache: files},
-			tool.WriteFile{Root: d.cwd, WS: ws, Seen: seen, Cache: files},
-			tool.EditFile{Root: d.cwd, WS: ws, Seen: seen, NoLines: envOff()["lineedit"], Cache: files},
-			tool.Bash{Root: d.cwd, WS: ws, Cache: &tool.ShellCache{}, Jobs: jobs, Running: d.running, Sandbox: sb},
-			tool.JobTool{Jobs: jobs},
-			tool.TermTool{Terms: terms, Root: d.cwd, WS: ws},
+			tool.ReadFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files},
+			tool.WriteFile{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files},
+			tool.EditFile{Root: d.cwd, WS: b.ws, Seen: b.seen, NoLines: b.off["lineedit"], Cache: b.files},
+			tool.Bash{Root: d.cwd, WS: b.ws, Cache: &tool.ShellCache{}, Jobs: d.jobs, Running: d.running, Sandbox: b.sb},
+			tool.JobTool{Jobs: d.jobs},
+			tool.TermTool{Terms: b.terms, Root: d.cwd, WS: b.ws},
 			tool.FetchURL{Typed: d.typed},
 			tool.WebSearch{Config: d.cfg.Search},
-			expand,
-			task,
+			b.expand,
+			b.task,
 		),
 	}, agent.Settings{
 		Model:         d.cfg.Model,
@@ -300,127 +395,210 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		ProofNotes:    d.cfg.ProofNotesEnabled(),
 	})
 	if err != nil {
-		return builtAgent{}, err
+		return err
 	}
-	ag.Archive = archive
+	b.ag = ag
+	ag.Archive = b.archive
 	ag.Root = d.cwd
-	ag.Files = files
+	ag.Files = b.files
 	ag.AdvisorModel = d.cfg.AdvisorModel
-	ag.Off = envOff()
+	ag.Off = b.off
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
-	ag.Sandbox = sb
-	ag.Cron = cron
-	ag.Messages = history
-	ag.Pins = sess.Meta.Pins
-	ag.Jobs = jobs
+	ag.Sandbox = b.sb
+	ag.Cron = b.cron
+	ag.Jobs = d.jobs
 	ag.Fallbacks = d.cfg.FallbackModels
 	ag.Route = d.models
 	ag.RouteCheap = d.cfg.RouteCheap
-	expand.Log = ag.LogEvent // the archive's lookups go on the same trail
-	ag.RestoreFromLog()      // plan mode and the turn counter of a resumed session
+	b.expand.Log = ag.LogEvent // the archive's lookups go on the same trail
+	b.task.Parent = ag
+	return nil
+}
+
+// stepSessionState puts back what a resumed session already knows: its
+// history, its pins, its plan mode and turn counter, and its /accept
+// lock.
+func (b *agentBuilder) stepSessionState() error {
+	ag, sess := b.ag, b.sess
+	ag.Messages = b.history
+	ag.Pins = sess.Meta.Pins
+	ag.RestoreFromLog() // plan mode and the turn counter of a resumed session
 	ag.SetAccept(sess.Meta.Accept, func(am *session.AcceptMeta) { _ = sess.SetAccept(am) })
-	task.Parent = ag
+	return nil
+}
+
+// stepAgentTools adds the tools that need the agent itself: the ones that
+// read or drive its state, and the two batching tools that are one
+// feature between them.
+//
+// JANETCODE_OFF is the ablation switch a session has: the eval runner
+// takes -eval-off, and a real session takes the same names here, so a
+// behaviour can be turned off without a rebuild. execute_code and
+// run_code are one feature: run_code is the Python-less form, offered
+// only where execute_code cannot run, so the model is never asked to
+// choose between two ways to batch tool calls.
+func (b *agentBuilder) stepAgentTools() error {
+	ag := b.ag
 	ag.Tools.Add(&agent.GoalStatus{Parent: ag})
 	ag.Tools.Add(&agent.TodoTool{Parent: ag})
 	ag.Tools.Add(&agent.AskTool{Parent: ag})
-	// JANETCODE_OFF is the ablation switch a session has: the eval runner
-	// takes -eval-off, and a real session takes the same names here, so a
-	// behaviour can be turned off without a rebuild.
-	// execute_code and run_code are one feature: run_code is the
-	// Python-less form, offered only where execute_code cannot run, so the
-	// model is never asked to choose between two ways to batch tool calls.
-	script := &agent.Script{Parent: ag, Root: d.cwd}
-	if !envOff()["script"] && script.Available() {
+	script := &agent.Script{Parent: ag, Root: b.d.cwd}
+	if !b.off["script"] && script.Available() {
+		b.script = script
 		ag.Tools.Add(script)
 	} else {
-		script = nil
 		ag.Tools.Add(&agent.RunCode{Parent: ag})
 	}
 	ag.Tools.Add(&agent.Workflow{Parent: ag})
-	skills := func() []skill.Skill { return skill.WithBuiltins(skill.Load(cd.Dir(), cfgDir)) }
-	skillInj := &skill.Injector{Skills: skills}
-	// Path-scoped rules: nothing is sent until a call touches a path a
-	// rule names, and then once for the session.
-	ruleSet := func() []rules.Rule { return rules.Load(cd.Dir(), cfgDir) }
-	injector := &rules.Injector{Rules: ruleSet}
-	ag.PathRules = injector.For
-	ag.PathSkills = skillInj.ForPaths
-	task.Profiles = func() []skill.Profile { return skill.LoadProfiles(cd.Dir(), cfgDir) }
-	ag.Tools.Add(&skill.Tool{Skills: skills, Used: skillInj.MarkUsed})
-	ag.Tools.Add(&agent.CronTool{Cron: cron})
-	ag.Tools.Add(&memory.Tool{Store: mem})
-	diag := lsp.New(d.cwd, d.cfg.LSP)
-	if diag.Enabled() {
-		ag.Tools.Add(lsp.Tool{M: diag})
-		ag.Tools.Add(lsp.SymbolTool{M: diag})
-		ag.Diagnose = diagnoseNote(diag)
-	}
+	ag.Tools.Add(&agent.CronTool{Cron: b.cron})
+	ag.Tools.Add(&memory.Tool{Store: b.d.mem})
+	return nil
+}
+
+// stepKnowledge wires the three things that are read from the project
+// rather than from the model: skills, path-scoped rules and memory.
+// Nothing is sent until it is earned — a rule when a call touches a path
+// it names, a skill when the injector picks it — and then once for the
+// session.
+func (b *agentBuilder) stepKnowledge() error {
+	ag, cd, cfgDir, mem := b.ag, b.cd, b.d.cfgDir, b.d.mem
+	b.skills = func() []skill.Skill { return skill.WithBuiltins(skill.Load(cd.Dir(), cfgDir)) }
+	b.skillIn = &skill.Injector{Skills: b.skills}
+	b.rules = func() []rules.Rule { return rules.Load(cd.Dir(), cfgDir) }
+	b.ruleIn = &rules.Injector{Rules: b.rules}
+	ag.PathRules = b.ruleIn.For
+	ag.PathSkills = b.skillIn.ForPaths
+	b.task.Profiles = func() []skill.Profile { return skill.LoadProfiles(cd.Dir(), cfgDir) }
+	ag.Tools.Add(&skill.Tool{Skills: b.skills, Used: b.skillIn.MarkUsed})
 	// The indexes are the part of the system prompt that grows with use
 	// rather than with the code, so their share of the window is what is
 	// capped, not a flat number of bytes: 8 KB is a twenty-fifth of a 200k
 	// window and a sixteenth of a 32k one. Both fall back to the flat
 	// ceiling when the window is unknown.
 	indexBudget := memory.BudgetFor(ag.ContextWindow)
+	skills := b.skills
 	ag.SystemExtra = func() string {
 		return mem.IndexWithin(indexBudget) + skill.IndexWithin(skills(), indexBudget)
 	}
-	repo := &repomap.Cache{Root: d.cwd, Parser: d.symbols}
-	// The search tools. On a measured fan-out set, offering these
-	// alongside bash cost 23% more context (x1.23 [1.10, 1.44]) for the
-	// same pass rate, because the model takes many small steps instead of
-	// writing one pipeline — see docs/benchmarks/toolsurface. lean_tools
-	// defers them behind tool_search, where they stay reachable for the
-	// case that measurement does not cover: a large unfamiliar repository.
-	search := []tool.Tool{
-		tool.ListDir{Root: d.cwd, WS: ws},
-		tool.Glob{Root: d.cwd, WS: ws},
-		tool.Grep{Root: d.cwd, WS: ws},
-		repomap.Tool{Cache: repo},
+	return nil
+}
+
+// stepDiagnostics starts the language-server manager, when the config
+// leaves it on, and gives the agent the per-edit diagnostics note.
+func (b *agentBuilder) stepDiagnostics() error {
+	b.diag = lsp.New(b.d.cwd, b.d.cfg.LSP)
+	if b.diag.Enabled() {
+		b.ag.Tools.Add(lsp.Tool{M: b.diag})
+		b.ag.Tools.Add(lsp.SymbolTool{M: b.diag})
+		b.ag.Diagnose = diagnoseNote(b.diag)
 	}
-	for _, t := range search {
+	return nil
+}
+
+// stepSearchTools adds the retrieval surface. On a measured fan-out set,
+// offering the search tools alongside bash cost 23% more context
+// (x1.23 [1.10, 1.44]) for the same pass rate, because the model takes
+// many small steps instead of writing one pipeline — see
+// docs/benchmarks/toolsurface. lean_tools defers them behind tool_search,
+// where they stay reachable for the case that measurement does not cover:
+// a large unfamiliar repository. The extra retrieval and desktop tools
+// stay deferred either way, so they cannot eat the prefix the leanness
+// ceiling is guarding.
+func (b *agentBuilder) stepSearchTools() error {
+	ag, d := b.ag, b.d
+	b.repo = &repomap.Cache{Root: d.cwd, Parser: d.symbols}
+	for _, t := range []tool.Tool{
+		tool.ListDir{Root: d.cwd, WS: b.ws},
+		tool.Glob{Root: d.cwd, WS: b.ws},
+		tool.Grep{Root: d.cwd, WS: b.ws},
+		repomap.Tool{Cache: b.repo},
+	} {
 		if d.cfg.LeanTools() {
 			ag.Tools.AddDeferred(t)
 		} else {
 			ag.Tools.Add(t)
 		}
 	}
-	// Extra retrieval and desktop tools stay behind tool_search so they
-	// cannot eat the prefix the leanness ceiling is guarding.
-	ag.Tools.AddDeferred(tool.ReadManyFiles{Root: d.cwd, WS: ws, Seen: seen, Cache: files})
+	ag.Tools.AddDeferred(tool.ReadManyFiles{Root: d.cwd, WS: b.ws, Seen: b.seen, Cache: b.files})
 	ag.Tools.AddDeferred(tool.Computer{Root: d.cwd})
 	ag.Tools.AddDeferred(&agent.AdvisorTool{Parent: ag})
-	ag.Tools.AddDeferred(tool.Monitor{Jobs: jobs, Root: d.cwd, WS: ws, OnMatch: ag.Steer})
+	ag.Tools.AddDeferred(tool.Monitor{Jobs: d.jobs, Root: d.cwd, WS: b.ws, OnMatch: ag.Steer})
 	if d.cfg.AdvisorModel != "" {
 		// Opting into an advisor model is the experiment being on: the
 		// executor has to see the tool without a tool_search hunt.
 		ag.Tools.Activate("advisor")
 	}
-	ag.PlanCheck = repo.CheckPlan
-	// ag.Verify is not wired up yet at this point (main.go sets it once it
-	// knows whether the project's verify config is trusted), so the
-	// checks are read at call time rather than captured now.
-	ag.Impact = impactHook(cd, ws, diag, repo, func() []string {
+	ag.Tools.Intent = d.cfg.IntentEnabled() && !b.off["intent"]
+	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow})
+	return nil
+}
+
+// stepTurnHooks wires what runs around a turn rather than inside it: the
+// plan check, the impact preview, the trajectory critic and the
+// turn-preparation chain. A critic that will not load is a note on
+// stderr, not a session that refuses to start.
+func (b *agentBuilder) stepTurnHooks() error {
+	ag := b.ag
+	ag.PlanCheck = b.repo.CheckPlan
+	// ag.Verify is not wired up yet at this point (wireProject sets it
+	// once it knows whether the project's verify config is trusted), so
+	// the checks are read at call time rather than captured now.
+	ag.Impact = impactHook(b.cd, b.ws, b.diag, b.repo, func() []string {
 		if gate, _ := ag.VerifyGate(); gate != nil {
 			return gate.Config.Commands
 		}
 		return nil
 	})
-	if ag.Predictor, err = agent.LoadPredictor(filepath.Join(cfgDir, "critic.json")); err != nil {
+	predictor, err := agent.LoadPredictor(filepath.Join(b.d.cfgDir, "critic.json"))
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
 	}
-	ag.Prepare = chainPrep(skill.TurnPrep(skillInj, mem), repomap.TurnPrep(repo, 0))
-	ag.Tools.Intent = d.cfg.IntentEnabled() && !envOff()["intent"]
-	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow})
-	ag.UndoPath = sess.UndoPath()
-	if snaps, serr := snapshot.Open(context.Background(), d.cwd); serr == nil {
+	ag.Predictor = predictor
+	ag.Prepare = chainPrep(skill.TurnPrep(b.skillIn, b.d.mem), repomap.TurnPrep(b.repo, 0))
+	return nil
+}
+
+// stepUndo opens the session's undo ledger and the snapshot store behind
+// it. Neither is fatal: a project that is not a git repository has no
+// snapshots, and an undo file that cannot be read costs the session its
+// history of changes, not its ability to run.
+func (b *agentBuilder) stepUndo() error {
+	ag := b.ag
+	ag.UndoPath = b.sess.UndoPath()
+	if snaps, err := snapshot.Open(context.Background(), b.d.cwd); err == nil {
 		ag.Snapshots = snaps
 	}
 	if err := ag.LoadUndo(); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
+	return nil
+}
 
-	cd.Bind(ws, ag, sess)
-	registerRooted(cd, rootedDeps{d: d, ag: ag, task: task, script: script, diag: diag, repo: repo, mem: mem, terms: terms, jobs: jobs, running: d.running, skills: skills, rules: ruleSet})
+// result binds the /cd tracker to everything rooted at the project and
+// hands back what the caller still owns.
+func (b *agentBuilder) result() builtAgent {
+	b.cd.Bind(b.ws, b.ag, b.sess)
+	registerRooted(b.cd, rootedDeps{d: b.d, ag: b.ag, task: b.task, script: b.script, diag: b.diag,
+		repo: b.repo, mem: b.d.mem, terms: b.terms, jobs: b.d.jobs, running: b.d.running,
+		skills: b.skills, rules: b.rules})
+	return builtAgent{
+		once: &sync.Once{}, agent: b.ag, task: b.task, diag: b.diag, repo: b.repo,
+		archive: b.archive, skills: b.skills, rules: b.rules, ruleInjector: b.ruleIn,
+		skillInjector: b.skillIn, ws: b.ws, terms: b.terms, cd: b.cd,
+	}
+}
 
-	return builtAgent{once: &sync.Once{}, agent: ag, task: task, diag: diag, repo: repo, archive: archive, skills: skills, rules: ruleSet, ruleInjector: injector, skillInjector: skillInj, ws: ws, terms: terms, cd: cd}, nil
+// buildAgent wires one agent for a session: tools rooted at the project,
+// the system prompt, skills and memory, diagnostics, the repository map
+// and the trajectory critic. The work is agentBuilder's, one named step
+// at a time; this is the order they run in and what a failure in one of
+// them is reported as.
+func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (builtAgent, error) {
+	b := newAgentBuilder(d, sess, history)
+	for _, step := range b.buildSteps() {
+		if err := step.fn(); err != nil {
+			return builtAgent{}, fmt.Errorf("%s: %w", step.name, err)
+		}
+	}
+	return b.result(), nil
 }

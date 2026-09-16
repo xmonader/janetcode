@@ -112,7 +112,7 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		return "", err
 	}
 	cmd.WaitDelay = 2 * time.Second
-	out := &swapBuffer{}
+	out := &swapBuffer{max: maxCommandOutput}
 	cmd.Stdout = out
 	cmd.Stderr = out
 	cmd.Stdin = nil
@@ -188,6 +188,12 @@ func (t Bash) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	}
 	return result, nil
 }
+
+// maxCommandOutput bounds what one foreground command's output may cost
+// in memory. Only textfmt.MaxOutput of it is ever returned, so this is
+// slack rather than a limit the model will meet by accident; what it
+// stops is a command that prints without end.
+const maxCommandOutput = 8 << 20
 
 // dangerPatterns flag commands whose damage is hard to undo. The prompt
 // still decides; this only makes the risk visible.

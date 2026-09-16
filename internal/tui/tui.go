@@ -94,6 +94,8 @@ type model struct {
 	clipboard   func() ([]byte, error)   // reads a PNG from the clipboard; swapped in tests
 	copyText    func(string) error       // writes text to the clipboard; swapped in tests
 	comp        completionState          // highlight in the completion menu
+	skills      skillRowCache            // the menu's skill rows, as last read from disk
+	goal        goalCache                // the status line's goal note, as last folded from the log
 	finder      findState                // the last /find, so a repeat advances
 	picker      *picker                  // open searchable list
 	connect     *connect                 // open provider/model dialog
@@ -289,9 +291,12 @@ func resumedLine(id string, messages int) string {
 func (m *model) Init() tea.Cmd {
 	if ag := m.opts.Agent; ag != nil && ag.Cron != nil {
 		send := m.send
-		ag.Cron.OnFire = func(id, prompt string) {
+		// SetOnFire, not a field write: a resumed session arms its loops
+		// before Init runs, so a one-second loop can be reading OnFire
+		// from its timer goroutine while this assigns it.
+		ag.Cron.SetOnFire(func(id, prompt string) {
 			send(cronFireMsg{id: id, prompt: prompt})
-		}
+		})
 	}
 	for _, n := range m.opts.Notes {
 		m.transcript.info(n)
@@ -311,22 +316,26 @@ func (m *model) View() string {
 	if m.quitting {
 		return ""
 	}
-	if m.picker != nil || m.connect != nil || m.wiz != nil || m.ov.kind != "" || m.asking != nil {
+	if mode := m.mode(); mode.modal() {
 		// A modal is the input: give it the body plus the reserved
 		// footer so a short terminal still has room for the highlight.
+		// Which one is drawn is mode()'s answer, not a second switch of
+		// its own: the two used to rank overlay and picker differently,
+		// so with both up the picker was on screen and the overlay was
+		// taking the keys.
 		bodyH := m.height - 2 // header, status
 		if bodyH < 3 {
 			bodyH = 3
 		}
 		body := ""
-		switch {
-		case m.asking != nil:
+		switch mode {
+		case modeAsk:
 			body = m.askView(bodyH)
-		case m.picker != nil:
+		case modePicker:
 			body = m.pickerView(bodyH)
-		case m.connect != nil:
+		case modeConnect:
 			body = m.connectView(bodyH)
-		case m.wiz != nil:
+		case modeWizard:
 			body = m.wizardView(bodyH)
 		default:
 			body = m.overlayView(bodyH)

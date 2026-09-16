@@ -504,7 +504,7 @@ func TestCancelEndsTheTurnAndLeavesTheSessionUsable(t *testing.T) {
 	}
 	c.call("session/prompt", promptParams{SessionID: ns.SessionID, Prompt: []contentBlock{textBlock("think about it")}})
 	slow.started.Wait()
-	c.notify("session/cancel", cancelParams{SessionID: ns.SessionID})
+	c.notify("session/cancel", cancelParams(ns))
 	final, _ := c.readUntil(isResponse)
 	var pr promptResult
 	if err := json.Unmarshal(final.Result, &pr); err != nil {

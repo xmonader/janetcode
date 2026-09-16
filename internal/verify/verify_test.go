@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -70,5 +71,46 @@ func TestRunPassAndTimeout(t *testing.T) {
 	var nilRunner *Runner
 	if nilRunner.Enabled() || (&Runner{}).Enabled() {
 		t.Fatal("empty runner reported enabled")
+	}
+}
+
+// The timeout has to bound the whole process tree: a check that leaves
+// something behind holding its output pipes (a dev server, a stray
+// watcher) used to keep the gate — and the turn — waiting long after the
+// deadline, because only the shell was killed.
+func TestTimeoutKillsTheWholeTree(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("posix shell command")
+	}
+	r := &Runner{Cwd: t.TempDir(), Config: Config{Commands: []string{"sleep 60 & wait"}, Timeout: 1}}
+	start := time.Now()
+	res := r.Run(context.Background())
+	if elapsed := time.Since(start); elapsed > 20*time.Second {
+		t.Fatalf("verify ran for %s despite a 1s timeout", elapsed)
+	}
+	if res.OK() || res.Exit != 124 {
+		t.Fatalf("res = %+v", res)
+	}
+}
+
+// A check's output is bounded: a runaway build must not be held in
+// memory in full when only a few thousand bytes of it are ever shown.
+func TestOutputIsBounded(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("posix shell command")
+	}
+	r := &Runner{Cwd: t.TempDir(), Config: Config{
+		Commands: []string{"head -c 4000000 /dev/zero | tr '\\0' 'x'; exit 1"},
+		Timeout:  60,
+	}}
+	res := r.Run(context.Background())
+	if res.Exit != 1 {
+		t.Fatalf("res = %+v", res)
+	}
+	if len(res.Output) > 2*maxEnd+1000 {
+		t.Fatalf("kept %d bytes of output, cap is %d of each end", len(res.Output), maxEnd)
+	}
+	if !strings.Contains(res.Output, "bytes omitted") {
+		t.Fatal("the truncation is not explained")
 	}
 }

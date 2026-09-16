@@ -76,7 +76,7 @@ func Train(samples []Sample) (*Predictor, error) {
 	if len(samples) < folds {
 		folds = len(samples)
 	}
-	correct := 0
+	correct, scored := 0, 0
 	for k := 0; k < folds; k++ {
 		var train, test []Sample
 		for i, s := range samples {
@@ -91,12 +91,22 @@ func Train(samples []Sample) (*Predictor, error) {
 			continue
 		}
 		for _, s := range test {
+			scored++
 			if (q.Score(s.Features) >= 0.5) == s.Passed {
 				correct++
 			}
 		}
 	}
-	p.Accuracy = float64(correct) / float64(len(samples))
+	// Over the samples actually scored, not over every sample: a fold
+	// whose training half turned out to be one class is skipped, and
+	// dividing by the whole set counted its test samples as wrong. With
+	// few failures — the case this predictor is trained in, since it
+	// needs failing runs to exist at all — that is most of the folds, and
+	// the reported accuracy was systematically below the real one, which
+	// is the number that decides whether the predictor is kept.
+	if scored > 0 {
+		p.Accuracy = float64(correct) / float64(scored)
+	}
 	return p, nil
 }
 
@@ -190,6 +200,12 @@ func (p *Predictor) Score(f map[string]float64) float64 {
 // Explain names the features pulling the score down most, with their
 // raw values, for a note the model can act on.
 func (p *Predictor) Explain(f map[string]float64, n int) string {
+	// Score's own guard, because Explain indexes Weight by the Names it
+	// walks: a nil or half-written predictor (a truncated critic.json,
+	// a Predictor built by a test) would panic here rather than decline.
+	if p == nil || len(p.Weight) != len(p.Names) {
+		return ""
+	}
 	type term struct {
 		name string
 		z    float64

@@ -366,7 +366,32 @@ func (r *Runner) Run(ctx context.Context, tasks []Task) []Result {
 			wg.Add(1)
 			go func(idx, run int, t Task) {
 				defer wg.Done()
-				sem <- struct{}{}
+				// Every task-run is queued at once and waits here for a
+				// slot, so a cancelled run (ctrl-c, a --max-cost stop)
+				// must be caught on the way in: without this the whole
+				// queue drains through r.one, each one preparing a work
+				// directory and a git worktree only to fail on the dead
+				// context.
+				cancelled := func() bool {
+					// Checked before the select as well as in it: a
+					// select whose two cases are both ready picks at
+					// random, so a free slot would let a task through a
+					// context that is already dead.
+					if err := ctx.Err(); err != nil {
+						results[idx] = Result{Name: t.Name, Run: run, Reason: "cancelled: " + err.Error()}
+						return true
+					}
+					select {
+					case sem <- struct{}{}:
+						return false
+					case <-ctx.Done():
+						results[idx] = Result{Name: t.Name, Run: run, Reason: "cancelled: " + ctx.Err().Error()}
+						return true
+					}
+				}()
+				if cancelled {
+					return
+				}
 				defer func() { <-sem }()
 				label := t.Name
 				if runs > 1 {
@@ -529,7 +554,19 @@ func (r *Runner) progress(label string, start time.Time, calls *atomic.Int64) (s
 func (r *Runner) one(ctx context.Context, t Task, label string) (res Result) {
 	res = Result{Name: t.Name}
 	start := time.Now()
-	defer func() { res.Duration = time.Since(start) }()
+	// Registered first, so it unwinds last: every other defer below —
+	// the work directory's cleanup above all — has already run by the
+	// time this recovers. One task that panics (a malformed tool schema,
+	// a nil provider, a bug in the agent) used to take the whole run with
+	// it, losing every task that had already passed; it now fails itself
+	// and the remaining tasks still run.
+	defer func() {
+		if p := recover(); p != nil {
+			res.Passed = false
+			res.Reason = fmt.Sprintf("panic: %v", p)
+		}
+		res.Duration = time.Since(start)
+	}()
 	var calls atomic.Int64
 	stopProgress := r.progress(label, start, &calls)
 	defer stopProgress()
@@ -562,14 +599,18 @@ func (r *Runner) one(ctx context.Context, t Task, label string) (res Result) {
 	}
 	// The budget is per prompt: a session gets it once for each, the way
 	// the other harnesses in a comparison are invoked once per prompt.
-	timeout *= time.Duration(len(t.Steps()))
+	// Load refuses a task with no prompt, but one built in memory can
+	// have none, and multiplying by zero would hand the run an already
+	// expired context.
+	steps := t.Steps()
+	timeout *= time.Duration(max(len(steps), 1))
 	rctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var out strings.Builder
 	var mu sync.Mutex
 	// A session sends its prompts one after another to the same agent;
 	// the output the check sees is the answer to the last one.
-	for _, prompt := range t.Steps() {
+	for _, prompt := range steps {
 		out.Reset()
 		err = ag.Run(rctx, prompt, func(e agent.Event) {
 			mu.Lock()

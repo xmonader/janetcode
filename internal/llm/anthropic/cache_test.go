@@ -7,11 +7,14 @@ import (
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
-// The cache breakpoint goes where the stable prefix ends, which is the
-// same place every provider splits it (llm.StablePrefix): below the
-// environment heading sit the working directory and the date, and a
-// breakpoint under those pays for a cache write the next session never
-// reads back.
+// The system prompt goes out split where the stable prefix ends, which
+// is the same place every provider splits it (llm.StablePrefix): below
+// the environment heading sit the working directory and the date, and a
+// single block over both halves makes the next working directory pay for
+// the whole prompt again. Both halves carry a breakpoint, so a session
+// that never moves still reads all of it from cache
+// (systemBlocks; TestSystemPromptIsCachedAboveTheEnvironment covers that
+// function directly, this one covers the request it ends up in).
 func TestSystemPromptIsCachedOnlyToTheStablePrefix(t *testing.T) {
 	params, err := buildParams(llm.Request{
 		Model:    "m",
@@ -28,7 +31,7 @@ func TestSystemPromptIsCachedOnlyToTheStablePrefix(t *testing.T) {
 	if strings.Contains(stable.Text, "Working directory") || stable.CacheControl.Type == "" {
 		t.Fatalf("stable block = %+v", stable)
 	}
-	if !strings.Contains(volatile.Text, "Working directory") || volatile.CacheControl.Type != "" {
+	if !strings.Contains(volatile.Text, "Working directory") || volatile.CacheControl.Type == "" {
 		t.Fatalf("volatile block = %+v", volatile)
 	}
 

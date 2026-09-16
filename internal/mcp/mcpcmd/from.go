@@ -103,6 +103,11 @@ func checkout(ctx context.Context, env Env, from string) (dir string, cloned boo
 		abs, err := filepath.Abs(from)
 		return abs, false, err
 	}
+	// git reads a leading dash as an option of its own, and some of those
+	// options run a command (--upload-pack). --from takes a repository.
+	if strings.HasPrefix(from, "-") {
+		return "", false, fmt.Errorf("%q looks like an option, not a repository", from)
+	}
 	if env.InstallDir == "" {
 		return "", false, fmt.Errorf("%s is not a directory, and there is nowhere to clone it to", from)
 	}
@@ -121,7 +126,7 @@ func checkout(ctx context.Context, env Env, from string) (dir string, cloned boo
 	if err := os.MkdirAll(env.InstallDir, 0o755); err != nil {
 		return "", false, err
 	}
-	if _, err := gitx.Run(ctx, env.InstallDir, nil, "clone", "--depth", "1", from, dir); err != nil {
+	if _, err := gitx.Run(ctx, env.InstallDir, nil, "clone", "--depth", "1", "--", from, dir); err != nil {
 		return "", false, fmt.Errorf("clone %s: %s", from, gitx.Detail(err))
 	}
 	return dir, true, nil

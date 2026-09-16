@@ -392,10 +392,7 @@ func (j *Jobs) Finished() []string {
 
 // Summary is one line about the job's state.
 func (job Job) Summary() string {
-	cmd := job.Command
-	if len(cmd) > 80 {
-		cmd = cmd[:79] + "…"
-	}
+	cmd := textfmt.ClipBytes(job.Command, 80)
 	if !job.Done {
 		return fmt.Sprintf("job %d running for %s (pid %d): %s", job.ID, time.Since(job.Started).Round(time.Second), job.Pid, cmd)
 	}

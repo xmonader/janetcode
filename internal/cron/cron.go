@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -16,24 +17,48 @@ import (
 	"github.com/xmonader/janetcode/internal/tool"
 )
 
-// maxJobs bounds how many session loops can be armed at once.
-const maxJobs = 16
+const (
+	// maxJobs bounds how many session loops can be armed at once, whether
+	// they come from /loop, the tool, or a session file being restored.
+	maxJobs = 16
+	// minEvery and maxEvery bound an interval: below a second a loop is a
+	// busy wait, above a day it will outlive the session.
+	minEvery = time.Second
+	maxEvery = 24 * time.Hour
+)
 
 // Cron is a session-scoped scheduler: /loop and the cron tool add jobs
 // that fire a prompt on an interval. Armed jobs are persisted on the
 // session record (OnChange) and restored on resume. Close (process quit)
 // cancels timers without wiping the saved list.
+//
+// Every field below is guarded by mu, including the two callbacks: they
+// are read from timer goroutines. Callers that change a callback after
+// the first Add or Restore must use SetOnFire/SetOnChange; assigning the
+// field directly is only safe before any job is armed.
 type Cron struct {
 	mu     sync.Mutex
 	jobs   map[string]*cronJob
 	nextID int
-	closed bool
+	// seq orders jobs for List/Specs by the time they were armed. It is
+	// separate from nextID because Restore accepts ids it did not mint.
+	nextSeq int
+	// version counts mutations, so that a snapshot taken by one goroutine
+	// is never persisted on top of a newer one taken by another.
+	version int
+	closed  bool
 	// OnFire is called from the timer goroutine with the job id and prompt.
 	// The TUI starts a turn; if a turn is already running the tick is skipped.
 	OnFire func(id, prompt string)
 	// OnChange is called after Add/Cancel/CancelAll with the armed set, so
-	// the session file can keep it. Close does not fire it.
+	// the session file can keep it. Close does not fire it, and Restore
+	// does not either. It must not call back into the scheduler.
 	OnChange func([]session.LoopSpec)
+
+	// notifyMu serialises OnChange calls; notified is the version of the
+	// newest snapshot already handed over.
+	notifyMu sync.Mutex
+	notified int
 }
 
 type cronJob struct {
@@ -41,6 +66,7 @@ type cronJob struct {
 	Every  time.Duration
 	Prompt string
 	Next   time.Time
+	seq    int
 	timer  *time.Timer
 }
 
@@ -57,16 +83,45 @@ func New() *Cron {
 	return &Cron{jobs: map[string]*cronJob{}}
 }
 
+// SetOnFire installs the fire callback. Safe to call while jobs are armed.
+func (c *Cron) SetOnFire(f func(id, prompt string)) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.OnFire = f
+}
+
+// SetOnChange installs the persistence callback. Safe to call while jobs
+// are armed. It does not fire; the next mutation does.
+func (c *Cron) SetOnChange(f func([]session.LoopSpec)) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.OnChange = f
+}
+
+// checkEvery is the one place an interval is bounds-checked.
+func checkEvery(every time.Duration) error {
+	if every < minEvery {
+		return fmt.Errorf("interval must be at least %s", minEvery)
+	}
+	if every > maxEvery {
+		return fmt.Errorf("interval must be at most %s", maxEvery)
+	}
+	return nil
+}
+
 // Add arms a job that fires after every, then again on that interval.
 func (c *Cron) Add(every time.Duration, prompt string) (string, error) {
 	if c == nil {
 		return "", fmt.Errorf("no scheduler in this session")
 	}
-	if every < time.Second {
-		return "", fmt.Errorf("interval must be at least 1s")
-	}
-	if every > 24*time.Hour {
-		return "", fmt.Errorf("interval must be at most 24h")
+	if err := checkEvery(every); err != nil {
+		return "", err
 	}
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
@@ -86,12 +141,34 @@ func (c *Cron) Add(every time.Duration, prompt string) (string, error) {
 	}
 	c.nextID++
 	id := fmt.Sprintf("loop-%d", c.nextID)
-	e := &cronJob{ID: id, Every: every, Prompt: prompt, Next: time.Now().Add(every)}
+	c.armLocked(id, every, prompt)
+	snap, cb, ver := c.changeLocked()
+	c.mu.Unlock()
+	c.notify(snap, cb, ver)
+	return id, nil
+}
+
+// armLocked creates and starts one job. c.mu must be held, the id must be
+// free and the scheduler open.
+func (c *Cron) armLocked(id string, every time.Duration, prompt string) {
+	c.nextSeq++
+	e := &cronJob{ID: id, Every: every, Prompt: prompt, Next: time.Now().Add(every), seq: c.nextSeq}
 	e.timer = time.AfterFunc(every, func() { c.tick(id) })
 	c.jobs[id] = e
-	c.mu.Unlock()
-	c.fireChange()
-	return id, nil
+}
+
+// listLocked snapshots armed jobs, oldest first. c.mu must be held.
+func (c *Cron) listLocked() []Info {
+	ordered := make([]*cronJob, 0, len(c.jobs))
+	for _, e := range c.jobs {
+		ordered = append(ordered, e)
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].seq < ordered[j].seq })
+	out := make([]Info, 0, len(ordered))
+	for _, e := range ordered {
+		out = append(out, Info{ID: e.ID, Every: e.Every, Prompt: e.Prompt, Next: e.Next})
+	}
+	return out
 }
 
 // List is a snapshot of armed jobs, oldest first.
@@ -101,16 +178,7 @@ func (c *Cron) List() []Info {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	out := make([]Info, 0, len(c.jobs))
-	for i := 1; i <= c.nextID; i++ {
-		id := fmt.Sprintf("loop-%d", i)
-		e := c.jobs[id]
-		if e == nil {
-			continue
-		}
-		out = append(out, Info{ID: e.ID, Every: e.Every, Prompt: e.Prompt, Next: e.Next})
-	}
-	return out
+	return c.listLocked()
 }
 
 // Cancel stops one job. Unknown ids return false.
@@ -128,8 +196,9 @@ func (c *Cron) Cancel(id string) bool {
 		e.timer.Stop()
 	}
 	delete(c.jobs, id)
+	snap, cb, ver := c.changeLocked()
 	c.mu.Unlock()
-	c.fireChange()
+	c.notify(snap, cb, ver)
 	return true
 }
 
@@ -146,12 +215,18 @@ func (c *Cron) CancelAll() int {
 		}
 	}
 	c.jobs = map[string]*cronJob{}
+	snap, cb, ver := c.changeLocked()
 	c.mu.Unlock()
-	c.fireChange()
+	c.notify(snap, cb, ver)
 	return n
 }
 
 // Restore arms jobs from a session record without firing OnChange.
+//
+// Session files are state, not user input: an entry with an unusable
+// interval, an empty prompt or a duplicate id is skipped rather than
+// failing the resume, and the list is capped like any other. The only
+// errors are "there is no scheduler" and "it has stopped".
 func (c *Cron) Restore(specs []session.LoopSpec) error {
 	if c == nil {
 		return fmt.Errorf("no scheduler in this session")
@@ -164,10 +239,20 @@ func (c *Cron) Restore(specs []session.LoopSpec) error {
 	if c.jobs == nil {
 		c.jobs = map[string]*cronJob{}
 	}
+	// Seed the id counter from every explicit id first, so a spec with no
+	// id cannot be minted onto one a later spec claims.
 	for _, spec := range specs {
+		if n, ok := loopIndex(strings.TrimSpace(spec.ID)); ok && n > c.nextID {
+			c.nextID = n
+		}
+	}
+	for _, spec := range specs {
+		if len(c.jobs) >= maxJobs {
+			break
+		}
 		every, err := ParseEvery(spec.Every)
 		if err != nil {
-			return err
+			continue
 		}
 		prompt := strings.TrimSpace(spec.Prompt)
 		if prompt == "" {
@@ -177,42 +262,68 @@ func (c *Cron) Restore(specs []session.LoopSpec) error {
 		if id == "" {
 			c.nextID++
 			id = fmt.Sprintf("loop-%d", c.nextID)
-		} else if n, ok := loopIndex(id); ok && n > c.nextID {
-			c.nextID = n
 		}
 		if c.jobs[id] != nil {
 			continue
 		}
-		e := &cronJob{ID: id, Every: every, Prompt: prompt, Next: time.Now().Add(every)}
-		e.timer = time.AfterFunc(every, func() { c.tick(id) })
-		c.jobs[id] = e
+		c.armLocked(id, every, prompt)
 	}
+	c.version++
 	return nil
 }
 
 func loopIndex(id string) (int, bool) {
-	var n int
-	if _, err := fmt.Sscanf(id, "loop-%d", &n); err != nil || n <= 0 {
+	rest, ok := strings.CutPrefix(id, "loop-")
+	if !ok || rest == "" {
+		return 0, false
+	}
+	n := 0
+	for i := 0; i < len(rest); i++ {
+		if rest[i] < '0' || rest[i] > '9' || n > 1<<20 {
+			return 0, false
+		}
+		n = n*10 + int(rest[i]-'0')
+	}
+	if n <= 0 {
 		return 0, false
 	}
 	return n, true
 }
 
-func (c *Cron) fireChange() {
-	if c == nil || c.OnChange == nil {
-		return
-	}
-	c.OnChange(c.Specs())
+// changeLocked bumps the version and returns everything notify needs.
+// c.mu must be held; the callback is invoked after it is released.
+func (c *Cron) changeLocked() ([]session.LoopSpec, func([]session.LoopSpec), int) {
+	c.version++
+	return specsOf(c.listLocked()), c.OnChange, c.version
 }
 
-// Specs is the persistable snapshot of armed jobs.
-func (c *Cron) Specs() []session.LoopSpec {
-	jobs := c.List()
+// notify hands a snapshot to OnChange, never out of order: a snapshot
+// older than one already delivered is dropped, so two concurrent
+// mutations cannot persist the losing view.
+func (c *Cron) notify(snap []session.LoopSpec, cb func([]session.LoopSpec), ver int) {
+	if cb == nil {
+		return
+	}
+	c.notifyMu.Lock()
+	defer c.notifyMu.Unlock()
+	if ver <= c.notified {
+		return
+	}
+	c.notified = ver
+	cb(snap)
+}
+
+func specsOf(jobs []Info) []session.LoopSpec {
 	out := make([]session.LoopSpec, 0, len(jobs))
 	for _, j := range jobs {
 		out = append(out, session.LoopSpec{ID: j.ID, Every: j.Every.String(), Prompt: j.Prompt})
 	}
 	return out
+}
+
+// Specs is the persistable snapshot of armed jobs.
+func (c *Cron) Specs() []session.LoopSpec {
+	return specsOf(c.List())
 }
 
 // Close cancels every job. Further Add calls fail.
@@ -260,13 +371,10 @@ func ParseEvery(s string) (time.Duration, error) {
 	}
 	d, err := time.ParseDuration(s)
 	if err != nil {
-		return 0, fmt.Errorf("want 30s, 5m or 1h")
+		return 0, fmt.Errorf("bad interval %q: want 30s, 5m or 1h", s)
 	}
-	if d < time.Second {
-		return 0, fmt.Errorf("interval must be at least 1s")
-	}
-	if d > 24*time.Hour {
-		return 0, fmt.Errorf("interval must be at most 24h")
+	if err := checkEvery(d); err != nil {
+		return 0, err
 	}
 	return d, nil
 }
@@ -291,7 +399,9 @@ func (*Tool) Schema() json.RawMessage {
 }
 
 func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
-	_ = ctx
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	var in struct {
 		Action string `json:"action"`
 		Every  string `json:"every"`
@@ -310,11 +420,12 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		id, err := t.Cron.Add(d, in.Prompt)
+		prompt := strings.TrimSpace(in.Prompt)
+		id, err := t.Cron.Add(d, prompt)
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("scheduled %s every %s: %s", id, d, strings.TrimSpace(in.Prompt)), nil
+		return fmt.Sprintf("scheduled %s every %s: %s", id, d, prompt), nil
 	case "list":
 		jobs := t.Cron.List()
 		if len(jobs) == 0 {
@@ -326,13 +437,14 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		}
 		return strings.TrimRight(b.String(), "\n"), nil
 	case "cancel":
-		if strings.TrimSpace(in.ID) == "" {
+		id := strings.TrimSpace(in.ID)
+		if id == "" {
 			return "", fmt.Errorf("id is required to cancel")
 		}
-		if !t.Cron.Cancel(in.ID) {
-			return "", fmt.Errorf("no loop %q", in.ID)
+		if !t.Cron.Cancel(id) {
+			return "", fmt.Errorf("no loop %q", id)
 		}
-		return "cancelled " + in.ID, nil
+		return "cancelled " + id, nil
 	default:
 		return "", fmt.Errorf("action must be add, list or cancel")
 	}

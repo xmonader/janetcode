@@ -393,8 +393,18 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 			r.logf("%s: only the first %d hooks ran (hooks.limits.per_event)", in.Event, lim.PerEvent)
 			break
 		}
-		if h.Match != "" && in.Tool != "" && !matchesTool(h.Match, in.Tool) {
-			continue
+		if h.Match != "" && in.Tool != "" {
+			re, err := matchRe(h.Match)
+			if err != nil {
+				// Validate rejects these when the file is loaded, so this
+				// is a hook that reached the runner another way. Saying so
+				// beats a hook that silently never runs.
+				r.logf("%s hook %d (%s) ignored: match %q is not a valid regexp: %v", in.Event, i+1, firstWords(h.Command), h.Match, err)
+				continue
+			}
+			if !re.MatchString(in.Tool) {
+				continue
+			}
 		}
 		in.Input = res.Input
 		out, exit, err := r.exec(ctx, h, in)
@@ -461,28 +471,25 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 	return res
 }
 
-// matchers memoises compiled Match patterns. A hook's match is checked on
-// every tool call of the session, and compiling the same handful of
-// patterns each time is work with one answer. The key is the pattern
-// text; the set is bounded by the hooks in the config files, and a
-// pattern never changes meaning, so nothing invalidates it.
-var matchers sync.Map // pattern -> *regexp.Regexp
-
-// matchesTool reports whether a hook's Match applies to a tool. A pattern
-// that does not compile matches nothing, which is what the uncached
-// regexp.MatchString did with its error; Validate rejects those anyway.
-func matchesTool(pattern, tool string) bool {
-	v, ok := matchers.Load(pattern)
-	if !ok {
-		re, err := regexp.Compile(pattern)
-		if err != nil {
-			return false
+// matchRe compiles a hook's tool-name pattern once. Hooks run on every
+// tool call, and regexp.MatchString recompiles the pattern each time.
+var matchRe = func() func(string) (*regexp.Regexp, error) {
+	var mu sync.Mutex
+	cache := map[string]*regexp.Regexp{}
+	return func(pat string) (*regexp.Regexp, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if re, ok := cache[pat]; ok {
+			return re, nil
 		}
-		matchers.Store(pattern, re)
-		v = re
+		re, err := regexp.Compile(pat)
+		if err != nil {
+			return nil, err
+		}
+		cache[pat] = re
+		return re, nil
 	}
-	return v.(*regexp.Regexp).MatchString(tool)
-}
+}()
 
 type execOut struct{ stdout, stderr string }
 
@@ -505,6 +512,13 @@ func (r *Runner) exec(ctx context.Context, h Hook, in Input) (execOut, int, erro
 	} else {
 		cmd = shell.Command(ctx, h.Command)
 	}
+	// A hook runs on the critical path of a tool call, so its timeout has
+	// to be a real bound. Without a process group the context kills only
+	// the shell, and Wait still blocks on the output pipes for as long as
+	// any grandchild holds them open — a hook that starts a daemon hangs
+	// the turn for ever. Supervise puts the whole tree in one group and
+	// bounds the wait on the pipes after the kill.
+	shell.Supervise(cmd)
 	cmd.Dir = r.Cwd
 	cmd.Stdin = bytes.NewReader(payload)
 	cmd.Env = append(os.Environ(),

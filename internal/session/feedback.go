@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/fsutil"
 )
 
 // Rating is a thumbs judgment of one assistant message.
@@ -43,13 +45,15 @@ func (s *Session) LoadFeedback() ([]Feedback, error) {
 	return out, nil
 }
 
-// SaveFeedback writes the sidecar.
+// SaveFeedback writes the sidecar. It is rewritten whole on every
+// rating, so it goes through the same temp-file-and-rename the log does:
+// a crash halfway must not cost the ratings already given.
 func (s *Session) SaveFeedback(items []Feedback) error {
 	data, err := json.MarshalIndent(items, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.feedbackPath(), append(data, '\n'), 0o600)
+	return fsutil.AtomicWriteMode(s.feedbackPath(), append(data, '\n'), fsutil.PrivateFileMode)
 }
 
 // Rate last assistant/message (or seq if >0).

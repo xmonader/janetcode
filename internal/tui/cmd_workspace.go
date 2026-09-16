@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -125,15 +127,21 @@ func (m *model) configCommand(arg string) {
 	m.note("config " + key + "=" + fmt.Sprint(applied))
 }
 
+// doctorCommand runs the checkup off the UI goroutine. It calls a model,
+// so it is given the session's life context: quitting the window cancels
+// it rather than leaving it talking to a provider on behalf of a program
+// that has gone.
 func (m *model) doctorCommand() tea.Cmd {
 	fn := m.opts.Doctor
 	ver := m.opts.Version
-	send := m.send
+	send, life := m.send, m.life
 	go func() {
+		ctx, cancel := context.WithTimeout(life, doctorTimeout)
+		defer cancel()
 		var buf strings.Builder
 		var err error
 		if fn != nil {
-			err = fn(&buf)
+			err = fn(ctx, &buf)
 		} else {
 			buf.WriteString("janetcode " + ver + "\n[ok] session checkup · pass --doctor on the CLI for a live model call\n")
 		}
@@ -143,6 +151,10 @@ func (m *model) doctorCommand() tea.Cmd {
 	m.refresh(false)
 	return nil
 }
+
+// doctorTimeout bounds the checkup: it makes a live model call, and a
+// provider that never answers must not leave /doctor pending forever.
+const doctorTimeout = 2 * time.Minute
 
 // lspCommand shows language-server status and known problems.
 func (m *model) lspCommand() {

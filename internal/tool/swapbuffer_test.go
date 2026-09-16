@@ -14,18 +14,20 @@ import (
 // head and tail — the clipped result must be the same bytes an unbounded
 // buffer would have produced.
 func TestSwapBufferIsBoundedAndKeepsBothEnds(t *testing.T) {
-	var s swapBuffer
+	s := &swapBuffer{max: maxCommandOutput}
 	var whole strings.Builder
 	line := strings.Repeat("a", 999) + "\n"
-	for i := 0; i < 6000; i++ { // ~6 MB through a 2 MB window
+	for i := 0; i < 12000; i++ { // ~12 MB through an 8 MB window
 		s.Write([]byte(line))
 		whole.WriteString(line)
 	}
 	got := s.String()
-	if len(got) > 2*swapEnd+200 {
-		t.Fatalf("buffer holds %d bytes, want about %d", len(got), 2*swapEnd)
+	// Held: a full head plus at most twice the tail budget between
+	// block trims, plus the omission marker.
+	if bound := s.headMax() + 2*s.tailMax() + 200; len(got) > bound {
+		t.Fatalf("buffer holds %d bytes, want at most about %d", len(got), bound)
 	}
-	if !strings.Contains(got, "bytes of output dropped") {
+	if !strings.Contains(got, "bytes of output omitted") {
 		t.Fatal("the dropped middle was not reported")
 	}
 	// What the model is shown is identical either way.
@@ -40,7 +42,7 @@ func TestSwapBufferIsBoundedAndKeepsBothEnds(t *testing.T) {
 
 // Short output is untouched: no marker, no reshaping.
 func TestSwapBufferLeavesShortOutputAlone(t *testing.T) {
-	var s swapBuffer
+	s := &swapBuffer{max: maxCommandOutput}
 	s.Write([]byte("hello "))
 	s.Write([]byte("world"))
 	if got := s.String(); got != "hello world" {
@@ -51,7 +53,7 @@ func TestSwapBufferLeavesShortOutputAlone(t *testing.T) {
 // Promotion hands the file everything still held, and from then on the
 // command writes straight to it.
 func TestSwapBufferAttachWritesWhatItHeld(t *testing.T) {
-	var s swapBuffer
+	s := &swapBuffer{max: maxCommandOutput}
 	s.Write([]byte("before\n"))
 	p := filepath.Join(t.TempDir(), "job.log")
 	f, err := os.Create(p)
@@ -70,17 +72,14 @@ func TestSwapBufferAttachWritesWhatItHeld(t *testing.T) {
 	if string(data) != "before\nafter\n" {
 		t.Fatalf("log = %q", data)
 	}
-	if got := s.String(); got != "" {
-		t.Fatalf("an attached buffer should hold nothing, got %q", got)
-	}
 }
 
 // io.Writer's contract: Write reports how many bytes of p it took, and it
 // takes all of them however little it keeps. A short count makes io.Copy
 // — which is what os/exec pipes output through — stop with ErrShortWrite.
 func TestSwapBufferWriteReportsEveryByte(t *testing.T) {
-	var s swapBuffer
-	big := make([]byte, swapEnd+7)
+	s := &swapBuffer{max: 1 << 20}
+	big := make([]byte, (1<<20)+7)
 	for _, p := range [][]byte{[]byte("x"), big, big, big} {
 		n, err := s.Write(p)
 		if err != nil {

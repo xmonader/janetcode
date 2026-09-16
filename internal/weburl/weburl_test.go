@@ -27,6 +27,9 @@ func TestPrivateTarget(t *testing.T) {
 		"http://169.254.169.254/latest/meta-data/", "http://10.0.0.5/x",
 		"http://192.168.1.1/x", "http://172.16.0.1/x", "http://box.local/x",
 		"http://metadata.google.internal/x",
+		// Shared address space (RFC 6598): not "private" by net's
+		// definition, but never the public internet either.
+		"http://100.64.0.1/x", "http://100.127.255.254/x",
 	}
 	for _, raw := range private {
 		u, _ := url.Parse(raw)
@@ -34,7 +37,7 @@ func TestPrivateTarget(t *testing.T) {
 			t.Errorf("%s not recognised as private", raw)
 		}
 	}
-	for _, raw := range []string{"https://example.com/x", "https://8.8.8.8/x"} {
+	for _, raw := range []string{"https://example.com/x", "https://8.8.8.8/x", "https://100.63.255.255/x", "https://100.128.0.1/x"} {
 		u, _ := url.Parse(raw)
 		if why := PrivateTarget(u); why != "" {
 			t.Errorf("%s judged private: %s", raw, why)

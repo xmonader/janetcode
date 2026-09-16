@@ -81,7 +81,7 @@ func (m *model) autoTitle() tea.Cmd {
 	m.titleGen++
 	gen := m.titleGen
 	ag := m.opts.Agent
-	msgs := append([]llm.Message(nil), ag.Messages...)
+	msgs := ag.MessagesSnapshot()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(m.life, 30*time.Second)
 		defer cancel()
@@ -136,9 +136,9 @@ func (m *model) btwCommand(q string) tea.Cmd {
 		m.refresh(false)
 		return nil
 	}
-	send := m.send
+	send, life := m.send, m.life
 	go func() {
-		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
+		ctx, cancel := context.WithTimeout(life, 2*time.Minute)
 		defer cancel()
 		a, err := ag.AskOnce(ctx, q)
 		send(btwMsg{q: q, a: a, err: err})
@@ -209,7 +209,10 @@ func (m *model) export(path string) {
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(m.opts.Cwd, path)
 	}
-	md := session.Markdown(m.opts.Session.Meta, m.opts.Agent.Messages)
+	// Through the snapshot, not the field: /export is not idle-only, so
+	// the turn goroutine may be appending to Messages while this reads it.
+	msgs := m.opts.Agent.MessagesSnapshot()
+	md := session.Markdown(m.opts.Session.Meta, msgs)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		m.transcript.errorf("export: %v", err)
 		return
@@ -218,7 +221,7 @@ func (m *model) export(path string) {
 		m.transcript.errorf("export: %v", err)
 		return
 	}
-	m.note(fmt.Sprintf("exported %d messages to %s", len(m.opts.Agent.Messages), shortPath(path)))
+	m.note(fmt.Sprintf("exported %d messages to %s", len(msgs), shortPath(path)))
 }
 
 // resume swaps the conversation for a saved one.

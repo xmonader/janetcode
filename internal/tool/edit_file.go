@@ -447,15 +447,16 @@ func lineRange(from, to int) string {
 // quoteLines shows what a range held, short enough to read at a glance.
 func quoteLines(ls []string) string {
 	const max = 3
-	shown := ls
 	suffix := ""
 	if len(ls) > max {
-		shown, suffix = ls[:max], fmt.Sprintf(" … and %d more line(s)", len(ls)-max)
+		ls, suffix = ls[:max], fmt.Sprintf(" … and %d more line(s)", len(ls)-max)
 	}
-	for i, l := range shown {
-		if len(l) > 90 {
-			shown[i] = l[:90] + "…"
-		}
+	// A copy: ls aliases the caller's lines, and clipping in place would
+	// rewrite the file's own text. The clip is by rune, so a line cut
+	// short does not end in half a character.
+	shown := make([]string, len(ls))
+	for i, l := range ls {
+		shown[i] = textfmt.ClipBytes(l, 90)
 	}
 	return strings.TrimSpace(strings.Join(shown, " ⏎ ")) + suffix
 }

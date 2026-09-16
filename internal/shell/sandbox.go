@@ -197,7 +197,7 @@ func (s *Sandbox) backendFor() (string, error) {
 		return BackendSeatbelt, nil
 	case BackendLandlock:
 		if runtime.GOOS != "linux" {
-			return "", fmt.Errorf("the Landlock backend is Linux only")
+			return "", fmt.Errorf("landlock is a Linux facility; this machine is not Linux")
 		}
 		if s.landlockABI() < 1 {
 			return "", fmt.Errorf("this kernel has no Landlock (needs Linux 5.13 or newer with the LSM enabled)")

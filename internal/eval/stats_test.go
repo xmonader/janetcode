@@ -130,3 +130,31 @@ func TestHarnessRepairsAreSummarisedAndPrinted(t *testing.T) {
 		t.Fatalf("a clean set should say nothing:\n%s", clean)
 	}
 }
+
+// The paired bootstrap is seeded so a report is reproducible. The seed
+// fixes which *indices* each resample draws, so it only buys
+// reproducibility if the pairs behind those indices are in a fixed order
+// too — and they were built by ranging over a map, whose order Go
+// randomises on every run. Comparing the same two result sets therefore
+// printed a different interval each time.
+func TestPairedBootstrapIsReproducible(t *testing.T) {
+	base := []Result{res("a", 1.0), res("b", 2.0), res("c", 3.0), res("d", 4.0), res("e", 5.0), res("f", 6.0)}
+	cur := []Result{res("a", 1.1), res("b", 1.5), res("c", 4.0), res("d", 3.0), res("e", 9.0), res("f", 2.0)}
+	want := Compare(base, cur)
+	if want.CostRatioLo == 0 && want.CostRatioHi == 0 {
+		t.Fatal("six tasks should bootstrap an interval at all")
+	}
+	for i := 0; i < 20; i++ {
+		got := Compare(base, cur)
+		if got.CostRatioLo != want.CostRatioLo || got.CostRatioHi != want.CostRatioHi {
+			t.Fatalf("cost interval moved between identical comparisons: [%v, %v] then [%v, %v]",
+				want.CostRatioLo, want.CostRatioHi, got.CostRatioLo, got.CostRatioHi)
+		}
+		if got.ContextRatioLo != want.ContextRatioLo || got.ContextRatioHi != want.ContextRatioHi {
+			t.Fatal("context interval moved between identical comparisons")
+		}
+		if got.OutputRatioLo != want.OutputRatioLo || got.OutputRatioHi != want.OutputRatioHi {
+			t.Fatal("output interval moved between identical comparisons")
+		}
+	}
+}

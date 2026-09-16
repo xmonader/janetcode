@@ -76,32 +76,29 @@ func keyName(msg tea.KeyMsg) string {
 // table below says what a key does, and a key with no entry falls
 // through to the textarea.
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
-	switch {
-	case m.asking != nil:
-		return m.handleAskKey(msg)
-	case m.ov.kind != "":
-		return m.handleOverlayKey(msg)
-	case m.picker != nil:
-		return m.handlePickerKey(msg)
-	case m.connect != nil:
-		return m.handleConnectKey(msg)
-	case m.wiz != nil:
-		return m.handleWizardKey(msg)
+	if mode := m.mode(); mode != modePrompt {
+		return modeKeys[mode](m, msg)
 	}
-	if m.pending == nil && msg.Paste && bigPaste(string(msg.Runes)) {
+	if msg.Paste && bigPaste(string(msg.Runes)) {
 		return m.chipPaste(string(msg.Runes))
-	}
-	// Permission prompt takes over the keyboard.
-	if m.pending != nil {
-		if m.denying {
-			return m.handleDenyKey(msg)
-		}
-		return m.handlePendingKey(msg)
 	}
 	if act, ok := promptKeys[keyName(msg)]; ok {
 		return act(m, msg)
 	}
 	return nil, false
+}
+
+// modeKeys is which handler reads the keyboard in each mode. Every mode
+// but modePrompt has exactly one entry, and TestEveryModeHasAKeyHandler
+// says so, because a mode with no entry would panic on the next press.
+var modeKeys = map[uiMode]keyAction{
+	modeAsk:     (*model).handleAskKey,
+	modeOverlay: (*model).handleOverlayKey,
+	modePicker:  (*model).handlePickerKey,
+	modeConnect: (*model).handleConnectKey,
+	modeWizard:  (*model).handleWizardKey,
+	modeDeny:    (*model).handleDenyKey,
+	modeApprove: (*model).handlePendingKey,
 }
 
 // chipPaste turns a file dropped into the prompt into one chip. It is

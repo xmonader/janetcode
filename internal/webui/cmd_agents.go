@@ -31,11 +31,11 @@ func (s *server) btw(q string) {
 
 func (s *server) goal(arg string) {
 	ag := s.opts.Agent
-	if s.opts.Session == nil {
+	if s.sess() == nil {
 		s.errf("no session")
 		return
 	}
-	ev := s.opts.Session.Events()
+	ev := s.sess().Events()
 	switch arg {
 	case "", "list":
 		gs := agent.FoldGoals(ev)
@@ -58,8 +58,8 @@ func (s *server) goal(arg string) {
 	default:
 		id := ag.CreateGoal(arg, 0)
 		s.notice("goal " + id + " active: " + arg)
-		if s.opts.Session.Meta.Title == "" {
-			_ = s.opts.Session.SetTitle(textfmt.Clip(arg, 60))
+		if s.sess().Meta.Title == "" {
+			_ = s.sess().SetTitle(textfmt.Clip(arg, 60))
 		}
 		s.goalRound()
 	}

@@ -160,88 +160,89 @@ func promoteChan(f *foreground) <-chan struct{} {
 	return f.promote
 }
 
-// swapEnd is how much of each end of a command's output is kept in
-// memory. A command's result is clipped to textfmt.MaxOutput (256 KiB,
-// two thirds head and one third tail) before anyone sees it, so keeping a
-// megabyte of each end produces exactly the bytes the unbounded buffer
-// produced — while `yes`, or a build that loops, can no longer grow the
-// harness until the machine stops it. Only what is kept is written to a
-// job log when a running command is promoted.
-const swapEnd = 1 << 20
-
 // swapBuffer collects a command's output in memory and can start writing
 // it to a file as well, from the beginning, without the command noticing.
 // That is what makes a running command promotable: its output does not
 // have to be redirected before anyone knows the command will be long.
-//
-// In memory it holds the first swapEnd bytes and the last swapEnd bytes,
-// counting what fell out between them; once attached to a file it holds
-// nothing and the file gets everything.
+// max, when set, bounds what the buffer holds in memory: the first two
+// thirds of the budget are kept from the head and the last third from the
+// tail, and what falls between them is counted, not stored. A command's
+// output is whatever the model told the machine to print — `cat
+// /dev/urandom`, a build with a runaway loop in it — and the result is
+// truncated to a quarter of a megabyte before anyone reads it anyway, so
+// holding all of it was only ever a way to run the harness out of memory.
 type swapBuffer struct {
 	mu      sync.Mutex
-	head    bytes.Buffer
-	tail    []byte // the most recent bytes, at most swapEnd of them
+	max     int
+	buf     bytes.Buffer
+	tail    []byte
 	dropped int64
 	f       *os.File
 }
 
+func (s *swapBuffer) headMax() int { return s.max * 2 / 3 }
+func (s *swapBuffer) tailMax() int { return s.max - s.headMax() }
+
 func (s *swapBuffer) Write(p []byte) (int, error) {
-	n := len(p) // every byte is accounted for, kept or dropped
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.f != nil {
 		if _, err := s.f.Write(p); err != nil {
 			return 0, err
 		}
-		return n, nil
+		return len(p), nil
 	}
-	if room := swapEnd - s.head.Len(); room > 0 {
+	if s.max <= 0 {
+		return s.buf.Write(p)
+	}
+	n := len(p)
+	if room := s.headMax() - s.buf.Len(); room > 0 {
 		if room > len(p) {
 			room = len(p)
 		}
-		s.head.Write(p[:room])
+		s.buf.Write(p[:room])
 		p = p[room:]
 	}
-	if len(p) == 0 {
-		return n, nil
-	}
-	s.tail = append(s.tail, p...)
-	if over := len(s.tail) - swapEnd; over > 0 {
-		s.tail = append(s.tail[:0], s.tail[over:]...)
-		s.dropped += int64(over)
+	if len(p) > 0 {
+		s.tail = append(s.tail, p...)
+		// Trim in blocks so a chatty command does not copy the whole tail
+		// on every write.
+		if len(s.tail) > 2*s.tailMax() {
+			drop := len(s.tail) - s.tailMax()
+			s.tail = append(s.tail[:0], s.tail[drop:]...)
+			s.dropped += int64(drop)
+		}
 	}
 	return n, nil
+}
+
+// bytes is everything the buffer holds, with a marker where output was
+// dropped. Called with the lock held.
+func (s *swapBuffer) bytes() []byte {
+	if s.dropped == 0 && len(s.tail) == 0 {
+		return s.buf.Bytes()
+	}
+	out := make([]byte, 0, s.buf.Len()+len(s.tail)+64)
+	out = append(out, s.buf.Bytes()...)
+	if s.dropped > 0 {
+		out = append(out, fmt.Sprintf("\n... [%d bytes of output omitted] ...\n", s.dropped)...)
+	}
+	return append(out, s.tail...)
 }
 
 func (s *swapBuffer) String() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return string(s.collected())
-}
-
-// collected is the output still held, with a note where the middle was
-// dropped. The caller holds the lock.
-func (s *swapBuffer) collected() []byte {
-	if s.dropped == 0 && len(s.tail) == 0 {
-		return s.head.Bytes()
-	}
-	out := make([]byte, 0, s.head.Len()+len(s.tail)+64)
-	out = append(out, s.head.Bytes()...)
-	if s.dropped > 0 {
-		out = append(out, fmt.Sprintf("\n... [%d bytes of output dropped: the command produced more than the harness keeps] ...\n", s.dropped)...)
-	}
-	return append(out, s.tail...)
+	return string(s.bytes())
 }
 
 // attach starts writing to f, beginning with everything collected so far.
 func (s *swapBuffer) attach(f *os.File) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, err := f.Write(s.collected()); err != nil {
+	if _, err := f.Write(s.bytes()); err != nil {
 		return err
 	}
-	s.head.Reset()
-	s.tail, s.dropped = nil, 0
 	s.f = f
 	return nil
 }

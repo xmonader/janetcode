@@ -244,43 +244,56 @@ func (m *Manager) warm(ctx context.Context, path string) {
 	if err != nil || c == nil {
 		return
 	}
-	c.warmOnce.Do(func() {
-		ext := strings.ToLower(filepath.Ext(path))
-		if ext == "" {
-			return
+	c.warmMu.Lock()
+	defer c.warmMu.Unlock()
+	if c.warmed {
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext == "" {
+		return
+	}
+	opened := 0
+	_ = filepath.WalkDir(m.root(), func(p string, d os.DirEntry, err error) error {
+		// A monorepo's tree is a long walk, and the caller may have
+		// given up on the query that started it.
+		if ctx.Err() != nil {
+			return filepath.SkipAll
 		}
-		opened := 0
-		_ = filepath.WalkDir(m.root(), func(p string, d os.DirEntry, err error) error {
-			if err != nil || opened >= warmLimit {
-				if opened >= warmLimit {
-					return filepath.SkipAll
-				}
-				return nil
-			}
-			if d.IsDir() {
-				// The places a project keeps things that are not its source.
-				switch d.Name() {
-				case ".git", "node_modules", "vendor", "target", "dist", "build", ".venv", "__pycache__":
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if !strings.EqualFold(filepath.Ext(p), ext) {
-				return nil
-			}
-			if fi, err := d.Info(); err != nil || fi.Size() > warmMaxBytes {
-				return nil
-			}
-			data, err := os.ReadFile(p)
-			if err != nil {
-				return nil
-			}
-			if err := c.sync(p, string(data)); err == nil {
-				opened++
+		if err != nil || opened >= warmLimit {
+			if opened >= warmLimit {
+				return filepath.SkipAll
 			}
 			return nil
-		})
+		}
+		if d.IsDir() {
+			// The places a project keeps things that are not its source.
+			switch d.Name() {
+			case ".git", "node_modules", "vendor", "target", "dist", "build", ".venv", "__pycache__":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.EqualFold(filepath.Ext(p), ext) {
+			return nil
+		}
+		if fi, err := d.Info(); err != nil || fi.Size() > warmMaxBytes {
+			return nil
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return nil
+		}
+		if err := c.sync(p, string(data)); err == nil {
+			opened++
+		}
+		return nil
 	})
+	// A walk cut short by its caller's context has not warmed anything;
+	// leave it to the next query rather than remembering it as done.
+	if ctx.Err() == nil {
+		c.warmed = true
+	}
 }
 
 func (m *Manager) locationQuery(ctx context.Context, method, path string, pos Point, extra map[string]any) ([]Location, error) {
@@ -544,9 +557,10 @@ func (m *Manager) decodeLocations(raw json.RawMessage) []Location {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil
 	}
+	lines := &lineCache{}
 	add := func(out []Location, uri string, line, col int) []Location {
 		p := m.rel(fromURI(uri))
-		return append(out, Location{Path: p, Line: line + 1, Col: col + 1, Text: m.sourceLine(p, line)})
+		return append(out, Location{Path: p, Line: line + 1, Col: col + 1, Text: lines.at(m, p, line)})
 	}
 	var one lspLocation
 	if json.Unmarshal(raw, &one) == nil && one.URI != "" {
@@ -575,13 +589,25 @@ func (m *Manager) decodeLocations(raw json.RawMessage) []Location {
 	return nil
 }
 
-// sourceLine reads one line of a file for context in a result.
-func (m *Manager) sourceLine(path string, line int) string {
-	data, err := os.ReadFile(m.abs(path))
-	if err != nil {
-		return ""
+// lineCache holds the files read while rendering the results of one
+// query. "references to X" in a large project names the same handful of
+// files hundreds of times, and each result used to re-read and re-split
+// the whole file for its one line of context. Keyed by the path as the
+// result names it; it lives and dies with the query, so there is nothing
+// to invalidate and nothing to bound beyond the files that query touched.
+type lineCache struct{ files map[string][]string }
+
+func (c *lineCache) at(m *Manager, path string, line int) string {
+	lines, ok := c.files[path]
+	if !ok {
+		if data, err := os.ReadFile(m.abs(path)); err == nil {
+			lines = strings.Split(string(data), "\n")
+		}
+		if c.files == nil {
+			c.files = map[string][]string{}
+		}
+		c.files[path] = lines
 	}
-	lines := strings.Split(string(data), "\n")
 	if line < 0 || line >= len(lines) {
 		return ""
 	}

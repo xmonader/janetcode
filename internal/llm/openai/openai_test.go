@@ -25,9 +25,16 @@ func sse(lines ...string) string {
 }
 
 func newTestProvider(t *testing.T, handler http.HandlerFunc) *Provider {
+	return newTestProviderWith(t, Config{MaxRetries: 2}, handler)
+}
+
+// newTestProviderWith is newTestProvider with the rest of cfg kept; the
+// base URL and key are the test server's either way.
+func newTestProviderWith(t *testing.T, cfg Config, handler http.HandlerFunc) *Provider {
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	p, err := New(Config{BaseURL: srv.URL + "/v1/", APIKey: "k", MaxRetries: 2})
+	cfg.BaseURL, cfg.APIKey = srv.URL+"/v1/", "k"
+	p, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -828,6 +835,64 @@ func TestReadStreamHostileFrames(t *testing.T) {
 		}
 	})
 
+	// A tool call whose name never arrived cannot be run, and going back
+	// into the history as a tool_use with an empty name makes every later
+	// turn invalid for the provider. It has to end the turn with a
+	// readable reason instead.
+	t.Run("a tool call with no function name is reported, not sent on", func(t *testing.T) {
+		s := "data: " + `{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_a","function":{"arguments":"{\"path\":\"a\"}"}}]}}]}` + "\n\n" +
+			"data: " + `{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}` + "\n\n" +
+			"data: [DONE]\n\n"
+		resp, err := readStream(strings.NewReader(s), nil, func(llm.Event) {})
+		if err == nil {
+			t.Fatalf("a nameless call was accepted: %+v", resp.Message.Blocks)
+		}
+		if !strings.Contains(err.Error(), "no function name") {
+			t.Fatalf("err = %v", err)
+		}
+	})
+
+	// A delta that carried nothing at all is not a call and must not turn
+	// the turn into a tool-use turn with no tools in it, which the agent
+	// loop would answer with an empty results message.
+	t.Run("an empty tool-call delta is dropped, not turned into a call", func(t *testing.T) {
+		s := "data: " + `{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{}}]}}]}` + "\n\n" +
+			"data: " + `{"choices":[{"delta":{"content":"done"},"finish_reason":"stop"}]}` + "\n\n" +
+			"data: [DONE]\n\n"
+		resp, err := readStream(strings.NewReader(s), nil, func(llm.Event) {})
+		if err != nil {
+			t.Fatalf("readStream: %v", err)
+		}
+		if uses := resp.Message.ToolUses(); len(uses) != 0 {
+			t.Fatalf("got %d calls, want none: %+v", len(uses), uses)
+		}
+		if resp.StopReason != llm.StopEndTurn {
+			t.Fatalf("stop = %q, want end_turn", resp.StopReason)
+		}
+	})
+
+	// A server that answers with a plain JSON body, or a proxy that
+	// answers with an HTML error page, used to come back as "empty stream
+	// from server" with nothing to act on.
+	t.Run("a body that is not SSE is quoted in the error", func(t *testing.T) {
+		_, err := readStream(strings.NewReader("<html><body>502 Bad Gateway</body></html>\n"), nil, func(llm.Event) {})
+		if err == nil || !strings.Contains(err.Error(), "502 Bad Gateway") {
+			t.Fatalf("err = %v, want the body quoted", err)
+		}
+	})
+
+	// SSE comments are keep-alives, not content, and must not be quoted
+	// back as if the server had said something.
+	t.Run("an SSE comment is a keep-alive", func(t *testing.T) {
+		s := ": ping\n\n" +
+			"data: " + `{"choices":[{"delta":{"content":"hi"},"finish_reason":"stop"}]}` + "\n\n" +
+			"data: [DONE]\n\n"
+		resp, err := readStream(strings.NewReader(s), nil, func(llm.Event) {})
+		if err != nil || resp.Message.Text() != "hi" {
+			t.Fatalf("resp = %v, err = %v", resp, err)
+		}
+	})
+
 	t.Run("empty data frame is a keep-alive, not a parse error", func(t *testing.T) {
 		s := "data:\n\n" +
 			"data: " + `{"choices":[{"delta":{"content":"hi"}}]}` + "\n\n" +
@@ -1026,5 +1091,69 @@ func TestBuildRequestSeparatesUserTextBlocks(t *testing.T) {
 	want := `[{"role":"user","content":"[harness] Later changes to the same files stayed.\n\nRe-add a TestClipBytes\n\nends in a newline\n\nlast"}]`
 	if string(raw) != want {
 		t.Fatalf("messages = %s", raw)
+	}
+}
+
+// A server rejects cache_control either because it does not know the
+// field or because it will not take array content at all. The message
+// cannot tell which, so the fallback has to put the request back exactly
+// as it was before the breakpoints went on — markers gone and every
+// text-only message a plain string again, the split system prompt
+// included. Leaving an array behind left a server of the second kind
+// refusing every request for the rest of the session.
+func TestStripCacheControlRestoresThePlainRequest(t *testing.T) {
+	req := llm.Request{
+		Model:  "qwen3.7-plus",
+		System: "you are a coding agent\n\n# Environment\n- Working directory: /tmp/x\n",
+		Messages: []llm.Message{
+			llm.TextMessage(llm.RoleUser, "first"),
+			llm.TextMessage(llm.RoleAssistant, "ok"),
+			llm.TextMessage(llm.RoleUser, "tail"),
+		},
+		Tools: []llm.ToolDef{{Name: "bash", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	}
+	plain, err := buildRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := buildRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyCacheBreakpoints(&w)
+	stripCacheControl(&w)
+	for i := range w.Messages {
+		got, ok := w.Messages[i].Content.(string)
+		if !ok {
+			t.Fatalf("message %d is still %#v, not a string", i, w.Messages[i].Content)
+		}
+		if want := plain.Messages[i].Content.(string); got != want {
+			t.Fatalf("message %d = %q, want %q", i, got, want)
+		}
+	}
+	for i := range w.Tools {
+		if w.Tools[i].CacheControl != nil {
+			t.Fatalf("tool %d still marked", i)
+		}
+	}
+	// A message with an image keeps its parts; only the markers go.
+	img := llm.Message{Role: llm.RoleUser, Blocks: []llm.Block{
+		{Type: llm.BlockText, Text: "look"},
+		{Type: llm.BlockImage, MediaType: "image/png", Data: "AAAA"},
+	}}
+	wi, err := buildRequest(llm.Request{Model: "m", Messages: []llm.Message{img}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyCacheBreakpoints(&wi)
+	stripCacheControl(&wi)
+	parts, ok := wi.Messages[0].Content.([]wirePart)
+	if !ok || len(parts) != 2 {
+		t.Fatalf("an image message must keep its parts: %#v", wi.Messages[0].Content)
+	}
+	for _, p := range parts {
+		if p.CacheControl != nil {
+			t.Fatalf("part still marked: %#v", p)
+		}
 	}
 }

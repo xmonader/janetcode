@@ -56,7 +56,7 @@ func TestKeepIncludesLockedAcceptanceTests(t *testing.T) {
 		t.Fatal(err)
 	}
 	sess := acceptSession(t, root, "", "make the widget say done")
-	_, task, _, err := Keep(KeepOptions{Root: root, Session: sess, Dir: t.TempDir()})
+	_, task, _, err := Keep(context.Background(), KeepOptions{Root: root, Session: sess, Dir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("Keep: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestKeepNotesDroppedDenialReasons(t *testing.T) {
 	if _, err := sess.Append(session.Event{Type: session.TypeToolResult, Turn: 1, Surface: true, Message: &tr}); err != nil {
 		t.Fatal(err)
 	}
-	_, _, warnings, err := Keep(KeepOptions{Root: root, Session: sess, Check: "true", Dir: t.TempDir()})
+	_, _, warnings, err := Keep(context.Background(), KeepOptions{Root: root, Session: sess, Check: "true", Dir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("Keep: %v", err)
 	}

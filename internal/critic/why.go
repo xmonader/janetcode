@@ -42,11 +42,15 @@ const (
 	IvPermission InterventionKind = "permission rule"
 	IvSteering   InterventionKind = "steering"
 	IvWorkingMem InterventionKind = "working memory"
-	IvPathRule   InterventionKind = "path rule"
-	IvPlan       InterventionKind = "plan check"
-	IvNudge      InterventionKind = "nudge"
-	IvOversized  InterventionKind = "oversized output"
-	IvRetry      InterventionKind = "retried call"
+	// IvPathRule has no classifyNotice case: a path rule's notice is the
+	// rule's own user-written text, which no opening can be matched on,
+	// so such a notice reads as IvNudge today. The kind and its
+	// explanation stay for the emit site that can name itself.
+	IvPathRule  InterventionKind = "path rule"
+	IvPlan      InterventionKind = "plan check"
+	IvNudge     InterventionKind = "nudge"
+	IvOversized InterventionKind = "oversized output"
+	IvRetry     InterventionKind = "retried call"
 )
 
 // Intervention is one thing the harness did without being asked.

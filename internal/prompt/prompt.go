@@ -111,22 +111,102 @@ func System(cwd string) string { return SystemWith(cwd, Override{}) }
 
 // SystemWith is System with an experiment's override applied.
 func SystemWith(cwd string, o Override) string {
-	s := system(cwd, o.Base)
-	if o.Append != "" {
-		s += "\n\n" + o.Append + "\n"
+	var sb strings.Builder
+	for _, sec := range Sections(cwd, o) {
+		sb.WriteString(sec.Text)
 	}
-	return s
+	return sb.String()
 }
 
-func system(cwd, base string) string {
-	var sb strings.Builder
-	if base != "" {
-		sb.WriteString(base)
-		sb.WriteString("\n\n# Environment\n")
-		writeEnvironment(&sb, cwd)
-		return sb.String()
+// The names of the parts the system prompt is assembled from, in the
+// order Sections returns them. They are named so that a caller — an
+// eval, a test, a provider deciding where to put a cache breakpoint —
+// can talk about one part of the prompt without re-deriving it by
+// cutting the whole string on a heading.
+const (
+	SectionBase        = "base"                 // the standing instructions, or an override's replacement for them
+	SectionHarness     = "harness"              // what janetcode already does for the model
+	SectionEnvironment = "environment"          // where the session is, when it is, what it is checked out at
+	SectionProject     = "project-instructions" // JANETCODE.md / AGENTS.md / CLAUDE.md, root down to cwd
+	SectionAppend      = "append"               // --append-system-prompt, last of all
+)
+
+// EnvironmentHeading opens the volatile tail. Providers split the prompt
+// here to put a cache breakpoint above it (see
+// openai.applyCacheBreakpoints), so it is written once, here.
+const EnvironmentHeading = "\n# Environment\n"
+
+// Section is one named piece of the system prompt. The prompt is exactly
+// the concatenation of Sections in order, and nothing else assembles it,
+// so that list is the whole answer to what the model sees and when.
+type Section struct {
+	// Name is one of the Section* constants above.
+	Name string
+	// Head marks a section of the cache-stable head: text identical for
+	// every session on this build, so a provider's prompt cache keeps
+	// matching it turn after turn and day after day. Head sections always
+	// come first, and nothing in one may carry the date, the working
+	// directory, the branch or anything else that differs between
+	// sessions — one such byte moves the entire conversation below the
+	// cache. TestHeadIsCacheStable enforces both halves of that.
+	Head bool
+	// Text carries its own leading and trailing newlines, so joining the
+	// sections needs no separator.
+	Text string
+}
+
+// Sections returns the system prompt for a session rooted at cwd, split
+// into its named parts: the stable head first, then the volatile tail.
+func Sections(cwd string, o Override) []Section {
+	base := baseInstructions
+	if o.Base != "" {
+		// An override replaces the harness's own instructions, and with
+		// them the harness section: a base somebody wrote by hand does
+		// not want a list of janetcode's behaviours stapled to it. The
+		// environment and the project's instructions still follow, since
+		// a prompt without the working directory or the date is not a
+		// prompt anybody meant to write.
+		base = o.Base + "\n"
 	}
-	sb.WriteString(`You are janetcode, a coding agent running in the user's terminal. You help with software engineering tasks: reading and modifying code, running commands, debugging, and explaining.
+	secs := []Section{{Name: SectionBase, Head: true, Text: base}}
+	if o.Base == "" {
+		secs = append(secs, Section{Name: SectionHarness, Head: true, Text: Harness})
+	}
+	secs = append(secs,
+		Section{Name: SectionEnvironment, Text: EnvironmentHeading + environment(cwd)},
+		Section{Name: SectionProject, Text: projectInstructions(cwd)},
+	)
+	if o.Append != "" {
+		secs = append(secs, Section{Name: SectionAppend, Text: "\n\n" + o.Append + "\n"})
+	}
+	return secs
+}
+
+// environment is the body under EnvironmentHeading: where the session is,
+// when it is, and what it is checked out at. Every line of it is volatile
+// by construction, which is why it is the first thing below the head.
+func environment(cwd string) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "- Working directory: %s\n", cwd)
+	fmt.Fprintf(&sb, "- Platform: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(&sb, "- Date: %s\n", time.Now().Format("2006-01-02"))
+	sb.WriteString(gitInfo(cwd))
+	return sb.String()
+}
+
+// projectInstructions is what the project itself says: one block per
+// instruction file found from the root down to cwd.
+func projectInstructions(cwd string) string {
+	var sb strings.Builder
+	for _, in := range Instructions(cwd) {
+		fmt.Fprintf(&sb, "\n# Project instructions (from %s)\n%s\n", in.Name, in.Text)
+	}
+	return sb.String()
+}
+
+// baseInstructions is the standing half of the prompt: the same bytes on
+// every session, which is what lets a provider cache it.
+const baseInstructions = `You are janetcode, a coding agent running in the user's terminal. You help with software engineering tasks: reading and modifying code, running commands, debugging, and explaining.
 
 # How to work
 - Use the tools to look at the actual code before answering questions about it or changing it. Do not guess file contents.
@@ -146,28 +226,7 @@ func system(cwd, base string) string {
 - When the conversation grows long it is summarised for you: the summary, plus whatever was not summarised, is what you get next, and expand_output fetches anything exact you need back. So do not wrap up early, hand off, or start hedging because a task is taking a while — there is no cliff to run out of room before.
 - Be concise. Lead with the result. Use markdown; put code, commands and error output in fenced blocks.
 
-`)
-	sb.WriteString(Harness)
-	sb.WriteString(`
-# Environment
-`) // openai.applyCacheBreakpoints splits on this heading so cwd/date stay out of the cached prefix.
-	writeEnvironment(&sb, cwd)
-	return sb.String()
-}
-
-// writeEnvironment is everything below the "# Environment" heading: where
-// the session is, when it is, and what the project itself says.
-func writeEnvironment(sb *strings.Builder, cwd string) {
-	fmt.Fprintf(sb, "- Working directory: %s\n", cwd)
-	fmt.Fprintf(sb, "- Platform: %s/%s\n", runtime.GOOS, runtime.GOARCH)
-	fmt.Fprintf(sb, "- Date: %s\n", time.Now().Format("2006-01-02"))
-	if git := gitInfo(cwd); git != "" {
-		sb.WriteString(git)
-	}
-	for _, in := range Instructions(cwd) {
-		fmt.Fprintf(sb, "\n# Project instructions (from %s)\n%s\n", in.Name, in.Text)
-	}
-}
+`
 
 func gitInfo(cwd string) string {
 	branch, ok := GitBranch(cwd)

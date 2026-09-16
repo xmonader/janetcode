@@ -250,7 +250,7 @@ func TestTurnPrepAttachesSkillsAndMemory(t *testing.T) {
 		return []Skill{{Name: "sql-migrations", Description: "Write database schema migrations", Body: "steps", ModelInvocable: true}}
 	}}
 	prep := TurnPrep(in, mem)
-	blocks, note := prep([]llm.Block{{Type: llm.BlockText, Text: "add a database schema migration for users"}})
+	blocks, note := prep(context.Background(), []llm.Block{{Type: llm.BlockText, Text: "add a database schema migration for users"}})
 	if len(blocks) != 3 || !strings.HasPrefix(blocks[1].Text, "<skill name=\"sql-migrations\"") || !strings.HasPrefix(blocks[2].Text, "<memory name=\"goose\"") {
 		t.Fatalf("blocks = %+v", blocks)
 	}
@@ -274,7 +274,7 @@ func TestTurnPrepAttachesSkillsAndMemory(t *testing.T) {
 	if e, _ := mem.Get("goose"); e.Uses != 1 {
 		t.Fatalf("uses = %d", e.Uses)
 	}
-	if blocks, note = prep([]llm.Block{{Type: llm.BlockText, Text: "hello"}}); len(blocks) != 1 || note != "" {
+	if blocks, note = prep(context.Background(), []llm.Block{{Type: llm.BlockText, Text: "hello"}}); len(blocks) != 1 || note != "" {
 		t.Fatalf("unrelated turn got %+v %q", blocks, note)
 	}
 }

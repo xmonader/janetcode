@@ -72,8 +72,11 @@ type Client struct {
 	tr     transport
 	nextID atomic.Int64
 
+	// pendMu guards pending, which maps a request id to the one-shot
+	// channel its caller waits on. A nil map means the connection is
+	// finished and no new call may register.
 	pendMu  sync.Mutex
-	pending map[int64]chan rpcMessage
+	pending map[int64]chan rpcReply
 
 	tools   []ToolInfo
 	prompts []PromptInfo
@@ -83,7 +86,30 @@ type Client struct {
 
 	closeOnce sync.Once
 	done      chan struct{}
-	exitErr   error
+	// exitMu guards exitErr, which is why the connection ended. It is
+	// written by whichever of the transport, the process reaper and Close
+	// gets there first, and read by callers that were waiting; done alone
+	// cannot carry it, because Close and the reaper both race to close it.
+	exitMu  sync.Mutex
+	exitErr error
+}
+
+// ErrDisconnected wraps every error that means the call could not be
+// completed because the connection to the server went away, rather than
+// because the server answered with a failure. Callers branch on it to
+// decide whether repeating the call is safe.
+var ErrDisconnected = errors.New("mcp: the connection to the server was lost")
+
+// maxFrameBytes bounds one message from a server on either transport. A
+// frame larger than this is a server that is broken or hostile, not a
+// reply, and reading it would be an unbounded allocation.
+const maxFrameBytes = 64 << 20
+
+// rpcReply is what a waiting call receives: either a message from the
+// server or the transport-level error that means none will arrive.
+type rpcReply struct {
+	msg rpcMessage
+	err error
 }
 
 // transport moves JSON-RPC messages to and from a server. Inbound messages
@@ -131,7 +157,7 @@ type Options struct {
 func Start(ctx context.Context, name string, cfg ServerConfig, opts Options) (*Client, error) {
 	c := &Client{
 		Name:    name,
-		pending: map[int64]chan rpcMessage{},
+		pending: map[int64]chan rpcReply{},
 		root:    opts.Root,
 		debug:   opts.Debug,
 		done:    make(chan struct{}),
@@ -491,30 +517,52 @@ func (c *Client) CallTool(ctx context.Context, name string, args json.RawMessage
 // Close stops the server or connection. It is safe to call more than once.
 func (c *Client) Close() error {
 	c.tr.close()
-	c.failPending(errors.New("connection closed"))
-	c.closeOnce.Do(func() { close(c.done) })
+	c.fail(fmt.Errorf("%w: the client closed it", ErrDisconnected))
 	return nil
 }
 
-// exited is called by a transport when the server went away.
+// exited is called by a transport when the server process went away.
 func (c *Client) exited(err error) {
-	c.exitErr = err
-	c.failPending(fmt.Errorf("server exited: %v", err))
+	c.fail(fmt.Errorf("%w: the server exited: %v", ErrDisconnected, err))
+}
+
+// fail ends the connection: it records why (the first reason wins, since
+// a server that dies and a Close that follows describe the same event),
+// wakes every waiting call with that reason, and closes done.
+func (c *Client) fail(err error) {
+	c.exitMu.Lock()
+	if c.exitErr == nil {
+		c.exitErr = err
+	}
+	reason := c.exitErr
+	c.exitMu.Unlock()
+	c.failPending(reason)
 	c.closeOnce.Do(func() { close(c.done) })
 }
 
-// Done is closed when the server process has exited.
+// exitError is why the connection ended, for a caller that found it gone.
+func (c *Client) exitError() error {
+	c.exitMu.Lock()
+	defer c.exitMu.Unlock()
+	if c.exitErr != nil {
+		return c.exitErr
+	}
+	return ErrDisconnected
+}
+
+// Done is closed once the connection is finished — the server process
+// exited, its stream broke, or Close was called.
 func (c *Client) Done() <-chan struct{} { return c.done }
 
 // --- transport ---
 
 func (c *Client) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
 	id := c.nextID.Add(1)
-	ch := make(chan rpcMessage, 1)
+	ch := make(chan rpcReply, 1)
 	c.pendMu.Lock()
 	if c.pending == nil {
 		c.pendMu.Unlock()
-		return nil, errors.New("connection closed")
+		return nil, c.exitError()
 	}
 	c.pending[id] = ch
 	c.pendMu.Unlock()
@@ -530,16 +578,20 @@ func (c *Client) call(ctx context.Context, method string, params any) (json.RawM
 		return nil, err
 	}
 	select {
-	case msg := <-ch:
-		if msg.Error != nil {
-			return nil, msg.Error
+	case r := <-ch:
+		switch {
+		case r.err != nil:
+			return nil, r.err
+		case r.msg.Error != nil:
+			return nil, r.msg.Error
 		}
-		return msg.Result, nil
+		return r.msg.Result, nil
 	case <-ctx.Done():
 		c.dropPending(id)
 		return nil, ctx.Err()
 	case <-c.done:
-		return nil, fmt.Errorf("server exited: %v", c.exitErr)
+		c.dropPending(id)
+		return nil, c.exitError()
 	}
 }
 
@@ -591,7 +643,7 @@ func (c *Client) dispatch(msg rpcMessage) {
 		delete(c.pending, id)
 		c.pendMu.Unlock()
 		if ch != nil {
-			ch <- msg
+			ch <- rpcReply{msg: msg}
 		}
 	}
 }
@@ -616,9 +668,21 @@ func (c *Client) handleRequest(req rpcMessage) {
 	default:
 		reply.Error = &rpcError{Code: -32601, Message: "method not supported by janetcode: " + req.Method}
 	}
+	// The reply is bounded by the connection itself: a server that has
+	// gone away must not hold a goroutine for thirty seconds, and a
+	// background context would outlive Close.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	c.send(ctx, reply)
+	go func() {
+		select {
+		case <-c.done:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	if err := c.send(ctx, reply); err != nil {
+		c.logf("reply to %s failed: %v", req.Method, err)
+	}
 }
 
 func (c *Client) dropPending(id int64) {
@@ -631,7 +695,7 @@ func (c *Client) failPending(err error) {
 	c.pendMu.Lock()
 	defer c.pendMu.Unlock()
 	for id, ch := range c.pending {
-		ch <- rpcMessage{Error: &rpcError{Code: -32000, Message: err.Error()}}
+		ch <- rpcReply{err: err}
 		delete(c.pending, id)
 	}
 	c.pending = nil

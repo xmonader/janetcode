@@ -12,7 +12,6 @@ import (
 	"io"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/hook"
@@ -153,6 +152,11 @@ type Agent struct {
 	// three things that notice a turn going wrong (see turnmon.go).
 	// Embedded for the same reason.
 	turnMonitor
+	// turnState is what belongs to the turn in progress and nothing
+	// else: whether one is running, what it changed, what is queued for
+	// it, its frozen tool list and its event sink (see turnstate.go).
+	// Embedded for the same reason.
+	turnState
 
 	// Model, MaxTokens, Effort, MaxIterations, CompactAt, AutoApprove, AutoEdits,
 	// AutoMode, ReadOnly, PlanMode, ProofNotes, Rules and Pins are filled
@@ -199,14 +203,6 @@ type Agent struct {
 	// routing never leaves Model, undo-about uses keyword overlap
 	// instead of the model, and mermaid is drawn as source.
 	Off map[string]bool
-	// keepReverts is how many times this goal has had a round put back
-	// in a row; lastGoalOut is the previous round's verdict, for the
-	// comparison; steeredThisTurn is set when the user steered, so a
-	// turn they directed is never reverted (see keepOrRevert).
-	keepReverts     int
-	lastGoalOut     TurnOutcome
-	goalOutSet      bool
-	steeredThisTurn bool
 	// Verify, when set, runs the project's definition of done after a turn
 	// that changed something. Failures go back to the model before the
 	// turn ends, up to verify.MaxRounds times.
@@ -249,11 +245,6 @@ type Agent struct {
 	// front-end changes them while the turn goroutine and subagents read
 	// them (see settings.go).
 	settingsMu sync.Mutex
-	// mutations counts successful mutating tool calls this turn.
-	mutations int
-	// proofCommits are the commits this turn attached a proof note to
-	// (see checkCommitAttach), refreshed once the turn's gates have run.
-	proofCommits []string
 	// Debug, when set, receives a timestamped line per event and model call.
 	Debug io.Writer
 
@@ -287,33 +278,16 @@ type Agent struct {
 	planComments plan.Comments
 	// Prepare, when set, may add blocks to a user turn before it is sent
 	// (skills attach themselves this way). The returned note, if any, is
-	// emitted as a notice.
-	Prepare func(blocks []llm.Block) ([]llm.Block, string)
-
-	mutated bool // a mutating tool ran successfully this turn
-	// running is set between beginTurn and endTurn, so a command that
-	// rewrites the conversation ("/undo turn n", see rewind.go) can
-	// refuse rather than race the turn goroutine that is appending to
-	// it. The front-ends keep such commands off the key handler while a
-	// turn runs (slash.idleOnly); this is the agent's own check.
-	running atomic.Bool
+	// emitted as a notice. It is given the turn's own context: what it
+	// does can reach a git command, an index rebuild or an embedding
+	// call, and ^C has to stop those with the rest of the turn rather
+	// than leave them running on a context of their own.
+	Prepare func(ctx context.Context, blocks []llm.Block) ([]llm.Block, string)
 
 	// callIDs is every tool-call id handed out this conversation, so a
 	// provider that repeats or omits one cannot collide with it.
 	callIDs map[string]bool
 	msgMu   sync.Mutex // guards Messages writes against off-turn readers (see MessagesSnapshot)
-	steerMu sync.Mutex // guards steer, written from the UI goroutine
-	steer   []string   // notes for the running turn (see Steer)
-	harness []string   // harness text for the running turn (path rules)
-	// tools is this turn's tool list, held so that a server registering
-	// mid-turn cannot rewrite the cached prefix. Cleared at each turn.
-	tools []llm.ToolDef
-
-	// emitNow is the current turn's event sink. A tool that dispatches
-	// further tool calls of its own — a script does — needs it to show
-	// them as they happen, and it is not on the Tool interface.
-	emitMu  sync.Mutex
-	emitNow func(Event)
 }
 
 // beginTurn opens a logged turn whose user message is blocks: it appends
@@ -338,10 +312,7 @@ func (a *Agent) beginTurn(ctx context.Context, blocks ...llm.Block) {
 	a.logEvent(start)
 	a.logUserMessage(merged)
 	a.cp.beginTurn(a.turnN, before)
-	a.running.Store(true)
-	a.mutated, a.mutations = false, 0
-	a.proofCommits = nil
-	a.steeredThisTurn = false
+	a.turnState.begin()
 }
 
 // ErrMaxIterations is returned when a turn exceeds MaxIterations model calls.
@@ -355,69 +326,34 @@ func (a *Agent) Run(ctx context.Context, userText string, emit func(Event)) erro
 
 // RunBlocks is Run for a user turn made of several blocks (text plus
 // images).
+//
+// The loop below is the whole harness in one place: one model call, then
+// either the turn ends (finishTurn, which may send it back for another
+// call) or its tool calls run (runToolStep). Everything each of those
+// needs from the step before it is passed explicitly, and the counters
+// that have to survive the iterations live in turnGates, so the loop
+// itself holds no state of its own beyond the compaction threshold.
 func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Event)) error {
 	emit = serialize(a.ledgered(a.traced(emit)))
 	if a.Settings().Provider == nil {
 		return errors.New("no provider")
 	}
-	a.stats.turn()
-	a.startTurn()
-	a.tools = nil // pick up any tool that registered since the last turn
-	a.coach.noSyntax = a.Off["syntax"]
-	if a.Tools == nil {
-		a.Tools = tool.NewRegistry()
-	}
-	maxIter := a.Settings().MaxIterations
-	if maxIter <= 0 {
-		maxIter = 50
-	}
-	if a.Prepare != nil {
-		var note string
-		own := len(blocks)
-		blocks, note = a.Prepare(blocks)
-		var repeated int
-		blocks, repeated = a.dropRepeatedAttachments(blocks, own)
-		if note != "" {
-			emit(Event{Kind: EvNotice, Text: note})
-		}
-		if repeated > 0 {
-			emit(Event{Kind: EvNotice, Text: fmt.Sprintf(
-				"%s of attachment was already in the context word for word and was not sent again", textfmt.Tokens(repeated))})
-		}
-	}
-	a.beginTurn(ctx, blocks...)
+	maxIter := a.openTurn(ctx, blocks, emit)
 	defer a.endTurn(ctx)
 	// A note typed with ctrl+s reaches the model before the turn's next
 	// call. A turn that ends with its final answer has no next call, so
 	// the note stays queued for the turn after this one. Say so, rather
 	// than letting the user watch what they typed disappear.
 	defer func() {
-		a.steerMu.Lock()
-		n := len(a.steer)
-		a.steerMu.Unlock()
-		if n > 0 {
+		if n := a.pendingSteer(); n > 0 {
 			emit(Event{Kind: EvNotice, Text: fmt.Sprintf(
 				"%d steering note(s) arrived after the turn's last model call; they go with your next message",
 				n)})
 		}
 	}()
-	a.loops.reset()
-	a.turnStart, a.warned = time.Now(), false
-	a.modelRouter.newTurn()
-	a.integ.userText = ""
-	for _, b := range blocks {
-		if b.Type == llm.BlockText && b.Text != "" {
-			a.integ.userText = b.Text
-			break
-		}
-	}
 
 	compactAt := a.raiseCompactFloor(emit)
-	stops, needs := 0, 0
-	corrections := 0
-	gate := gateState{}
-	acceptGate := gateState{}
-	acceptNudged := false
+	var gates turnGates
 	for iter := 0; iter < maxIter; iter++ {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -432,187 +368,300 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		a.deliverSteering(emit)
 		a.stepN++
 		a.logEvent(session.Event{Type: session.TypeStepStart, Turn: a.turnN, Step: a.stepN})
-		resp, err := a.call(ctx, emit)
-		if err != nil && isContextOverflow(err) && compactAt > 0 {
-			// The estimate was wrong; summarise and try once more. When the
-			// error names the model's real limit, compact earlier from now on.
-			if w := windowFromError(err); w > 0 && w*3/4 < compactAt {
-				compactAt = w * 3 / 4
-				a.UpdateSettings(func(s *Settings) { s.CompactAt = compactAt })
-			}
-			if cerr := a.Compact(ctx, emit); cerr != nil && !errors.Is(cerr, ErrNothingToCompact) {
-				return fmt.Errorf("%w (compaction also failed: %v)", err, cerr)
-			}
-			resp, err = a.call(ctx, emit)
-		}
+		resp, err := a.callStep(ctx, &compactAt, emit)
 		if err != nil {
 			// Nothing appended: the trailing user message stays and the next
 			// Run merges into it.
 			return err
 		}
-		// A model that wrote its call as prose meant to call the tool;
-		// reading it back costs nothing and saves the turn.
-		a.recoverToolCalls(resp, emit)
-		// Every call gets an id of its own, whatever the server numbered
-		// it: the transcript, the permission prompt and the log all key
-		// by it. The reply still goes back under the server's own id.
-		if a.callIDs == nil {
-			a.callIDs = map[string]bool{}
-		}
-		normalizeCallIDs(&resp.Message, a.callIDs, a.turnN, a.stepN)
-		a.lastInputTokens = resp.Usage.InputTokens + resp.Usage.CacheReadTokens + resp.Usage.CacheWriteTokens
-		a.lastInputMsgs = len(a.Messages)
-		a.appendMessage(resp.Message)
-		a.integ.lastLen = len(a.Messages)
-		a.addUsage(resp.Usage)
-		msg := resp.Message
-		u := resp.Usage
-		a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &msg, Usage: &u, Model: a.lastCallModel})
-		emit(Event{Kind: EvTextBlockDone})
-		// The ceiling is asked about here, while the call just paid for
-		// is in the totals and before its tools are run.
-		if spent, over := a.overBudget(); over {
-			return a.stopForBudget(spent, resp.Message.ToolUses(), emit)
-		}
-		// A model that keeps writing the same message has stopped reading
-		// its own results; the ladder is the same as for a repeated call.
-		// The note rides with this step's tool results, because nothing
-		// may come between a tool call and its answer.
-		repeatNote := ""
-		if !a.Off["loops"] {
-			a.loopMu.Lock()
-			note, stop := a.loops.recordText(resp.Message.Text())
-			a.loopMu.Unlock()
-			if stop {
-				// The notice is logged by the ledger wrapper around emit.
-				emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
-				a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
-				return ErrStuck
-			}
-			repeatNote = note
-			if note != "" {
-				a.stepRoute.taint("a loop nudge fired this turn")
-			}
-		}
-
-		// A response cut off at the output limit may have had its tool
-		// arguments truncated mid-JSON and then repaired into something
-		// that parses and validates but is missing content — a half-
-		// written file reported as a success. The calls are refused
-		// rather than run, and answered so the history stays paired and
-		// the model knows to reissue them.
-		if resp.StopReason == llm.StopMaxTokens {
-			if uses := resp.Message.ToolUses(); len(uses) > 0 {
-				results := make([]llm.Block, 0, len(uses))
-				for _, u := range uses {
-					call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
-					msg := fmt.Sprintf("%s was not run: the response hit the output token limit, so its arguments may be cut short. Reissue it with complete arguments, and make them smaller if they were long.", u.Name)
-					results = append(results, llm.ToolResult(replyID(u), msg, true))
-					emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
-					a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
-				}
-				tr := llm.ToolResultMessage(results...)
-				a.appendMessage(tr)
-				a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &tr})
-				a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
-				a.stepRoute.prevMechanical = false
-				continue
-			}
-		}
-		if resp.StopReason != llm.StopToolUse {
-			// The model ended its turn instead of making tool calls: not
-			// the mechanical streak the router looks for, whatever sends
-			// it back for another call below.
-			a.stepRoute.prevMechanical = false
-			if more := a.faultNeeds(resp.Message.Text(), &needs, emit); more {
-				continue
-			}
-			if more := a.stopHook(ctx, resp.Message.Text(), &stops, emit); more {
-				continue
-			}
-			if more := a.acceptCapture(resp.Message.Text(), &acceptNudged, emit); more {
-				continue
-			}
-			if more := !a.Off["verify"] && a.verifyGate(ctx, &gate, emit); more {
-				a.stepRoute.taint("a verification check failed and was sent back")
-				continue
-			}
-			if more := a.acceptVerifyGate(ctx, &acceptGate, emit); more {
-				a.stepRoute.taint("an acceptance check failed and was sent back")
-				continue
-			}
-			// What the turn actually demonstrated, decided from what the
-			// harness watched rather than from what was written. A claim
-			// the turn does not support is put back to the model once.
-			outcome := a.Outcome()
-			if !a.Off["verdict"] && outcome.Overclaimed() && corrections == 0 {
-				corrections++
-				emit(Event{Kind: EvNotice, Text: "the answer claims more than this turn shows: " + outcome.Why})
-				a.appendHarnessText(outcome.Correction())
-				continue
-			}
-			a.logOutcome(outcome)
-			if more := a.keepOrRevert(ctx, outcome, emit); more {
-				a.stepRoute.taint("a goal round was reverted because it made things worse")
-				continue
-			}
-			a.refreshProofNotes(ctx, emit)
-			if !a.Off["verdict"] && outcome.Verdict != VerdictNoChanges {
-				emit(Event{Kind: EvVerdict, Text: outcome.Line(), IsError: !outcome.OK()})
-			}
-			a.capturePlan(resp.Message.Text(), emit)
-			a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
-			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(resp.StopReason)})
-			emit(Event{Kind: EvTurnDone, Usage: a.TurnUsage(), StopReason: resp.StopReason})
-			return nil
-		}
-		uses := resp.Message.ToolUses()
-		if len(uses) == 0 {
-			// Provider said tool_use but sent none; treat as end of turn
-			// rather than looping forever.
-			a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
-			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(llm.StopEndTurn)})
-			emit(Event{Kind: EvTurnDone, Usage: a.TurnUsage(), StopReason: llm.StopEndTurn})
-			return nil
-		}
-		planNote := ""
-		if a.PlanCheck != nil && !a.Off["plan"] {
-			if text := strings.TrimSpace(resp.Message.Text()); text != "" {
-				planNote = a.PlanCheck(ctx, text)
-			}
-		}
-		results, images, err := a.executeAll(ctx, uses, emit)
-		a.stepRoute.prevMechanical = allMechanicalStep(uses, results)
-		if repeatNote != "" && len(results) > 0 {
-			results[len(results)-1].Text += repeatNote
-			emit(Event{Kind: EvNotice, Text: strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(repeatNote), "[harness]"))})
-		}
-		if planNote != "" && len(results) > 0 {
-			results[len(results)-1].Text += "\n\n[harness] " + planNote
-			emit(Event{Kind: EvNotice, Text: planNote})
-		}
-		tr := llm.ToolResultMessage(results...)
-		tr.Blocks = append(tr.Blocks, images...)
-		a.appendMessage(tr)
-		a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &tr})
-		a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
+		repeatNote, err := a.recordReply(resp, emit)
 		if err != nil {
 			return err
 		}
-		if a.stuck {
-			a.stuck = false
-			emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
-			a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
-			return ErrStuck
+		if a.refuseTruncatedCalls(resp, emit) {
+			continue
 		}
-		// Tools can cost money too (a subagent runs its own turns), and
-		// the next model call is about to be made with a history this
-		// step just grew. Ask again before paying for it.
-		if spent, over := a.overBudget(); over {
-			return a.stopForBudget(spent, nil, emit)
+		if resp.StopReason != llm.StopToolUse {
+			if a.finishTurn(ctx, resp, &gates, emit) {
+				return nil
+			}
+			continue
+		}
+		if done, err := a.runToolStep(ctx, resp, repeatNote, emit); done || err != nil {
+			return err
 		}
 	}
 	return ErrMaxIterations
+}
+
+// turnGates is the state the turn loop has to carry across its
+// iterations: how many times each gate has already sent the model back,
+// so none of them can send it back for ever.
+type turnGates struct {
+	stops, needs, corrections int
+	verify, accept            gateState
+	acceptNudged              bool
+}
+
+// openTurn is everything that has to happen once, before the first model
+// call: the turn is counted, the preparation hooks attach what they
+// attach, the turn is opened on the log and the undo checkpoint, and the
+// per-turn watchers are reset. It returns the iteration ceiling.
+func (a *Agent) openTurn(ctx context.Context, blocks []llm.Block, emit func(Event)) int {
+	a.stats.turn()
+	a.startTurn()
+	a.tools = nil // pick up any tool that registered since the last turn
+	a.coach.noSyntax = a.Off["syntax"]
+	if a.Tools == nil {
+		a.Tools = tool.NewRegistry()
+	}
+	maxIter := a.Settings().MaxIterations
+	if maxIter <= 0 {
+		maxIter = 50
+	}
+	blocks = a.prepareBlocks(ctx, blocks, emit)
+	a.beginTurn(ctx, blocks...)
+	a.loops.reset()
+	a.turnStart, a.warned = time.Now(), false
+	a.modelRouter.newTurn()
+	a.integ.userText = ""
+	for _, b := range blocks {
+		if b.Type == llm.BlockText && b.Text != "" {
+			a.integ.userText = b.Text
+			break
+		}
+	}
+	return maxIter
+}
+
+// prepareBlocks runs the Prepare hook over the turn's blocks — skills,
+// memory and the repository map attach themselves there — and drops
+// anything it attached that is already in the context word for word.
+func (a *Agent) prepareBlocks(ctx context.Context, blocks []llm.Block, emit func(Event)) []llm.Block {
+	if a.Prepare == nil {
+		return blocks
+	}
+	own := len(blocks)
+	blocks, note := a.Prepare(ctx, blocks)
+	blocks, repeated := a.dropRepeatedAttachments(blocks, own)
+	if note != "" {
+		emit(Event{Kind: EvNotice, Text: note})
+	}
+	if repeated > 0 {
+		emit(Event{Kind: EvNotice, Text: fmt.Sprintf(
+			"%s of attachment was already in the context word for word and was not sent again", textfmt.Tokens(repeated))})
+	}
+	return blocks
+}
+
+// callStep makes the step's model call, recovering once from a context
+// overflow the token estimate did not see coming: the history is
+// summarised and the call retried, and when the provider's error names
+// the model's real limit, compactAt comes down for the rest of the
+// session.
+func (a *Agent) callStep(ctx context.Context, compactAt *int, emit func(Event)) (*llm.Response, error) {
+	resp, err := a.call(ctx, emit)
+	if err == nil || !isContextOverflow(err) || *compactAt <= 0 {
+		return resp, err
+	}
+	if w := windowFromError(err); w > 0 && w*3/4 < *compactAt {
+		*compactAt = w * 3 / 4
+		a.UpdateSettings(func(s *Settings) { s.CompactAt = *compactAt })
+	}
+	if cerr := a.Compact(ctx, emit); cerr != nil && !errors.Is(cerr, ErrNothingToCompact) {
+		return nil, fmt.Errorf("%w (compaction also failed: %v)", err, cerr)
+	}
+	return a.call(ctx, emit)
+}
+
+// recordReply puts the model's reply into the conversation and asks the
+// two questions that can end the turn before its tool calls are even
+// looked at: has the spend ceiling been reached, and is the model writing
+// the same message over and over. The note it returns rides with this
+// step's tool results, because nothing may come between a tool call and
+// its answer.
+func (a *Agent) recordReply(resp *llm.Response, emit func(Event)) (repeatNote string, err error) {
+	// A model that wrote its call as prose meant to call the tool;
+	// reading it back costs nothing and saves the turn.
+	a.recoverToolCalls(resp, emit)
+	// Every call gets an id of its own, whatever the server numbered
+	// it: the transcript, the permission prompt and the log all key
+	// by it. The reply still goes back under the server's own id.
+	if a.callIDs == nil {
+		a.callIDs = map[string]bool{}
+	}
+	normalizeCallIDs(&resp.Message, a.callIDs, a.turnN, a.stepN)
+	a.lastInputTokens = resp.Usage.InputTokens + resp.Usage.CacheReadTokens + resp.Usage.CacheWriteTokens
+	a.lastInputMsgs = len(a.Messages)
+	a.appendMessage(resp.Message)
+	a.integ.lastLen = len(a.Messages)
+	a.addUsage(resp.Usage)
+	msg := resp.Message
+	u := resp.Usage
+	a.logEvent(session.Event{Type: session.TypeAssistant, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &msg, Usage: &u, Model: a.lastCallModel})
+	emit(Event{Kind: EvTextBlockDone})
+	// The ceiling is asked about here, while the call just paid for
+	// is in the totals and before its tools are run.
+	if spent, over := a.overBudget(); over {
+		return "", a.stopForBudget(spent, resp.Message.ToolUses(), emit)
+	}
+	// A model that keeps writing the same message has stopped reading
+	// its own results; the ladder is the same as for a repeated call.
+	if a.Off["loops"] {
+		return "", nil
+	}
+	a.loopMu.Lock()
+	note, stop := a.loops.recordText(resp.Message.Text())
+	a.loopMu.Unlock()
+	if stop {
+		// The notice is logged by the ledger wrapper around emit.
+		emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
+		a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
+		return "", ErrStuck
+	}
+	if note != "" {
+		a.stepRoute.taint("a loop nudge fired this turn")
+	}
+	return note, nil
+}
+
+// refuseTruncatedCalls answers, without running, the tool calls of a
+// response cut off at the output limit: their arguments may have been
+// truncated mid-JSON and then repaired into something that parses and
+// validates but is missing content — a half-written file reported as a
+// success. Each gets a result, so the history stays paired and the model
+// knows to reissue them. It reports whether it did so, in which case the
+// step is over.
+func (a *Agent) refuseTruncatedCalls(resp *llm.Response, emit func(Event)) bool {
+	if resp.StopReason != llm.StopMaxTokens {
+		return false
+	}
+	uses := resp.Message.ToolUses()
+	if len(uses) == 0 {
+		return false
+	}
+	results := make([]llm.Block, 0, len(uses))
+	for _, u := range uses {
+		call := ToolCall{ID: u.ID, Name: u.Name, Input: u.Input}
+		msg := fmt.Sprintf("%s was not run: the response hit the output token limit, so its arguments may be cut short. Reissue it with complete arguments, and make them smaller if they were long.", u.Name)
+		results = append(results, llm.ToolResult(replyID(u), msg, true))
+		emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+		a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
+	}
+	tr := llm.ToolResultMessage(results...)
+	a.appendMessage(tr)
+	a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &tr})
+	a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
+	a.stepRoute.prevMechanical = false
+	return true
+}
+
+// finishTurn runs the gates a model that says it is done has to get past:
+// an unanswered need, the stop hook, acceptance capture, the project's
+// checks, the acceptance checks, the verdict on what the turn actually
+// demonstrated, and the goal comparison that can put a bad round back.
+// Any of them may send the model back for another call, which is what a
+// false result means. True means the turn is over and RunBlocks returns.
+func (a *Agent) finishTurn(ctx context.Context, resp *llm.Response, g *turnGates, emit func(Event)) bool {
+	// The model ended its turn instead of making tool calls: not the
+	// mechanical streak the router looks for, whatever sends it back for
+	// another call below.
+	a.stepRoute.prevMechanical = false
+	if a.faultNeeds(resp.Message.Text(), &g.needs, emit) {
+		return false
+	}
+	if a.stopHook(ctx, resp.Message.Text(), &g.stops, emit) {
+		return false
+	}
+	if a.acceptCapture(resp.Message.Text(), &g.acceptNudged, emit) {
+		return false
+	}
+	if !a.Off["verify"] && a.verifyGate(ctx, &g.verify, emit) {
+		a.stepRoute.taint("a verification check failed and was sent back")
+		return false
+	}
+	if a.acceptVerifyGate(ctx, &g.accept, emit) {
+		a.stepRoute.taint("an acceptance check failed and was sent back")
+		return false
+	}
+	// What the turn actually demonstrated, decided from what the harness
+	// watched rather than from what was written. A claim the turn does
+	// not support is put back to the model once.
+	outcome := a.Outcome()
+	if !a.Off["verdict"] && outcome.Overclaimed() && g.corrections == 0 {
+		g.corrections++
+		emit(Event{Kind: EvNotice, Text: "the answer claims more than this turn shows: " + outcome.Why})
+		a.appendHarnessText(outcome.Correction())
+		return false
+	}
+	a.logOutcome(outcome)
+	if a.keepOrRevert(ctx, outcome, emit) {
+		a.stepRoute.taint("a goal round was reverted because it made things worse")
+		return false
+	}
+	a.refreshProofNotes(ctx, emit)
+	if !a.Off["verdict"] && outcome.Verdict != VerdictNoChanges {
+		emit(Event{Kind: EvVerdict, Text: outcome.Line(), IsError: !outcome.OK()})
+	}
+	a.capturePlan(resp.Message.Text(), emit)
+	a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
+	a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(resp.StopReason)})
+	emit(Event{Kind: EvTurnDone, Usage: a.TurnUsage(), StopReason: resp.StopReason})
+	return true
+}
+
+// runToolStep runs the step's tool calls and appends their results, with
+// the notes this step owes the model attached to the last of them. done
+// says the turn is over: because the provider asked for tools and sent
+// none, because the loop detector gave up, because the spend ceiling was
+// reached, or because err ended it.
+func (a *Agent) runToolStep(ctx context.Context, resp *llm.Response, repeatNote string, emit func(Event)) (done bool, err error) {
+	uses := resp.Message.ToolUses()
+	if len(uses) == 0 {
+		// Provider said tool_use but sent none; treat as end of turn
+		// rather than looping forever.
+		a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
+		a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: string(llm.StopEndTurn)})
+		emit(Event{Kind: EvTurnDone, Usage: a.TurnUsage(), StopReason: llm.StopEndTurn})
+		return true, nil
+	}
+	planNote := ""
+	if a.PlanCheck != nil && !a.Off["plan"] {
+		if text := strings.TrimSpace(resp.Message.Text()); text != "" {
+			planNote = a.PlanCheck(ctx, text)
+		}
+	}
+	results, images, runErr := a.executeAll(ctx, uses, emit)
+	a.stepRoute.prevMechanical = allMechanicalStep(uses, results)
+	if repeatNote != "" && len(results) > 0 {
+		results[len(results)-1].Text += repeatNote
+		emit(Event{Kind: EvNotice, Text: strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(repeatNote), "[harness]"))})
+	}
+	if planNote != "" && len(results) > 0 {
+		results[len(results)-1].Text += "\n\n[harness] " + planNote
+		emit(Event{Kind: EvNotice, Text: planNote})
+	}
+	tr := llm.ToolResultMessage(results...)
+	tr.Blocks = append(tr.Blocks, images...)
+	a.appendMessage(tr)
+	a.logEvent(session.Event{Type: session.TypeToolResult, Turn: a.turnN, Step: a.stepN, Surface: true, Message: &tr})
+	a.logEvent(session.Event{Type: session.TypeStepEnd, Turn: a.turnN, Step: a.stepN})
+	if runErr != nil {
+		return true, runErr
+	}
+	if a.stuck {
+		a.stuck = false
+		emit(Event{Kind: EvNotice, Text: "turn stopped: " + a.loops.reason})
+		a.logEvent(session.Event{Type: session.TypeTurnEnd, Turn: a.turnN, Reason: "stuck"})
+		return true, ErrStuck
+	}
+	// Tools can cost money too (a subagent runs its own turns), and the
+	// next model call is about to be made with a history this step just
+	// grew. Ask again before paying for it.
+	if spent, over := a.overBudget(); over {
+		return true, a.stopForBudget(spent, nil, emit)
+	}
+	return false, nil
 }
 
 // CompactThreshold is the effective token count at which compaction runs,

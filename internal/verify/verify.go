@@ -180,6 +180,11 @@ func (r *Runner) Run(ctx context.Context) Result {
 	for _, command := range r.Config.Commands {
 		cctx, cancel := context.WithTimeout(ctx, timeout)
 		cmd := shell.Command(cctx, command)
+		// The timeout has to be a real bound: without a process group the
+		// context kills the shell alone, and the wait then blocks on the
+		// output pipes for as long as anything the command started still
+		// holds them. Supervise kills the group and bounds that wait.
+		shell.Supervise(cmd)
 		cmd.Dir = r.Cwd
 		cmd.Env = append(os.Environ(), "JANETCODE_VERIFY=1")
 		// Bounded rather than CombinedOutput: a verbose suite can print

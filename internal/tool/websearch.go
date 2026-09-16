@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/weburl"
 )
 
@@ -122,10 +123,7 @@ func (t WebSearch) get(ctx context.Context, client *http.Client, target string, 
 		return nil, err
 	}
 	if resp.StatusCode >= 400 {
-		msg := strings.TrimSpace(string(body))
-		if len(msg) > 200 {
-			msg = msg[:200] + "…"
-		}
+		msg := textfmt.ClipBytes(strings.TrimSpace(string(body)), 200)
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusForbidden {
 			return nil, fmt.Errorf("%s refused the search (HTTP %d); wait a while or configure another provider under \"search\" in the config: %s", t.providerName(), resp.StatusCode, msg)
 		}

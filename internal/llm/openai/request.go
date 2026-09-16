@@ -232,6 +232,15 @@ func markStableSystem(m *wireMessage) {
 	markBreakpoint(m)
 }
 
+// stripCacheControl undoes applyCacheBreakpoints. A server rejects the
+// marker either because it does not know the field or because it will
+// not take array content at all, and the message cannot tell which, so
+// this puts the request back exactly as it was before the breakpoints
+// went on: the markers gone and every text-only message a plain string
+// again, the split system prompt included. Leaving it as a one-element
+// array — or as the two parts markStableSystem made of the system
+// prompt — left a server of the second kind refusing every request for
+// the rest of the session, having already spent its one retry.
 func stripCacheControl(w *wireRequest) {
 	for i := range w.Tools {
 		w.Tools[i].CacheControl = nil
@@ -243,11 +252,17 @@ func stripCacheControl(w *wireRequest) {
 		if !ok || len(parts) == 0 {
 			continue
 		}
+		text, textOnly := strings.Builder{}, true
 		for j := range parts {
 			parts[j].CacheControl = nil
+			if parts[j].Type != "text" || parts[j].ImageURL != nil {
+				textOnly = false
+				continue
+			}
+			text.WriteString(parts[j].Text)
 		}
-		if len(parts) == 1 && parts[0].Type == "text" && parts[0].ImageURL == nil {
-			w.Messages[i].Content = parts[0].Text
+		if textOnly {
+			w.Messages[i].Content = text.String()
 			continue
 		}
 		w.Messages[i].Content = parts

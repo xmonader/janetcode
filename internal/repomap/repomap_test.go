@@ -163,7 +163,7 @@ func TestToolAndTurnPrepAndCache(t *testing.T) {
 		t.Fatal("missing symbol accepted")
 	}
 	prep := TurnPrep(c, 0)
-	blocks, note := prep([]llm.Block{{Type: llm.BlockText, Text: "change the Store"}})
+	blocks, note := prep(context.Background(), []llm.Block{{Type: llm.BlockText, Text: "change the Store"}})
 	if len(blocks) != 2 || !strings.HasPrefix(blocks[1].Text, "[repository map:") || !strings.Contains(note, "repository map attached: 6 files, 2 pulled up") {
 		t.Fatalf("prep blocks=%d note=%q", len(blocks), note)
 	}
@@ -177,7 +177,7 @@ func TestToolAndTurnPrepAndCache(t *testing.T) {
 	if !blocks[1].Synthetic {
 		t.Fatalf("repo map block not marked Synthetic: %+v", blocks[1])
 	}
-	if b, n := prep([]llm.Block{{Type: llm.BlockImage}}); len(b) != 1 || n != "" {
+	if b, n := prep(context.Background(), []llm.Block{{Type: llm.BlockImage}}); len(b) != 1 || n != "" {
 		t.Fatal("image-only turn got a map")
 	}
 	// The cache rebuilds when the tree changes.

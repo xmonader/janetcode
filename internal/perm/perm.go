@@ -284,33 +284,34 @@ func Match(pattern, subject string) bool {
 	return glob(pattern, subject)
 }
 
+// glob matches with a single backtrack point rather than recursion. The
+// recursive form was exponential on a pattern with several stars — a
+// rule like bash(go *test *test *x) against a long command the model
+// chose could take longer than the session — and this is the same
+// language: * spans any bytes, ? exactly one.
 func glob(p, s string) bool {
-	for len(p) > 0 {
-		switch p[0] {
-		case '*':
-			p = strings.TrimLeft(p, "*")
-			if p == "" {
-				return true
-			}
-			for i := 0; i <= len(s); i++ {
-				if glob(p, s[i:]) {
-					return true
-				}
-			}
-			return false
-		case '?':
-			if s == "" {
-				return false
-			}
-			p, s = p[1:], s[1:]
+	star, mark := -1, 0
+	i, j := 0, 0
+	for j < len(s) {
+		switch {
+		case i < len(p) && (p[i] == '?' || p[i] == s[j]):
+			i, j = i+1, j+1
+		case i < len(p) && p[i] == '*':
+			// Remember where the star was and try matching nothing first.
+			star, mark = i, j
+			i++
+		case star >= 0:
+			// Back up: let the last star swallow one more byte.
+			mark++
+			i, j = star+1, mark
 		default:
-			if s == "" || p[0] != s[0] {
-				return false
-			}
-			p, s = p[1:], s[1:]
+			return false
 		}
 	}
-	return s == ""
+	for i < len(p) && p[i] == '*' {
+		i++
+	}
+	return i == len(p)
 }
 
 // Subject extracts what a rule pattern is matched against for a call.

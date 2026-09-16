@@ -36,11 +36,8 @@ var LookPath = exec.LookPath
 // Order: CUA_DRIVER, cua-driver, open-computer-use.
 func Detect() (Driver, bool) {
 	if p := strings.TrimSpace(os.Getenv("CUA_DRIVER")); p != "" {
-		args := []string{"mcp"}
-		if strings.Contains(strings.ToLower(p), "open-computer-use") {
-			// the npm binary's MCP subcommand is also "mcp"
-		}
-		return Driver{Kind: kindOf(p), Path: p, Args: args}, true
+		// Both drivers spell the subcommand "mcp".
+		return Driver{Kind: kindOf(p), Path: p, Args: []string{"mcp"}}, true
 	}
 	if p, err := LookPath("cua-driver"); err == nil {
 		return Driver{Kind: "cua-driver", Path: p, Args: []string{"mcp"}}, true
@@ -68,19 +65,18 @@ func (d Driver) Config() mcp.ServerConfig {
 }
 
 // MergeInto adds the driver to servers when it is installed and not
-// already listed under ServerName.
+// already listed under ServerName. The flag reports whether a driver was
+// found — callers print the install hint when it is false — and not
+// whether anything was added: a nil map has nothing added to it, but that
+// says nothing about the machine.
 func MergeInto(servers map[string]mcp.ServerConfig) (Driver, bool) {
 	d, ok := Detect()
 	if !ok {
 		return Driver{}, false
 	}
-	if servers == nil {
-		return d, false
+	if _, exists := servers[ServerName]; servers != nil && !exists {
+		servers[ServerName] = d.Config()
 	}
-	if _, exists := servers[ServerName]; exists {
-		return d, true
-	}
-	servers[ServerName] = d.Config()
 	return d, true
 }
 

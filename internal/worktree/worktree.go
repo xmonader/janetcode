@@ -67,8 +67,16 @@ func Open(ctx context.Context, repo, branch string) (*Tree, error) {
 	// directory that is not a checkout of anything.
 	if existing, err := worktreeAt(ctx, repo, path); err == nil && existing {
 		t := &Tree{Path: path, Branch: branch, Repo: repo}
-		if err := t.Validate(ctx); err == nil {
+		verr := t.Validate(ctx)
+		if verr == nil {
 			return t, nil
+		}
+		// Only a registration whose directory has gone is pruned. A
+		// checkout that is there but does not satisfy Validate — most
+		// likely another branch whose name maps to this same directory —
+		// may hold work nobody has merged, so it is reported, not deleted.
+		if _, serr := os.Stat(path); serr == nil {
+			return nil, verr
 		}
 		if _, err := gitx.Run(ctx, repo, nil, "worktree", "prune"); err != nil {
 			return nil, fmt.Errorf("worktree: %s is registered but missing, and it could not be pruned: %w", path, err)
@@ -113,6 +121,17 @@ func (t *Tree) Validate(ctx context.Context) error {
 	}
 	if !listed {
 		return fmt.Errorf("worktree: git does not list %s as a worktree of %s", t.Path, t.Repo)
+	}
+	// The directory is named after the branch with its separators folded
+	// out (see sanitize), so "feat/x" and "feat-x" want the same one. A
+	// session pinned to a checkout of the other branch would commit its
+	// whole run to the wrong place, so the branch is checked, not assumed.
+	on, err := gitx.Run(ctx, t.Path, nil, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return fmt.Errorf("worktree: %s: %w", t.Path, err)
+	}
+	if on != t.Branch {
+		return fmt.Errorf("worktree: %s is checked out at %s, not %s; another branch name maps to the same directory — rename one of them or remove that worktree", t.Path, on, t.Branch)
 	}
 	return nil
 }

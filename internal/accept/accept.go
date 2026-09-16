@@ -67,8 +67,18 @@ func (m *Mode) Meta() *session.AcceptMeta {
 	return m.meta.Clone()
 }
 
-// On reports whether accept mode is in use at all.
-func (m *Mode) On() bool { return m != nil && m.Meta() != nil }
+// On reports whether accept mode is in use at all. It reads the pointer
+// under the lock rather than going through Meta, which would deep-copy
+// the whole state — files, hashes and every locked file's content — to
+// answer a question about nil. It is asked on every mutating tool call.
+func (m *Mode) On() bool {
+	if m == nil {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.meta != nil
+}
 
 // persist tells the front end the state changed. Called with mu held.
 func (m *Mode) persist() {
