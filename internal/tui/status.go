@@ -45,6 +45,41 @@ func (m *model) filesChangedLastTurn() int {
 	return len(files)
 }
 
+// goalCache is the goal note the status line last drew, and the size of
+// the log it was folded from.
+type goalCache struct {
+	events int
+	line   string
+	known  bool
+}
+
+// goalLine is the status line's note about the session's goal. Finding it
+// means copying the whole event log (Events is a snapshot, for safety
+// against the turn goroutine appending) and folding every goal record out
+// of it — on a session of two thousand events, 700 KB and a quarter of a
+// millisecond, on every frame, to print the same eight words. The answer
+// is kept until the log grows, which is the only thing that can change
+// it. A log that cannot be counted cheaply is folded every time, as
+// before.
+func (m *model) goalLine() string {
+	ag := m.opts.Agent
+	if ag == nil || ag.Log == nil {
+		return ""
+	}
+	counter, ok := ag.Log.(interface{ EventCount() int })
+	if ok && m.goal.known && m.goal.events == counter.EventCount() {
+		return m.goal.line
+	}
+	line := ""
+	if g := agent.ActiveGoal(ag.Log.Events()); g != nil {
+		line = fmt.Sprintf("goal %s round %d/%d (/goal pause)", g.ID, g.Rounds, g.MaxRounds)
+	}
+	if ok {
+		m.goal = goalCache{events: counter.EventCount(), line: line, known: true}
+	}
+	return line
+}
+
 // liveWork names background jobs and subagents still running, for the
 // status bar; both are otherwise invisible until they finish.
 func (m *model) liveWork() string {
@@ -60,10 +95,8 @@ func (m *model) liveWork() string {
 			parts = append(parts, noteJob+textfmt.Plural(n, "job")+" (/jobs)")
 		}
 	}
-	if ag := m.opts.Agent; ag != nil && ag.Log != nil {
-		if g := agent.ActiveGoal(ag.Log.Events()); g != nil {
-			parts = append(parts, fmt.Sprintf("goal %s round %d/%d (/goal pause)", g.ID, g.Rounds, g.MaxRounds))
-		}
+	if s := m.goalLine(); s != "" {
+		parts = append(parts, s)
 	}
 	if task := m.taskTool(); task != nil {
 		kids := task.Children()

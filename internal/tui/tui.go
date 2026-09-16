@@ -95,6 +95,7 @@ type model struct {
 	copyText    func(string) error       // writes text to the clipboard; swapped in tests
 	comp        completionState          // highlight in the completion menu
 	skills      skillRowCache            // the menu's skill rows, as last read from disk
+	goal        goalCache                // the status line's goal note, as last folded from the log
 	finder      findState                // the last /find, so a repeat advances
 	picker      *picker                  // open searchable list
 	connect     *connect                 // open provider/model dialog

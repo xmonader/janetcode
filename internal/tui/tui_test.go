@@ -4017,6 +4017,18 @@ func TestGoalRoundIsOneLine(t *testing.T) {
 	if !strings.Contains(h.m.hist.lastUser, "Rounds are a budget") {
 		t.Fatalf("the model got %q", h.m.hist.lastUser)
 	}
+	// The status line's goal note is kept between frames — folding it out
+	// of the log copies every event of the session — and the log growing
+	// is what drops it: pausing the goal takes the note off the line on
+	// the very next frame, not whenever something else happened to
+	// invalidate it.
+	if !strings.Contains(plain(h.m.statusView()), "goal g1 round") {
+		t.Fatalf("the status line lost the goal:\n%s", plain(h.m.statusView()))
+	}
+	h.m.goalCommand("pause")
+	if got := plain(h.m.statusView()); strings.Contains(got, "goal g1 round") {
+		t.Fatalf("a paused goal is still on the status line:\n%s", got)
+	}
 }
 
 // Notices and verdicts are composed by the agent, which only knows
