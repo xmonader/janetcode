@@ -1,9 +1,7 @@
 package webui
 
 import (
-	"context"
 	"strings"
-	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/recipe"
@@ -89,18 +87,11 @@ func (s *server) runRecipe(rest string) {
 		s.sheet("recipe "+name, recipe.FormatSteps(steps))
 		return
 	}
-	s.mu.Lock()
-	if s.running {
-		s.mu.Unlock()
+	ctx, ok := s.begin("running recipe " + name)
+	if !ok {
 		s.errf("/recipe run waits for the turn to finish (esc cancels it)")
 		return
 	}
-	s.running = true
-	s.phase = "running recipe " + name
-	s.started = time.Now()
-	ctx, cancel := context.WithCancel(s.life)
-	s.cancel = cancel
-	s.mu.Unlock()
 	s.emitStatus()
 	ag := s.opts.Agent
 	go func() {
@@ -114,14 +105,7 @@ func (s *server) runRecipe(rest string) {
 // starts the handover through s.startTurn — the same path a goal round
 // uses to start its next turn.
 func (s *server) finishRecipe(r recipe.Recipe, report string, failed *agent.RecipeFailure, err error) {
-	s.mu.Lock()
-	s.running = false
-	s.phase = ""
-	if s.cancel != nil {
-		s.cancel()
-		s.cancel = nil
-	}
-	s.mu.Unlock()
+	s.idle()
 	res := agent.RecipeOutcome(r, report, failed, err)
 	s.showResult(res, nil)
 	if res.Handover != "" {

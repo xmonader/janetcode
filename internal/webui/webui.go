@@ -577,13 +577,7 @@ func (s *server) begin(phase string) (context.Context, bool) {
 func (s *server) end(failed bool) (next string, elapsed time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.running = false
-	s.phase = ""
-	if s.cancel != nil {
-		s.cancel()
-		s.cancel = nil
-	}
-	elapsed = time.Since(s.started)
+	elapsed = s.idleLocked()
 	switch {
 	case failed:
 		s.queued = nil
@@ -591,6 +585,24 @@ func (s *server) end(failed bool) (next string, elapsed time.Duration) {
 		next, s.queued = s.queued[0], s.queued[1:]
 	}
 	return next, elapsed
+}
+
+// idle marks the session idle and leaves the queue alone, for work that
+// starts a turn of its own afterwards (a recipe's handover).
+func (s *server) idle() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.idleLocked()
+}
+
+func (s *server) idleLocked() time.Duration {
+	s.running = false
+	s.phase = ""
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil
+	}
+	return time.Since(s.started)
 }
 
 func (s *server) startTurn(text string) {

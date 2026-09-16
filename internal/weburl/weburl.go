@@ -92,6 +92,9 @@ func (s *Set) Has(host string) bool {
 	return false
 }
 
+// cgnat is 100.64.0.0/10, the shared address space (RFC 6598).
+var cgnat = &net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}
+
 // privateName lists hostnames that always mean this machine or this
 // network, whatever they resolve to.
 var privateName = map[string]bool{
@@ -119,6 +122,11 @@ func PrivateTarget(u *url.URL) string {
 		return host + " is a link-local address (on a cloud instance this is the credentials endpoint)"
 	case ip.IsPrivate():
 		return host + " is a private network address"
+	case cgnat.Contains(ip):
+		// 100.64/10 is not "private" by net's definition, but nothing on
+		// it is the public internet: it is the carrier's own network, and
+		// on several clouds it is where internal services live.
+		return host + " is a carrier-internal address"
 	case ip.IsUnspecified():
 		return host + " is the unspecified address"
 	}

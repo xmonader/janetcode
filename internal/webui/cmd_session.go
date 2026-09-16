@@ -153,8 +153,14 @@ func (s *server) export(path string) {
 	s.notice("wrote " + path)
 }
 
-func (s *server) snapshotEntries() []*entry {
+// snapshotEntries copies the thread out. Copies, not the pointers: the
+// entries belong to s.mu and a turn may still be writing to them.
+func (s *server) snapshotEntries() []entry {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]*entry(nil), s.entries...)
+	out := make([]entry, 0, len(s.entries))
+	for _, e := range s.entries {
+		out = append(out, *e)
+	}
+	return out
 }
