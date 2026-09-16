@@ -578,8 +578,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			_ = child.Run(runCtx, in.Prompt, emit)
 			t.mu.Lock()
 			kid.done = true
-			t.usage.Add(usageSince(kid.seen, child.Usage))
-			kid.seen = child.Usage
+			t.bill(kid, child)
 			t.mu.Unlock()
 		}()
 		return fmt.Sprintf("started fork %q id=%s in the background; watch with /agents, continue with task continue=%s, cancel with task cancel=%s", in.Description, childID, childID, childID), nil
@@ -592,8 +591,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	t.mu.Unlock()
 	if err != nil && ctx.Err() == nil && runCtx.Err() != nil {
 		t.mu.Lock()
-		t.usage.Add(usageSince(kid.seen, child.Usage))
-		kid.seen = child.Usage
+		t.bill(kid, child)
 		t.mu.Unlock()
 		if runCtx.Err() == context.DeadlineExceeded && minutes > 0 {
 			report := lastAssistantText(child.Messages)
@@ -607,8 +605,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	// Usage is cumulative over the subagent's life, so only what this
 	// exchange added is billed to the parent.
 	t.mu.Lock()
-	t.usage.Add(usageSince(kid.seen, child.Usage))
-	kid.seen = child.Usage
+	t.bill(kid, child)
 	t.mu.Unlock()
 	if err != nil {
 		return "", fmt.Errorf("subagent failed after %s: %w", time.Since(start).Round(time.Millisecond), err)
@@ -642,7 +639,18 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	return fmt.Sprintf("%s\n\n[subagent %q id=%s%s: %d tool calls, %s, %s in / %s out; continue with task continue=%s]", report, in.Description, childID, on, countToolUses(child.Messages), time.Since(start).Round(time.Millisecond), tokens(child.Usage.InputTokens+child.Usage.CacheReadTokens), tokens(child.Usage.OutputTokens), childID), nil
 }
 
-// usageSince is the usage added between two cumulative snapshots.
+// bill charges the parent for what this exchange with the child cost.
+// The child's usage is cumulative over its life, so only what is new
+// since the last look is added — to the task tool's own total, for
+// /agents, and to the parent conversation, so the session total and the
+// cost ceiling both see what delegation spent. Called with t.mu held.
+func (t *Task) bill(kid *subagent, child *Agent) {
+	delta := usageSince(kid.seen, child.Usage)
+	kid.seen = child.Usage
+	t.usage.Add(delta)
+	t.Parent.addSideUsage(delta)
+}
+
 // briefInput is the one-line summary of a child tool call for the live
 // activity readout.
 func briefInput(raw string) string {
@@ -658,6 +666,7 @@ func briefInput(raw string) string {
 	return textfmt.Clip(textfmt.OneLine(raw), 60)
 }
 
+// usageSince is the usage added between two cumulative snapshots.
 func usageSince(before, now llm.Usage) llm.Usage {
 	return llm.Usage{
 		InputTokens:      now.InputTokens - before.InputTokens,
