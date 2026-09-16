@@ -87,7 +87,7 @@ func (m *model) footerHeight() int {
 		// its reach costs the layout nothing.
 		h++
 	}
-	if m.pending == nil && !m.denying && len(m.completions()) > 0 {
+	if m.mode() == modePrompt && len(m.completions()) > 0 {
 		// The menu always claims the same height, however many rows it has
 		// to show: narrowing it as you type used to resize the viewport on
 		// every keystroke, and the transcript flickered above it.

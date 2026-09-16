@@ -255,8 +255,7 @@ func (m *model) cancelTurn() {
 
 func (m *model) finishTurn(msg agentDoneMsg) tea.Cmd {
 	compacting := m.turn.finish()
-	m.pending = nil
-	m.pendingClosedAt = time.Now()
+	m.closePending()
 	m.turn.setPhase("")
 	elapsed := textfmt.Duration(time.Since(m.turn.startedAt))
 	m.transcript.finishTurn()
