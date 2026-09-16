@@ -140,3 +140,27 @@ func BenchmarkListOneOfMany(b *testing.B) {
 		}
 	}
 }
+
+// The preview is what the user typed, not the harness's own machinery --
+// but a session that holds nothing else shows its first machinery line
+// rather than a bare id.
+func TestPreviewPrefersWhatWasTyped(t *testing.T) {
+	msgs := []llm.Message{
+		*userMsg("Work on this goal until it is complete or you are blocked"),
+		*userMsg("fix the parser"),
+		*userMsg("and the lexer"),
+	}
+	if got := preview(msgs); got != "fix the parser" {
+		t.Errorf("preview = %q, want the first typed message", got)
+	}
+	onlyMachinery := []llm.Message{
+		*userMsg("I ran this command myself in /tmp/x"),
+		*userMsg("I undid change #2"),
+	}
+	if got := preview(onlyMachinery); got != "I ran this command myself in /tmp/x" {
+		t.Errorf("preview = %q, want the first machinery line as a fallback", got)
+	}
+	if got := preview(nil); got != "" {
+		t.Errorf("preview(nil) = %q", got)
+	}
+}
