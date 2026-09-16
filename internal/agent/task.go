@@ -333,7 +333,10 @@ func (t *Task) SteerChild(id, text string) error {
 func (t *Task) bindChildCtx(parent context.Context, kid *subagent, minutes int) context.Context {
 	ctx, cancel := context.WithCancel(parent)
 	if minutes > 0 {
-		ctx, _ = context.WithTimeout(ctx, time.Duration(minutes)*time.Minute)
+		var timeoutCancel context.CancelFunc
+		ctx, timeoutCancel = context.WithTimeout(ctx, time.Duration(minutes)*time.Minute)
+		outer := cancel
+		cancel = func() { timeoutCancel(); outer() }
 	}
 	t.mu.Lock()
 	kid.cancel = cancel
