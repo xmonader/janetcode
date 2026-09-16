@@ -107,10 +107,10 @@ func TestOutputIsBounded(t *testing.T) {
 	if res.Exit != 1 {
 		t.Fatalf("res = %+v", res)
 	}
-	if len(res.Output) > maxOutput+1000 {
-		t.Fatalf("kept %d bytes of output, cap is %d", len(res.Output), maxOutput)
+	if len(res.Output) > 2*maxEnd+1000 {
+		t.Fatalf("kept %d bytes of output, cap is %d of each end", len(res.Output), maxEnd)
 	}
-	if !strings.Contains(res.Output, "were dropped") {
+	if !strings.Contains(res.Output, "bytes omitted") {
 		t.Fatal("the truncation is not explained")
 	}
 }

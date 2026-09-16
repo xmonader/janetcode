@@ -577,9 +577,11 @@ func (t EditFile) Preview(ctx context.Context, input json.RawMessage) (string, e
 // the resolved path, and the file's content before and after. It shares
 // plan's exact-match and line-range logic, so this is never out of step
 // with what Run would actually do. internal/impact uses it to analyze the
-// reach of an edit before it is approved.
-func (t EditFile) Result(input json.RawMessage) (path, before, after string, err error) {
-	pl, err := t.plan(context.Background(), input)
+// reach of an edit before it is approved. The read it does to work out
+// "before" can cross a network (a remote workspace), so it takes the
+// caller's context rather than inventing one.
+func (t EditFile) Result(ctx context.Context, input json.RawMessage) (path, before, after string, err error) {
+	pl, err := t.plan(ctx, input)
 	if err != nil {
 		return "", "", "", err
 	}

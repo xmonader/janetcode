@@ -15,6 +15,13 @@ type Risk int
 
 const (
 	RiskOrdinary Risk = iota
+	// RiskUnknown is a command the classifier gave up on: wrappers nested
+	// past MaxWrapperDepth. Nothing below the nest was graded, so it is
+	// treated as needing the user's say-so rather than as ordinary — a
+	// safety gate that answers "I could not tell" with "fine" is not a
+	// gate, and `sh -c "sh -c \"sh -c ...\""` is not a shape an honest
+	// command line takes.
+	RiskUnknown
 	// RiskEscapes mutates paths outside the workspace root.
 	RiskEscapes
 	// RiskCatastrophic is never run, even with auto-approve.
@@ -23,6 +30,8 @@ const (
 
 func (r Risk) String() string {
 	switch r {
+	case RiskUnknown:
+		return "too deeply nested to classify"
 	case RiskEscapes:
 		return "escapes workspace"
 	case RiskCatastrophic:
@@ -31,16 +40,11 @@ func (r Risk) String() string {
 	return "ordinary"
 }
 
-// MaxWrapperDepth bounds unwrapping of sudo/env/sh -c/eval nests within
-// one command segment.
+// MaxWrapperDepth bounds unwrapping of sudo/env/sh -c/eval nests.
 const MaxWrapperDepth = 4
 
-// maxNestDepth bounds how far the classifier follows a command quoted
-// inside another (`sh -c "..."`, `eval ...`). Each level starts a fresh
-// wrapper budget, so without a bound of its own a command line is free
-// to nest as deeply as it is long — and the classifier is run on text a
-// hostile model chose, which is not a place to recurse without a floor.
-const maxNestDepth = 16
+// tooDeep is what every classifier returns when it hits the bound.
+const tooDeep = "wrappers nested too deep: what this command would actually run cannot be worked out"
 
 var catastrophic = []struct {
 	re     *regexp.Regexp
@@ -81,11 +85,18 @@ var mutators = map[string]bool{
 
 // Classify grades a command line run with root as the working directory.
 // The reason describes the first problem found.
-func Classify(command, root string) (Risk, string) { return classify(command, root, 0) }
+func Classify(command, root string) (Risk, string) {
+	return classify(command, root, 0)
+}
 
-func classify(command, root string, nest int) (Risk, string) {
-	if nest > maxNestDepth {
-		return RiskOrdinary, ""
+// classify is Classify with the wrapper depth carried in. A `sh -c` or an
+// `eval` body is another command line, and it is classified at the depth
+// its wrappers have already reached: starting it again at zero would let
+// `eval eval eval …` unwrap for as long as the model cares to nest, which
+// is the bound existing to be worked around.
+func classify(command, root string, depth int) (Risk, string) {
+	if depth > MaxWrapperDepth {
+		return RiskUnknown, tooDeep
 	}
 	unquoted := stripQuoted(command)
 	for _, c := range wholeLine {
@@ -95,7 +106,7 @@ func classify(command, root string, nest int) (Risk, string) {
 	}
 	worst, reason := RiskOrdinary, ""
 	for _, seg := range Segments(command) {
-		r, why := classifyOne(seg, root, 0, nest)
+		r, why := classifyOne(seg, root, depth)
 		if r > worst {
 			worst, reason = r, why
 		}
@@ -103,19 +114,25 @@ func classify(command, root string, nest int) (Risk, string) {
 	return worst, reason
 }
 
-func classifyOne(seg, root string, depth, nest int) (Risk, string) {
+func classifyOne(seg, root string, depth int) (Risk, string) {
 	seg = strings.TrimSpace(seg)
-	if seg == "" || depth > MaxWrapperDepth {
+	if seg == "" {
 		return RiskOrdinary, ""
 	}
-	return classifyWords(Words(seg), seg, root, depth, nest)
+	if depth > MaxWrapperDepth {
+		return RiskUnknown, tooDeep
+	}
+	return classifyWords(Words(seg), seg, root, depth)
 }
 
 // classifyWords peels wrappers so `sudo sh -c "rm -rf /"` is judged by what
 // it runs. seg is the raw text, for redirection checks.
-func classifyWords(toks []string, seg, root string, depth, nest int) (Risk, string) {
-	if len(toks) == 0 || depth > MaxWrapperDepth {
+func classifyWords(toks []string, seg, root string, depth int) (Risk, string) {
+	if len(toks) == 0 {
 		return RiskOrdinary, ""
+	}
+	if depth > MaxWrapperDepth {
+		return RiskUnknown, tooDeep
 	}
 	skipOpts := func(i int) int {
 		for i < len(toks) && strings.HasPrefix(toks[i], "-") {
@@ -125,27 +142,27 @@ func classifyWords(toks []string, seg, root string, depth, nest int) (Risk, stri
 	}
 	switch toks[0] {
 	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer":
-		return classifyWords(toks[skipOpts(1):], seg, root, depth+1, nest)
+		return classifyWords(toks[skipOpts(1):], seg, root, depth+1)
 	case "env":
 		i := 1
 		for i < len(toks) && (strings.HasPrefix(toks[i], "-") || strings.Contains(toks[i], "=")) {
 			i++
 		}
-		return classifyWords(toks[i:], seg, root, depth+1, nest)
+		return classifyWords(toks[i:], seg, root, depth+1)
 	case "timeout":
 		i := skipOpts(1)
 		if i < len(toks) {
 			i++ // the duration
 		}
-		return classifyWords(toks[i:], seg, root, depth+1, nest)
+		return classifyWords(toks[i:], seg, root, depth+1)
 	case "sh", "bash", "zsh", "dash", "ksh":
 		for i := 1; i < len(toks)-1; i++ {
 			if strings.HasPrefix(toks[i], "-") && strings.Contains(toks[i], "c") {
-				return classify(toks[i+1], root, nest+1)
+				return classify(toks[i+1], root, depth+1)
 			}
 		}
 	case "eval":
-		return classify(strings.Join(toks[1:], " "), root, nest+1)
+		return classify(strings.Join(toks[1:], " "), root, depth+1)
 	}
 	line := strings.Join(toks, " ")
 	for _, c := range catastrophic {
@@ -327,25 +344,22 @@ func collectWriteTargets(seg, root string, depth int, add func(string)) {
 // approval prompt; it is a static allowlist, not a classifier.
 func SafeRead(command string) bool { return safeRead(command, 0) }
 
-func safeRead(command string, nest int) bool {
-	if strings.TrimSpace(command) == "" {
+func safeRead(command string, depth int) bool {
+	if strings.TrimSpace(command) == "" || depth > MaxWrapperDepth {
 		return false
 	}
-	if nest > maxNestDepth {
-		return false // too deeply nested to vouch for
-	}
-	if risk, _ := classify(command, "", nest); risk != RiskOrdinary {
+	if risk, _ := classify(command, "", depth); risk != RiskOrdinary {
 		return false
 	}
 	for _, seg := range Segments(command) {
-		if !safeSegment(seg, 0, nest) {
+		if !safeSegment(seg, depth) {
 			return false
 		}
 	}
 	return true
 }
 
-func safeSegment(seg string, depth, nest int) bool {
+func safeSegment(seg string, depth int) bool {
 	seg = strings.TrimSpace(seg)
 	if seg == "" {
 		return true
@@ -356,7 +370,7 @@ func safeSegment(seg string, depth, nest int) bool {
 	if writesRedirect(seg) {
 		return false
 	}
-	return safeWords(Words(seg), depth, nest)
+	return safeWords(Words(seg), depth)
 }
 
 func writesRedirect(seg string) bool {
@@ -369,7 +383,7 @@ func writesRedirect(seg string) bool {
 	return false
 }
 
-func safeWords(toks []string, depth, nest int) bool {
+func safeWords(toks []string, depth int) bool {
 	if len(toks) == 0 {
 		return true
 	}
@@ -386,7 +400,7 @@ func safeWords(toks []string, depth, nest int) bool {
 	case "sudo", "doas":
 		return false
 	case "nice", "nohup", "time", "command", "builtin", "stdbuf", "unbuffer":
-		return safeWords(toks[skipOpts(1):], depth+1, nest)
+		return safeWords(toks[skipOpts(1):], depth+1)
 	case "env":
 		i := 1
 		for i < len(toks) && (strings.HasPrefix(toks[i], "-") || strings.Contains(toks[i], "=")) {
@@ -395,17 +409,17 @@ func safeWords(toks []string, depth, nest int) bool {
 		if i >= len(toks) {
 			return true
 		}
-		return safeWords(toks[i:], depth+1, nest)
+		return safeWords(toks[i:], depth+1)
 	case "timeout":
 		i := skipOpts(1)
 		if i < len(toks) {
 			i++
 		}
-		return safeWords(toks[i:], depth+1, nest)
+		return safeWords(toks[i:], depth+1)
 	case "sh", "bash", "zsh", "dash", "ksh":
 		for i := 1; i < len(toks)-1; i++ {
 			if strings.HasPrefix(toks[i], "-") && strings.Contains(toks[i], "c") {
-				return safeRead(toks[i+1], nest+1)
+				return safeRead(toks[i+1], depth+1)
 			}
 		}
 		return false

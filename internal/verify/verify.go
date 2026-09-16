@@ -5,7 +5,6 @@
 package verify
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -124,40 +123,6 @@ func (r Result) Feedback() string {
 		r.Failed, r.Exit, textfmt.TruncateTo(strings.TrimSpace(r.Output), 6000))
 }
 
-// maxOutput bounds what one command's output may cost in memory. Only
-// the last few thousand bytes ever reach the model (see Feedback), and a
-// failing build with a runaway loop in it has no bound of its own.
-const maxOutput = 1 << 20
-
-// capped keeps the first max bytes written to it and counts the rest, so
-// the command is never blocked on a full pipe but the harness does not
-// hold a gigabyte of test output either.
-type capped struct {
-	max     int
-	buf     bytes.Buffer
-	dropped int
-}
-
-func (c *capped) Write(p []byte) (int, error) {
-	if room := c.max - c.buf.Len(); room > 0 {
-		if room > len(p) {
-			room = len(p)
-		}
-		c.buf.Write(p[:room])
-		c.dropped += len(p) - room
-	} else {
-		c.dropped += len(p)
-	}
-	return len(p), nil
-}
-
-func (c *capped) String() string {
-	if c.dropped == 0 {
-		return c.buf.String()
-	}
-	return fmt.Sprintf("%s\n[%d more bytes of output were dropped]", c.buf.String(), c.dropped)
-}
-
 // Mutation is a mutation-testing report (internal/mutate.Report): verify
 // only needs to judge and describe it, so it does not import the runner.
 type Mutation interface {
@@ -222,10 +187,10 @@ func (r *Runner) Run(ctx context.Context) Result {
 		shell.Supervise(cmd)
 		cmd.Dir = r.Cwd
 		cmd.Env = append(os.Environ(), "JANETCODE_VERIFY=1")
-		// A verify command is a build or a test run, and a failing one can
-		// print without limit. Only the output that is shown is kept.
-		combined := &capped{max: maxOutput}
-		cmd.Stdout, cmd.Stderr = combined, combined
+		// Bounded rather than CombinedOutput: a verbose suite can print
+		// for as long as it runs, and only the ends are ever read.
+		out := &capture{}
+		cmd.Stdout, cmd.Stderr = out, out
 		err := cmd.Run()
 		timedOut := errors.Is(cctx.Err(), context.DeadlineExceeded)
 		cancel()
@@ -233,7 +198,7 @@ func (r *Runner) Run(ctx context.Context) Result {
 			res.Passed = append(res.Passed, command)
 			continue
 		}
-		res.Failed, res.Output = command, combined.String()
+		res.Failed, res.Output = command, out.String()
 		var ee *exec.ExitError
 		switch {
 		case timedOut:

@@ -159,7 +159,7 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("%s (HTTP %d)", e.Message, e.Status)
 }
 
-// HTTPStatus reports the status the server answered with. It is what
-// lets a caller classify the failure (a rejected key, a rate limit)
-// without matching on the message text; see headless.ExitCode.
-func (e *APIError) HTTPStatus() int { return e.Status }
+// HTTPStatus and RetryHint implement llm.StatusError, which is how the
+// shared retry policy judges an error from this provider.
+func (e *APIError) HTTPStatus() int          { return e.Status }
+func (e *APIError) RetryHint() time.Duration { return e.RetryAfter }

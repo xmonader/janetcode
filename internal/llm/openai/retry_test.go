@@ -31,30 +31,30 @@ func TestInternalErrorIsNotRetried(t *testing.T) {
 		t.Fatalf("%d requests, want 1", n)
 	}
 	for _, status := range []int{502, 503, 504, 429, 408, 529} {
-		if !retryable(&APIError{Status: status, Message: "x"}) {
+		if !llm.Retryable(&APIError{Status: status, Message: "x"}) {
 			t.Errorf("%d should be retried", status)
 		}
 	}
 	for _, status := range []int{500, 501, 400, 404, 422} {
-		if retryable(&APIError{Status: status, Message: "x"}) {
+		if llm.Retryable(&APIError{Status: status, Message: "x"}) {
 			t.Errorf("%d should not be retried", status)
 		}
 	}
 }
 
 func TestRetryAfterIsHonouredOnlyWhereItMeansComeBack(t *testing.T) {
-	if got := retryAfter("2"); got != 2*time.Second {
+	if got := llm.ParseRetryAfter("2"); got != 2*time.Second {
 		t.Fatalf("seconds form = %v", got)
 	}
-	if got := retryAfter(time.Now().Add(3 * time.Second).UTC().Format(http.TimeFormat)); got <= 0 || got > 4*time.Second {
+	if got := llm.ParseRetryAfter(time.Now().Add(3 * time.Second).UTC().Format(http.TimeFormat)); got <= 0 || got > 4*time.Second {
 		t.Fatalf("date form = %v", got)
 	}
-	if got := retryAfter("3600"); got != 0 {
+	if got := llm.ParseRetryAfter("3600"); got != 0 {
 		t.Fatalf("an hour should be ignored, got %v", got)
 	}
 	for _, v := range []string{"", "soon", "-1", "0"} {
-		if got := retryAfter(v); got != 0 {
-			t.Fatalf("retryAfter(%q) = %v", v, got)
+		if got := llm.ParseRetryAfter(v); got != 0 {
+			t.Fatalf("llm.ParseRetryAfter(%q) = %v", v, got)
 		}
 	}
 

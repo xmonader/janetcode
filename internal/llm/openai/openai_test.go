@@ -557,9 +557,10 @@ func TestApplyCacheBreakpoints(t *testing.T) {
 	if !ok || mid[0].CacheControl == nil {
 		t.Fatalf("stable prefix breakpoint missing: %+v", w.Messages)
 	}
-	tail, ok := w.Messages[3].Content.([]wirePart)
-	if !ok || tail[0].CacheControl != nil {
-		t.Fatalf("tail must not be marked: %#v", w.Messages[3].Content)
+	// The tail is not marked, and it is not rewritten either: only the
+	// messages that carry a breakpoint become content parts.
+	if s, ok := w.Messages[3].Content.(string); !ok || s != "tail that changes" {
+		t.Fatalf("tail must be left as it was: %#v", w.Messages[3].Content)
 	}
 }
 
@@ -983,7 +984,7 @@ func TestRetryableDistinguishesExhaustedFromThrottled(t *testing.T) {
 		{401, "invalid api key", false},
 	} {
 		err := &APIError{Status: tc.status, Message: tc.msg}
-		if got := retryable(err); got != tc.retry {
+		if got := llm.Retryable(err); got != tc.retry {
 			t.Errorf("status %d %q: retryable = %v, want %v", tc.status, tc.msg, got, tc.retry)
 		}
 	}

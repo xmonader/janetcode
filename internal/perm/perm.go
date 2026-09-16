@@ -24,9 +24,43 @@ import (
 )
 
 // Rule is one allow or deny entry.
+//
+// A rule is matched against every call of its tool, so its pattern is
+// parsed once — when the rule is made, by Parse or by compile — and not
+// again per call. The parse is kept in unexported fields, which is why
+// rules are compared with Equal rather than ==: two rules mean the same
+// thing when their tool and pattern do.
 type Rule struct {
 	Tool    string
 	Pattern string // "" matches every call of the tool
+
+	// params is the pattern read as parameter clauses, and paramRule
+	// whether it is that form at all (see param.go). compiled says the
+	// two have been worked out; a Rule built as a struct literal works
+	// them out the first time it is matched.
+	params    []Param
+	paramRule bool
+	compiled  bool
+}
+
+// Equal reports whether two rules say the same thing.
+func (r Rule) Equal(o Rule) bool { return r.Tool == o.Tool && r.Pattern == o.Pattern }
+
+// compile parses the pattern once. A malformed parameter pattern is
+// reported by Parse, which is where a typo can still be pointed at
+// whoever wrote it; here it simply means "not a parameter rule", and the
+// pattern is matched against the subject as it always was.
+func (r Rule) compile() Rule {
+	if r.compiled {
+		return r
+	}
+	if r.Pattern != "" {
+		if ps, ok, err := Params(r.Pattern); err == nil && ok {
+			r.params, r.paramRule = ps, true
+		}
+	}
+	r.compiled = true
+	return r
 }
 
 // Parse reads "tool" or "tool(pattern)".
@@ -56,7 +90,9 @@ func Parse(s string) (Rule, error) {
 	}
 	if isParam {
 		r.Pattern = FormatParams(ps)
+		r.params, r.paramRule = ps, true
 	}
+	r.compiled = true
 	return r, nil
 }
 
@@ -162,18 +198,19 @@ func (rs *Rules) Add(v Verdict, r Rule) bool {
 		list = &rs.Deny
 	}
 	for _, e := range *list {
-		if e == r {
+		if e.Equal(r) {
 			return false
 		}
 	}
-	*list = append(*list, r)
+	// Parsed here rather than on every call it is then matched against.
+	*list = append(*list, r.compile())
 	return true
 }
 
 // hasAllow reports whether an equal rule is already saved as an allow.
 func (rs Rules) hasAllow(r Rule) bool {
 	for _, e := range rs.Allow {
-		if e == r {
+		if e.Equal(r) {
 			return true
 		}
 	}
@@ -206,15 +243,16 @@ func (r Rule) matchesCall(c Call) bool {
 	if r.Pattern == "" {
 		return true
 	}
-	ps, isParam, err := Params(r.Pattern)
-	if err != nil || !isParam {
+	r = r.compile()
+	if !r.paramRule {
 		return Match(r.Pattern, c.Subject)
 	}
 	if len(c.Input) == 0 {
 		return false
 	}
-	for _, p := range ps {
-		if !matchAny(p.Pattern, FieldValues(c.Tool, c.Input, p.Name)) {
+	f := fields{tool: c.Tool, input: c.Input}
+	for _, p := range r.params {
+		if !matchAny(p.Pattern, f.values(p.Name)) {
 			return false
 		}
 	}
@@ -359,7 +397,7 @@ func SuggestLadder(tool, subject string) []Rule {
 // answering without moving saves exactly what it used to.
 func DefaultRung(rungs []Rule, r Rule) int {
 	for i, e := range rungs {
-		if e == r {
+		if e.Equal(r) {
 			return i
 		}
 	}
@@ -457,7 +495,7 @@ func dedupe(rungs []Rule) []Rule {
 	for _, r := range rungs {
 		seen := false
 		for _, e := range out {
-			if e == r {
+			if e.Equal(r) {
 				seen = true
 				break
 			}

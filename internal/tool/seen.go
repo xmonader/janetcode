@@ -114,19 +114,15 @@ func (e *ErrPriorRead) Error() string {
 // for; it is now ErrPriorRead with CauseChanged.
 type ErrChanged = ErrPriorRead
 
-// Check compares the file's current content with what was recorded and
-// reports what is wrong with it, if anything. verb is "edit" or "write".
+// CheckAt compares the file's current content with what was recorded and
+// reports what is wrong with it, if anything. verb is "edit" or "write";
+// ws says which machine to look on, so a remote file is not probed on
+// this one.
 //
 // A file the agent has never read passes for an edit: an edit names the
 // exact text it replaces, so it cannot silently destroy something it did
 // not see, and the coach supplies the content when one misses. A write
 // does not name anything, so overwriting an unread file is refused.
-func (s *Seen) Check(path, display, verb string) error {
-	return s.CheckAt(context.Background(), nil, path, display, verb)
-}
-
-// CheckAt is Check against a workspace, so a remote file is not probed
-// on this machine.
 func (s *Seen) CheckAt(ctx context.Context, ws *Workspace, path, display, verb string) error {
 	if s == nil {
 		return nil

@@ -119,13 +119,38 @@ var fileTools = map[string]bool{
 // what a person means by trusting a site, and it is not a field of the
 // call at all.
 func FieldValues(tool string, input json.RawMessage, name string) []string {
-	if tool == "fetch_url" && (name == "domain" || name == "host") {
-		return urlHosts(input)
+	f := fields{tool: tool, input: input}
+	return f.values(name)
+}
+
+// fields is a call's input decoded at most once, however many clauses a
+// rule then reads from it. A rule with three parameters used to unmarshal
+// the whole call three times, on every call it was matched against.
+type fields struct {
+	tool    string
+	input   json.RawMessage
+	decoded any
+	done    bool
+}
+
+func (f *fields) values(name string) []string {
+	if f.tool == "fetch_url" && (name == "domain" || name == "host") {
+		return urlHosts(f.input)
 	}
-	var in any
-	if json.Unmarshal(input, &in) != nil {
+	if !f.done {
+		f.done = true
+		if json.Unmarshal(f.input, &f.decoded) != nil {
+			f.decoded = nil
+		}
+	}
+	if f.decoded == nil {
 		return nil
 	}
+	return f.lookupValues(name)
+}
+
+func (f *fields) lookupValues(name string) []string {
+	tool, in := f.tool, f.decoded
 	v, ok := lookup(in, strings.Split(name, "."))
 	if !ok {
 		return nil
