@@ -185,10 +185,21 @@ func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
 		params.MaxTokens = 16000
 	}
 	if req.System != "" {
-		params.System = []sdk.TextBlockParam{{
-			Text:         req.System,
-			CacheControl: sdk.NewCacheControlEphemeralParam(),
-		}}
+		// The breakpoint goes where the stable prefix ends, which is the
+		// same place for every provider (llm.StablePrefix): the session's
+		// working directory, date and git state sit below it and change,
+		// so caching them would pay for a write nothing reads back.
+		if stable, volatile := llm.StablePrefix(req.System); stable != "" {
+			params.System = []sdk.TextBlockParam{
+				{Text: stable, CacheControl: sdk.NewCacheControlEphemeralParam()},
+				{Text: volatile},
+			}
+		} else {
+			params.System = []sdk.TextBlockParam{{
+				Text:         req.System,
+				CacheControl: sdk.NewCacheControlEphemeralParam(),
+			}}
+		}
 	}
 	if cfg.Thinking {
 		// Omitted still returns the signature that keeps later turns

@@ -179,20 +179,17 @@ func markBreakpoint(m *wireMessage) {
 	m.Content = parts
 }
 
-// envSection is the heading prompt.System uses for cwd/date/git. Everything
-// before it is identical across working directories and can be cached;
-// everything after it changes every eval workdir and must stay uncached.
-const envSection = "# Environment\n"
-
 // applyCacheBreakpoints puts ephemeral cache_control markers on the stable
-// prefix: static system instructions (not cwd/date), the last tool schema,
-// then the last content-bearing history message that is not the tail.
+// prefix: static system instructions (not cwd/date, see llm.StablePrefix),
+// the last tool schema, then the last content-bearing history message that
+// is not the tail.
+//
+// Only the messages it marks are turned into content parts. Rewriting
+// every message that way said nothing a server needed to hear — a plain
+// string is the same content — and it made the whole history depend on
+// whether the endpoint happened to be one of the two that honour
+// breakpoints.
 func applyCacheBreakpoints(w *wireRequest) {
-	for i := range w.Messages {
-		if parts := normalizeContent(w.Messages[i].Content); len(parts) > 0 {
-			w.Messages[i].Content = parts
-		}
-	}
 	for i := range w.Messages {
 		if w.Messages[i].Role == "system" {
 			markStableSystem(&w.Messages[i])
@@ -224,11 +221,10 @@ func markStableSystem(m *wireMessage) {
 		return
 	}
 	if len(parts) == 1 && parts[0].Type == "text" {
-		text := parts[0].Text
-		if i := strings.Index(text, envSection); i > 0 {
+		if stable, volatile := llm.StablePrefix(parts[0].Text); stable != "" {
 			m.Content = []wirePart{
-				{Type: "text", Text: text[:i], CacheControl: &wireCacheControl{Type: "ephemeral"}},
-				{Type: "text", Text: text[i:]},
+				{Type: "text", Text: stable, CacheControl: &wireCacheControl{Type: "ephemeral"}},
+				{Type: "text", Text: volatile},
 			}
 			return
 		}
@@ -241,8 +237,10 @@ func stripCacheControl(w *wireRequest) {
 		w.Tools[i].CacheControl = nil
 	}
 	for i := range w.Messages {
-		parts := normalizeContent(w.Messages[i].Content)
-		if len(parts) == 0 {
+		// A plain string never carried a marker, so only the messages a
+		// breakpoint turned into parts need undoing.
+		parts, ok := w.Messages[i].Content.([]wirePart)
+		if !ok || len(parts) == 0 {
 			continue
 		}
 		for j := range parts {
