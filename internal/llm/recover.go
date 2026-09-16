@@ -43,8 +43,9 @@ func RecoverToolCalls(text string) (calls []RecoveredCall, remaining string, ok 
 		call       RecoveredCall
 	}
 	var spans []span
+	fences := fencedRanges(text)
 	for _, m := range invokeRe.FindAllStringSubmatchIndex(text, -1) {
-		if insideFence(text, m[0]) {
+		if fences.covers(m[0]) {
 			continue
 		}
 		name := text[m[2]:m[3]]
@@ -65,7 +66,7 @@ func RecoverToolCalls(text string) (calls []RecoveredCall, remaining string, ok 
 		spans = append(spans, span{m[0], m[1], RecoveredCall{Name: name, Input: raw}})
 	}
 	for _, m := range toolCallRe.FindAllStringSubmatchIndex(text, -1) {
-		if insideFence(text, m[0]) {
+		if fences.covers(m[0]) {
 			continue
 		}
 		var obj struct {
@@ -149,23 +150,47 @@ var blankRuns = regexp.MustCompile(`\n{3,}`)
 
 func collapse(s string) string { return blankRuns.ReplaceAllString(s, "\n\n") }
 
-// insideFence reports whether an offset falls inside an open code fence,
-// where a block is documentation rather than a request.
-func insideFence(text string, at int) bool {
-	open := ""
-	for _, line := range strings.Split(text[:at], "\n") {
-		m := fenceRe.FindStringSubmatch(line)
-		if m == nil {
-			continue
+// fenced is the byte ranges of a reply that sit inside a code fence,
+// where a block is documentation rather than a request. Ranges are
+// disjoint and in order, so covers can walk them once.
+type fenced [][2]int
+
+// covers reports whether at falls inside a fence.
+func (f fenced) covers(at int) bool {
+	for _, r := range f {
+		if at < r[0] {
+			return false // the ranges are ordered; the rest start later still
 		}
-		switch {
-		case open == "":
-			open = m[1]
-		case m[1][0] == open[0] && len(m[1]) >= len(open) && strings.TrimSpace(line[len(m[0]):]) == "":
-			open = ""
+		if at < r[1] {
+			return true
 		}
 	}
-	return open != ""
+	return false
+}
+
+// fencedRanges finds every fenced region in one pass. It used to be a
+// scan of everything before each block, which is quadratic in a reply
+// that is mostly blocks — exactly what a model in a tool-call loop
+// writes when the harness has to recover its calls from prose.
+func fencedRanges(text string) fenced {
+	var out fenced
+	open, openAt, pos := "", 0, 0
+	for _, line := range strings.Split(text, "\n") {
+		if m := fenceRe.FindStringSubmatch(line); m != nil {
+			switch {
+			case open == "":
+				open, openAt = m[1], pos
+			case m[1][0] == open[0] && len(m[1]) >= len(open) && strings.TrimSpace(line[len(m[0]):]) == "":
+				out = append(out, [2]int{openAt, pos})
+				open = ""
+			}
+		}
+		pos += len(line) + 1 // the newline Split removed
+	}
+	if open != "" {
+		out = append(out, [2]int{openAt, len(text)})
+	}
+	return out
 }
 
 // RecoveredBlocks turns recovered calls into tool_use blocks with ids
