@@ -74,7 +74,7 @@ func (s *server) goalRound() {
 		s.notice("the goal continues when this turn ends")
 		return
 	}
-	cont := s.opts.Agent.GoalContinuation()
+	cont := s.opts.Agent.GoalContinuation(s.life)
 	if cont == "" {
 		return
 	}

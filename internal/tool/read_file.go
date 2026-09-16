@@ -70,7 +70,7 @@ func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error
 			t.Cache.Put(p, st2.ModTime(), st2.Size(), data)
 		}
 	}
-	if extracted, ok := extractReadable(in.Path, data); ok {
+	if extracted, ok := extractReadable(ctx, in.Path, data); ok {
 		t.Seen.Record(p, data)
 		return extracted, nil
 	}

@@ -3,6 +3,7 @@ package tool
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/xml"
 	"fmt"
 	"image"
@@ -12,12 +13,14 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
-func extractReadable(path string, data []byte) (string, bool) {
+func extractReadable(ctx context.Context, path string, data []byte) (string, bool) {
 	switch {
 	case bytes.HasPrefix(data, []byte("%PDF")):
-		return extractPDF(path, data)
+		return extractPDF(ctx, path, data)
 	case isZip(data) && strings.HasSuffix(strings.ToLower(path), ".pptx"):
 		text, err := extractPPTX(data)
 		if err != nil {
@@ -36,19 +39,18 @@ func isZip(data []byte) bool {
 	return len(data) >= 4 && data[0] == 'P' && data[1] == 'K'
 }
 
-func extractPDF(path string, data []byte) (string, bool) {
-	cmd := exec.Command("pdftotext", "-layout", "-nopgbrk", "-", "-")
+func extractPDF(ctx context.Context, path string, data []byte) (string, bool) {
+	cmd := exec.CommandContext(ctx, "pdftotext", "-layout", "-nopgbrk", "-", "-")
 	cmd.Stdin = bytes.NewReader(data)
 	out, err := cmd.Output()
 	if err != nil {
-		// Fall back to a crude stream extract so we still return something.
 		text := crudePDFText(data)
 		if strings.TrimSpace(text) == "" {
 			return fmt.Sprintf("(pdf %d bytes; install pdftotext to extract text from %s)", len(data), path), true
 		}
-		return textfmtTruncate(text), true
+		return textfmt.TruncateTo(text, 32_000), true
 	}
-	return textfmtTruncate(string(out)), true
+	return textfmt.TruncateTo(string(out), 32_000), true
 }
 
 func crudePDFText(data []byte) string {
@@ -78,7 +80,7 @@ func isMostlyPrintable(b []byte) bool {
 	}
 	ok := 0
 	for _, c := range b {
-		if c >= 32 && c < 127 || c == '\n' || c == '\t' {
+		if (c >= 32 && c < 127) || c == '\n' || c == '\t' {
 			ok++
 		}
 	}
@@ -106,7 +108,7 @@ func extractPPTX(data []byte) (string, error) {
 	if len(slides) == 0 {
 		return "", fmt.Errorf("no slides")
 	}
-	return textfmtTruncate(strings.Join(slides, "\n\n")), nil
+	return textfmt.TruncateTo(strings.Join(slides, "\n\n"), 32_000), nil
 }
 
 func stripXMLText(raw []byte) string {
@@ -128,13 +130,4 @@ func stripXMLText(raw []byte) string {
 		}
 	}
 	return b.String()
-}
-
-func textfmtTruncate(s string) string {
-	const max = 32_000
-	s = strings.TrimSpace(s)
-	if len(s) <= max {
-		return s
-	}
-	return s[:max] + "\n… (truncated)"
 }

@@ -142,7 +142,9 @@ func (a *Agent) SetGoalPhase(id, phase, reason string) {
 }
 
 // GoalContinuation is the next auto-prompt while a goal is active, or "".
-func (a *Agent) GoalContinuation() string {
+// ctx bounds the optional planner/skeptic side query; the prompt itself
+// is still built if that query fails or is skipped.
+func (a *Agent) GoalContinuation(ctx context.Context) string {
 	if a.Log == nil {
 		return ""
 	}
@@ -156,7 +158,7 @@ func (a *Agent) GoalContinuation() string {
 		lead = "Work on this goal until it is complete or you are blocked: "
 	}
 	body := lead + g.Objective + "\n(This is round " + fmt.Sprint(g.Rounds+1) + " of at most " + fmt.Sprint(g.MaxRounds) + ". Rounds are a budget, not a plan: finish in one if you can. Call goal_status complete only when the objective is fully met, or blocked with the reason; the user sees that call, so do not announce rounds in your reply.)"
-	if note := a.goalRoleNote(*g); note != "" {
+	if note := a.goalRoleNote(ctx, *g); note != "" {
 		body += "\n\n" + note
 	}
 	return body

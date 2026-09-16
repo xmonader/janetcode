@@ -70,7 +70,7 @@ func (a *Agent) sideQuery(ctx context.Context, system, question, model string, m
 	if s.Provider == nil {
 		return "", "", fmt.Errorf("no provider")
 	}
-	msgs := advisorMessages(a.MessagesSnapshot())
+	msgs := sideTranscript(a.MessagesSnapshot())
 	msgs = append(msgs, llm.TextMessage(llm.RoleUser, question))
 	if strings.TrimSpace(model) == "" {
 		model = s.Model
@@ -131,7 +131,7 @@ func advisorReplyText(msg llm.Message) string {
 	return last
 }
 
-func advisorMessages(src []llm.Message) []llm.Message {
+func sideTranscript(src []llm.Message) []llm.Message {
 	const keep = 8
 	if len(src) > keep {
 		src = src[len(src)-keep:]

@@ -2,6 +2,7 @@ package tool
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/png"
 	"strings"
@@ -14,7 +15,7 @@ func TestExtractReadableDescribesPNG(t *testing.T) {
 	if err := png.Encode(&buf, img); err != nil {
 		t.Fatal(err)
 	}
-	text, ok := extractReadable("shot.png", buf.Bytes())
+	text, ok := extractReadable(context.Background(), "shot.png", buf.Bytes())
 	if !ok || !strings.Contains(text, "8x4") || !strings.Contains(text, "png") {
 		t.Fatalf("got %q ok=%v", text, ok)
 	}
@@ -22,7 +23,7 @@ func TestExtractReadableDescribesPNG(t *testing.T) {
 
 func TestExtractReadablePDFFallback(t *testing.T) {
 	data := []byte("%PDF-1.4\n(hello world)\n")
-	text, ok := extractReadable("doc.pdf", data)
+	text, ok := extractReadable(context.Background(), "doc.pdf", data)
 	if !ok {
 		t.Fatal("expected extraction")
 	}

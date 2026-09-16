@@ -17,13 +17,26 @@ Output one JSON object per line, nothing else:
 {"action":"drop","name":"obsolete-slug"}
 Output exactly NONE when the set is already tight.`
 
+const dreamMinEntries = 3
+
+// DreamOp is one consolidation action. Distinct from Extracted: extract
+// captures new facts, dream rewrites the store.
+type DreamOp struct {
+	Action      string
+	Name        string
+	Type        string
+	Description string
+	Body        string
+	Replaces    []string
+}
+
 // Dream asks the model to merge overlapping memory entries. It does not
 // replace Extract: extract captures new facts, dream tightens the store.
-func Dream(ctx context.Context, p llm.Provider, model string, entries []Entry) ([]Extracted, error) {
+func Dream(ctx context.Context, p llm.Provider, model string, entries []Entry) ([]DreamOp, error) {
 	if p == nil {
 		return nil, fmt.Errorf("no provider")
 	}
-	if len(entries) < 3 {
+	if len(entries) < dreamMinEntries {
 		return nil, nil
 	}
 	var listing strings.Builder
@@ -31,7 +44,7 @@ func Dream(ctx context.Context, p llm.Provider, model string, entries []Entry) (
 		if e.Source == "user" {
 			continue // never drop or merge what the user wrote
 		}
-		fmt.Fprintf(&listing, "- %s (%s): %s\n  %s\n", e.Name, e.Type, e.Description, textfmtClip(e.Body, 400))
+		fmt.Fprintf(&listing, "- %s (%s): %s\n  %s\n", e.Name, e.Type, e.Description, clip(e.Body, 400))
 	}
 	if listing.Len() == 0 {
 		return nil, nil
@@ -58,36 +71,37 @@ func Dream(ctx context.Context, p llm.Provider, model string, entries []Entry) (
 
 // ApplyDream applies merge/drop ops. User-authored entries are never
 // removed.
-func (s *Store) ApplyDream(ops []Extracted) (changed int, err error) {
-	for _, x := range ops {
-		if x.Body == "" && x.Name != "" {
-			if e, ok := s.Get(x.Name); ok && e.Source != "user" {
-				if _, rerr := s.Remove(x.Name); rerr == nil {
+func (s *Store) ApplyDream(ops []DreamOp) (changed int, err error) {
+	for _, op := range ops {
+		switch strings.ToLower(op.Action) {
+		case "drop":
+			if e, ok := s.Get(op.Name); ok && e.Source != "user" {
+				if _, rerr := s.Remove(op.Name); rerr == nil {
 					changed++
 				}
 			}
-			continue
-		}
-		_, _, err := s.Put(Entry{Name: x.Name, Description: x.Description, Type: x.Type, Scope: "project", Body: x.Body, Source: "auto"})
-		if err != nil {
-			return changed, err
-		}
-		changed++
-		for _, name := range strings.Split(x.Replaces, ",") {
-			name = strings.TrimSpace(name)
-			if name == "" || strings.EqualFold(name, x.Name) {
-				continue
+		case "merge":
+			_, _, err := s.Put(Entry{Name: op.Name, Description: op.Description, Type: op.Type, Scope: "project", Body: op.Body, Source: "auto"})
+			if err != nil {
+				return changed, err
 			}
-			if e, ok := s.Get(name); ok && e.Source != "user" {
-				_, _ = s.Remove(name)
+			changed++
+			for _, name := range op.Replaces {
+				name = strings.TrimSpace(name)
+				if name == "" || strings.EqualFold(name, op.Name) {
+					continue
+				}
+				if e, ok := s.Get(name); ok && e.Source != "user" {
+					_, _ = s.Remove(name)
+				}
 			}
 		}
 	}
 	return changed, nil
 }
 
-func parseDream(raw string) []Extracted {
-	var out []Extracted
+func parseDream(raw string) []DreamOp {
+	var out []DreamOp
 	for _, line := range strings.Split(raw, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || !strings.HasPrefix(line, "{") {
@@ -105,22 +119,17 @@ func parseDream(raw string) []Extracted {
 			continue
 		}
 		switch strings.ToLower(row.Action) {
-		case "drop":
-			if row.Name != "" {
-				out = append(out, Extracted{Name: row.Name, Replaces: row.Name})
-			}
-		case "merge":
-			repl := strings.Join(row.Replaces, ",")
-			out = append(out, Extracted{
-				Type: row.Type, Name: row.Name, Description: row.Description,
-				Body: row.Body, Replaces: repl, Scope: "project",
+		case "drop", "merge":
+			out = append(out, DreamOp{
+				Action: row.Action, Name: row.Name, Type: row.Type,
+				Description: row.Description, Body: row.Body, Replaces: row.Replaces,
 			})
 		}
 	}
 	return out
 }
 
-func textfmtClip(s string, n int) string {
+func clip(s string, n int) string {
 	s = strings.TrimSpace(s)
 	if len(s) <= n {
 		return s

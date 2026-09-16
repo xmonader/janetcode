@@ -12,14 +12,19 @@ const (
 	goalSkepticSystem = `You are a skeptic on a coding-agent goal. The last round may have claimed progress. No tools. Reply with: 1) what is still unproven, 2) the cheapest check, 3) whether to continue or stop. Under 200 words.`
 )
 
+const goalRoleTimeout = 15 * time.Second
+
 // goalRoleNote is optional orientation for the next goal round. It uses
 // the same side-query path as advisor (AdvisorModel when set). It never
 // replaces GoalContinuation; it prepends a short note or stays silent.
-func (a *Agent) goalRoleNote(g Goal) string {
+func (a *Agent) goalRoleNote(ctx context.Context, g Goal) string {
 	if a == nil || g.Objective == "" || strings.TrimSpace(a.AdvisorModel) == "" {
 		return ""
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, goalRoleTimeout)
 	defer cancel()
 	model := strings.TrimSpace(a.AdvisorModel)
 	var (

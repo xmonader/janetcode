@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	monitorPoll = 250 * time.Millisecond
+	monitorMax  = time.Hour
+)
+
 // Monitor starts a background command and, when a line matches pattern,
 // delivers it through OnMatch (the session Steers). It is the grok-style
 // watch without a second scheduler: Jobs and Steer already exist.
@@ -50,45 +55,46 @@ func (t Monitor) Run(ctx context.Context, input json.RawMessage) (string, error)
 	if err != nil {
 		return "", err
 	}
+	// The tool call's ctx ends when Run returns; the watch lives as long
+	// as the job (KillAll on session close stops it).
 	go t.watch(job.ID, in.Pattern)
 	return fmt.Sprintf("monitor job %d watching for %q; kill with jobs kill %d", job.ID, in.Pattern, job.ID), nil
 }
 
 func (t Monitor) watch(id int, pattern string) {
-	seen := ""
-	deadline := time.Now().Add(time.Hour)
-	for time.Now().Before(deadline) {
-		time.Sleep(250 * time.Millisecond)
-		job, ok := t.Jobs.Get(id)
-		if !ok {
+	ticker := time.NewTicker(monitorPoll)
+	defer ticker.Stop()
+	deadline := time.NewTimer(monitorMax)
+	defer deadline.Stop()
+	var seen string
+	for {
+		select {
+		case <-deadline.C:
 			return
-		}
-		out, err := t.Jobs.Output(id, 80)
-		if err != nil {
+		case <-ticker.C:
+			job, ok := t.Jobs.Get(id)
+			if !ok {
+				return
+			}
+			out, err := t.Jobs.Output(id, 80)
+			if err != nil {
+				if job.Done {
+					return
+				}
+				continue
+			}
+			matched := strings.Contains(out, pattern)
+			if matched && !(strings.HasPrefix(out, seen) && strings.Contains(seen, pattern)) {
+				seen = out
+				if line := lastMatchingLine(out, pattern); t.OnMatch != nil && line != "" {
+					t.OnMatch(fmt.Sprintf("[monitor %d] %s", id, line))
+				}
+				return
+			}
 			if job.Done {
 				return
 			}
-			continue
 		}
-		if !strings.Contains(out, pattern) {
-			if job.Done {
-				return
-			}
-			continue
-		}
-		// Only fire on newly appeared matching text.
-		if strings.HasPrefix(out, seen) && strings.Contains(seen, pattern) {
-			if job.Done {
-				return
-			}
-			continue
-		}
-		seen = out
-		line := lastMatchingLine(out, pattern)
-		if t.OnMatch != nil && line != "" {
-			t.OnMatch(fmt.Sprintf("[monitor %d] %s", id, line))
-		}
-		return
 	}
 }
 

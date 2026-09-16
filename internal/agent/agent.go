@@ -430,16 +430,8 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		}
 		// Recomputed every step: it also publishes the estimate the status
 		// bar reads while the turn runs.
-		if est := a.EstimateTokens(); compactAt > 0 {
-			if !a.compactPrefired && est > compactAt*85/100 && est <= compactAt {
-				a.compactPrefired = true
-				_ = a.CompactFast(ctx, emit)
-			}
-			if est > compactAt {
-				if err := a.Compact(ctx, emit); err != nil && !errors.Is(err, ErrNothingToCompact) {
-					return err
-				}
-			}
+		if err := a.maybeCompact(ctx, compactAt, emit); err != nil {
+			return err
 		}
 		a.checkIntegrity(emit)
 		a.reportJobs(emit)

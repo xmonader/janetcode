@@ -82,7 +82,7 @@ func (m *model) goalRound() tea.Cmd {
 			note = fmt.Sprintf("%sgoal %s round %d/%d \u00b7 %s", noteGoal, g.ID, g.Rounds+1, g.MaxRounds, g.Objective)
 		}
 	}
-	cont := ag.GoalContinuation()
+	cont := ag.GoalContinuation(m.life)
 	if cont == "" {
 		return nil
 	}

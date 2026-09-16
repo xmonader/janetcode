@@ -594,7 +594,7 @@ func (s *server) finish(err error) {
 	// /goal works in the TUI, until the model marks it complete or
 	// blocked (or the round cap ends it).
 	if err == nil && s.opts.Agent != nil {
-		if cont := s.opts.Agent.GoalContinuation(); cont != "" {
+		if cont := s.opts.Agent.GoalContinuation(s.life); cont != "" {
 			s.notice("◉ goal round: " + cont)
 			s.startTurn(cont)
 		}

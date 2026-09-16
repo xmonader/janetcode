@@ -59,6 +59,29 @@ func (a *Agent) raiseCompactFloor(emit func(Event)) int {
 	return floor
 }
 
+// maybeCompact is the two-pass trigger: prune-only at compactPrefirePct of
+// the threshold, then a summary once the estimate is over it. The turn
+// loop calls this; it does not own a second compaction policy.
+func (a *Agent) maybeCompact(ctx context.Context, compactAt int, emit func(Event)) error {
+	if compactAt <= 0 {
+		return nil
+	}
+	est := a.EstimateTokens()
+	if !a.compactPrefired && est > compactAt*compactPrefirePct/100 && est <= compactAt {
+		a.compactPrefired = true
+		if err := a.CompactFast(ctx, emit); err != nil && !errors.Is(err, ErrNothingToCompact) && emit != nil {
+			emit(Event{Kind: EvNotice, Text: "prefire compact: " + err.Error()})
+		}
+		return nil
+	}
+	if est > compactAt {
+		if err := a.Compact(ctx, emit); err != nil && !errors.Is(err, ErrNothingToCompact) {
+			return err
+		}
+	}
+	return nil
+}
+
 const compactSystem = `You are compacting a coding-agent conversation so work can continue in a fresh context. Write a handoff note for another engineer-agent that will only see this note. Include, with concrete file paths, commands and names:
 1. The user's goal and any constraints or preferences they stated.
 2. What has been done so far and what was verified (tests, builds, outputs).
@@ -71,6 +94,9 @@ Be precise and complete rather than brief. Do not add commentary; output only th
 var ErrNothingToCompact = errors.New("nothing to compact")
 
 const (
+	// compactPrefirePct is the fraction of compact_at at which we prune
+	// without a summary, so the summary pass still has room.
+	compactPrefirePct = 85
 	// tailMessages and tailTokens bound the recent history kept verbatim
 	// when the rest is summarised.
 	tailMessages = 6
