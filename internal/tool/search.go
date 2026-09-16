@@ -258,7 +258,13 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		}
 		defer f.Close()
 		head := make([]byte, 8000)
-		n, _ := f.Read(head)
+		// ReadFull, not Read: one Read may come back with a handful of
+		// bytes from a pipe or a slow filesystem, and a binary file whose
+		// first NUL sits past them would then be scanned as text.
+		n, err := io.ReadFull(f, head)
+		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+			return nil
+		}
 		if isBinary(head[:n]) {
 			return nil
 		}
