@@ -67,12 +67,23 @@ var setters = map[string]setter{
 		c.Effort = val
 		return val, nil
 	},
-	// Empty is a valid value for these three: it is how the experimental
-	// router is turned back off (see RouteCheap), how the advisor
-	// experiment is ended, and how the theme returns to automatic.
+	// Empty is a valid value for these two: it is how the experimental
+	// router is turned back off (see RouteCheap) and how the advisor
+	// experiment is ended.
 	"route_cheap":   stringKey(func(c *Config) *string { return &c.RouteCheap }),
 	"advisor_model": stringKey(func(c *Config) *string { return &c.AdvisorModel }),
-	"theme":         stringKey(func(c *Config) *string { return &c.Theme }),
+
+	"theme": func(c *Config, val string) (any, error) {
+		// Refused here as well as at load, for the same reason effort is:
+		// a name nothing can resolve would be written to the file, ignored
+		// for the rest of this session, and then refuse to start at all
+		// on the next one (load treats an unknown theme as ErrBadConfig).
+		if err := validateTheme(c, val); err != nil {
+			return nil, err
+		}
+		c.Theme = val
+		return val, nil
+	},
 
 	"sandbox": func(c *Config, val string) (any, error) {
 		if val == "" {
@@ -149,6 +160,23 @@ func ApplyKV(cfg *Config, key, val string) (any, error) {
 		return nil, fmt.Errorf("unknown key %q", key)
 	}
 	return set(cfg, strings.TrimSpace(val))
+}
+
+// validateTheme accepts the three modes and any theme the loaded set
+// knows. A config that was never loaded has no set to check against, so
+// only the modes are certain; the name is then left to load to judge.
+func validateTheme(c *Config, name string) error {
+	switch name {
+	case "", "auto", "dark", "light":
+		return nil
+	}
+	if c.ThemeSet == nil {
+		return nil
+	}
+	if !c.ThemeSet.Has(name) {
+		return fmt.Errorf("unknown theme %q (want auto, dark, light or one of: %s)", name, strings.Join(c.ThemeSet.Names(), ", "))
+	}
+	return nil
 }
 
 func parseBool(s string) (bool, error) {
