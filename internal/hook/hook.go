@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/shell"
@@ -393,7 +394,15 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 			break
 		}
 		if h.Match != "" && in.Tool != "" {
-			if ok, _ := regexp.MatchString(h.Match, in.Tool); !ok {
+			re, err := matchRe(h.Match)
+			if err != nil {
+				// Validate rejects these when the file is loaded, so this
+				// is a hook that reached the runner another way. Saying so
+				// beats a hook that silently never runs.
+				r.logf("%s hook %d (%s) ignored: match %q is not a valid regexp: %v", in.Event, i+1, firstWords(h.Command), h.Match, err)
+				continue
+			}
+			if !re.MatchString(in.Tool) {
 				continue
 			}
 		}
@@ -462,6 +471,26 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 	return res
 }
 
+// matchRe compiles a hook's tool-name pattern once. Hooks run on every
+// tool call, and regexp.MatchString recompiles the pattern each time.
+var matchRe = func() func(string) (*regexp.Regexp, error) {
+	var mu sync.Mutex
+	cache := map[string]*regexp.Regexp{}
+	return func(pat string) (*regexp.Regexp, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if re, ok := cache[pat]; ok {
+			return re, nil
+		}
+		re, err := regexp.Compile(pat)
+		if err != nil {
+			return nil, err
+		}
+		cache[pat] = re
+		return re, nil
+	}
+}()
+
 type execOut struct{ stdout, stderr string }
 
 func (r *Runner) exec(ctx context.Context, h Hook, in Input) (execOut, int, error) {
@@ -483,6 +512,13 @@ func (r *Runner) exec(ctx context.Context, h Hook, in Input) (execOut, int, erro
 	} else {
 		cmd = shell.Command(ctx, h.Command)
 	}
+	// A hook runs on the critical path of a tool call, so its timeout has
+	// to be a real bound. Without a process group the context kills only
+	// the shell, and Wait still blocks on the output pipes for as long as
+	// any grandchild holds them open — a hook that starts a daemon hangs
+	// the turn for ever. Supervise puts the whole tree in one group and
+	// bounds the wait on the pipes after the kill.
+	shell.Supervise(cmd)
 	cmd.Dir = r.Cwd
 	cmd.Stdin = bytes.NewReader(payload)
 	cmd.Env = append(os.Environ(),

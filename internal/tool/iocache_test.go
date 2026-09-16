@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,6 +61,43 @@ func TestIOCacheDropsOnWrite(t *testing.T) {
 	}
 	if !strings.Contains(out, "new") {
 		t.Fatalf("stale cache: %q", out)
+	}
+}
+
+// The cache holds file content for the whole session and is shared with
+// every subagent, so it has to have a budget: a fan-out over a large
+// repository would otherwise make it the biggest thing in the process.
+func TestIOCacheEvictsPastItsBudget(t *testing.T) {
+	c := &IOCache{MaxBytes: 1000}
+	mod := time.Now()
+	data := make([]byte, 100)
+	for i := 0; i < 50; i++ {
+		c.Put(fmt.Sprintf("f%d", i), mod, int64(len(data)), data)
+	}
+	if got := c.Bytes(); got > 1000 {
+		t.Fatalf("cache holds %d bytes for a 1000-byte budget", got)
+	}
+	// The newest entry survives; the oldest went first.
+	if _, ok := c.Get("f49", mod, int64(len(data))); !ok {
+		t.Fatal("the newest entry was evicted")
+	}
+	if _, ok := c.Get("f0", mod, int64(len(data))); ok {
+		t.Fatal("the oldest entry survived a full cache")
+	}
+	// Dropping frees the budget it held.
+	before := c.Bytes()
+	c.Drop("f49")
+	if c.Bytes() != before-100 {
+		t.Fatalf("drop did not free its bytes: %d -> %d", before, c.Bytes())
+	}
+	// A file bigger than the whole budget is not cached, and does not
+	// evict everything else to fail at it.
+	c.Put("huge", mod, 2000, make([]byte, 2000))
+	if _, ok := c.Get("huge", mod, 2000); ok {
+		t.Fatal("a file larger than the budget was cached")
+	}
+	if c.Bytes() == 0 {
+		t.Fatal("caching an oversized file emptied the cache")
 	}
 }
 

@@ -119,7 +119,7 @@ func (r *Repo) Restore(ctx context.Context, s Snap) ([]string, error) {
 	if _, err := r.run(ctx, idx, "add", "-A", "--", "."); err != nil {
 		return nil, err
 	}
-	out, err := r.run(ctx, idx, "diff-index", "--cached", "--name-status", "-z", s.Commit)
+	out, err := r.run(ctx, idx, "diff-index", "--cached", "--no-renames", "--name-status", "-z", s.Commit)
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +131,9 @@ func (r *Repo) Restore(ctx context.Context, s Snap) ([]string, error) {
 	fields := strings.Split(out, "\x00")
 	for i := 0; i+1 < len(fields); i += 2 {
 		status, path := fields[i], fields[i+1]
+		if status == "" || path == "" {
+			continue
+		}
 		abs := filepath.Join(r.Root, path)
 		switch status[0] {
 		case 'A': // created since the snapshot
@@ -185,7 +188,7 @@ func (r *Repo) Changed(ctx context.Context, s Snap) (bool, error) {
 	if _, err := r.run(ctx, idx, "add", "-A", "--", "."); err != nil {
 		return false, err
 	}
-	out, err := r.run(ctx, idx, "diff-index", "--cached", "--name-only", s.Commit)
+	out, err := r.run(ctx, idx, "diff-index", "--cached", "--no-renames", "--name-only", s.Commit)
 	return out != "", err
 }
 
@@ -203,7 +206,7 @@ func (r *Repo) Diff(ctx context.Context, s Snap) ([]string, error) {
 	if _, err := r.run(ctx, idx, "add", "-A", "--", "."); err != nil {
 		return nil, err
 	}
-	out, err := r.run(ctx, idx, "diff-index", "--cached", "--name-status", "-z", s.Commit)
+	out, err := r.run(ctx, idx, "diff-index", "--cached", "--no-renames", "--name-status", "-z", s.Commit)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +214,7 @@ func (r *Repo) Diff(ctx context.Context, s Snap) ([]string, error) {
 	parts := strings.Split(out, "\x00")
 	for i := 0; i+1 < len(parts); i += 2 {
 		status, path := parts[i], parts[i+1]
-		if status == "" {
+		if status == "" || path == "" {
 			continue
 		}
 		lines = append(lines, status[:1]+" "+filepath.Join(r.Root, path))

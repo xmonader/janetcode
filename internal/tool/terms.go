@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -154,7 +155,7 @@ func (t *Terms) Send(ctx context.Context, id int, line string, wait time.Duratio
 	for time.Now().Before(deadline) {
 		cur := term.out.String()
 		if i := strings.Index(cur[min(len(before), len(cur)):], termSentinel); i >= 0 {
-			return stripSentinel(cur[len(before):]), nil
+			return stripSentinel(cur[min(len(before), len(cur)):]), nil
 		}
 		select {
 		case <-ctx.Done():
@@ -196,6 +197,11 @@ func (t *Terms) Read(id, n int) (string, error) {
 	}
 	if len(out) > n {
 		out = out[len(out)-n:]
+		// The cut is by byte; step forward to the next rune boundary so
+		// the first character is not half of one.
+		for len(out) > 0 && !utf8.RuneStart(out[0]) {
+			out = out[1:]
+		}
 	}
 	if out == "" {
 		return "(no output)", nil
