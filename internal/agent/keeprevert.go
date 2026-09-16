@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"fmt"
 	"strings"
 )
 
@@ -76,25 +75,15 @@ func regress(prev, cur TurnOutcome) bool {
 // turn's edits, and leaves the conversation alone so the model can see
 // what it did and why it was undone.
 func (a *Agent) revertLastTurnFiles(ctx context.Context) ([]string, error) {
-	a.cp.mu.Lock()
-	defer a.cp.mu.Unlock()
-	n := len(a.cp.all)
-	if n == 0 {
-		return nil, ErrNothingToUndo
+	// Same three phases as Undo: pop under cp.mu, restore with the lock
+	// dropped, persist afterwards.
+	cp, err := a.popCheckpointForTurn(a.turnN)
+	if err != nil {
+		return nil, err
 	}
-	cp := a.cp.all[n-1]
-	if cp.Turn != a.turnN && cp.Turn != 0 {
-		// The last checkpoint is not this turn: nothing of ours to put back.
-		return nil, fmt.Errorf("no checkpoint for turn %d", a.turnN)
-	}
-	a.cp.all = a.cp.all[:n-1]
-	a.cp.open = false
-	a.cp.dirty = true
 	done, err := a.restore(ctx, cp)
-	a.cp.mu.Unlock()
 	if serr := a.SaveUndo(); serr != nil {
 		a.debugf("save undo: %v", serr)
 	}
-	a.cp.mu.Lock()
 	return done, err
 }

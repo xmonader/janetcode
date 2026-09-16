@@ -18,6 +18,18 @@ import (
 // Embedded in Agent by value, so Approver, Asker, Rules, SaveRule,
 // Ledger, Impact and Sandbox keep their names for the front-ends that
 // fill them in.
+//
+// Ownership, since a turn goroutine reads all of this while a front-end
+// goroutine may be changing it:
+//
+//   - Rules and Ledger are guarded by Agent.settingsMu, with the live
+//     settings. Read them through RulesSnapshot / decideCall and
+//     PermLedger, never off the field.
+//   - Approver, Asker, SaveRule, Impact, Sandbox and Protected are set
+//     when the agent is built (and copied onto a subagent when one is
+//     built) and never assigned again, so they need no lock. Anything
+//     that wants to change one of them at run time has to grow a setter
+//     under settingsMu first, the way SetLedger did.
 type permissions struct {
 	// Approver decides mutating calls the modes and rules did not settle.
 	Approver Approver

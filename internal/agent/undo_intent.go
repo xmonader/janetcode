@@ -101,12 +101,15 @@ func (a *Agent) ApplyPendingUndo(ctx context.Context, force bool) (UndoReport, e
 			return UndoReport{}, ErrTurnRunning
 		}
 		a.cp.mu.Lock()
-		defer a.cp.mu.Unlock()
-		if a.turnFingerprint() != p.fingerprint {
+		stale := a.turnFingerprint() != p.fingerprint
+		a.cp.mu.Unlock()
+		if stale {
+			// The preview is left in place: it is the turns that moved,
+			// not the user's mind, so /undo turn can be run again.
 			return UndoReport{}, ErrUndoSelectionStale
 		}
 		a.pendingUndo = nil
-		return a.applyTurnRestore(ctx, *p.turn, p.cp)
+		return a.applyTurnRestore(ctx, *p.turn, p.cp, p.fingerprint)
 	}
 	if undoabout.Fingerprint(a.undoCandidates()) != p.fingerprint {
 		return UndoReport{}, ErrUndoSelectionStale

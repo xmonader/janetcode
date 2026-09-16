@@ -28,9 +28,7 @@ const MaxParallelTools = 8
 // batch stops part-way — cancelled, or with an approver that could not
 // answer — and the error that stopped it is returned rather than dropped.
 func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Event)) ([]llm.Block, []llm.Block, error) {
-	a.emitMu.Lock()
-	a.emitNow = emit
-	a.emitMu.Unlock()
+	a.setEmitter(emit)
 	results := make([]llm.Block, len(uses))
 	filled := make([]bool, len(uses))
 	var (
@@ -359,11 +357,12 @@ func (a *Agent) ask(ctx context.Context, u *llm.Block, call *ToolCall, subject s
 	// Recorded before applyDecision, which reports a refusal: the ledger
 	// has to see a refusal too, not only the allow variants.
 	a.stats.approval(d == Deny)
+	ledger := a.PermLedger()
 	if shape != "" && (d != Deny || reason != CancelledReason) {
-		a.Ledger.Record(shape, d != Deny)
+		ledger.Record(shape, d != Deny)
 	}
 	if shape != "" && call.Warning != "" && d != Deny {
-		a.Ledger.MarkWarned(shape)
+		ledger.MarkWarned(shape)
 	}
 	return d, reason, suggested, nil
 }
@@ -375,7 +374,7 @@ func (a *Agent) learnedNote(shape string, mustAsk bool, warning string) string {
 	if shape == "" || mustAsk || warning != "" {
 		return ""
 	}
-	if t := a.Ledger.Get(shape); t.Allowed >= perm.LearnAfter && t.Denied == 0 {
+	if t := a.PermLedger().Get(shape); t.Allowed >= perm.LearnAfter && t.Denied == 0 {
 		return fmt.Sprintf("approved %d× before, never refused", t.Allowed)
 	}
 	return ""
@@ -701,15 +700,4 @@ func (a *Agent) runNested(ctx context.Context, id, name string, input json.RawMe
 		a.stash(id, name, subjectOf(name, u.Input), out)
 	}
 	return out, isErr, false
-}
-
-// emitter is the current turn's event sink, or a sink that drops events
-// when there is none (a tool run outside a turn, as in a test).
-func (a *Agent) emitter() func(Event) {
-	a.emitMu.Lock()
-	defer a.emitMu.Unlock()
-	if a.emitNow == nil {
-		return func(Event) {}
-	}
-	return a.emitNow
 }
