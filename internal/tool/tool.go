@@ -308,17 +308,48 @@ func confineAbs(root, abs, named string, evalSymlinks bool) (string, error) {
 	if !evalSymlinks {
 		return abs, nil
 	}
-	if real, err := filepath.EvalSymlinks(abs); err == nil {
-		realRoot, rerr := filepath.EvalSymlinks(root)
-		if rerr != nil {
-			realRoot = root
-		}
-		rel2, err := filepath.Rel(realRoot, real)
-		if err != nil || rel2 == ".." || strings.HasPrefix(rel2, ".."+string(filepath.Separator)) {
-			return "", fmt.Errorf("path %q resolves outside the working directory", named)
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		// The path does not exist yet, which is the normal case for a
+		// write or an mkdir. Its ancestors do, though, and one of them
+		// may be a symlink out of the root: `root/link -> /etc` makes
+		// `root/link/passwd` a lexically confined path that writes to
+		// /etc. So the nearest ancestor that does resolve is resolved
+		// and the missing tail put back on, and that is what the check
+		// below judges.
+		real, err = resolveExisting(abs)
+		if err != nil {
+			return abs, nil
 		}
 	}
+	realRoot, rerr := filepath.EvalSymlinks(root)
+	if rerr != nil {
+		realRoot = root
+	}
+	rel2, err := filepath.Rel(realRoot, real)
+	if err != nil || rel2 == ".." || strings.HasPrefix(rel2, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %q resolves outside the working directory", named)
+	}
 	return abs, nil
+}
+
+// resolveExisting resolves the symlinks of the deepest ancestor of abs
+// that exists and puts the missing tail back on, so a path that is about
+// to be created is judged by where it would actually land.
+func resolveExisting(abs string) (string, error) {
+	rest := ""
+	dir := abs
+	for {
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("no resolvable ancestor of %q", abs)
+		}
+		rest = filepath.Join(filepath.Base(dir), rest)
+		dir = parent
+		if real, err := filepath.EvalSymlinks(dir); err == nil {
+			return filepath.Join(real, rest), nil
+		}
+	}
 }
 
 func decode(input json.RawMessage, v any) error {
