@@ -827,6 +827,64 @@ func TestReadStreamHostileFrames(t *testing.T) {
 		}
 	})
 
+	// A tool call whose name never arrived cannot be run, and going back
+	// into the history as a tool_use with an empty name makes every later
+	// turn invalid for the provider. It has to end the turn with a
+	// readable reason instead.
+	t.Run("a tool call with no function name is reported, not sent on", func(t *testing.T) {
+		s := "data: " + `{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_a","function":{"arguments":"{\"path\":\"a\"}"}}]}}]}` + "\n\n" +
+			"data: " + `{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}` + "\n\n" +
+			"data: [DONE]\n\n"
+		resp, err := readStream(strings.NewReader(s), nil, func(llm.Event) {})
+		if err == nil {
+			t.Fatalf("a nameless call was accepted: %+v", resp.Message.Blocks)
+		}
+		if !strings.Contains(err.Error(), "no function name") {
+			t.Fatalf("err = %v", err)
+		}
+	})
+
+	// A delta that carried nothing at all is not a call and must not turn
+	// the turn into a tool-use turn with no tools in it, which the agent
+	// loop would answer with an empty results message.
+	t.Run("an empty tool-call delta is dropped, not turned into a call", func(t *testing.T) {
+		s := "data: " + `{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{}}]}}]}` + "\n\n" +
+			"data: " + `{"choices":[{"delta":{"content":"done"},"finish_reason":"stop"}]}` + "\n\n" +
+			"data: [DONE]\n\n"
+		resp, err := readStream(strings.NewReader(s), nil, func(llm.Event) {})
+		if err != nil {
+			t.Fatalf("readStream: %v", err)
+		}
+		if uses := resp.Message.ToolUses(); len(uses) != 0 {
+			t.Fatalf("got %d calls, want none: %+v", len(uses), uses)
+		}
+		if resp.StopReason != llm.StopEndTurn {
+			t.Fatalf("stop = %q, want end_turn", resp.StopReason)
+		}
+	})
+
+	// A server that answers with a plain JSON body, or a proxy that
+	// answers with an HTML error page, used to come back as "empty stream
+	// from server" with nothing to act on.
+	t.Run("a body that is not SSE is quoted in the error", func(t *testing.T) {
+		_, err := readStream(strings.NewReader("<html><body>502 Bad Gateway</body></html>\n"), nil, func(llm.Event) {})
+		if err == nil || !strings.Contains(err.Error(), "502 Bad Gateway") {
+			t.Fatalf("err = %v, want the body quoted", err)
+		}
+	})
+
+	// SSE comments are keep-alives, not content, and must not be quoted
+	// back as if the server had said something.
+	t.Run("an SSE comment is a keep-alive", func(t *testing.T) {
+		s := ": ping\n\n" +
+			"data: " + `{"choices":[{"delta":{"content":"hi"},"finish_reason":"stop"}]}` + "\n\n" +
+			"data: [DONE]\n\n"
+		resp, err := readStream(strings.NewReader(s), nil, func(llm.Event) {})
+		if err != nil || resp.Message.Text() != "hi" {
+			t.Fatalf("resp = %v, err = %v", resp, err)
+		}
+	})
+
 	t.Run("empty data frame is a keep-alive, not a parse error", func(t *testing.T) {
 		s := "data:\n\n" +
 			"data: " + `{"choices":[{"delta":{"content":"hi"}}]}` + "\n\n" +
