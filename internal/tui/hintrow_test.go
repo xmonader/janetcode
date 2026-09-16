@@ -3,7 +3,6 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,9 +15,7 @@ import (
 	"github.com/xmonader/janetcode/internal/hints"
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/perm"
-	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/settingsapply"
-	"github.com/xmonader/janetcode/internal/tool"
 )
 
 // withHints gives the harness a live engine, which newHarness does not,
@@ -286,17 +283,13 @@ func TestTheFirstRunLineIsSaidOnceAndNotEveryMorning(t *testing.T) {
 	}
 	store := hints.Open(t.TempDir(), "proj")
 	open := func() *model {
-		sess, err := session.New(t.TempDir(), root, "fake", "m")
-		if err != nil {
-			t.Fatal(err)
-		}
 		e := hints.New(store.Load())
 		e.Record = func(string) { _ = store.Save(e.Shown(), e.Skipped()) }
-		ag := &agent.Agent{Provider: &scripted{}, Tools: tool.NewRegistry(), Model: "m", Log: sess}
-		m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test", Hints: e})
-		m.term.out = io.Discard
-		mm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-		return mm.(*model)
+		opts := fakeOptions(t)
+		opts.Cwd, opts.Hints = root, e
+		opts.Agent.Root, opts.Session = root, newSession(t, root)
+		opts.Agent.Log = opts.Session
+		return newHarnessFor(t, opts).m
 	}
 	if v := plain(open().View()); !strings.Contains(v, "Go project") {
 		t.Fatalf("the first session said nothing about the project:\n%s", v)
@@ -326,17 +319,13 @@ func TestHintsReportsShownAndSkippedApart(t *testing.T) {
 func TestHintsOffSilencesTheFirstRunLineToo(t *testing.T) {
 	root := t.TempDir()
 	os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644)
-	sess, err := session.New(t.TempDir(), root, "fake", "m")
-	if err != nil {
-		t.Fatal(err)
-	}
+	sess := newSession(t, root)
 	e := hints.New(nil, nil)
 	e.Off = true
-	ag := &agent.Agent{Provider: &scripted{}, Tools: tool.NewRegistry(), Model: "m", Log: sess}
-	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test", Hints: e})
-	m.term.out = io.Discard
-	mm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	m = mm.(*model)
+	opts := fakeOptions(t)
+	opts.Cwd, opts.Hints, opts.Session = root, e, sess
+	opts.Agent.Root, opts.Agent.Log = root, sess
+	m := newHarnessFor(t, opts).m
 	if v := plain(m.View()); strings.Contains(v, "Go project") {
 		t.Fatalf("hints were off and the first-run line still appeared:\n%s", v)
 	}

@@ -92,22 +92,52 @@ type harness struct {
 	msgs chan tea.Msg
 }
 
-func newHarness(t *testing.T, responses ...*llm.Response) *harness {
-	root := t.TempDir()
+// newSession is a session under its own temporary directory, for a model
+// rooted at root.
+func newSession(t *testing.T, root string) *session.Session {
+	t.Helper()
 	sess, err := session.New(t.TempDir(), root, "fake", "m")
 	if err != nil {
 		t.Fatal(err)
 	}
+	return sess
+}
+
+// fakeOptions is the Options every harness in this package starts from: a
+// scripted provider, a session of its own, and a working directory with
+// nothing in it. A test that needs one thing different takes these and
+// changes that field before handing them to newHarnessWith.
+func fakeOptions(t *testing.T, responses ...*llm.Response) Options {
+	t.Helper()
+	root := t.TempDir()
+	sess := newSession(t, root)
 	ag := &agent.Agent{Provider: &scripted{responses: responses}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", Log: sess, Root: root}
-	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"})
+	return Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"}
+}
+
+func newHarness(t *testing.T, responses ...*llm.Response) *harness {
+	t.Helper()
+	return newHarnessFor(t, fakeOptions(t, responses...))
+}
+
+// newHarnessFor builds the model for the given options and wraps it in
+// the pump harness. It is the one place that knows the wiring: every
+// background sender goes to the channel the test drains, the approver and
+// the asker are the model's, the terminal integration writes nowhere, and
+// the model is given its first window so it is laid out.
+func newHarnessFor(t *testing.T, opts Options) *harness {
+	t.Helper()
+	m := newModel(opts)
 	m.term.out = io.Discard // no escape sequences into the test's stdout
 	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
 	m.send = func(msg tea.Msg) { h.msgs <- msg }
 	m.queue.send = m.send
 	m.approver.send = m.send
 	m.asker.send = m.send
-	ag.Approver = m.approver
-	ag.Asker = m.asker
+	if ag := opts.Agent; ag != nil {
+		ag.Approver = m.approver
+		ag.Asker = m.asker
+	}
 	h.update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	return h
 }
@@ -225,14 +255,9 @@ func TestPermissionDenyWithReason(t *testing.T) {
 
 func TestEscCancelsRunningTurn(t *testing.T) {
 	blocker := &blocking{started: make(chan struct{})}
-	root := t.TempDir()
-	sess, _ := session.New(t.TempDir(), root, "fake", "m")
-	ag := &agent.Agent{Provider: blocker, Tools: tool.NewRegistry(), Model: "m"}
-	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root})
-	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
-	m.send = func(msg tea.Msg) { h.msgs <- msg }
-	m.queue.send = m.send
-	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	opts := fakeOptions(t)
+	opts.Agent.Provider = blocker
+	h := newHarnessFor(t, opts)
 	h.keys("slow")
 	h.enter()
 	<-blocker.started
@@ -255,14 +280,9 @@ func TestEscCancelsRunningTurn(t *testing.T) {
 
 func TestDoubleCtrlCForcesQuit(t *testing.T) {
 	blocker := &blocking{started: make(chan struct{})}
-	root := t.TempDir()
-	sess, _ := session.New(t.TempDir(), root, "fake", "m")
-	ag := &agent.Agent{Provider: blocker, Tools: tool.NewRegistry(), Model: "m"}
-	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root})
-	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
-	m.send = func(msg tea.Msg) { h.msgs <- msg }
-	m.queue.send = m.send
-	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	opts := fakeOptions(t)
+	opts.Agent.Provider = blocker
+	h := newHarnessFor(t, opts)
 	h.keys("slow")
 	h.enter()
 	<-blocker.started
@@ -846,14 +866,9 @@ func TestPromptHistoryRecall(t *testing.T) {
 }
 
 func TestInitialPromptIsSubmitted(t *testing.T) {
-	root := t.TempDir()
-	sess, _ := session.New(t.TempDir(), root, "fake", "m")
-	ag := &agent.Agent{Provider: &scripted{responses: []*llm.Response{{Message: llm.TextMessage(llm.RoleAssistant, "auto"), StopReason: llm.StopEndTurn}}}, Tools: tool.NewRegistry(), Model: "m"}
-	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, InitialPrompt: "explain"})
-	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
-	m.send = func(msg tea.Msg) { h.msgs <- msg }
-	m.queue.send = m.send
-	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	opts := fakeOptions(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "auto"), StopReason: llm.StopEndTurn})
+	opts.InitialPrompt = "explain"
+	h := newHarnessFor(t, opts)
 	if !h.m.turn.running {
 		t.Fatal("initial prompt not submitted")
 	}
