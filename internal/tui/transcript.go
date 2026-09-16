@@ -163,6 +163,13 @@ func (t *transcript) restyle(style string, sty *styles) {
 		e.rendered = ""
 		e.width = 0
 		e.final = false
+		// The per-block markdown cache is keyed by source, width and
+		// fold state — nothing that a theme switch changes — so leaving
+		// it in place served every assistant message back in the old
+		// palette's escape codes, however many times the frame was
+		// rebuilt. Same for the cached tool body.
+		e.chunks = nil
+		e.toolBody, e.toolStamp = "", ""
 	}
 	t.lastRender = 0
 }
