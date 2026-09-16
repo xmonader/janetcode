@@ -18,7 +18,7 @@ func TestNoticesReachTheLedger(t *testing.T) {
 	a, _ := newAgent(t, f, nil)
 	sess := &memLog{}
 	a.SetLog(sess)
-	a.Prepare = func(b []llm.Block) ([]llm.Block, string) {
+	a.Prepare = func(_ context.Context, b []llm.Block) ([]llm.Block, string) {
 		return b, "a note from the harness"
 	}
 	if err := a.Run(t.Context(), "hello", nil); err != nil {

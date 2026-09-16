@@ -287,8 +287,11 @@ type Agent struct {
 	planComments plan.Comments
 	// Prepare, when set, may add blocks to a user turn before it is sent
 	// (skills attach themselves this way). The returned note, if any, is
-	// emitted as a notice.
-	Prepare func(blocks []llm.Block) ([]llm.Block, string)
+	// emitted as a notice. It is given the turn's own context: what it
+	// does can reach a git command, an index rebuild or an embedding
+	// call, and ^C has to stop those with the rest of the turn rather
+	// than leave them running on a context of their own.
+	Prepare func(ctx context.Context, blocks []llm.Block) ([]llm.Block, string)
 
 	mutated bool // a mutating tool ran successfully this turn
 	// running is set between beginTurn and endTurn, so a command that
@@ -374,7 +377,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	if a.Prepare != nil {
 		var note string
 		own := len(blocks)
-		blocks, note = a.Prepare(blocks)
+		blocks, note = a.Prepare(ctx, blocks)
 		var repeated int
 		blocks, repeated = a.dropRepeatedAttachments(blocks, own)
 		if note != "" {

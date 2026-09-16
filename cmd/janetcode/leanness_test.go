@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,7 +50,7 @@ func TestLeannessTable(t *testing.T) {
 
 	repo := &repomap.Cache{Root: dir}
 	prep := repomap.TurnPrep(repo, 0)
-	blocks, notice := prep([]llm.Block{{Type: llm.BlockText, Text: "add a flag"}})
+	blocks, notice := prep(context.Background(), []llm.Block{{Type: llm.BlockText, Text: "add a flag"}})
 	var mapBytes int
 	for _, b := range blocks[1:] {
 		mapBytes += len(b.Text)

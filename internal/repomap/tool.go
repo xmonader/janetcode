@@ -18,11 +18,15 @@ const DefaultBudget = 6000
 // TurnPrep returns an Agent.Prepare hook that appends the request's map
 // to the user turn. It sits at the turn boundary, so the many model calls
 // of the tool loop that follow all share it as cached prefix.
-func TurnPrep(c *Cache, budget int) func([]llm.Block) ([]llm.Block, string) {
+//
+// The turn's context is passed in and only bounded here, not replaced:
+// building the index walks the tree and asks git what changed, and a
+// cancelled turn must take that with it.
+func TurnPrep(c *Cache, budget int) func(context.Context, []llm.Block) ([]llm.Block, string) {
 	if budget <= 0 {
 		budget = DefaultBudget
 	}
-	return func(blocks []llm.Block) ([]llm.Block, string) {
+	return func(ctx context.Context, blocks []llm.Block) ([]llm.Block, string) {
 		var text string
 		for _, b := range blocks {
 			if b.Type == llm.BlockText {
@@ -32,7 +36,7 @@ func TurnPrep(c *Cache, budget int) func([]llm.Block) ([]llm.Block, string) {
 		if strings.TrimSpace(text) == "" {
 			return blocks, ""
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		defer cancel()
 		ix, err := c.Get(ctx)
 		if err != nil || len(ix.Files) < 2 {

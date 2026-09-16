@@ -497,11 +497,11 @@ func TestKeptPromptExcludesInjectedContext(t *testing.T) {
 
 	const typed = "add a database schema migration for users"
 	blocks := []llm.Block{{Type: llm.BlockText, Text: typed}}
-	blocks, note := skill.TurnPrep(skillInj, mem)(blocks)
+	blocks, note := skill.TurnPrep(skillInj, mem)(context.Background(), blocks)
 	if note == "" {
 		t.Fatalf("test setup: skill.TurnPrep attached nothing")
 	}
-	blocks, note = repomap.TurnPrep(repoCache, 0)(blocks)
+	blocks, note = repomap.TurnPrep(repoCache, 0)(context.Background(), blocks)
 	if note == "" {
 		t.Fatalf("test setup: repomap.TurnPrep attached nothing")
 	}

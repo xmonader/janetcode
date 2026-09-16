@@ -18,7 +18,7 @@ func TestIdenticalAttachmentIsNotSentTwice(t *testing.T) {
 	mapText := "# repository map\n" + strings.Repeat("internal/server/handler.go: ServeHTTP, newRouter\n", 40)
 	f := &fake{responses: []*llm.Response{text("one"), text("two"), text("three")}}
 	a, _ := newAgent(t, f, nil)
-	a.Prepare = func(b []llm.Block) ([]llm.Block, string) {
+	a.Prepare = func(_ context.Context, b []llm.Block) ([]llm.Block, string) {
 		return append(b, llm.Block{Type: llm.BlockText, Text: mapText}), "map attached"
 	}
 	for _, p := range []string{"first", "second", "third"} {
@@ -41,7 +41,7 @@ func TestAnAttachmentComesBackWhenTheHistoryLosesIt(t *testing.T) {
 	mapText := strings.Repeat("internal/server/handler.go: ServeHTTP\n", 40)
 	f := &fake{responses: []*llm.Response{text("one"), text("two")}}
 	a, _ := newAgent(t, f, nil)
-	a.Prepare = func(b []llm.Block) ([]llm.Block, string) {
+	a.Prepare = func(_ context.Context, b []llm.Block) ([]llm.Block, string) {
 		return append(b, llm.Block{Type: llm.BlockText, Text: mapText}), ""
 	}
 	if err := a.Run(context.Background(), "first", nil); err != nil {
@@ -60,7 +60,7 @@ func TestShortAttachmentsAreLeftAlone(t *testing.T) {
 	short := "one line of context"
 	f := &fake{responses: []*llm.Response{text("one"), text("two")}}
 	a, _ := newAgent(t, f, nil)
-	a.Prepare = func(b []llm.Block) ([]llm.Block, string) {
+	a.Prepare = func(_ context.Context, b []llm.Block) ([]llm.Block, string) {
 		return append(b, llm.Block{Type: llm.BlockText, Text: short}), ""
 	}
 	for _, p := range []string{"first", "second"} {
