@@ -66,7 +66,20 @@ func (a *Agent) Advise(ctx context.Context, question string) (string, error) {
 	if model == "" {
 		model = s.Model
 	}
-	resp, err := s.Provider.Stream(ctx, llm.Request{
+	prov := s.Provider
+	if a.Route != nil && model != s.Model {
+		p, resolved, err := a.Route(model)
+		if err != nil {
+			return "", fmt.Errorf("advisor: %w", err)
+		}
+		if p != nil {
+			prov = p
+		}
+		if resolved != "" {
+			model = resolved
+		}
+	}
+	resp, err := prov.Stream(ctx, llm.Request{
 		Model:     model,
 		System:    advisorSystem,
 		Messages:  msgs,

@@ -48,6 +48,31 @@ func TestAdvisorIsASideQueryWithoutTools(t *testing.T) {
 	}
 }
 
+func TestAdvisorRoutesToItsOwnProvider(t *testing.T) {
+	exec := &fake{name: "exec", responses: []*llm.Response{text("should not run")}}
+	advProv := &fake{name: "advisor", responses: []*llm.Response{text("read parse.go next")}}
+	a := &Agent{Provider: exec, Tools: tool.NewRegistry(), Model: "inception/mercury-2.5", AdvisorModel: "z-ai/glm-5.3"}
+	a.Route = func(model string) (llm.Provider, string, error) {
+		if model == "z-ai/glm-5.3" {
+			return advProv, model, nil
+		}
+		return exec, model, nil
+	}
+	out, err := a.Advise(context.Background(), "stuck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "read parse.go next" {
+		t.Fatalf("out = %q", out)
+	}
+	if len(exec.requests) != 0 {
+		t.Fatalf("executor provider was called: %d", len(exec.requests))
+	}
+	if len(advProv.requests) != 1 || advProv.requests[0].Model != "z-ai/glm-5.3" {
+		t.Fatalf("advisor requests = %+v", advProv.requests)
+	}
+}
+
 func TestAdvisorCapsUsesPerTurn(t *testing.T) {
 	f := &fake{responses: []*llm.Response{text("a"), text("b"), text("c"), text("d")}}
 	a := &Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m"}

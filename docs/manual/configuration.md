@@ -133,9 +133,11 @@ is the session log, which is also local and which `/history` and
 
 ### Hints
 
-`"advisor_model": "anthropic/claude-sonnet-4"` is who the deferred
-`advisor` tool consults. Empty uses the session model. The tool is not
-on every request; `tool_search` finds it.
+`"advisor_model": "z-ai/glm-5.3"` is who the deferred `advisor` tool
+consults (resolved through the same provider routing as `/model`). Empty
+uses the session model. The tool is not on every request; `tool_search`
+finds it. A cheap executor plus a stronger advisor looks like
+`"model": "inception/mercury-2.5"` with that `advisor_model`.
 
 `"computer_use": true` starts Cua Driver as an MCP server when
 `cua-driver` or `open-computer-use` is on PATH. Off by default. `/cua on`

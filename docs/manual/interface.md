@@ -1579,7 +1579,10 @@ call. It stays behind `tool_search` so it does not sit on every request.
 stuck. The harness forwards the recent transcript (no session system
 prompt, no tool schemas). At most three uses per turn. It is never on
 the always-on schema list; `tool_search` finds it. `"advisor_model"` in
-the config, if set, is who it asks; otherwise the session model.
+the config, if set, is who it asks (for example `z-ai/glm-5.3` beside an
+`inception/mercury-2.5` executor); otherwise the session model. It is
+routed like any other named model, so it can live on a different
+provider.
 
 A tool a profile or the parent session has removed is **withheld**, not
 unknown: the model is told the policy reason and not to hunt for a
