@@ -56,20 +56,45 @@ type language struct {
 
 // The queries capture the name of each declaration and tag it with the
 // capture's own name, which becomes the kind shown in the map.
+//
+// One value per grammar, shared by every extension that grammar covers:
+// loading a grammar and compiling its query is not free, and .js and
+// .mjs are the same language. The map is read-only after init and each
+// value guards its own one-time load, so Symbols is safe to call from
+// several goroutines.
+var (
+	pythonLang = &language{name: "python", fn: tspy.Language, query: pyQuery}
+	jsLang     = &language{name: "javascript", fn: tsjs.Language, query: jsQuery}
+	tsLang     = &language{name: "typescript", fn: tsts.LanguageTypescript, query: tsQuery}
+	tsxLang    = &language{name: "tsx", fn: tsts.LanguageTSX, query: tsQuery}
+	rustLang   = &language{name: "rust", fn: tsrust.Language, query: rustQuery}
+	cLang      = &language{name: "c", fn: tsc.Language, query: cQuery}
+)
+
 var languages = map[string]*language{
-	".py": {name: "python", fn: tspy.Language, query: `
+	".py":  pythonLang,
+	".js":  jsLang,
+	".jsx": jsLang,
+	".mjs": jsLang,
+	".cjs": jsLang,
+	".ts":  tsLang,
+	".mts": tsLang,
+	".cts": tsLang,
+	".tsx": tsxLang,
+	".rs":  rustLang,
+	".c":   cLang,
+	".h":   cLang,
+}
+
+// A decorated Python function needs no pattern of its own: the
+// function_definition inside it matches the first pattern already, and
+// naming it twice put every decorated function in the map twice.
+const pyQuery = `
 (function_definition name: (identifier) @func)
 (class_definition name: (identifier) @class)
-(decorated_definition definition: (function_definition name: (identifier) @func))
-`},
-	".js":  {name: "javascript", fn: tsjs.Language, query: jsQuery},
-	".jsx": {name: "javascript", fn: tsjs.Language, query: jsQuery},
-	".mjs": {name: "javascript", fn: tsjs.Language, query: jsQuery},
-	".cjs": {name: "javascript", fn: tsjs.Language, query: jsQuery},
-	".ts":  {name: "typescript", fn: tsts.LanguageTypescript, query: tsQuery},
-	".mts": {name: "typescript", fn: tsts.LanguageTypescript, query: tsQuery},
-	".tsx": {name: "tsx", fn: tsts.LanguageTSX, query: tsQuery},
-	".rs": {name: "rust", fn: tsrust.Language, query: `
+`
+
+const rustQuery = `
 (function_item name: (identifier) @func)
 (function_signature_item name: (identifier) @func)
 (struct_item name: (type_identifier) @type)
@@ -81,10 +106,7 @@ var languages = map[string]*language{
 (static_item name: (identifier) @var)
 (type_item name: (type_identifier) @type)
 (macro_definition name: (identifier) @macro)
-`},
-	".c": {name: "c", fn: tsc.Language, query: cQuery},
-	".h": {name: "c", fn: tsc.Language, query: cQuery},
-}
+`
 
 // The shared part of the JavaScript and TypeScript queries. Classes are
 // not in it: JavaScript names a class with an identifier and TypeScript

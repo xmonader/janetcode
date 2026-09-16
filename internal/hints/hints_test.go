@@ -1,6 +1,8 @@
 package hints
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -150,6 +152,25 @@ func TestTrustHintNamesTheRightCommand(t *testing.T) {
 	}
 }
 
+// The trust hint exists to name a command. An untrusted entry nothing
+// knows a command for used to produce a line ending in a bare colon,
+// and to spend the rule on it.
+func TestTheTrustHintNeedsACommandToName(t *testing.T) {
+	e := New(nil, nil)
+	if got := e.Eval(&State{VerifyConfigured: true, Untrusted: []string{"something-else"}}); got != "" {
+		t.Fatalf("fired with no command to name: %q", got)
+	}
+	if e.Given("trust-project") {
+		t.Fatal("the rule was spent on an entry it had nothing to say about")
+	}
+	// A recognised entry alongside it still fires, and the dangling
+	// colon is gone.
+	got := e.Eval(&State{VerifyConfigured: true, Untrusted: []string{"something-else", ".mcp.json"}})
+	if !strings.Contains(got, "/mcp trust") || strings.HasSuffix(got, ": ") {
+		t.Fatalf("hint = %q", got)
+	}
+}
+
 func TestShownRoundTripsThroughTheStore(t *testing.T) {
 	dir := t.TempDir()
 	s := Open(dir, "proj-abc")
@@ -189,6 +210,84 @@ func TestAStoreFileWithoutSkippedStillReads(t *testing.T) {
 	shown, skipped := Open(dir, "old").Load()
 	if len(shown) != 1 || shown[0] != "verify-gate" || skipped != nil {
 		t.Fatalf("old file read as %v / %v", shown, skipped)
+	}
+}
+
+// A project key names one file inside the hints directory. One that
+// would escape it writes nowhere rather than into somebody else's
+// record.
+func TestAKeyThatWouldEscapeTheHintsDirectoryWritesNothing(t *testing.T) {
+	dir := t.TempDir()
+	for _, key := range []string{"../escape", "a/b", `a\b`, "..", "."} {
+		s := Open(dir, key)
+		if err := s.Save([]string{"verify-gate"}, nil); err != nil {
+			t.Fatalf("%q: %v", key, err)
+		}
+		if shown, _ := s.Load(); shown != nil {
+			t.Fatalf("%q: stored %v", key, shown)
+		}
+	}
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
+		t.Fatalf("wrote %v (err %v)", entries, err)
+	}
+}
+
+// A record is replaced whole: the write lands on a temporary file and
+// is renamed over the old one, so an interrupted save cannot leave a
+// half-written record that reads as "nothing has been said".
+func TestSavingReplacesTheRecordAtomically(t *testing.T) {
+	dir := t.TempDir()
+	s := Open(dir, "proj")
+	if err := s.Save([]string{"verify-gate"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Save([]string{"verify-gate", "spend"}, []string{"budget"}); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, "hints"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "proj.json" {
+		t.Fatalf("left %v behind", entries)
+	}
+	shown, skipped := s.Load()
+	if len(shown) != 2 || len(skipped) != 1 {
+		t.Fatalf("read back %v / %v", shown, skipped)
+	}
+}
+
+// What comes back is a file on disk: it may be truncated, hand-edited
+// or enormous, and none of that may end up in the engine's maps.
+func TestAnImplausibleRecordIsBounded(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "hints"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, 0, maxIDs*3)
+	ids = append(ids, "", "verify-gate", "")
+	for i := 0; i < maxIDs*3; i++ {
+		ids = append(ids, fmt.Sprintf("junk-%d", i))
+	}
+	data, err := json.Marshal(file{Shown: ids})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "hints", "big.json"), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	shown, _ := Open(dir, "big").Load()
+	if len(shown) != maxIDs {
+		t.Fatalf("loaded %d ids, want the %d-id bound", len(shown), maxIDs)
+	}
+	for _, id := range shown {
+		if id == "" {
+			t.Fatal("an empty id survived")
+		}
+	}
+	// And the ids that were there are still honoured.
+	if !New(shown, nil).Given("verify-gate") {
+		t.Fatal("a real id was dropped by the bound")
 	}
 }
 
