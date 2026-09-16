@@ -211,15 +211,18 @@ func meaningfulIdents(ids map[string]bool) map[string]bool {
 	return out
 }
 
-// countIdent counts occurrences of tok in the code of one file's lines.
-func countIdent(path string, lines []string, tok string) int {
+// identCounts is how often each identifier occurs in the code of one
+// file's lines. detectCoupling asks about many identifiers over the same
+// handful of files, and lexing a whole file once per identifier — which
+// the per-identifier countIdent it replaces did — is the whole cost of
+// the guard on a large change: files × identifiers × lines instead of
+// files × lines.
+func identCounts(path string, lines []string) map[string]int {
 	lx := lexerFor(path)
-	n := 0
+	n := map[string]int{}
 	for _, l := range lines {
 		for _, t := range lx.idents(l) {
-			if t == tok {
-				n++
-			}
+			n[t]++
 		}
 	}
 	return n
@@ -311,14 +314,31 @@ func detectCoupling(cwd string, sel Selection) []string {
 			content[p] = diff.SplitLinesKeepEOL(string(data))
 		}
 	}
+	// Each of these is computed once per file or per change, not once per
+	// (change, identifier) pair: the guard asks about every meaningful
+	// identifier of every kept change, and re-deriving them inside that
+	// loop made it quadratic in the size of the selection.
+	counts := make(map[string]map[string]int, len(touched))
+	for _, p := range touched {
+		counts[p] = identCounts(p, content[p])
+	}
+	undoAdded := make([]map[string]bool, len(sel.Undo))
+	for i := range sel.Undo {
+		undoAdded[i] = addedIdents(sel.Undo[i])
+	}
+
 	var out []string
 	seen := map[string]bool{}
 	for _, k := range sel.Keep {
+		keptCounts := map[string]int{}
+		for _, id := range hunkIdents(k, '+') {
+			keptCounts[id]++
+		}
 		kAdded := addedIdents(k)
 		for t := range meaningfulIdents(kAdded) {
 			var coupledWith *change.Change
 			for i := range sel.Undo {
-				if addedIdents(sel.Undo[i])[t] && canReference(k, sel.Undo[i], t) {
+				if undoAdded[i][t] && canReference(k, sel.Undo[i], t) {
 					coupledWith = &sel.Undo[i]
 					break
 				}
@@ -328,14 +348,9 @@ func detectCoupling(cwd string, sel Selection) []string {
 			}
 			total := 0
 			for _, p := range touched {
-				total += countIdent(p, content[p], t)
+				total += counts[p][t]
 			}
-			inKept := 0
-			for _, id := range hunkIdents(k, '+') {
-				if id == t {
-					inKept++
-				}
-			}
+			inKept := keptCounts[t]
 			if total-inKept > 0 {
 				continue // t still occurs somewhere else; nothing orphaned
 			}

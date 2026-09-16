@@ -171,6 +171,15 @@ func TestRunReplaysThenGoesLive(t *testing.T) {
 
 	cfg := &config.Config{Model: "fake-live-model", MaxIterations: 10, MaxTokens: 1000}
 
+	// The run's tool-output archive is a temp directory; nothing outside
+	// this function ever hears of it, so Run has to reclaim it itself.
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	before, err := os.ReadDir(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	report, err := whatif.Run(context.Background(), whatif.Options{
 		SessionArg: path,
 		Root:       root,
@@ -180,6 +189,14 @@ func TestRunReplaysThenGoesLive(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
+	}
+
+	after, err := os.ReadDir(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) {
+		t.Fatalf("the run left %d temporary director(ies) behind (the archive is not removed)", len(after)-len(before))
 	}
 
 	// Turn 1 replayed for free: the live provider was only ever asked for

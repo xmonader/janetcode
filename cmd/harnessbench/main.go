@@ -210,7 +210,7 @@ type runConfig struct {
 func runHarness(ctx context.Context, cfg runConfig, harness string, tasks []eval.Task, batches [][]eval.Task) ([]eval.BenchTaskResult, string) {
 	switch harness {
 	case "openclaw":
-		if rs, note, ok := prepareOpenclaw(cfg, tasks); !ok {
+		if rs, note, ok := prepareOpenclaw(ctx, cfg, tasks); !ok {
 			return rs, note
 		}
 	case "claudecode":
@@ -234,6 +234,14 @@ func runHarness(ctx context.Context, cfg runConfig, harness string, tasks []eval
 	var notes strings.Builder
 	fmt.Fprintf(&notes, "Batches of five, up to five concurrent tasks. Timeout %s.\n", cfg.Timeout)
 	for i, batch := range batches {
+		if ctx.Err() != nil {
+			// A ctrl-c reaches every child at once, so the remaining
+			// batches would all come back as instant failures — and the
+			// caller merges them over the JSON of the last good run,
+			// replacing real rows with "timed out". Stop with what ran.
+			fmt.Fprintf(&notes, "- interrupted after batch %d; the rest were not run\n", i)
+			break
+		}
 		n := i + 1
 		logW, closeLog := batchLog(cfg, harness, n)
 		fmt.Fprintf(logW, "harness=%s batch=%d tasks=", harness, n)
@@ -294,7 +302,7 @@ const openclawProfile = "janetbench"
 // name; and it works in its own workspace rather than the process's
 // working directory, so tasks run somewhere else entirely unless
 // agents.defaults.workspace is pointed at them.
-func prepareOpenclaw(cfg runConfig, tasks []eval.Task) ([]eval.BenchTaskResult, string, bool) {
+func prepareOpenclaw(ctx context.Context, cfg runConfig, tasks []eval.Task) ([]eval.BenchTaskResult, string, bool) {
 	if _, err := exec.LookPath("openclaw"); err != nil {
 		return eval.UnavailableResults("openclaw", "openclaw is not installed", "openclaw", err.Error(), tasks), "Not installed.\n", false
 	}
@@ -335,7 +343,7 @@ func prepareOpenclaw(cfg runConfig, tasks []eval.Task) ([]eval.BenchTaskResult, 
 	// benchmark ran; a patch that would drop an entry from it is refused
 	// unless the list is named as one to replace, and openclaw then never
 	// launches for the second model tried.
-	cmd := exec.Command("openclaw", "--profile", openclawProfile, "config", "patch", "--replace-path", "models.providers.bench.models", "--file", f.Name())
+	cmd := exec.CommandContext(ctx, "openclaw", "--profile", openclawProfile, "config", "patch", "--replace-path", "models.providers.bench.models", "--file", f.Name())
 	cmd.Env = openclawEnv(os.Environ())
 	if out, err := cmd.CombinedOutput(); err != nil {
 		excerpt := strings.TrimSpace(string(out))

@@ -75,7 +75,13 @@ type KeepOptions struct {
 // that Task.Base is reachable from no remote-tracking ref, so a clone
 // other than this one cannot run the task until it is pushed or the
 // session is re-kept with SelfContained.
-func Keep(opts KeepOptions) (path string, task Task, warnings []string, err error) {
+// ctx bounds the git commands below — several of them, over a repository
+// that may be large or on a slow filesystem. It used to be a
+// context.Background() made here, which meant KeepCommand's promise that
+// "ctx cancels it" only ever covered the check it runs afterwards: the
+// git work a /eval keep actually spends its time in could not be
+// interrupted at all. The 30-second bound is kept on top of the caller's.
+func Keep(ctx context.Context, opts KeepOptions) (path string, task Task, warnings []string, err error) {
 	sess := opts.Session
 	if sess == nil {
 		return "", Task{}, nil, fmt.Errorf("no session to keep")
@@ -85,7 +91,7 @@ func Keep(opts KeepOptions) (path string, task Task, warnings []string, err erro
 		return "", Task{}, nil, fmt.Errorf("no user prompts found in this session")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	// Every path below reads the repository: the check command's default
@@ -245,7 +251,7 @@ func KeepCommand(ctx context.Context, opts KeepOptions, arg string) (cmdresult.R
 	if err != nil {
 		return cmdresult.Result{}, err
 	}
-	path, task, warnings, err := Keep(opts)
+	path, task, warnings, err := Keep(ctx, opts)
 	if err != nil {
 		return cmdresult.Result{}, fmt.Errorf("eval keep: %w", err)
 	}

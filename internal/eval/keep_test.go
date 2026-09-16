@@ -101,7 +101,7 @@ func TestKeepWritesTaskAndPatch(t *testing.T) {
 	sess := keptSession(t, root, snap, "add a widget", "wire it up")
 
 	dir := filepath.Join(root, ".janetcode", "evals")
-	path, task, _, err := Keep(KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir})
+	path, task, _, err := Keep(context.Background(), KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir})
 	if err != nil {
 		t.Fatalf("Keep: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestKeepWritesTaskAndPatch(t *testing.T) {
 	}
 
 	// A second Keep with the same name must refuse to overwrite.
-	if _, _, _, err := Keep(KeepOptions{Root: root, Session: sess, Name: task.Name, Check: "true", Dir: dir}); err == nil {
+	if _, _, _, err := Keep(context.Background(), KeepOptions{Root: root, Session: sess, Name: task.Name, Check: "true", Dir: dir}); err == nil {
 		t.Fatal("Keep did not refuse to overwrite an existing task")
 	}
 }
@@ -151,7 +151,7 @@ func TestPrepareWorktreeMatchesSnapshot(t *testing.T) {
 	sess := keptSession(t, root, snap, "add a widget")
 
 	dir := filepath.Join(root, ".janetcode", "evals")
-	_, task, _, err := Keep(KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir})
+	_, task, _, err := Keep(context.Background(), KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir})
 	if err != nil {
 		t.Fatalf("Keep: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestKeepUnbornRepo(t *testing.T) {
 	sess := keptSession(t, root, snap, "start the project")
 
 	dir := filepath.Join(root, ".janetcode", "evals")
-	_, task, warnings, err := Keep(KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir})
+	_, task, warnings, err := Keep(context.Background(), KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir})
 	if err != nil {
 		t.Fatalf("Keep: %v", err)
 	}
@@ -305,13 +305,13 @@ func TestKeepWithBaseOverride(t *testing.T) {
 	// Deliberately no SetStart: this session predates start recording.
 
 	dir := filepath.Join(root, ".janetcode", "evals")
-	if _, _, _, err := Keep(KeepOptions{Root: root, Session: sess, Name: "no-base", Check: "true", Dir: dir}); err == nil {
+	if _, _, _, err := Keep(context.Background(), KeepOptions{Root: root, Session: sess, Name: "no-base", Check: "true", Dir: dir}); err == nil {
 		t.Fatal("Keep without Start or --base must fail")
 	} else if !strings.Contains(err.Error(), "--base") {
 		t.Fatalf("error = %v, want it to name --base as the way out", err)
 	}
 
-	_, task, _, err := Keep(KeepOptions{Root: root, Session: sess, Name: "with-base", Base: head, Check: "true", Dir: dir})
+	_, task, _, err := Keep(context.Background(), KeepOptions{Root: root, Session: sess, Name: "with-base", Base: head, Check: "true", Dir: dir})
 	if err != nil {
 		t.Fatalf("Keep with --base: %v", err)
 	}
@@ -339,7 +339,7 @@ func TestKeepSelfContained(t *testing.T) {
 	sess := keptSession(t, root, snap, "add a widget")
 
 	dir := t.TempDir()
-	_, task, _, err := Keep(KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir, SelfContained: true})
+	_, task, _, err := Keep(context.Background(), KeepOptions{Root: root, Session: sess, Check: "true", Dir: dir, SelfContained: true})
 	if err != nil {
 		t.Fatalf("Keep: %v", err)
 	}
@@ -392,7 +392,7 @@ func TestKeepBaseWarnings(t *testing.T) {
 	sess := keptSession(t, root, snap, "do a thing")
 
 	dir := filepath.Join(root, ".janetcode", "evals")
-	_, _, warnings, err := Keep(KeepOptions{Root: root, Session: sess, Name: "local-only", Check: "true", Dir: dir})
+	_, _, warnings, err := Keep(context.Background(), KeepOptions{Root: root, Session: sess, Name: "local-only", Check: "true", Dir: dir})
 	if err != nil {
 		t.Fatalf("Keep: %v", err)
 	}
@@ -407,7 +407,7 @@ func TestKeepBaseWarnings(t *testing.T) {
 	runGit(t, root, "push", "-q", "origin", "HEAD:refs/heads/"+branch)
 	runGit(t, root, "fetch", "-q", "origin")
 
-	_, _, warnings, err = Keep(KeepOptions{Root: root, Session: sess, Name: "pushed", Check: "true", Dir: dir})
+	_, _, warnings, err = Keep(context.Background(), KeepOptions{Root: root, Session: sess, Name: "pushed", Check: "true", Dir: dir})
 	if err != nil {
 		t.Fatalf("Keep: %v", err)
 	}
@@ -447,7 +447,7 @@ func TestKeepNotAGitRepo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, _, err = Keep(KeepOptions{Root: root, Session: sess, Check: "true"})
+	_, _, _, err = Keep(context.Background(), KeepOptions{Root: root, Session: sess, Check: "true"})
 	if err == nil || !strings.Contains(err.Error(), "not a git repository") {
 		t.Fatalf("Keep with a check command but no git repo: err = %v, want \"not a git repository\"", err)
 	}
@@ -455,14 +455,14 @@ func TestKeepNotAGitRepo(t *testing.T) {
 	// With no --check either, the missing-repository message must win
 	// over "no check command": the repository is the more fundamental
 	// problem, and naming the check command would not fix it.
-	_, _, _, err = Keep(KeepOptions{Root: root, Session: sess})
+	_, _, _, err = Keep(context.Background(), KeepOptions{Root: root, Session: sess})
 	if err == nil || !strings.Contains(err.Error(), "not a git repository") || strings.Contains(err.Error(), "no check command") {
 		t.Fatalf("Keep with neither check nor git repo: err = %v, want only \"not a git repository\"", err)
 	}
 
 	// --base in a non-git directory must give that same friendly
 	// message, not resolveRev's raw `git rev-parse ... fatal:` output.
-	_, _, _, err = Keep(KeepOptions{Root: root, Session: sess, Check: "true", Base: "HEAD"})
+	_, _, _, err = Keep(context.Background(), KeepOptions{Root: root, Session: sess, Check: "true", Base: "HEAD"})
 	if err == nil || !strings.Contains(err.Error(), "not a git repository") || strings.Contains(err.Error(), "fatal:") {
 		t.Fatalf("Keep --base in a non-git dir: err = %v, want the friendly message, not a raw git fatal", err)
 	}

@@ -217,6 +217,11 @@ func distinctive(probes []Probe, events []session.Event) []Probe {
 // anchor to name in the question and the line to expect back.
 func anchoredLine(out string) (string, string) {
 	best, anchor := "", ""
+	// The score to beat. It used to be compared with len(anchor) — the
+	// length of the anchor chosen so far, which is not a score at all: a
+	// line with two identifiers could displace an error line worth 11
+	// simply because the error line's anchor happened to be a short word.
+	bestScore := 0
 	for _, raw := range strings.Split(out, "\n") {
 		line := strings.TrimSpace(stripNumber(raw))
 		if len(line) < 16 || len(line) > 160 {
@@ -232,18 +237,19 @@ func anchoredLine(out string) (string, string) {
 		if reErrorish.MatchString(line) {
 			score += 10
 		}
-		if score > len(anchor) && (anchor == "" || score > 1) {
-			pick := ids[0]
-			for _, id := range ids {
-				if len(id) > len(pick) {
-					pick = id
-				}
+		if score <= bestScore {
+			continue
+		}
+		pick := ids[0]
+		for _, id := range ids {
+			if len(id) > len(pick) {
+				pick = id
 			}
-			// The anchor must not be the whole answer, or the question
-			// would contain what it asks for.
-			if len(pick) < len(line)/2 {
-				best, anchor = line, pick
-			}
+		}
+		// The anchor must not be the whole answer, or the question would
+		// contain what it asks for.
+		if len(pick) < len(line)/2 {
+			best, anchor, bestScore = line, pick, score
 		}
 	}
 	return anchor, best

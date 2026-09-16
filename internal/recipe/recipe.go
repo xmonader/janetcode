@@ -184,13 +184,19 @@ func Parameterise(steps []Step, params map[string]string) ([]Step, []Param) {
 	}
 	// Longest value first: substituting a short value first can eat part
 	// of a longer one that was also asked for ("foo" inside "/tmp/foo").
+	// Ties break on the name, and the sort is stable, so two parameters
+	// with equally long values always substitute in the same order — the
+	// slice comes out of a map, so without this a saved recipe's steps
+	// and its params list could differ between two identical /recipe save
+	// invocations.
 	names := make([]string, 0, len(params))
 	for n, v := range params {
 		if strings.TrimSpace(v) != "" {
 			names = append(names, n)
 		}
 	}
-	sort.Slice(names, func(i, j int) bool { return len(params[names[i]]) > len(params[names[j]]) })
+	sort.Strings(names)
+	sort.SliceStable(names, func(i, j int) bool { return len(params[names[i]]) > len(params[names[j]]) })
 
 	used := map[string]bool{}
 	out := make([]Step, len(steps))
