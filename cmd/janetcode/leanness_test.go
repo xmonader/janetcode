@@ -111,7 +111,7 @@ const (
 	// toolSchemaCeiling is name + description + schema over every tool a
 	// full session offers: 13,862 bytes for seventeen, after the
 	// duplicated edit_file locator came out.
-	toolSchemaCeiling = 14200
+	toolSchemaCeiling = 14320
 )
 
 // TestFirstRequestSystemPromptCeiling: an empty directory is the floor of

@@ -33,7 +33,7 @@ func (ReadFile) Schema() json.RawMessage {
 "path":{"type":"string","description":"File path, relative to the working directory or absolute"},
 "offset":{"type":"integer","description":"1-based line to start from (default 1)"},
 "limit":{"type":"integer","description":"Max lines to return (default 2000)"},
-"anchors":{"type":"boolean","description":"Number lines as 12:abc, where the letters mark the line's content, for edit_file's from_anchor/to_anchor (default false)"}},
+"anchors":{"type":"boolean","description":"Number lines as 12:abc for edit_file from_anchor/to_anchor"}},
 "required":["path"],"additionalProperties":false}`)
 }
 
