@@ -4022,12 +4022,14 @@ func TestGoalRoundIsOneLine(t *testing.T) {
 	// is what drops it: pausing the goal takes the note off the line on
 	// the very next frame, not whenever something else happened to
 	// invalidate it.
-	if !strings.Contains(plain(h.m.statusView()), "goal g1 round") {
-		t.Fatalf("the status line lost the goal:\n%s", plain(h.m.statusView()))
+	// (Read from goalLine rather than the rendered line: the status line
+	// cuts to the terminal width around a phase phrase picked at random.)
+	if got := h.m.goalLine(); !strings.Contains(got, "goal g1 round") {
+		t.Fatalf("the status line lost the goal: %q", got)
 	}
 	h.m.goalCommand("pause")
-	if got := plain(h.m.statusView()); strings.Contains(got, "goal g1 round") {
-		t.Fatalf("a paused goal is still on the status line:\n%s", got)
+	if got := h.m.goalLine(); got != "" {
+		t.Fatalf("a paused goal is still on the status line: %q", got)
 	}
 }
 
