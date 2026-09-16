@@ -158,3 +158,8 @@ type APIError struct {
 func (e *APIError) Error() string {
 	return fmt.Sprintf("%s (HTTP %d)", e.Message, e.Status)
 }
+
+// HTTPStatus and RetryHint implement llm.StatusError, which is how the
+// shared retry policy judges an error from this provider.
+func (e *APIError) HTTPStatus() int          { return e.Status }
+func (e *APIError) RetryHint() time.Duration { return e.RetryAfter }

@@ -141,6 +141,23 @@ func (w *Watchdog) Tick() {
 	w.mu.Unlock()
 }
 
+// Expect tells the watchdog that nothing can arrive for d, because the
+// harness itself is waiting — a retry backoff, a rate-limit pause. The
+// idle bound is pushed out by that much, so a deliberate wait does not
+// read as a stalled stream; the lifetime cap is untouched, since a call
+// that spends its whole budget in backoff has still taken too long. It
+// is safe on a nil watchdog.
+func (w *Watchdog) Expect(d time.Duration) {
+	if w == nil || d <= 0 {
+		return
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if until := time.Now().Add(d); until.After(w.last) {
+		w.last = until
+	}
+}
+
 // Stop releases the watchdog and its context.
 func (w *Watchdog) Stop() {
 	if w == nil {

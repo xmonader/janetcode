@@ -13,7 +13,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -240,12 +239,13 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	}
 	var resp *http.Response
 	rotations := 0
-	// What the call had to survive, reported once it finally answers. A
-	// status line is gone as soon as the next one replaces it, so without
-	// this a turn that took four attempts is indistinguishable afterwards
-	// from one that took none.
-	var retried llm.Retry
-	for attempt := 0; ; attempt++ {
+	// One retry policy, shared with every other provider (llm.Retrier):
+	// it decides what is worth another attempt, waits out the backoff or
+	// the server's own Retry-After, keeps the watchdog informed, and
+	// reports both the countdown and, once the call lands, what it had to
+	// survive.
+	rt := llm.NewRetrier(p.cfg.MaxRetries, emit, wd)
+	for {
 		body, err := json.Marshal(p.applyDialect(w))
 		if err != nil {
 			return nil, err
@@ -254,19 +254,14 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		resp, err = p.do(ctx, body, key)
 		if err == nil {
 			p.ring.OK(idx)
-			if retried.Attempts > 0 && emit != nil {
-				r := retried
-				emit(llm.Event{Type: llm.EventRetried, Retry: &r})
-			}
+			rt.Landed()
 			break
 		}
 		if p.learnDialect(err) {
-			// A parameter the server rejects was dropped or renamed; resend
-			// immediately without counting it as a retry. continue runs
-			// the post statement, so attempt has to be put back — as the
-			// key rotation below does — or working out the dialect spends
-			// the budget meant for transient failures.
-			attempt--
+			// A parameter the server rejects was dropped or renamed;
+			// resend immediately. Working out the dialect must not spend
+			// the budget meant for transient failures, and it does not:
+			// only a failure the Retrier is asked about counts.
 			continue
 		}
 		if f, ok := keyProblem(err); ok {
@@ -274,32 +269,17 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 			// right away without counting a retry.
 			if p.ring.Fail(idx, f) && rotations < p.ring.Len()-1 {
 				rotations++
-				attempt--
 				continue
 			}
 		}
 		// A rate limit widens the gap for later requests, so a long run
 		// stops walking into the same wall; retrying only rescues this one.
 		var rl *APIError
-		if errors.As(err, &rl) && (rl.Status == 429 || rl.Status == 529) && !permanentLimit(rl.Error()) {
+		if errors.As(err, &rl) && (rl.Status == 429 || rl.Status == 529) && !llm.PermanentLimit(rl.Error()) {
 			p.pace.Refused()
 		}
-		if attempt >= p.cfg.MaxRetries || !retryable(err) || ctx.Err() != nil {
-			return nil, wd.Wrap(err)
-		}
-		wait := time.Duration(500*(1<<attempt)) * time.Millisecond
-		// The server's own Retry-After wins where it gave one: it knows
-		// when its window resets, and the backoff is only a guess.
-		var ra *APIError
-		if errors.As(err, &ra) && ra.RetryAfter > 0 {
-			wait = ra.RetryAfter
-		}
-		retried.Attempts, retried.Reason, retried.Wait = attempt+1, retryReason(err), retried.Wait+wait
-		emit(llm.Event{Type: llm.EventStatus, Text: fmt.Sprintf("retrying %d/%d · %s · in %s", attempt+1, p.cfg.MaxRetries, retryReason(err), wait.Round(time.Second/10))})
-		select {
-		case <-ctx.Done():
-			return nil, wd.Wrap(ctx.Err())
-		case <-time.After(wait):
+		if werr := rt.Wait(ctx, err); werr != nil {
+			return nil, wd.Wrap(werr)
 		}
 	}
 	defer resp.Body.Close()
@@ -392,99 +372,11 @@ func (p *Provider) do(ctx context.Context, body []byte, key string) (*http.Respo
 		if msg == "" {
 			msg = http.StatusText(resp.StatusCode)
 		}
-		ae := &APIError{Status: resp.StatusCode, Message: msg}
-		if resp.StatusCode == 429 || resp.StatusCode == 503 {
-			ae.RetryAfter = retryAfter(resp.Header.Get("Retry-After"))
+		return nil, &APIError{
+			Status:     resp.StatusCode,
+			Message:    msg,
+			RetryAfter: llm.RetryAfterFrom(resp.Header, resp.StatusCode),
 		}
-		return nil, ae
 	}
 	return resp, nil
-}
-
-// maxRetryAfter is the longest the provider may ask the harness to wait.
-const maxRetryAfter = 2 * time.Minute
-
-// retryAfter reads a Retry-After header in either form the RFC allows,
-// seconds or an HTTP date, and ignores anything longer than a couple of
-// minutes: a server asking for an hour is telling the user to come back
-// later, not telling the harness to sleep through it.
-func retryAfter(v string) time.Duration {
-	v = strings.TrimSpace(v)
-	if v == "" {
-		return 0
-	}
-	var d time.Duration
-	if secs, err := strconv.Atoi(v); err == nil {
-		d = time.Duration(secs) * time.Second
-	} else if when, err := http.ParseTime(v); err == nil {
-		d = time.Until(when)
-	}
-	if d <= 0 || d > maxRetryAfter {
-		return 0
-	}
-	return d
-}
-
-// exhausted are the ways a provider says the account has run out, rather
-// than that this request arrived too fast. Both come back as 429, and
-// retrying the first only delays a failure that was never going to clear —
-// with the real reason buried under the retries.
-var exhausted = []string{
-	"insufficient_quota",
-	"quota exceeded",
-	"exceeded your current quota",
-	"available balance",
-	"insufficient balance",
-	"out of budget",
-	"billing",
-	"usage limit reached",
-	"credit balance is too low",
-}
-
-// permanentLimit reports whether a rate-limit response is really an
-// exhausted account.
-func permanentLimit(msg string) bool {
-	msg = strings.ToLower(msg)
-	for _, needle := range exhausted {
-		if strings.Contains(msg, needle) {
-			return true
-		}
-	}
-	return false
-}
-
-// retryReason names why a call is being retried, in the few words the
-// status line has room for.
-func retryReason(err error) string {
-	var ae *APIError
-	if errors.As(err, &ae) {
-		switch {
-		case ae.Status == 429:
-			return "rate limited"
-		case ae.Status >= 500:
-			return fmt.Sprintf("server error %d", ae.Status)
-		}
-		return fmt.Sprintf("http %d", ae.Status)
-	}
-	return "connection failed"
-}
-
-func retryable(err error) bool {
-	var ae *APIError
-	if errors.As(err, &ae) {
-		if permanentLimit(ae.Error()) {
-			return false
-		}
-		// 529 is Anthropic's "overloaded", which gateways pass through.
-		// 500 and 501 are not retried: a plain internal error is the
-		// server saying this request broke it, and sending it again
-		// breaks it again — with the real reason buried under retries.
-		switch ae.Status {
-		case 429, 408, 529, 502, 503, 504:
-			return true
-		}
-		return false
-	}
-	// Connection-level failures.
-	return !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)
 }
