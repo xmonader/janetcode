@@ -434,7 +434,7 @@ func (s *Session) WritePID(pid int) error {
 	if err := s.EnsureWritten(); err != nil {
 		return err
 	}
-	return os.WriteFile(s.PIDPath(), []byte(fmt.Sprintf("%d\n", pid)), 0o600)
+	return fsutil.AtomicWriteMode(s.PIDPath(), []byte(fmt.Sprintf("%d\n", pid)), fsutil.PrivateFileMode)
 }
 
 // ClearPID removes the background pid sidecar.
@@ -494,7 +494,7 @@ func (s *Session) rewriteLocked() error {
 	if err := w.Flush(); err != nil {
 		return err
 	}
-	return fsutil.WriteFileAtomic(s.path, buf.Bytes(), 0o600)
+	return fsutil.WriteFileAtomic(s.path, buf.Bytes(), fsutil.PrivateFileMode)
 }
 
 func writeLine(w *bufio.Writer, v any) error {

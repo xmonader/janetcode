@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/xmonader/janetcode/internal/fsutil"
 )
 
 // Usage counts which catalogue features this user has reached for.
@@ -96,7 +98,10 @@ func (u *Usage) Flush() error {
 		return err
 	}
 	u.dirty = false
-	return os.WriteFile(u.path, data, 0o600)
+	// Rewritten whole, so it is replaced by rename: a crash during the
+	// flush at exit must not leave a truncated file that the next run
+	// then fails to parse and starts counting from zero.
+	return fsutil.AtomicWriteMode(u.path, data, fsutil.PrivateFileMode)
 }
 
 // Path is where the counts live, so /stats can say so rather than

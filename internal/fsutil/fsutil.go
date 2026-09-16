@@ -45,14 +45,58 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 		cleanup()
 		return err
 	}
+	syncDir(filepath.Dir(path))
 	return nil
 }
 
+// syncDir forces the rename itself to durable storage. Syncing the temp
+// file only guarantees its contents; the directory entry pointing at them
+// is a separate write, and without this a crash just after the rename can
+// leave the old file, or no file at all where a new one was created —
+// which for a session log means the turn that was just written is gone
+// even though the data reached the platter.
+//
+// Best effort on purpose: not every platform lets a directory be opened
+// (Windows does not) or synced, and a write that has already landed must
+// not be reported as failed because the extra durability step could not
+// be taken.
+func syncDir(dir string) {
+	d, err := os.Open(dir)
+	if err != nil {
+		return
+	}
+	_ = d.Sync()
+	_ = d.Close()
+}
+
+// DefaultFileMode is what a new file gets when the caller does not say.
+// It is what os.WriteFile's usual argument is, and the right default for
+// anything a person is expected to read with other tools.
+const DefaultFileMode = os.FileMode(0o644)
+
+// PrivateFileMode is the mode for files that hold a conversation, a
+// memory, a credential or anything else recorded on the user's behalf:
+// readable by the user and nobody else. Session logs, memory entries and
+// configuration are written with it, so a shared machine does not leak a
+// transcript through a default umask.
+const PrivateFileMode = os.FileMode(0o600)
+
 // AtomicWrite replaces the file at p with data via a temp file and rename,
 // so a crash mid-write never leaves a truncated file. An existing file keeps
-// its mode; a new one is created 0644.
+// its mode; a new one is created DefaultFileMode.
+//
+// Anything written on the user's behalf rather than for the project should
+// call AtomicWriteMode with PrivateFileMode instead.
 func AtomicWrite(p string, data []byte) error {
-	mode := os.FileMode(0o644)
+	return AtomicWriteMode(p, data, DefaultFileMode)
+}
+
+// AtomicWriteMode is AtomicWrite with the mode a new file is created
+// with. An existing file still keeps the mode it has: tightening a file
+// the user has deliberately opened up, or loosening one they have
+// tightened, is not this function's decision to make.
+func AtomicWriteMode(p string, data []byte, newFile os.FileMode) error {
+	mode := newFile
 	if st, err := os.Stat(p); err == nil {
 		mode = st.Mode().Perm()
 	}
