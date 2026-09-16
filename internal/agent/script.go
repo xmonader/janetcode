@@ -308,6 +308,10 @@ func (s *Script) Run(ctx context.Context, input json.RawMessage) (string, error)
 
 	srv := &rpc{parent: s.Parent, max: scriptMaxCalls}
 	go srv.serve(ctx, ln)
+	// No tool call the script started may still be running once this
+	// returns: the model is told what the script did, and a call landing
+	// after that would change the workspace behind the report.
+	defer srv.shutdown()
 
 	cmd := exec.CommandContext(ctx, py, script)
 	cmd.Dir = s.root()
@@ -322,6 +326,7 @@ func (s *Script) Run(ctx context.Context, input json.RawMessage) (string, error)
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	runErr := cmd.Run()
 	ln.Close()
+	srv.shutdown()
 
 	return s.report(stdout.String(), stderr.String(), runErr, srv.count(), ctx.Err()), nil
 }
@@ -398,6 +403,12 @@ type rpc struct {
 	// touches, the provenance record and the per-turn mutation counters,
 	// belongs to the serial half of the tool loop.
 	call sync.Mutex
+	// conns are the connections still open, and handlers counts the
+	// goroutines serving them, so shutdown can make sure no tool call is
+	// still running once the tool has reported.
+	conns    map[net.Conn]bool
+	closed   bool
+	handlers sync.WaitGroup
 }
 
 func (r *rpc) count() int {
@@ -406,13 +417,58 @@ func (r *rpc) count() int {
 	return r.n
 }
 
+// track registers a connection, or reports false once shutdown has begun.
+func (r *rpc) track(conn net.Conn) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return false
+	}
+	if r.conns == nil {
+		r.conns = map[net.Conn]bool{}
+	}
+	r.conns[conn] = true
+	return true
+}
+
+func (r *rpc) untrack(conn net.Conn) {
+	r.mu.Lock()
+	delete(r.conns, conn)
+	r.mu.Unlock()
+}
+
+// shutdown closes every open connection and waits for the handlers to
+// return. A script that leaves a grandchild holding the socket would
+// otherwise keep making tool calls after the tool that started it has
+// already reported its result to the model; closing the connections is
+// what makes the wait finite.
+func (r *rpc) shutdown() {
+	r.mu.Lock()
+	r.closed = true
+	for c := range r.conns {
+		c.Close()
+	}
+	r.conns = nil
+	r.mu.Unlock()
+	r.handlers.Wait()
+}
+
 func (r *rpc) serve(ctx context.Context, ln net.Listener) {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			return
 		}
-		go r.handle(ctx, conn)
+		if !r.track(conn) {
+			conn.Close()
+			return
+		}
+		r.handlers.Add(1)
+		go func() {
+			defer r.handlers.Done()
+			defer r.untrack(conn)
+			r.handle(ctx, conn)
+		}()
 	}
 }
 
