@@ -116,7 +116,7 @@ func TestRecallTouchAndTrim(t *testing.T) {
 		t.Fatalf("render = %q", r)
 	}
 	for i := 0; i < MaxEntries+3; i++ {
-		s.Put(Entry{Name: "filler-" + itoa(i), Description: "Filler " + itoa(i), Body: "b"})
+		s.Put(Entry{Name: "filler-" + itoa(i), Description: "Filler " + itoa(i), Body: "b", Source: "auto"})
 	}
 	n := 0
 	for _, e := range s.Entries() {

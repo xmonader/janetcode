@@ -502,8 +502,14 @@ everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
   prompt stays small no matter how much is remembered.
 - **Recall per turn.** Entries whose names, descriptions or bodies overlap
   the request clearly are attached to that turn (up to four, 6 KB); you
-  see `memory recalled: …`. Recalled entries count as used, and the least
-  used, oldest entries are the ones trimmed past 200 per scope.
+  see `memory recalled: …`. Word overlap decides *whether* an entry is
+  relevant; among the relevant ones, ranking follows use — how often and
+  how recently an entry has been recalled (recalling an entry strengthens
+  it), with the entries you wrote or corrected by hand favoured over
+  automatic ones. `EVAL_OFF=memoryrank` (or `JANETCODE_OFF`) restores the
+  flat word-overlap order. Recalled entries count as used; past 200
+  entries per scope the least used, oldest *automatic* ones are trimmed —
+  entries you wrote with `/remember` are never evicted by the cap.
 - **The model has a `memory` tool**: `recall` by query, `remember` when
   you tell it something worth keeping (it picks the type; the entry is
   kept for this project), `forget`.

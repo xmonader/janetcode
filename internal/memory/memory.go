@@ -67,7 +67,11 @@ type Entry struct {
 	Created     time.Time
 	Updated     time.Time
 	Uses        int
-	Path        string
+	// Used are the most recent times the entry was recalled, oldest
+	// first, capped at useHistoryCap. Uses counts them all; Used is what
+	// activation ranks by.
+	Used []time.Time
+	Path string
 	// Ecosystems are the languages or toolchains a global entry is about
 	// ("go", "python"), recorded when it is written and inferred again
 	// from its text when it is read, so one written before tagging existed
@@ -139,8 +143,13 @@ type Store struct {
 	// store is also built and read before it has any concurrency.
 	Key string
 	// Embed, when set, adds semantic ranking to recall (see EmbedFunc).
-	Embed     EmbedFunc
-	Ecosystem string
+	Embed EmbedFunc
+	// PlainRanking orders recalled entries by word overlap alone, the
+	// behaviour the memoryrank switch turns back on; by default use
+	// frequency and recency (activation) break ties and pull the entries
+	// the work keeps needing above the ones it needed once.
+	PlainRanking bool
+	Ecosystem    string
 
 	mu        sync.Mutex
 	embedMu   sync.Mutex
@@ -232,6 +241,11 @@ func readEntry(p, scope string) (Entry, bool) {
 	e.Created, _ = time.Parse(time.RFC3339, meta["created"])
 	e.Updated, _ = time.Parse(time.RFC3339, meta["updated"])
 	e.Uses, _ = strconv.Atoi(meta["uses"])
+	for _, t := range strings.Split(meta["used"], ",") {
+		if ts, err := time.Parse(time.RFC3339, strings.TrimSpace(t)); err == nil {
+			e.Used = append(e.Used, ts)
+		}
+	}
 	if scope == "global" {
 		e.Ecosystems = ecosystemsOf(e, meta["ecosystem"])
 	}
@@ -248,6 +262,13 @@ func (s *Store) write(e Entry) error {
 	}
 	if e.Uses > 0 {
 		meta["uses"] = strconv.Itoa(e.Uses)
+	}
+	if len(e.Used) > 0 {
+		ts := make([]string, len(e.Used))
+		for i, t := range e.Used {
+			ts[i] = t.UTC().Format(time.RFC3339)
+		}
+		meta["used"] = strings.Join(ts, ",")
 	}
 	if len(e.Ecosystems) > 0 {
 		meta["ecosystem"] = strings.Join(e.Ecosystems, ",")
@@ -332,6 +353,7 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 				return old, Unchanged, nil
 			}
 			e.Created, e.Uses, e.Updated, e.Path = old.Created, old.Uses, now, old.Path
+			e.Used = old.Used
 			return e, Updated, s.write(e)
 		}
 	}
@@ -347,13 +369,21 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 // trim keeps a scope under MaxEntries by dropping the least used, oldest
 // entries.
 func (s *Store) trim(scope string, all []Entry) {
+	total := 0
 	var in []Entry
 	for _, e := range all {
-		if e.Scope == scope {
+		if e.Scope != scope {
+			continue
+		}
+		total++
+		// What the user wrote by hand is not the cap's business: a
+		// /remember entry must survive an automatic flood, the way /dream
+		// already refuses to merge or drop user entries.
+		if e.Source != "user" {
 			in = append(in, e)
 		}
 	}
-	if len(in)+1 <= MaxEntries {
+	if total+1 <= MaxEntries {
 		return
 	}
 	sort.SliceStable(in, func(i, j int) bool {
@@ -362,7 +392,11 @@ func (s *Store) trim(scope string, all []Entry) {
 		}
 		return in[i].Updated.Before(in[j].Updated)
 	})
-	for _, e := range in[:len(in)+1-MaxEntries] {
+	n := total + 1 - MaxEntries
+	if n > len(in) {
+		n = len(in)
+	}
+	for _, e := range in[:n] {
 		os.Remove(e.Path)
 	}
 }
@@ -387,13 +421,19 @@ func (s *Store) Remove(ref string) (Entry, error) {
 	return Entry{}, fmt.Errorf("no memory entry named %q", ref)
 }
 
-// Touch records that entries were used, so trimming keeps useful ones.
+// Touch records that entries were used, so ranking and trimming keep
+// useful ones.
 func (s *Store) Touch(entries ...Entry) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	now := time.Now()
 	for _, e := range entries {
 		if cur, ok := readEntry(e.Path, e.Scope); ok {
 			cur.Uses++
+			cur.Used = append(cur.Used, now)
+			if len(cur.Used) > useHistoryCap {
+				cur.Used = cur.Used[len(cur.Used)-useHistoryCap:]
+			}
 			s.write(cur)
 		}
 	}
@@ -495,8 +535,9 @@ func (s *Store) rank(text string, max, min int) []Entry {
 	}
 	type scored struct {
 		e     Entry
-		score int
+		score float64
 	}
+	now := time.Now()
 	var hits []scored
 	for _, e := range s.Entries() {
 		hide, strong := s.hidden(e)
@@ -522,7 +563,13 @@ func (s *Store) rank(text string, max, min int) []Entry {
 			}
 		}
 		if score >= need {
-			hits = append(hits, scored{e, score})
+			// Relevance admits an entry; how often and how recently the
+			// work has needed it decides between the admitted ones.
+			total := float64(score)
+			if !s.PlainRanking {
+				total += lambdaActivation*activation(e, now) + typePrior(e)
+			}
+			hits = append(hits, scored{e, total})
 		}
 	}
 	sort.SliceStable(hits, func(i, j int) bool { return hits[i].score > hits[j].score })
