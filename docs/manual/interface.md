@@ -1578,11 +1578,11 @@ call. It stays behind `tool_search` so it does not sit on every request.
 `advisor` is the same kind of extra: a consult the executor calls when
 stuck. The harness forwards the recent transcript (no session system
 prompt, no tool schemas). At most three uses per turn. It is never on
-the always-on schema list; `tool_search` finds it. `"advisor_model"` in
-the config, if set, is who it asks (for example `z-ai/glm-5.3` beside an
-`inception/mercury-2.5` executor); otherwise the session model. It is
-routed like any other named model, so it can live on a different
-provider.
+the always-on schema list unless `"advisor_model"` is set, in which case
+the executor sees `advisor` without a hunt. `"advisor_model"` is who it
+asks (for example `z-ai/glm-5.3` beside an `inception/mercury-2.5`
+executor); otherwise the session model. It is routed like any other
+named model, so it can live on a different provider.
 
 A tool a profile or the parent session has removed is **withheld**, not
 unknown: the model is told the policy reason and not to hunt for a

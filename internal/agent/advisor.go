@@ -14,9 +14,9 @@ const maxAdvisorUses = 3
 
 const advisorSystem = `You are advising a coding agent that is stuck. You have NO tools and cannot edit files. From the transcript, reply with: 1) what to do next (concrete), 2) likely pitfalls, 3) how to verify (command if obvious). Be directive and short (under ~400 words). Do not write full file dumps.`
 
-// AdvisorTool is a deferred consult: the executor calls it when stuck.
-// The harness forwards the recent transcript. It is not on the always-on
-// schema list.
+// AdvisorTool is a consult: the executor calls it when stuck. The
+// harness forwards the recent transcript. It stays deferred unless
+// AdvisorModel is set, so the schema is not on every request.
 type AdvisorTool struct{ Parent *Agent }
 
 func (*AdvisorTool) Name() string { return "advisor" }
