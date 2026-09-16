@@ -137,7 +137,7 @@ func (m *Mode) restoreTamperedLocked(toolName string) string {
 }
 
 // isLockedPath reports whether abs (already resolved) names a file
-// currently locked against tool-call writes. Called with acceptMu held.
+// currently locked against tool-call writes. Called with Mode.mu held.
 func (m *Mode) isLockedPath(abs string) bool {
 	if m.meta == nil || m.meta.Phase != session.AcceptLocked {
 		return false
@@ -265,7 +265,7 @@ func (m *Mode) WritingDenial(t tool.Tool, input json.RawMessage) string {
 // model has to look at the code to test it — or a run of the tests: the
 // proposed command itself, or one simple command whose leading words run
 // tests and that writes nothing it names. It only passes the mode gate;
-// the command still needs approval like any other. Called with acceptMu
+// the command still needs approval like any other. Called with Mode.mu
 // held.
 func (m *Mode) phaseAllowsCommand(cmd string) bool {
 	cmd = shell.TrimWorkspaceCd(cmd, m.meta.Root)
@@ -344,7 +344,7 @@ func (m *Mode) TrackEdit(t tool.Tool, input json.RawMessage) {
 // mismatch means the file moved some other way — a bash trick the lock
 // check did not catch, an external editor, anything — and is reported
 // rather than silently trusted, whatever the test command itself says.
-// Called with acceptMu held.
+// Called with Mode.mu held.
 func (m *Mode) integrityCheckLocked() []string {
 	if m.meta == nil {
 		return nil

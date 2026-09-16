@@ -86,7 +86,11 @@ func buildSelectPrompt(cwd, description string, candidates []change.Change) stri
 			sb.WriteString("  " + h.Header() + "\n")
 			shown := 0
 			for _, l := range h.Lines {
-				if l[0] == ' ' {
+				// len guarded like hunkIdents does: a hunk line always
+				// carries a diff prefix today, but indexing [0] without
+				// checking turns a malformed record into a panic in the
+				// middle of a /undo the user asked for.
+				if len(l) == 0 || l[0] == ' ' {
 					continue
 				}
 				if shown >= selectMaxLinesPerHunk {
@@ -246,7 +250,7 @@ func changeText(c change.Change) string {
 	sb.WriteString(c.Path)
 	for _, h := range c.Hunks() {
 		for _, l := range h.Lines {
-			if l[0] != ' ' {
+			if len(l) > 0 && l[0] != ' ' {
 				sb.WriteString(l)
 			}
 		}
