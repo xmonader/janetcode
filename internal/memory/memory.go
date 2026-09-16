@@ -130,12 +130,16 @@ func Slug(s string) string {
 // Store is the memory of one project plus the global scope.
 type Store struct {
 	Root string // <data>/memory
-	Key  string // project key
+	// Key is the project key and Ecosystem the project's language or
+	// toolchain, as project.Detect names it in lower case ("go",
+	// "python"), or "" when it is not recognised. Rekey changes both when
+	// /cd moves the session to another project, so anything that reads
+	// them while a session is running goes through ProjectKey and
+	// ecosystem, which take mu; the fields stay exported because the
+	// store is also built and read before it has any concurrency.
+	Key string
 	// Embed, when set, adds semantic ranking to recall (see EmbedFunc).
-	Embed EmbedFunc
-	// Ecosystem is the current project's language or toolchain, as
-	// project.Detect names it in lower case ("go", "python"), or "" when
-	// it is not recognised.
+	Embed     EmbedFunc
 	Ecosystem string
 
 	mu        sync.Mutex
@@ -155,6 +159,24 @@ func Open(dataDir, cwd string) *Store {
 	return s
 }
 
+// ProjectKey is the project identity this store is writing under, read
+// safely against a concurrent Rekey.
+func (s *Store) ProjectKey() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Key
+}
+
+// ecosystem is Ecosystem read under the lock. Callers must not already
+// hold s.mu.
+func (s *Store) ecosystem() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Ecosystem
+}
+
+// dir is the directory a scope's entries live in. The caller holds s.mu:
+// the project key it names is what Rekey changes.
 func (s *Store) dir(scope string) string {
 	if scope == "global" {
 		return filepath.Join(s.Root, GlobalKey)
@@ -524,13 +546,17 @@ const strongRecall = 6
 // entry that names no ecosystem and was not written by the user, which
 // could as easily be one project's rule as a preference. Project entries
 // and globals the user wrote with /remember -g are neither.
+//
+// It takes s.mu to read the project's ecosystem, so a caller must not
+// already hold it.
 func (s *Store) hidden(e Entry) (hide, strong bool) {
 	if e.Scope != "global" {
 		return false, false
 	}
 	if len(e.Ecosystems) > 0 {
+		here := s.ecosystem()
 		for _, eco := range e.Ecosystems {
-			if eco == s.Ecosystem {
+			if eco == here {
 				return false, false
 			}
 		}
