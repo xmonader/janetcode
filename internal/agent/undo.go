@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -217,6 +217,12 @@ func (a *Agent) Redo(ctx context.Context) ([]string, error) {
 // calls do not inherit ctx's cancellation.
 func (a *Agent) endTurn(ctx context.Context) {
 	a.running.Store(false)
+	// The turn's event sink goes with the turn: emitter() promises a sink
+	// that drops events when no turn is running, and without this it kept
+	// handing out the finished turn's one.
+	a.emitMu.Lock()
+	a.emitNow = nil
+	a.emitMu.Unlock()
 	ctx = context.WithoutCancel(ctx)
 	a.cp.mu.Lock()
 	repo := a.snaps()
@@ -340,8 +346,12 @@ func (a *Agent) restore(ctx context.Context, cp Checkpoint) ([]string, error) {
 		repo.Drop(context.WithoutCancel(ctx), *cp.Snap)
 	}
 	// Restore in reverse so a file created then edited ends up removed.
+	// (This was a sort.SliceStable whose "less" compared the indices it
+	// was handed rather than the elements at them, which is not an
+	// ordering at all and only reversed the slice by accident of the
+	// algorithm in use.)
 	files := append([]Snapshot(nil), cp.Files...)
-	sort.SliceStable(files, func(i, j int) bool { return i > j })
+	slices.Reverse(files)
 	for _, f := range files {
 		var err error
 		if f.Failed {

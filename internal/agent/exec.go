@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime/debug"
 	"strings"
@@ -23,8 +24,9 @@ const MaxParallelTools = 8
 
 // executeAll runs the turn's tool calls: read-only tools concurrently, then
 // mutating (permission-gated) tools one at a time in order. It always
-// returns one result per call so the history stays valid, even when ctx is
-// cancelled part-way; the error is then ctx.Err().
+// returns one result per call so the history stays valid, even when the
+// batch stops part-way — cancelled, or with an approver that could not
+// answer — and the error that stopped it is returned rather than dropped.
 func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Event)) ([]llm.Block, []llm.Block, error) {
 	a.emitMu.Lock()
 	a.emitNow = emit
@@ -48,6 +50,25 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		return ok && !t.Mutating()
 	}
 
+	// The first error any call returned. execute only errors for
+	// cancellation and for an approver that could not answer; either way
+	// the batch stops and the error is reported, rather than being lost
+	// behind results that claim the user cancelled.
+	var (
+		firstErr error
+		errMu    sync.Mutex
+	)
+	fail := func(err error) {
+		if err == nil {
+			return
+		}
+		errMu.Lock()
+		if firstErr == nil {
+			firstErr = err
+		}
+		errMu.Unlock()
+	}
+
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, MaxParallelTools)
 	for i, u := range uses {
@@ -61,28 +82,44 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 			case sem <- struct{}{}:
 				defer func() { <-sem }()
 			case <-ctx.Done():
+				fail(ctx.Err())
 				return
 			}
 			out, imgs, isErr, err := a.execute(ctx, u, emit)
-			if err == nil {
-				results[i] = llm.ToolResult(replyID(u), out, isErr)
-				filled[i] = true
-				addImages(imgs)
+			if err != nil {
+				fail(err)
+				return
 			}
+			results[i] = llm.ToolResult(replyID(u), out, isErr)
+			filled[i] = true
+			addImages(imgs)
 		}(i, u)
 	}
 	wg.Wait()
 
-	cancelled := func() ([]llm.Block, []llm.Block, error) {
+	// Every call is answered whatever happened: nothing may come between
+	// a tool_use and its tool_result, so a call that never ran gets a
+	// result saying so.
+	stop := func(err error) ([]llm.Block, []llm.Block, error) {
+		msg := "Cancelled by user before the tool finished."
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			msg = "Not run: the turn stopped before this call could be made (" + err.Error() + ")."
+		}
 		for i, u := range uses {
 			if !filled[i] {
-				results[i] = llm.ToolResult(replyID(u), "Cancelled by user before the tool finished.", true)
+				results[i] = llm.ToolResult(replyID(u), msg, true)
 			}
 		}
-		return results, images, ctx.Err()
+		return results, images, err
 	}
-	if ctx.Err() != nil {
-		return cancelled()
+	if err := ctx.Err(); err != nil {
+		return stop(err)
+	}
+	errMu.Lock()
+	err := firstErr
+	errMu.Unlock()
+	if err != nil {
+		return stop(err)
 	}
 	for i, u := range uses {
 		if filled[i] {
@@ -90,7 +127,7 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		}
 		out, imgs, isErr, err := a.execute(ctx, u, emit)
 		if err != nil {
-			return cancelled()
+			return stop(err)
 		}
 		results[i] = llm.ToolResult(replyID(u), out, isErr)
 		filled[i] = true

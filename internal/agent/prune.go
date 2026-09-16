@@ -86,7 +86,17 @@ func (a *Agent) Prune() int {
 // since its output is stale. Full outputs go to the archive first. It
 // returns how many results were replaced.
 func (a *Agent) pruneTo(target int) int {
-	if target <= 0 || a.EstimateTokens() <= target {
+	if target <= 0 {
+		return 0
+	}
+	// The estimate is carried down by hand rather than recomputed after
+	// each replacement. EstimateTokens walks the whole history and
+	// re-measures the system prompt, and rewritten() resets the "already
+	// billed" mark, so the loop used to be quadratic in a history of
+	// exactly the size that gets here. Each replacement changes one block
+	// of text and nothing else, so the difference is all there is.
+	est := a.EstimateTokens()
+	if est <= target {
 		return 0
 	}
 	tail := tailStart(a.Messages)
@@ -138,9 +148,13 @@ func (a *Agent) pruneTo(target int) int {
 		a.setBlockText(c.i, c.j, ph)
 		replaced++
 		a.contextManager.rewritten()
-		if a.EstimateTokens() <= target {
-			return replaced
+		est -= estimateTokens(b.Text) - estimateTokens(ph)
+		if est <= target {
+			break
 		}
+	}
+	if replaced > 0 {
+		a.EstimateTokens() // republish the figure the status bar reads
 	}
 	return replaced
 }

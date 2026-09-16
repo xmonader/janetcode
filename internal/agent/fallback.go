@@ -109,7 +109,15 @@ func (a *Agent) fallback(ctx context.Context, cause error, emit func(Event)) (*l
 				emit(Event{Kind: EvNotice, Text: "cannot fall back to " + name + ": " + err.Error()})
 				continue
 			}
-			prov, model = p, resolved
+			// A router that answers with no provider means "the one
+			// already in use serves it" — taking it literally would send
+			// the call to a nil provider. sideQuery reads it the same way.
+			if p != nil {
+				prov = p
+			}
+			if resolved != "" {
+				model = resolved
+			}
 		}
 		emit(Event{Kind: EvDiscard})
 		emit(Event{Kind: EvNotice, Text: textfmt.FirstLine(cause.Error(), 70) + " · falling back to " + model})

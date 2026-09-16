@@ -106,7 +106,11 @@ func (a *Agent) sideQuery(ctx context.Context, system, question, model string, m
 		return "", model, fmt.Errorf("empty reply")
 	}
 	a.addUsage(resp.Usage)
-	a.lastCallModel = model
+	// lastCallModel is which model answered the *turn's* call, for the
+	// assistant event logged next to it. A side query is not that call,
+	// and the advisor tool runs in the parallel half of the tool loop, so
+	// writing it here both mislabelled the event and raced the turn
+	// goroutine that reads it.
 	text := advisorReplyText(resp.Message)
 	if text == "" {
 		return "", model, fmt.Errorf("empty reply")
@@ -131,12 +135,22 @@ func advisorReplyText(msg llm.Message) string {
 	return last
 }
 
+// sideTranscript flattens the tail of a conversation into plain text
+// messages for a side query. Tool calls and results become text, so the
+// request needs no tool schemas and nothing has to be paired.
+//
+// The result always starts on a user message: taking the last `keep`
+// messages lands on an assistant turn half the time, and a request whose
+// first message is from the assistant is refused outright by Anthropic.
 func sideTranscript(src []llm.Message, keep, textMax, resultMax int) []llm.Message {
 	if keep <= 0 {
 		keep = 8
 	}
 	if len(src) > keep {
 		src = src[len(src)-keep:]
+	}
+	for len(src) > 0 && src[0].Role != llm.RoleUser {
+		src = src[1:]
 	}
 	out := make([]llm.Message, 0, len(src))
 	for _, m := range src {
@@ -146,22 +160,15 @@ func sideTranscript(src []llm.Message, keep, textMax, resultMax int) []llm.Messa
 			case llm.BlockThinking:
 				continue
 			case llm.BlockText:
-				t := strings.TrimSpace(b.Text)
+				t := prefix(b.Text, orAll(textMax, len(b.Text)))
 				if t == "" {
 					continue
-				}
-				if textMax > 0 && len(t) > textMax {
-					t = t[:textMax]
 				}
 				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: t})
 			case llm.BlockToolUse:
 				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: "called " + b.Name})
 			case llm.BlockToolResult:
-				t := strings.TrimSpace(b.Text)
-				if resultMax > 0 && len(t) > resultMax {
-					t = t[:resultMax]
-				}
-				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: t})
+				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: prefix(b.Text, orAll(resultMax, len(b.Text)))})
 			}
 		}
 		if len(blocks) == 0 {
@@ -170,4 +177,13 @@ func sideTranscript(src []llm.Message, keep, textMax, resultMax int) []llm.Messa
 		out = append(out, llm.Message{Role: m.Role, Blocks: blocks})
 	}
 	return out
+}
+
+// orAll is max when it bounds anything, else all: a cap of zero or less
+// means "no cap".
+func orAll(max, all int) int {
+	if max > 0 {
+		return max
+	}
+	return all
 }

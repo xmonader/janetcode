@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -307,6 +308,10 @@ func (s *Script) Run(ctx context.Context, input json.RawMessage) (string, error)
 
 	srv := &rpc{parent: s.Parent, max: scriptMaxCalls}
 	go srv.serve(ctx, ln)
+	// No tool call the script started may still be running once this
+	// returns: the model is told what the script did, and a call landing
+	// after that would change the workspace behind the report.
+	defer srv.shutdown()
 
 	cmd := exec.CommandContext(ctx, py, script)
 	cmd.Dir = s.root()
@@ -321,6 +326,7 @@ func (s *Script) Run(ctx context.Context, input json.RawMessage) (string, error)
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	runErr := cmd.Run()
 	ln.Close()
+	srv.shutdown()
 
 	return s.report(stdout.String(), stderr.String(), runErr, srv.count(), ctx.Err()), nil
 }
@@ -332,8 +338,12 @@ func (s *Script) report(stdout, stderr string, runErr error, calls int, ctxErr e
 	var b strings.Builder
 	out := strings.TrimRight(stdout, "\n")
 	if len(out) > scriptMaxOutput {
-		head := scriptMaxOutput * 2 / 3
-		out = out[:head] + fmt.Sprintf("\n\n... [%d bytes of output dropped; print less] ...\n\n", len(out)-scriptMaxOutput) + out[len(out)-(scriptMaxOutput-head):]
+		// Both cuts are pulled back to a rune boundary: a script printing
+		// anything but ASCII would otherwise put a half-written rune into
+		// the conversation at each end of the gap.
+		head := runeStartAtOrBefore(out, scriptMaxOutput*2/3)
+		tail := runeStartAtOrBefore(out, len(out)-(scriptMaxOutput-head))
+		out = out[:head] + fmt.Sprintf("\n\n... [%d bytes of output dropped; print less] ...\n\n", tail-head) + out[tail:]
 	}
 	if out != "" {
 		b.WriteString(out)
@@ -357,6 +367,22 @@ func (s *Script) report(stdout, stderr string, runErr error, calls int, ctxErr e
 	return b.String()
 }
 
+// runeStartAtOrBefore is i moved back until it indexes the first byte of
+// a rune (or the end of the string), so a byte-budgeted cut never splits
+// one.
+func runeStartAtOrBefore(s string, i int) int {
+	if i >= len(s) {
+		return len(s)
+	}
+	if i < 0 {
+		return 0
+	}
+	for i > 0 && !utf8.RuneStart(s[i]) {
+		i--
+	}
+	return i
+}
+
 func nl(b *strings.Builder) {
 	if b.Len() > 0 {
 		b.WriteString("\n")
@@ -370,6 +396,19 @@ type rpc struct {
 
 	mu sync.Mutex
 	n  int
+	// call serialises the calls themselves. The stub keeps one connection
+	// behind a lock, but a script that opens a second one (a thread that
+	// imports the module again, a subprocess) would otherwise reach
+	// runNested from two goroutines at once — and the agent state it
+	// touches, the provenance record and the per-turn mutation counters,
+	// belongs to the serial half of the tool loop.
+	call sync.Mutex
+	// conns are the connections still open, and handlers counts the
+	// goroutines serving them, so shutdown can make sure no tool call is
+	// still running once the tool has reported.
+	conns    map[net.Conn]bool
+	closed   bool
+	handlers sync.WaitGroup
 }
 
 func (r *rpc) count() int {
@@ -378,13 +417,58 @@ func (r *rpc) count() int {
 	return r.n
 }
 
+// track registers a connection, or reports false once shutdown has begun.
+func (r *rpc) track(conn net.Conn) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return false
+	}
+	if r.conns == nil {
+		r.conns = map[net.Conn]bool{}
+	}
+	r.conns[conn] = true
+	return true
+}
+
+func (r *rpc) untrack(conn net.Conn) {
+	r.mu.Lock()
+	delete(r.conns, conn)
+	r.mu.Unlock()
+}
+
+// shutdown closes every open connection and waits for the handlers to
+// return. A script that leaves a grandchild holding the socket would
+// otherwise keep making tool calls after the tool that started it has
+// already reported its result to the model; closing the connections is
+// what makes the wait finite.
+func (r *rpc) shutdown() {
+	r.mu.Lock()
+	r.closed = true
+	for c := range r.conns {
+		c.Close()
+	}
+	r.conns = nil
+	r.mu.Unlock()
+	r.handlers.Wait()
+}
+
 func (r *rpc) serve(ctx context.Context, ln net.Listener) {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			return
 		}
-		go r.handle(ctx, conn)
+		if !r.track(conn) {
+			conn.Close()
+			return
+		}
+		r.handlers.Add(1)
+		go func() {
+			defer r.handlers.Done()
+			defer r.untrack(conn)
+			r.handle(ctx, conn)
+		}()
 	}
 }
 
@@ -426,6 +510,8 @@ func (r *rpc) dispatch(ctx context.Context, name string, input json.RawMessage) 
 	if len(input) == 0 {
 		input = json.RawMessage("{}")
 	}
+	r.call.Lock()
+	defer r.call.Unlock()
 	out, isErr, _ := r.parent.runNested(ctx, fmt.Sprintf("script-%d", n), name, input)
 	if isErr {
 		return "", out
