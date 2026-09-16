@@ -191,6 +191,25 @@ type server struct {
 	// held.
 	dirMu sync.RWMutex
 	dir   string
+
+	// sessMu guards opts.Session, the one option /new, /load and /fork
+	// replace while other requests are reading it. Everything reads it
+	// through sess().
+	sessMu sync.RWMutex
+}
+
+// sess is the session this server is logging to, or nil.
+func (s *server) sess() *session.Session {
+	s.sessMu.RLock()
+	defer s.sessMu.RUnlock()
+	return s.opts.Session
+}
+
+// setSession points the server at another session (/new, /load, /fork).
+func (s *server) setSession(v *session.Session) {
+	s.sessMu.Lock()
+	s.opts.Session = v
+	s.sessMu.Unlock()
 }
 
 // cwd is the directory this session is rooted at.
@@ -375,9 +394,9 @@ func (s *server) hello() helloPayload {
 		h.ReadOnly = modes.ReadOnly
 		h.Mode = sessionMode(s.opts.Agent)
 	}
-	if s.opts.Session != nil {
-		h.Session = s.opts.Session.Meta.ID
-		h.Title = s.opts.Session.Meta.Title
+	if s.sess() != nil {
+		h.Session = s.sess().Meta.ID
+		h.Title = s.sess().Meta.Title
 	}
 	return h
 }

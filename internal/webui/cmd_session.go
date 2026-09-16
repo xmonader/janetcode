@@ -53,7 +53,7 @@ func (s *server) model(arg string) {
 // fork branches the conversation: the fork continues here, the original
 // stays untouched on disk.
 func (s *server) fork(arg string) error {
-	if s.opts.Session == nil {
+	if s.sess() == nil {
 		return fmt.Errorf("no session to fork")
 	}
 	s.mu.Lock()
@@ -63,7 +63,7 @@ func (s *server) fork(arg string) error {
 		return fmt.Errorf("wait for the current turn to finish before forking")
 	}
 	stay, title := session.StayArg(arg)
-	ns, err := session.Fork(filepath.Dir(s.opts.Session.Path()), s.opts.Session, title)
+	ns, err := session.Fork(filepath.Dir(s.sess().Path()), s.sess(), title)
 	if err != nil {
 		return err
 	}
@@ -71,8 +71,8 @@ func (s *server) fork(arg string) error {
 		s.notice(fmt.Sprintf("forked → %s · this session stays here, resume the copy to take the other path", ns.Meta.ID))
 		return nil
 	}
-	old := s.opts.Session.Label()
-	s.opts.Session = ns
+	old := s.sess().Label()
+	s.setSession(ns)
 	s.opts.CD.SetSession(ns)
 	if err := s.opts.Agent.ForkSession(ns); err != nil {
 		s.errf("fork: %v", err)
@@ -125,8 +125,8 @@ func (s *server) pin(arg string) {
 }
 
 func (s *server) export(path string) {
-	if path == "" && s.opts.Session != nil {
-		path = "janetcode-" + s.opts.Session.Meta.ID + ".md"
+	if path == "" && s.sess() != nil {
+		path = "janetcode-" + s.sess().Meta.ID + ".md"
 	}
 	if path == "" {
 		s.errf("usage: /export [file.md]")

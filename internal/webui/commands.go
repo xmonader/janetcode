@@ -460,11 +460,11 @@ func (s *server) cmdUnpin(arg string) (bool, error) {
 }
 
 func (s *server) cmdTitle(arg string) (bool, error) {
-	if arg == "" || s.opts.Session == nil {
+	if arg == "" || s.sess() == nil {
 		s.errf("usage: /title <text>")
 		return true, nil
 	}
-	if err := s.opts.Session.SetTitle(arg); err != nil {
+	if err := s.sess().SetTitle(arg); err != nil {
 		s.errf("title: %v", err)
 		return true, nil
 	}
@@ -482,11 +482,11 @@ func (s *server) cmdFork(arg string) (bool, error) {
 }
 
 func (s *server) cmdSettle(arg string) (bool, error) {
-	if s.opts.Session == nil {
+	if s.sess() == nil {
 		s.errf("no session to settle")
 		return true, nil
 	}
-	settled, err := s.opts.Session.ToggleSettled()
+	settled, err := s.sess().ToggleSettled()
 	if err != nil {
 		s.errf("settle: %v", err)
 		return true, nil
@@ -509,11 +509,11 @@ func (s *server) cmdWhy(arg string) (bool, error) {
 		}
 		n = v
 	}
-	if s.opts.Session == nil {
+	if s.sess() == nil {
 		s.errf("no session")
 		return true, nil
 	}
-	s.sheet("why", agent.WhyLast(s.opts.Session.Events(), n))
+	s.sheet("why", agent.WhyLast(s.sess().Events(), n))
 	return false, nil
 }
 

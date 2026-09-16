@@ -256,7 +256,7 @@ func (s *server) newChat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]string{"ok": "1", "session": s.opts.Session.Meta.ID})
+	writeJSON(w, map[string]string{"ok": "1", "session": s.sess().Meta.ID})
 }
 
 func (s *server) startNewSession() error {
@@ -272,7 +272,7 @@ func (s *server) startNewSession() error {
 	if err != nil {
 		return err
 	}
-	s.opts.Session = sess
+	s.setSession(sess)
 	s.opts.CD.SetSession(sess)
 	if s.opts.Agent != nil {
 		if err := s.opts.Agent.OpenSession(sess, nil); err != nil {
@@ -329,7 +329,7 @@ func (s *server) loadSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "that session belongs to a different directory", http.StatusBadRequest)
 		return
 	}
-	s.opts.Session = sess
+	s.setSession(sess)
 	s.opts.CD.SetSession(sess)
 	if s.opts.Agent != nil {
 		if err := s.opts.Agent.OpenSession(sess, append([]llm.Message(nil), msgs...)); err != nil {

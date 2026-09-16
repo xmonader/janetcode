@@ -14,6 +14,6 @@ import (
 // check once at the task's start state.
 func (s *server) evalKeep(arg string) {
 	s.runBusy("keeping the eval", func(ctx context.Context) {
-		s.showResult(eval.KeepCommand(ctx, eval.KeepOptions{Root: s.cwd(), Session: s.opts.Session}, arg))
+		s.showResult(eval.KeepCommand(ctx, eval.KeepOptions{Root: s.cwd(), Session: s.sess()}, arg))
 	})
 }

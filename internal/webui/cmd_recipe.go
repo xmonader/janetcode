@@ -56,8 +56,8 @@ func (s *server) showRecipe(name string) {
 // [k=v...] through Agent.RecipeSave.
 func (s *server) saveRecipe(rest string) {
 	sessionID := ""
-	if s.opts.Session != nil {
-		sessionID = s.opts.Session.Meta.ID
+	if s.sess() != nil {
+		sessionID = s.sess().Meta.ID
 	}
 	s.showResult(s.opts.Agent.RecipeSave(sessionID, s.cwd(), rest))
 }
