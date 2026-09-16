@@ -17,7 +17,7 @@ func (a *Agent) SuggestFollowup(ctx context.Context) (string, error) {
 	if s.Provider == nil {
 		return "", fmt.Errorf("no provider")
 	}
-	msgs := followupMessages(a.MessagesSnapshot())
+	msgs := sideTranscript(a.MessagesSnapshot(), 6, 1500, 400)
 	if len(msgs) == 0 {
 		return "", nil
 	}
@@ -40,45 +40,6 @@ func (a *Agent) SuggestFollowup(ctx context.Context) (string, error) {
 	}
 	a.addUsage(resp.Usage)
 	return clampFollowup(resp.Message.Text()), nil
-}
-
-func followupMessages(src []llm.Message) []llm.Message {
-	const keep = 6
-	if len(src) > keep {
-		src = src[len(src)-keep:]
-	}
-	out := make([]llm.Message, 0, len(src))
-	for _, m := range src {
-		var blocks []llm.Block
-		for _, b := range m.Blocks {
-			switch b.Type {
-			case llm.BlockThinking:
-				continue
-			case llm.BlockText:
-				t := strings.TrimSpace(b.Text)
-				if t == "" {
-					continue
-				}
-				if len(t) > 1500 {
-					t = t[:1500]
-				}
-				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: t})
-			case llm.BlockToolUse:
-				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: "called " + b.Name})
-			case llm.BlockToolResult:
-				t := strings.TrimSpace(b.Text)
-				if len(t) > 400 {
-					t = t[:400]
-				}
-				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: t})
-			}
-		}
-		if len(blocks) == 0 {
-			continue
-		}
-		out = append(out, llm.Message{Role: m.Role, Blocks: blocks})
-	}
-	return out
 }
 
 func clampFollowup(s string) string {

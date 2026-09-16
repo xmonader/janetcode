@@ -145,23 +145,35 @@ func (a *Agent) SetGoalPhase(id, phase, reason string) {
 // ctx bounds the optional planner/skeptic side query; the prompt itself
 // is still built if that query fails or is skipped.
 func (a *Agent) GoalContinuation(ctx context.Context) string {
-	if a.Log == nil {
+	g, ok := a.nextGoalRound()
+	if !ok {
 		return ""
+	}
+	body := goalPrompt(g)
+	if note := a.goalRoleNote(ctx, g); note != "" {
+		body += "\n\n" + note
+	}
+	return body
+}
+
+func (a *Agent) nextGoalRound() (Goal, bool) {
+	if a.Log == nil {
+		return Goal{}, false
 	}
 	g := ActiveGoal(a.Log.Events())
 	if g == nil || g.Rounds >= g.MaxRounds {
-		return ""
+		return Goal{}, false
 	}
 	a.logEvent(session.Event{Type: session.TypeGoalRound, Name: g.ID})
+	return *g, true
+}
+
+func goalPrompt(g Goal) string {
 	lead := "Continue the goal: "
 	if g.Rounds == 0 {
 		lead = "Work on this goal until it is complete or you are blocked: "
 	}
-	body := lead + g.Objective + "\n(This is round " + fmt.Sprint(g.Rounds+1) + " of at most " + fmt.Sprint(g.MaxRounds) + ". Rounds are a budget, not a plan: finish in one if you can. Call goal_status complete only when the objective is fully met, or blocked with the reason; the user sees that call, so do not announce rounds in your reply.)"
-	if note := a.goalRoleNote(ctx, *g); note != "" {
-		body += "\n\n" + note
-	}
-	return body
+	return lead + g.Objective + "\n(This is round " + fmt.Sprint(g.Rounds+1) + " of at most " + fmt.Sprint(g.MaxRounds) + ". Rounds are a budget, not a plan: finish in one if you can. Call goal_status complete only when the objective is fully met, or blocked with the reason; the user sees that call, so do not announce rounds in your reply.)"
 }
 
 // GoalStatus is the model-facing tool to finish or block the active goal.

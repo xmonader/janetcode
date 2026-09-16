@@ -4,6 +4,7 @@ import (
 	"math"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
@@ -52,6 +53,9 @@ type turnMonitor struct {
 	loopMu  sync.Mutex
 	coach   coach
 	coachMu sync.Mutex // read_file runs in parallel goroutines
+
+	advisorUses     int32
+	compactPrefired bool
 }
 
 // Stats returns a snapshot of the counters.
@@ -92,11 +96,13 @@ func (m *turnMonitor) TurnUsage() llm.Usage {
 	return m.turnUse
 }
 
-// startTurn resets the per-turn usage.
+// startTurn resets per-turn counters: usage, advisor quota, compact prefire.
 func (m *turnMonitor) startTurn() {
 	m.usageMu.Lock()
 	m.turnUse = llm.Usage{}
 	m.usageMu.Unlock()
+	atomic.StoreInt32(&m.advisorUses, 0)
+	m.compactPrefired = false
 }
 
 // UsageSnapshot is a copy of the usage so far, safe to read while a turn

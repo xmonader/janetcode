@@ -21,8 +21,9 @@ func (a *Agent) goalRoleNote(ctx context.Context, g Goal) string {
 	if a == nil || g.Objective == "" || strings.TrimSpace(a.AdvisorModel) == "" {
 		return ""
 	}
-	if ctx == nil {
-		ctx = context.Background()
+	if ctx == nil || ctx.Err() != nil {
+		// No invented Background(): no caller context means no I/O.
+		return ""
 	}
 	ctx, cancel := context.WithTimeout(ctx, goalRoleTimeout)
 	defer cancel()

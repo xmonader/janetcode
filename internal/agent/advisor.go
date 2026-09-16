@@ -70,7 +70,7 @@ func (a *Agent) sideQuery(ctx context.Context, system, question, model string, m
 	if s.Provider == nil {
 		return "", "", fmt.Errorf("no provider")
 	}
-	msgs := sideTranscript(a.MessagesSnapshot())
+	msgs := sideTranscript(a.MessagesSnapshot(), 8, 2000, 600)
 	msgs = append(msgs, llm.TextMessage(llm.RoleUser, question))
 	if strings.TrimSpace(model) == "" {
 		model = s.Model
@@ -131,8 +131,10 @@ func advisorReplyText(msg llm.Message) string {
 	return last
 }
 
-func sideTranscript(src []llm.Message) []llm.Message {
-	const keep = 8
+func sideTranscript(src []llm.Message, keep, textMax, resultMax int) []llm.Message {
+	if keep <= 0 {
+		keep = 8
+	}
 	if len(src) > keep {
 		src = src[len(src)-keep:]
 	}
@@ -148,16 +150,16 @@ func sideTranscript(src []llm.Message) []llm.Message {
 				if t == "" {
 					continue
 				}
-				if len(t) > 2000 {
-					t = t[:2000]
+				if textMax > 0 && len(t) > textMax {
+					t = t[:textMax]
 				}
 				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: t})
 			case llm.BlockToolUse:
 				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: "called " + b.Name})
 			case llm.BlockToolResult:
 				t := strings.TrimSpace(b.Text)
-				if len(t) > 600 {
-					t = t[:600]
+				if resultMax > 0 && len(t) > resultMax {
+					t = t[:resultMax]
 				}
 				blocks = append(blocks, llm.Block{Type: llm.BlockText, Text: t})
 			}

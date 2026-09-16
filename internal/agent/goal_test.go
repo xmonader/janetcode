@@ -169,3 +169,24 @@ func TestGoalStatusWithNoGoalAtAllStillErrors(t *testing.T) {
 		t.Fatal("marking a goal that was never created should be an error")
 	}
 }
+
+func TestGoalContinuationWithoutAdvisorModelDoesNoIO(t *testing.T) {
+	a := &Agent{Log: &session.Memory{}, AdvisorModel: ""}
+	a.CreateGoal("ship it", 2)
+	got := a.GoalContinuation(context.Background())
+	if !strings.Contains(got, "ship it") || strings.Contains(got, "[planner]") {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestGoalRoleNoteSkipsWhenContextIsDone(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	a := &Agent{AdvisorModel: "z-ai/glm-5.3"}
+	if note := a.goalRoleNote(ctx, Goal{Objective: "ship it", Rounds: 0, MaxRounds: 3}); note != "" {
+		t.Fatalf("cancelled ctx still queried: %q", note)
+	}
+	if note := a.goalRoleNote(nil, Goal{Objective: "ship it"}); note != "" {
+		t.Fatalf("nil ctx invented a Background query: %q", note)
+	}
+}

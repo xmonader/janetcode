@@ -92,7 +92,9 @@ func (s *Store) ApplyDream(ops []DreamOp) (changed int, err error) {
 					continue
 				}
 				if e, ok := s.Get(name); ok && e.Source != "user" {
-					_, _ = s.Remove(name)
+					if _, rerr := s.Remove(name); rerr != nil {
+						return changed, rerr
+					}
 				}
 			}
 		}
