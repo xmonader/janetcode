@@ -144,15 +144,28 @@ type toolAcc struct {
 // frame so a stream that keeps talking is never cut off for being idle.
 func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Response, error) {
 	sc := bufio.NewScanner(r)
-	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
+	// The scanner grows its buffer as a line needs it, so start small —
+	// all but a handful of frames fit in a few kilobytes — and keep the
+	// cap high enough for one enormous tool-call frame.
+	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	st := newStreamState(emit)
 	var gotDone, gotChunk bool
+	// What a server that is not speaking SSE at all sent instead, kept so
+	// the failure names it rather than saying the stream was empty: a
+	// plain JSON body, an HTML error page from a proxy, a login redirect.
+	var preamble strings.Builder
 	// Blocks are emitted in the order: thinking, text, tool calls, matching how
 	// the model produced them well enough for history replay.
 	for sc.Scan() {
 		wd.Tick()
 		line := sc.Text()
 		if !strings.HasPrefix(line, "data:") {
+			// ":" opens an SSE comment, the usual keep-alive; anything
+			// else non-blank is a field we do not use, or not SSE at all.
+			if t := strings.TrimSpace(line); t != "" && !strings.HasPrefix(t, ":") && preamble.Len() < 400 {
+				preamble.WriteString(t)
+				preamble.WriteByte('\n')
+			}
 			continue
 		}
 		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
@@ -180,6 +193,9 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 		return nil, fmt.Errorf("openai: stream read: %w", err)
 	}
 	if !gotChunk {
+		if body := strings.TrimSpace(preamble.String()); body != "" {
+			return nil, fmt.Errorf("openai: no stream frames from server: %.300s", body)
+		}
 		return nil, errors.New("openai: empty stream from server")
 	}
 	if !gotDone && st.finish == "" {
@@ -296,6 +312,7 @@ func (s *streamState) addToolCall(pos int, tc wireDeltaToolCall) {
 // response builds the assistant message from a completed stream.
 func (s *streamState) response() (*llm.Response, error) {
 	msg := llm.Message{Role: llm.RoleAssistant}
+	calls := 0
 	if s.thinking.Len() > 0 {
 		msg.Blocks = append(msg.Blocks, llm.Block{Type: llm.BlockThinking, Text: s.thinking.String()})
 	}
@@ -308,23 +325,36 @@ func (s *streamState) response() (*llm.Response, error) {
 	for _, idx := range s.order {
 		acc := s.tools[idx]
 		args := strings.TrimSpace(acc.args.String())
+		// A call with no function name is not a call: nothing can be run,
+		// and put back in the history as a tool_use with an empty name it
+		// makes every later turn invalid for the provider. A slot that
+		// accumulated nothing at all is a delta that carried no call and
+		// is dropped; one that carried an id or arguments is reported,
+		// because dropping it would silently lose what the model asked
+		// for and leave the turn looking like it just stopped.
+		if acc.name == "" {
+			if args == "" && acc.id == "" {
+				continue
+			}
+			return nil, fmt.Errorf("openai: tool call %q has no function name: %.200s", acc.id, args)
+		}
 		if args == "" {
 			args = "{}"
 		}
 		if !json.Valid([]byte(args)) {
 			return nil, fmt.Errorf("openai: tool call %s has invalid JSON arguments: %.200s", acc.name, args)
 		}
+		// acc.started is always true here: addToolCall starts a call as
+		// soon as it has a name, which is what got it past the guard above.
 		b := llm.Block{Type: llm.BlockToolUse, ID: acc.id, Name: acc.name, Input: json.RawMessage(args)}
-		if !acc.started {
-			s.emit(llm.Event{Type: llm.EventToolUseStart, Block: &b})
-		}
 		s.emit(llm.Event{Type: llm.EventToolUseEnd, Block: &b})
 		msg.Blocks = append(msg.Blocks, b)
+		calls++
 	}
 	if len(msg.Blocks) == 0 {
 		msg.Blocks = []llm.Block{{Type: llm.BlockText, Text: ""}}
 	}
-	return &llm.Response{Message: msg, StopReason: stopReason(s.finish, len(s.order) > 0), Usage: s.usage}, nil
+	return &llm.Response{Message: msg, StopReason: stopReason(s.finish, calls > 0), Usage: s.usage}, nil
 }
 
 // stopReason maps finish_reason; a response that called tools stops for

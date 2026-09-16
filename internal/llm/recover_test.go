@@ -2,8 +2,10 @@ package llm
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 func args(t *testing.T, c RecoveredCall) map[string]any {
@@ -131,5 +133,52 @@ func TestRecoveredBlocksHaveDistinctIDs(t *testing.T) {
 	}
 	if blocks[0].Type != BlockToolUse {
 		t.Fatalf("type = %v", blocks[0].Type)
+	}
+}
+
+// Where a block sits relative to the code fences around it decides
+// whether it is a call or an example of one. These are the shapes that
+// decide it, pinned before and after the scan was made linear.
+func TestRecoverToolCallsAndFences(t *testing.T) {
+	call := "<invoke name=\"read_file\">\n<parameter name=\"path\">a</parameter>\n</invoke>"
+	for _, tc := range []struct {
+		name, text string
+		want       bool
+	}{
+		{"bare call", call, true},
+		{"inside a fence", "```\n" + call + "\n```", false},
+		{"inside a tilde fence", "~~~\n" + call + "\n~~~", false},
+		{"after a closed fence", "```\nexample\n```\n" + call, true},
+		{"after a fence closed by a longer one", "```\nx\n````\n" + call, true},
+		// A fence is closed by its own character, not by the other one.
+		{"a tilde does not close a backtick fence", "```\n~~~\n" + call + "\n```", false},
+		// An info string on the closing line means it opens, not closes.
+		{"a second opener is not a closer", "```go\nx\n```go\n" + call, false},
+		{"indented fence still opens", "   ```\n" + call + "\n   ```", false},
+		{"four spaces is not a fence", "    ```\n" + call, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls, _, ok := RecoverToolCalls(tc.text)
+			if ok != tc.want {
+				t.Fatalf("recovered %v (%d calls), want %v", ok, len(calls), tc.want)
+			}
+		})
+	}
+}
+
+// A reply that is nothing but blocks must not cost time quadratic in its
+// length: the fences are found once, not once per block.
+func TestRecoverToolCallsManyBlocks(t *testing.T) {
+	var sb strings.Builder
+	for i := range 400 {
+		fmt.Fprintf(&sb, "<invoke name=\"read_file\">\n<parameter name=\"path\">f%d</parameter>\n</invoke>\n", i)
+	}
+	start := time.Now()
+	calls, _, ok := RecoverToolCalls(sb.String())
+	if !ok || len(calls) != 400 {
+		t.Fatalf("recovered %v, %d calls", ok, len(calls))
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("400 blocks took %s", d)
 	}
 }

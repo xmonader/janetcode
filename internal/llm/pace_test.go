@@ -2,6 +2,8 @@ package llm
 
 import (
 	"context"
+	"sort"
+	"sync"
 	"testing"
 	"time"
 )
@@ -67,5 +69,49 @@ func TestPacerSpacesCallsAndHonoursCancel(t *testing.T) {
 	cancel()
 	if err := p.Wait(ctx); err == nil {
 		t.Fatal("a cancelled context should return promptly with an error")
+	}
+}
+
+// Two callers that arrive together must not both start together: the
+// slot each one claims is the one the next is spaced from. Reading the
+// gap under the lock and writing the claim after releasing it let both
+// compute the same due time from the same predecessor.
+func TestPacerSerialisesConcurrentCallers(t *testing.T) {
+	p := Pacer{Base: 30 * time.Millisecond}
+	p.Refused()
+	if err := p.Wait(context.Background()); err != nil { // claim the first slot
+		t.Fatal(err)
+	}
+	const n = 4
+	starts := make(chan time.Duration, n)
+	begin := make(chan struct{})
+	origin := time.Now()
+	var wg sync.WaitGroup
+	for range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-begin
+			if err := p.Wait(context.Background()); err != nil {
+				return
+			}
+			starts <- time.Since(origin)
+		}()
+	}
+	close(begin)
+	wg.Wait()
+	close(starts)
+	var got []time.Duration
+	for d := range starts {
+		got = append(got, d)
+	}
+	if len(got) != n {
+		t.Fatalf("%d callers returned, want %d", len(got), n)
+	}
+	sort.Slice(got, func(i, j int) bool { return got[i] < got[j] })
+	// The last of four callers waits three gaps behind the first slot,
+	// give or take the scheduler; before the fix they all left at once.
+	if got[n-1] < 3*30*time.Millisecond-10*time.Millisecond {
+		t.Fatalf("the last caller left after %s, want three gaps: %v", got[n-1], got)
 	}
 }
