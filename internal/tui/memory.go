@@ -92,6 +92,12 @@ func (m *model) memoryCommand(cmd, arg string) {
 		default:
 			m.note("remembered: " + memoryLine(e))
 		}
+		// The index is frozen for cache's sake, but a fact the user just
+		// typed should be in the very next prompt, not wait for a
+		// compaction to be visible.
+		if err == nil {
+			m.opts.Agent.RefreshExtra()
+		}
 	case "/forget":
 		if arg == "" {
 			m.transcript.errorf("usage: /forget <name or number from /memory>")
@@ -103,6 +109,7 @@ func (m *model) memoryCommand(cmd, arg string) {
 			return
 		}
 		m.note("forgot " + gone.Name + ": " + gone.Description)
+		m.opts.Agent.RefreshExtra()
 	default:
 		entries := store.Entries()
 		if len(entries) == 0 {
