@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/xmonader/janetcode/internal/shell"
@@ -392,10 +393,8 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 			r.logf("%s: only the first %d hooks ran (hooks.limits.per_event)", in.Event, lim.PerEvent)
 			break
 		}
-		if h.Match != "" && in.Tool != "" {
-			if ok, _ := regexp.MatchString(h.Match, in.Tool); !ok {
-				continue
-			}
+		if h.Match != "" && in.Tool != "" && !matchesTool(h.Match, in.Tool) {
+			continue
 		}
 		in.Input = res.Input
 		out, exit, err := r.exec(ctx, h, in)
@@ -462,6 +461,29 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 	return res
 }
 
+// matchers memoises compiled Match patterns. A hook's match is checked on
+// every tool call of the session, and compiling the same handful of
+// patterns each time is work with one answer. The key is the pattern
+// text; the set is bounded by the hooks in the config files, and a
+// pattern never changes meaning, so nothing invalidates it.
+var matchers sync.Map // pattern -> *regexp.Regexp
+
+// matchesTool reports whether a hook's Match applies to a tool. A pattern
+// that does not compile matches nothing, which is what the uncached
+// regexp.MatchString did with its error; Validate rejects those anyway.
+func matchesTool(pattern, tool string) bool {
+	v, ok := matchers.Load(pattern)
+	if !ok {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			return false
+		}
+		matchers.Store(pattern, re)
+		v = re
+	}
+	return v.(*regexp.Regexp).MatchString(tool)
+}
+
 type execOut struct{ stdout, stderr string }
 
 func (r *Runner) exec(ctx context.Context, h Hook, in Input) (execOut, int, error) {
@@ -523,6 +545,13 @@ func (c *capped) Write(p []byte) (int, error) {
 	if room := c.max - c.buf.Len(); room > 0 {
 		if room > len(p) {
 			room = len(p)
+		} else {
+			// Stop on a rune boundary: the kept text is pasted into the
+			// conversation, and half a character there is a replacement
+			// char the model reads as the hook's output.
+			for room > 0 && p[room]&0xC0 == 0x80 {
+				room--
+			}
 		}
 		c.buf.Write(p[:room])
 		c.dropped += len(p) - room
