@@ -235,10 +235,10 @@ func (r *root) webMode() error {
 		Inspect: subjects, Memory: mem, Jobs: jobs, Features: catalog, ConfigDir: cfgDir,
 		Typed: typed, Config: cfg, ConfigPath: cfgPath, Models: pool.For,
 		Workspace: built.ws, CD: built.cd, MCP: mcpOpts, Skills: built.skillInjector,
-		Doctor: func(w io.Writer) error {
+		Doctor: func(ctx context.Context, w io.Writer) error {
 			// The front-ends report; --fix is the command line's, so a
 			// running session never changes files behind the user.
-			return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme}, false)
+			return doctor(ctx, w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme}, false)
 		},
 	})
 }
@@ -295,10 +295,10 @@ func (r *root) tuiMode() error {
 		Running:       deps.running,
 		Typed:         typed,
 		AutoTitle:     true,
-		Doctor: func(w io.Writer) error {
+		Doctor: func(ctx context.Context, w io.Writer) error {
 			// The front-ends report; --fix is the command line's, so a
 			// running session never changes files behind the user.
-			return doctor(w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme}, false)
+			return doctor(ctx, w, config.Overrides{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, Theme: cfg.Theme}, false)
 		},
 		Verify: r.uiVerify,
 		Perms:  r.uiPerms,

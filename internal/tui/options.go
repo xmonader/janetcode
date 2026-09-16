@@ -3,6 +3,7 @@
 package tui
 
 import (
+	"context"
 	"io"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -79,8 +80,10 @@ type Options struct {
 	// AutoTitle asks the model for a short session title after the first turn.
 	AutoTitle bool
 	// Doctor writes the same checkup janetcode --doctor prints. Nil
-	// leaves /doctor as a short local note.
-	Doctor   func(io.Writer) error
+	// leaves /doctor as a short local note. It makes a live model call
+	// and reads the filesystem, so it takes the session's context and
+	// stops when the session does.
+	Doctor   func(context.Context, io.Writer) error
 	Agent    *agent.Agent
 	Session  *session.Session
 	Provider string

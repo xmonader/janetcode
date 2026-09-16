@@ -129,11 +129,14 @@ func (m *model) doctorCommand() tea.Cmd {
 	fn := m.opts.Doctor
 	ver := m.opts.Version
 	send := m.send
+	life := m.life
 	go func() {
 		var buf strings.Builder
 		var err error
 		if fn != nil {
-			err = fn(&buf)
+			// The checkup calls the model; quitting the session cancels
+			// it rather than leaving the call to finish into a void.
+			err = fn(life, &buf)
 		} else {
 			buf.WriteString("janetcode " + ver + "\n[ok] session checkup · pass --doctor on the CLI for a live model call\n")
 		}
