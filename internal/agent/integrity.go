@@ -3,7 +3,6 @@ package agent
 import (
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -45,13 +44,7 @@ func (a *Agent) checkIntegrity(emit func(Event)) {
 // arrives as a replacement character, so the cut never splits one.
 func prefix(s string, n int) string {
 	s = strings.TrimSpace(s)
-	if len(s) <= n {
-		return s
-	}
-	for n > 0 && !utf8.RuneStart(s[n]) {
-		n--
-	}
-	return s[:n]
+	return s[:runeStartAtOrBefore(s, n)]
 }
 
 func historyContains(msgs []llm.Message, want string) bool {
