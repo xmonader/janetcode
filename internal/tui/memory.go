@@ -9,14 +9,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/memory"
 )
 
 // extractMemory runs memory extraction in the background.
 func (m *model) extractMemory() tea.Cmd {
 	ag, store := m.opts.Agent, m.opts.Memory
-	msgs := append([]llm.Message(nil), ag.Messages...)
+	msgs := ag.MessagesSnapshot()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
 		defer cancel()

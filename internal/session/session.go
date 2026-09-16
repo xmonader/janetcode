@@ -275,6 +275,16 @@ func (s *Session) Events() []Event {
 	return append([]Event(nil), s.ev...)
 }
 
+// EventCount is how many records the log holds. It answers the question
+// "has anything been appended since I last looked?" without the copy of
+// every event that Events() makes — the terminal's status line asks on
+// every frame.
+func (s *Session) EventCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.ev)
+}
+
 // Append writes one event and returns the seq it was given. Seq is assigned
 // if zero. Prior events are never rewritten.
 func (s *Session) Append(e Event) (int, error) {

@@ -92,22 +92,52 @@ type harness struct {
 	msgs chan tea.Msg
 }
 
-func newHarness(t *testing.T, responses ...*llm.Response) *harness {
-	root := t.TempDir()
+// newSession is a session under its own temporary directory, for a model
+// rooted at root.
+func newSession(t *testing.T, root string) *session.Session {
+	t.Helper()
 	sess, err := session.New(t.TempDir(), root, "fake", "m")
 	if err != nil {
 		t.Fatal(err)
 	}
+	return sess
+}
+
+// fakeOptions is the Options every harness in this package starts from: a
+// scripted provider, a session of its own, and a working directory with
+// nothing in it. A test that needs one thing different takes these and
+// changes that field before handing them to newHarnessWith.
+func fakeOptions(t *testing.T, responses ...*llm.Response) Options {
+	t.Helper()
+	root := t.TempDir()
+	sess := newSession(t, root)
 	ag := &agent.Agent{Provider: &scripted{responses: responses}, Tools: tool.NewRegistry(tool.WriteFile{Root: root}), Model: "m", Log: sess, Root: root}
-	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"})
+	return Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, Version: "test"}
+}
+
+func newHarness(t *testing.T, responses ...*llm.Response) *harness {
+	t.Helper()
+	return newHarnessFor(t, fakeOptions(t, responses...))
+}
+
+// newHarnessFor builds the model for the given options and wraps it in
+// the pump harness. It is the one place that knows the wiring: every
+// background sender goes to the channel the test drains, the approver and
+// the asker are the model's, the terminal integration writes nowhere, and
+// the model is given its first window so it is laid out.
+func newHarnessFor(t *testing.T, opts Options) *harness {
+	t.Helper()
+	m := newModel(opts)
 	m.term.out = io.Discard // no escape sequences into the test's stdout
 	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
 	m.send = func(msg tea.Msg) { h.msgs <- msg }
 	m.queue.send = m.send
 	m.approver.send = m.send
 	m.asker.send = m.send
-	ag.Approver = m.approver
-	ag.Asker = m.asker
+	if ag := opts.Agent; ag != nil {
+		ag.Approver = m.approver
+		ag.Asker = m.asker
+	}
 	h.update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	return h
 }
@@ -225,14 +255,9 @@ func TestPermissionDenyWithReason(t *testing.T) {
 
 func TestEscCancelsRunningTurn(t *testing.T) {
 	blocker := &blocking{started: make(chan struct{})}
-	root := t.TempDir()
-	sess, _ := session.New(t.TempDir(), root, "fake", "m")
-	ag := &agent.Agent{Provider: blocker, Tools: tool.NewRegistry(), Model: "m"}
-	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root})
-	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
-	m.send = func(msg tea.Msg) { h.msgs <- msg }
-	m.queue.send = m.send
-	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	opts := fakeOptions(t)
+	opts.Agent.Provider = blocker
+	h := newHarnessFor(t, opts)
 	h.keys("slow")
 	h.enter()
 	<-blocker.started
@@ -255,14 +280,9 @@ func TestEscCancelsRunningTurn(t *testing.T) {
 
 func TestDoubleCtrlCForcesQuit(t *testing.T) {
 	blocker := &blocking{started: make(chan struct{})}
-	root := t.TempDir()
-	sess, _ := session.New(t.TempDir(), root, "fake", "m")
-	ag := &agent.Agent{Provider: blocker, Tools: tool.NewRegistry(), Model: "m"}
-	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root})
-	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
-	m.send = func(msg tea.Msg) { h.msgs <- msg }
-	m.queue.send = m.send
-	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	opts := fakeOptions(t)
+	opts.Agent.Provider = blocker
+	h := newHarnessFor(t, opts)
 	h.keys("slow")
 	h.enter()
 	<-blocker.started
@@ -846,14 +866,9 @@ func TestPromptHistoryRecall(t *testing.T) {
 }
 
 func TestInitialPromptIsSubmitted(t *testing.T) {
-	root := t.TempDir()
-	sess, _ := session.New(t.TempDir(), root, "fake", "m")
-	ag := &agent.Agent{Provider: &scripted{responses: []*llm.Response{{Message: llm.TextMessage(llm.RoleAssistant, "auto"), StopReason: llm.StopEndTurn}}}, Tools: tool.NewRegistry(), Model: "m"}
-	m := newModel(Options{Agent: ag, Session: sess, Provider: "fake", Cwd: root, InitialPrompt: "explain"})
-	h := &harness{t: t, m: m, msgs: make(chan tea.Msg, 100)}
-	m.send = func(msg tea.Msg) { h.msgs <- msg }
-	m.queue.send = m.send
-	h.update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	opts := fakeOptions(t, &llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "auto"), StopReason: llm.StopEndTurn})
+	opts.InitialPrompt = "explain"
+	h := newHarnessFor(t, opts)
 	if !h.m.turn.running {
 		t.Fatal("initial prompt not submitted")
 	}
@@ -890,6 +905,42 @@ func TestTailPath(t *testing.T) {
 	got := tailPath("/very/long/path/to/some/project/dir", 16)
 	if len([]rune(got)) > 16 || !strings.HasPrefix(got, "…/") || !strings.HasSuffix(got, "/dir") {
 		t.Fatalf("long: %q", got)
+	}
+	// A path of wide characters is wider than the budget while having
+	// fewer runes than it: the cut is in runes and the fit is in
+	// columns, which used to index before the start of the slice.
+	for _, p := range []string{
+		"/" + strings.Repeat("日", 12),
+		strings.Repeat("本", 30) + "/" + strings.Repeat("語", 4),
+		"日本語",
+	} {
+		if got := tailPath(p, 12); got == "" {
+			t.Fatalf("tailPath(%q) = %q", p, got)
+		}
+	}
+}
+
+// cutWords searches for a word boundary; the search has to count runes,
+// because a byte index used as a rune index either cuts a non-Latin
+// thought far too short or slices past the end of it and panics.
+func TestCutWordsCountsRunes(t *testing.T) {
+	if got := cutWords("one two three four five six seven", 20); got != "one two three four…" {
+		t.Fatalf("ascii: %q", got)
+	}
+	long := strings.Repeat("あ", 60) + " " + strings.Repeat("い", 60)
+	got := cutWords(long, 100)
+	if r := []rune(got); len(r) > 100 {
+		t.Fatalf("cut to %d runes: %q", len(r), got)
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Fatalf("no cut mark: %q", got)
+	}
+	// The boundary is the space at rune 60, which is past max/2.
+	if want := strings.Repeat("あ", 60) + "…"; got != want {
+		t.Fatalf("cut at the wrong place: %q", got)
+	}
+	if got := cutWords("abc", 0); got != "" {
+		t.Fatalf("max 0: %q", got)
 	}
 }
 
@@ -1861,6 +1912,37 @@ func TestAskTabsTwoQuestionsAndOther(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Label != agent.OtherLabel || got[0].Reason != "gamma" {
 		t.Fatalf("Other = %+v", got)
+	}
+}
+
+// A question belongs to the turn that asked it. When that turn ends
+// without an answer — cancelled, or failed — the overlay used to stay up
+// over the prompt, taking the whole keyboard and answering into a
+// channel nobody was reading any more.
+func TestATurnEndingClosesWhateverItWasAsking(t *testing.T) {
+	h := newHarness(t)
+	h.m.startTurn("thinking")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		_, _ = h.m.opts.Agent.Asker.Ask(ctx, []agent.Question{
+			{Prompt: "Which way?", Options: []agent.AskOption{{Label: "Left"}, {Label: "Right"}}},
+		})
+	}()
+	h.pump(func() bool { return h.m.asking != nil })
+
+	cancel()
+	h.update(agentDoneMsg{err: context.Canceled})
+	if h.m.asking != nil {
+		t.Fatal("the question outlived the turn that asked it")
+	}
+	if h.m.denying || h.m.pending != nil {
+		t.Fatal("a prompt outlived the turn")
+	}
+	// The prompt is usable again: the keyboard is not held by the overlay.
+	h.keys("next")
+	if h.m.input.Value() != "next" {
+		t.Fatalf("prompt not usable: %q", h.m.input.Value())
 	}
 }
 
@@ -3934,6 +4016,20 @@ func TestGoalRoundIsOneLine(t *testing.T) {
 	// The model still receives the full continuation.
 	if !strings.Contains(h.m.hist.lastUser, "Rounds are a budget") {
 		t.Fatalf("the model got %q", h.m.hist.lastUser)
+	}
+	// The status line's goal note is kept between frames — folding it out
+	// of the log copies every event of the session — and the log growing
+	// is what drops it: pausing the goal takes the note off the line on
+	// the very next frame, not whenever something else happened to
+	// invalidate it.
+	// (Read from goalLine rather than the rendered line: the status line
+	// cuts to the terminal width around a phase phrase picked at random.)
+	if got := h.m.goalLine(); !strings.Contains(got, "goal g1 round") {
+		t.Fatalf("the status line lost the goal: %q", got)
+	}
+	h.m.goalCommand("pause")
+	if got := h.m.goalLine(); got != "" {
+		t.Fatalf("a paused goal is still on the status line: %q", got)
 	}
 }
 
