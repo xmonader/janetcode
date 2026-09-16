@@ -618,15 +618,25 @@ func relTo(cwd, p string) string {
 }
 
 // cutWords shortens s to at most max characters at a word boundary, so a
-// folded thought never ends mid-word.
+// folded thought never ends mid-word. The search for that boundary counts
+// runes, not bytes: strings.LastIndex answers in bytes, and using its
+// answer as a rune index cut a thought in a non-Latin script short by
+// two thirds — or, once the byte index passed the rune count, panicked
+// with a slice out of range on a model's own reasoning.
 func cutWords(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
 	r := []rune(s)
 	if len(r) <= max {
 		return s
 	}
 	cut := max - 1
-	if i := strings.LastIndex(string(r[:cut]), " "); i > max/2 {
-		cut = i
+	for i := cut - 1; i > max/2; i-- {
+		if r[i] == ' ' {
+			cut = i
+			break
+		}
 	}
 	return strings.TrimRight(string(r[:cut]), " ,;:") + "…"
 }

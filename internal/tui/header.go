@@ -111,9 +111,21 @@ func tailPath(p string, max int) string {
 		return p
 	}
 	r := []rune(p)
-	r = r[len(r)-(max-1):]
-	if i := strings.IndexRune(string(r), '/'); i >= 0 && i < len(r)-1 {
-		r = r[i:]
+	// The test above is in columns and the cut below is in runes: a path
+	// of wide (or combining) characters can be too wide to fit and still
+	// have fewer runes than the budget, which used to index before the
+	// start of the slice and panic.
+	if keep := max - 1; keep < len(r) {
+		r = r[len(r)-keep:]
+	}
+	for i, c := range r {
+		// Start at a path separator so the tail is whole components. The
+		// index has to be counted in runes: strings.IndexRune answers in
+		// bytes, which cut a multi-byte path in the wrong place.
+		if c == '/' && i < len(r)-1 {
+			r = r[i:]
+			break
+		}
 	}
 	return "…" + string(r)
 }

@@ -891,6 +891,42 @@ func TestTailPath(t *testing.T) {
 	if len([]rune(got)) > 16 || !strings.HasPrefix(got, "…/") || !strings.HasSuffix(got, "/dir") {
 		t.Fatalf("long: %q", got)
 	}
+	// A path of wide characters is wider than the budget while having
+	// fewer runes than it: the cut is in runes and the fit is in
+	// columns, which used to index before the start of the slice.
+	for _, p := range []string{
+		"/" + strings.Repeat("日", 12),
+		strings.Repeat("本", 30) + "/" + strings.Repeat("語", 4),
+		"日本語",
+	} {
+		if got := tailPath(p, 12); got == "" {
+			t.Fatalf("tailPath(%q) = %q", p, got)
+		}
+	}
+}
+
+// cutWords searches for a word boundary; the search has to count runes,
+// because a byte index used as a rune index either cuts a non-Latin
+// thought far too short or slices past the end of it and panics.
+func TestCutWordsCountsRunes(t *testing.T) {
+	if got := cutWords("one two three four five six seven", 20); got != "one two three four…" {
+		t.Fatalf("ascii: %q", got)
+	}
+	long := strings.Repeat("あ", 60) + " " + strings.Repeat("い", 60)
+	got := cutWords(long, 100)
+	if r := []rune(got); len(r) > 100 {
+		t.Fatalf("cut to %d runes: %q", len(r), got)
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Fatalf("no cut mark: %q", got)
+	}
+	// The boundary is the space at rune 60, which is past max/2.
+	if want := strings.Repeat("あ", 60) + "…"; got != want {
+		t.Fatalf("cut at the wrong place: %q", got)
+	}
+	if got := cutWords("abc", 0); got != "" {
+		t.Fatalf("max 0: %q", got)
+	}
 }
 
 // raceEnabled is set by race_on_test.go; the race detector slows rendering
