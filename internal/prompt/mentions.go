@@ -3,11 +3,14 @@ package prompt
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
@@ -118,13 +121,25 @@ func attachmentBody(full string, fi os.FileInfo) string {
 	}
 	defer f.Close()
 	buf := make([]byte, MaxMentionBytes+1)
-	n, _ := f.Read(buf)
+	// ReadFull, not one Read: a single Read is allowed to return less
+	// than the buffer holds, and a short one silently attached the first
+	// few kilobytes of a file as if that were all of it.
+	n, err := io.ReadFull(f, buf)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return "(unreadable: " + err.Error() + ")"
+	}
 	buf = buf[:n]
 	if bytes.IndexByte(buf, 0) >= 0 {
 		return fmt.Sprintf("(binary file, %d bytes)", fi.Size())
 	}
 	if n > MaxMentionBytes {
-		return string(buf[:MaxMentionBytes]) + fmt.Sprintf("\n… truncated, %d bytes total", fi.Size())
+		// Cut on a rune boundary: half a rune at the end is invalid
+		// UTF-8, which providers reject outright.
+		cut := MaxMentionBytes
+		for cut > 0 && !utf8.RuneStart(buf[cut]) {
+			cut--
+		}
+		return string(buf[:cut]) + fmt.Sprintf("\n… truncated, %d bytes total", fi.Size())
 	}
 	return string(buf)
 }
