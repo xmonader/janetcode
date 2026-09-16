@@ -450,7 +450,10 @@ func (s *server) events(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
-		case e := <-ch:
+		case e, ok := <-ch:
+			if !ok {
+				return // fell behind; the browser reconnects and replays
+			}
 			writeSSE(w, e)
 			fl.Flush()
 		case <-tick.C:
@@ -491,6 +494,12 @@ func (s *server) emit(e envelope) {
 		select {
 		case ch <- e:
 		default:
+			// This page is not keeping up. Dropping the event on the
+			// floor left it quietly out of step with the session for as
+			// long as it stayed open; ending its stream instead makes the
+			// browser reconnect, and a new stream replays the log.
+			delete(s.subs, ch)
+			close(ch)
 		}
 	}
 	s.mu.Unlock()
@@ -542,19 +551,54 @@ func (s *server) submit(text string) error {
 	return nil
 }
 
-func (s *server) startTurn(text string) {
+// begin marks the session busy and returns the context the work runs on.
+// ok is false when something is already running: a turn, a shell command
+// and /compact each own the agent's history while they run, so only one
+// of them may. esc cancels the context; end releases it.
+func (s *server) begin(phase string) (context.Context, bool) {
 	s.mu.Lock()
 	if s.running {
 		s.mu.Unlock()
-		return
+		return nil, false
 	}
 	s.running = true
-	s.phase = "thinking"
+	s.phase = phase
 	s.started = time.Now()
-	s.status = ""
 	ctx, cancel := context.WithCancel(s.life)
 	s.cancel = cancel
 	s.mu.Unlock()
+	return ctx, true
+}
+
+// end marks the session idle and hands back the next queued prompt —
+// taken under the lock, so one arriving in the same moment is not lost —
+// and how long the work took. A failed turn drops the queue: what was
+// queued was queued behind work that did not happen.
+func (s *server) end(failed bool) (next string, elapsed time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.running = false
+	s.phase = ""
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil
+	}
+	elapsed = time.Since(s.started)
+	switch {
+	case failed:
+		s.queued = nil
+	case len(s.queued) > 0:
+		next, s.queued = s.queued[0], s.queued[1:]
+	}
+	return next, elapsed
+}
+
+func (s *server) startTurn(text string) {
+	ctx, ok := s.begin("thinking")
+	if !ok {
+		return
+	}
+	s.statusSet("")
 
 	s.add(entry{Kind: "user", Text: text})
 	s.add(entry{Kind: "thinking"})
@@ -580,29 +624,7 @@ func (s *server) startTurn(text string) {
 }
 
 func (s *server) finish(err error) {
-	s.mu.Lock()
-	s.running = false
-	s.phase = ""
-	if s.cancel != nil {
-		s.cancel()
-		s.cancel = nil
-	}
-	// Take the next queued prompt here, under the lock, and leave the
-	// rest. The queue used to be emptied into a local and the remainder
-	// written back after the next turn had already been started, so
-	// anything the user typed in between was overwritten and lost. A
-	// failed turn still drops the queue: what was queued was queued
-	// behind work that did not happen.
-	var next string
-	if err == nil {
-		if len(s.queued) > 0 {
-			next, s.queued = s.queued[0], s.queued[1:]
-		}
-	} else {
-		s.queued = nil
-	}
-	elapsed := time.Since(s.started)
-	s.mu.Unlock()
+	next, elapsed := s.end(err != nil)
 	switch {
 	case err == nil:
 		s.statusSet("done in " + textfmt.Duration(elapsed))
@@ -682,18 +704,11 @@ func (s *server) runShell(cmdline string) {
 		s.add(entry{Kind: "error", Text: "usage: !<command>", Error: true})
 		return
 	}
-	s.mu.Lock()
-	if s.running {
-		s.mu.Unlock()
+	ctx, ok := s.begin("running your command")
+	if !ok {
 		s.add(entry{Kind: "error", Text: "wait for the current turn to finish before running a command", Error: true})
 		return
 	}
-	s.running = true
-	s.phase = "running your command"
-	s.started = time.Now()
-	ctx, cancel := context.WithCancel(s.life)
-	s.cancel = cancel
-	s.mu.Unlock()
 	input, _ := json.Marshal(map[string]string{"command": cmdline})
 	call := agent.ToolCall{ID: fmt.Sprintf("shell-%d", time.Now().UnixNano()), Name: "shell", Input: input}
 	s.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})

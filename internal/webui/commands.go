@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/projectinit"
@@ -69,34 +68,15 @@ func (s *server) commandsAPI(w http.ResponseWriter, r *http.Request) {
 // Compact both rewrite Messages, which a turn owns while it runs. esc
 // cancels ctx. When fn returns, the first queued prompt starts.
 func (s *server) runBusy(phase string, fn func(ctx context.Context)) {
-	s.mu.Lock()
-	if s.running {
-		s.mu.Unlock()
+	ctx, ok := s.begin(phase)
+	if !ok {
 		s.errf("%s waits for the turn to finish (esc cancels it)", phase)
 		return
 	}
-	s.running = true
-	s.phase = phase
-	s.started = time.Now()
-	ctx, cancel := context.WithCancel(s.life)
-	s.cancel = cancel
-	s.mu.Unlock()
 	s.emitStatus()
 	go func() {
 		fn(ctx)
-		s.mu.Lock()
-		s.running = false
-		s.phase = ""
-		if s.cancel != nil {
-			s.cancel()
-			s.cancel = nil
-		}
-		var next string
-		if len(s.queued) > 0 {
-			next = s.queued[0]
-			s.queued = s.queued[1:]
-		}
-		s.mu.Unlock()
+		next, _ := s.end(false)
 		s.emitStatus()
 		if next != "" {
 			s.startTurn(next)

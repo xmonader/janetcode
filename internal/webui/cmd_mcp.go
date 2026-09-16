@@ -58,7 +58,10 @@ func (s *server) mcpCommand(arg string) {
 func (s *server) mcpListing() string {
 	o := s.opts.MCP
 	var b strings.Builder
-	for _, st := range o.Manager.Status() {
+	status := o.Manager.Status()
+	known := make(map[string]bool, len(status))
+	for _, st := range status {
+		known[st.Name] = true
 		switch {
 		case st.Starting:
 			fmt.Fprintf(&b, "… %s starting\n", st.Name)
@@ -72,12 +75,8 @@ func (s *server) mcpListing() string {
 		}
 	}
 	var idle []string
-	running := map[string]bool{}
-	for _, st := range o.Manager.Status() {
-		running[st.Name] = true
-	}
 	for name := range o.Project {
-		if !running[name] {
+		if !known[name] {
 			idle = append(idle, name)
 		}
 	}
