@@ -1915,6 +1915,37 @@ func TestAskTabsTwoQuestionsAndOther(t *testing.T) {
 	}
 }
 
+// A question belongs to the turn that asked it. When that turn ends
+// without an answer — cancelled, or failed — the overlay used to stay up
+// over the prompt, taking the whole keyboard and answering into a
+// channel nobody was reading any more.
+func TestATurnEndingClosesWhateverItWasAsking(t *testing.T) {
+	h := newHarness(t)
+	h.m.startTurn("thinking")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		_, _ = h.m.opts.Agent.Asker.Ask(ctx, []agent.Question{
+			{Prompt: "Which way?", Options: []agent.AskOption{{Label: "Left"}, {Label: "Right"}}},
+		})
+	}()
+	h.pump(func() bool { return h.m.asking != nil })
+
+	cancel()
+	h.update(agentDoneMsg{err: context.Canceled})
+	if h.m.asking != nil {
+		t.Fatal("the question outlived the turn that asked it")
+	}
+	if h.m.denying || h.m.pending != nil {
+		t.Fatal("a prompt outlived the turn")
+	}
+	// The prompt is usable again: the keyboard is not held by the overlay.
+	h.keys("next")
+	if h.m.input.Value() != "next" {
+		t.Fatalf("prompt not usable: %q", h.m.input.Value())
+	}
+}
+
 func TestForkTitleAndSearchCommands(t *testing.T) {
 	h := newHarness(t,
 		&llm.Response{Message: llm.TextMessage(llm.RoleAssistant, "I added a token bucket."), StopReason: llm.StopEndTurn},

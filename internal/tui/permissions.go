@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -108,6 +109,12 @@ func (a *tuiApprover) ApproveWithReason(ctx context.Context, call agent.ToolCall
 }
 
 func (a *tuiApprover) ApproveWithRule(ctx context.Context, call agent.ToolCall) (agent.Decision, string, string, error) {
+	if a == nil || a.send == nil {
+		// Nothing can be asked, so nothing is allowed. The asker says the
+		// same thing the same way; an approver with no window used to be
+		// a nil dereference inside the turn goroutine.
+		return agent.Deny, "", "", errors.New("approve: no UI")
+	}
 	reply := make(chan verdict, 1)
 	a.send(permissionMsg{call: call, reply: reply})
 	select {
