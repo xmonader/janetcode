@@ -53,4 +53,45 @@ func TestTrainScoreAndPersistPredictor(t *testing.T) {
 	if !math.IsNaN((*Predictor)(nil).Score(nil)) {
 		t.Fatal("nil predictor should score NaN")
 	}
+	// Explain must decline the same predictors Score declines, not panic:
+	// it indexes Weight by Names, which a truncated critic.json can leave
+	// disagreeing.
+	if why := (*Predictor)(nil).Explain(nil, 2); why != "" {
+		t.Fatalf("nil predictor explained %q", why)
+	}
+	if why := (&Predictor{Names: FeatureNames}).Explain(map[string]float64{"tests": 0}, 2); why != "" {
+		t.Fatalf("an unfitted predictor explained %q", why)
+	}
+}
+
+// The cross-validated accuracy is what decides whether a trained
+// predictor is kept at all. A fold whose training half turns out to be
+// one class is skipped, but its test samples were still in the divisor,
+// counted as wrong — so the reported accuracy sat below the real one,
+// worst of all in the case this predictor is trained in: few failures.
+func TestCrossValidationScoresOnlyTheFoldsItRan(t *testing.T) {
+	// Twenty samples with a single failure. With five folds, four of them
+	// train on a set that still holds that failure and one does not, so
+	// one fold is skipped.
+	var samples []Sample
+	for i := 0; i < 20; i++ {
+		pass := i != 3
+		f := map[string]float64{"tool_errors": 0, "tests": 1}
+		if !pass {
+			f = map[string]float64{"tool_errors": 9, "tests": 0}
+		}
+		samples = append(samples, Sample{Features: f, Passed: pass})
+	}
+	p, err := Train(samples)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Four folds of four samples each are scored (the fifth is skipped),
+	// and this data separates perfectly, so every scored sample is right.
+	if p.Accuracy < 0.99 {
+		t.Fatalf("accuracy = %.3f, want ~1 over the folds that ran (16 of 20 samples)", p.Accuracy)
+	}
+	if p.Accuracy > 1 {
+		t.Fatalf("accuracy = %.3f, above 1", p.Accuracy)
+	}
 }
