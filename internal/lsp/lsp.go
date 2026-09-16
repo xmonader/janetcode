@@ -173,21 +173,32 @@ func (m *Manager) Status() []string {
 	if m == nil {
 		return nil
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
 	servers := m.Config.Active()
 	names := make([]string, 0, len(servers))
 	for n := range servers {
 		names = append(names, n)
 	}
 	sort.Strings(names)
+	// Copy what the lock protects and let it go: what follows looks at
+	// PATH and at each client's own state, neither of which this lock
+	// covers, and /lsp used to hold it across all of that.
+	m.mu.Lock()
+	failed := make(map[string]string, len(m.failed))
+	for k, v := range m.failed {
+		failed[k] = v
+	}
+	running := make(map[string]*client, len(m.clients))
+	for k, v := range m.clients {
+		running[k] = v
+	}
+	m.mu.Unlock()
 	var out []string
 	for _, n := range names {
 		s := servers[n]
 		state := "idle (starts on the first " + strings.Join(s.Extensions, "/") + " edit)"
-		if why, bad := m.failed[n]; bad {
+		if why, bad := failed[n]; bad {
 			state = "unavailable: " + why
-		} else if c, running := m.clients[n]; running {
+		} else if c, up := running[n]; up {
 			state = fmt.Sprintf("running (pid %d, %d files open)", c.cmd.Process.Pid, c.openCount())
 		} else if _, err := exec.LookPath(s.Command[0]); err != nil {
 			state = "not installed (" + s.Command[0] + " not on PATH)"
@@ -350,6 +361,16 @@ func (m *Manager) clientFor(ctx context.Context, path string) (*client, error) {
 	m.mu.Lock()
 	delete(m.starting, name)
 	switch {
+	case m.life != life:
+		// /cd moved the project while this was shaking hands, and
+		// cancelling the old lifetime is what ended it. That is not a
+		// verdict on the server — recording it as failed left the project
+		// just moved into with a language server permanently
+		// "unavailable: context canceled" — so the next query simply
+		// starts a fresh one in the new tree.
+		if c != nil {
+			defer c.close()
+		}
 	case err != nil:
 		m.failed[name] = err.Error()
 		p.err = fmt.Errorf("lsp: %s: %w", name, err)
