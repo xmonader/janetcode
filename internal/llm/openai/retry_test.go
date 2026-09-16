@@ -184,7 +184,7 @@ func TestNegativeMaxRetriesDisablesRetrying(t *testing.T) {
 	var calls atomic.Int32
 	p := newTestProviderWith(t, Config{MaxRetries: -1}, func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-		http.Error(w, `{"error":{"message":"slow down"}}`, 429)
+		http.Error(w, `{"error":{"message":"slow down"}}`, http.StatusTooManyRequests)
 	})
 	if _, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil); err == nil {
 		t.Fatal("want an error")
