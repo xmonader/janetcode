@@ -40,10 +40,7 @@ func (t *ToolSearch) Description() string {
 	if len(names) == 0 {
 		return "Find and load tools that are not listed by default. Nothing is deferred right now."
 	}
-	list := strings.Join(names, ", ")
-	if len(list) > 1500 {
-		list = list[:1500] + "…"
-	}
+	list := textfmt.ClipBytes(strings.Join(names, ", "), 1500)
 	return fmt.Sprintf("Find and load tools that are not listed by default (%d deferred). Search by keyword; matching tools are returned with their schemas and become callable. Deferred now: %s", len(names), list)
 }
 func (*ToolSearch) Mutating() bool { return false }
@@ -179,8 +176,5 @@ func firstSentence(s string) string {
 	if i := strings.Index(s, ". "); i > 0 && i < 160 {
 		return s[:i+1]
 	}
-	if len(s) > 160 {
-		return s[:157] + "…"
-	}
-	return s
+	return textfmt.ClipBytes(s, 160)
 }

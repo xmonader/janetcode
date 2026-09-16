@@ -271,9 +271,7 @@ func (t Grep) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			if !re.MatchString(line) {
 				continue
 			}
-			if len(line) > maxGrepLine {
-				line = line[:maxGrepLine] + "..."
-			}
+			line = textfmt.ClipBytes(line, maxGrepLine)
 			fmt.Fprintf(&sb, "%s:%d:%s\n", display, ln, line)
 			count++
 			if count >= maxGrepResults {
