@@ -25,9 +25,13 @@ const maxRestarts = 2
 
 // client is one running language server.
 type client struct {
-	// warmOnce guards opening the project's files for the first
-	// project-wide query.
-	warmOnce sync.Once
+	// warmMu guards warmed, which says the project's other files have
+	// been opened for this server. It is held across the walk, so a
+	// second project-wide query waits rather than walking the tree again;
+	// a walk that gave up on its caller's context does not set it, so the
+	// next query tries again instead of asking a cold server.
+	warmMu sync.Mutex
+	warmed bool
 	// synced is the content hash last sent per document, so a query does
 	// not make the server re-parse a file that has not changed.
 	synced map[string][32]byte
@@ -177,7 +181,8 @@ func (c *client) diagnose(ctx context.Context, abs, text string, timeout time.Du
 	}
 	// Servers that support didSave often run their heavier checks then.
 	_ = c.notify("textDocument/didSave", map[string]any{"textDocument": map[string]any{"uri": uri}})
-	deadline := time.After(timeout)
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
 	for {
 		c.docM.Lock()
 		st := c.diags[uri]
@@ -188,7 +193,7 @@ func (c *client) diagnose(ctx context.Context, abs, text string, timeout time.Du
 		}
 		select {
 		case <-wait:
-		case <-deadline:
+		case <-deadline.C:
 			return st.items, false, nil
 		case <-ctx.Done():
 			return nil, false, ctx.Err()
