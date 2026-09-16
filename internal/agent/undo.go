@@ -217,6 +217,12 @@ func (a *Agent) Redo(ctx context.Context) ([]string, error) {
 // calls do not inherit ctx's cancellation.
 func (a *Agent) endTurn(ctx context.Context) {
 	a.running.Store(false)
+	// The turn's event sink goes with the turn: emitter() promises a sink
+	// that drops events when no turn is running, and without this it kept
+	// handing out the finished turn's one.
+	a.emitMu.Lock()
+	a.emitNow = nil
+	a.emitMu.Unlock()
 	ctx = context.WithoutCancel(ctx)
 	a.cp.mu.Lock()
 	repo := a.snaps()
