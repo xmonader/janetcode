@@ -287,7 +287,7 @@ func SaveModelMeta(path, model string, meta ModelMeta) error {
 			return fmt.Errorf("config %s: models: %w", path, err)
 		}
 	}
-	if old, ok := models[model]; ok && old == meta {
+	if old, ok := models[model]; ok && sameMeta(old, meta) {
 		return nil
 	}
 	models[model] = meta
@@ -306,4 +306,23 @@ func SaveModelMeta(path, model string, meta ModelMeta) error {
 // MetaOf converts a listed model into stored metadata.
 func MetaOf(mi llm.ModelInfo) ModelMeta {
 	return ModelMeta{ContextWindow: mi.ContextWindow, MaxOutput: mi.MaxOutput, Price: mi.Price}
+}
+
+// sameMeta reports whether two model metadata records say the same thing.
+// ModelMeta holds a *llm.Price, so == compares the pointers: two records
+// with identical prices read from two different loads always differed,
+// and the "nothing changed, do not rewrite the file" short-circuit in
+// SaveModelMeta never fired -- every /connect and /model rewrote
+// config.json for no change.
+func sameMeta(a, b ModelMeta) bool {
+	if a.ContextWindow != b.ContextWindow || a.MaxOutput != b.MaxOutput {
+		return false
+	}
+	switch {
+	case a.Price == nil && b.Price == nil:
+		return true
+	case a.Price == nil || b.Price == nil:
+		return false
+	}
+	return *a.Price == *b.Price
 }
