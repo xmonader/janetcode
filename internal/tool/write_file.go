@@ -45,10 +45,13 @@ func (t WriteFile) Run(ctx context.Context, input json.RawMessage) (string, erro
 	if err != nil {
 		return "", err
 	}
-	if err := mkdirAllOf(ctx, t.WS, filepath.Dir(p), 0o755); err != nil {
+	// The conflict check comes first: a refused write must leave the tree
+	// exactly as it found it, not with the directories it would have
+	// needed already made.
+	if err := t.Seen.CheckAt(ctx, t.WS, p, in.Path, "write"); err != nil {
 		return "", err
 	}
-	if err := t.Seen.CheckAt(ctx, t.WS, p, in.Path, "write"); err != nil {
+	if err := mkdirAllOf(ctx, t.WS, filepath.Dir(p), 0o755); err != nil {
 		return "", err
 	}
 	old, readErr := readFileOf(ctx, t.WS, p)
