@@ -68,6 +68,7 @@ func (m *model) completeAgents(partial string) []command {
 		{name: "new", help: "start a general subagent"},
 		{name: "fork", help: "inherit this conversation"},
 		{name: "cancel", help: "stop a running subagent"},
+		{name: "steer", help: "inject a note into a running subagent"},
 	} {
 		if p == "" || strings.HasPrefix(v.name, p) {
 			out = append(out, v)

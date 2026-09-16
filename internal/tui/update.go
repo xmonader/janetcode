@@ -266,7 +266,10 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 
 	case memoryMsg:
 		if msg.err != nil {
-			m.note("memory: extraction failed: " + msg.err.Error())
+			m.note("memory: " + msg.err.Error())
+		}
+		if msg.note != "" {
+			m.note(msg.note)
 		}
 		for _, e := range msg.added {
 			m.note("remembered: " + memoryLine(e))

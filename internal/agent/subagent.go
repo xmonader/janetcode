@@ -24,6 +24,7 @@ type TaskInput struct {
 	Model       string   `json:"model,omitempty"`
 	Continue    string   `json:"continue,omitempty"`
 	Cancel      string   `json:"cancel,omitempty"`
+	Steer       string   `json:"steer,omitempty"`
 	Fork        bool     `json:"fork,omitempty"`
 }
 
@@ -71,6 +72,14 @@ func AgentsArg(arg string) (in TaskInput, start bool, err error) {
 			return TaskInput{}, false, fmt.Errorf("usage: /agents cancel <id>")
 		}
 		return TaskInput{Cancel: id}, false, nil
+	}
+	if verb == "steer" {
+		id, note, _ := strings.Cut(strings.TrimSpace(brief), " ")
+		id, note = strings.TrimSpace(id), strings.TrimSpace(note)
+		if id == "" || note == "" {
+			return TaskInput{}, false, fmt.Errorf("usage: /agents steer <id> <note>")
+		}
+		return TaskInput{Steer: id, Prompt: note}, false, nil
 	}
 	if verb != "new" && verb != "fork" {
 		return TaskInput{}, false, nil

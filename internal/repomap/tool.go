@@ -105,7 +105,18 @@ func (t Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			return "", fmt.Errorf("no symbol or file named %q in the index (%d files)", in.Symbol, len(ix.Files))
 		}
 		var sb strings.Builder
-		fmt.Fprintf(&sb, "%s is defined in: %s\n", r.Target, strings.Join(r.Definers, ", "))
+		if len(r.Sites) > 0 {
+			fmt.Fprintf(&sb, "%s is defined at:\n", r.Target)
+			for _, s := range r.Sites {
+				if s.Line > 0 {
+					fmt.Fprintf(&sb, "  %s:%d %s %s\n", s.Path, s.Line, s.Kind, s.Name)
+				} else {
+					fmt.Fprintf(&sb, "  %s %s %s\n", s.Path, s.Kind, s.Name)
+				}
+			}
+		} else {
+			fmt.Fprintf(&sb, "%s is defined in: %s\n", r.Target, strings.Join(r.Definers, ", "))
+		}
 		if len(r.Uses) > 0 {
 			fmt.Fprintf(&sb, "it depends on %d file(s): %s\n", len(r.Uses), strings.Join(r.Uses, ", "))
 		}

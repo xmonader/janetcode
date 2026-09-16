@@ -634,6 +634,34 @@ func TestCancelStopsARunningFork(t *testing.T) {
 	}
 }
 
+func TestSteerChildReachesARunningFork(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha"), 0o644)
+	block := make(chan struct{})
+	defer close(block)
+	parent := &Agent{Provider: &blockUntil{ch: block}, Model: "m", System: "sys", AutoApprove: true}
+	task := &Task{Parent: parent}
+	parent.Tools = tool.NewRegistry(tool.ReadFile{Root: root}, task)
+	if _, err := task.Run(context.Background(), json.RawMessage(`{"description":"slow","prompt":"explore","fork":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	id := task.ChildIDs()[0]
+	out, err := task.Run(context.Background(), json.RawMessage(`{"steer":"`+id+`","prompt":"look at a.txt"}`))
+	if err != nil || out != "steering "+id {
+		t.Fatalf("steer = %q %v", out, err)
+	}
+	kid := task.children[id]
+	if kid == nil || kid.agent == nil {
+		t.Fatal("missing child")
+	}
+	kid.agent.steerMu.Lock()
+	n := len(kid.agent.steer)
+	kid.agent.steerMu.Unlock()
+	if n != 1 {
+		t.Fatalf("queued notes = %d", n)
+	}
+}
+
 type blockUntil struct{ ch chan struct{} }
 
 func (b *blockUntil) Name() string { return "fake" }

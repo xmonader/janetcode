@@ -181,6 +181,14 @@ func (s *server) agents(id string) {
 		s.notice("cancelled " + in.Cancel)
 		return
 	}
+	if in.Steer != "" {
+		if err := task.SteerChild(in.Steer, in.Prompt); err != nil {
+			s.errf("%v", err)
+			return
+		}
+		s.notice("steering " + in.Steer)
+		return
+	}
 	if start {
 		s.notice("started " + in.Kind() + " · " + in.Description)
 		s.startTask(task, in.Kind(), in)

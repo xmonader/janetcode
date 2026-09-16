@@ -29,6 +29,31 @@ func (m *model) extractMemory() tea.Cmd {
 	}
 }
 
+func (m *model) dreamMemory() tea.Cmd {
+	ag, store := m.opts.Agent, m.opts.Memory
+	if store == nil || ag == nil {
+		m.transcript.errorf("memory is not available in this session")
+		return nil
+	}
+	m.note("consolidating memory…")
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(m.life, 2*time.Minute)
+		defer cancel()
+		ops, err := memory.Dream(ctx, ag.Settings().Provider, ag.Settings().Model, store.Entries())
+		if err != nil {
+			return memoryMsg{err: err}
+		}
+		n, err := store.ApplyDream(ops)
+		if err != nil {
+			return memoryMsg{err: err}
+		}
+		if n == 0 {
+			return memoryMsg{note: "memory already tight"}
+		}
+		return memoryMsg{note: fmt.Sprintf("dream: %d memory update(s)", n)}
+	}
+}
+
 func memoryLine(e memory.Entry) string {
 	scope := ""
 	if e.Scope == "global" {

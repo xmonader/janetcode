@@ -53,24 +53,33 @@ func (t *AdvisorTool) Run(ctx context.Context, input json.RawMessage) (string, e
 	return t.Parent.Advise(ctx, q)
 }
 
-// Advise is the side query behind advisor: no session system prompt, no
-// tool schemas. Model is AdvisorModel if set, else the session model.
+// Advise is the stuck-consult: no session system prompt, no tool schemas.
 func (a *Agent) Advise(ctx context.Context, question string) (string, error) {
+	text, model, err := a.sideQuery(ctx, advisorSystem, question, strings.TrimSpace(a.AdvisorModel), 800)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("[advisor %s]\n%s", model, text), nil
+}
+
+// sideQuery is a cheap extra completion against the recent transcript.
+// It is the shared path for advisor and goal roles so we do not grow a
+// second prompt stack. model empty uses the session model.
+func (a *Agent) sideQuery(ctx context.Context, system, question, model string, maxTok int) (string, string, error) {
 	s := a.Settings()
 	if s.Provider == nil {
-		return "", fmt.Errorf("no provider")
+		return "", "", fmt.Errorf("no provider")
 	}
 	msgs := advisorMessages(a.MessagesSnapshot())
 	msgs = append(msgs, llm.TextMessage(llm.RoleUser, question))
-	model := strings.TrimSpace(a.AdvisorModel)
-	if model == "" {
+	if strings.TrimSpace(model) == "" {
 		model = s.Model
 	}
 	prov := s.Provider
 	if a.Route != nil && model != s.Model {
 		p, resolved, err := a.Route(model)
 		if err != nil {
-			return "", fmt.Errorf("advisor: %w", err)
+			return "", "", err
 		}
 		if p != nil {
 			prov = p
@@ -79,28 +88,30 @@ func (a *Agent) Advise(ctx context.Context, question string) (string, error) {
 			model = resolved
 		}
 	}
-	a.debugf("advisor calling %s via %s", model, prov.Name())
+	a.debugf("side query %s via %s", model, prov.Name())
+	if maxTok <= 0 {
+		maxTok = 800
+	}
 	resp, err := prov.Stream(ctx, llm.Request{
 		Model:     model,
-		System:    advisorSystem,
+		System:    system,
 		Messages:  msgs,
-		MaxTokens: 800,
+		MaxTokens: maxTok,
 		Effort:    "low",
 	}, nil)
 	if err != nil {
-		return "", err
+		return "", model, err
 	}
 	if resp == nil {
-		return "", fmt.Errorf("empty advisor reply")
+		return "", model, fmt.Errorf("empty reply")
 	}
 	a.addUsage(resp.Usage)
 	a.lastCallModel = model
 	text := advisorReplyText(resp.Message)
 	if text == "" {
-		return "", fmt.Errorf("empty advisor reply")
+		return "", model, fmt.Errorf("empty reply")
 	}
-	// Stamp the model so a session log can prove who answered.
-	return fmt.Sprintf("[advisor %s]\n%s", model, text), nil
+	return text, model, nil
 }
 
 func advisorReplyText(msg llm.Message) string {

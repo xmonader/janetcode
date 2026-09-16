@@ -16,6 +16,7 @@ type agentEventMsg struct{ ev agent.Event }
 type memoryMsg struct {
 	added []memory.Entry
 	err   error
+	note  string
 }
 
 type flushMsg struct{}

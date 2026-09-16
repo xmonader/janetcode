@@ -70,6 +70,10 @@ func (t ReadFile) Run(ctx context.Context, input json.RawMessage) (string, error
 			t.Cache.Put(p, st2.ModTime(), st2.Size(), data)
 		}
 	}
+	if extracted, ok := extractReadable(in.Path, data); ok {
+		t.Seen.Record(p, data)
+		return extracted, nil
+	}
 	if isBinary(data) {
 		return "", fmt.Errorf("%s is a binary file (%d bytes)", in.Path, len(data))
 	}

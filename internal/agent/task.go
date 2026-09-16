@@ -213,6 +213,7 @@ func (*Task) Schema() json.RawMessage {
 "model":{"type":"string","description":"Optional: run the job on this model instead of the session's, by name (e.g. glm-5). Use a cheaper or faster model for wide reading, or a stronger one for a job that has to be right."},
 "continue":{"type":"string","description":"Optional: id of a previous subagent to send another prompt. Omit prompt to list ids."},
 "cancel":{"type":"string","description":"Optional: id of a running subagent to stop. The parent should use this when the user says to cancel that child."},
+"steer":{"type":"string","description":"Optional: id of a running subagent to inject a note into, delivered before its next model call. prompt is the note."},
 "fork":{"type":"boolean","description":"Optional: inherit this conversation's history and tools, run in the background, and return an id immediately. Cannot nest, and cannot be combined with edit."}},
 "additionalProperties":false}`)
 }
@@ -303,6 +304,32 @@ func (t *Task) Cancel(id string) error {
 	return nil
 }
 
+// SteerChild injects a note into a running child before its next model
+// call. This is mid-turn interjection, not a new continue turn.
+func (t *Task) SteerChild(id, text string) error {
+	if t == nil {
+		return fmt.Errorf("no task tool")
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return fmt.Errorf("steer needs a prompt")
+	}
+	t.mu.Lock()
+	kid := t.children[id]
+	t.mu.Unlock()
+	if kid == nil {
+		return fmt.Errorf("no subagent %q", id)
+	}
+	if kid.done {
+		return fmt.Errorf("subagent %s already finished; use continue", id)
+	}
+	if kid.agent == nil {
+		return fmt.Errorf("subagent %s has no agent", id)
+	}
+	kid.agent.Steer(text)
+	return nil
+}
+
 func (t *Task) bindChildCtx(parent context.Context, kid *subagent, minutes int) context.Context {
 	ctx, cancel := context.WithCancel(parent)
 	if minutes > 0 {
@@ -363,6 +390,12 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			return "", err
 		}
 		return "cancelled " + id, nil
+	}
+	if id := strings.TrimSpace(in.Steer); id != "" {
+		if err := t.SteerChild(id, in.Prompt); err != nil {
+			return "", err
+		}
+		return "steering " + id, nil
 	}
 	if strings.TrimSpace(in.Prompt) == "" {
 		return "", fmt.Errorf("prompt must not be empty")

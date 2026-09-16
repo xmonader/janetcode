@@ -389,6 +389,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	ag.Tools.AddDeferred(tool.ReadManyFiles{Root: d.cwd, WS: ws, Seen: seen, Cache: files})
 	ag.Tools.AddDeferred(tool.Computer{Root: d.cwd})
 	ag.Tools.AddDeferred(&agent.AdvisorTool{Parent: ag})
+	ag.Tools.AddDeferred(tool.Monitor{Jobs: jobs, Root: d.cwd, WS: ws, OnMatch: ag.Steer})
 	if d.cfg.AdvisorModel != "" {
 		// Opting into an advisor model is the experiment being on: the
 		// executor has to see the tool without a tool_search hunt.

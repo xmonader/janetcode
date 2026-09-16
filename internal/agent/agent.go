@@ -168,6 +168,9 @@ type Agent struct {
 	// the session model. The tool itself is deferred.
 	AdvisorModel string
 	advisorUses  int32
+	// compactPrefired is whether this turn already ran the prune-only
+	// pass at 85% of compact_at, so the summary pass still has room.
+	compactPrefired bool
 	// Files is the I/O cache shared with subagents. Nil disables it.
 	Files *tool.IOCache
 	// MaxTokens per model call. Zero lets the provider choose.
@@ -364,6 +367,7 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 	a.stats.turn()
 	a.startTurn()
 	atomic.StoreInt32(&a.advisorUses, 0)
+	a.compactPrefired = false
 	a.tools = nil // pick up any tool that registered since the last turn
 	a.coach.noSyntax = a.Off["syntax"]
 	if a.Tools == nil {
@@ -426,9 +430,15 @@ func (a *Agent) RunBlocks(ctx context.Context, blocks []llm.Block, emit func(Eve
 		}
 		// Recomputed every step: it also publishes the estimate the status
 		// bar reads while the turn runs.
-		if est := a.EstimateTokens(); compactAt > 0 && est > compactAt {
-			if err := a.Compact(ctx, emit); err != nil && !errors.Is(err, ErrNothingToCompact) {
-				return err
+		if est := a.EstimateTokens(); compactAt > 0 {
+			if !a.compactPrefired && est > compactAt*85/100 && est <= compactAt {
+				a.compactPrefired = true
+				_ = a.CompactFast(ctx, emit)
+			}
+			if est > compactAt {
+				if err := a.Compact(ctx, emit); err != nil && !errors.Is(err, ErrNothingToCompact) {
+					return err
+				}
 			}
 		}
 		a.checkIntegrity(emit)

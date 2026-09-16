@@ -152,7 +152,7 @@ func TestToolAndTurnPrepAndCache(t *testing.T) {
 	c := &Cache{Root: root}
 	tl := Tool{Cache: c}
 	out, err := tl.Run(context.Background(), json.RawMessage(`{"symbol":"Open"}`))
-	if err != nil || !strings.Contains(out, "Open is defined in: store/store.go") || !strings.Contains(out, "cmd/main.go") {
+	if err != nil || !strings.Contains(out, "store/store.go") || !strings.Contains(out, "cmd/main.go") || !strings.Contains(out, "Open is defined") {
 		t.Fatalf("tool symbol: %v\n%s", err, out)
 	}
 	out, err = tl.Run(context.Background(), json.RawMessage(`{"query":"handler","limit":2}`))

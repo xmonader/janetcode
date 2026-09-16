@@ -25,6 +25,10 @@ func TestAgentsArg(t *testing.T) {
 	if err != nil || start || in.Cancel != "task-2" {
 		t.Fatalf("cancel = %#v %v %v", in, start, err)
 	}
+	in, start, err = AgentsArg("steer task-2 also check tests")
+	if err != nil || start || in.Steer != "task-2" || in.Prompt != "also check tests" {
+		t.Fatalf("steer = %#v %v %v", in, start, err)
+	}
 }
 
 func TestReviewTasks(t *testing.T) {

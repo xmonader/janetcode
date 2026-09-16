@@ -846,6 +846,11 @@ approval: bubble
 Make the failing test pass. Do not weaken the test.
 ```
 
+A running child can be steered without waiting for it to finish:
+`task {"steer":"task-2","prompt":"also check the tests"}` or
+`/agents steer task-2 also check the tests`. That is the existing Steer
+path (ctrl+s in the parent turn) pointed at the child.
+
 `/agents new <brief>` starts a built-in `general` subagent immediately
 (read-only, like `task` without `edit:true`) and opens the overlay so you
 can watch it; `/agents fork <brief>` starts a `task` fork that inherits
@@ -1565,6 +1570,23 @@ tool results the way automatic compaction does first, and drops thinking
 blocks from earlier turns, then stops. There is no summary call and no
 handoff note. Use it when the window is full and you would rather keep
 working than pay for a rewrite.
+
+When a goal is active and `advisor_model` is set, each round gets a short
+planner (first round) or skeptic (later rounds) note from that model.
+This does not replace `/goal` or `goal_status`.
+
+Compaction is two-pass on the existing machinery: at 85% of `compact_at`
+it prunes (`CompactFast`); at 100% it summarises (`Compact`). It does not
+replace the archive or NEED recovery.
+
+`monitor` starts a background job (the existing jobs table) and Steers
+the session when output matches a pattern. `/loop` remains the scheduler.
+
+`/dream` consolidates overlapping auto-memory. It never edits what you
+`/remember`ed. Extract still captures new facts.
+
+`read_file` extracts text from PDF (pdftotext, else a crude stream) and
+PPTX, and describes images instead of refusing them as binary.
 
 A follow-up suggestion is off by default. `/followup on` (or
 `"followup": true` in the config) asks a cheap side query after a turn —

@@ -113,6 +113,19 @@ func (m *model) agentsCommand(arg string) {
 		m.note("cancelled " + in.Cancel)
 		return
 	}
+	if in.Steer != "" {
+		task := m.taskTool()
+		if task == nil {
+			m.transcript.errorf("no task tool in this session")
+			return
+		}
+		if err := task.SteerChild(in.Steer, in.Prompt); err != nil {
+			m.transcript.errorf("%v", err)
+			return
+		}
+		m.note("steering " + in.Steer)
+		return
+	}
 	if start {
 		task := m.taskTool()
 		if task == nil {

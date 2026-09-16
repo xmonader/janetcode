@@ -623,8 +623,17 @@ func (ix *Index) Render(ranked []Ranked, budget int) string {
 type Radius struct {
 	Target      string
 	Definers    []string // files defining the symbol (or the file itself)
+	Sites       []DefSite
 	Referencers []Use    // files using it
 	Uses        []string // for a file target: files it depends on
+}
+
+// DefSite is one definition of a symbol, with the line the parser found.
+type DefSite struct {
+	Path string
+	Name string
+	Kind string
+	Line int
 }
 
 // Use is one referencing file with a weight.
@@ -640,6 +649,9 @@ func (ix *Index) BlastRadius(target string, transitive bool) (Radius, bool) {
 	target = strings.TrimSpace(target)
 	if i, ok := ix.byPath[filepath.ToSlash(target)]; ok {
 		r.Definers = []string{ix.Files[i].Path}
+		for _, d := range ix.Files[i].Defs {
+			r.Sites = append(r.Sites, DefSite{Path: ix.Files[i].Path, Name: d.Name, Kind: d.Kind, Line: d.Line})
+		}
 		for _, e := range ix.in[i] {
 			r.Referencers = append(r.Referencers, Use{ix.Files[e.to].Path, e.weight})
 		}
@@ -663,6 +675,15 @@ func (ix *Index) BlastRadius(target string, transitive bool) (Radius, bool) {
 		for _, f := range files {
 			r.Definers = append(r.Definers, ix.Files[f].Path)
 			defSet[f] = true
+			for _, d := range ix.Files[f].Defs {
+				n := d.Name
+				if i := strings.IndexByte(n, '.'); i >= 0 {
+					n = n[i+1:]
+				}
+				if strings.EqualFold(d.Name, target) || strings.EqualFold(n, target) {
+					r.Sites = append(r.Sites, DefSite{Path: ix.Files[f].Path, Name: d.Name, Kind: d.Kind, Line: d.Line})
+				}
+			}
 		}
 		bare := target
 		if i := strings.IndexByte(bare, '.'); i >= 0 {
