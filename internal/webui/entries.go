@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -31,16 +32,16 @@ func (s *server) sheet(title, body string) {
 	if body == "" {
 		body = "(" + title + " is empty)"
 	}
-	s.upsert(&entry{Kind: "sheet", Name: title, Text: body})
+	s.add(entry{Kind: "sheet", Name: title, Text: body})
 }
 
 func (s *server) notice(text string) {
 	s.emit(envelope{Type: "notice", Notice: text})
-	s.upsert(&entry{Kind: "notice", Text: text})
+	s.add(entry{Kind: "notice", Text: text})
 }
 
 func (s *server) errf(f string, a ...any) {
-	s.upsert(&entry{Kind: "error", Text: fmt.Sprintf(f, a...), Error: true})
+	s.add(entry{Kind: "error", Text: fmt.Sprintf(f, a...), Error: true})
 }
 
 func (s *server) noteOnOff(name string, on bool, whenOn string) {
@@ -54,60 +55,54 @@ func (s *server) noteOnOff(name string, on bool, whenOn string) {
 func (s *server) apply(ev agent.Event) {
 	switch ev.Kind {
 	case agent.EvText:
-		e := s.last("assistant")
-		if e == nil {
-			e = s.add(&entry{Kind: "assistant"})
-		}
-		e.Text += ev.Text
-		s.push(e)
+		s.appendText("assistant", ev.Text)
 	case agent.EvThinking:
-		e := s.last("thinking")
-		if e == nil {
-			e = s.add(&entry{Kind: "thinking"})
-		}
-		e.Text += ev.Text
-		s.push(e)
+		s.appendText("thinking", ev.Text)
 	case agent.EvToolStart:
 		s.closeOpen()
-		s.add(&entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID, Summary: summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, s.cwd())})
+		s.add(entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID, Summary: summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, s.cwd())})
 	case agent.EvToolInput:
-		if e := s.findTool(ev.Call); e != nil {
-			e.Summary = summarizeInput(e.Name, e.Summary, 80, s.cwd())
+		// Arguments stream in a fragment at a time. This used to
+		// re-summarise the summary — which parses as nothing, so it left
+		// the summary alone — and never sent the result either way. The
+		// input is summarised now, but only once enough of it has arrived
+		// to parse, so the page never shows half a JSON object.
+		if ev.Call == nil || !json.Valid(ev.Call.Input) {
+			break
 		}
+		cwd := s.cwd()
+		s.updateTool(ev.Call, func(e *entry) {
+			e.Summary = summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, cwd)
+		})
 	case agent.EvToolRun:
-		e := s.findTool(ev.Call)
-		if e == nil {
-			e = s.add(&entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID})
-		}
-		e.Name = ev.Call.Name
-		e.CallID = ev.Call.ID
-		e.Running = true
-		e.Summary = summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, s.cwd())
-		if ev.Call.Preview != "" {
-			e.Preview = ev.Call.Preview
-		}
-		s.push(e)
-		s.mu.Lock()
-		s.phase = e.Name + " " + e.Summary
-		s.mu.Unlock()
-		s.emitStatus()
+		cwd := s.cwd()
+		e := s.updateTool(ev.Call, func(e *entry) {
+			e.Name = ev.Call.Name
+			e.CallID = ev.Call.ID
+			e.Running = true
+			e.Summary = summarizeInput(ev.Call.Name, string(ev.Call.Input), 80, cwd)
+			if ev.Call.Preview != "" {
+				e.Preview = ev.Call.Preview
+			}
+		})
+		s.setPhase(e.Name + " " + e.Summary)
 	case agent.EvToolResult:
-		e := s.findTool(ev.Call)
-		if e == nil {
-			e = s.add(&entry{Kind: "tool", Name: ev.Call.Name, CallID: ev.Call.ID})
-		}
-		e.Running = false
-		e.Done = true
-		e.Output = ev.Output
-		e.Error = ev.IsError
-		e.Denied = ev.Denied
-		if ev.Duration > 0 {
-			e.Dur = textfmt.Duration(ev.Duration)
-		}
-		if ev.Call != nil && ev.Call.Preview != "" {
-			e.Preview = ev.Call.Preview
-		}
-		s.push(e)
+		s.updateTool(ev.Call, func(e *entry) {
+			if ev.Call != nil {
+				e.Name, e.CallID = ev.Call.Name, ev.Call.ID
+				if ev.Call.Preview != "" {
+					e.Preview = ev.Call.Preview
+				}
+			}
+			e.Running = false
+			e.Done = true
+			e.Output = ev.Output
+			e.Error = ev.IsError
+			e.Denied = ev.Denied
+			if ev.Duration > 0 {
+				e.Dur = textfmt.Duration(ev.Duration)
+			}
+		})
 	case agent.EvTextBlockDone:
 		s.closeOpen()
 	case agent.EvTurnDone:
@@ -116,71 +111,126 @@ func (s *server) apply(ev agent.Event) {
 		s.dropOpen()
 	case agent.EvVerdict:
 		s.closeOpen()
-		s.add(&entry{Kind: "verdict", Text: ev.Text, Error: ev.IsError})
+		s.add(entry{Kind: "verdict", Text: ev.Text, Error: ev.IsError})
 	case agent.EvRetry:
 		s.closeOpen()
-		s.add(&entry{Kind: "notice", Text: "↻ " + ev.Text})
+		s.add(entry{Kind: "notice", Text: "↻ " + ev.Text})
 	case agent.EvNotice:
 		s.closeOpen()
-		s.add(&entry{Kind: "notice", Text: ev.Text})
+		s.add(entry{Kind: "notice", Text: ev.Text})
 	case agent.EvPhase:
-		s.mu.Lock()
-		s.phase = ev.Text
-		s.mu.Unlock()
-		s.emitStatus()
+		s.setPhase(ev.Text)
 	case agent.EvCompacted:
 		s.closeOpen()
-		s.add(&entry{Kind: "notice", Text: "⇣ " + ev.Text})
+		s.add(entry{Kind: "notice", Text: "⇣ " + ev.Text})
 	}
 }
 
-func (s *server) last(kind string) *entry {
+// setPhase records what the session is doing and tells the page.
+func (s *server) setPhase(phase string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if n := len(s.entries); n > 0 {
-		if e := s.entries[n-1]; e.Kind == kind && !e.Done {
-			return e
-		}
-	}
-	return nil
+	s.phase = phase
+	s.mu.Unlock()
+	s.emitStatus()
 }
 
-func (s *server) add(e *entry) *entry {
+// The thread belongs to s.mu. An entry is created, changed and copied
+// there, and everything outside the lock works on copies: entries used to
+// be handed out as pointers and then mutated by the agent's goroutine
+// while an HTTP request was serialising the very same struct.
+
+// add appends a new entry, sends it, and returns its id.
+func (s *server) add(e entry) string {
 	s.mu.Lock()
+	p := s.addLocked(e)
+	cp := *p
+	s.mu.Unlock()
+	s.emitEntry(cp)
+	return cp.ID
+}
+
+func (s *server) addLocked(e entry) *entry {
 	s.nextID++
 	e.ID = "e" + strconv.Itoa(s.nextID)
-	s.entries = append(s.entries, e)
-	s.mu.Unlock()
-	s.push(e)
-	return e
+	p := &e
+	s.entries = append(s.entries, p)
+	return p
 }
 
-func (s *server) upsert(e *entry) *entry {
-	if e.ID == "" {
-		return s.add(e)
-	}
-	s.push(e)
-	return e
-}
-
-func (s *server) push(e *entry) {
-	cp := *e
-	s.emit(envelope{Type: "entry", Entry: &cp})
-}
-
-func (s *server) findTool(call *agent.ToolCall) *entry {
+// update applies fn to the entry with this id and sends the result. An id
+// that is no longer in the thread is ignored.
+func (s *server) update(id string, fn func(*entry)) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if call == nil {
-		for i := len(s.entries) - 1; i >= 0; i-- {
-			if e := s.entries[i]; e.Kind == "tool" && !e.Done {
+	var cp entry
+	found := false
+	for _, e := range s.entries {
+		if e.ID == id {
+			fn(e)
+			cp, found = *e, true
+			break
+		}
+	}
+	s.mu.Unlock()
+	if found {
+		s.emitEntry(cp)
+	}
+}
+
+// appendText adds streamed text to the open entry of this kind, starting
+// one when there is none, and sends it.
+func (s *server) appendText(kind, text string) {
+	s.mu.Lock()
+	var e *entry
+	if n := len(s.entries); n > 0 && s.entries[n-1].Kind == kind && !s.entries[n-1].Done {
+		e = s.entries[n-1]
+	} else {
+		e = s.addLocked(entry{Kind: kind})
+	}
+	e.Text += text
+	cp := *e
+	s.mu.Unlock()
+	s.emitEntry(cp)
+}
+
+// updateTool applies fn to the entry for this call, starting one when the
+// call has not been seen, and sends it. It returns the entry as it now
+// stands, so a caller can use it without reaching back into the thread.
+func (s *server) updateTool(call *agent.ToolCall, fn func(*entry)) entry {
+	s.mu.Lock()
+	e := s.findToolLocked(call)
+	if e == nil {
+		t := entry{Kind: "tool"}
+		if call != nil {
+			t.Name, t.CallID = call.Name, call.ID
+		}
+		e = s.addLocked(t)
+	}
+	fn(e)
+	cp := *e
+	s.mu.Unlock()
+	s.emitEntry(cp)
+	return cp
+}
+
+func (s *server) emitEntry(e entry) {
+	s.emit(envelope{Type: "entry", Entry: &e})
+}
+
+// findToolLocked is the entry for a call, or the last tool still running
+// when the call is unknown. Called with mu held.
+func (s *server) findToolLocked(call *agent.ToolCall) *entry {
+	for i := len(s.entries) - 1; i >= 0; i-- {
+		e := s.entries[i]
+		if e.Kind != "tool" {
+			continue
+		}
+		if call == nil {
+			if !e.Done {
 				return e
 			}
+			continue
 		}
-		return nil
-	}
-	for i := len(s.entries) - 1; i >= 0; i-- {
-		if e := s.entries[i]; e.Kind == "tool" && e.CallID == call.ID {
+		if e.CallID == call.ID {
 			return e
 		}
 	}
@@ -189,7 +239,7 @@ func (s *server) findTool(call *agent.ToolCall) *entry {
 
 func (s *server) closeOpen() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	var closed []entry
 	for i := len(s.entries) - 1; i >= 0; i-- {
 		e := s.entries[i]
 		if e.Kind == "thinking" && !e.Done && strings.TrimSpace(e.Text) == "" {
@@ -199,10 +249,7 @@ func (s *server) closeOpen() {
 		if e.Kind == "assistant" || e.Kind == "thinking" {
 			if !e.Done {
 				e.Done = true
-				cp := *e
-				s.mu.Unlock()
-				s.push(&cp)
-				s.mu.Lock()
+				closed = append(closed, *e)
 			}
 			continue
 		}
@@ -210,6 +257,13 @@ func (s *server) closeOpen() {
 			continue
 		}
 		break
+	}
+	s.mu.Unlock()
+	// Sent after the lock, oldest first: the loop walks backwards, and
+	// releasing the lock inside it used to let the thread change under
+	// the index it was walking.
+	for i := len(closed) - 1; i >= 0; i-- {
+		s.emitEntry(closed[i])
 	}
 }
 

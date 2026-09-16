@@ -123,13 +123,28 @@ func Run(ctx context.Context, opts Options) error {
 	}
 	s := newServer(ctx, opts)
 	hs := &http.Server{Handler: s.handler()}
+	served := make(chan struct{})
 	go func() {
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-served:
+			// Serve returned on its own; nothing to shut down, and
+			// waiting on ctx here would park this goroutine for the rest
+			// of the process.
+			return
+		}
 		shctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		_ = hs.Shutdown(shctx)
+		if err := hs.Shutdown(shctx); err != nil {
+			// An open /events stream never goes idle, so Shutdown waits
+			// out its whole grace period and then leaves those
+			// connections — and the handler goroutine behind each one —
+			// running. Close hangs up on them.
+			_ = hs.Close()
+		}
 	}()
 	err = hs.Serve(ln)
+	close(served)
 	if err == http.ErrServerClosed {
 		return nil
 	}
@@ -367,10 +382,14 @@ func (s *server) hello() helloPayload {
 	return h
 }
 
-func (s *server) snapshot() (helloPayload, []*entry, *permPayload, []agent.Question, statusPayload) {
+func (s *server) snapshot() (helloPayload, []entry, *permPayload, []agent.Question, statusPayload) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	ents := append([]*entry(nil), s.entries...)
+	// Copies, not the pointers: /api/state used to serialise entries the
+	// agent's goroutine was still writing to.
+	ents := make([]entry, 0, len(s.entries))
+	for _, e := range s.entries {
+		ents = append(ents, *e)
+	}
 	var p *permPayload
 	if s.pending != nil {
 		pp := s.permOf(s.pending.call)
@@ -380,7 +399,9 @@ func (s *server) snapshot() (helloPayload, []*entry, *permPayload, []agent.Quest
 	if s.asking != nil {
 		qs = s.asking.questions
 	}
-	return s.hello(), ents, p, qs, s.statusLocked()
+	f := s.stateLocked()
+	s.mu.Unlock()
+	return s.hello(), ents, p, qs, s.statusOf(f)
 }
 
 func (s *server) state(w http.ResponseWriter, r *http.Request) {
@@ -433,9 +454,7 @@ func (s *server) events(w http.ResponseWriter, r *http.Request) {
 			writeSSE(w, e)
 			fl.Flush()
 		case <-tick.C:
-			s.mu.Lock()
-			st := s.statusLocked()
-			s.mu.Unlock()
+			st := s.statusNow()
 			writeSSE(w, envelope{Type: "status", Status: &st})
 			fl.Flush()
 		}
@@ -537,8 +556,8 @@ func (s *server) startTurn(text string) {
 	s.cancel = cancel
 	s.mu.Unlock()
 
-	s.upsert(&entry{Kind: "user", Text: text})
-	s.add(&entry{Kind: "thinking"})
+	s.add(entry{Kind: "user", Text: text})
+	s.add(entry{Kind: "thinking"})
 	s.emitStatus()
 	if s.opts.Typed != nil {
 		s.opts.Typed.Note(text)
@@ -550,7 +569,7 @@ func (s *server) startTurn(text string) {
 		for i, a := range atts {
 			names[i] = a.Path
 		}
-		s.upsert(&entry{Kind: "notice", Text: "attached " + strings.Join(names, " · ")})
+		s.add(entry{Kind: "notice", Text: "attached " + strings.Join(names, " · ")})
 		blocks = append([]llm.Block{{Type: llm.BlockText, Text: expanded}}, prompt.ImageBlocks(atts)...)
 	}
 	ag := s.opts.Agent
@@ -568,26 +587,35 @@ func (s *server) finish(err error) {
 		s.cancel()
 		s.cancel = nil
 	}
-	queued := s.queued
-	s.queued = nil
+	// Take the next queued prompt here, under the lock, and leave the
+	// rest. The queue used to be emptied into a local and the remainder
+	// written back after the next turn had already been started, so
+	// anything the user typed in between was overwritten and lost. A
+	// failed turn still drops the queue: what was queued was queued
+	// behind work that did not happen.
+	var next string
+	if err == nil {
+		if len(s.queued) > 0 {
+			next, s.queued = s.queued[0], s.queued[1:]
+		}
+	} else {
+		s.queued = nil
+	}
 	elapsed := time.Since(s.started)
 	s.mu.Unlock()
 	switch {
 	case err == nil:
 		s.statusSet("done in " + textfmt.Duration(elapsed))
 	case err == context.Canceled:
-		s.upsert(&entry{Kind: "error", Text: "cancelled after " + textfmt.Duration(elapsed), Error: true})
+		s.add(entry{Kind: "error", Text: "cancelled after " + textfmt.Duration(elapsed), Error: true})
 		s.statusSet("cancelled")
 	default:
-		s.upsert(&entry{Kind: "error", Text: err.Error(), Error: true})
+		s.add(entry{Kind: "error", Text: err.Error(), Error: true})
 		s.statusSet("error")
 	}
 	s.emitStatus()
-	if err == nil && len(queued) > 0 {
-		s.startTurn(queued[0])
-		s.mu.Lock()
-		s.queued = queued[1:]
-		s.mu.Unlock()
+	if next != "" {
+		s.startTurn(next)
 		return
 	}
 	// An active goal keeps the session going after the turn, the way
@@ -651,13 +679,13 @@ func (s *server) command(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) runShell(cmdline string) {
 	if cmdline == "" {
-		s.upsert(&entry{Kind: "error", Text: "usage: !<command>", Error: true})
+		s.add(entry{Kind: "error", Text: "usage: !<command>", Error: true})
 		return
 	}
 	s.mu.Lock()
 	if s.running {
 		s.mu.Unlock()
-		s.upsert(&entry{Kind: "error", Text: "wait for the current turn to finish before running a command", Error: true})
+		s.add(entry{Kind: "error", Text: "wait for the current turn to finish before running a command", Error: true})
 		return
 	}
 	s.running = true
@@ -687,12 +715,41 @@ func (s *server) runShell(cmdline string) {
 	}()
 }
 
-func (s *server) statusLocked() statusPayload {
+// sessionState is what the status line takes from the server itself. It
+// is copied out under mu so the rest of the status — which asks the agent
+// for its settings, its usage and an estimate over the whole history — is
+// computed without holding the lock the turn needs. Every open page asks
+// for this twice a second.
+type sessionState struct {
+	running bool
+	phase   string
+	queued  int
+	status  string
+	verbose bool
+	started time.Time
+}
+
+func (s *server) stateLocked() sessionState {
+	return sessionState{
+		running: s.running, phase: s.phase, queued: len(s.queued),
+		status: s.status, verbose: s.verbose, started: s.started,
+	}
+}
+
+func (s *server) statusNow() statusPayload {
+	s.mu.Lock()
+	f := s.stateLocked()
+	s.mu.Unlock()
+	return s.statusOf(f)
+}
+
+func (s *server) statusOf(f sessionState) statusPayload {
 	st := statusPayload{
-		Running: s.running,
-		Phase:   flavor.ForPhase(s.phase, time.Now(), s.started),
-		Queued:  len(s.queued),
-		Status:  s.status,
+		Running: f.running,
+		Phase:   flavor.ForPhase(f.phase, time.Now(), f.started),
+		Queued:  f.queued,
+		Status:  f.status,
+		Verbose: f.verbose,
 	}
 	if s.opts.Agent != nil {
 		modes := s.opts.Agent.Settings()
@@ -703,12 +760,11 @@ func (s *server) statusLocked() statusPayload {
 		st.ReadOnly = modes.ReadOnly
 		st.Mode = sessionMode(s.opts.Agent)
 		st.Effort = modes.Effort
-		st.Verbose = s.verbose
-		if usd, ok := s.opts.Agent.UsageSnapshot().Cost(s.opts.Agent.Settings().Price); ok {
+		if usd, ok := s.opts.Agent.UsageSnapshot().Cost(modes.Price); ok {
 			st.Cost = llm.FormatUSD(usd)
 		}
 		est := s.opts.Agent.TokenEstimate()
-		if !s.running {
+		if !f.running {
 			est = s.opts.Agent.EstimateTokens()
 		}
 		if lim := s.opts.Agent.CompactThreshold(); lim > 0 {
@@ -718,16 +774,14 @@ func (s *server) statusLocked() statusPayload {
 			}
 		}
 	}
-	if s.running && !s.started.IsZero() {
-		st.Elapsed = textfmt.Duration(time.Since(s.started))
+	if f.running && !f.started.IsZero() {
+		st.Elapsed = textfmt.Duration(time.Since(f.started))
 	}
 	return st
 }
 
 func (s *server) emitStatus() {
-	s.mu.Lock()
-	st := s.statusLocked()
-	s.mu.Unlock()
+	st := s.statusNow()
 	s.emit(envelope{Type: "status", Status: &st})
 }
 
