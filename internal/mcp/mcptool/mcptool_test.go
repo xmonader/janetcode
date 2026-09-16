@@ -3,9 +3,15 @@ package mcptool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net"
 	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -18,6 +24,15 @@ import (
 // internal/mcp's own tests do.
 func TestMain(m *testing.M) {
 	if os.Getenv("MCP_FAKE_SERVER") == "1" {
+		// Stand in for the real shape of a stdio server: a wrapper that
+		// forks the process doing the work, which outlives its parent
+		// unless the whole group is stopped.
+		if pidfile := os.Getenv("MCP_FAKE_SERVER_CHILD"); pidfile != "" {
+			child := exec.Command("sleep", "100")
+			if err := child.Start(); err == nil {
+				_ = os.WriteFile(pidfile, []byte(strconv.Itoa(child.Process.Pid)), 0o644)
+			}
+		}
 		mcptest.FakeServer()
 		os.Exit(0)
 	}
@@ -228,15 +243,32 @@ func TestOnlySafeToRepeatToolsRetry(t *testing.T) {
 	}
 }
 
+// A lost connection is recognised by type, not by the wording of a
+// message: the client wraps every one of its own with ErrDisconnected,
+// and what the operating system hands back from a write to a server that
+// is already gone is matched on its own terms.
 func TestLostConnectionIsRecognised(t *testing.T) {
-	for _, s := range []string{"connection closed", "server exited: signal: killed", "unexpected EOF", "write |1: broken pipe"} {
-		if !lostConnection(errString(s)) {
-			t.Errorf("%q should count as a lost connection", s)
+	lost := []error{
+		fmt.Errorf("%w: the client closed it", mcp.ErrDisconnected),
+		fmt.Errorf("%w: the server exited: signal: killed", mcp.ErrDisconnected),
+		fmt.Errorf("writing the request: %w", io.ErrUnexpectedEOF),
+		fmt.Errorf("writing the request: %w", syscall.EPIPE),
+		&net.OpError{Op: "write", Err: syscall.ECONNRESET},
+	}
+	for _, err := range lost {
+		if !lostConnection(err) {
+			t.Errorf("%v should count as a lost connection", err)
 		}
 	}
-	for _, s := range []string{"invalid params", "tool not found"} {
-		if lostConnection(errString(s)) {
-			t.Errorf("%q is an answer from the server, not a lost connection", s)
+	answers := []error{
+		errString("invalid params"),
+		errString("tool not found"),
+		// The server's own words, even when they mention a pipe.
+		errString("the command failed: broken pipe"),
+	}
+	for _, err := range answers {
+		if lostConnection(err) {
+			t.Errorf("%v is an answer from the server, not a lost connection", err)
 		}
 	}
 	if lostConnection(nil) {

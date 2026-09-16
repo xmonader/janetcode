@@ -9,8 +9,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"strings"
+	"syscall"
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/mcp"
@@ -157,17 +161,22 @@ func (t *Tool) safeToRepeat() bool {
 	return (a.ReadOnlyHint != nil && *a.ReadOnlyHint) || (a.IdempotentHint != nil && *a.IdempotentHint)
 }
 
-// lostConnection reports whether the call failed on the way rather than in the
-// server: the connection went away, so whether the tool ran is unknown.
+// lostConnection reports whether the call failed on the way rather than in
+// the server: the connection went away, so whether the tool ran is unknown.
+//
+// mcp.ErrDisconnected covers everything the client itself knows about — a
+// dead process, a broken read loop, a closed client. What it cannot wrap
+// is the error a write to a vanished server returns from the operating
+// system on the way out, which arrives as a bare *os.SyscallError, so
+// those are matched too.
 func lostConnection(err error) bool {
-	if err == nil {
+	switch {
+	case err == nil:
 		return false
-	}
-	s := err.Error()
-	for _, m := range []string{"connection closed", "server exited", "EOF", "broken pipe", "connection reset"} {
-		if strings.Contains(s, m) {
-			return true
-		}
+	case errors.Is(err, mcp.ErrDisconnected),
+		errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF),
+		errors.Is(err, net.ErrClosed), errors.Is(err, syscall.EPIPE), errors.Is(err, syscall.ECONNRESET):
+		return true
 	}
 	return false
 }

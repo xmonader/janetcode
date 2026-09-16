@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/projectinit"
@@ -69,34 +68,15 @@ func (s *server) commandsAPI(w http.ResponseWriter, r *http.Request) {
 // Compact both rewrite Messages, which a turn owns while it runs. esc
 // cancels ctx. When fn returns, the first queued prompt starts.
 func (s *server) runBusy(phase string, fn func(ctx context.Context)) {
-	s.mu.Lock()
-	if s.running {
-		s.mu.Unlock()
+	ctx, ok := s.begin(phase)
+	if !ok {
 		s.errf("%s waits for the turn to finish (esc cancels it)", phase)
 		return
 	}
-	s.running = true
-	s.phase = phase
-	s.started = time.Now()
-	ctx, cancel := context.WithCancel(s.life)
-	s.cancel = cancel
-	s.mu.Unlock()
 	s.emitStatus()
 	go func() {
 		fn(ctx)
-		s.mu.Lock()
-		s.running = false
-		s.phase = ""
-		if s.cancel != nil {
-			s.cancel()
-			s.cancel = nil
-		}
-		var next string
-		if len(s.queued) > 0 {
-			next = s.queued[0]
-			s.queued = s.queued[1:]
-		}
-		s.mu.Unlock()
+		next, _ := s.end(false)
 		s.emitStatus()
 		if next != "" {
 			s.startTurn(next)
@@ -480,11 +460,11 @@ func (s *server) cmdUnpin(arg string) (bool, error) {
 }
 
 func (s *server) cmdTitle(arg string) (bool, error) {
-	if arg == "" || s.opts.Session == nil {
+	if arg == "" || s.sess() == nil {
 		s.errf("usage: /title <text>")
 		return true, nil
 	}
-	if err := s.opts.Session.SetTitle(arg); err != nil {
+	if err := s.sess().SetTitle(arg); err != nil {
 		s.errf("title: %v", err)
 		return true, nil
 	}
@@ -502,11 +482,11 @@ func (s *server) cmdFork(arg string) (bool, error) {
 }
 
 func (s *server) cmdSettle(arg string) (bool, error) {
-	if s.opts.Session == nil {
+	if s.sess() == nil {
 		s.errf("no session to settle")
 		return true, nil
 	}
-	settled, err := s.opts.Session.ToggleSettled()
+	settled, err := s.sess().ToggleSettled()
 	if err != nil {
 		s.errf("settle: %v", err)
 		return true, nil
@@ -529,11 +509,11 @@ func (s *server) cmdWhy(arg string) (bool, error) {
 		}
 		n = v
 	}
-	if s.opts.Session == nil {
+	if s.sess() == nil {
 		s.errf("no session")
 		return true, nil
 	}
-	s.sheet("why", agent.WhyLast(s.opts.Session.Events(), n))
+	s.sheet("why", agent.WhyLast(s.sess().Events(), n))
 	return false, nil
 }
 

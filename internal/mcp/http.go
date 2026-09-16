@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // httpTransport talks to a remote server. It starts with Streamable HTTP
@@ -153,6 +154,16 @@ func (t *httpTransport) do(ctx context.Context, req *http.Request, again func() 
 	return nil, err
 }
 
+// clipUTF8 renders a truncated response body as text. The read stopped at
+// a byte count, which may fall inside a rune; a trailing partial rune
+// would print as a replacement character in the error the user sees.
+func clipUTF8(b []byte) string {
+	for len(b) > 0 && !utf8.Valid(b) {
+		b = b[:len(b)-1]
+	}
+	return string(b)
+}
+
 type statusError struct {
 	code int
 	body string
@@ -213,7 +224,7 @@ func (t *httpTransport) sendStreamable(ctx context.Context, msg rpcMessage) erro
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
-		se := &statusError{code: resp.StatusCode, body: string(body)}
+		se := &statusError{code: resp.StatusCode, body: clipUTF8(body)}
 		t.mu.Lock()
 		t.lastHint = se.Error()
 		t.mu.Unlock()
@@ -230,7 +241,7 @@ func (t *httpTransport) sendStreamable(ctx context.Context, msg rpcMessage) erro
 		return nil
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxFrameBytes))
 	if err != nil {
 		return err
 	}
@@ -275,12 +286,12 @@ func (t *httpTransport) sendLegacy(ctx context.Context, msg rpcMessage) error {
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return &statusError{code: resp.StatusCode, body: string(body)}
+		return &statusError{code: resp.StatusCode, body: clipUTF8(body)}
 	}
 	// Some servers answer the POST with the message itself instead of
 	// using the stream; accept either.
 	if strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxFrameBytes))
 		if len(bytes.TrimSpace(body)) > 0 {
 			t.c.dispatchRaw(body)
 		}
@@ -358,7 +369,7 @@ func (t *httpTransport) openSSE(ready chan error) {
 	if resp.StatusCode >= 300 || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
-		fail(&statusError{code: resp.StatusCode, body: "not an SSE endpoint: " + string(body)})
+		fail(&statusError{code: resp.StatusCode, body: "not an SSE endpoint: " + clipUTF8(body)})
 		return
 	}
 	defer resp.Body.Close()
@@ -396,7 +407,7 @@ func (t *httpTransport) openSSE(ready chan error) {
 // onEvent, when set, sees every event first and returns true to consume it.
 func (t *httpTransport) readSSE(r io.Reader, onEvent func(event, data string) bool) {
 	sc := bufio.NewScanner(r)
-	sc.Buffer(make([]byte, 1<<16), 64<<20)
+	sc.Buffer(make([]byte, 1<<16), maxFrameBytes)
 	var (
 		event string
 		data  []string
@@ -430,6 +441,11 @@ func (t *httpTransport) readSSE(r io.Reader, onEvent func(event, data string) bo
 		}
 	}
 	flush()
+	// A stream that broke rather than ended leaves whatever it was
+	// carrying unanswered; say so, since the caller only sees a timeout.
+	if err := sc.Err(); err != nil {
+		t.c.logf("event stream: %v", err)
+	}
 }
 
 func (t *httpTransport) close() {

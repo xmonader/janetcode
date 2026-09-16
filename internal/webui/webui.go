@@ -123,13 +123,28 @@ func Run(ctx context.Context, opts Options) error {
 	}
 	s := newServer(ctx, opts)
 	hs := &http.Server{Handler: s.handler()}
+	served := make(chan struct{})
 	go func() {
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-served:
+			// Serve returned on its own; nothing to shut down, and
+			// waiting on ctx here would park this goroutine for the rest
+			// of the process.
+			return
+		}
 		shctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		_ = hs.Shutdown(shctx)
+		if err := hs.Shutdown(shctx); err != nil {
+			// An open /events stream never goes idle, so Shutdown waits
+			// out its whole grace period and then leaves those
+			// connections — and the handler goroutine behind each one —
+			// running. Close hangs up on them.
+			_ = hs.Close()
+		}
 	}()
 	err = hs.Serve(ln)
+	close(served)
 	if err == http.ErrServerClosed {
 		return nil
 	}
@@ -176,6 +191,25 @@ type server struct {
 	// held.
 	dirMu sync.RWMutex
 	dir   string
+
+	// sessMu guards opts.Session, the one option /new, /load and /fork
+	// replace while other requests are reading it. Everything reads it
+	// through sess().
+	sessMu sync.RWMutex
+}
+
+// sess is the session this server is logging to, or nil.
+func (s *server) sess() *session.Session {
+	s.sessMu.RLock()
+	defer s.sessMu.RUnlock()
+	return s.opts.Session
+}
+
+// setSession points the server at another session (/new, /load, /fork).
+func (s *server) setSession(v *session.Session) {
+	s.sessMu.Lock()
+	s.opts.Session = v
+	s.sessMu.Unlock()
 }
 
 // cwd is the directory this session is rooted at.
@@ -360,17 +394,21 @@ func (s *server) hello() helloPayload {
 		h.ReadOnly = modes.ReadOnly
 		h.Mode = sessionMode(s.opts.Agent)
 	}
-	if s.opts.Session != nil {
-		h.Session = s.opts.Session.Meta.ID
-		h.Title = s.opts.Session.Meta.Title
+	if s.sess() != nil {
+		h.Session = s.sess().Meta.ID
+		h.Title = s.sess().Meta.Title
 	}
 	return h
 }
 
-func (s *server) snapshot() (helloPayload, []*entry, *permPayload, []agent.Question, statusPayload) {
+func (s *server) snapshot() (helloPayload, []entry, *permPayload, []agent.Question, statusPayload) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	ents := append([]*entry(nil), s.entries...)
+	// Copies, not the pointers: /api/state used to serialise entries the
+	// agent's goroutine was still writing to.
+	ents := make([]entry, 0, len(s.entries))
+	for _, e := range s.entries {
+		ents = append(ents, *e)
+	}
 	var p *permPayload
 	if s.pending != nil {
 		pp := s.permOf(s.pending.call)
@@ -380,7 +418,9 @@ func (s *server) snapshot() (helloPayload, []*entry, *permPayload, []agent.Quest
 	if s.asking != nil {
 		qs = s.asking.questions
 	}
-	return s.hello(), ents, p, qs, s.statusLocked()
+	f := s.stateLocked()
+	s.mu.Unlock()
+	return s.hello(), ents, p, qs, s.statusOf(f)
 }
 
 func (s *server) state(w http.ResponseWriter, r *http.Request) {
@@ -429,13 +469,14 @@ func (s *server) events(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
-		case e := <-ch:
+		case e, ok := <-ch:
+			if !ok {
+				return // fell behind; the browser reconnects and replays
+			}
 			writeSSE(w, e)
 			fl.Flush()
 		case <-tick.C:
-			s.mu.Lock()
-			st := s.statusLocked()
-			s.mu.Unlock()
+			st := s.statusNow()
 			writeSSE(w, envelope{Type: "status", Status: &st})
 			fl.Flush()
 		}
@@ -472,6 +513,12 @@ func (s *server) emit(e envelope) {
 		select {
 		case ch <- e:
 		default:
+			// This page is not keeping up. Dropping the event on the
+			// floor left it quietly out of step with the session for as
+			// long as it stayed open; ending its stream instead makes the
+			// browser reconnect, and a new stream replays the log.
+			delete(s.subs, ch)
+			close(ch)
 		}
 	}
 	s.mu.Unlock()
@@ -523,22 +570,69 @@ func (s *server) submit(text string) error {
 	return nil
 }
 
-func (s *server) startTurn(text string) {
+// begin marks the session busy and returns the context the work runs on.
+// ok is false when something is already running: a turn, a shell command
+// and /compact each own the agent's history while they run, so only one
+// of them may. esc cancels the context; end releases it.
+func (s *server) begin(phase string) (context.Context, bool) {
 	s.mu.Lock()
 	if s.running {
 		s.mu.Unlock()
-		return
+		return nil, false
 	}
 	s.running = true
-	s.phase = "thinking"
+	s.phase = phase
 	s.started = time.Now()
-	s.status = ""
 	ctx, cancel := context.WithCancel(s.life)
 	s.cancel = cancel
 	s.mu.Unlock()
+	return ctx, true
+}
 
-	s.upsert(&entry{Kind: "user", Text: text})
-	s.add(&entry{Kind: "thinking"})
+// end marks the session idle and hands back the next queued prompt —
+// taken under the lock, so one arriving in the same moment is not lost —
+// and how long the work took. A failed turn drops the queue: what was
+// queued was queued behind work that did not happen.
+func (s *server) end(failed bool) (next string, elapsed time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	elapsed = s.idleLocked()
+	switch {
+	case failed:
+		s.queued = nil
+	case len(s.queued) > 0:
+		next, s.queued = s.queued[0], s.queued[1:]
+	}
+	return next, elapsed
+}
+
+// idle marks the session idle and leaves the queue alone, for work that
+// starts a turn of its own afterwards (a recipe's handover).
+func (s *server) idle() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.idleLocked()
+}
+
+func (s *server) idleLocked() time.Duration {
+	s.running = false
+	s.phase = ""
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil
+	}
+	return time.Since(s.started)
+}
+
+func (s *server) startTurn(text string) {
+	ctx, ok := s.begin("thinking")
+	if !ok {
+		return
+	}
+	s.statusSet("")
+
+	s.add(entry{Kind: "user", Text: text})
+	s.add(entry{Kind: "thinking"})
 	s.emitStatus()
 	if s.opts.Typed != nil {
 		s.opts.Typed.Note(text)
@@ -550,7 +644,7 @@ func (s *server) startTurn(text string) {
 		for i, a := range atts {
 			names[i] = a.Path
 		}
-		s.upsert(&entry{Kind: "notice", Text: "attached " + strings.Join(names, " · ")})
+		s.add(entry{Kind: "notice", Text: "attached " + strings.Join(names, " · ")})
 		blocks = append([]llm.Block{{Type: llm.BlockText, Text: expanded}}, prompt.ImageBlocks(atts)...)
 	}
 	ag := s.opts.Agent
@@ -561,33 +655,20 @@ func (s *server) startTurn(text string) {
 }
 
 func (s *server) finish(err error) {
-	s.mu.Lock()
-	s.running = false
-	s.phase = ""
-	if s.cancel != nil {
-		s.cancel()
-		s.cancel = nil
-	}
-	queued := s.queued
-	s.queued = nil
-	elapsed := time.Since(s.started)
-	s.mu.Unlock()
+	next, elapsed := s.end(err != nil)
 	switch {
 	case err == nil:
 		s.statusSet("done in " + textfmt.Duration(elapsed))
 	case err == context.Canceled:
-		s.upsert(&entry{Kind: "error", Text: "cancelled after " + textfmt.Duration(elapsed), Error: true})
+		s.add(entry{Kind: "error", Text: "cancelled after " + textfmt.Duration(elapsed), Error: true})
 		s.statusSet("cancelled")
 	default:
-		s.upsert(&entry{Kind: "error", Text: err.Error(), Error: true})
+		s.add(entry{Kind: "error", Text: err.Error(), Error: true})
 		s.statusSet("error")
 	}
 	s.emitStatus()
-	if err == nil && len(queued) > 0 {
-		s.startTurn(queued[0])
-		s.mu.Lock()
-		s.queued = queued[1:]
-		s.mu.Unlock()
+	if next != "" {
+		s.startTurn(next)
 		return
 	}
 	// An active goal keeps the session going after the turn, the way
@@ -651,21 +732,14 @@ func (s *server) command(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) runShell(cmdline string) {
 	if cmdline == "" {
-		s.upsert(&entry{Kind: "error", Text: "usage: !<command>", Error: true})
+		s.add(entry{Kind: "error", Text: "usage: !<command>", Error: true})
 		return
 	}
-	s.mu.Lock()
-	if s.running {
-		s.mu.Unlock()
-		s.upsert(&entry{Kind: "error", Text: "wait for the current turn to finish before running a command", Error: true})
+	ctx, ok := s.begin("running your command")
+	if !ok {
+		s.add(entry{Kind: "error", Text: "wait for the current turn to finish before running a command", Error: true})
 		return
 	}
-	s.running = true
-	s.phase = "running your command"
-	s.started = time.Now()
-	ctx, cancel := context.WithCancel(s.life)
-	s.cancel = cancel
-	s.mu.Unlock()
 	input, _ := json.Marshal(map[string]string{"command": cmdline})
 	call := agent.ToolCall{ID: fmt.Sprintf("shell-%d", time.Now().UnixNano()), Name: "shell", Input: input}
 	s.apply(agent.Event{Kind: agent.EvToolRun, Call: &call})
@@ -687,12 +761,41 @@ func (s *server) runShell(cmdline string) {
 	}()
 }
 
-func (s *server) statusLocked() statusPayload {
+// sessionState is what the status line takes from the server itself. It
+// is copied out under mu so the rest of the status — which asks the agent
+// for its settings, its usage and an estimate over the whole history — is
+// computed without holding the lock the turn needs. Every open page asks
+// for this twice a second.
+type sessionState struct {
+	running bool
+	phase   string
+	queued  int
+	status  string
+	verbose bool
+	started time.Time
+}
+
+func (s *server) stateLocked() sessionState {
+	return sessionState{
+		running: s.running, phase: s.phase, queued: len(s.queued),
+		status: s.status, verbose: s.verbose, started: s.started,
+	}
+}
+
+func (s *server) statusNow() statusPayload {
+	s.mu.Lock()
+	f := s.stateLocked()
+	s.mu.Unlock()
+	return s.statusOf(f)
+}
+
+func (s *server) statusOf(f sessionState) statusPayload {
 	st := statusPayload{
-		Running: s.running,
-		Phase:   flavor.ForPhase(s.phase, time.Now(), s.started),
-		Queued:  len(s.queued),
-		Status:  s.status,
+		Running: f.running,
+		Phase:   flavor.ForPhase(f.phase, time.Now(), f.started),
+		Queued:  f.queued,
+		Status:  f.status,
+		Verbose: f.verbose,
 	}
 	if s.opts.Agent != nil {
 		modes := s.opts.Agent.Settings()
@@ -703,12 +806,11 @@ func (s *server) statusLocked() statusPayload {
 		st.ReadOnly = modes.ReadOnly
 		st.Mode = sessionMode(s.opts.Agent)
 		st.Effort = modes.Effort
-		st.Verbose = s.verbose
-		if usd, ok := s.opts.Agent.UsageSnapshot().Cost(s.opts.Agent.Settings().Price); ok {
+		if usd, ok := s.opts.Agent.UsageSnapshot().Cost(modes.Price); ok {
 			st.Cost = llm.FormatUSD(usd)
 		}
 		est := s.opts.Agent.TokenEstimate()
-		if !s.running {
+		if !f.running {
 			est = s.opts.Agent.EstimateTokens()
 		}
 		if lim := s.opts.Agent.CompactThreshold(); lim > 0 {
@@ -718,16 +820,14 @@ func (s *server) statusLocked() statusPayload {
 			}
 		}
 	}
-	if s.running && !s.started.IsZero() {
-		st.Elapsed = textfmt.Duration(time.Since(s.started))
+	if f.running && !f.started.IsZero() {
+		st.Elapsed = textfmt.Duration(time.Since(f.started))
 	}
 	return st
 }
 
 func (s *server) emitStatus() {
-	s.mu.Lock()
-	st := s.statusLocked()
-	s.mu.Unlock()
+	st := s.statusNow()
 	s.emit(envelope{Type: "status", Status: &st})
 }
 

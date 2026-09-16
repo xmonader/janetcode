@@ -37,18 +37,14 @@ func TestWebEffortCommand(t *testing.T) {
 // chip beside the mode; the default tier carries nothing.
 func TestWebStatusCarriesEffort(t *testing.T) {
 	s, _ := planServer(t)
-	s.mu.Lock()
-	st := s.statusLocked()
-	s.mu.Unlock()
+	st := s.statusNow()
 	if st.Effort != "" {
 		t.Fatalf("effort = %q, want the default to be silent", st.Effort)
 	}
 	if err := s.runCommand("/effort max"); err != nil {
 		t.Fatal(err)
 	}
-	s.mu.Lock()
-	st = s.statusLocked()
-	s.mu.Unlock()
+	st = s.statusNow()
 	if st.Effort != "max" {
 		t.Fatalf("effort = %q", st.Effort)
 	}

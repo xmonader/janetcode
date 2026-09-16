@@ -73,11 +73,20 @@ func (t *stdioTransport) send(_ context.Context, msg rpcMessage) error {
 	return err
 }
 
+// readLoop reads frames until the stream ends. A scanner error — a read
+// that failed, or a frame past maxFrameBytes — ends it just as quietly as
+// EOF does, and the process may well still be running, so nothing else
+// would ever notice: every call in flight and every call after it would
+// wait out its own timeout against a connection that can no longer
+// answer. It is reported as the disconnection it is.
 func (t *stdioTransport) readLoop(r io.Reader) {
 	sc := bufio.NewScanner(r)
-	sc.Buffer(make([]byte, 1<<16), 64<<20)
+	sc.Buffer(make([]byte, 1<<16), maxFrameBytes)
 	for sc.Scan() {
 		t.c.dispatchRaw(sc.Bytes())
+	}
+	if err := sc.Err(); err != nil {
+		t.c.fail(fmt.Errorf("%w: reading from the server: %v", ErrDisconnected, err))
 	}
 }
 

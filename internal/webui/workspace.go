@@ -256,7 +256,7 @@ func (s *server) newChat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]string{"ok": "1", "session": s.opts.Session.Meta.ID})
+	writeJSON(w, map[string]string{"ok": "1", "session": s.sess().Meta.ID})
 }
 
 func (s *server) startNewSession() error {
@@ -272,7 +272,7 @@ func (s *server) startNewSession() error {
 	if err != nil {
 		return err
 	}
-	s.opts.Session = sess
+	s.setSession(sess)
 	s.opts.CD.SetSession(sess)
 	if s.opts.Agent != nil {
 		if err := s.opts.Agent.OpenSession(sess, nil); err != nil {
@@ -329,7 +329,7 @@ func (s *server) loadSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "that session belongs to a different directory", http.StatusBadRequest)
 		return
 	}
-	s.opts.Session = sess
+	s.setSession(sess)
 	s.opts.CD.SetSession(sess)
 	if s.opts.Agent != nil {
 		if err := s.opts.Agent.OpenSession(sess, append([]llm.Message(nil), msgs...)); err != nil {
@@ -345,7 +345,10 @@ func (s *server) loadSession(w http.ResponseWriter, r *http.Request) {
 // replayHistory rebuilds the thread view from a loaded session. Tool calls
 // are paired with their results; results that never arrived are closed out.
 func (s *server) replayHistory(msgs []llm.Message) {
-	open := map[string]*entry{}
+	// Tool-call id → the id of the thread entry showing it, so the
+	// matching result can close it out. The entries themselves belong to
+	// the server's lock, not to this loop.
+	open := map[string]string{}
 	for _, m := range msgs {
 		for _, b := range m.Blocks {
 			switch b.Type {
@@ -357,37 +360,39 @@ func (s *server) replayHistory(msgs []llm.Message) {
 					if b.Synthetic || strings.HasPrefix(b.Text, "[repository map:") {
 						continue
 					}
-					s.add(&entry{Kind: "user", Text: b.Text, Done: true})
+					s.add(entry{Kind: "user", Text: b.Text, Done: true})
 				} else if strings.TrimSpace(b.Text) != "" {
-					s.add(&entry{Kind: "assistant", Text: b.Text, Done: true})
+					s.add(entry{Kind: "assistant", Text: b.Text, Done: true})
 				}
 			case llm.BlockThinking:
 				if strings.TrimSpace(b.Text) != "" {
-					s.add(&entry{Kind: "thinking", Text: b.Text, Done: true})
+					s.add(entry{Kind: "thinking", Text: b.Text, Done: true})
 				}
 			case llm.BlockToolUse:
-				e := s.add(&entry{Kind: "tool", Name: b.Name, CallID: b.ID, Running: true,
+				open[b.ID] = s.add(entry{Kind: "tool", Name: b.Name, CallID: b.ID, Running: true,
 					Summary: summarizeInput(b.Name, string(b.Input), 80, s.cwd())})
-				open[b.ID] = e
 			case llm.BlockToolResult:
-				e := open[b.ToolUseID]
-				if e == nil {
+				id, ok := open[b.ToolUseID]
+				if !ok {
 					continue
 				}
-				e.Running = false
-				e.Done = true
-				e.Error = b.IsError
-				e.Output = textfmt.Clip(b.Text, 4000)
-				s.push(e)
+				delete(open, b.ToolUseID)
+				s.update(id, func(e *entry) {
+					e.Running = false
+					e.Done = true
+					e.Error = b.IsError
+					e.Output = textfmt.Clip(b.Text, 4000)
+				})
 			}
 		}
 	}
-	for _, e := range open {
-		if !e.Done {
+	// Calls whose result never made it into the session: show them as
+	// finished rather than for ever running.
+	for _, id := range open {
+		s.update(id, func(e *entry) {
 			e.Running = false
 			e.Done = true
-			s.push(e)
-		}
+		})
 	}
 }
 

@@ -485,12 +485,12 @@ func TestWebStatusDressesThinking(t *testing.T) {
 	s.running = true
 	s.phase = "thinking"
 	s.started = time.Unix(1_700_000_000, 0)
-	st := s.statusLocked()
+	st := s.statusNow()
 	if !flavor.Known(st.Phase) {
 		t.Fatalf("thinking phase = %q", st.Phase)
 	}
 	s.phase = "running bash"
-	if got := s.statusLocked().Phase; got != "running bash" {
+	if got := s.statusNow().Phase; got != "running bash" {
 		t.Fatalf("tool phase was dressed: %q", got)
 	}
 }

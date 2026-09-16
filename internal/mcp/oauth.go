@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -60,7 +61,16 @@ func (t Token) Expired() bool {
 // TokenStore keeps tokens per server URL in one JSON file (mode 0600).
 type TokenStore struct {
 	Path string
-	mu   sync.Mutex
+	// mu guards the file: load and save are one read-modify-write.
+	mu sync.Mutex
+	// refreshMu serialises refreshes across every server in the store. An
+	// authorization server usually invalidates a refresh token the moment
+	// it is spent, so two parallel tool calls noticing the same expiry and
+	// both spending it left one of them holding a token the server had
+	// already revoked — and the loser's write could land last and store
+	// it. Refreshes are rare enough that one lock for the store costs
+	// nothing.
+	refreshMu sync.Mutex
 }
 
 func (s *TokenStore) load() (map[string]Token, error) {
@@ -148,6 +158,14 @@ func (s *TokenStore) Bearer(ctx context.Context, client *http.Client, serverURL 
 	}
 	if !force && !t.Expired() {
 		return t.AccessToken, true, nil
+	}
+	s.refreshMu.Lock()
+	defer s.refreshMu.Unlock()
+	// Someone else may have refreshed while this caller waited for the
+	// lock; their token is the live one, and spending the refresh token
+	// again would revoke it.
+	if cur, ok := s.Get(serverURL); ok && cur.AccessToken != t.AccessToken && !cur.Expired() {
+		return cur.AccessToken, true, nil
 	}
 	if t.RefreshToken == "" {
 		return "", true, fmt.Errorf("%w: the token expired and cannot be refreshed", ErrAuthRequired)
@@ -366,7 +384,11 @@ func Authorize(ctx context.Context, o AuthOptions) (Token, error) {
 		qs := r.URL.Query()
 		var res result
 		switch {
-		case qs.Get("state") != state:
+		// The redirect lands on a loopback port anything on this machine
+		// can reach, and state is the only thing that says the browser
+		// coming back is the one that was sent: compare it without
+		// leaking how much of it matched.
+		case subtle.ConstantTimeCompare([]byte(qs.Get("state")), []byte(state)) != 1:
 			res.err = errors.New("redirect carried a wrong state; ignoring it")
 		case qs.Get("error") != "":
 			res.err = fmt.Errorf("%s: %s", qs.Get("error"), qs.Get("error_description"))

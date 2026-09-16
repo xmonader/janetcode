@@ -38,6 +38,11 @@ def diagnose(uri, version, text):
 
 no_version = "--no-version" in sys.argv
 
+# --garbage-after-open corrupts the stream after the first didOpen and then
+# keeps running, standing in for a server that writes something that is not
+# LSP onto stdout (a panic, a stray print) without exiting.
+garbage_after_open = "--garbage-after-open" in sys.argv
+
 # --slow-init=SECONDS holds the initialize answer back, standing in for a
 # cold rust-analyzer indexing a large tree.
 slow_init = 0.0
@@ -68,6 +73,11 @@ while True:
     elif method == "textDocument/didOpen":
         td = msg["params"]["textDocument"]
         diagnose(td["uri"], None if no_version else td["version"], td["text"])
+        if garbage_after_open:
+            sys.stdout.buffer.write(b"Not-An-LSP-Header: 1\r\n\r\n")
+            sys.stdout.buffer.flush()
+            while True:
+                time.sleep(3600)
     elif method == "textDocument/didChange":
         td = msg["params"]["textDocument"]
         diagnose(td["uri"], None if no_version else td["version"], msg["params"]["contentChanges"][-1]["text"])
