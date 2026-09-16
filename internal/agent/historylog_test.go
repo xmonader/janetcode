@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/hook"
@@ -89,4 +90,47 @@ func TestBudgetStopLeavesAPairedHistoryOnTheLog(t *testing.T) {
 		t.Fatalf("err = %v, want ErrBudget", err)
 	}
 	assertLogFoldsToHistory(t, a, mem)
+}
+
+// An approver that cannot answer — a front-end that went away, a
+// transport that broke — is neither the user cancelling nor the tool
+// failing. It used to be swallowed: the batch answered every unfinished
+// call with "Cancelled by user" and returned a nil error, so the turn
+// carried on telling the model the user had refused.
+type brokenApprover struct{ err error }
+
+func (b brokenApprover) Approve(context.Context, ToolCall) (Decision, error) {
+	return Deny, b.err
+}
+
+func TestApproverErrorStopsTheTurnInsteadOfLookingLikeACancel(t *testing.T) {
+	boom := errors.New("the front-end went away")
+	f := &fake{responses: []*llm.Response{
+		{
+			Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+				{Type: llm.BlockToolUse, ID: "1", Name: "read_file", Input: []byte(`{"path":"a.txt"}`)},
+				{Type: llm.BlockToolUse, ID: "2", Name: "write_file", Input: []byte(`{"path":"b.txt","content":"x\n"}`)},
+			}},
+			StopReason: llm.StopToolUse,
+			Usage:      llm.Usage{InputTokens: 1, OutputTokens: 1},
+		},
+		text("done"),
+	}}
+	a, _ := newAgent(t, f, brokenApprover{err: boom})
+	err := a.Run(context.Background(), "do it", nil)
+	if !errors.Is(err, boom) {
+		t.Fatalf("err = %v, want the approver's error", err)
+	}
+	if len(f.requests) != 1 {
+		t.Fatalf("made %d model calls, want 1: the turn must not continue past a broken approver", len(f.requests))
+	}
+	// The history still pairs, and the call that never ran is not
+	// described as something the user did.
+	assertPaired(t, a.Messages)
+	last := a.Messages[len(a.Messages)-1]
+	for _, b := range last.Blocks {
+		if b.ToolUseID == "2" && !strings.Contains(b.Text, boom.Error()) {
+			t.Fatalf("the unrun call was answered with %q, which does not say what went wrong", b.Text)
+		}
+	}
 }
