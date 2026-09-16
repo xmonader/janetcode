@@ -97,11 +97,16 @@ func (u *Usage) Flush() error {
 	if err != nil {
 		return err
 	}
-	u.dirty = false
 	// Rewritten whole, so it is replaced by rename: a crash during the
 	// flush at exit must not leave a truncated file that the next run
 	// then fails to parse and starts counting from zero.
-	return fsutil.AtomicWriteMode(u.path, data, fsutil.PrivateFileMode)
+	if err := fsutil.AtomicWriteMode(u.path, data, fsutil.PrivateFileMode); err != nil {
+		// Still dirty. Clearing the flag before the write landed made a
+		// retry a silent no-op and lost the session's counts.
+		return err
+	}
+	u.dirty = false
+	return nil
 }
 
 // Path is where the counts live, so /stats can say so rather than
