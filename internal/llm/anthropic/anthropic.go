@@ -160,6 +160,10 @@ type APIError struct {
 
 func (e *APIError) Error() string { return fmt.Sprintf("%s (HTTP %d)", e.Message, e.Status) }
 
+// HTTPStatus reports the status the API answered with, so a caller can
+// classify the failure without matching on the message text.
+func (e *APIError) HTTPStatus() int { return e.Status }
+
 func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
 	if err := req.Validate(); err != nil {
 		return sdk.MessageNewParams{}, err

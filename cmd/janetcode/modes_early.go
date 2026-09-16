@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/headless"
@@ -45,7 +48,11 @@ func earlyMode(fs *flag.FlagSet, o *options) (bool, error) {
 	case o.listSess:
 		return true, printSessions()
 	case o.runDoctor:
-		return true, doctor(os.Stdout, config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag}, o.doctorFix)
+		// The checkup makes a live model call, so ctrl+c ends it rather
+		// than waiting out the provider's own timeout.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return true, doctor(ctx, os.Stdout, config.Overrides{Provider: o.provider, Model: o.model, Effort: o.effort, Theme: o.themeFlag}, o.doctorFix)
 	case o.runProof:
 		cwd, err := os.Getwd()
 		if err != nil {

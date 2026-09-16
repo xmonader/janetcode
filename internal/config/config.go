@@ -514,6 +514,13 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 			cfg.Model = active.Model
 		}
 	}
+	// Missing credentials do not stop the load: the interactive first run
+	// opens on /connect and needs a configuration that is finished --
+	// themes built, limits clamped, the rest of the file validated. It
+	// used to return here, so a first run silently had no user themes, no
+	// clamped max_tokens, and learned about a malformed hooks or prices
+	// section only on the run after the key was set.
+	var credErr error
 	switch active.Type {
 	case "anthropic":
 		if cfg.Model == "" {
@@ -521,9 +528,10 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		}
 		if len(active.Keys()) == 0 {
 			if cfg.Provider == DefaultProvider {
-				return cfg, fmt.Errorf("%w: set ANTHROPIC_API_KEY, or OPENAI_API_KEY with JANETCODE_MODEL for an OpenAI-compatible backend, or run janetcode --init and edit %s", ErrNoCredentials, path)
+				credErr = fmt.Errorf("%w: set ANTHROPIC_API_KEY, or OPENAI_API_KEY with JANETCODE_MODEL for an OpenAI-compatible backend, or run janetcode --init and edit %s", ErrNoCredentials, path)
+			} else {
+				credErr = fmt.Errorf("%w for provider %q: set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
 			}
-			return cfg, fmt.Errorf("%w for provider %q: set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
 		}
 	case "openai":
 		if cfg.Model == "" {
@@ -531,9 +539,10 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 		}
 		if len(active.Keys()) == 0 && active.NeedsKey() {
 			if cfg.Provider == "openai" {
-				return cfg, fmt.Errorf("%w: set OPENAI_API_KEY or providers.openai.api_key in %s", ErrNoCredentials, path)
+				credErr = fmt.Errorf("%w: set OPENAI_API_KEY or providers.openai.api_key in %s", ErrNoCredentials, path)
+			} else {
+				credErr = fmt.Errorf("%w for provider %q: set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
 			}
-			return cfg, fmt.Errorf("%w for provider %q: set providers.%s.api_key in %s", ErrNoCredentials, cfg.Provider, cfg.Provider, path)
 		}
 	default:
 		return nil, badf("provider %q has type %q (want anthropic or openai)", cfg.Provider, active.Type)
@@ -588,7 +597,9 @@ func load(path string, getenv func(string) string, ov Overrides) (*Config, error
 	if err := validateSandbox(cfg.Sandbox); err != nil {
 		return nil, badf("%s: %v", path, err)
 	}
-	return cfg, nil
+	// A file that cannot be used beats credentials that are merely
+	// missing: /connect can supply a key, not repair a broken theme.
+	return cfg, credErr
 }
 
 // validateSandbox accepts an empty value, "off", or a profile name the

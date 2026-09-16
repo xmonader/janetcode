@@ -186,15 +186,34 @@ func Open(dir, id string) (*Session, []llm.Message, error) {
 	if strings.ContainsAny(id, "/\\") || id == "" {
 		return nil, nil, fmt.Errorf("invalid session id %q", id)
 	}
-	path := filepath.Join(dir, id+".jsonl")
+	s, msgs, _, err := open(filepath.Join(dir, id+".jsonl"), id, nil)
+	return s, msgs, err
+}
+
+// open reads a session file.
+//
+// want, when given, is consulted as soon as the metadata line has been
+// parsed. Returning false stops the read there and reports matched
+// false: a listing then pays one line for a session belonging to some
+// other project instead of parsing and folding a whole conversation it
+// is going to throw away. That is the whole reason this is not just
+// Open — the sessions directory holds every project's sessions, and
+// /sessions, --continue and the doctor each walk all of them.
+func open(path, id string, want func(Meta) bool) (*Session, []llm.Message, bool, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 	defer f.Close()
 	s := &Session{path: path, torn: !endsWithNewline(f)}
 	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 1024*1024), 64*1024*1024)
+	// A session line is one JSON event and is usually well under 64 KB;
+	// the ceiling is high because a single tool result can be enormous.
+	// The scanner doubles its buffer as it needs to, so starting at the
+	// ceiling's old 1 MB only meant allocating a megabyte per session
+	// opened -- which a listing does once per file in the directory, for
+	// every project's sessions, not just this one's.
+	sc.Buffer(make([]byte, 0, 64*1024), 64*1024*1024)
 	n := 0
 	for sc.Scan() {
 		n++
@@ -206,7 +225,7 @@ func Open(dir, id string) (*Session, []llm.Message, error) {
 		if err := json.Unmarshal([]byte(raw), &l); err != nil {
 			// A torn final line (crash mid-write) is dropped, not fatal.
 			if sc.Scan() {
-				return nil, nil, fmt.Errorf("session %s line %d: %w", id, n, err)
+				return nil, nil, false, fmt.Errorf("session %s line %d: %w", id, n, err)
 			}
 			s.torn = true
 			break
@@ -215,6 +234,9 @@ func Open(dir, id string) (*Session, []llm.Message, error) {
 		case "meta":
 			if l.Meta != nil {
 				s.Meta = *l.Meta
+			}
+			if want != nil && !want(s.Meta) {
+				return s, nil, false, nil
 			}
 		case "event":
 			e := l.Event
@@ -225,12 +247,12 @@ func Open(dir, id string) (*Session, []llm.Message, error) {
 		}
 	}
 	if err := sc.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 	if s.Meta.ID == "" {
-		return nil, nil, fmt.Errorf("session %s has no metadata", id)
+		return nil, nil, false, fmt.Errorf("session %s has no metadata", id)
 	}
-	return s, FoldSurface(s.ev), nil
+	return s, FoldSurface(s.ev), true, nil
 }
 
 // endsWithNewline reports whether the log's last byte is a newline, which
@@ -479,7 +501,7 @@ func (s *Session) WritePID(pid int) error {
 	if err := s.EnsureWritten(); err != nil {
 		return err
 	}
-	return os.WriteFile(s.PIDPath(), []byte(fmt.Sprintf("%d\n", pid)), 0o600)
+	return fsutil.AtomicWriteMode(s.PIDPath(), []byte(fmt.Sprintf("%d\n", pid)), fsutil.PrivateFileMode)
 }
 
 // ClearPID removes the background pid sidecar.
@@ -539,7 +561,7 @@ func (s *Session) rewriteLocked() error {
 	if err := w.Flush(); err != nil {
 		return err
 	}
-	return fsutil.WriteFileAtomic(s.path, buf.Bytes(), 0o600)
+	return fsutil.WriteFileAtomic(s.path, buf.Bytes(), fsutil.PrivateFileMode)
 }
 
 func writeLine(w *bufio.Writer, v any) error {

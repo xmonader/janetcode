@@ -41,7 +41,13 @@ import (
 // out and each one printed. What counts as safe is internal/doctorfix's
 // decision, and it is a narrow one — anything that needs judgement is
 // reported here and never touched.
-func doctor(w io.Writer, ov config.Overrides, fix bool) error {
+// ctx bounds the whole checkup, not just the model call: a front-end
+// that is closing down, or a terminal where ctrl+c was pressed, cancels
+// it rather than waiting out the provider timeout.
+func doctor(ctx context.Context, w io.Writer, ov config.Overrides, fix bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	failed := 0
 	row := func(ok bool, what, detail string) {
 		mark := "ok  "
@@ -119,9 +125,9 @@ func doctor(w io.Writer, ov config.Overrides, fix bool) error {
 			if perr != nil {
 				row(false, "backend", perr.Error())
 			} else {
-				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 				start := time.Now()
-				resp, cerr := prov.Stream(ctx, llm.Request{Model: cfg.Model, MaxTokens: 16,
+				resp, cerr := prov.Stream(callCtx, llm.Request{Model: cfg.Model, MaxTokens: 16,
 					Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "Reply with the single word: ok")}}, nil)
 				cancel()
 				if cerr != nil {

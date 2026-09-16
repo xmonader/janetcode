@@ -67,3 +67,29 @@ func TestStdinApproverDeniesAfterClose(t *testing.T) {
 		t.Fatalf("after Close: %v %v", d, err)
 	}
 }
+
+// The exported constructor has to hand back something the caller can
+// close: its reader goroutine owns stdin until it does.
+func TestNewStdinApproverIsClosable(t *testing.T) {
+	var a ClosableApprover = NewStdinApprover(nil, io.Discard)
+	if err := a.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	// Closing twice is safe, so a caller may close defensively.
+	if err := a.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+}
+
+// Run installs an approver of its own only when the agent has none, and
+// takes it away again: a closed approver left behind would deny every
+// prompt of a later run.
+func TestRunLeavesNoClosedApproverBehind(t *testing.T) {
+	ag := &agent.Agent{}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // watch returns as soon as it notices; no model is called
+	_ = run(ctx, Options{Agent: ag, Stderr: io.Discard, Stdout: io.Discard, Watch: "false", WatchInterval: time.Millisecond}, newRecorder(Options{Stdout: io.Discard}, FormatText))
+	if ag.Approver != nil {
+		t.Fatalf("Approver = %v, want nil after the run", ag.Approver)
+	}
+}

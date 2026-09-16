@@ -77,33 +77,90 @@ var ErrBadInput = errors.New("bad input")
 // package having said so.
 var ErrConfig = errors.New("configuration")
 
-// ExitCode classifies an error into one of the codes above.
-func ExitCode(err error) int {
-	switch {
-	case err == nil:
-		return ExitOK
-	case errors.Is(err, context.Canceled):
-		return ExitCancelled
-	case errors.Is(err, ErrBudget):
-		return ExitBudget
-	case errors.Is(err, agent.ErrMaxIterations):
-		return ExitTurnLimit
-	case errors.Is(err, ErrBadInput):
-		return ExitBadInput
-	case errors.Is(err, llm.ErrNoAPIKey), errors.Is(err, config.ErrNoCredentials), isAuthHTTP(err):
-		return ExitAuth
-	case errors.Is(err, ErrConfig), errors.Is(err, config.ErrBadConfig):
-		return ExitConfig
+// httpStatusError is any error carrying the HTTP status a provider
+// answered with. Both provider packages' APIError implement it; the
+// interface is declared here, where it is consumed, so this package
+// does not import either of them.
+type httpStatusError interface{ HTTPStatus() int }
+
+// HTTPStatus returns the status a provider refused with, and whether the
+// error carried one at all. Only a typed provider error counts: a message
+// that merely reads like one may have come from anywhere, including a
+// proxy or a tool's own output quoted back.
+func HTTPStatus(err error) (int, bool) {
+	var se httpStatusError
+	if errors.As(err, &se) {
+		if st := se.HTTPStatus(); st != 0 {
+			return st, true
+		}
 	}
-	return ExitOther
+	return 0, false
 }
 
-// isAuthHTTP spots the provider saying the key is not good enough. The
-// providers report this as a message rather than a typed error, so the
-// message is what there is to go on.
-func isAuthHTTP(err error) bool {
+// KeyRejected reports whether err is a provider refusing the key that was
+// sent (401 or 403), as opposed to no key having been configured at all.
+// The two want different advice, and only the status tells them apart.
+// It is what the command line prints its "check the key" hint on, so it
+// takes the typed error only: telling someone their key is wrong because
+// a tool's output contained "(HTTP 401)" sends them after the wrong bug.
+func KeyRejected(err error) bool {
+	if err == nil {
+		return false
+	}
+	st, ok := HTTPStatus(err)
+	return ok && (st == 401 || st == 403)
+}
+
+// looksLikeAuthHTTP is the message-only fallback the exit status still
+// honours, for a provider that reports a refusal as prose. It is
+// deliberately not part of KeyRejected: exiting 41 on a false positive
+// costs a caller one retry, while the hint would send a person after the
+// wrong bug.
+func looksLikeAuthHTTP(err error) bool {
 	s := err.Error()
 	return strings.Contains(s, "(HTTP 401)") || strings.Contains(s, "(HTTP 403)")
+}
+
+// exitRules is the one mapping from an error to a process status: the
+// first row that matches decides, so the order is part of the meaning and
+// this is a slice, not a map. Adding a condition means adding a row here
+// rather than a branch somewhere in cmd/. Anything unmatched is
+// ExitOther.
+var exitRules = []struct {
+	name string // what the row is about; the test walks these
+	is   func(error) bool
+	code int
+}{
+	// Cancellation first: an interrupted run reports the interruption,
+	// whatever it happened to be doing when the signal arrived.
+	{"cancelled", func(err error) bool {
+		return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+	}, ExitCancelled},
+	{"budget", func(err error) bool { return errors.Is(err, ErrBudget) }, ExitBudget},
+	{"turn limit", func(err error) bool { return errors.Is(err, agent.ErrMaxIterations) }, ExitTurnLimit},
+	{"bad input", func(err error) bool { return errors.Is(err, ErrBadInput) }, ExitBadInput},
+	{"auth", func(err error) bool {
+		return errors.Is(err, llm.ErrNoAPIKey) || errors.Is(err, config.ErrNoCredentials) ||
+			KeyRejected(err) || looksLikeAuthHTTP(err)
+	}, ExitAuth},
+	{"config", func(err error) bool {
+		return errors.Is(err, ErrConfig) || errors.Is(err, config.ErrBadConfig)
+	}, ExitConfig},
+}
+
+// ExitCode classifies an error into one of the codes above. It is the
+// only place that mapping lives: cmd/janetcode exits with what this
+// returns and the JSON result envelope repeats it.
+func ExitCode(err error) int {
+	if err == nil {
+		return ExitOK
+	}
+	for _, r := range exitRules {
+		if r.is(err) {
+			return r.code
+		}
+	}
+	return ExitOther
 }
 
 // recorder watches the events of a run and builds the result envelope.

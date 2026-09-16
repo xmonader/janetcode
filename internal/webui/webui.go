@@ -65,8 +65,10 @@ type Options struct {
 	Models func(string) (llm.Provider, string, error)
 	// MCP describes the MCP servers, for /mcp.
 	MCP *MCPOptions
-	// Doctor is the same checkup janetcode --doctor prints.
-	Doctor func(io.Writer) error
+	// Doctor is the same checkup janetcode --doctor prints. It makes a
+	// live model call, so it takes the server's context and stops when
+	// the server does.
+	Doctor func(context.Context, io.Writer) error
 }
 
 const defaultAddr = "127.0.0.1:8787"

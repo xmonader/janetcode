@@ -84,8 +84,15 @@ func Run(ctx context.Context, opts Options) error {
 func run(ctx context.Context, opts Options, rec *recorder) error {
 	ag := opts.Agent
 	if ag.Approver == nil {
+		// Ours to own: the approver holds a goroutine reading Stdin, so it
+		// is closed and unset again on the way out rather than left on the
+		// agent, where a later run would find a closed approver that denies
+		// everything.
 		sa := newStdinApprover(opts.Stdin, opts.Stderr)
-		defer sa.Close()
+		defer func() {
+			_ = sa.Close()
+			ag.Approver = nil
+		}()
 		ag.Approver = sa
 	}
 	if opts.MaxCostUSD > 0 {
@@ -308,11 +315,23 @@ type lineRead struct {
 	err error
 }
 
+// ClosableApprover is an approver that owns something -- here, the
+// goroutine reading the terminal -- and so has to be released. It is what
+// NewStdinApprover returns, because an approver whose reader cannot be
+// stopped leaks that goroutine and keeps stdin claimed for the life of
+// the process.
+type ClosableApprover interface {
+	agent.Approver
+	io.Closer
+}
+
 // NewStdinApprover is the approver Run installs when none is set. It is
 // exported so another headless entry point — `janetcode --recipe`, which
 // runs Agent.RunRecipe directly rather than through Run — can give a
-// replayed step the same permission prompt a live -p run would.
-func NewStdinApprover(in *os.File, out io.Writer) agent.Approver {
+// replayed step the same permission prompt a live -p run would. The
+// caller owns the returned approver and must Close it: until then a
+// goroutine is blocked reading in.
+func NewStdinApprover(in *os.File, out io.Writer) ClosableApprover {
 	return newStdinApprover(in, out)
 }
 

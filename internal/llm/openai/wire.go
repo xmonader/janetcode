@@ -158,3 +158,8 @@ type APIError struct {
 func (e *APIError) Error() string {
 	return fmt.Sprintf("%s (HTTP %d)", e.Message, e.Status)
 }
+
+// HTTPStatus reports the status the server answered with. It is what
+// lets a caller classify the failure (a rejected key, a rate limit)
+// without matching on the message text; see headless.ExitCode.
+func (e *APIError) HTTPStatus() int { return e.Status }

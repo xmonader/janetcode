@@ -19,6 +19,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"io"
@@ -63,7 +64,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !p.quiet {
 		log.Printf("%s  %s -> %s", r.URL.Path, was, p.model)
 	}
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, p.upstream+joinPath(p.upstream, r.URL.RequestURI()), strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, p.upstream+joinPath(p.upstream, r.URL.RequestURI()), bytes.NewReader(body))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

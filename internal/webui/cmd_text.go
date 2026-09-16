@@ -41,7 +41,7 @@ func (s *server) doctor() {
 		return
 	}
 	var buf strings.Builder
-	err := s.opts.Doctor(&buf)
+	err := s.opts.Doctor(s.life, &buf)
 	report := strings.TrimRight(buf.String(), "\n")
 	if report != "" {
 		s.sheet("doctor", report)

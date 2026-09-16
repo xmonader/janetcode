@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	manual "github.com/xmonader/janetcode/docs/manual"
 )
@@ -154,6 +155,11 @@ func AnswerWidth(c *Catalog, query string, kind Kind, width int) string {
 		out = out[:MaxAnswerBytes]
 		if i := strings.LastIndexByte(out, '\n'); i > 0 {
 			out = out[:i]
+		} else {
+			// No line break to cut at. The budget is a byte count and the
+			// rows carry em dashes, so the cut can land mid-character and
+			// hand the model invalid UTF-8; drop the partial character.
+			out = dropPartialRune(out)
 		}
 		out += "\n… (truncated to the introspect budget)"
 	}
@@ -161,6 +167,19 @@ func AnswerWidth(c *Catalog, query string, kind Kind, width int) string {
 }
 
 func quoted(s string) string { return `"` + strings.TrimSpace(s) + `"` }
+
+// dropPartialRune removes a multi-byte character that a byte budget cut
+// in half, so the result is always valid UTF-8.
+func dropPartialRune(s string) string {
+	for len(s) > 0 {
+		r, size := utf8.DecodeLastRuneInString(s)
+		if r != utf8.RuneError || size > 1 {
+			return s
+		}
+		s = s[:len(s)-1]
+	}
+	return s
+}
 
 // maxRows and maxManualBytes keep an answer to something a user reads
 // rather than scrolls. Five rows is the whole of the catalogue that is

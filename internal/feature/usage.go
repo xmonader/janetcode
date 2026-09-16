@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/xmonader/janetcode/internal/fsutil"
 )
 
 // Usage counts which catalogue features this user has reached for.
@@ -95,8 +97,13 @@ func (u *Usage) Flush() error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(u.path, data, 0o600); err != nil {
-		return err // still dirty, so a later Flush tries again
+	// Rewritten whole, so it is replaced by rename: a crash during the
+	// flush at exit must not leave a truncated file that the next run
+	// then fails to parse and starts counting from zero.
+	if err := fsutil.AtomicWriteMode(u.path, data, fsutil.PrivateFileMode); err != nil {
+		// Still dirty. Clearing the flag before the write landed made a
+		// retry a silent no-op and lost the session's counts.
+		return err
 	}
 	u.dirty = false
 	return nil
