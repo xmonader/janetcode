@@ -175,10 +175,7 @@ func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
 		params.MaxTokens = 16000
 	}
 	if req.System != "" {
-		params.System = []sdk.TextBlockParam{{
-			Text:         req.System,
-			CacheControl: sdk.NewCacheControlEphemeralParam(),
-		}}
+		params.System = systemBlocks(req.System)
 	}
 	if cfg.Thinking {
 		// Omitted still returns the signature that keeps later turns
@@ -248,6 +245,29 @@ func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
 		}
 	}
 	return params, nil
+}
+
+// envSection is the heading prompt.System writes cwd, date, git state and
+// the project's own instructions under. Everything above it is the same
+// for every session on this build; everything below it changes with the
+// directory, the day and the branch. The OpenAI path splits there for
+// the same reason (see openai.applyCacheBreakpoints).
+const envSection = "# Environment\n"
+
+// systemBlocks is the system prompt as cacheable blocks. Splitting it at
+// the environment heading gives the static instructions a cache entry of
+// their own, so the big prefix survives what the tail does not: a `cd`
+// that rewrites the environment, a subagent that appends its brief, an
+// eval task in another working directory. Both blocks are marked, so a
+// session that never moves still reads the whole prompt from cache.
+func systemBlocks(system string) []sdk.TextBlockParam {
+	if i := strings.Index(system, envSection); i > 0 {
+		return []sdk.TextBlockParam{
+			{Text: system[:i], CacheControl: sdk.NewCacheControlEphemeralParam()},
+			{Text: system[i:], CacheControl: sdk.NewCacheControlEphemeralParam()},
+		}
+	}
+	return []sdk.TextBlockParam{{Text: system, CacheControl: sdk.NewCacheControlEphemeralParam()}}
 }
 
 func toolParam(t llm.ToolDef) (sdk.ToolParam, error) {
@@ -468,6 +488,14 @@ func toResponse(msg sdk.Message) (*llm.Response, error) {
 		case sdk.RedactedThinkingBlock:
 			// Cannot be represented; the API accepts history without it.
 		case sdk.ToolUseBlock:
+			// A call with no name or no id cannot be run, and going back
+			// into the history it makes every later turn invalid.
+			if v.Name == "" {
+				return nil, fmt.Errorf("anthropic: tool call %q has no name", v.ID)
+			}
+			if v.ID == "" {
+				return nil, fmt.Errorf("anthropic: tool call %s has no id", v.Name)
+			}
 			input := json.RawMessage(v.JSON.Input.Raw())
 			if len(input) == 0 || !json.Valid(input) {
 				return nil, fmt.Errorf("anthropic: tool call %s has invalid JSON input: %.200s", v.Name, string(input))

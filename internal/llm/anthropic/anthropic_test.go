@@ -274,3 +274,59 @@ func TestKeyRotationAndListModels(t *testing.T) {
 		t.Fatalf("models = %+v err = %v", models, err)
 	}
 }
+
+// The system prompt is cached in two pieces. Everything above the
+// environment heading is the same for every session on this build, so it
+// keeps its own cache entry and survives a `cd`, a subagent that appends
+// its brief, or an eval task run in another directory — each of which
+// rewrites only the tail.
+func TestSystemPromptIsCachedAboveTheEnvironment(t *testing.T) {
+	const static = "You are janetcode.\n\n"
+	const env = "# Environment\n- Working directory: /tmp/one\n"
+	blocks := systemBlocks(static + env)
+	if len(blocks) != 2 {
+		t.Fatalf("got %d blocks, want the prompt split at the heading: %+v", len(blocks), blocks)
+	}
+	if blocks[0].Text != static || blocks[1].Text != env {
+		t.Fatalf("split at the wrong place: %q | %q", blocks[0].Text, blocks[1].Text)
+	}
+	for i, b := range blocks {
+		if b.CacheControl.Type == "" {
+			t.Errorf("block %d carries no cache_control", i)
+		}
+	}
+	// The static half does not move when the working directory does.
+	other := systemBlocks(static + "# Environment\n- Working directory: /tmp/two\n")
+	if other[0].Text != blocks[0].Text {
+		t.Fatal("the cached prefix changed with the working directory")
+	}
+	// A prompt with no environment section is still one cached block.
+	if one := systemBlocks("no heading here"); len(one) != 1 || one[0].CacheControl.Type == "" {
+		t.Fatalf("unsectioned prompt = %+v", one)
+	}
+}
+
+// A tool call the provider sent without a name or an id cannot be run,
+// and once in the history it makes every later turn invalid.
+func TestToolCallWithoutNameOrIDIsRejected(t *testing.T) {
+	for _, tc := range []struct{ name, block, want string }{
+		{"no name", `{"type":"tool_use","id":"toolu_1","name":"","input":{}}`, "has no name"},
+		{"no id", `{"type":"tool_use","id":"","name":"read_file","input":{}}`, "has no id"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				io.WriteString(w, event("message_start", `{"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","model":"x","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":1}}}`))
+				io.WriteString(w, event("content_block_start", `{"type":"content_block_start","index":0,"content_block":`+tc.block+`}`))
+				io.WriteString(w, event("content_block_stop", `{"type":"content_block_stop","index":0}`))
+				io.WriteString(w, event("message_delta", `{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":1}}`))
+				io.WriteString(w, event("message_stop", `{"type":"message_stop"}`))
+			})
+			req := llm.Request{Model: "m", MaxTokens: 10, Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}
+			_, err := p.Stream(context.Background(), req, nil)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
