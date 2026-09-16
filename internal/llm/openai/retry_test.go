@@ -94,7 +94,7 @@ func TestRetryWaitsAsTheServerAsked(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if calls.Add(1) == 1 {
 			w.Header().Set("Retry-After", "1")
-			http.Error(w, `{"error":{"message":"slow down"}}`, 429)
+			http.Error(w, `{"error":{"message":"slow down"}}`, http.StatusTooManyRequests)
 			return
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -125,7 +125,7 @@ func TestSucceededRetryIsReported(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if calls.Add(1) <= 2 {
-			http.Error(w, `{"error":{"message":"slow down"}}`, 429)
+			http.Error(w, `{"error":{"message":"slow down"}}`, http.StatusTooManyRequests)
 			return
 		}
 		w.Header().Set("Content-Type", "text/event-stream")

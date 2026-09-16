@@ -499,9 +499,7 @@ type exploreProv struct{}
 
 func (exploreProv) Name() string { return "fake" }
 func (exploreProv) Stream(_ context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
-	if emit == nil {
-		emit = func(llm.Event) {}
-	}
+	_ = emit
 	last := req.Messages[len(req.Messages)-1]
 	if last.Role == llm.RoleUser && len(last.ToolUses()) == 0 && last.Blocks[0].Type != llm.BlockToolResult {
 		r := &llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
