@@ -182,14 +182,18 @@ func (r *Runner) Run(ctx context.Context) Result {
 		cmd := shell.Command(cctx, command)
 		cmd.Dir = r.Cwd
 		cmd.Env = append(os.Environ(), "JANETCODE_VERIFY=1")
-		out, err := cmd.CombinedOutput()
+		// Bounded rather than CombinedOutput: a verbose suite can print
+		// for as long as it runs, and only the ends are ever read.
+		out := &capture{}
+		cmd.Stdout, cmd.Stderr = out, out
+		err := cmd.Run()
 		timedOut := errors.Is(cctx.Err(), context.DeadlineExceeded)
 		cancel()
 		if err == nil {
 			res.Passed = append(res.Passed, command)
 			continue
 		}
-		res.Failed, res.Output = command, string(out)
+		res.Failed, res.Output = command, out.String()
 		var ee *exec.ExitError
 		switch {
 		case timedOut:
