@@ -128,3 +128,33 @@ func TestOpenUsesAnExistingBranch(t *testing.T) {
 		t.Fatalf("summary = %+v", s)
 	}
 }
+
+// The checkout directory is named after the branch with its separators
+// folded out, so "feat/x" and "feat-x" land on the same path. The second
+// session must not be pinned to the first's checkout — it would commit
+// its whole run to the other branch — and must not delete it either.
+func TestCollidingBranchNamesAreRefusedNotReused(t *testing.T) {
+	ctx := context.Background()
+	repo := initRepo(t)
+	first, err := Open(ctx, repo, "feat/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(first.Path, "work.txt"), []byte("unmerged\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	second, err := Open(ctx, repo, "feat-x")
+	if err == nil {
+		t.Fatalf("a colliding branch name was accepted: %+v", second)
+	}
+	if !strings.Contains(err.Error(), "feat/x") {
+		t.Fatalf("the error should name the branch that is there: %v", err)
+	}
+	if _, serr := os.Stat(filepath.Join(first.Path, "work.txt")); serr != nil {
+		t.Fatalf("the existing checkout was destroyed: %v", serr)
+	}
+	// The original branch still opens.
+	if _, err := Open(ctx, repo, "feat/x"); err != nil {
+		t.Fatalf("reopening the original: %v", err)
+	}
+}
