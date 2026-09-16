@@ -186,6 +186,9 @@ func TestGoalRoleNoteSkipsWhenContextIsDone(t *testing.T) {
 	if note := a.goalRoleNote(ctx, Goal{Objective: "ship it", Rounds: 0, MaxRounds: 3}); note != "" {
 		t.Fatalf("cancelled ctx still queried: %q", note)
 	}
+	// A nil context is exactly what is under test here: goalRoleNote must
+	// refuse rather than invent a context.Background() of its own.
+	//lint:ignore SA1012 the nil context is the case being asserted
 	if note := a.goalRoleNote(nil, Goal{Objective: "ship it"}); note != "" {
 		t.Fatalf("nil ctx invented a Background query: %q", note)
 	}
