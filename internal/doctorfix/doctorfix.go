@@ -24,6 +24,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/cmdresult"
 	"github.com/xmonader/janetcode/internal/config"
+	"github.com/xmonader/janetcode/internal/fsutil"
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/trust"
 	"github.com/xmonader/janetcode/internal/verify"
@@ -81,7 +82,10 @@ func Check(env Env) []Fix {
 func Apply(env Env) (done []string, errs []string) {
 	for _, f := range Check(env) {
 		if err := f.apply(); err != nil {
-			errs = append(errs, fmt.Sprintf("could not fix %s: %v", f.Path, err))
+			// Named by what it was doing, not only by the file: two key
+			// repairs in one config file produced two identical messages
+			// that said nothing about which repair failed.
+			errs = append(errs, fmt.Sprintf("could not %s: %v", f.What, err))
 			continue
 		}
 		done = append(done, f.What)
@@ -193,7 +197,7 @@ func configKeyFixes(env Env) []Fix {
 		if !ok {
 			continue // no obvious correction: the doctor reports it instead
 		}
-		if known[want] && raw[want] != nil {
+		if raw[want] != nil {
 			continue // both spellings present; which one wins is a judgement
 		}
 		re := regexp.MustCompile(`"` + regexp.QuoteMeta(k) + `"(\s*):`)
@@ -209,7 +213,11 @@ func configKeyFixes(env Env) []Fix {
 					return err
 				}
 				fixed := re.ReplaceAll(cur, []byte(`"`+to+`"$1:`))
-				return os.WriteFile(path, fixed, 0o600)
+				// Through the atomic path, like every other write to the
+				// config file: a crash mid-write here would leave a
+				// truncated config, which is the class of damage this
+				// package exists to repair.
+				return fsutil.WriteFileAtomic(path, fixed, fsutil.PrivateFileMode)
 			}})
 	}
 	return out
