@@ -20,7 +20,69 @@ import (
 const (
 	maxTerms     = 4
 	termSentinel = "__JC_TERM_DONE__"
+	// maxTermOutput is how much of a terminal's output is kept. A
+	// persistent shell lives for the whole session and a single `yes` or
+	// a chatty build would otherwise grow the buffer until the process
+	// died of it. Only the tail is ever read — Read returns the last few
+	// thousand characters and Send the output of one command — so the
+	// window is much larger than anything either shows.
+	maxTermOutput = 256 << 10
 )
+
+// termBuffer is a terminal's output, bounded to the last maxTermOutput
+// bytes. Offsets are absolute — counted over everything ever written,
+// not over what is still held — so a caller that noted where it was
+// before writing a command can ask for what arrived since without
+// caring that the window has slid past in the meantime.
+type termBuffer struct {
+	mu   sync.Mutex
+	buf  []byte
+	base int64 // absolute offset of buf[0]
+}
+
+func (b *termBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.buf = append(b.buf, p...)
+	if over := len(b.buf) - maxTermOutput; over > 0 {
+		// Drop from the front, to a rune boundary: cutting a multi-byte
+		// character in half would put a replacement char in front of
+		// output the model then reads as the command's.
+		for over < len(b.buf) && b.buf[over]&0xC0 == 0x80 {
+			over++
+		}
+		b.buf = append(b.buf[:0], b.buf[over:]...)
+		b.base += int64(over)
+	}
+	return len(p), nil
+}
+
+// Len is the absolute offset one past everything written so far: the
+// mark a caller takes before sending a command.
+func (b *termBuffer) Len() int64 {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.base + int64(len(b.buf))
+}
+
+// Since returns everything written from absolute offset off onwards.
+// Output that has already slid out of the window is simply missing from
+// the front; an offset past the end gives "".
+func (b *termBuffer) Since(off int64) string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	i := off - b.base
+	if i < 0 {
+		i = 0
+	}
+	if i >= int64(len(b.buf)) {
+		return ""
+	}
+	return string(b.buf[i:])
+}
+
+// String is everything still held.
+func (b *termBuffer) String() string { return b.Since(0) }
 
 // Term is one persistent shell session: cwd and environment survive
 // across sends. It is not a one-shot bash call (those still EOF).
@@ -34,7 +96,7 @@ type Term struct {
 
 	cmd   *exec.Cmd
 	stdin io.WriteCloser
-	out   *swapBuffer
+	out   *termBuffer
 	done  chan struct{}
 }
 
@@ -71,7 +133,7 @@ func (t *Terms) Open(dir string) (*Term, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := &swapBuffer{}
+	out := &termBuffer{}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = pr, out, out
 	if err := cmd.Start(); err != nil {
 		pw.Close()
@@ -145,30 +207,28 @@ func (t *Terms) Send(ctx context.Context, id int, line string, wait time.Duratio
 	if wait <= 0 {
 		wait = 8 * time.Second
 	}
-	before := term.out.String()
+	// Where this command's output starts, as an absolute offset: the
+	// buffer is a window over the session's output and may slide, so a
+	// length taken now is not an index into anything later.
+	before := term.out.Len()
 	payload := strings.TrimRight(line, "\n") + "\n" + sentinelLine() + "\n"
 	if _, err := io.WriteString(stdin, payload); err != nil {
 		return "", fmt.Errorf("write terminal: %w", err)
 	}
 	deadline := time.Now().Add(wait)
 	for time.Now().Before(deadline) {
-		cur := term.out.String()
-		if i := strings.Index(cur[min(len(before), len(cur)):], termSentinel); i >= 0 {
-			return stripSentinel(cur[len(before):]), nil
+		if cur := term.out.Since(before); strings.Contains(cur, termSentinel) {
+			return stripSentinel(cur), nil
 		}
 		select {
 		case <-ctx.Done():
-			return stripSentinel(term.out.String()[min(len(before), len(term.out.String())):]), ctx.Err()
+			return stripSentinel(term.out.Since(before)), ctx.Err()
 		case <-term.done:
-			return stripSentinel(term.out.String()[min(len(before), len(term.out.String())):]), nil
+			return stripSentinel(term.out.Since(before)), nil
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
-	cur := term.out.String()
-	if len(cur) < len(before) {
-		return "", nil
-	}
-	return stripSentinel(cur[len(before):]), nil
+	return stripSentinel(term.out.Since(before)), nil
 }
 
 func sentinelLine() string {
@@ -183,7 +243,7 @@ func stripSentinel(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// Read returns the last n runes of collected output.
+// Read returns the tail of the collected output, at most n bytes of it.
 func (t *Terms) Read(id, n int) (string, error) {
 	term := t.get(id)
 	if term == nil {
@@ -195,7 +255,13 @@ func (t *Terms) Read(id, n int) (string, error) {
 		n = 4000
 	}
 	if len(out) > n {
-		out = out[len(out)-n:]
+		// From a rune boundary: a tail cut mid-character starts with a
+		// replacement char the model reads as output.
+		i := len(out) - n
+		for i < len(out) && out[i]&0xC0 == 0x80 {
+			i++
+		}
+		out = out[i:]
 	}
 	if out == "" {
 		return "(no output)", nil
