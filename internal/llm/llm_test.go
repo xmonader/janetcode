@@ -129,3 +129,47 @@ func TestFormatUSDPreciseKeepsSubCentFigures(t *testing.T) {
 		t.Errorf("%s and %s are the same figure", a, b)
 	}
 }
+
+// A user turn with nothing to send is not a turn. The OpenAI path used
+// to drop it silently, leaving the history with two assistant turns in a
+// row or an assistant turn last — which the server rejects with an error
+// about the history rather than about the turn that broke it.
+func TestValidateRejectsAnEmptyUserTurn(t *testing.T) {
+	base := func(blocks ...Block) Request {
+		return Request{Model: "m", Messages: []Message{
+			TextMessage(RoleUser, "hi"),
+			TextMessage(RoleAssistant, "ok"),
+			{Role: RoleUser, Blocks: blocks},
+		}}
+	}
+	for _, tc := range []struct {
+		name   string
+		blocks []Block
+		ok     bool
+	}{
+		{"empty text", []Block{{Type: BlockText}}, false},
+		{"several empty texts", []Block{{Type: BlockText}, {Type: BlockText}}, false},
+		{"an image with no data", []Block{{Type: BlockImage, MediaType: "image/png"}}, false},
+		{"text", []Block{{Type: BlockText, Text: "more"}}, true},
+		{"an empty tool result still answers a call", []Block{{Type: BlockToolResult, ToolUseID: "c1"}}, true},
+		{"an image", []Block{{Type: BlockImage, MediaType: "image/png", Data: "AAAA"}}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := base(tc.blocks...).Validate()
+			if tc.ok != (err == nil) {
+				t.Fatalf("err = %v, want ok=%v", err, tc.ok)
+			}
+		})
+	}
+	// An assistant turn may be empty: a model that stopped without saying
+	// anything is a thing that happens, and each provider has its own
+	// placeholder for it.
+	empty := Request{Model: "m", Messages: []Message{
+		TextMessage(RoleUser, "hi"),
+		{Role: RoleAssistant, Blocks: []Block{{Type: BlockText}}},
+		TextMessage(RoleUser, "still there?"),
+	}}
+	if err := empty.Validate(); err != nil {
+		t.Fatalf("an empty assistant turn was rejected: %v", err)
+	}
+}

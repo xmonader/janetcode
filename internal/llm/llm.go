@@ -441,8 +441,37 @@ func (r Request) Validate() error {
 		if len(m.Blocks) == 0 {
 			return fmt.Errorf("llm: empty message at index %d", i)
 		}
+		// An assistant turn may legitimately be empty — a model that
+		// stopped without saying anything — and each provider has its own
+		// placeholder for that. A user turn may not: with nothing to send,
+		// the OpenAI path dropped the message entirely and left the
+		// history with two assistant turns in a row or an assistant turn
+		// last, which servers reject with an error about the history
+		// rather than about the turn that broke it.
+		if m.Role == RoleUser && !m.hasContent() {
+			return fmt.Errorf("llm: user message at index %d has no content to send", i)
+		}
 	}
 	return nil
+}
+
+// hasContent reports whether a message would put anything on the wire.
+func (m Message) hasContent() bool {
+	for _, b := range m.Blocks {
+		switch b.Type {
+		case BlockToolResult, BlockToolUse:
+			return true
+		case BlockImage:
+			if b.Data != "" {
+				return true
+			}
+		default:
+			if b.Text != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Embedder is implemented by providers that expose an embeddings endpoint.
