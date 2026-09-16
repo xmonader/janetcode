@@ -55,22 +55,25 @@ func (p *Pacer) settings() (base, max, ease, quiet time.Duration) {
 // context is cancelled, so a user interrupting a paced session is not made
 // to sit through the gap.
 func (p *Pacer) Wait(ctx context.Context) error {
+	// When this call may start is decided and claimed in one critical
+	// section. Reading the slot, releasing the lock and only then writing
+	// the new one let two concurrent callers compute the same due time
+	// from the same predecessor and start together, which is exactly the
+	// burst the pacer exists to prevent.
 	p.mu.Lock()
-	gap := p.gap
-	last := p.lastCall
-	p.lastCall = time.Now()
-	p.mu.Unlock()
-	if gap <= 0 || last.IsZero() {
-		return nil
+	now := time.Now()
+	due := now
+	if p.gap > 0 && !p.lastCall.IsZero() {
+		if slot := p.lastCall.Add(p.gap); slot.After(now) {
+			due = slot // the next call is spaced from when this one may start
+		}
 	}
-	due := last.Add(gap)
+	p.lastCall = due
+	p.mu.Unlock()
 	d := time.Until(due)
 	if d <= 0 {
 		return nil
 	}
-	p.mu.Lock()
-	p.lastCall = due // the next call is spaced from when this one may start
-	p.mu.Unlock()
 	t := time.NewTimer(d)
 	defer t.Stop()
 	select {

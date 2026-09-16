@@ -69,7 +69,9 @@ func TestRetryAfterIsHonouredOnlyWhereItMeansComeBack(t *testing.T) {
 			w.Header().Set("Retry-After", "1")
 			http.Error(w, fmt.Sprintf(`{"error":{"message":"status %d"}}`, status), status)
 		}))
-		p, err := New(Config{BaseURL: srv.URL + "/v1", APIKey: "k", MaxRetries: 0})
+		// -1, not 0: a zero MaxRetries is the default of two, and this
+		// case is about the header on the error, not about retrying.
+		p, err := New(Config{BaseURL: srv.URL + "/v1", APIKey: "k", MaxRetries: -1})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -172,5 +174,22 @@ func TestCleanCallReportsNoRetry(t *testing.T) {
 	}
 	if seen {
 		t.Fatal("a clean call reported a retry")
+	}
+}
+
+// A zero MaxRetries is the default of two (TestHTTPErrorAndRetry covers
+// that); a negative one is how a caller says "do not retry at all",
+// which a plain 0 could not express.
+func TestNegativeMaxRetriesDisablesRetrying(t *testing.T) {
+	var calls atomic.Int32
+	p := newTestProviderWith(t, Config{MaxRetries: -1}, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		http.Error(w, `{"error":{"message":"slow down"}}`, 429)
+	})
+	if _, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil); err == nil {
+		t.Fatal("want an error")
+	}
+	if n := calls.Load(); n != 1 {
+		t.Fatalf("%d requests, want 1", n)
 	}
 }

@@ -25,9 +25,16 @@ func sse(lines ...string) string {
 }
 
 func newTestProvider(t *testing.T, handler http.HandlerFunc) *Provider {
+	return newTestProviderWith(t, Config{MaxRetries: 2}, handler)
+}
+
+// newTestProviderWith is newTestProvider with the rest of cfg kept; the
+// base URL and key are the test server's either way.
+func newTestProviderWith(t *testing.T, cfg Config, handler http.HandlerFunc) *Provider {
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	p, err := New(Config{BaseURL: srv.URL + "/v1/", APIKey: "k", MaxRetries: 2})
+	cfg.BaseURL, cfg.APIKey = srv.URL+"/v1/", "k"
+	p, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

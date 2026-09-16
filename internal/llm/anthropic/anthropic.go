@@ -40,7 +40,10 @@ type Config struct {
 	// Limits bound one streamed call: a resettable idle timeout and a
 	// lifetime cap. The zero value means the defaults.
 	Limits llm.StreamLimits
-	// MaxRetries for transient failures. Default 2.
+	// MaxRetries for transient failures. Zero means the default of 2;
+	// negative means no retries at all, so that "do not retry" is
+	// expressible and does not read as "use the default" the way a plain
+	// 0 did.
 	MaxRetries int
 	// HTTPClient overrides the default client (tests).
 	HTTPClient *http.Client
@@ -71,8 +74,11 @@ func New(cfg Config) (*Provider, error) {
 		return nil, llm.ErrNoAPIKey
 	}
 	cfg.APIKey = keys[0]
-	if cfg.MaxRetries == 0 {
+	switch {
+	case cfg.MaxRetries == 0:
 		cfg.MaxRetries = 2
+	case cfg.MaxRetries < 0:
+		cfg.MaxRetries = 0
 	}
 	if !llm.ValidEffort(cfg.Effort) {
 		return nil, fmt.Errorf("anthropic: invalid effort %q", cfg.Effort)
@@ -304,6 +310,9 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 			p.ring.OK(idx)
 			return resp, nil
 		}
+		// p.stream never returns a response alongside an error; say so
+		// rather than handing the caller a half-response to guess about.
+		resp = nil
 		if p.clampEffort(err) {
 			// The model does not go that high; the next tier down is
 			// what the user asked for as nearly as this model can, and
