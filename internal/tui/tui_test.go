@@ -2091,7 +2091,7 @@ func TestDoctorPrintsWithoutMutating(t *testing.T) {
 	}
 	before, _ := os.ReadFile(path)
 	h.m.opts.ConfigPath = path
-	h.m.opts.Doctor = func(w io.Writer) error {
+	h.m.opts.Doctor = func(_ context.Context, w io.Writer) error {
 		fmt.Fprintln(w, "[ok] config checkup row")
 		return nil
 	}
@@ -2106,7 +2106,7 @@ func TestDoctorPrintsWithoutMutating(t *testing.T) {
 
 func TestDoctorShowsRowsWhenCheckupFails(t *testing.T) {
 	h := newHarness(t)
-	h.m.opts.Doctor = func(w io.Writer) error {
+	h.m.opts.Doctor = func(_ context.Context, w io.Writer) error {
 		fmt.Fprintln(w, "[FAIL] credentials missing key")
 		fmt.Fprintln(w, "[ok  ] sessions dir /tmp")
 		return fmt.Errorf("1 check(s) failed")

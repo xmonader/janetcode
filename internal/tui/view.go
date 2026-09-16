@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/gitx"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -246,10 +247,19 @@ func changedFiles(root string) ([]changedFile, error) {
 	return files, nil
 }
 
+// gitTimeout bounds one of these calls. They run on the UI goroutine —
+// /diff and the changed-file list are drawn from them — so there is no
+// cancellation to honour, but a git that never returns (a credential
+// prompt, an unresponsive network mount) would otherwise freeze the
+// whole terminal with no way out.
+const gitTimeout = 10 * time.Second
+
 // gitOut is git's untrimmed stdout (a patch keeps its final newline); a
 // failure is reported as git's own stderr.
 func gitOut(dir string, args ...string) (string, error) {
-	out, err := gitx.RunBytes(context.Background(), dir, nil, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
+	defer cancel()
+	out, err := gitx.RunBytes(ctx, dir, nil, args...)
 	if err != nil {
 		return "", errors.New(gitx.Detail(err))
 	}
