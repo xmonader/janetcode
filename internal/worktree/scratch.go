@@ -43,11 +43,18 @@ func Detached(ctx context.Context, label, repo, base string, patch []byte) (dir 
 		return "", nil, err
 	}
 	// `git worktree add` refuses to check out into a path that already
-	// exists, even an empty one MkdirTemp just made.
+	// exists, even an empty one MkdirTemp just made. Until the checkout
+	// succeeds there is no cleanup for the caller to run, so both failure
+	// paths below remove the directory themselves: `git worktree add` can
+	// fail after it has begun populating the path (a checkout that runs
+	// out of disk, a filter that errors), and nothing else would ever
+	// reclaim what it left there.
 	if err := os.Remove(dir); err != nil {
+		_ = os.RemoveAll(dir)
 		return "", nil, err
 	}
 	if _, err := gitx.Run(ctx, repo, nil, "worktree", "add", "--detach", "-q", dir, base); err != nil {
+		_ = os.RemoveAll(dir)
 		return "", nil, gitx.Wrapf(err, "git worktree add %s", base)
 	}
 	cleanup = func() {

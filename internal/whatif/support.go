@@ -60,14 +60,21 @@ func resolveSession(arg string) (path, dir, id string, err error) {
 // has no meaning inside a throwaway worktree. Run notes it in the report
 // when the original session actually used a tool outside this set, so the
 // gap is visible rather than silent.
-func buildAgent(workDir string, off map[string]bool, cfg *config.Config, symbols repomap.Parser) (*agent.Agent, []string, error) {
-	var notes []string
+// cleanup removes the archive directory; it is never nil, so the caller
+// can defer it unconditionally. A what-if run archives every oversized
+// tool result, and the directory was left in the temp root for good: a
+// session with a few large greps leaves megabytes behind on every
+// invocation, and nothing ever reclaims it.
+func buildAgent(workDir string, off map[string]bool, cfg *config.Config, symbols repomap.Parser) (ag *agent.Agent, notes []string, cleanup func(), err error) {
+	cleanup = func() {}
 	archiveDir, aerr := os.MkdirTemp("", "janetcode-whatif-archive-")
 	if aerr != nil {
 		notes = append(notes, "tool-output archive unavailable: "+aerr.Error())
+	} else {
+		cleanup = func() { os.RemoveAll(archiveDir) }
 	}
-	ag, err := minimal.New(workDir, cfg, nil, off, prompt.Override{}, archiveDir, symbols)
-	return ag, notes, err
+	ag, err = minimal.New(workDir, cfg, nil, off, prompt.Override{}, archiveDir, symbols)
+	return ag, notes, cleanup, err
 }
 
 // subUsage is a minus b, field by field; llm.Usage only ever accumulates
