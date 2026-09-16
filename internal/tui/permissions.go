@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -108,6 +109,12 @@ func (a *tuiApprover) ApproveWithReason(ctx context.Context, call agent.ToolCall
 }
 
 func (a *tuiApprover) ApproveWithRule(ctx context.Context, call agent.ToolCall) (agent.Decision, string, string, error) {
+	if a == nil || a.send == nil {
+		// Nothing can be asked, so nothing is allowed. The asker says the
+		// same thing the same way; an approver with no window used to be
+		// a nil dereference inside the turn goroutine.
+		return agent.Deny, "", "", errors.New("approve: no UI")
+	}
 	reply := make(chan verdict, 1)
 	a.send(permissionMsg{call: call, reply: reply})
 	select {
@@ -118,6 +125,20 @@ func (a *tuiApprover) ApproveWithRule(ctx context.Context, call agent.ToolCall) 
 	}
 }
 
+// closePending takes the permission prompt down. It is the only way the
+// prompt closes, because the prompt is two fields and they have to move
+// together: denying is the prompt's second state, not a mode of its own,
+// and a turn that ended while the user was typing a denial reason used
+// to clear pending and leave denying set. The next call's prompt then
+// came up already collecting a reason — y and n went into the textarea,
+// the status line said "denied <the previous call>", and the only way
+// out was to guess that enter would deny.
+func (m *model) closePending() {
+	m.pending = nil
+	m.denying = false
+	m.pendingClosedAt = time.Now()
+}
+
 func (m *model) answer(d agent.Decision, reason string) {
 	if m.pending == nil {
 		return
@@ -125,9 +146,7 @@ func (m *model) answer(d agent.Decision, reason string) {
 	m.pending.reply <- verdict{d: d, reason: reason, rule: m.rungRule()}
 	m.transcript.permissionAnswered(m.pending.call, d)
 	call := m.pending.call
-	m.pending = nil
-	m.pendingClosedAt = time.Now()
-	m.denying = false
+	m.closePending()
 	m.turn.setPhase("thinking")
 	// Named by the rule the r key would save, because that is the shape
 	// both hints below are about — the highlighted rung, if the user

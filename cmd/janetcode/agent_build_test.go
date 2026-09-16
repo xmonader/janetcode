@@ -113,14 +113,14 @@ func TestStepWorkspaceAddDir(t *testing.T) {
 	}
 }
 
-// A loop spec the session recorded but that no longer parses fails the
-// build under the step's own name, rather than as an unattributed error
-// from somewhere in two hundred lines of wiring.
-func TestStepLoopsReportsUnderItsName(t *testing.T) {
+// A loop spec the session recorded but that no longer parses is dropped
+// by Restore, not fatal: like a remembered directory that vanished, it
+// must not keep a resumed session from opening.
+func TestStepLoopsToleratesABadSpec(t *testing.T) {
 	d, sess := buildTestDeps(t)
 	sess.Meta.Loops = []session.LoopSpec{{ID: "x", Every: "not a duration", Prompt: "go"}}
-	if _, err := buildAgent(d, sess, nil); err == nil || !strings.HasPrefix(err.Error(), "loops: ") {
-		t.Fatalf("err = %v, want it prefixed with the step name", err)
+	if _, err := buildAgent(d, sess, nil); err != nil {
+		t.Fatalf("a loop spec that no longer parses must not fail the build: %v", err)
 	}
 }
 

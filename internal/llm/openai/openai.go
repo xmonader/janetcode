@@ -37,7 +37,9 @@ type Config struct {
 	// HTTPClient overrides the default client (tests).
 	HTTPClient *http.Client
 	// MaxRetries for connection errors, 429 and 5xx before any bytes are
-	// streamed. Default 2.
+	// streamed. Zero means the default of 2; negative means no retries at
+	// all, so that "do not retry" is expressible and does not read as
+	// "use the default" the way a plain 0 did.
 	MaxRetries int
 	// Limits bound one streamed call: a resettable idle timeout and a
 	// lifetime cap. The zero value means the defaults.
@@ -96,8 +98,11 @@ func New(cfg Config) (*Provider, error) {
 	if cfg.Name == "" {
 		cfg.Name = "openai"
 	}
-	if cfg.MaxRetries == 0 {
+	switch {
+	case cfg.MaxRetries == 0:
 		cfg.MaxRetries = 2
+	case cfg.MaxRetries < 0:
+		cfg.MaxRetries = 0
 	}
 	hc := cfg.HTTPClient
 	if hc == nil {
@@ -227,9 +232,14 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	defer wd.Stop()
 	// Spacing imposed by earlier rate limits, if any. Costs nothing on a
 	// session the provider has never refused.
+	wd.Expect(p.pace.Gap())
 	if err := p.pace.Wait(ctx); err != nil {
-		return nil, err
+		// A bound that fired while the call was waiting its turn is the
+		// reason it was cancelled; without this the user sees a bare
+		// "context canceled".
+		return nil, wd.Wrap(err)
 	}
+
 	w, err := buildRequest(req)
 	if err != nil {
 		return nil, err
@@ -254,7 +264,7 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		resp, err = p.do(ctx, body, key)
 		if err == nil {
 			p.ring.OK(idx)
-			if retried.Attempts > 0 && emit != nil {
+			if retried.Attempts > 0 {
 				r := retried
 				emit(llm.Event{Type: llm.EventRetried, Retry: &r})
 			}
@@ -296,6 +306,11 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		}
 		retried.Attempts, retried.Reason, retried.Wait = attempt+1, retryReason(err), retried.Wait+wait
 		emit(llm.Event{Type: llm.EventStatus, Text: fmt.Sprintf("retrying %d/%d · %s · in %s", attempt+1, p.cfg.MaxRetries, retryReason(err), wait.Round(time.Second/10))})
+		// A backoff is a wait the harness chose; without telling the
+		// watchdog so, a couple of long Retry-Afters trip the idle bound
+		// and the call dies reporting a stall that never happened. The
+		// lifetime bound still holds — it is not resettable.
+		wd.Expect(wait)
 		select {
 		case <-ctx.Done():
 			return nil, wd.Wrap(ctx.Err())

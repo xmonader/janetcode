@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -42,13 +43,45 @@ func (m *model) inputLimit() int {
 // LineInfo().Height — the real wrap the box would show — is summed; an
 // empty paragraph still costs one row, which is why an empty value (one
 // empty paragraph) comes back as 1 rather than 0.
+//
+// The scratch textarea is built once and reused: textarea.New allocates
+// half a megabyte (its rune-width memo), and this is called several
+// times per keystroke — before and after the key, in layout, and again
+// in the view — so building one each time cost a couple of megabytes of
+// garbage per character typed. The mutex is belt and braces: everything
+// that measures the composer is on the UI goroutine.
+// It is also memoized on its last answer. It is a pure function of the
+// pair, and one keystroke asks for the same pair four or five times
+// over — the comparison before the key, the one after it, the layout
+// and the view — so a single-entry memo does most of the work of not
+// measuring at all. Each measurement costs a quarter of a megabyte: the
+// textarea's Reset allocates its whole line capacity every time a value
+// is set, and nothing in bubbles exposes the wrap without setting one.
+var (
+	scratchMu    sync.Mutex
+	scratchArea  *textarea.Model
+	scratchValue string
+	scratchWidth int
+	scratchLines int
+)
+
 func composerLines(value string, width int) int {
 	if width <= 0 {
 		return minInputLines
 	}
-	scratch := textarea.New()
-	scratch.Prompt = ""
-	scratch.ShowLineNumbers = false
+	scratchMu.Lock()
+	defer scratchMu.Unlock()
+	if scratchLines > 0 && scratchWidth == width && scratchValue == value {
+		return scratchLines
+	}
+	if scratchArea == nil {
+		ta := textarea.New()
+		ta.Prompt = ""
+		ta.ShowLineNumbers = false
+		ta.CharLimit = 0
+		scratchArea = &ta
+	}
+	scratch := scratchArea
 	scratch.SetWidth(width)
 	total := 0
 	for _, line := range strings.Split(value, "\n") {
@@ -58,6 +91,7 @@ func composerLines(value string, width int) int {
 	if total < minInputLines {
 		total = minInputLines
 	}
+	scratchValue, scratchWidth, scratchLines = value, width, total
 	return total
 }
 
@@ -87,7 +121,7 @@ func (m *model) footerHeight() int {
 		// its reach costs the layout nothing.
 		h++
 	}
-	if m.pending == nil && !m.denying && len(m.completions()) > 0 {
+	if m.mode() == modePrompt && len(m.completions()) > 0 {
 		// The menu always claims the same height, however many rows it has
 		// to show: narrowing it as you type used to resize the viewport on
 		// every keystroke, and the transcript flickered above it.

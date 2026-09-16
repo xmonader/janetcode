@@ -32,6 +32,12 @@ func FakeServer() {
 		out.Flush()
 	}
 	fmt.Fprintln(os.Stderr, "fake server starting")
+	// MCP_FAKE_SERVER_DELAY stands in for a server that takes a while to
+	// come up — a cold npx, a driver probing the machine — so a test can
+	// land a shutdown squarely inside the handshake.
+	if d, err := time.ParseDuration(os.Getenv("MCP_FAKE_SERVER_DELAY")); err == nil && d > 0 {
+		time.Sleep(d)
+	}
 	pingSent := false
 	for in.Scan() {
 		var msg fakeMessage

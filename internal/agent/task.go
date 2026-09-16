@@ -284,17 +284,22 @@ func (t *Task) Cancel(id string) error {
 	if t == nil {
 		return fmt.Errorf("no task tool")
 	}
+	// done and cancel are written by the goroutine running the child, so
+	// both are read under the lock that goroutine takes.
 	t.mu.Lock()
 	kid := t.children[id]
-	var cancel context.CancelFunc
+	var (
+		cancel context.CancelFunc
+		done   bool
+	)
 	if kid != nil {
-		cancel = kid.cancel
+		cancel, done = kid.cancel, kid.done
 	}
 	t.mu.Unlock()
 	if kid == nil {
 		return fmt.Errorf("no subagent %q", id)
 	}
-	if kid.done {
+	if done {
 		return fmt.Errorf("subagent %s already finished", id)
 	}
 	if cancel == nil {
@@ -316,11 +321,12 @@ func (t *Task) SteerChild(id, text string) error {
 	}
 	t.mu.Lock()
 	kid := t.children[id]
+	done := kid != nil && kid.done
 	t.mu.Unlock()
 	if kid == nil {
 		return fmt.Errorf("no subagent %q", id)
 	}
-	if kid.done {
+	if done {
 		return fmt.Errorf("subagent %s already finished; use continue", id)
 	}
 	if kid.agent == nil {
@@ -333,7 +339,10 @@ func (t *Task) SteerChild(id, text string) error {
 func (t *Task) bindChildCtx(parent context.Context, kid *subagent, minutes int) context.Context {
 	ctx, cancel := context.WithCancel(parent)
 	if minutes > 0 {
-		ctx, _ = context.WithTimeout(ctx, time.Duration(minutes)*time.Minute)
+		var timeoutCancel context.CancelFunc
+		ctx, timeoutCancel = context.WithTimeout(ctx, time.Duration(minutes)*time.Minute)
+		outer := cancel
+		cancel = func() { timeoutCancel(); outer() }
 	}
 	t.mu.Lock()
 	kid.cancel = cancel
@@ -351,9 +360,16 @@ func (t *Task) releaseChild(kid *subagent) {
 	}
 }
 
-// remember registers a continuable subagent, evicting the oldest (and its
-// worktree) once there are too many.
-func (t *Task) remember(id string, c *subagent) {
+// remember registers a continuable subagent, evicting the oldest finished
+// one (and its worktree) once there are too many.
+//
+// Only a finished child may be evicted. task is not a mutating tool, so
+// several calls run in parallel goroutines and a background fork outlives
+// the call that started it: evicting by age alone could remove the
+// worktree an editing subagent was still working in, and drop the only
+// handle by which a running fork could be cancelled. When every child is
+// still running the list is left over its bound until one of them ends.
+func (t *Task) remember(ctx context.Context, id string, c *subagent) {
 	t.mu.Lock()
 	if t.children == nil {
 		t.children = map[string]*subagent{}
@@ -362,16 +378,32 @@ func (t *Task) remember(id string, c *subagent) {
 	t.order = append(t.order, id)
 	var evicted *subagent
 	if len(t.order) > maxChildren {
-		old := t.order[0]
-		t.order = t.order[1:]
-		evicted = t.children[old]
-		delete(t.children, old)
+		for i, old := range t.order {
+			kid := t.children[old]
+			if kid == nil || kid.done {
+				t.order = append(t.order[:i:i], t.order[i+1:]...)
+				evicted = kid
+				delete(t.children, old)
+				break
+			}
+		}
 	}
 	t.mu.Unlock()
 	if evicted != nil && evicted.wt != nil {
-		evicted.wt.remove(context.Background())
+		// Cleanup, so it outlives a cancelled caller — but on the
+		// caller's context all the same, and bounded: `git worktree
+		// remove` on a checkout something else is holding can block for
+		// as long as it likes, and this used to run on a
+		// context.Background() with no deadline at all.
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), evictTimeout)
+		defer cancel()
+		evicted.wt.remove(rctx)
 	}
 }
+
+// evictTimeout bounds the git work that removing an evicted subagent's
+// worktree does.
+const evictTimeout = 2 * time.Minute
 
 // Usage is the total spent by subagents so far.
 func (t *Task) Usage() llm.Usage {
@@ -518,7 +550,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 		t.nextID++
 		childID = fmt.Sprintf("task-%d", t.nextID)
 		t.mu.Unlock()
-		t.remember(childID, kid)
+		t.remember(ctx, childID, kid)
 	}
 	child, wt := kid.agent, kid.wt
 	start := time.Now()
@@ -557,8 +589,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 			_ = child.Run(runCtx, in.Prompt, emit)
 			t.mu.Lock()
 			kid.done = true
-			t.usage.Add(usageSince(kid.seen, child.Usage))
-			kid.seen = child.Usage
+			t.bill(kid, child)
 			t.mu.Unlock()
 		}()
 		return fmt.Sprintf("started fork %q id=%s in the background; watch with /agents, continue with task continue=%s, cancel with task cancel=%s", in.Description, childID, childID, childID), nil
@@ -571,8 +602,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	t.mu.Unlock()
 	if err != nil && ctx.Err() == nil && runCtx.Err() != nil {
 		t.mu.Lock()
-		t.usage.Add(usageSince(kid.seen, child.Usage))
-		kid.seen = child.Usage
+		t.bill(kid, child)
 		t.mu.Unlock()
 		if runCtx.Err() == context.DeadlineExceeded && minutes > 0 {
 			report := lastAssistantText(child.Messages)
@@ -586,8 +616,7 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	// Usage is cumulative over the subagent's life, so only what this
 	// exchange added is billed to the parent.
 	t.mu.Lock()
-	t.usage.Add(usageSince(kid.seen, child.Usage))
-	kid.seen = child.Usage
+	t.bill(kid, child)
 	t.mu.Unlock()
 	if err != nil {
 		return "", fmt.Errorf("subagent failed after %s: %w", time.Since(start).Round(time.Millisecond), err)
@@ -621,7 +650,18 @@ func (t *Task) Run(ctx context.Context, input json.RawMessage) (string, error) {
 	return fmt.Sprintf("%s\n\n[subagent %q id=%s%s: %d tool calls, %s, %s in / %s out; continue with task continue=%s]", report, in.Description, childID, on, countToolUses(child.Messages), time.Since(start).Round(time.Millisecond), tokens(child.Usage.InputTokens+child.Usage.CacheReadTokens), tokens(child.Usage.OutputTokens), childID), nil
 }
 
-// usageSince is the usage added between two cumulative snapshots.
+// bill charges the parent for what this exchange with the child cost.
+// The child's usage is cumulative over its life, so only what is new
+// since the last look is added — to the task tool's own total, for
+// /agents, and to the parent conversation, so the session total and the
+// cost ceiling both see what delegation spent. Called with t.mu held.
+func (t *Task) bill(kid *subagent, child *Agent) {
+	delta := usageSince(kid.seen, child.Usage)
+	kid.seen = child.Usage
+	t.usage.Add(delta)
+	t.Parent.addSideUsage(delta)
+}
+
 // briefInput is the one-line summary of a child tool call for the live
 // activity readout.
 func briefInput(raw string) string {
@@ -637,6 +677,7 @@ func briefInput(raw string) string {
 	return textfmt.Clip(textfmt.OneLine(raw), 60)
 }
 
+// usageSince is the usage added between two cumulative snapshots.
 func usageSince(before, now llm.Usage) llm.Usage {
 	return llm.Usage{
 		InputTokens:      now.InputTokens - before.InputTokens,

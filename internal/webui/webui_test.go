@@ -485,12 +485,12 @@ func TestWebStatusDressesThinking(t *testing.T) {
 	s.running = true
 	s.phase = "thinking"
 	s.started = time.Unix(1_700_000_000, 0)
-	st := s.statusLocked()
+	st := s.statusNow()
 	if !flavor.Known(st.Phase) {
 		t.Fatalf("thinking phase = %q", st.Phase)
 	}
 	s.phase = "running bash"
-	if got := s.statusLocked().Phase; got != "running bash" {
+	if got := s.statusNow().Phase; got != "running bash" {
 		t.Fatalf("tool phase was dressed: %q", got)
 	}
 }
@@ -499,9 +499,7 @@ type exploreProv struct{}
 
 func (exploreProv) Name() string { return "fake" }
 func (exploreProv) Stream(_ context.Context, req llm.Request, emit func(llm.Event)) (*llm.Response, error) {
-	if emit == nil {
-		emit = func(llm.Event) {}
-	}
+	_ = emit
 	last := req.Messages[len(req.Messages)-1]
 	if last.Role == llm.RoleUser && len(last.ToolUses()) == 0 && last.Blocks[0].Type != llm.BlockToolResult {
 		r := &llm.Response{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{

@@ -320,9 +320,9 @@ func (ix *Index) link() {
 	// on three types says little about which file is meant.
 	definers := func(name string) (files []int, weight float64) {
 		if exact := ix.definers[name]; len(exact) > 0 {
-			return uniq(append([]int(nil), exact...)), 1
+			return uniq(exact), 1
 		}
-		return uniq(append([]int(nil), bare[name]...)), 0.5
+		return uniq(bare[name]), 0.5
 	}
 	n := len(ix.Files)
 	ix.out = make([][]edge, n)
@@ -369,11 +369,20 @@ func (ix *Index) link() {
 	}
 }
 
+// uniq sorts and de-duplicates without touching its argument. It used to
+// compact in place, which was fine for the copies link() hands it and
+// quietly wrong in BlastRadius, where the argument is the index's own
+// definers slice: looking up a symbol's blast radius reordered and
+// rewrote part of the graph it was querying.
 func uniq(xs []int) []int {
-	sort.Ints(xs)
-	out := xs[:0]
-	for i, x := range xs {
-		if i == 0 || x != xs[i-1] {
+	if len(xs) == 0 {
+		return nil
+	}
+	sorted := append([]int(nil), xs...)
+	sort.Ints(sorted)
+	out := sorted[:0]
+	for i, x := range sorted {
+		if i == 0 || x != sorted[i-1] {
 			out = append(out, x)
 		}
 	}
@@ -579,8 +588,16 @@ func IsIdentByte(c byte) bool {
 	return c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }
 
+// moreFooter closes a map that did not fit, and its length is reserved
+// from the budget while lines are being added.
+const moreFooter = "… %d more files; the repo_map tool ranks for another query or shows a symbol's blast radius\n"
+
 // Render writes the top of a ranking within a byte budget: one line per
-// file with its most referenced symbols.
+// file with its most referenced symbols. No file line is added that would
+// leave no room for the closing "N more files" line, so budget bounds the
+// whole map and not just the part before the footer. The heading plus
+// that footer is the floor: a budget under about 200 bytes buys the two
+// of them and no files.
 func (ix *Index) Render(ranked []Ranked, budget int) string {
 	if len(ranked) == 0 {
 		return ""
@@ -606,7 +623,10 @@ func (ix *Index) Render(ranked []Ranked, budget int) string {
 		if len(r.Why) > 0 {
 			line += "  ← " + strings.Join(r.Why, ", ")
 		}
-		if sb.Len()+len(line)+1 > budget {
+		// Leave room for the footer: it is written whenever anything was
+		// left out, so counting it only at the end let the map overrun
+		// the budget it is attached to the user turn under.
+		if sb.Len()+len(line)+1+len(moreFooter) > budget {
 			break
 		}
 		sb.WriteString(line)
@@ -614,7 +634,7 @@ func (ix *Index) Render(ranked []Ranked, budget int) string {
 		shown++
 	}
 	if shown < len(ranked) {
-		fmt.Fprintf(&sb, "… %d more files; the repo_map tool ranks for another query or shows a symbol's blast radius\n", len(ranked)-shown)
+		fmt.Fprintf(&sb, moreFooter, len(ranked)-shown)
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }

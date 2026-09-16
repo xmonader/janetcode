@@ -8,7 +8,10 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
+	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/config"
 	"github.com/xmonader/janetcode/internal/theme"
 )
@@ -123,6 +126,39 @@ func TestThemePickerListsMatrixAndPreviewsBeforeApply(t *testing.T) {
 	raw, _ = os.ReadFile(cfgPath)
 	if !strings.Contains(string(raw), `"matrix"`) {
 		t.Fatalf("enter should persist matrix:\n%s", raw)
+	}
+}
+
+// A theme switch must recolour the conversation that is already on
+// screen. The per-block markdown cache is keyed by source, width and
+// fold state — none of which a switch changes — so without being dropped
+// it served every assistant message back in the previous palette.
+func TestThemeSwitchDropsTheMarkdownCache(t *testing.T) {
+	saved := lipgloss.ColorProfile()
+	defer lipgloss.SetColorProfile(saved)
+	lipgloss.SetColorProfile(termenv.TrueColor)
+
+	h := newHarness(t)
+	set, err := theme.Build(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.m.opts.Themes = set
+	h.m.applyThemeChoice("gruvbox", false)
+	h.m.transcript.apply(agent.Event{Kind: agent.EvText, Text: "# heading\n\nbody `code` text\n"})
+	h.m.transcript.apply(agent.Event{Kind: agent.EvTextBlockDone})
+	before := h.m.transcript.render(renderOpts{width: 80})
+	if !strings.Contains(before, "\x1b[") {
+		t.Fatalf("no colour to compare:\n%q", before)
+	}
+
+	h.m.applyThemeChoice("solarized-light", false)
+	after := h.m.transcript.render(renderOpts{width: 80})
+	if after == before {
+		t.Fatalf("the transcript kept the old palette after a theme switch:\n%q", after)
+	}
+	if plain(after) != plain(before) {
+		t.Fatalf("the text changed, not just the colour:\n%q\n%q", plain(before), plain(after))
 	}
 }
 

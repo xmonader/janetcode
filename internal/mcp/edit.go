@@ -85,8 +85,6 @@ func (o *ordered) del(key string) bool {
 	return true
 }
 
-func (o *ordered) len() int { return len(o.keys) }
-
 // marshal renders the object with indent, nested depth levels deep.
 func (o *ordered) marshal(indent string, depth int) ([]byte, error) {
 	if len(o.keys) == 0 {

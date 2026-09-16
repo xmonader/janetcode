@@ -3,6 +3,7 @@ package textfmt
 import (
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestPlural(t *testing.T) {
@@ -149,6 +150,37 @@ func TestClipBytes(t *testing.T) {
 	for _, c := range cases {
 		if got := ClipBytes(c.s, c.max); got != c.want {
 			t.Errorf("ClipBytes(%q, %d) = %q, want %q", c.s, c.max, got, c.want)
+		}
+	}
+}
+
+func TestTailBytes(t *testing.T) {
+	cases := []struct {
+		s    string
+		max  int
+		want string
+	}{
+		{"hello", 10, "hello"},    // no truncation
+		{"hello", 5, "hello"},     // exact fit
+		{"hello world", 5, "…ld"}, // ASCII: the tail, with the marker
+		{"hello", 1, "o"},         // no room for the ellipsis
+		{"中文", 2, ""},             // no whole rune fits below the marker
+		{"hello", 0, ""},          // max=0
+		{"éé", 4, "éé"},           // exact fit with 2-byte chars
+		{"aaéé", 5, "…é"},         // the cut lands mid-rune: move past it
+		{"a中b", 4, "…b"},          // never split the 3-byte char
+		{"a🎉", 5, "a🎉"},           // exact fit with a 4-byte char
+	}
+	for _, c := range cases {
+		got := TailBytes(c.s, c.max)
+		if got != c.want {
+			t.Errorf("TailBytes(%q, %d) = %q, want %q", c.s, c.max, got, c.want)
+		}
+		if len(got) > c.max {
+			t.Errorf("TailBytes(%q, %d) returned %d bytes", c.s, c.max, len(got))
+		}
+		if !utf8.ValidString(got) {
+			t.Errorf("TailBytes(%q, %d) = %q, which is not valid UTF-8", c.s, c.max, got)
 		}
 	}
 }

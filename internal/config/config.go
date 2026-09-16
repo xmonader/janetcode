@@ -269,7 +269,6 @@ var ErrNoCredentials = errors.New("no API key")
 // not of the wording of its message.
 var ErrBadConfig = errors.New("bad configuration")
 
-// badf builds an ErrBadConfig error with a message of its own.
 // Keys are the config file's top-level keys, read off the struct's json
 // tags so the list cannot drift from what load accepts. The feature
 // catalogue documents them and the doctor uses them to recognise a
@@ -287,6 +286,7 @@ func Keys() []string {
 	return out
 }
 
+// badf builds an ErrBadConfig error with a message of its own.
 func badf(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrBadConfig, fmt.Sprintf(format, args...))
 }

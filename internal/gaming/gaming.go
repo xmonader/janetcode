@@ -56,10 +56,11 @@ func scanAlwaysTrueEq(d Delta, add func(Signal)) {
 		if !strings.Contains(t, "def __eq__") && !strings.Contains(t, "def __ne__") && !strings.Contains(t, "fn eq(&self") {
 			continue
 		}
+		// Only the first statement of the body matters, and the loop
+		// breaks on it, so there is nothing more to bound. (It used to
+		// carry an empty `if len(...) > 8 {}` and a comment claiming a
+		// bound that was never applied.)
 		for _, b := range d.Added[i+1:] {
-			if len(d.Added[i+1:]) > 8 {
-				// bounded below
-			}
 			s := strings.TrimSpace(b)
 			if s == "" || strings.HasPrefix(s, "#") || strings.HasPrefix(s, "//") {
 				continue

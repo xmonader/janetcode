@@ -191,11 +191,6 @@ func (m *model) scheduleFlash() tea.Cmd {
 // events, the prompts it puts to the user, and its end.
 func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
-	case agentEventMsg:
-		m.applyEvent(msg.ev)
-		m.refresh(false)
-		return m.scheduleFlash(), true
-
 	case flushMsg:
 		m.drainEvents()
 		m.refresh(false)
@@ -406,6 +401,9 @@ func (m *model) drainEvents() {
 }
 
 func (m *model) applyEvent(ev agent.Event) {
+	if !namesItsCall(ev) {
+		return
+	}
 	m.transcript.apply(ev)
 	m.observeEvent(ev)
 	switch ev.Kind {

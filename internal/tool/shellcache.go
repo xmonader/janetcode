@@ -77,6 +77,13 @@ func (c *ShellCache) get(key string) (string, time.Duration, bool) {
 	return e.out, age, true
 }
 
+// maxShellEntries bounds the cache. Every entry holds a command's whole
+// result, and a key is a tree state as well as a command, so a session
+// that edits between runs accumulates one entry per run. Expiry alone
+// does not bound it: entries are only looked at when their key comes up
+// again, and a stale key never does.
+const maxShellEntries = 200
+
 func (c *ShellCache) put(key, out string) {
 	if c == nil || key == "" {
 		return
@@ -86,7 +93,25 @@ func (c *ShellCache) put(key, out string) {
 	if c.m == nil {
 		c.m = map[string]shellEntry{}
 	}
+	if len(c.m) >= maxShellEntries {
+		c.sweep()
+	}
 	c.m[key] = shellEntry{out: out, when: time.Now()}
+}
+
+// sweep drops expired entries, and if that was not enough, everything:
+// what is left is by then mostly keys for tree states that no longer
+// exist, and a cold cache costs one rerun of a command.
+// Called with the lock held.
+func (c *ShellCache) sweep() {
+	for k, e := range c.m {
+		if time.Since(e.when) > c.ttl() {
+			delete(c.m, k)
+		}
+	}
+	if len(c.m) >= maxShellEntries {
+		c.m = map[string]shellEntry{}
+	}
 }
 
 // invalidate forgets every cached result; a background job may change the

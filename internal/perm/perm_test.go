@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseMatchDecide(t *testing.T) {
@@ -57,6 +59,41 @@ func TestParseMatchDecide(t *testing.T) {
 	}
 	if !Match("a?c", "abc") || Match("a?c", "ac") || !Match("*", "") || Match("abc", "abcd") {
 		t.Fatal("glob edge cases")
+	}
+	for _, c := range []struct {
+		pattern, subject string
+		want             bool
+	}{
+		{"a*b*c", "axxbyyc", true},
+		{"a*b*c", "axxbyy", false},
+		{"**", "anything at all", true},
+		{"*x", "x", true},
+		{"*x", "", false},
+		{"a*", "a", true},
+		{"*a*a*a*", "aaa", true},
+	} {
+		if got := Match(c.pattern, c.subject); got != c.want {
+			t.Errorf("Match(%q, %q) = %v, want %v", c.pattern, c.subject, got, c.want)
+		}
+	}
+}
+
+// The matcher is run against a subject the model chose. A pattern with
+// several stars used to backtrack exponentially, so a saved rule plus a
+// long command was enough to wedge the permission check; this finishes
+// in milliseconds and would not finish at all on the old matcher.
+func TestMatchDoesNotBacktrackExponentially(t *testing.T) {
+	pattern := "go test *a*a*a*a*a*a*a*a*a*a*a*a*b"
+	subject := "go test " + strings.Repeat("a", 4000)
+	done := make(chan bool, 1)
+	go func() { done <- Match(pattern, subject) }()
+	select {
+	case got := <-done:
+		if got {
+			t.Fatal("matched a subject with no trailing b")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the glob matcher did not finish")
 	}
 }
 

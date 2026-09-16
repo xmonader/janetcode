@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Content-hash line anchors.
@@ -134,9 +136,5 @@ func resolveAnchor(ref anchorRef, lines []string) (int, error) {
 }
 
 func trimForMessage(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) > 60 {
-		return s[:60] + "…"
-	}
-	return s
+	return textfmt.ClipBytes(strings.TrimSpace(s), 60)
 }

@@ -50,13 +50,31 @@ type conn struct {
 	out io.Writer
 	mu  sync.Mutex // serialises writes; one message per line
 
+	// pendMu guards nextID and pend, the calls waiting for a reply from
+	// the client.
 	pendMu sync.Mutex
 	nextID int
 	pend   map[string]chan message
+	// closed is closed once the input stream has ended, so a call still
+	// waiting for a reply that can no longer come stops waiting. Without
+	// it a permission request outstanding when the editor closed the pipe
+	// waited for ever, and readLoop waited for it: the adapter hung
+	// instead of shutting down.
+	closed    chan struct{}
+	closeOnce sync.Once
 }
 
+// ErrDisconnected is what a call that was waiting for the client gets when
+// the client's stream ended first.
+var ErrDisconnected = errors.New("acp: the client closed the connection")
+
 func newConn(out io.Writer) *conn {
-	return &conn{out: out, pend: map[string]chan message{}}
+	return &conn{out: out, pend: map[string]chan message{}, closed: make(chan struct{})}
+}
+
+// stop ends the connection for anything waiting on it.
+func (c *conn) stop() {
+	c.closeOnce.Do(func() { close(c.closed) })
 }
 
 // send writes one message as a single line. json.Marshal escapes newlines
@@ -111,6 +129,8 @@ func (c *conn) call(ctx context.Context, method string, params any, result any) 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-c.closed:
+		return ErrDisconnected
 	case m := <-ch:
 		if m.Error != nil {
 			return m.Error
@@ -156,7 +176,10 @@ func (c *conn) replyError(id json.RawMessage, code int, msg string) error {
 // its requests and closes the pipe must still get their answers.
 func (c *conn) readLoop(ctx context.Context, in io.Reader, handle func(context.Context, message)) error {
 	var wg sync.WaitGroup
+	// Deferred first, so it runs last: the handlers still in flight are
+	// woken by stop before anything waits for them.
 	defer wg.Wait()
+	defer c.stop()
 	sc := bufio.NewScanner(in)
 	sc.Buffer(make([]byte, 1024*1024), 64*1024*1024)
 	for sc.Scan() {

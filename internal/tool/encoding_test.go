@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestDecodeEncodeRoundTrip(t *testing.T) {
@@ -127,6 +128,42 @@ func TestBinaryIsRefusedAsTextButUTF16IsNot(t *testing.T) {
 	var pr *ErrPriorRead
 	if err == nil || !asPriorRead(err, &pr) || pr.Cause != CauseBinary {
 		t.Fatalf("editing a binary file: %v", err)
+	}
+}
+
+// Tool output is UTF-8 text the model reads; a cut that lands in the
+// middle of a multi-byte character produces a replacement character at
+// best and a decoding error at worst. Every place the tools shorten a
+// line has to cut on a rune boundary.
+func TestClippedOutputStaysValidUTF8(t *testing.T) {
+	root := t.TempDir()
+	long := strings.Repeat("é", 400) // 800 bytes, no ASCII boundary at 90/500
+	if err := os.WriteFile(filepath.Join(root, "u.txt"), []byte(long+"\n"+long+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := (Grep{Root: root}).Run(context.Background(), raw(`{"pattern":"é","path":"u.txt"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !utf8.ValidString(out) {
+		t.Fatal("grep clipped a long line mid-rune")
+	}
+	// A line-range edit quotes what it removed, clipped the same way.
+	res, err := (EditFile{Root: root}).Run(context.Background(), raw(`{"path":"u.txt","from_line":1,"to_line":1,"new_string":"x"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !utf8.ValidString(res) {
+		t.Fatal("edit_file quoted removed lines mid-rune")
+	}
+	// The quoting must not rewrite the file's own text either: the second
+	// line is untouched and must still be whole.
+	after, err := os.ReadFile(filepath.Join(root, "u.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != "x\n"+long+"\n" {
+		t.Fatalf("edit corrupted the file: %q", string(after))
 	}
 }
 

@@ -278,6 +278,32 @@ func TestSaveLoadList(t *testing.T) {
 	}
 }
 
+// Parameterise orders its substitutions longest value first, and the
+// slice it orders comes out of a map. Two parameters with equally long
+// values therefore substituted in whichever order Go's map randomisation
+// gave that run, so saving the same recipe twice could produce different
+// steps and a different params list.
+func TestParameteriseIsDeterministic(t *testing.T) {
+	steps := []Step{{Tool: "bash", Input: json.RawMessage(`{"command":"deploy alpha beta alphabeta"}`)}}
+	// Equally long values, and one contained in the text beside the other.
+	params := map[string]string{"a": "alpha", "b": "gamma", "c": "delta", "d": "kappa", "e": "sigma"}
+	wantSteps, wantParams := Parameterise(steps, params)
+	for i := 0; i < 20; i++ {
+		gotSteps, gotParams := Parameterise(steps, params)
+		if string(gotSteps[0].Input) != string(wantSteps[0].Input) {
+			t.Fatalf("substitution order moved: %s then %s", wantSteps[0].Input, gotSteps[0].Input)
+		}
+		if len(gotParams) != len(wantParams) {
+			t.Fatalf("params list moved: %+v then %+v", wantParams, gotParams)
+		}
+		for j := range wantParams {
+			if gotParams[j] != wantParams[j] {
+				t.Fatalf("params order moved: %+v then %+v", wantParams, gotParams)
+			}
+		}
+	}
+}
+
 func TestListOnMissingDirIsEmptyNotError(t *testing.T) {
 	list, err := List(t.TempDir())
 	if err != nil {

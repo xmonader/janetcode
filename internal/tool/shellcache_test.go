@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,5 +94,26 @@ func TestShellCacheKeysAreNotSharedBetweenWorktrees(t *testing.T) {
 	}
 	if a == b {
 		t.Fatal("two worktrees share a cache key; one's output would be served as the other's")
+	}
+}
+
+// The cache is keyed by tree state as well as command, so a session that
+// edits between runs makes a new key every time. Nothing ever looks at an
+// old key again, so expiry alone does not bound the cache.
+func TestShellCacheIsBounded(t *testing.T) {
+	c := &ShellCache{}
+	for i := 0; i < 5*maxShellEntries; i++ {
+		c.put(fmt.Sprintf("key-%d", i), strings.Repeat("x", 100))
+	}
+	c.mu.Lock()
+	n := len(c.m)
+	c.mu.Unlock()
+	if n > maxShellEntries {
+		t.Fatalf("cache holds %d entries, cap is %d", n, maxShellEntries)
+	}
+	// It still serves what it was just given.
+	c.put("fresh", "output")
+	if out, _, ok := c.get("fresh"); !ok || out != "output" {
+		t.Fatalf("a fresh entry was not served: %q %v", out, ok)
 	}
 }

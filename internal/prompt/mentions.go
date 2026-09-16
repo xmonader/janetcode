@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // MaxMentionBytes caps how much of one @file is attached to a prompt.
@@ -124,7 +125,7 @@ func attachmentBody(full string, fi os.FileInfo) string {
 		return fmt.Sprintf("(binary file, %d bytes)", fi.Size())
 	}
 	if n > MaxMentionBytes {
-		return string(buf[:MaxMentionBytes]) + fmt.Sprintf("\n… truncated, %d bytes total", fi.Size())
+		return textfmt.CutBytes(string(buf), MaxMentionBytes) + fmt.Sprintf("\n… truncated, %d bytes total", fi.Size())
 	}
 	return string(buf)
 }

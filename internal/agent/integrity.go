@@ -38,12 +38,13 @@ func (a *Agent) checkIntegrity(emit func(Event)) {
 	}
 }
 
+// prefix is the first n bytes of s, cut back to a rune boundary. The
+// results go into the request the model reads — the goal and the verbatim
+// user asks of the working-memory record — and a request cut mid-rune
+// arrives as a replacement character, so the cut never splits one.
 func prefix(s string, n int) string {
 	s = strings.TrimSpace(s)
-	if len(s) > n {
-		s = s[:n]
-	}
-	return s
+	return s[:runeStartAtOrBefore(s, n)]
 }
 
 func historyContains(msgs []llm.Message, want string) bool {

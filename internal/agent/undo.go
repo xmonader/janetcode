@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -177,37 +177,37 @@ func (a *Agent) UndoTurn() (turn int, ok bool) {
 // changing anything.
 func (a *Agent) UndoPreview(ctx context.Context) ([]string, error) {
 	a.cp.mu.Lock()
-	defer a.cp.mu.Unlock()
 	n := len(a.cp.all)
 	if n == 0 {
+		a.cp.mu.Unlock()
 		return nil, ErrNothingToUndo
 	}
-	return a.checkpointPreview(ctx, a.cp.all[n-1])
+	cp := a.cp.all[n-1]
+	a.cp.mu.Unlock()
+	// The checkpoint is a copy, so the git diff behind the preview runs
+	// with the lock dropped.
+	return a.checkpointPreview(ctx, cp)
 }
 
 // Redo reapplies the most recently undone turn. It works until the next
 // change or the end of the session, and returns what it restored.
+//
+// Like Undo it is a three-phase state machine — pop under the lock, do
+// the git and file work with the lock dropped, persist afterwards — so no
+// git call is ever made with cp.mu held.
 func (a *Agent) Redo(ctx context.Context) ([]string, error) {
-	a.cp.mu.Lock()
-	defer a.cp.mu.Unlock()
-	n := len(a.cp.redo)
-	if n == 0 {
+	entry, ok := a.popRedo()
+	if !ok {
 		return nil, ErrNothingToRedo
 	}
-	entry := a.cp.redo[n-1]
-	a.cp.redo = a.cp.redo[:n-1]
 	// The state before redoing becomes undoable again.
 	if before, ok := a.captureState(ctx, entry, "before redo"); ok {
-		a.cp.all = append(a.cp.all, before)
-		a.cp.open = false
-		a.cp.dirty = true
+		a.pushCheckpoint(before)
 	}
 	done, err := a.restore(ctx, entry)
-	a.cp.mu.Unlock()
 	if serr := a.SaveUndo(); serr != nil {
 		a.debugf("save undo: %v", serr)
 	}
-	a.cp.mu.Lock()
 	return done, err
 }
 
@@ -217,6 +217,10 @@ func (a *Agent) Redo(ctx context.Context) ([]string, error) {
 // calls do not inherit ctx's cancellation.
 func (a *Agent) endTurn(ctx context.Context) {
 	a.running.Store(false)
+	// The turn's event sink goes with the turn: emitter() promises a sink
+	// that drops events when no turn is running, and without this it kept
+	// handing out the finished turn's one.
+	a.setEmitter(nil)
 	ctx = context.WithoutCancel(ctx)
 	a.cp.mu.Lock()
 	repo := a.snaps()
@@ -262,30 +266,100 @@ func (cp *Checkpoint) has(p string) bool {
 // and forgets that checkpoint. It returns what it restored, and an error
 // listing files that could not be restored. The state before undoing is
 // kept for Redo.
+// It is a state machine whose lock is held only in its bookkeeping
+// phases: pop the newest checkpoint (locked), snapshot the tree it is
+// about to replace and put the files back (unlocked, up to a minute of
+// git), push that snapshot onto the redo stack (locked), then persist and
+// rewind the conversation (unlocked). Nothing that can block runs under
+// cp.mu, so a front-end reading Checkpoints or Changes while an undo runs
+// is never held up behind git.
 func (a *Agent) Undo(ctx context.Context) ([]string, error) {
-	a.cp.mu.Lock()
-	defer a.cp.mu.Unlock()
-	n := len(a.cp.all)
-	if n == 0 {
+	cp, ok := a.popCheckpoint()
+	if !ok {
 		return nil, ErrNothingToUndo
 	}
-	cp := a.cp.all[n-1]
-	a.cp.all = a.cp.all[:n-1]
-	a.cp.open = false
-	a.cp.dirty = true
 	if now, ok := a.captureState(ctx, cp, "before undo"); ok {
-		a.cp.redo = append(a.cp.redo, now)
+		a.pushRedo(now)
 	}
 	done, err := a.restore(ctx, cp)
-	a.cp.mu.Unlock()
 	if serr := a.SaveUndo(); serr != nil {
 		a.debugf("save undo: %v", serr)
 	}
 	if err == nil {
 		a.rollbackConversation(cp)
 	}
-	a.cp.mu.Lock()
 	return done, err
+}
+
+// popCheckpoint takes the newest checkpoint off the undo stack. ok is
+// false when there is nothing to undo. It is the only place an undo
+// touches the stack before its git work, so the work itself needs no
+// lock.
+func (k *checkpoints) popCheckpoint() (Checkpoint, bool) {
+	k.cp.mu.Lock()
+	defer k.cp.mu.Unlock()
+	n := len(k.cp.all)
+	if n == 0 {
+		return Checkpoint{}, false
+	}
+	cp := k.cp.all[n-1]
+	k.cp.all = k.cp.all[:n-1]
+	k.cp.open = false
+	k.cp.dirty = true
+	return cp, true
+}
+
+// popCheckpointForTurn is popCheckpoint restricted to a checkpoint that
+// belongs to turn (or predates turn numbering, Turn 0): anything else
+// means this turn left nothing of its own to put back.
+func (k *checkpoints) popCheckpointForTurn(turn int) (Checkpoint, error) {
+	k.cp.mu.Lock()
+	defer k.cp.mu.Unlock()
+	n := len(k.cp.all)
+	if n == 0 {
+		return Checkpoint{}, ErrNothingToUndo
+	}
+	if cp := k.cp.all[n-1]; cp.Turn == turn || cp.Turn == 0 {
+		k.cp.all = k.cp.all[:n-1]
+		k.cp.open = false
+		k.cp.dirty = true
+		return cp, nil
+	}
+	return Checkpoint{}, fmt.Errorf("no checkpoint for turn %d", turn)
+}
+
+// pushCheckpoint puts a state on the undo stack, closing whatever
+// checkpoint the running turn had open: the state a redo replaced, or a
+// restore's own "before".
+func (k *checkpoints) pushCheckpoint(cp Checkpoint) {
+	k.cp.mu.Lock()
+	defer k.cp.mu.Unlock()
+	k.cp.all = append(k.cp.all, cp)
+	k.cp.open = false
+	k.cp.dirty = true
+}
+
+// popRedo takes the newest state off the redo stack. ok is false when
+// there is nothing to redo.
+func (k *checkpoints) popRedo() (Checkpoint, bool) {
+	k.cp.mu.Lock()
+	defer k.cp.mu.Unlock()
+	n := len(k.cp.redo)
+	if n == 0 {
+		return Checkpoint{}, false
+	}
+	cp := k.cp.redo[n-1]
+	k.cp.redo = k.cp.redo[:n-1]
+	k.cp.dirty = true
+	return cp, true
+}
+
+// pushRedo makes a state reachable again through Redo.
+func (k *checkpoints) pushRedo(cp Checkpoint) {
+	k.cp.mu.Lock()
+	defer k.cp.mu.Unlock()
+	k.cp.redo = append(k.cp.redo, cp)
+	k.cp.dirty = true
 }
 
 // rollbackConversation takes an undone turn's messages out of the
@@ -318,8 +392,9 @@ func (a *Agent) rollbackConversation(cp Checkpoint) {
 }
 
 // restore puts the tree back to a checkpoint: through git when it holds a
-// snapshot, else (or as a fallback) from the file copies. Called with the
-// lock held.
+// snapshot, else (or as a fallback) from the file copies. cp is a copy, so
+// it takes no lock — and it must not be called with cp.mu held, since it
+// can spend a minute in git.
 func (a *Agent) restore(ctx context.Context, cp Checkpoint) ([]string, error) {
 	var (
 		done []string
@@ -327,11 +402,14 @@ func (a *Agent) restore(ctx context.Context, cp Checkpoint) ([]string, error) {
 	)
 	if repo := a.snaps(); cp.Snap != nil && repo != nil {
 		rctx, cancel := context.WithTimeout(ctx, 60*time.Second)
-		done, err := repo.Restore(rctx, *cp.Snap)
+		// reverted, not done: what git put back is returned as it is on
+		// the paths below, and on the one path that falls through, git
+		// put nothing back at all.
+		reverted, err := repo.Restore(rctx, *cp.Snap)
 		cancel()
 		if err == nil || !errors.Is(err, snapshot.ErrHeadMoved) {
 			repo.Drop(context.WithoutCancel(ctx), *cp.Snap)
-			return done, err
+			return reverted, err
 		}
 		if len(cp.Files) == 0 {
 			return nil, fmt.Errorf("%w: undo only knows how to revert this turn's shell changes through git, and HEAD is no longer where the snapshot was taken", err)
@@ -340,8 +418,12 @@ func (a *Agent) restore(ctx context.Context, cp Checkpoint) ([]string, error) {
 		repo.Drop(context.WithoutCancel(ctx), *cp.Snap)
 	}
 	// Restore in reverse so a file created then edited ends up removed.
+	// (This was a sort.SliceStable whose "less" compared the indices it
+	// was handed rather than the elements at them, which is not an
+	// ordering at all and only reversed the slice by accident of the
+	// algorithm in use.)
 	files := append([]Snapshot(nil), cp.Files...)
-	sort.SliceStable(files, func(i, j int) bool { return i > j })
+	slices.Reverse(files)
 	for _, f := range files {
 		var err error
 		if f.Failed {

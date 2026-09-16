@@ -174,7 +174,7 @@ you do not intend to push, or hand a task to someone who has no access to
 
 ## The task sets, and which one an ablation can use
 
-`evals/` holds four sets, and they are not interchangeable:
+`evals/` holds seven sets, and they are not interchangeable:
 
 | set | where | what it is for |
 |---|---|---|
@@ -183,6 +183,14 @@ you do not intend to push, or hand a task to someone who has no access to
 | 51–62 | `evals/*.json`, tagged `multistep` | the discriminating set (below) |
 | 31–35 | `evals/large/` | 1M-token corpora, for context behaviour |
 | 41–43 | `evals/session/` | multi-prompt sessions, for what survives across turns |
+| 51–59 | `evals/fanout/` | one prompt over many files: the set the tool-surface, script, line-edit, intent and compaction-pressure ablations run on |
+| 61 | `evals/explore/` | one change to find in a repository too big to read |
+
+`--eval` takes one file or one directory and does not descend, so
+`--eval evals` is the top-level sets only and `--eval evals/fanout` is
+that set alone. The numeric prefixes are unique within a directory, not
+across them: `51` is the price-chain bug at the top level and the
+many-files survey under `fanout/`, and the two never load together.
 
 An ablation is only as good as the headroom in the set it runs on. On
 qwen3.7-flash the easy set passes 60/60 and the hard set 87/90 across

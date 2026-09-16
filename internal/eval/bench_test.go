@@ -1,6 +1,8 @@
 package eval
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -402,4 +404,49 @@ func TestMultistepSetIsWellFormed(t *testing.T) {
 			t.Fatalf("%s: timeout %ds is under the six-minute budget", tsk.Name, tsk.Timeout)
 		}
 	}
+}
+
+// docs/manual/evals.md's table of task sets is what a reader plans an
+// ablation from, and it had fallen behind: two directories of tasks that
+// five benchmark reports actually run against (evals/fanout and
+// evals/explore) were not in it at all, and it said "four sets" over a
+// table of five rows. Every set directory must be named in the manual,
+// and every set directory must load.
+func TestEverySetDirectoryIsInTheManual(t *testing.T) {
+	root := filepath.Join("..", "..", "evals")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manual, err := os.ReadFile(filepath.Join("..", "..", "docs", "manual", "evals.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dirs := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		dirs++
+		if _, lerr := Load(filepath.Join(root, e.Name())); lerr != nil {
+			t.Errorf("evals/%s does not load: %v", e.Name(), lerr)
+		}
+		if !strings.Contains(string(manual), "evals/"+e.Name()+"/") {
+			t.Errorf("evals/%s/ is a task set nothing in docs/manual/evals.md mentions", e.Name())
+		}
+	}
+	// The top-level files are the sixth and seventh sets (01–20, 21–26,
+	// 51–62 share the directory), so the prose count is dirs + 3.
+	want := fmt.Sprintf("`evals/` holds %s sets", numberWord(dirs+3))
+	if !strings.Contains(string(manual), want) {
+		t.Errorf("docs/manual/evals.md should say %q: %d set directories plus the three that share evals/*.json", want, dirs)
+	}
+}
+
+func numberWord(n int) string {
+	words := []string{"zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"}
+	if n < len(words) {
+		return words[n]
+	}
+	return strconv.Itoa(n)
 }

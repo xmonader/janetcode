@@ -2,6 +2,8 @@ package mcptool
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sort"
 	"sync"
 
@@ -18,11 +20,19 @@ type Manager struct {
 	// being sent with every request. Zero means DefaultDeferAbove.
 	DeferAbove int
 
+	// mu guards every map below and closed. Nothing reads them without
+	// it, and no client is started or closed while it is held.
 	mu       sync.Mutex
 	clients  map[string]*mcp.Client
 	errs     map[string]error
 	starting map[string]bool
+	closed   bool
 }
+
+// ErrClosed is why a start that was still in flight when the session ended
+// reports no server: the manager it would have been registered with is
+// gone, so the server it started has been stopped again.
+var ErrClosed = errors.New("mcp: the manager was closed while the server was starting")
 
 // DefaultDeferAbove is the per-server tool count above which MCP tools are
 // deferred; a handful of tools are cheaper to list than to search for.
@@ -53,9 +63,6 @@ func (m *Manager) Client(name string) (*mcp.Client, bool) {
 // a caller that waits on onDone has to know about.
 func (m *Manager) Start(ctx context.Context, name string, cfg mcp.ServerConfig, onDone func(name string, c *mcp.Client, err error)) bool {
 	m.mu.Lock()
-	// Close leaves an empty clients map behind, so each map is checked on
-	// its own: a start that lands after a shutdown must not write to a
-	// nil map.
 	if m.clients == nil {
 		m.clients = map[string]*mcp.Client{}
 	}
@@ -65,7 +72,7 @@ func (m *Manager) Start(ctx context.Context, name string, cfg mcp.ServerConfig, 
 	if m.starting == nil {
 		m.starting = map[string]bool{}
 	}
-	if m.starting[name] || m.clients[name] != nil {
+	if m.closed || m.starting[name] || m.clients[name] != nil {
 		m.mu.Unlock()
 		return false
 	}
@@ -76,24 +83,24 @@ func (m *Manager) Start(ctx context.Context, name string, cfg mcp.ServerConfig, 
 		c, err := mcp.Start(ctx, name, cfg, m.Options)
 		m.mu.Lock()
 		delete(m.starting, name)
-		if err != nil {
+		switch {
+		case err != nil:
 			m.errs[name] = err
-		} else {
-			m.clients[name] = c
-			if m.Registry != nil {
-				tools := AgentTools(c)
-				deferAbove := m.DeferAbove
-				if deferAbove == 0 {
-					deferAbove = DefaultDeferAbove
-				}
-				for _, t := range tools {
-					if len(tools) > deferAbove {
-						m.Registry.AddDeferred(t)
-					} else {
-						m.Registry.Add(t)
-					}
-				}
+		case m.closed:
+			// The session ended while this server was shaking hands. It is
+			// not going into the maps — Close has already walked them — so
+			// nothing would ever stop it, and an MCP server is usually a
+			// wrapper around something that holds a port or an index for
+			// the rest of the machine's uptime.
+			m.mu.Unlock()
+			c.Close()
+			if onDone != nil {
+				onDone(name, nil, fmt.Errorf("%w: %s", ErrClosed, name))
 			}
+			return
+		default:
+			m.clients[name] = c
+			m.register(c)
 		}
 		m.mu.Unlock()
 		if onDone != nil {
@@ -101,6 +108,38 @@ func (m *Manager) Start(ctx context.Context, name string, cfg mcp.ServerConfig, 
 		}
 	}()
 	return true
+}
+
+// register adds a client's tools. A server with more tools than the agent
+// wants in every request contributes them deferred, to be loaded on demand
+// through tool_search. Called with mu held.
+func (m *Manager) register(c *mcp.Client) {
+	if m.Registry == nil || c == nil {
+		return
+	}
+	tools := AgentTools(c)
+	deferAbove := m.DeferAbove
+	if deferAbove == 0 {
+		deferAbove = DefaultDeferAbove
+	}
+	for _, t := range tools {
+		if len(tools) > deferAbove {
+			m.Registry.AddDeferred(t)
+		} else {
+			m.Registry.Add(t)
+		}
+	}
+}
+
+// unregister takes a client's tools back out of the registry. It is called
+// without mu, since the registry has a lock of its own.
+func (m *Manager) unregister(c *mcp.Client) {
+	if m.Registry == nil || c == nil {
+		return
+	}
+	for _, t := range AgentTools(c) {
+		m.Registry.Remove(t.Name())
+	}
 }
 
 // Stop closes one server and removes its tools, so Start can bring it
@@ -114,11 +153,7 @@ func (m *Manager) Stop(name string) {
 	if c == nil {
 		return
 	}
-	if m.Registry != nil {
-		for _, t := range AgentTools(c) {
-			m.Registry.Remove(t.Name())
-		}
-	}
+	m.unregister(c)
 	c.Close()
 }
 
@@ -172,18 +207,17 @@ func (m *Manager) Status() []ServerStatus {
 	return out
 }
 
-// Close stops every server and removes its tools.
+// Close stops every server and removes its tools. The manager stays
+// closed: a start still shaking hands stops its own server when it
+// finishes, and a new one is refused.
 func (m *Manager) Close() {
 	m.mu.Lock()
 	clients := m.clients
 	m.clients = map[string]*mcp.Client{}
+	m.closed = true
 	m.mu.Unlock()
 	for _, c := range clients {
-		if m.Registry != nil {
-			for _, t := range AgentTools(c) {
-				m.Registry.Remove(t.Name())
-			}
-		}
+		m.unregister(c)
 		c.Close()
 	}
 }

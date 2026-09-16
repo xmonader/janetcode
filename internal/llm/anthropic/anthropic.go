@@ -40,7 +40,10 @@ type Config struct {
 	// Limits bound one streamed call: a resettable idle timeout and a
 	// lifetime cap. The zero value means the defaults.
 	Limits llm.StreamLimits
-	// MaxRetries for transient failures. Default 2.
+	// MaxRetries for transient failures. Zero means the default of 2;
+	// negative means no retries at all, so that "do not retry" is
+	// expressible and does not read as "use the default" the way a plain
+	// 0 did.
 	MaxRetries int
 	// HTTPClient overrides the default client (tests).
 	HTTPClient *http.Client
@@ -71,8 +74,11 @@ func New(cfg Config) (*Provider, error) {
 		return nil, llm.ErrNoAPIKey
 	}
 	cfg.APIKey = keys[0]
-	if cfg.MaxRetries == 0 {
+	switch {
+	case cfg.MaxRetries == 0:
 		cfg.MaxRetries = 2
+	case cfg.MaxRetries < 0:
+		cfg.MaxRetries = 0
 	}
 	if !llm.ValidEffort(cfg.Effort) {
 		return nil, fmt.Errorf("anthropic: invalid effort %q", cfg.Effort)
@@ -173,10 +179,7 @@ func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
 		params.MaxTokens = 16000
 	}
 	if req.System != "" {
-		params.System = []sdk.TextBlockParam{{
-			Text:         req.System,
-			CacheControl: sdk.NewCacheControlEphemeralParam(),
-		}}
+		params.System = systemBlocks(req.System)
 	}
 	if cfg.Thinking {
 		// Omitted still returns the signature that keeps later turns
@@ -248,6 +251,29 @@ func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
 	return params, nil
 }
 
+// envSection is the heading prompt.System writes cwd, date, git state and
+// the project's own instructions under. Everything above it is the same
+// for every session on this build; everything below it changes with the
+// directory, the day and the branch. The OpenAI path splits there for
+// the same reason (see openai.applyCacheBreakpoints).
+const envSection = "# Environment\n"
+
+// systemBlocks is the system prompt as cacheable blocks. Splitting it at
+// the environment heading gives the static instructions a cache entry of
+// their own, so the big prefix survives what the tail does not: a `cd`
+// that rewrites the environment, a subagent that appends its brief, an
+// eval task in another working directory. Both blocks are marked, so a
+// session that never moves still reads the whole prompt from cache.
+func systemBlocks(system string) []sdk.TextBlockParam {
+	if i := strings.Index(system, envSection); i > 0 {
+		return []sdk.TextBlockParam{
+			{Text: system[:i], CacheControl: sdk.NewCacheControlEphemeralParam()},
+			{Text: system[i:], CacheControl: sdk.NewCacheControlEphemeralParam()},
+		}
+	}
+	return []sdk.TextBlockParam{{Text: system, CacheControl: sdk.NewCacheControlEphemeralParam()}}
+}
+
 func toolParam(t llm.ToolDef) (sdk.ToolParam, error) {
 	var schema map[string]any
 	if len(t.InputSchema) > 0 {
@@ -308,6 +334,9 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 			p.ring.OK(idx)
 			return resp, nil
 		}
+		// p.stream never returns a response alongside an error; say so
+		// rather than handing the caller a half-response to guess about.
+		resp = nil
 		if p.clampEffort(err) {
 			// The model does not go that high; the next tier down is
 			// what the user asked for as nearly as this model can, and
@@ -463,6 +492,14 @@ func toResponse(msg sdk.Message) (*llm.Response, error) {
 		case sdk.RedactedThinkingBlock:
 			// Cannot be represented; the API accepts history without it.
 		case sdk.ToolUseBlock:
+			// A call with no name or no id cannot be run, and going back
+			// into the history it makes every later turn invalid.
+			if v.Name == "" {
+				return nil, fmt.Errorf("anthropic: tool call %q has no name", v.ID)
+			}
+			if v.ID == "" {
+				return nil, fmt.Errorf("anthropic: tool call %s has no id", v.Name)
+			}
 			input := json.RawMessage(v.JSON.Input.Raw())
 			if len(input) == 0 || !json.Valid(input) {
 				return nil, fmt.Errorf("anthropic: tool call %s has invalid JSON input: %.200s", v.Name, string(input))

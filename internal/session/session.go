@@ -81,6 +81,17 @@ type eventLine struct {
 	Event
 }
 
+// record is a log line of either kind, so Open decodes each line once
+// instead of parsing it as metadata and then again as an event. The outer
+// Type is shallower than the embedded Event's own ("t"), so the two tags
+// do not collide. Only Open uses it; writing keeps the narrow types, whose
+// fields are exactly what each kind of line carries.
+type record struct {
+	Type string `json:"type"`
+	Meta *Meta  `json:"meta,omitempty"`
+	Event
+}
+
 // Session is one persisted conversation. The file is the event log: every
 // model-visible message is an appended surface event, so nothing but the
 // metadata line is ever rewritten. Append is called from the parallel tool
@@ -88,8 +99,16 @@ type eventLine struct {
 type Session struct {
 	// unwritten is set until the first event or rewrite creates the file.
 	unwritten bool
-	Meta      Meta
-	path      string
+	// torn is set by Open when the file on disk ends in a partial line: a
+	// crash or a power cut between the write and its newline. Those bytes
+	// are dropped from the in-memory log, but they are still on disk, and
+	// O_APPEND would glue the next event onto them into one corrupt line
+	// — which is no longer the *last* line, so the next Open refuses the
+	// whole session rather than dropping it. The next write rewrites the
+	// file from memory instead, which drops the wreckage for good.
+	torn bool
+	Meta Meta
+	path string
 
 	mu      sync.Mutex
 	ev      []Event
@@ -186,7 +205,7 @@ func open(path, id string, want func(Meta) bool) (*Session, []llm.Message, bool,
 		return nil, nil, false, err
 	}
 	defer f.Close()
-	s := &Session{path: path}
+	s := &Session{path: path, torn: !endsWithNewline(f)}
 	sc := bufio.NewScanner(f)
 	// A session line is one JSON event and is usually well under 64 KB;
 	// the ceiling is high because a single tool result can be enormous.
@@ -202,12 +221,13 @@ func open(path, id string, want func(Meta) bool) (*Session, []llm.Message, bool,
 		if raw == "" {
 			continue
 		}
-		var l line
+		var l record
 		if err := json.Unmarshal([]byte(raw), &l); err != nil {
 			// A torn final line (crash mid-write) is dropped, not fatal.
 			if sc.Scan() {
 				return nil, nil, false, fmt.Errorf("session %s line %d: %w", id, n, err)
 			}
+			s.torn = true
 			break
 		}
 		switch l.Type {
@@ -219,11 +239,7 @@ func open(path, id string, want func(Meta) bool) (*Session, []llm.Message, bool,
 				return s, nil, false, nil
 			}
 		case "event":
-			var el eventLine
-			if err := json.Unmarshal([]byte(raw), &el); err != nil {
-				return nil, nil, false, fmt.Errorf("session %s line %d: %w", id, n, err)
-			}
-			e := el.Event
+			e := l.Event
 			if e.Seq > s.nextSeq {
 				s.nextSeq = e.Seq
 			}
@@ -237,6 +253,22 @@ func open(path, id string, want func(Meta) bool) (*Session, []llm.Message, bool,
 		return nil, nil, false, fmt.Errorf("session %s has no metadata", id)
 	}
 	return s, FoldSurface(s.ev), true, nil
+}
+
+// endsWithNewline reports whether the log's last byte is a newline, which
+// is what tells a complete final record from one a crash cut short. An
+// empty or unreadable file counts as complete: there is nothing there for
+// the next append to be glued onto.
+func endsWithNewline(f *os.File) bool {
+	st, err := f.Stat()
+	if err != nil || st.Size() == 0 {
+		return true
+	}
+	var b [1]byte
+	if _, err := f.ReadAt(b[:], st.Size()-1); err != nil {
+		return true
+	}
+	return b[0] == '\n'
 }
 
 // SetSettled marks the session done with, or active again.
@@ -265,12 +297,25 @@ func (s *Session) Events() []Event {
 	return append([]Event(nil), s.ev...)
 }
 
+// EventCount is how many records the log holds. It answers the question
+// "has anything been appended since I last looked?" without the copy of
+// every event that Events() makes — the terminal's status line asks on
+// every frame.
+func (s *Session) EventCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.ev)
+}
+
 // Append writes one event and returns the seq it was given. Seq is assigned
 // if zero. Prior events are never rewritten.
 func (s *Session) Append(e Event) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.unwritten {
+	if s.unwritten || s.torn {
+		// Either there is no file yet, or the one on disk ends in the
+		// wreckage of an interrupted write. Both are answered by writing
+		// the whole log out from memory before anything is appended.
 		if err := s.rewriteLocked(); err != nil {
 			return 0, err
 		}
@@ -502,7 +547,7 @@ func (s *Session) rewrite() error {
 
 // rewriteLocked is rewrite for a caller already holding s.mu.
 func (s *Session) rewriteLocked() error {
-	s.unwritten = false
+	s.unwritten, s.torn = false, false
 	var buf bytes.Buffer
 	w := bufio.NewWriter(&buf)
 	if err := writeLine(w, line{Type: "meta", Meta: &s.Meta}); err != nil {

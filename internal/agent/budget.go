@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/session"
 )
 
 // ErrBudget is returned when a run has spent its ceiling. The headless
@@ -59,9 +60,14 @@ func (a *Agent) stopForBudget(spent float64, uses []llm.Block, emit func(Event))
 			msg := u.Name + " was not run: " + err.Error() + "."
 			results = append(results, llm.ToolResult(replyID(u), msg, true))
 			emit(Event{Kind: EvToolResult, Call: &call, Output: msg, IsError: true})
+			a.logEvent(session.Event{Type: session.TypeToolResult, CallID: u.ID, Name: u.Name, Arguments: string(u.Input), Output: msg, IsError: true})
 		}
 		tr := llm.ToolResultMessage(results...)
 		a.appendMessage(tr)
+		// The answers go on the log as a surface event too: without it a
+		// resumed session folds to an assistant turn whose tool_use blocks
+		// have no tool_result, which every provider refuses.
+		a.logEvent(session.Event{Type: session.TypeToolResult, Surface: true, Message: &tr})
 	}
 	emit(Event{Kind: EvNotice, Text: err.Error()})
 	emit(Event{Kind: EvVerdict, Text: "stopped on the cost budget · " + err.Error(), IsError: true})

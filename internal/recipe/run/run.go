@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/recipe"
@@ -81,10 +82,19 @@ func NeedsMCP(r recipe.Recipe) bool {
 // Label is the synthetic user message a recipe run's turn carries,
 // so a session read back later shows what happened. session.Synthetic
 // treats it as machinery, the same as an undo or a goal round.
+// The arguments are sorted, so the same run always writes the same label
+// into the session: a map's order is randomised, and a label that shifts
+// between runs makes two identical replays look different in the log and
+// in any diff of two sessions.
 func Label(name string, args map[string]string) string {
+	keys := make([]string, 0, len(args))
+	for k := range args {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 	s := "/recipe run " + name
-	for k, v := range args {
-		s += " " + k + "=" + v
+	for _, k := range keys {
+		s += " " + k + "=" + args[k]
 	}
 	return s
 }

@@ -67,8 +67,9 @@ func Latest(dir, cwd string) (string, error) {
 	// The newest session with a conversation in it. A newer one that
 	// never got past its first prompt (a goal set and abandoned, a start
 	// that was quit) would otherwise be what --continue lands in, with
-	// nothing to continue. The first such session is remembered as we go,
-	// so the fallback costs no second pass over the directory.
+	// nothing to continue. One pass: the fallbacks are remembered as the
+	// files go by, rather than read again from the top, which on a
+	// long-lived sessions directory meant parsing every log twice.
 	empty := ""
 	for _, id := range names {
 		_, msgs, matched, err := open(filepath.Join(dir, id+".jsonl"), id, want)

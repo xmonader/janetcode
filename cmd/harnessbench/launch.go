@@ -67,7 +67,7 @@ func runJanetBatch(ctx context.Context, cfg runConfig, batchN int, tasks []eval.
 	cmd := exec.CommandContext(ctx, bin, args...)
 	shell.Supervise(cmd)
 	cmd.Dir = cfg.RepoRoot
-	cmd.Env = childEnv(cfg, janetEnv(cfg, home))
+	cmd.Env = childEnv(janetEnv(cfg, home))
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = io.MultiWriter(&stdout, logW)
 	cmd.Stderr = io.MultiWriter(&stderr, logW)
@@ -142,7 +142,7 @@ func runOne(ctx context.Context, cfg runConfig, harness string, batchN int, t ev
 		return res
 	}
 	defer os.RemoveAll(dir)
-	if err := seedWorkdir(t, dir); err != nil {
+	if err := seedWorkdir(ctx, t, dir); err != nil {
 		res.Reason = "setup: " + err.Error()
 		return res
 	}
@@ -154,6 +154,8 @@ func runOne(ctx context.Context, cfg runConfig, harness string, batchN int, t ev
 	if sess != nil && sess.dir != "" {
 		defer os.RemoveAll(sess.dir)
 	}
+	env := &taskEnv{}
+	defer env.close()
 	var stdout, stderr string
 	var argv []string
 	var code int
@@ -164,7 +166,7 @@ func runOne(ctx context.Context, cfg runConfig, harness string, batchN int, t ev
 	for i, prompt := range prompts {
 		sctx, scancel := context.WithTimeout(ctx, cfg.Timeout)
 		start := time.Now()
-		stdout, stderr, argv, code, runErr = invoke(sctx, cfg, harness, prompt, dir, sess, i)
+		stdout, stderr, argv, code, runErr = invoke(sctx, cfg, harness, prompt, dir, sess, env, i)
 		stepWall := time.Since(start)
 		timedOut := sctx.Err() != nil
 		scancel()
@@ -250,7 +252,7 @@ func fillUsage(a, b eval.UsageMetrics) eval.UsageMetrics {
 	return a
 }
 
-func seedWorkdir(t eval.Task, dir string) error {
+func seedWorkdir(ctx context.Context, t eval.Task, dir string) error {
 	for name, content := range t.Files {
 		p := filepath.Join(dir, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -261,7 +263,10 @@ func seedWorkdir(t eval.Task, dir string) error {
 		}
 	}
 	if _, err := exec.LookPath("git"); err == nil {
-		_ = exec.Command("git", "-C", dir, "init", "-q").Run()
+		// Under ctx like every other subprocess here: a ctrl-c during
+		// setup must not leave a git waiting on a lock nobody is
+		// watching for.
+		_ = exec.CommandContext(ctx, "git", "-C", dir, "init", "-q").Run()
 	}
 	return nil
 }
@@ -307,6 +312,38 @@ func newSession(harness string, t eval.Task) *session {
 	return s
 }
 
+// taskEnv is the state one task's invocations share. Today that is
+// janetcode's private home: the sessions, memory and config a headless
+// run reads live under it, so a fresh one per prompt means the second
+// prompt of a session task cannot find the first prompt's session at all
+// — the whole point of the session set. It is created lazily, since only
+// the janetcode driver needs one.
+type taskEnv struct {
+	janetHomeDir string
+	cleanups     []func()
+}
+
+func (e *taskEnv) janetHome() (string, error) {
+	if e.janetHomeDir != "" {
+		return e.janetHomeDir, nil
+	}
+	dir, cleanup, err := janetHome()
+	if err != nil {
+		return "", err
+	}
+	e.janetHomeDir = dir
+	e.cleanups = append(e.cleanups, cleanup)
+	return dir, nil
+}
+
+func (e *taskEnv) close() {
+	for _, c := range e.cleanups {
+		c()
+	}
+	e.cleanups = nil
+	e.janetHomeDir = ""
+}
+
 // uuid4 is a random session id in the shape every harness accepts.
 func uuid4() string {
 	var b [16]byte
@@ -338,7 +375,7 @@ func piProvider(baseURL string) string {
 
 // hermes-agent has no non-interactive continuation; it runs each prompt
 // fresh and the report says so.
-func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir string, sess *session, step int) (stdout, stderr string, argv []string, code int, err error) {
+func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir string, sess *session, env *taskEnv, step int) (stdout, stderr string, argv []string, code int, err error) {
 	var cmd *exec.Cmd
 	var openclawWS string
 	extraEnv := map[string]string{
@@ -461,26 +498,19 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 		// Without the cap the two drivers ran the same tasks on different
 		// budgets -- 40 model calls against the configured 50 -- and a task
 		// that failed on only one of them said nothing about either.
-		argv = []string{janetBin(cfg), "-p", prompt, "--yolo", "--output-format", "json",
-			"--provider", "openai", "--model", cfg.Model,
-			"--max-turns", fmt.Sprint(cfg.MaxTurns)}
-		if sess != nil && step > 0 {
-			argv = append(argv, "--resume", sess.id)
-		} else if sess != nil {
-			argv = append(argv, "--continue")
-		}
+		argv = janetArgv(cfg, prompt, sess != nil, step)
 		cmd = exec.CommandContext(ctx, argv[0], argv[1:]...)
 		// A headless run is the whole product: it reads the operator's
 		// config, sessions, memory, skills, MCP servers and permission
 		// rules from the real home directory. The eval driver has run in a
 		// private one since it was written, and a comparison between the
 		// two only says something about janetcode if both start from
-		// nothing.
-		jhome, jcleanup, herr := janetHome()
+		// nothing. The home is per task, not per prompt — a fresh one
+		// between the prompts of a session would take the session with it.
+		jhome, herr := env.janetHome()
 		if herr != nil {
 			return "", "", nil, 0, fmt.Errorf("janetcode private home: %w", herr)
 		}
-		defer jcleanup()
 		for k, v := range janetEnv(cfg, jhome) {
 			extraEnv[k] = v
 		}
@@ -512,12 +542,35 @@ func invoke(ctx context.Context, cfg runConfig, harness string, prompt, dir stri
 		// workspace is not enough on its own.
 		cmd.Dir = openclawWS
 	}
-	cmd.Env = childEnv(cfg, extraEnv)
+	cmd.Env = childEnv(extraEnv)
 	var outb, errb bytes.Buffer
 	cmd.Stdout = &outb
 	cmd.Stderr = &errb
 	err = cmd.Run()
 	return outb.String(), errb.String(), argv, exitCode(err), err
+}
+
+// janetArgv is the headless janetcode command line for one prompt of a
+// task: the everyday flags spelled to match the limits the eval driver
+// passes, plus the continuation flag when this is not the task's first
+// prompt.
+//
+// The continuation is --continue, which reopens the latest session for
+// the working directory — exactly what the previous prompt left behind.
+// It used to be `--resume <sess.id>`, and sess.id is a uuid this
+// launcher invents for the harnesses that take one: it named a janetcode
+// session that had never existed, so every prompt after the first began
+// from nothing and the session set, whose entire subject is what a
+// harness carries between prompts, measured janetcode as if it carried
+// nothing.
+func janetArgv(cfg runConfig, prompt string, session bool, step int) []string {
+	argv := []string{janetBin(cfg), "-p", prompt, "--yolo", "--output-format", "json",
+		"--provider", "openai", "--model", cfg.Model,
+		"--max-turns", fmt.Sprint(cfg.MaxTurns)}
+	if session && step > 0 {
+		argv = append(argv, "--continue")
+	}
+	return argv
 }
 
 // janetBin is the janetcode binary as an absolute path. Every harness
@@ -564,7 +617,7 @@ func janetEnv(cfg runConfig, home string) map[string]string {
 	}
 }
 
-func childEnv(cfg runConfig, extra map[string]string) []string {
+func childEnv(extra map[string]string) []string {
 	base := os.Environ()
 	out := make([]string, 0, len(base)+8)
 	// Every key in extra replaces the inherited value; an empty value
@@ -586,7 +639,6 @@ func childEnv(cfg runConfig, extra map[string]string) []string {
 		}
 		out = append(out, k+"="+v)
 	}
-	_ = cfg
 	return out
 }
 
@@ -610,10 +662,10 @@ func evalSanitize(s string) string {
 	return b.String()
 }
 
+// trimCap is the tail of an excerpt: what a failing harness printed last
+// is what says why it failed. textfmt.TailBytes keeps it valid UTF-8 —
+// slicing the bytes by hand put a replacement character at the start of
+// every clipped excerpt that happened to cut a rune.
 func trimCap(s string, n int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= n {
-		return s
-	}
-	return s[len(s)-n:]
+	return textfmt.TailBytes(strings.TrimSpace(s), n)
 }

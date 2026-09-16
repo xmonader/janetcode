@@ -27,15 +27,17 @@ import (
 )
 
 // chainPrep runs turn-preparation hooks in order, joining their notes.
-func chainPrep(hooks ...func([]llm.Block) ([]llm.Block, string)) func([]llm.Block) ([]llm.Block, string) {
-	return func(blocks []llm.Block) ([]llm.Block, string) {
+// Each is given the turn's context, so cancelling the turn cancels the
+// preparation with it.
+func chainPrep(hooks ...func(context.Context, []llm.Block) ([]llm.Block, string)) func(context.Context, []llm.Block) ([]llm.Block, string) {
+	return func(ctx context.Context, blocks []llm.Block) ([]llm.Block, string) {
 		var notes []string
 		for _, h := range hooks {
 			if h == nil {
 				continue
 			}
 			var note string
-			blocks, note = h(blocks)
+			blocks, note = h(ctx, blocks)
 			if note != "" {
 				notes = append(notes, note)
 			}

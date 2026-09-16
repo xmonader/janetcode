@@ -3,6 +3,7 @@ package tui
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/mcp"
 	"github.com/xmonader/janetcode/internal/prompt"
@@ -12,7 +13,7 @@ import (
 // completions lists slash commands matching the input, or files matching
 // the @path being typed at its end.
 func (m *model) completions() []command {
-	if m.connect != nil || m.picker != nil || m.ov.kind != "" || m.asking != nil {
+	if m.mode().blocked() {
 		return nil
 	}
 	m.comp.args = false
@@ -64,9 +65,9 @@ func (m *model) allCommands() []command {
 		c := m.custom[n]
 		out = append(out, command{name: n, args: "[args]", help: sanitize(c.Help) + " · " + shortPath(c.Path)})
 	}
-	for _, sk := range skill.WithBuiltins(skill.Load(m.opts.Cwd, m.opts.ConfigDir)) {
-		if sk.UserInvocable && m.custom["/"+sk.Name].Name == "" {
-			out = append(out, command{name: "/" + sanitize(sk.Name), args: "[args]", help: sanitize(sk.Description) + " · skill"})
+	for _, c := range m.skillRows() {
+		if m.custom[c.name].Name == "" {
+			out = append(out, c)
 		}
 	}
 	if m.opts.MCP != nil && m.opts.MCP.Manager != nil {
@@ -88,6 +89,40 @@ func (m *model) allCommands() []command {
 			}
 		}
 	}
+	return out
+}
+
+// skillRowsFor is how long the user-invocable skills are kept before
+// they are read off disk again.
+const skillRowsFor = 2 * time.Second
+
+// skillRowCache is what skillRows read last, and for where.
+type skillRowCache struct {
+	rows []command
+	key  string
+	at   time.Time
+}
+
+// skillRows is the user-invocable skills as completion rows. Loading
+// them reads every skill directory — the project's, the config's and
+// .claude's — file by file, and completions() runs several times per
+// keystroke (the footer height before the key and after it, the layout,
+// the view), so typing a command name used to read every skill file on
+// disk four or five times per character. They are cached per working
+// directory, which is what /cd changes, and for a couple of seconds, so
+// a skill file dropped in mid-session still turns up.
+func (m *model) skillRows() []command {
+	key := m.opts.Cwd + "\x00" + m.opts.ConfigDir
+	if m.skills.key == key && time.Since(m.skills.at) < skillRowsFor {
+		return m.skills.rows
+	}
+	var out []command
+	for _, sk := range skill.WithBuiltins(skill.Load(m.opts.Cwd, m.opts.ConfigDir)) {
+		if sk.UserInvocable {
+			out = append(out, command{name: "/" + sanitize(sk.Name), args: "[args]", help: sanitize(sk.Description) + " · skill"})
+		}
+	}
+	m.skills = skillRowCache{rows: out, key: key, at: time.Now()}
 	return out
 }
 

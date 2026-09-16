@@ -12,8 +12,7 @@ import (
 )
 
 func TestFetchRefusesPrivateTargetsAndCrossHostRedirects(t *testing.T) {
-	var other *httptest.Server
-	other = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("secret"))
 	}))
 	defer other.Close()

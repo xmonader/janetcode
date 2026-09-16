@@ -45,14 +45,14 @@ func (a agentRunner) SetApprover(ap agent.Approver) { a.Approver = ap }
 type Options struct {
 	// NewAgent builds an agent and its session for a working directory.
 	// resume names an existing session to reopen, or is empty for a new
-	// one; the returned id is what the editor gets back.
+	// one; the returned id is what the editor gets back. It is never
+	// called twice at once, so it may keep unsynchronised state of its
+	// own (which agent has been handed out, which session is next).
 	NewAgent func(cwd, resume string) (TurnRunner, *session.Session, error)
-	// Close, when set, releases what NewAgent allocated for a session.
-	Close   func(TurnRunner)
-	In      io.Reader
-	Out     io.Writer
-	Log     io.Writer
-	Version string
+	In       io.Reader
+	Out      io.Writer
+	Log      io.Writer
+	Version  string
 }
 
 // Server is one ACP connection over the option's streams.
@@ -60,6 +60,14 @@ type Server struct {
 	opts Options
 	c    *conn
 
+	// openMu serialises NewAgent. Every request runs on its own
+	// goroutine, and building an agent reads and writes the launcher's
+	// own state (the agent this process already built, the session to
+	// open next); it is deliberately not s.mu, which must not be held
+	// across building a session.
+	openMu sync.Mutex
+
+	// mu guards sessions and client.
 	mu       sync.Mutex
 	sessions map[string]*acpSession
 	client   implInfo
@@ -71,7 +79,15 @@ type acpSession struct {
 	agent TurnRunner
 	sess  *session.Session
 
-	mu     sync.Mutex // one turn at a time
+	// turn admits one prompt at a time. Every request gets its own
+	// goroutine, so two prompts for one session used to run the agent
+	// concurrently and interleave into the same history — and the second
+	// overwrote the first's cancel, so session/cancel reached only one of
+	// them and the first's cleanup then cleared the second's.
+	turn chan struct{}
+
+	// mu guards cancel and msgN.
+	mu     sync.Mutex
 	cancel context.CancelFunc
 	msgN   int
 }
@@ -224,7 +240,9 @@ func (s *Server) open(cwd, resume string) (*acpSession, error) {
 	if s.opts.NewAgent == nil {
 		return nil, errors.New("no agent factory configured")
 	}
+	s.openMu.Lock()
 	ag, sess, err := s.opts.NewAgent(cwd, resume)
+	s.openMu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +250,7 @@ func (s *Server) open(cwd, resume string) (*acpSession, error) {
 	if sess != nil {
 		id = sess.Meta.ID
 	}
-	as := &acpSession{id: id, cwd: cwd, agent: ag, sess: sess}
+	as := &acpSession{id: id, cwd: cwd, agent: ag, sess: sess, turn: make(chan struct{}, 1)}
 	ag.SetApprover(&approver{s: s, as: as})
 	s.mu.Lock()
 	s.sessions[id] = as
@@ -292,8 +310,15 @@ func (s *Server) prompt(ctx context.Context, raw json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("%w: empty prompt", errBadParams)
 	}
 
-	// One turn at a time per session: a second prompt waits rather than
-	// interleaving into the same history.
+	// One turn at a time per session: a second prompt waits for the first
+	// rather than interleaving into the same history.
+	select {
+	case as.turn <- struct{}{}:
+	case <-ctx.Done():
+		return promptResult{StopReason: stopCancelled}, nil
+	}
+	defer func() { <-as.turn }()
+
 	as.mu.Lock()
 	turnCtx, cancel := context.WithCancel(ctx)
 	as.cancel = cancel

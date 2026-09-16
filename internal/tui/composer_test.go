@@ -38,6 +38,35 @@ func TestComposerLines(t *testing.T) {
 	}
 }
 
+// The answer is memoized on the last (value, width) pair, so both halves
+// of the key have to be part of it: the same text at another width, and
+// another text at the same width, must both be measured afresh.
+func TestComposerLinesMemoKeyedOnValueAndWidth(t *testing.T) {
+	const text = "one two three four five six seven eight"
+	wide, narrow := composerLines(text, 40), composerLines(text, 10)
+	if wide == narrow {
+		t.Fatalf("same count at both widths: %d", wide)
+	}
+	if again := composerLines(text, 40); again != wide {
+		t.Fatalf("width 40 = %d then %d", wide, again)
+	}
+	if got := composerLines("short", 40); got != 1 {
+		t.Fatalf("a new value at the memoized width = %d, want 1", got)
+	}
+	if again := composerLines(text, 40); again != wide {
+		t.Fatalf("width 40 = %d after another value, want %d", again, wide)
+	}
+}
+
+// Measuring costs a quarter of a megabyte per call inside bubbles, and
+// every keystroke asks several times over; the memo is what keeps that
+// off the typing path.
+func BenchmarkComposerLines(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		composerLines("a fairly ordinary prompt line that wraps a little", 60)
+	}
+}
+
 // TestInputHeightGrowsAndClamps drives the real textarea (not just the
 // pure helper) through a harness and checks model.inputHeight(): it
 // starts at one line, grows a line at a time with explicit newlines,

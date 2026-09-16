@@ -23,7 +23,7 @@ func (s *server) addDir(arg string) {
 		s.sheet("extra dirs", strings.Join(dirs, "\n"))
 		return
 	}
-	if err := agent.AddDir(ws, s.opts.Session, arg); err != nil {
+	if err := agent.AddDir(ws, s.sess(), arg); err != nil {
 		s.errf("%v", err)
 		return
 	}

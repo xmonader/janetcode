@@ -641,11 +641,18 @@ func merge(existing, incoming Record) Record {
 		})
 		out.Files = append(out.Files, f)
 	}
-	turns := map[[2]string]Turn{}
-	var tkeys [][2]string
+	// Keyed by session and turn number, and ordered by them — the turn
+	// numerically, not as the string it is keyed by: sorting "10" before
+	// "2" put a merged record's turns in an order no reader expects.
+	type turnKey struct {
+		session string
+		turn    int
+	}
+	turns := map[turnKey]Turn{}
+	var tkeys []turnKey
 	addTurns := func(ts []Turn) {
 		for _, t := range ts {
-			k := [2]string{t.Session, strconv.Itoa(t.Turn)}
+			k := turnKey{t.Session, t.Turn}
 			if _, ok := turns[k]; !ok {
 				tkeys = append(tkeys, k)
 			}
@@ -655,10 +662,10 @@ func merge(existing, incoming Record) Record {
 	addTurns(existing.Turns)
 	addTurns(incoming.Turns)
 	sort.Slice(tkeys, func(i, j int) bool {
-		if tkeys[i][0] != tkeys[j][0] {
-			return tkeys[i][0] < tkeys[j][0]
+		if tkeys[i].session != tkeys[j].session {
+			return tkeys[i].session < tkeys[j].session
 		}
-		return tkeys[i][1] < tkeys[j][1]
+		return tkeys[i].turn < tkeys[j].turn
 	})
 	for _, k := range tkeys {
 		out.Turns = append(out.Turns, turns[k])
@@ -686,10 +693,14 @@ func tagSession(r *Record) {
 }
 
 func dedupChanges(cs []ChangeRef) []ChangeRef {
-	seen := map[[2]string]bool{}
+	type changeKey struct {
+		session string
+		seq     int
+	}
+	seen := map[changeKey]bool{}
 	var out []ChangeRef
 	for _, c := range cs {
-		k := [2]string{c.Session, strconv.Itoa(c.Seq)}
+		k := changeKey{c.Session, c.Seq}
 		if seen[k] {
 			continue
 		}

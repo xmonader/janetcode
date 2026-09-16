@@ -262,19 +262,13 @@ func (m *model) startSideWork(phase string) context.Context {
 // prompt, the way the end of a turn does. ok is whether the work
 // succeeded, for the terminal's command-zone mark.
 func (m *model) endSideWork(ok bool) tea.Cmd {
-	m.turn.running = false
-	m.turn.cancelling = false
-	if m.turn.cancel != nil {
-		m.turn.cancel()
-		m.turn.cancel = nil
-	}
+	m.turn.finish()
 	m.turn.setPhase("")
 	m.term.turnEnded(ok, m.status)
-	if len(m.turn.queued) == 0 {
+	next, queued := m.turn.dequeue()
+	if !queued {
 		return nil
 	}
-	next := m.turn.queued[0]
-	m.turn.queued = m.turn.queued[1:]
 	return m.submit(next)
 }
 

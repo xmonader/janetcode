@@ -79,10 +79,10 @@ type Options struct {
 	Typed *weburl.Set
 	// AutoTitle asks the model for a short session title after the first turn.
 	AutoTitle bool
-	// Doctor writes the same checkup janetcode --doctor prints. Nil
-	// leaves /doctor as a short local note. It makes a live model call
-	// and reads the filesystem, so it takes the session's context and
-	// stops when the session does.
+	// Doctor writes the same checkup janetcode --doctor prints. It takes
+	// the caller's context because it makes a live model call; /doctor
+	// runs it off the UI goroutine under the session's life context, so
+	// quitting stops it. Nil leaves /doctor as a short local note.
 	Doctor   func(context.Context, io.Writer) error
 	Agent    *agent.Agent
 	Session  *session.Session

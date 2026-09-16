@@ -495,3 +495,30 @@ func TestToolResultsNameFilesRelatively(t *testing.T) {
 		t.Fatalf("outside stays: %q", got)
 	}
 }
+
+// A path that does not exist yet is still confined: a symlinked ancestor
+// pointing out of the root would otherwise let write_file create a file
+// anywhere on the machine, since EvalSymlinks fails on the missing leaf
+// and the check used to be skipped entirely.
+func TestWriteThroughSymlinkedDirRejected(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	w := WriteFile{Root: root}
+	if _, err := w.Run(context.Background(), raw(`{"path":"link/new.txt","content":"x"}`)); err == nil || !strings.Contains(err.Error(), "outside") {
+		t.Fatalf("write through symlinked dir: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "new.txt")); !os.IsNotExist(err) {
+		t.Fatal("file was created outside the workspace")
+	}
+	// Deeper: the missing tail is several segments long.
+	if _, err := w.Run(context.Background(), raw(`{"path":"link/a/b/c.txt","content":"x"}`)); err == nil || !strings.Contains(err.Error(), "outside") {
+		t.Fatalf("deep write through symlinked dir: %v", err)
+	}
+	// An ordinary new file inside the root is still allowed.
+	if _, err := w.Run(context.Background(), raw(`{"path":"sub/ok.txt","content":"x"}`)); err != nil {
+		t.Fatalf("ordinary new file: %v", err)
+	}
+}

@@ -44,8 +44,8 @@ func (s *server) sessionsAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cur := ""
-	if s.opts.Session != nil {
-		cur = s.opts.Session.Meta.ID
+	if s.sess() != nil {
+		cur = s.sess().Meta.ID
 	}
 	type row struct {
 		ID       string `json:"id"`
