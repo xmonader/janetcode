@@ -183,3 +183,71 @@ func TestChangedWithoutHEAD(t *testing.T) {
 		t.Fatal("outside a repository: no error")
 	}
 }
+
+// An arithmetic identity is not a mutant: `x + 0` and `x - 0` are the same
+// value, so the flip can never be killed. Generating one spends a whole
+// test run and then reports a survivor the model is told to write a test
+// for — a test that cannot exist.
+func TestNoEquivalentArithmeticMutants(t *testing.T) {
+	for _, line := range []string{"\tn = n + 0", "\tn = n - 0"} {
+		for _, m := range Mutate("m.go", 1, line) {
+			if m.From == "+" || m.From == "-" {
+				t.Fatalf("%q produced the equivalent mutant %s", line, m)
+			}
+		}
+	}
+	// Only the right operand is symmetric: 0 + x and 0 - x differ, and a
+	// plain `a + b` must still flip.
+	for _, line := range []string{"\tn = 0 + n", "\tn = a + b"} {
+		var got []Mutant
+		for _, m := range Mutate("m.go", 1, line) {
+			if m.From == "+" {
+				got = append(got, m)
+			}
+		}
+		if len(got) != 1 || got[0].To != "-" {
+			t.Fatalf("%q should still mutate + to -, got %v", line, got)
+		}
+	}
+}
+
+// The mutant carries the line it was cut from. When the worktree's copy
+// of that line is something else, mutating by line number would corrupt
+// an unrelated line and score the result as if it meant something.
+func TestRunnerSkipsAMutantWhoseLineMoved(t *testing.T) {
+	root := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		if out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	run("init", "-q")
+	run("config", "user.email", "t@example.com")
+	run("config", "user.name", "t")
+	if err := os.WriteFile(filepath.Join(root, "m.go"), []byte("package m\n\nfunc F(a, b int) bool { return a == b }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run("add", "-A")
+	run("commit", "-qm", "base")
+	// A mutant naming a line the tree does not have: line 1 is
+	// "package m", not this.
+	r := &Runner{Root: root, Command: "true", Timeout: 10 * time.Second}
+	rep := Report{}
+	_ = rep
+	got, err := r.runMutants(context.Background(), []Mutant{{
+		Path: "m.go", Line: 1, From: "==", To: "!=",
+		Before: "func F(a, b int) bool { return a == b }",
+		After:  "func F(a, b int) bool { return a != b }",
+	}})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if got.Total != 0 || len(got.Survived) != 0 {
+		t.Fatalf("a mutant whose line moved must not be scored: %+v", got)
+	}
+	data, rerr := os.ReadFile(filepath.Join(root, "m.go"))
+	if rerr != nil || !strings.Contains(string(data), "a == b") {
+		t.Fatalf("the source tree was touched: %q %v", data, rerr)
+	}
+}
