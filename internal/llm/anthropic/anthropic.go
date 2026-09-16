@@ -81,7 +81,13 @@ func New(cfg Config) (*Provider, error) {
 	for _, key := range keys {
 		opts := []option.RequestOption{
 			option.WithAPIKey(key),
-			option.WithMaxRetries(cfg.MaxRetries),
+			// The SDK does not retry: retries hidden inside it are
+			// invisible to the stream watchdog and to the events a UI
+			// draws, so a long Retry-After there reads as a stalled turn
+			// with no countdown. Stream runs the shared llm.Retrier
+			// instead, which is the same policy the other providers
+			// follow (cfg.MaxRetries is its budget).
+			option.WithMaxRetries(0),
 			// Long agentic turns can stream for many minutes on large models.
 			option.WithRequestTimeout(RequestTimeout),
 		}
@@ -150,9 +156,19 @@ func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 type APIError struct {
 	Status  int
 	Message string
+	// RetryAfter is the server's own Retry-After, kept only for the two
+	// statuses that mean "come back later" — 429 and 503. On anything
+	// else the header is advice about a failure that is not going to
+	// clear (see llm.RetryAfterFrom).
+	RetryAfter time.Duration
 }
 
 func (e *APIError) Error() string { return fmt.Sprintf("%s (HTTP %d)", e.Message, e.Status) }
+
+// HTTPStatus and RetryHint implement llm.StatusError, which is how the
+// shared retry policy judges an error from this provider.
+func (e *APIError) HTTPStatus() int          { return e.Status }
+func (e *APIError) RetryHint() time.Duration { return e.RetryAfter }
 
 func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
 	if err := req.Validate(); err != nil {
@@ -289,7 +305,12 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	// the turn for as long as the process lives.
 	ctx, wd := llm.Watch(ctx, p.cfg.Limits)
 	defer wd.Stop()
-	for rotations := 0; ; rotations++ {
+	// The same retry policy every provider follows: the SDK's own is
+	// turned off (see New), so the backoff, the countdown and the summary
+	// all happen where the watchdog and the UI can see them.
+	rt := llm.NewRetrier(p.cfg.MaxRetries, emit, wd)
+	rotations := 0
+	for {
 		cfg := p.config()
 		// The tier is read per request, not per provider: /effort changes
 		// the agent's live setting and the very next call carries it.
@@ -299,22 +320,33 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 			return nil, err
 		}
 		client, idx := p.current()
-		resp, err := p.stream(ctx, client, params, wd, emit)
+		resp, produced, err := p.stream(ctx, client, params, wd, emit)
 		if err == nil {
 			p.ring.OK(idx)
+			rt.Landed()
 			return resp, nil
+		}
+		if produced {
+			// The failure came after the model had already said
+			// something. Sending the request again would replay that
+			// text into the turn, so the call fails and the user resends.
+			return nil, wd.Wrap(err)
 		}
 		if p.clampEffort(err) {
 			// The model does not go that high; the next tier down is
 			// what the user asked for as nearly as this model can, and
-			// it is remembered so it is paid for once.
-			rotations--
+			// it is remembered so it is paid for once. It is not a
+			// transient failure, so it spends no retry budget.
 			continue
 		}
 		if f, ok := keyProblem(err); ok && p.ring.Fail(idx, f) && rotations < p.ring.Len()-1 {
+			// Another key may have quota left; try it right away.
+			rotations++
 			continue
 		}
-		return resp, wd.Wrap(err)
+		if werr := rt.Wait(ctx, err); werr != nil {
+			return nil, wd.Wrap(werr)
+		}
 	}
 }
 
@@ -382,16 +414,20 @@ func (p *Provider) clampEffort(err error) bool {
 	return true
 }
 
-func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.MessageNewParams, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Response, error) {
+// stream runs one attempt. produced says whether the model had begun
+// answering before any error: past that point the attempt cannot be
+// retried without replaying what was already emitted.
+func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.MessageNewParams, wd *llm.Watchdog, emit func(llm.Event)) (resp *llm.Response, produced bool, err error) {
 	stream := client.Messages.NewStreaming(ctx, params)
 	msg := sdk.Message{}
 	// Track open tool_use blocks by index so we can emit start/end events.
 	openTools := map[int64]*llm.Block{}
 	for stream.Next() {
 		wd.Tick()
+		produced = true
 		ev := stream.Current()
 		if err := msg.Accumulate(ev); err != nil {
-			return nil, fmt.Errorf("anthropic: accumulate: %w", err)
+			return nil, produced, fmt.Errorf("anthropic: accumulate: %w", err)
 		}
 		switch v := ev.AsAny().(type) {
 		case sdk.ContentBlockStartEvent:
@@ -420,9 +456,10 @@ func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.Me
 		}
 	}
 	if err := stream.Err(); err != nil {
-		return nil, mapError(ctx, err)
+		return nil, produced, mapError(ctx, err)
 	}
-	return toResponse(msg)
+	out, err := toResponse(msg)
+	return out, produced, err
 }
 
 func mapError(ctx context.Context, err error) error {
@@ -443,7 +480,11 @@ func mapError(ctx context.Context, err error) error {
 		if ae.RequestID != "" {
 			msg += " (request " + ae.RequestID + ")"
 		}
-		return &APIError{Status: ae.StatusCode, Message: msg}
+		out := &APIError{Status: ae.StatusCode, Message: msg}
+		if ae.Response != nil {
+			out.RetryAfter = llm.RetryAfterFrom(ae.Response.Header, ae.StatusCode)
+		}
+		return out
 	}
 	return err
 }
