@@ -260,3 +260,13 @@ func (a *Agent) SetLedger(l *perm.Ledger) {
 	defer a.settingsMu.Unlock()
 	a.Ledger = l
 }
+
+// PermLedger is the live Ledger, safe to read while a turn runs: /cd
+// swaps it from a front-end goroutine while the turn goroutine is
+// recording approvals into it. Nil is a working value — perm.Ledger's
+// methods are nil-safe — so callers need not check.
+func (a *Agent) PermLedger() *perm.Ledger {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return a.Ledger
+}

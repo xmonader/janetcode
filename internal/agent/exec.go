@@ -359,11 +359,12 @@ func (a *Agent) ask(ctx context.Context, u *llm.Block, call *ToolCall, subject s
 	// Recorded before applyDecision, which reports a refusal: the ledger
 	// has to see a refusal too, not only the allow variants.
 	a.stats.approval(d == Deny)
+	ledger := a.PermLedger()
 	if shape != "" && (d != Deny || reason != CancelledReason) {
-		a.Ledger.Record(shape, d != Deny)
+		ledger.Record(shape, d != Deny)
 	}
 	if shape != "" && call.Warning != "" && d != Deny {
-		a.Ledger.MarkWarned(shape)
+		ledger.MarkWarned(shape)
 	}
 	return d, reason, suggested, nil
 }
@@ -375,7 +376,7 @@ func (a *Agent) learnedNote(shape string, mustAsk bool, warning string) string {
 	if shape == "" || mustAsk || warning != "" {
 		return ""
 	}
-	if t := a.Ledger.Get(shape); t.Allowed >= perm.LearnAfter && t.Denied == 0 {
+	if t := a.PermLedger().Get(shape); t.Allowed >= perm.LearnAfter && t.Denied == 0 {
 		return fmt.Sprintf("approved %d× before, never refused", t.Allowed)
 	}
 	return ""
