@@ -220,7 +220,10 @@ func (t Bash) Guard(input json.RawMessage) (bool, string) {
 		return false, ""
 	}
 	root := rootOf(t.Root, t.WS)
-	if risk, why := shell.Classify(in.Command, root); risk == shell.RiskEscapes {
+	// Anything the classifier could not grade (shell.RiskUnknown) asks
+	// too: "I could not work out what this runs" is a reason to put the
+	// command in front of the user, not a reason to wave it through.
+	if risk, why := shell.Classify(in.Command, root); risk >= shell.RiskUnknown {
 		return true, why
 	}
 	if what := selfModifyingCommand(in.Command, root); what != "" {
