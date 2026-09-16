@@ -7,6 +7,8 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -22,6 +24,15 @@ import (
 // internal/mcp's own tests do.
 func TestMain(m *testing.M) {
 	if os.Getenv("MCP_FAKE_SERVER") == "1" {
+		// Stand in for the real shape of a stdio server: a wrapper that
+		// forks the process doing the work, which outlives its parent
+		// unless the whole group is stopped.
+		if pidfile := os.Getenv("MCP_FAKE_SERVER_CHILD"); pidfile != "" {
+			child := exec.Command("sleep", "100")
+			if err := child.Start(); err == nil {
+				_ = os.WriteFile(pidfile, []byte(strconv.Itoa(child.Process.Pid)), 0o644)
+			}
+		}
 		mcptest.FakeServer()
 		os.Exit(0)
 	}
