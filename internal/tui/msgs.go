@@ -10,8 +10,6 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 )
 
-type agentEventMsg struct{ ev agent.Event }
-
 // memoryMsg reports what automatic extraction remembered.
 type memoryMsg struct {
 	added []memory.Entry

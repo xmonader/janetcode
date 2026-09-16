@@ -64,12 +64,7 @@ func (m *model) shell(cmdline string) tea.Cmd {
 }
 
 func (m *model) finishShell(msg shellDoneMsg) {
-	m.turn.running = false
-	m.turn.cancelling = false
-	if m.turn.cancel != nil {
-		m.turn.cancel()
-		m.turn.cancel = nil
-	}
+	m.turn.finish()
 	m.turn.setPhase("")
 	out, isErr := msg.output, false
 	if msg.err != nil {
