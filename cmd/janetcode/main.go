@@ -208,11 +208,11 @@ func run(args []string) error {
 	return r.dispatch()
 }
 
-// pipedStdin returns piped input (e.g. `git diff | janetcode -p "review"`),
-// or "" when stdin is a terminal or empty. Capped at 1 MB.
-// pipedStdin returns text piped or redirected into the process. Only pipes
-// and regular files are read: a terminal is interactive, and a socket or
-// other device held open by a parent process would block forever.
+// pipedStdin returns text piped or redirected into the process (e.g.
+// `git diff | janetcode -p "review"`), or "" when stdin is a terminal or
+// empty. Only pipes and regular files are read: a terminal is
+// interactive, and a socket or other device held open by a parent process
+// would block forever. Capped at 1 MB.
 func pipedStdin() string {
 	if term.IsTerminal(int(os.Stdin.Fd())) {
 		return ""

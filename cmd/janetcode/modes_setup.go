@@ -189,6 +189,31 @@ func openSession(o *options, cfg *config.Config, sessDir, cwd string) (*session.
 	return sess, nil, nil
 }
 
+// maxBackgroundStdin is the most piped input --bg will fold into the
+// prompt. It goes into the child's argv, and every platform caps that:
+// 128 KB is well inside the smallest of those limits and larger than any
+// diff or log anybody pipes at a review.
+const maxBackgroundStdin = 128 * 1024
+
+// bgPrompt is the prompt the background child is launched with. The
+// child's stdin is closed, so anything piped into the parent has to be
+// carried in the prompt -- in the same <stdin> wrapper a foreground -p
+// run uses, so the model sees the same thing either way. Without this,
+// `git diff | janetcode --bg -p review` reviewed nothing and said so
+// nowhere. Too much to fit in a command line is refused rather than
+// silently cut: a review of the first half of a diff is worse than an
+// error saying which flag to drop.
+func bgPrompt(text, piped string) (string, error) {
+	if piped == "" {
+		return text, nil
+	}
+	if len(piped) > maxBackgroundStdin {
+		return "", fmt.Errorf("%w: --bg carries piped input in the background process's command line, and %d bytes is too much for that; run without --bg, or write it to a file and name it with @path",
+			headless.ErrBadInput, len(piped))
+	}
+	return text + "\n\n<stdin>\n" + piped + "\n</stdin>", nil
+}
+
 // bgMode detaches the run: --bg starts the prompt in a background
 // process, prints the session id and returns.
 func bgMode(o *options, sess *session.Session, initial string) (bool, error) {
@@ -201,6 +226,10 @@ func bgMode(o *options, sess *session.Session, initial string) (bool, error) {
 	}
 	if text == "" {
 		return true, fmt.Errorf("%w: --bg needs a prompt (-p or an argument)", headless.ErrBadInput)
+	}
+	text, err := bgPrompt(text, pipedStdin())
+	if err != nil {
+		return true, err
 	}
 	return true, launchBackground(sess, text, o.addDir)
 }

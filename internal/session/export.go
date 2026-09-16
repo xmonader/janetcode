@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
 // Markdown renders a conversation as a shareable transcript: user and
@@ -39,7 +40,7 @@ func Markdown(meta Meta, msgs []llm.Message) string {
 				}
 				text := strings.TrimSpace(b.Text)
 				if len(text) > maxResult {
-					text = text[:maxResult] + fmt.Sprintf("\n… [%d more bytes]", len(text)-maxResult)
+					text = textfmt.CutBytes(text, maxResult) + fmt.Sprintf("\n… [%d more bytes]", len(text)-maxResult)
 				}
 				fmt.Fprintf(&sb, "**%s**\n\n```\n%s\n```\n\n", label, strings.ReplaceAll(text, "```", "'''"))
 			case llm.BlockImage:

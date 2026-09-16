@@ -107,7 +107,7 @@ func (m *model) memoryCommand(cmd, arg string) {
 	default:
 		entries := store.Entries()
 		if len(entries) == 0 {
-			m.transcript.info("nothing remembered yet (project " + store.Key + ") · /remember <fact> adds one, -g for something about you; facts are also extracted automatically after turns that change something or give feedback")
+			m.transcript.info("nothing remembered yet (project " + store.ProjectKey() + ") · /remember <fact> adds one, -g for something about you; facts are also extracted automatically after turns that change something or give feedback")
 			return
 		}
 		var sb strings.Builder
