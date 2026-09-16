@@ -27,26 +27,48 @@ import (
 	"github.com/xmonader/janetcode/internal/webui"
 )
 
-// The modes a fully wired session can end in. dispatch picks the first
-// that applies; the TUI is what is left when none does.
+// sessionMode is one way a fully wired session can end.
+type sessionMode struct {
+	name string
+	// when reports whether this run is that mode. The last row's when
+	// always holds: the TUI is what is left when nothing else applies.
+	when func(*options) bool
+	// hints says whether the mode opens the two per-user records first.
+	// The one-shot modes do not: --inspect prints a subject and
+	// --recipe replays tool calls, and neither is a session anyone is
+	// being taught anything about.
+	hints bool
+	run   func(*root) error
+}
+
+// sessionModes is the dispatch table, in priority order: the first row
+// whose condition holds is the run. It is a table rather than nested ifs
+// because the order is the meaning -- --inspect beats everything, the
+// TUI is the fallthrough -- and because a test can then walk it.
+var sessionModes = []sessionMode{
+	{"inspect", func(o *options) bool { return o.inspectWhat != "" }, false,
+		func(r *root) error { return inspectOnce(r.subjects, r.opts.inspectWhat, os.Stdout) }},
+	{"recipe", func(o *options) bool { return o.recipeName != "" }, false, (*root).recipeMode},
+	{"acp", func(o *options) bool { return o.acpMode }, true, (*root).acpMode},
+	{"headless", func(o *options) bool { return o.promptText != "" || o.watchCmd != "" }, true, (*root).headlessMode},
+	{"web", func(o *options) bool { return o.web }, true, (*root).webMode},
+	{"tui", func(*options) bool { return true }, true, (*root).tuiMode},
+}
+
+// dispatch runs the mode this invocation asked for.
 func (r *root) dispatch() error {
-	o := r.opts
-	if o.inspectWhat != "" {
-		return inspectOnce(r.subjects, o.inspectWhat, os.Stdout)
+	for _, m := range sessionModes {
+		if !m.when(r.opts) {
+			continue
+		}
+		if m.hints {
+			r.openHintsAndUsage()
+		}
+		return m.run(r)
 	}
-	if o.recipeName != "" {
-		return r.recipeMode()
-	}
-	r.openHintsAndUsage()
-	switch {
-	case o.acpMode:
-		return r.acpMode()
-	case o.promptText != "" || o.watchCmd != "":
-		return r.headlessMode()
-	case o.web:
-		return r.webMode()
-	}
-	return r.tuiMode()
+	// Unreachable: the table's last row matches everything, and a test
+	// holds it to that.
+	return fmt.Errorf("no mode applies to this invocation")
 }
 
 // startMCP starts the servers this run should have: the configured ones,
