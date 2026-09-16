@@ -3,9 +3,13 @@ package mcptool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net"
 	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -228,15 +232,32 @@ func TestOnlySafeToRepeatToolsRetry(t *testing.T) {
 	}
 }
 
+// A lost connection is recognised by type, not by the wording of a
+// message: the client wraps every one of its own with ErrDisconnected,
+// and what the operating system hands back from a write to a server that
+// is already gone is matched on its own terms.
 func TestLostConnectionIsRecognised(t *testing.T) {
-	for _, s := range []string{"connection closed", "server exited: signal: killed", "unexpected EOF", "write |1: broken pipe"} {
-		if !lostConnection(errString(s)) {
-			t.Errorf("%q should count as a lost connection", s)
+	lost := []error{
+		fmt.Errorf("%w: the client closed it", mcp.ErrDisconnected),
+		fmt.Errorf("%w: the server exited: signal: killed", mcp.ErrDisconnected),
+		fmt.Errorf("writing the request: %w", io.ErrUnexpectedEOF),
+		fmt.Errorf("writing the request: %w", syscall.EPIPE),
+		&net.OpError{Op: "write", Err: syscall.ECONNRESET},
+	}
+	for _, err := range lost {
+		if !lostConnection(err) {
+			t.Errorf("%v should count as a lost connection", err)
 		}
 	}
-	for _, s := range []string{"invalid params", "tool not found"} {
-		if lostConnection(errString(s)) {
-			t.Errorf("%q is an answer from the server, not a lost connection", s)
+	answers := []error{
+		errString("invalid params"),
+		errString("tool not found"),
+		// The server's own words, even when they mention a pipe.
+		errString("the command failed: broken pipe"),
+	}
+	for _, err := range answers {
+		if lostConnection(err) {
+			t.Errorf("%v is an answer from the server, not a lost connection", err)
 		}
 	}
 	if lostConnection(nil) {
