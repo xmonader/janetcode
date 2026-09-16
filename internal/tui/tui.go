@@ -121,6 +121,9 @@ type model struct {
 	followupOn  bool
 	followup    string
 	followupGen int
+	// sleptGoals are the goal ids the memory consolidation has already
+	// read this session's record for, so it runs once per finished goal.
+	sleptGoals map[string]bool
 }
 
 const (

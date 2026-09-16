@@ -231,6 +231,7 @@ var dispatch = map[string]cmdHandler{
 	"/remember": (*model).cmdMemory,
 	"/forget":   (*model).cmdMemory,
 	"/dream":    (*model).cmdMemory,
+	"/sleep":    (*model).cmdMemory,
 	"/undo":     (*model).cmdUndo,
 	"/redo":     (*model).cmdUndo,
 	"/changes": func(m *model, text string, fields []string) (tea.Cmd, bool) {
@@ -523,6 +524,9 @@ func (m *model) cmdRules(text string, fields []string) (tea.Cmd, bool) {
 func (m *model) cmdMemory(text string, fields []string) (tea.Cmd, bool) {
 	if fields[0] == "/dream" {
 		return m.dreamMemory(), true
+	}
+	if fields[0] == "/sleep" {
+		return m.sleepMemory(true), true
 	}
 	m.memoryCommand(fields[0], cmdArg(text, fields))
 	return nil, false

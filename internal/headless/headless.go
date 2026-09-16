@@ -197,12 +197,53 @@ func remember(ctx context.Context, opts Options) {
 		fmt.Fprintf(opts.Stderr, "[memory] extraction failed: %v\n", err)
 		return
 	}
+	if s := opts.Session; s != nil {
+		if ev := s.Events(); len(ev) > 0 {
+			xs = memory.StampEvidence(xs, fmt.Sprintf("%s#~%d", s.Meta.ID, ev[len(ev)-1].Seq))
+		}
+	}
 	changed, err := opts.Memory.Apply(xs)
 	if err != nil {
 		fmt.Fprintf(opts.Stderr, "[memory] %v\n", err)
 	}
 	for _, e := range changed {
 		fmt.Fprintf(opts.Stderr, "[memory] remembered %s (%s, %s): %s\n", e.Name, e.Type, e.Scope, e.Description)
+	}
+}
+
+// goalFinished reports whether the session's latest goal reached an
+// outcome, which is when its record is complete enough to consolidate.
+func goalFinished(sess *session.Session) bool {
+	if sess == nil {
+		return false
+	}
+	gs := agent.FoldGoals(sess.Events())
+	if len(gs) == 0 {
+		return false
+	}
+	g := gs[len(gs)-1]
+	return g.Phase == agent.GoalComplete || g.Phase == agent.GoalBlocked
+}
+
+// sleepSession consolidates what the session's record established into
+// memory, each entry citing the record lines it stands on.
+func sleepSession(ctx context.Context, opts Options) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	sess := opts.Session
+	in := agent.FoldSleep(sess.Events())
+	in.SessionID = sess.Meta.ID
+	xs, err := memory.Sleep(ctx, opts.Agent.Provider, opts.Agent.Model, in, opts.Memory.Entries())
+	if err != nil {
+		fmt.Fprintf(opts.Stderr, "[memory] sleep failed: %v\n", err)
+		return
+	}
+	changed, err := opts.Memory.ApplyWith(xs, "sleep")
+	if err != nil {
+		fmt.Fprintf(opts.Stderr, "[memory] %v\n", err)
+	}
+	for _, e := range changed {
+		fmt.Fprintf(opts.Stderr, "[memory] sleep remembered %s: %s\n", e.Name, e.Description)
 	}
 }
 
@@ -276,6 +317,9 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 	})
 	if err == nil && opts.Memory != nil && opts.AutoMemory && (ag.LastTurnMutated() || memory.LooksLikeFeedback(llm.Message{Blocks: blocks}.Text())) {
 		remember(ctx, opts)
+	}
+	if err == nil && opts.Memory != nil && opts.AutoMemory && !ag.Off["sleep"] && goalFinished(opts.Session) {
+		sleepSession(ctx, opts)
 	}
 	// The turn is already on disk: every message was appended to the log as
 	// it happened. Only the title still needs writing.

@@ -71,7 +71,22 @@ type Entry struct {
 	// first, capped at useHistoryCap. Uses counts them all; Used is what
 	// activation ranks by.
 	Used []time.Time
-	Path string
+	// Evidence names where the entry was learned: "<session-id>#<seq>"
+	// for one exact event in the session's log, "<session-id>#~<seq>"
+	// for the conversation as it stood at that event (extraction reads a
+	// window of prose, so its evidence is a watermark, not an event).
+	Evidence []string
+	// Concerns are the paths or symbols the entry is about, so a turn
+	// touching them recalls it without the user naming it (see rank).
+	Concerns []string
+	// ValidUntil is zero while the entry holds. A correction closes the
+	// old entry instead of deleting it: ValidUntil says since when it
+	// stopped being true and SupersededBy names the entry carrying the
+	// correction. Closed entries leave the index and recall but stay on
+	// disk and in /memory, so history cannot be rewritten silently.
+	ValidUntil   time.Time
+	SupersededBy string
+	Path         string
 	// Ecosystems are the languages or toolchains a global entry is about
 	// ("go", "python"), recorded when it is written and inferred again
 	// from its text when it is read, so one written before tagging existed
@@ -79,6 +94,10 @@ type Entry struct {
 	// recalled in a project of another (see Store.hidden).
 	Ecosystems []string
 }
+
+// Closed reports whether a correction has retired the entry: it stopped
+// being true at ValidUntil and SupersededBy carries the correction.
+func (e Entry) Closed() bool { return !e.ValidUntil.IsZero() }
 
 // Key returns the project identity: the marker file's content, else the
 // git origin URL, else a hash of the path. The result is safe as a
@@ -246,6 +265,18 @@ func readEntry(p, scope string) (Entry, bool) {
 			e.Used = append(e.Used, ts)
 		}
 	}
+	for _, v := range strings.Split(meta["evidence"], ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			e.Evidence = append(e.Evidence, v)
+		}
+	}
+	for _, c := range strings.Split(meta["concerns"], ",") {
+		if c = strings.TrimSpace(c); c != "" {
+			e.Concerns = append(e.Concerns, c)
+		}
+	}
+	e.ValidUntil, _ = time.Parse(time.RFC3339, meta["valid_until"])
+	e.SupersededBy = meta["superseded_by"]
 	if scope == "global" {
 		e.Ecosystems = ecosystemsOf(e, meta["ecosystem"])
 	}
@@ -272,6 +303,18 @@ func (s *Store) write(e Entry) error {
 	}
 	if len(e.Ecosystems) > 0 {
 		meta["ecosystem"] = strings.Join(e.Ecosystems, ",")
+	}
+	if len(e.Evidence) > 0 {
+		meta["evidence"] = strings.Join(e.Evidence, ",")
+	}
+	if len(e.Concerns) > 0 {
+		meta["concerns"] = strings.Join(e.Concerns, ",")
+	}
+	if !e.ValidUntil.IsZero() {
+		meta["valid_until"] = e.ValidUntil.UTC().Format(time.RFC3339)
+	}
+	if e.SupersededBy != "" {
+		meta["superseded_by"] = e.SupersededBy
 	}
 	return fsutil.AtomicWrite(e.Path, []byte(md.Render(meta, e.Body)))
 }
@@ -344,6 +387,9 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 	existing := s.read()
 	now := time.Now()
 	for _, old := range existing {
+		if old.Closed() {
+			continue // a retired entry is history; merging into it would reopen it
+		}
 		if old.Scope == e.Scope && (old.Name == e.Name || similar(old.Description, e.Description)) {
 			if old.Name != e.Name {
 				// Merge into the older entry; keep its name and history.
@@ -354,6 +400,10 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 			}
 			e.Created, e.Uses, e.Updated, e.Path = old.Created, old.Uses, now, old.Path
 			e.Used = old.Used
+			if len(e.Concerns) == 0 {
+				e.Concerns = old.Concerns
+			}
+			e.Evidence = mergeEvidence(old.Evidence, e.Evidence)
 			return e, Updated, s.write(e)
 		}
 	}
@@ -364,6 +414,46 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 	}
 	s.trim(e.Scope, existing)
 	return e, Created, nil
+}
+
+// evidenceCap keeps one entry's evidence list to the handful of
+// references anyone would actually follow.
+const evidenceCap = 12
+
+// mergeEvidence unions two evidence lists, oldest first, capped.
+func mergeEvidence(a, b []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, v := range append(append([]string(nil), a...), b...) {
+		if v != "" && !seen[v] {
+			seen[v] = true
+			out = append(out, v)
+		}
+	}
+	if len(out) > evidenceCap {
+		out = out[len(out)-evidenceCap:]
+	}
+	return out
+}
+
+// Close retires the entry: it stopped holding at now, superseded by the
+// entry named by. The file stays; the index and recall skip it.
+func (s *Store) Close(name, by string, now time.Time) (Entry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	name = Slug(name)
+	for _, e := range s.read() {
+		if e.Name != name {
+			continue
+		}
+		if e.Closed() {
+			return e, nil
+		}
+		e.ValidUntil = now
+		e.SupersededBy = by
+		return e, s.write(e)
+	}
+	return Entry{}, fmt.Errorf("no memory entry named %q", name)
 }
 
 // trim keeps a scope under MaxEntries by dropping the least used, oldest
@@ -480,6 +570,10 @@ func (s *Store) IndexWithin(budget int) string {
 	sb.WriteString("\n# Memory\nWhat you learned in earlier sessions, as name (type): description. Feedback and user entries say how the user wants you to work: follow them. Relevant entries are attached to a request automatically; for any other, call memory {\"action\":\"recall\"} before relying on it. When the user tells you something worth keeping (a preference, a correction, a decision, a fact about the project), save it with memory {\"action\":\"remember\"}.\n")
 	visible := entries[:0:0]
 	for _, e := range entries {
+		// A closed entry is history: findable, never advertised.
+		if e.Closed() {
+			continue
+		}
 		// An automatic global entry nobody tagged may be one project's
 		// rule; it waits for a strong match instead of sitting in every
 		// project's prompt.
@@ -541,7 +635,7 @@ func (s *Store) rank(text string, max, min int) []Entry {
 	var hits []scored
 	for _, e := range s.Entries() {
 		hide, strong := s.hidden(e)
-		if hide {
+		if hide || e.Closed() {
 			continue
 		}
 		need := min
@@ -562,6 +656,22 @@ func (s *Store) rank(text string, max, min int) []Entry {
 				score++
 			}
 		}
+		// A project entry about a path or symbol the turn names is
+		// relevant through the work itself, not only through words: two
+		// matched segments admit it, one adds to whatever words matched.
+		concerns := 0
+		for _, c := range e.Concerns {
+			for _, w := range Words(strings.ReplaceAll(c, "/", " ")) {
+				if have[w] && !stop[w] && !seen[w] {
+					seen[w] = true
+					concerns++
+				}
+			}
+		}
+		if concerns > 2 {
+			concerns = 2
+		}
+		score += 2 * concerns
 		if score >= need {
 			// Relevance admits an entry; how often and how recently the
 			// work has needed it decides between the admitted ones.
@@ -648,8 +758,14 @@ func ecosystemsOf(e Entry, tag string) []string {
 	return out
 }
 
-// Render formats an entry for the model.
+// Render formats an entry for the model. A closed entry says since when
+// it stopped holding and what to read instead: a correction that hides
+// its history teaches the correction; one that shows it teaches both.
 func Render(e Entry) string {
+	if e.Closed() {
+		return fmt.Sprintf("<memory name=%q type=%q scope=%q valid_until=%q superseded_by=%q>\n%s\n</memory>",
+			e.Name, e.Type, e.Scope, e.ValidUntil.Format("2006-01-02"), e.SupersededBy, e.Body)
+	}
 	return fmt.Sprintf("<memory name=%q type=%q scope=%q>\n%s\n</memory>", e.Name, e.Type, e.Scope, e.Body)
 }
 

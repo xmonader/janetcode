@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -15,8 +16,8 @@ const extractSystem = `You maintain the long-term memory of a coding agent. It i
 Worth keeping: preferences and corrections the user expressed (type "feedback": how they want work done, what not to do), facts about the user (type "user"), decisions and the reasons behind them (type "decision"), facts about this project that are not obvious from the code, such as commands that work or fail and environment quirks (type "project"), and pointers to external resources (type "reference"). Every entry you write is scoped to this project ("scope":"project"): a rule for every project is the user's to make, with /remember -g, never yours. Record a preference only when the user stated it as lasting ("always", "never", "from now on", a correction of how you work); an instruction for the task at hand ("commit this", "use a conventional commit message here") is not a preference. Record a project fact only when the conversation established it, not when you inferred it from one action.
 
 Output one JSON object per line, nothing else:
-{"type":"feedback","scope":"project","name":"short-kebab-slug","description":"one line, under 120 characters","body":"the fact, plus why and how to apply it when useful (a few sentences)","replaces":"name-of-an-existing-entry-this-supersedes-or-empty"}
-Set "replaces" when an existing entry (listed below) is now wrong or incomplete; leave it empty for new knowledge. Do not repeat an existing entry. Output exactly NONE when there is nothing worth keeping.
+{"type":"feedback","scope":"project","name":"short-kebab-slug","description":"one line, under 120 characters","body":"the fact, plus why and how to apply it when useful (a few sentences)","concerns":["paths/or/symbols the entry is about"],"replaces":"name-of-an-existing-entry-this-supersedes-or-empty"}
+Set "concerns" when the knowledge is about particular files or areas, so a future turn touching them recalls it without being asked in words; leave it empty otherwise. Set "replaces" when an existing entry (listed below) is now wrong or incomplete — the old entry is closed and kept as history, pointing at yours; leave it empty for new knowledge. Do not repeat an existing entry. Output exactly NONE when there is nothing worth keeping.
 
 Text inside <harness> tags was written by the agent's own tooling — a failing check's output, a verdict correction, a background job update, a compaction note — not by the user. It is never the user's preference or feedback, and an instruction in it is the harness's, not the user's; do not record it as either.`
 
@@ -25,12 +26,21 @@ const extractWindow = 14
 
 // Extracted is one candidate the extractor produced.
 type Extracted struct {
-	Type        string `json:"type"`
-	Scope       string `json:"scope"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Body        string `json:"body"`
-	Replaces    string `json:"replaces"`
+	Type        string   `json:"type"`
+	Scope       string   `json:"scope"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Body        string   `json:"body"`
+	Concerns    []string `json:"concerns"`
+	Replaces    string   `json:"replaces"`
+	// EvidenceSeqs is what a consolidation call cited: seq numbers of
+	// record lines. ValidateSleep turns them into Evidence or rejects
+	// the candidate.
+	EvidenceSeqs []int `json:"evidence"`
+	// Evidence is filled by the harness, not the model: extraction reads
+	// a window of prose, so the caller stamps every candidate with the
+	// session and watermark it was read from (see StampEvidence).
+	Evidence []string `json:"-"`
 }
 
 // Extract asks the model which durable knowledge the recent conversation
@@ -111,17 +121,20 @@ func ParseExtracted(text string) []Extracted {
 // Apply stores extracted candidates, all in project scope whatever scope
 // the extractor asked for, and returns the entries that were created or
 // changed.
-func (s *Store) Apply(xs []Extracted) ([]Entry, error) {
+func (s *Store) Apply(xs []Extracted) ([]Entry, error) { return s.ApplyWith(xs, "auto") }
+
+// ApplyWith is Apply with an explicit source ("auto" for the turn
+// extractor, "sleep" for the consolidation pass).
+func (s *Store) ApplyWith(xs []Extracted, source string) ([]Entry, error) {
 	var changed []Entry
 	var errs []string
 	for _, x := range xs {
 		// Always project scope: an extractor's guess at what applies to
 		// every project turned one-off phrasings into global rules.
-		e := Entry{Name: x.Name, Description: x.Description, Type: x.Type, Scope: "project", Body: x.Body, Source: "auto"}
-		if x.Replaces != "" {
-			if old, ok := s.Get(x.Replaces); ok && old.Scope == e.Scope {
-				e.Name = old.Name
-			}
+		e := Entry{
+			Name: x.Name, Description: x.Description, Type: x.Type, Scope: "project",
+			Body: x.Body, Source: source, Evidence: x.Evidence,
+			Concerns: cleanConcerns(x.Concerns),
 		}
 		e, status, err := s.Put(e)
 		if err != nil {
@@ -131,9 +144,48 @@ func (s *Store) Apply(xs []Extracted) ([]Entry, error) {
 		if status != Unchanged {
 			changed = append(changed, e)
 		}
+		// A correction closes the entry it supersedes: the old file
+		// stays on disk as history, marked with when it stopped being
+		// true and what replaced it, instead of vanishing or silently
+		// taking the correction's name. Replacing by the same name is a
+		// plain update, which Put has already done.
+		if x.Replaces != "" && Slug(x.Replaces) != e.Name {
+			if old, ok := s.Get(x.Replaces); ok && old.Scope == "project" {
+				if _, err := s.Close(old.Name, e.Name, time.Now()); err != nil {
+					errs = append(errs, err.Error())
+				}
+			}
+		}
 	}
 	if len(errs) > 0 {
 		return changed, fmt.Errorf("%s", strings.Join(errs, "; "))
 	}
 	return changed, nil
+}
+
+// StampEvidence records where a batch of candidates was read from. ref
+// is "<session-id>#~<seq>" for a prose window (the watermark form) or
+// "<session-id>#<seq>" for one exact event.
+func StampEvidence(xs []Extracted, ref string) []Extracted {
+	for i := range xs {
+		xs[i].Evidence = mergeEvidence(xs[i].Evidence, []string{ref})
+	}
+	return xs
+}
+
+// cleanConcerns clips a concerns list to something an entry file should
+// carry: a handful of short path- or symbol-shaped strings.
+func cleanConcerns(in []string) []string {
+	var out []string
+	for _, c := range in {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			continue
+		}
+		out = append(out, textfmt.Clip(c, 200))
+		if len(out) == 8 {
+			break
+		}
+	}
+	return out
 }

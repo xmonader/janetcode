@@ -542,6 +542,17 @@ everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
   automatically by an earlier version) is left out of the index and
   recalled only on a strong match — two words of its name or description,
   not one. `/memory` still lists every entry.
+- **A correction closes, it does not overwrite.** When extraction or a
+  consolidation marks an entry as replaced, the old entry is kept with
+  `valid_until` and `superseded_by` in its frontmatter: it leaves the
+  prompt index and recall, stays in `/memory` marked with what replaced
+  it, and stays on disk. Nothing learned is silently deleted.
+- **Entries say where they were learned and what they are about.**
+  `evidence:` names the session and event an entry came from (a watermark
+  for prose extraction, exact record lines for `/sleep` — which rejects
+  any entry citing a line the record does not have). `concerns:` names
+  the files or symbols an entry is about, and a turn that names them
+  recalls the entry without any word of its text overlapping.
 - `/memory` lists entries, `/memory <words>` recalls, `/memory show <name>`
   prints one, `/remember [-g] <fact>` adds (`-g` global), `/forget
   <name|number>` removes. Files are plain markdown you can edit by hand.
@@ -1590,6 +1601,13 @@ the session when output matches a pattern. `/loop` remains the scheduler.
 
 `/dream` consolidates overlapping auto-memory. It never edits what you
 `/remember`ed. Extract still captures new facts.
+
+`/sleep` reads the session's structured record — the goal and its
+outcome, the harness's interventions (a failed verify gate, a critic
+warning, a refused call), your requests, the files changed — and stores
+what a future session needs, each entry citing the record lines it stands
+on. It runs on its own, in the background, when a `/goal` finishes;
+`/sleep` asks for it now. `EVAL_OFF=sleep` turns the automatic run off.
 
 `read_file` extracts text from PDF (pdftotext, else a crude stream) and
 PPTX, and describes images instead of refusing them as binary.
