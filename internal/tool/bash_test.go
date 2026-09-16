@@ -153,3 +153,40 @@ func TestHugeTimeoutDoesNotKillTheCommandAtOnce(t *testing.T) {
 		t.Fatalf("the command was killed on its own deadline: %q", out)
 	}
 }
+
+// A command's output is bounded in memory: the model can ask for an
+// endless one, and only a quarter of a megabyte of it is ever returned.
+func TestCommandOutputIsBoundedInMemory(t *testing.T) {
+	var s swapBuffer
+	s.max = 300
+	for i := 0; i < 1000; i++ {
+		if _, err := s.Write([]byte("0123456789")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := s.String()
+	if len(got) > 500 {
+		t.Fatalf("kept %d bytes for a 300-byte budget", len(got))
+	}
+	if !strings.HasPrefix(got, "0123456789") || !strings.HasSuffix(got, "0123456789") {
+		t.Fatalf("head and tail should survive: %q", got)
+	}
+	if !strings.Contains(got, "bytes of output omitted") {
+		t.Fatalf("the gap is not explained: %q", got)
+	}
+	// Under the budget nothing is changed at all.
+	var small swapBuffer
+	small.max = 300
+	small.Write([]byte("hello"))
+	if small.String() != "hello" {
+		t.Fatalf("small output = %q", small.String())
+	}
+	// And an unbounded buffer still keeps everything (the terminals use one).
+	var un swapBuffer
+	for i := 0; i < 100; i++ {
+		un.Write([]byte("x"))
+	}
+	if len(un.String()) != 100 {
+		t.Fatalf("unbounded buffer dropped output: %d", len(un.String()))
+	}
+}

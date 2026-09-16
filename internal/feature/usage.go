@@ -95,8 +95,11 @@ func (u *Usage) Flush() error {
 	if err != nil {
 		return err
 	}
+	if err := os.WriteFile(u.path, data, 0o600); err != nil {
+		return err // still dirty, so a later Flush tries again
+	}
 	u.dirty = false
-	return os.WriteFile(u.path, data, 0o600)
+	return nil
 }
 
 // Path is where the counts live, so /stats can say so rather than

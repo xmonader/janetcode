@@ -33,7 +33,9 @@ func Latest(dir, cwd string) (string, error) {
 	// The newest session with a conversation in it. A newer one that
 	// never got past its first prompt (a goal set and abandoned, a start
 	// that was quit) would otherwise be what --continue lands in, with
-	// nothing to continue.
+	// nothing to continue. One pass: the fallbacks are remembered as the
+	// files go by, rather than read again from the top, which on a
+	// long-lived sessions directory meant parsing every log twice.
 	empty := ""
 	for _, id := range names {
 		s, msgs, err := Open(dir, id)
@@ -47,19 +49,7 @@ func Latest(dir, cwd string) (string, error) {
 			empty = id
 		}
 	}
-	if empty != "" {
-		return empty, nil
-	}
-	for _, id := range names {
-		s, _, err := Open(dir, id)
-		if err != nil {
-			continue
-		}
-		if s.Meta.Cwd == cwd {
-			return id, nil
-		}
-	}
-	return "", nil
+	return empty, nil
 }
 
 // Info summarises a stored session.

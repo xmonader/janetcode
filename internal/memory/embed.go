@@ -84,15 +84,18 @@ func (s *Store) semantic(ctx context.Context, text string, max int) ([]Entry, bo
 	if len(entries) == 0 {
 		return nil, true
 	}
-	if s.vecs == nil {
-		s.loadVecs()
-	}
+	// The vector cache belongs to s.mu, along with the project key that
+	// says which file it lives in, so it is copied out and merged back
+	// rather than held across the call to the embeddings endpoint --
+	// which is a network round trip, and /cd may re-point the store at
+	// another project while it is in flight.
+	cached := s.vecSnapshot()
 	// Embed the query together with every entry whose text changed.
 	texts := []string{textfmt.TruncateTo(text, 2000)}
 	var missing []int
 	for i, e := range entries {
 		key := e.Scope + "/" + e.Name
-		if v, ok := s.vecs[key]; !ok || v.Hash != entryHash(e) {
+		if v, ok := cached[key]; !ok || v.Hash != entryHash(e) {
 			missing = append(missing, i)
 			texts = append(texts, embedText(e))
 		}
@@ -104,12 +107,16 @@ func (s *Store) semantic(ctx context.Context, text string, max int) ([]Entry, bo
 	}
 	s.embedDown = time.Time{}
 	query := vecs[0]
+	fresh := make(map[string]vecEntry, len(missing))
 	for j, i := range missing {
 		e := entries[i]
-		s.vecs[e.Scope+"/"+e.Name] = vecEntry{Hash: entryHash(e), Vec: vecs[j+1]}
+		fresh[e.Scope+"/"+e.Name] = vecEntry{Hash: entryHash(e), Vec: vecs[j+1]}
 	}
-	if len(missing) > 0 {
-		s.saveVecs()
+	if len(fresh) > 0 {
+		s.mergeVecs(fresh)
+		for k, v := range fresh {
+			cached[k] = v
+		}
 	}
 	type scored struct {
 		e   Entry
@@ -122,7 +129,7 @@ func (s *Store) semantic(ctx context.Context, text string, max int) ([]Entry, bo
 		if hide, strong := s.hidden(e); hide || strong {
 			continue
 		}
-		v := s.vecs[e.Scope+"/"+e.Name]
+		v := cached[e.Scope+"/"+e.Name]
 		if sim := cosine(query, v.Vec); sim >= SemanticMin {
 			hits = append(hits, scored{e, sim})
 		}
@@ -163,11 +170,41 @@ func cosine(a, b []float32) float64 {
 	return dot / (math.Sqrt(na) * math.Sqrt(nb))
 }
 
-// vecPath is where the store caches vectors, next to the entries.
+// vecSnapshot copies the cached vectors out from under s.mu, loading them
+// from disk the first time.
+func (s *Store) vecSnapshot() map[string]vecEntry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.vecs == nil {
+		s.loadVecs()
+	}
+	out := make(map[string]vecEntry, len(s.vecs))
+	for k, v := range s.vecs {
+		out[k] = v
+	}
+	return out
+}
+
+// mergeVecs folds freshly embedded vectors into the cache and saves it.
+func (s *Store) mergeVecs(fresh map[string]vecEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.vecs == nil {
+		s.loadVecs()
+	}
+	for k, v := range fresh {
+		s.vecs[k] = v
+	}
+	s.saveVecs()
+}
+
+// vecPath is where the store caches vectors, next to the entries. The
+// caller holds s.mu: the key it names is what /cd changes.
 func (s *Store) vecPath() string {
 	return filepath.Join(s.Root, "embeddings-"+s.Key+".json")
 }
 
+// loadVecs and saveVecs are called with s.mu held.
 func (s *Store) loadVecs() {
 	s.vecs = map[string]vecEntry{}
 	data, err := os.ReadFile(s.vecPath())
@@ -182,8 +219,10 @@ func (s *Store) saveVecs() {
 	if err != nil {
 		return
 	}
-	if err := os.MkdirAll(s.Root, 0o755); err != nil {
+	// 0700 like every other directory the store owns: these vectors are
+	// derived from the user's own notes and belong to nobody else.
+	if err := os.MkdirAll(s.Root, 0o700); err != nil {
 		return
 	}
-	_ = fsutil.AtomicWrite(s.vecPath(), data)
+	_ = fsutil.WriteFileAtomic(s.vecPath(), data, 0o600)
 }

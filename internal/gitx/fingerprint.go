@@ -1,6 +1,7 @@
 package gitx
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -9,7 +10,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
+
+// treeStateTimeout bounds the two git commands the fingerprint runs.
+const treeStateTimeout = 10 * time.Second
 
 // TreeFingerprint identifies the state of a directory tree. In a git
 // repository it comes from HEAD plus the status of changed files; elsewhere
@@ -46,8 +51,16 @@ func TreeFingerprint(root string) string {
 // TreeState identifies the working tree state: HEAD plus the status,
 // size and modification time of every changed file. It is "" outside git.
 func TreeState(root string) string {
+	// Bounded, because this runs before every bash call (the shell
+	// cache's key) and before every repo-map rebuild: a git that cannot
+	// finish — a lock another process holds, a network filesystem, a
+	// repository with a hook wedged on stdin — would otherwise hang the
+	// tool call that asked. A timeout means "no fingerprint", which
+	// callers already handle as "do not cache".
+	ctx, cancel := context.WithTimeout(context.Background(), treeStateTimeout)
+	defer cancel()
 	git := func(args ...string) (string, bool) {
-		cmd := exec.Command("git", args...)
+		cmd := exec.CommandContext(ctx, "git", args...)
 		cmd.Dir = root
 		out, err := cmd.Output()
 		if err != nil {

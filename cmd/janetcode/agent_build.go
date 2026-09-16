@@ -27,15 +27,17 @@ import (
 )
 
 // chainPrep runs turn-preparation hooks in order, joining their notes.
-func chainPrep(hooks ...func([]llm.Block) ([]llm.Block, string)) func([]llm.Block) ([]llm.Block, string) {
-	return func(blocks []llm.Block) ([]llm.Block, string) {
+// Each is given the turn's context, so cancelling the turn cancels the
+// preparation with it.
+func chainPrep(hooks ...func(context.Context, []llm.Block) ([]llm.Block, string)) func(context.Context, []llm.Block) ([]llm.Block, string) {
+	return func(ctx context.Context, blocks []llm.Block) ([]llm.Block, string) {
 		var notes []string
 		for _, h := range hooks {
 			if h == nil {
 				continue
 			}
 			var note string
-			blocks, note = h(blocks)
+			blocks, note = h(ctx, blocks)
 			if note != "" {
 				notes = append(notes, note)
 			}
@@ -218,6 +220,10 @@ func (b builtAgent) close() {
 // and the trajectory critic.
 func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (builtAgent, error) {
 	cd := agent.NewCD(d.cwd)
+	// JANETCODE_OFF is read once: four separate reads built four maps of
+	// the same thing, and a session's set of disabled behaviours should
+	// not depend on when during the build each was looked up.
+	off := envOff()
 	task := &agent.Task{Root: d.cwd, Models: d.models}
 	jobs := d.jobs
 	cfgDir := d.cfgDir
@@ -256,12 +262,12 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	cron.OnChange = func(specs []session.LoopSpec) {
 		_ = sess.SetLoops(specs)
 	}
-	for _, d := range sess.Meta.ExtraDirs {
-		_ = ws.AddDir(d)
+	for _, dir := range sess.Meta.ExtraDirs {
+		_ = ws.AddDir(dir)
 	}
-	for _, d := range d.extraDirs {
-		if err := ws.AddDir(d); err != nil {
-			return builtAgent{}, fmt.Errorf("--add-dir %s: %w", d, err)
+	for _, dir := range d.extraDirs {
+		if err := ws.AddDir(dir); err != nil {
+			return builtAgent{}, fmt.Errorf("--add-dir %s: %w", dir, err)
 		}
 	}
 	if extras := ws.ExtraDirs(); len(extras) > 0 {
@@ -276,7 +282,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		Tools: tool.NewRegistry(
 			tool.ReadFile{Root: d.cwd, WS: ws, Seen: seen, Cache: files},
 			tool.WriteFile{Root: d.cwd, WS: ws, Seen: seen, Cache: files},
-			tool.EditFile{Root: d.cwd, WS: ws, Seen: seen, NoLines: envOff()["lineedit"], Cache: files},
+			tool.EditFile{Root: d.cwd, WS: ws, Seen: seen, NoLines: off["lineedit"], Cache: files},
 			tool.Bash{Root: d.cwd, WS: ws, Cache: &tool.ShellCache{}, Jobs: jobs, Running: d.running, Sandbox: sb},
 			tool.JobTool{Jobs: jobs},
 			tool.TermTool{Terms: terms, Root: d.cwd, WS: ws},
@@ -306,7 +312,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	ag.Root = d.cwd
 	ag.Files = files
 	ag.AdvisorModel = d.cfg.AdvisorModel
-	ag.Off = envOff()
+	ag.Off = off
 	ag.System = prompt.SystemWith(d.cwd, d.promptOverride)
 	ag.Sandbox = sb
 	ag.Cron = cron
@@ -330,7 +336,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 	// Python-less form, offered only where execute_code cannot run, so the
 	// model is never asked to choose between two ways to batch tool calls.
 	script := &agent.Script{Parent: ag, Root: d.cwd}
-	if !envOff()["script"] && script.Available() {
+	if !off["script"] && script.Available() {
 		ag.Tools.Add(script)
 	} else {
 		script = nil
@@ -409,7 +415,7 @@ func buildAgent(d agentDeps, sess *session.Session, history []llm.Message) (buil
 		fmt.Fprintf(os.Stderr, "trajectory critic not loaded: %v\n", err)
 	}
 	ag.Prepare = chainPrep(skill.TurnPrep(skillInj, mem), repomap.TurnPrep(repo, 0))
-	ag.Tools.Intent = d.cfg.IntentEnabled() && !envOff()["intent"]
+	ag.Tools.Intent = d.cfg.IntentEnabled() && !off["intent"]
 	ag.Tools.Add(&tool.ToolSearch{Registry: ag.Tools, ContextWindow: ag.ContextWindow})
 	ag.UndoPath = sess.UndoPath()
 	if snaps, serr := snapshot.Open(context.Background(), d.cwd); serr == nil {

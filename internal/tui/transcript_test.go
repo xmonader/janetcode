@@ -41,6 +41,24 @@ func builtinRenderers(name string) (tool.Renderer, bool) {
 	return nil, false
 }
 
+// A tool event with no call names nothing the transcript can draw. It
+// must be dropped rather than dereferenced: a malformed event is not a
+// reason to take the window down.
+func TestToolEventWithoutACallIsDropped(t *testing.T) {
+	tr := newTranscript()
+	for _, k := range []agent.EventKind{agent.EvToolStart, agent.EvToolRun, agent.EvToolResult} {
+		tr.apply(agent.Event{Kind: k, Output: "x"})
+	}
+	if len(tr.entries) != 0 {
+		t.Fatalf("entries = %d, want none", len(tr.entries))
+	}
+	// A kind that does not name a call is unaffected.
+	tr.apply(agent.Event{Kind: agent.EvText, Text: "hello"})
+	if len(tr.entries) != 1 {
+		t.Fatalf("entries = %d, want the assistant text", len(tr.entries))
+	}
+}
+
 func TestTranscriptStreamingAndTools(t *testing.T) {
 	tr := newTranscript()
 	tr.user("read a.txt please")

@@ -163,6 +163,13 @@ func (t *transcript) restyle(style string, sty *styles) {
 		e.rendered = ""
 		e.width = 0
 		e.final = false
+		// The per-block markdown cache is keyed by source, width and
+		// fold state — nothing that a theme switch changes — so leaving
+		// it in place served every assistant message back in the old
+		// palette's escape codes, however many times the frame was
+		// rebuilt. Same for the cached tool body.
+		e.chunks = nil
+		e.toolBody, e.toolStamp = "", ""
 	}
 	t.lastRender = 0
 }
@@ -192,7 +199,23 @@ func (t *transcript) last(kind entryKind) *entry {
 	return nil
 }
 
+// namesItsCall reports whether a tool event carries the call it is
+// about. Every one the agent emits does, and the transcript has nothing
+// to attach one to otherwise — but dereferencing a missing call would
+// take the whole window down over a malformed event, which is a poor
+// trade for a line that could simply not be drawn.
+func namesItsCall(ev agent.Event) bool {
+	switch ev.Kind {
+	case agent.EvToolStart, agent.EvToolRun, agent.EvToolResult:
+		return ev.Call != nil
+	}
+	return true
+}
+
 func (t *transcript) apply(ev agent.Event) {
+	if !namesItsCall(ev) {
+		return
+	}
 	switch ev.Kind {
 	case agent.EvText:
 		e := t.last(entryAssistant)

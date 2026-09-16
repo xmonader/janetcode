@@ -279,6 +279,38 @@ func TestAttachMergesTwoSessions(t *testing.T) {
 	}
 }
 
+// A merged record lists turns in turn order. The key was a string, so
+// "10" sorted before "2" and a session that ran more than nine turns had
+// its proof note reordered into something no reader expects.
+func TestMergeOrdersTurnsNumerically(t *testing.T) {
+	var a, b Record
+	a.Session = "s"
+	b.Session = "s"
+	a.Files = []File{{Path: "x.go", Changes: []ChangeRef{{Seq: 1, Turn: 1}}}}
+	b.Files = a.Files
+	for _, n := range []int{1, 2, 9, 10, 11, 20} {
+		if n%2 == 0 {
+			a.Turns = append(a.Turns, Turn{Turn: n, Verdict: "verified"})
+		} else {
+			b.Turns = append(b.Turns, Turn{Turn: n, Verdict: "verified"})
+		}
+	}
+	got := merge(a, b)
+	var order []int
+	for _, tn := range got.Turns {
+		order = append(order, tn.Turn)
+	}
+	want := []int{1, 2, 9, 10, 11, 20}
+	if len(order) != len(want) {
+		t.Fatalf("turns = %v, want %v", order, want)
+	}
+	for i := range want {
+		if order[i] != want[i] {
+			t.Fatalf("turns = %v, want %v", order, want)
+		}
+	}
+}
+
 func TestCommittedFilesIncludingRoot(t *testing.T) {
 	ctx := context.Background()
 	root := initRepo(t)

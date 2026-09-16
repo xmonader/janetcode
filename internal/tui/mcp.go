@@ -116,9 +116,9 @@ func (m *model) runMCPPrompt(name string, rest string) (tea.Cmd, bool) {
 				}
 			}
 			m.startTurn("rendering prompt from " + st.Name)
-			send, promptName := m.send, p.Name
+			send, life, promptName := m.send, m.life, p.Name
 			go func() {
-				ctx, cancel := context.WithTimeout(m.life, 60*time.Second)
+				ctx, cancel := context.WithTimeout(life, 60*time.Second)
 				defer cancel()
 				text, err := c.GetPrompt(ctx, promptName, args)
 				send(mcpPromptMsg{command: name, text: text, err: err})
@@ -251,16 +251,17 @@ func (m *model) mcpAuth(args []string) {
 		openURL = mcp.OpenBrowser
 	}
 	m.transcript.info("mcp " + name + ": starting authorization · the browser will open; the URL is also printed here")
+	send, life := m.send, m.life
 	go func() {
-		ctx, cancel := context.WithTimeout(m.life, 5*time.Minute)
+		ctx, cancel := context.WithTimeout(life, 5*time.Minute)
 		defer cancel()
 		_, err := mcp.Authorize(ctx, mcp.AuthOptions{
 			ServerURL: cfg.URL, Store: o.Tokens, ResourceMetadata: meta,
 			ClientID: cfg.ClientID, ClientSecret: os.ExpandEnv(cfg.ClientSecret), Scope: cfg.Scope,
 			OpenURL: openURL,
-			Notify:  func(s string) { m.send(mcpAuthMsg{name: name, text: s}) },
+			Notify:  func(s string) { send(mcpAuthMsg{name: name, text: s}) },
 		})
-		m.send(mcpAuthMsg{name: name, done: true, err: err})
+		send(mcpAuthMsg{name: name, done: true, err: err})
 	}()
 }
 

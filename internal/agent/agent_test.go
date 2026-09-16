@@ -629,7 +629,7 @@ func TestCompactionRefreshesExtra(t *testing.T) {
 func TestPrepareAddsBlocksAndNotice(t *testing.T) {
 	f := &fake{responses: []*llm.Response{text("ok")}}
 	a, _ := newAgent(t, f, nil)
-	a.Prepare = func(blocks []llm.Block) ([]llm.Block, string) {
+	a.Prepare = func(_ context.Context, blocks []llm.Block) ([]llm.Block, string) {
 		return append(blocks, llm.Block{Type: llm.BlockText, Text: "<skill>steps</skill>"}), "skills attached: deploy"
 	}
 	var notes []string

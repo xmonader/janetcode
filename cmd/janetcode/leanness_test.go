@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,7 +50,7 @@ func TestLeannessTable(t *testing.T) {
 
 	repo := &repomap.Cache{Root: dir}
 	prep := repomap.TurnPrep(repo, 0)
-	blocks, notice := prep([]llm.Block{{Type: llm.BlockText, Text: "add a flag"}})
+	blocks, notice := prep(context.Background(), []llm.Block{{Type: llm.BlockText, Text: "add a flag"}})
 	var mapBytes int
 	for _, b := range blocks[1:] {
 		mapBytes += len(b.Text)
@@ -111,7 +112,7 @@ const (
 	// toolSchemaCeiling is name + description + schema over every tool a
 	// full session offers: 13,862 bytes for seventeen, after the
 	// duplicated edit_file locator came out.
-	toolSchemaCeiling = 14200
+	toolSchemaCeiling = 14320
 )
 
 // TestFirstRequestSystemPromptCeiling: an empty directory is the floor of

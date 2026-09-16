@@ -357,7 +357,8 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 		return Report{}, fmt.Errorf("load recording: %w", err)
 	}
 
-	ag, notes, err := buildAgent(workDir, off, opts.Config, opts.Symbols)
+	ag, notes, dropArchive, err := buildAgent(workDir, off, opts.Config, opts.Symbols)
+	defer dropArchive()
 	if err != nil {
 		return Report{}, fmt.Errorf("build agent: %w", err)
 	}

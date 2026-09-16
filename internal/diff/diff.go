@@ -39,25 +39,33 @@ func Lines(a, b []string) []Op {
 
 // myers is the standard shortest-edit-script search with a size guard: for
 // very large or dissimilar inputs it falls back to delete-all/insert-all.
+//
+// Only the band of the frontier that round d can have reached is kept in
+// the trace. Keeping the whole vector cost d*(n+m) ints — half a gigabyte
+// for a four-thousand-line file rewritten from end to end, which is a
+// write_file call, not an exotic input — where the band costs d², and the
+// edit distance is bounded below so that stays in the tens of megabytes.
 func myers(a, b []string) []Op {
 	n, m := len(a), len(b)
 	if n == 0 && m == 0 {
 		return nil
 	}
-	const maxD = 4000
+	const maxD = 1500
 	max := n + m
-	if max > maxD*2 {
+	if max > 8000 {
 		return replaceAll(a, b)
 	}
-	offset := max
-	v := make([]int, 2*max+2)
+	offset := max + 1
+	v := make([]int, 2*max+4)
 	var trace [][]int
 	for d := 0; d <= max; d++ {
 		if d > maxD {
 			return replaceAll(a, b)
 		}
-		snapshot := make([]int, len(v))
-		copy(snapshot, v)
+		// The band [-d-1, d+1]: backtrack looks one k either side of the
+		// diagonal it is on, and a snapshot is indexed from its middle.
+		snapshot := make([]int, 2*(d+1)+1)
+		copy(snapshot, v[offset-d-1:offset+d+2])
 		trace = append(trace, snapshot)
 		for k := -d; k <= d; k += 2 {
 			var x int
@@ -73,26 +81,28 @@ func myers(a, b []string) []Op {
 			}
 			v[offset+k] = x
 			if x >= n && y >= m {
-				return backtrack(trace, a, b, offset)
+				return backtrack(trace, a, b)
 			}
 		}
 	}
 	return replaceAll(a, b)
 }
 
-func backtrack(trace [][]int, a, b []string, offset int) []Op {
+func backtrack(trace [][]int, a, b []string) []Op {
 	x, y := len(a), len(b)
 	var rev []Op
+	// at reads a banded snapshot, whose middle entry is diagonal 0.
+	at := func(v []int, k int) int { return v[len(v)/2+k] }
 	for d := len(trace) - 1; d >= 0; d-- {
 		v := trace[d]
 		k := x - y
 		var prevK int
-		if k == -d || (k != d && v[offset+k-1] < v[offset+k+1]) {
+		if k == -d || (k != d && at(v, k-1) < at(v, k+1)) {
 			prevK = k + 1
 		} else {
 			prevK = k - 1
 		}
-		prevX := v[offset+prevK]
+		prevX := at(v, prevK)
 		prevY := prevX - prevK
 		for x > prevX && y > prevY {
 			x--

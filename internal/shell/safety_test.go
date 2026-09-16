@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestClassify(t *testing.T) {
@@ -172,5 +173,31 @@ func TestTrimWorkspaceCd(t *testing.T) {
 		if got := TrimWorkspaceCd(in, root); got != want {
 			t.Errorf("TrimWorkspaceCd(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// The classifier follows a command quoted inside another (`eval ...`,
+// `sh -c "..."`) and used to do so with no bound at all: one stack frame
+// per level, on text the model wrote. Nesting is bounded now, and an
+// ordinary nest is still judged by what it actually runs.
+func TestNestedShellsAreBounded(t *testing.T) {
+	cmd := strings.Repeat("eval ", 100000) + "ls"
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		Classify(cmd, "/work/repo")
+		SafeRead(cmd)
+	}()
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		t.Fatal("classifying a deeply nested command did not finish")
+	}
+	// Ordinary nesting is still judged by the command inside.
+	if risk, _ := Classify(`sh -c "eval rm -rf /"`, "/work/repo"); risk != RiskCatastrophic {
+		t.Fatalf("nested rm -rf / graded %v", risk)
+	}
+	if !SafeRead(`sh -c "ls"`) {
+		t.Fatal("a nested ls is still a safe read")
 	}
 }

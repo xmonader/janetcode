@@ -23,6 +23,7 @@ import (
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/snapshot"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"github.com/xmonader/janetcode/internal/worktree"
 )
 
@@ -66,6 +67,28 @@ var operators = []operator{
 // sourceExt lists the files worth mutating.
 var sourceExt = map[string]bool{".go": true, ".py": true, ".ts": true, ".tsx": true, ".js": true, ".jsx": true, ".rs": true, ".c": true, ".cc": true, ".cpp": true, ".h": true, ".java": true, ".kt": true, ".rb": true, ".cs": true, ".swift": true, ".zig": true}
 
+// equivalent reports whether flipping op.from to op.to at [start,end) of
+// masked produces a mutant that means exactly what the original did. Such
+// a mutant can never be killed, so generating one spends a full test run
+// to learn nothing and then reports a survivor the model is asked to
+// write a test for — a test that cannot exist.
+//
+// The case that actually arises is the additive identity on the right:
+// `x + 0` and `x - 0` are the same value, whichever way the flip goes.
+// The left operand is not symmetric — `0 + x` and `0 - x` differ — and
+// the comparison and boolean operators have no such identity at all, so
+// only a right-hand literal zero is rejected.
+func equivalent(masked string, op operator, end int) bool {
+	if op.from != "+" && op.from != "-" {
+		return false
+	}
+	right := strings.TrimLeft(masked[end:], " \t")
+	if i := strings.IndexAny(right, " \t"); i >= 0 {
+		right = right[:i]
+	}
+	return right == "0"
+}
+
 // Mutate lists every operator flip on one line, skipping comments and
 // the insides of string literals.
 func Mutate(path string, line int, text string) []Mutant {
@@ -83,6 +106,9 @@ func Mutate(path string, line int, text string) []Mutant {
 			if i := strings.Index(masked[loc[0]:loc[1]], op.from); i >= 0 {
 				start = loc[0] + i
 				end = start + len(op.from)
+			}
+			if equivalent(masked, op, end) {
+				continue
 			}
 			mutated := text[:start] + op.to + text[end:]
 			out = append(out, Mutant{Path: path, Line: line, From: op.from, To: op.to, Before: trimmed, After: strings.TrimSpace(mutated)})
@@ -325,7 +351,6 @@ const DefaultMax = 12
 
 // Run generates mutants for the changed lines and tests each one.
 func (r *Runner) Run(ctx context.Context) (Report, error) {
-	start := time.Now()
 	rep := Report{Command: r.Command}
 	changed, err := Changed(ctx, r.Root)
 	if err != nil {
@@ -347,7 +372,18 @@ func (r *Runner) Run(ctx context.Context) (Report, error) {
 		rep.Skipped = "no operators to flip on the changed lines"
 		return rep, nil
 	}
-	rep.Total = len(mutants)
+	return r.runMutants(ctx, mutants)
+}
+
+// runMutants checks out the tree as it stands into a throwaway worktree
+// and tests each mutant in it, one at a time. It is Run's second half:
+// Run decides *what* to mutate (which needs the repository's diff), this
+// decides what each mutation proves (which needs only the mutants and a
+// place to apply them), and splitting them lets the execution half be
+// tested without a diff to mine.
+func (r *Runner) runMutants(ctx context.Context, mutants []Mutant) (Report, error) {
+	start := time.Now()
+	rep := Report{Command: r.Command, Total: len(mutants)}
 	repo, err := snapshot.Open(ctx, r.Root)
 	if err != nil {
 		return rep, err
@@ -356,7 +392,14 @@ func (r *Runner) Run(ctx context.Context) (Report, error) {
 	if err != nil {
 		return rep, err
 	}
-	defer repo.Drop(context.Background(), snap)
+	// Dropping the snapshot has to work after ctx is cancelled — that is
+	// when it matters most — but it must not be able to hang a cancelled
+	// run forever either, which a bare context.Background() can.
+	defer func() {
+		dctx, dcancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer dcancel()
+		repo.Drop(dctx, snap)
+	}()
 	dir, cleanup, err := worktree.Detached(ctx, "mut", repo.Root, snap.Commit, nil)
 	if err != nil {
 		return rep, err
@@ -385,6 +428,19 @@ func (r *Runner) Run(ctx context.Context) (Report, error) {
 		if m.Line > len(lines) {
 			continue
 		}
+		// The worktree is a checkout of a snapshot taken after Generate
+		// read the working tree, so the line should be the one the mutant
+		// was built from. When it is not — a concurrent edit, a snapshot
+		// that did not capture something — mutating by line number would
+		// silently corrupt an unrelated line and score the result as if
+		// it meant something. Skip it instead.
+		if strings.TrimSpace(lines[m.Line-1]) != m.Before {
+			rep.Total--
+			if r.Log != nil {
+				r.Log(fmt.Sprintf("mutant %d/%d skipped: %s no longer holds the recorded line", i+1, len(mutants), m))
+			}
+			continue
+		}
 		indent := lines[m.Line-1][:len(lines[m.Line-1])-len(strings.TrimLeft(lines[m.Line-1], " \t"))]
 		lines[m.Line-1] = indent + m.After
 		if err := os.WriteFile(target, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
@@ -398,14 +454,21 @@ func (r *Runner) Run(ctx context.Context) (Report, error) {
 		out, runErr := cmd.CombinedOutput()
 		o.TimedOut = errors.Is(cctx.Err(), context.DeadlineExceeded)
 		cancel()
-		os.WriteFile(target, original, 0o644)
+		// Every later mutant is applied to this same file. If the
+		// original cannot be put back, they would all run against a tree
+		// that still carries this mutation, and every one of their
+		// verdicts would be about the wrong code — so stop rather than
+		// report a score built on it.
+		if werr := os.WriteFile(target, original, 0o644); werr != nil {
+			return rep, fmt.Errorf("restore %s after mutant %s: %w", m.Path, m, werr)
+		}
 		if runErr != nil || o.TimedOut {
 			o.Killed = true
 			rep.Killed++
 			if o.TimedOut {
 				rep.TimedOut++
 			}
-			o.Output = tail(string(out), 400)
+			o.Output = textfmt.TailBytes(strings.TrimSpace(string(out)), 400)
 		} else {
 			rep.Survived = append(rep.Survived, o)
 		}
@@ -421,12 +484,4 @@ func (r *Runner) Run(ctx context.Context) (Report, error) {
 	}
 	rep.Duration = time.Since(start)
 	return rep, nil
-}
-
-func tail(s string, n int) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= n {
-		return s
-	}
-	return "…" + s[len(s)-n:]
 }

@@ -182,9 +182,9 @@ func (m *model) reviewCommand(arg string) tea.Cmd {
 
 // startTask runs a subagent in the background and reports when it ends.
 func (m *model) startTask(task *agent.Task, in agent.TaskInput) {
-	send := m.send
+	send, life := m.send, m.life
 	go func() {
-		_, runErr := task.Start(m.life, in)
+		_, runErr := task.Start(life, in)
 		send(subagentDoneMsg{desc: in.Description, err: runErr})
 	}()
 }

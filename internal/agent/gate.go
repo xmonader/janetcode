@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/hook"
-	"github.com/xmonader/janetcode/internal/llm"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/verify"
 )
@@ -56,7 +55,7 @@ func (a *Agent) verifyGate(ctx context.Context, g *gateState, emit func(Event)) 
 		return false
 	}
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("%s · sending the model back to fix it (%d/%d)", res.Summary(), g.rounds, verify.MaxRounds)})
-	a.appendMessage(llm.HarnessMessage(llm.RoleUser, res.Feedback()))
+	a.appendHarnessText(res.Feedback())
 	return true
 }
 
@@ -86,6 +85,6 @@ func (a *Agent) stopHook(ctx context.Context, text string, stops *int, emit func
 	}
 	*stops++
 	emit(Event{Kind: EvNotice, Text: fmt.Sprintf("stop hook sent the model back to work (%d/%d): %s", *stops, maxStopContinues, res.Continue)})
-	a.appendMessage(llm.HarnessMessage(llm.RoleUser, "[A stop hook did not accept this as done]\n"+res.Continue))
+	a.appendHarnessText("[A stop hook did not accept this as done]\n" + res.Continue)
 	return true
 }

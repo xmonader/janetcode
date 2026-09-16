@@ -59,6 +59,14 @@ type Archive struct {
 	next  int
 	byUse map[string]string // tool_use id -> archive id
 	ready bool
+	// bytes is what this process believes the archive holds, seeded at
+	// load and grown by each Put. It only decides whether the cap could
+	// have been reached; the eviction pass itself re-reads the directory,
+	// which is what keeps it right when another process shares it.
+	bytes int64
+	// scans counts directory walks, so a test can hold the "storing an
+	// output does not re-read the archive" property that bytes exists for.
+	scans int
 }
 
 // NewArchive opens (or creates on first Put) the archive at dir.
@@ -72,6 +80,7 @@ func (ar *Archive) load() error {
 	if err := os.MkdirAll(ar.Dir, 0o700); err != nil {
 		return err
 	}
+	ar.bytes = 0
 	for _, e := range ar.scan() {
 		if n := seq(e.ID); n >= ar.next {
 			ar.next = n + 1
@@ -79,6 +88,7 @@ func (ar *Archive) load() error {
 		if e.ToolUse != "" {
 			ar.byUse[e.ToolUse] = e.ID
 		}
+		ar.bytes += int64(e.Size)
 	}
 	if ar.next == 0 {
 		ar.next = 1
@@ -89,6 +99,7 @@ func (ar *Archive) load() error {
 
 // scan reads the header of every entry on disk, oldest first.
 func (ar *Archive) scan() []Entry {
+	ar.scans++
 	names, _ := filepath.Glob(filepath.Join(ar.Dir, "ctx-*.txt"))
 	var out []Entry
 	for _, p := range names {
@@ -175,6 +186,7 @@ func (ar *Archive) PutSubject(toolUse, name, subject, body string) (string, erro
 		if toolUse != "" {
 			ar.byUse[toolUse] = id
 		}
+		ar.bytes += int64(len(body))
 		ar.evict()
 		return id, nil
 	}
@@ -182,21 +194,32 @@ func (ar *Archive) PutSubject(toolUse, name, subject, body string) (string, erro
 }
 
 // evict drops the oldest entries until the archive fits ArchiveCap.
+//
+// The running byte count is checked first so the common case costs
+// nothing: scanning means opening the header of every file in the
+// directory, and doing that on every archived output made a long session
+// quadratic in the number of entries it had spilled. Once the count says
+// the cap could have been reached the directory is read for real, which
+// is also how entries another process wrote are accounted for.
 func (ar *Archive) evict() {
+	if ar.bytes <= ArchiveCap {
+		return
+	}
 	entries := ar.scan()
-	total := 0
+	total := int64(0)
 	for _, e := range entries {
-		total += e.Size
+		total += int64(e.Size)
 	}
 	for _, e := range entries {
 		if total <= ArchiveCap {
-			return
+			break
 		}
 		if os.Remove(filepath.Join(ar.Dir, e.ID+".txt")) == nil {
-			total -= e.Size
+			total -= int64(e.Size)
 			delete(ar.byUse, e.ToolUse)
 		}
 	}
+	ar.bytes = total
 }
 
 // IDFor returns the archive id holding the result of a tool call, or "".
@@ -315,8 +338,16 @@ func (ar *Archive) Drop(id string) {
 	if ar.load() != nil {
 		return
 	}
-	if err := os.Remove(filepath.Join(ar.Dir, id+".txt")); err != nil && !errors.Is(err, os.ErrNotExist) {
+	p := filepath.Join(ar.Dir, id+".txt")
+	e, herr := readHeader(p)
+	if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return
+	}
+	if herr == nil {
+		ar.bytes -= int64(e.Size)
+		if ar.bytes < 0 {
+			ar.bytes = 0
+		}
 	}
 	for use, got := range ar.byUse {
 		if got == id {

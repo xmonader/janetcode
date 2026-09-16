@@ -41,7 +41,7 @@ context_window = 128000
 		"--always-approve", "--output-format", "json", "--model", cfg.Model, "--max-turns", "2")
 	shell.Supervise(cmd)
 	cmd.Dir = home // auto-approve must never run in the real repository
-	cmd.Env = childEnv(cfg, map[string]string{
+	cmd.Env = childEnv(map[string]string{
 		"GROK_HOME":         home,
 		"OPENAI_API_KEY":    cfg.Key,
 		"OPENAI_BASE_URL":   cfg.BaseURL,

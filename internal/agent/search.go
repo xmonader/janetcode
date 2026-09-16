@@ -387,7 +387,10 @@ func searchArchive(ar *Archive, ids []string, query string, budget int) string {
 		return fmt.Sprintf("No archived output mentions any of: %s.", strings.Join(q, ", "))
 	}
 	if sb.Len() > budget {
-		return textfmt.Truncate(sb.String()[:budget]) + "\n[more matches not shown; narrow the query or give an id]"
+		// Cut back to a rune boundary: archived output is arbitrary text,
+		// and half a rune is what the model would read.
+		s := sb.String()
+		return textfmt.Truncate(s[:runeStartAtOrBefore(s, budget)]) + "\n[more matches not shown; narrow the query or give an id]"
 	}
 	return sb.String()
 }

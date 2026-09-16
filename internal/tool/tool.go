@@ -60,6 +60,10 @@ type Registry struct {
 	// cache that instead of asking seventeen tools to describe
 	// themselves again (182µs and 434 allocations a time).
 	version uint64
+	// cached is the last result of Defs and the version it was built
+	// from; see Defs.
+	cached    []llm.ToolDef
+	cachedVer uint64
 }
 
 // SetIntent switches the intent field on or off, safe while another
@@ -77,6 +81,11 @@ func (r *Registry) SetIntent(on bool) {
 func (r *Registry) Version() uint64 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	return r.versionLocked()
+}
+
+// versionLocked is Version with the lock already held.
+func (r *Registry) versionLocked() uint64 {
 	v := r.version << 1
 	if r.Intent {
 		v |= 1
@@ -194,7 +203,33 @@ func (r *Registry) Withheld(name string) (string, bool) {
 
 // Defs returns the tool definitions in stable (sorted) order so the request
 // prefix stays cacheable.
-func (r *Registry) Defs() []llm.ToolDef { return r.DefsIf(nil) }
+//
+// The result is memoised on Version: the definitions are rebuilt from the
+// tools only when the visible set (or the intent field) has changed. Every
+// request, every context gauge and every subagent build asks for them, and
+// asking seventeen tools to describe themselves — and re-marshalling every
+// schema through WithIntent — is not free.
+func (r *Registry) Defs() []llm.ToolDef {
+	v := r.Version()
+	r.mu.RLock()
+	if r.cached != nil && r.cachedVer == v {
+		defs := r.cached
+		r.mu.RUnlock()
+		return append([]llm.ToolDef(nil), defs...)
+	}
+	r.mu.RUnlock()
+	defs := r.DefsIf(nil)
+	r.mu.Lock()
+	// Only store what was built from the state this version describes: a
+	// concurrent Add may have moved the version on while we were out of
+	// the lock, and caching a stale list under a new version would serve
+	// definitions that no longer match the registry.
+	if r.versionLocked() == v {
+		r.cached, r.cachedVer = defs, v
+	}
+	r.mu.Unlock()
+	return append([]llm.ToolDef(nil), defs...)
+}
 
 // DefsIf is Defs restricted to tools the predicate keeps; nil keeps all.
 func (r *Registry) DefsIf(keep func(Tool) bool) []llm.ToolDef {
@@ -308,17 +343,48 @@ func confineAbs(root, abs, named string, evalSymlinks bool) (string, error) {
 	if !evalSymlinks {
 		return abs, nil
 	}
-	if real, err := filepath.EvalSymlinks(abs); err == nil {
-		realRoot, rerr := filepath.EvalSymlinks(root)
-		if rerr != nil {
-			realRoot = root
-		}
-		rel2, err := filepath.Rel(realRoot, real)
-		if err != nil || rel2 == ".." || strings.HasPrefix(rel2, ".."+string(filepath.Separator)) {
-			return "", fmt.Errorf("path %q resolves outside the working directory", named)
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		// The path does not exist yet, which is the normal case for a
+		// write or an mkdir. Its ancestors do, though, and one of them
+		// may be a symlink out of the root: `root/link -> /etc` makes
+		// `root/link/passwd` a lexically confined path that writes to
+		// /etc. So the nearest ancestor that does resolve is resolved
+		// and the missing tail put back on, and that is what the check
+		// below judges.
+		real, err = resolveExisting(abs)
+		if err != nil {
+			return abs, nil
 		}
 	}
+	realRoot, rerr := filepath.EvalSymlinks(root)
+	if rerr != nil {
+		realRoot = root
+	}
+	rel2, err := filepath.Rel(realRoot, real)
+	if err != nil || rel2 == ".." || strings.HasPrefix(rel2, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %q resolves outside the working directory", named)
+	}
 	return abs, nil
+}
+
+// resolveExisting resolves the symlinks of the deepest ancestor of abs
+// that exists and puts the missing tail back on, so a path that is about
+// to be created is judged by where it would actually land.
+func resolveExisting(abs string) (string, error) {
+	rest := ""
+	dir := abs
+	for {
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("no resolvable ancestor of %q", abs)
+		}
+		rest = filepath.Join(filepath.Base(dir), rest)
+		dir = parent
+		if real, err := filepath.EvalSymlinks(dir); err == nil {
+			return filepath.Join(real, rest), nil
+		}
+	}
 }
 
 func decode(input json.RawMessage, v any) error {

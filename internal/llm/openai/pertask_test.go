@@ -21,7 +21,7 @@ func TestARefusalPacesOnlyTheTaskThatWasRefused(t *testing.T) {
 	var refused atomic.Bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if refused.CompareAndSwap(false, true) {
-			http.Error(w, `{"error":{"message":"slow down"}}`, 429)
+			http.Error(w, `{"error":{"message":"slow down"}}`, http.StatusTooManyRequests)
 			return
 		}
 		w.Header().Set("Content-Type", "text/event-stream")

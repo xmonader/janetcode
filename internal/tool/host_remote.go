@@ -316,7 +316,7 @@ type remoteEntry struct {
 
 func (e remoteEntry) Name() string      { return e.name }
 func (e remoteEntry) IsDir() bool       { return e.dir }
-func (e remoteEntry) Type() os.FileMode { return remoteInfo{dir: e.dir}.Mode() }
+func (e remoteEntry) Type() os.FileMode { return remoteInfo(e).Mode() }
 func (e remoteEntry) Info() (os.FileInfo, error) {
-	return remoteInfo{name: e.name, dir: e.dir}, nil
+	return remoteInfo(e), nil
 }

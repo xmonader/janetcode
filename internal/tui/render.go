@@ -298,21 +298,24 @@ func (t *transcript) renderMarkdown(e *entry, width int, o renderOpts) string {
 	for i, src := range blocks {
 		last := i == len(blocks)-1
 		partial := last && !e.done
-		diagram := ""
-		if !partial {
-			diagram = t.renderDiagram(src, width, expanded, o.noMermaid)
-		}
 		if partial && strings.Count(src, "```")%2 == 1 {
 			// Close an unterminated fence so the partial code block still
 			// gets highlighted instead of swallowing the rest.
 			src += "\n```"
 		}
+		// The cache is consulted before anything is drawn: a diagram laid
+		// out up front was thrown away on every hit, so a message holding
+		// a mermaid block re-parsed and re-laid it out on every frame of
+		// the stream.
 		if i < len(e.chunks) && e.chunks[i].src == src && e.chunks[i].width == width &&
 			e.chunks[i].expanded == expanded && e.chunks[i].partial == partial {
 			sb.WriteString(e.chunks[i].out)
 			continue
 		}
-		out := diagram
+		out := ""
+		if !partial {
+			out = t.renderDiagram(src, width, expanded, o.noMermaid)
+		}
 		if out == "" {
 			var err error
 			out, err = t.renderer.Render(joinListSoftBreaks(src))
@@ -618,15 +621,25 @@ func relTo(cwd, p string) string {
 }
 
 // cutWords shortens s to at most max characters at a word boundary, so a
-// folded thought never ends mid-word.
+// folded thought never ends mid-word. The search for that boundary counts
+// runes, not bytes: strings.LastIndex answers in bytes, and using its
+// answer as a rune index cut a thought in a non-Latin script short by
+// two thirds — or, once the byte index passed the rune count, panicked
+// with a slice out of range on a model's own reasoning.
 func cutWords(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
 	r := []rune(s)
 	if len(r) <= max {
 		return s
 	}
 	cut := max - 1
-	if i := strings.LastIndex(string(r[:cut]), " "); i > max/2 {
-		cut = i
+	for i := cut - 1; i > max/2; i-- {
+		if r[i] == ' ' {
+			cut = i
+			break
+		}
 	}
 	return strings.TrimRight(string(r[:cut]), " ,;:") + "…"
 }

@@ -141,6 +141,23 @@ func (w *Watchdog) Tick() {
 	w.mu.Unlock()
 }
 
+// Expect tells the watchdog that the caller is about to wait d on
+// purpose — a retry backoff, a pacing gap — so the idle bound measures
+// the silence after that wait instead of firing in the middle of it. The
+// idle bound is there to catch a stream that stopped talking, not a wait
+// the harness chose. The lifetime bound is not moved: a call that spends
+// its whole budget in backoff has still spent it.
+func (w *Watchdog) Expect(d time.Duration) {
+	if w == nil || d <= 0 {
+		return
+	}
+	w.mu.Lock()
+	if until := time.Now().Add(d); until.After(w.last) {
+		w.last = until
+	}
+	w.mu.Unlock()
+}
+
 // Stop releases the watchdog and its context.
 func (w *Watchdog) Stop() {
 	if w == nil {

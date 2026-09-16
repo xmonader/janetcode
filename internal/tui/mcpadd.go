@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -60,7 +61,9 @@ func (m *model) mcpEnv() (mcpcmd.Env, bool) {
 
 // mcpRun does the work off the UI loop and reports it as a message, so
 // starting a server does not freeze the interface.
-func (m *model) mcpRun(status string, fn func(env mcpcmd.Env) (cmdresult.Result, error)) tea.Cmd {
+// It runs under the session's life context, so quitting the window stops
+// a clone or a server start rather than leaving it running.
+func (m *model) mcpRun(status string, fn func(ctx context.Context, env mcpcmd.Env) (cmdresult.Result, error)) tea.Cmd {
 	env, ok := m.mcpEnv()
 	if !ok {
 		m.transcript.errorf("MCP is not configured in this session")
@@ -69,9 +72,9 @@ func (m *model) mcpRun(status string, fn func(env mcpcmd.Env) (cmdresult.Result,
 	}
 	m.status = status
 	m.refresh(false)
-	send := m.send
+	send, life := m.send, m.life
 	go func() {
-		res, err := fn(env)
+		res, err := fn(life, env)
 		send(mcpCmdMsg{res: res, err: err})
 	}()
 	return m.spinner.Tick
@@ -93,8 +96,8 @@ func (m *model) mcpAdd(args []string) tea.Cmd {
 	if spec.From != "" {
 		return m.mcpAddFrom(spec)
 	}
-	return m.mcpRun("adding MCP server "+spec.Name+"…", func(env mcpcmd.Env) (cmdresult.Result, error) {
-		return mcpcmd.Add(m.life, env, spec.Name, spec.Config)
+	return m.mcpRun("adding MCP server "+spec.Name+"…", func(ctx context.Context, env mcpcmd.Env) (cmdresult.Result, error) {
+		return mcpcmd.Add(ctx, env, spec.Name, spec.Config)
 	})
 }
 
@@ -109,14 +112,14 @@ func (m *model) mcpAddFrom(spec mcp.AddSpec) tea.Cmd {
 	}
 	m.status = "reading " + spec.From + "…"
 	m.refresh(false)
-	send, from, yes := m.send, spec.From, spec.Yes
+	send, life, from, yes := m.send, m.life, spec.From, spec.Yes
 	go func() {
-		man, err := mcpcmd.Fetch(m.life, env, from)
+		man, err := mcpcmd.Fetch(life, env, from)
 		if err != nil || !yes {
 			send(mcpFetchMsg{man: man, err: err})
 			return
 		}
-		res, err := mcpcmd.Install(m.life, env, man)
+		res, err := mcpcmd.Install(life, env, man)
 		send(mcpCmdMsg{res: res, err: err})
 	}()
 	return m.spinner.Tick
@@ -135,8 +138,8 @@ func (m *model) handleMCPFetch(msg mcpFetchMsg) tea.Cmd {
 	return m.confirm("Add "+strings.Join(man.Names, ", ")+"?",
 		"they are written to "+mcp.ProjectFile+" and started · esc leaves the project untouched",
 		"add them", func() tea.Cmd {
-			return m.mcpRun("installing MCP servers…", func(env mcpcmd.Env) (cmdresult.Result, error) {
-				return mcpcmd.Install(m.life, env, man)
+			return m.mcpRun("installing MCP servers…", func(ctx context.Context, env mcpcmd.Env) (cmdresult.Result, error) {
+				return mcpcmd.Install(ctx, env, man)
 			})
 		})
 }
@@ -175,8 +178,8 @@ func (m *model) mcpRemove(args []string) tea.Cmd {
 		return nil
 	}
 	drop := func() tea.Cmd {
-		return m.mcpRun("removing MCP server "+name+"…", func(env mcpcmd.Env) (cmdresult.Result, error) {
-			return mcpcmd.Remove(m.life, env, name)
+		return m.mcpRun("removing MCP server "+name+"…", func(ctx context.Context, env mcpcmd.Env) (cmdresult.Result, error) {
+			return mcpcmd.Remove(ctx, env, name)
 		})
 	}
 	if yes {
@@ -313,8 +316,8 @@ func (m *model) openMCPAdd() tea.Cmd {
 			m.refresh(false)
 			return nil
 		}
-		return m.mcpRun("adding MCP server "+d.name+"…", func(env mcpcmd.Env) (cmdresult.Result, error) {
-			return mcpcmd.Add(m.life, env, d.name, d.cfg)
+		return m.mcpRun("adding MCP server "+d.name+"…", func(ctx context.Context, env mcpcmd.Env) (cmdresult.Result, error) {
+			return mcpcmd.Add(ctx, env, d.name, d.cfg)
 		})
 	}
 	return m.openWizard(w)

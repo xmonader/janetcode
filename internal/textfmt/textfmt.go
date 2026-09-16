@@ -137,6 +137,52 @@ func ClipBytes(s string, max int) string {
 	return s[:cut] + ellipsis
 }
 
+// CutBytes shortens s to at most max bytes without splitting a multi-byte
+// UTF-8 character and without adding a marker of its own. It is ClipBytes
+// for the callers that append their own note about the cut ("… truncated,
+// N bytes total"), which would otherwise be preceded by half a rune.
+func CutBytes(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	if len(s) <= max {
+		return s
+	}
+	cut := max
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
+}
+
+// TailBytes keeps at most max bytes of the *end* of s, never splitting a
+// multi-byte UTF-8 character, with a leading "…" when anything was cut.
+// It is ClipBytes from the other end: the shape wanted for the tail of a
+// command's output or a stderr excerpt, where what went wrong is at the
+// bottom. Slicing s[len(s)-max:] by hand — which three callers did — can
+// land inside a rune and put a replacement character in a report.
+func TailBytes(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	if len(s) <= max {
+		return s
+	}
+	const ellipsis = "…"
+	keep := max
+	if max > len(ellipsis) {
+		keep = max - len(ellipsis)
+	}
+	cut := len(s) - keep
+	for cut < len(s) && !utf8.RuneStart(s[cut]) {
+		cut++
+	}
+	if max <= len(ellipsis) {
+		return s[cut:]
+	}
+	return ellipsis + s[cut:]
+}
+
 // OneLine flattens s to a single line by replacing newlines with spaces
 // and trimming the result.
 func OneLine(s string) string {
@@ -195,6 +241,14 @@ func TruncateTo(s string, max int) string {
 	}
 	if i := strings.IndexByte(s[len(s)-tail:], '\n'); i >= 0 && i < tail/2 {
 		tail -= i + 1
+	}
+	// Neither end may split a rune: the result goes to a provider, and
+	// half a character is not text.
+	for head > 0 && !utf8.RuneStart(s[head]) {
+		head--
+	}
+	for tail > 0 && !utf8.RuneStart(s[len(s)-tail]) {
+		tail--
 	}
 	return s[:head] + fmt.Sprintf("\n... [%d bytes omitted; the output continues] ...\n", len(s)-head-tail) + s[len(s)-tail:]
 }

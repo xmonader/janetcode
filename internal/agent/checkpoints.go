@@ -44,6 +44,11 @@ type checkpoints struct {
 	// is the concrete repository because the proof path needs its Root;
 	// everything on the undo path takes it as a Snapshotter (see snaps).
 	Snapshots *snapshot.Repo
+	// snapshotter, when set, stands in for Snapshots everywhere on the
+	// undo path. It is what the Snapshotter interface is for: a test can
+	// drive undo, redo and the turn restore against a store that blocks,
+	// fails, or reports a moved HEAD, with no git repository behind it.
+	snapshotter Snapshotter
 	// cp records pre-change snapshots for the running turn.
 	cp checkpointer
 	// undoRemoved is how many messages the last Undo removed.
@@ -58,6 +63,9 @@ type checkpoints struct {
 // nil when there is no repository — a typed nil pointer wrapped in an
 // interface is not nil, and every caller here tests for nil.
 func (k *checkpoints) snaps() Snapshotter {
+	if k.snapshotter != nil {
+		return k.snapshotter
+	}
 	if k.Snapshots == nil {
 		return nil
 	}
@@ -141,7 +149,9 @@ func (k *checkpoints) markUndone(seq int) {
 }
 
 // captureState records the current tree as a checkpoint covering what the
-// given one covers, so a restore can be reversed. Called with cp.mu held.
+// given one covers, so a restore can be reversed. It reads no checkpoint
+// state of its own, and takes a git snapshot, so it is called with cp.mu
+// dropped.
 func (k *checkpoints) captureState(ctx context.Context, like Checkpoint, label string) (Checkpoint, bool) {
 	cp := Checkpoint{When: time.Now()}
 	if repo := k.snaps(); repo != nil {

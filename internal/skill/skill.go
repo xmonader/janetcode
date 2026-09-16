@@ -347,7 +347,7 @@ func IndexWithin(skills []Skill, budget int) string {
 func (s Skill) Block() llm.Block {
 	body := s.Body
 	if len(body) > MaxBody {
-		body = body[:MaxBody] + "\n[skill truncated]"
+		body = textfmt.CutBytes(body, MaxBody) + "\n[skill truncated]"
 	}
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "<skill name=%q source=%q>\n%s\n", s.Name, s.Path, body)
@@ -569,8 +569,12 @@ func (t *Tool) Run(ctx context.Context, input json.RawMessage) (string, error) {
 // TurnPrep combines skill attachment and memory recall into one Prepare
 // function for the agent: matching skills and the most relevant memory
 // entries are appended to the user's turn, and a note names them.
-func TurnPrep(in *Injector, mem *memory.Store) func([]llm.Block) ([]llm.Block, string) {
-	return func(blocks []llm.Block) ([]llm.Block, string) {
+//
+// Recall can go out to an embedding provider, so it runs on the turn's
+// own context with a bound of its own rather than on one it invented:
+// ^C during the pause before a turn's first model call stops it.
+func TurnPrep(in *Injector, mem *memory.Store) func(context.Context, []llm.Block) ([]llm.Block, string) {
+	return func(ctx context.Context, blocks []llm.Block) ([]llm.Block, string) {
 		var text string
 		for _, b := range blocks {
 			if b.Type == llm.BlockText {
@@ -583,7 +587,7 @@ func TurnPrep(in *Injector, mem *memory.Store) func([]llm.Block) ([]llm.Block, s
 			notes = append(notes, "skills attached: "+strings.Join(names, ", "))
 		}
 		if mem != nil {
-			rctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			rctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 			hits := mem.RecallCtx(rctx, text, memory.MaxRecall)
 			cancel()
 			var used []memory.Entry

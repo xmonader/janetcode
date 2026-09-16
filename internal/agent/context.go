@@ -199,7 +199,10 @@ func PinText(cwd, arg string) (string, error) {
 	}
 	body := string(data)
 	if len(body) > maxPinFile {
-		body = body[:maxPinFile] + "\n… (truncated)"
+		// A pin lives in the system prompt, which is the cached prefix of
+		// every request for the rest of the session: a cut landing inside
+		// a rune would sit there being invalid for all of it.
+		body = body[:runeStartAtOrBefore(body, maxPinFile)] + "\n… (truncated)"
 	}
 	return "File " + rel + " as of pinning:\n" + body, nil
 }

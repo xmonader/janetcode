@@ -21,9 +21,11 @@ import (
 //
 // Everything here runs on events — an agent event, a turn ending, a
 // denial, a paste — and never on a render or a keystroke. Recording an
-// observation is a field assignment; evaluating is a walk over sixteen
-// predicates. The only I/O is the one small write that happens when a
-// hint fires, which happens at most sixteen times in the life of a project.
+// observation is a field assignment; evaluating is a walk over the rule
+// table's predicates. The only I/O is the one small write that happens
+// when a hint fires, which is at most once per rule in the life of a
+// project. (The comment used to name a count; the table has grown twice
+// since and the number was wrong both times.)
 
 // hintsState is the terminal's whole side of the hint engine: the
 // engine itself, the facts the rules are allowed to look at, what the
@@ -40,11 +42,25 @@ type hintsState struct {
 // first: recording into a state nobody evaluates is pure cost.
 func (h *hintsState) off() bool { return h.engine == nil || h.engine.Off }
 
+// maxBangSeen bounds the !command counter. Only lines that look like a
+// test or build command get in (see testCommandRe), but there is no
+// limit on how many distinct ones a session can type — "go test ./a",
+// "go test ./b", one per package — and nothing ever trimmed the map, so
+// it grew for the life of the window. The rule it feeds only ever asks
+// whether one line has been seen twice, so forgetting the oldest lines
+// costs at most a hint that would have fired.
+const maxBangSeen = 256
+
 // bang counts one !command the user typed and reports how many times it
 // has now been seen.
 func (h *hintsState) bang(cmdline string) int {
 	if h.bangSeen == nil {
 		h.bangSeen = map[string]int{}
+	}
+	if len(h.bangSeen) >= maxBangSeen {
+		if _, seen := h.bangSeen[cmdline]; !seen {
+			clear(h.bangSeen)
+		}
 	}
 	h.bangSeen[cmdline]++
 	return h.bangSeen[cmdline]
@@ -77,7 +93,7 @@ func (m *model) noteHint(record func(*hints.State)) {
 // whether the user is being asked something.
 func (m *model) refreshHintState() {
 	s := &m.hint.state
-	s.Blocked = m.pending != nil || m.picker != nil || m.connect != nil || m.denying || m.ov.kind != "" || m.asking != nil
+	s.Blocked = m.mode().blocked()
 	s.Promotable = m.opts.Running != nil
 	if m.opts.Verify != nil {
 		s.VerifyConfigured = len(m.opts.Verify.Config.Commands) > 0
