@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
@@ -332,8 +333,12 @@ func (s *Script) report(stdout, stderr string, runErr error, calls int, ctxErr e
 	var b strings.Builder
 	out := strings.TrimRight(stdout, "\n")
 	if len(out) > scriptMaxOutput {
-		head := scriptMaxOutput * 2 / 3
-		out = out[:head] + fmt.Sprintf("\n\n... [%d bytes of output dropped; print less] ...\n\n", len(out)-scriptMaxOutput) + out[len(out)-(scriptMaxOutput-head):]
+		// Both cuts are pulled back to a rune boundary: a script printing
+		// anything but ASCII would otherwise put a half-written rune into
+		// the conversation at each end of the gap.
+		head := runeStartAtOrBefore(out, scriptMaxOutput*2/3)
+		tail := runeStartAtOrBefore(out, len(out)-(scriptMaxOutput-head))
+		out = out[:head] + fmt.Sprintf("\n\n... [%d bytes of output dropped; print less] ...\n\n", tail-head) + out[tail:]
 	}
 	if out != "" {
 		b.WriteString(out)
@@ -357,6 +362,22 @@ func (s *Script) report(stdout, stderr string, runErr error, calls int, ctxErr e
 	return b.String()
 }
 
+// runeStartAtOrBefore is i moved back until it indexes the first byte of
+// a rune (or the end of the string), so a byte-budgeted cut never splits
+// one.
+func runeStartAtOrBefore(s string, i int) int {
+	if i >= len(s) {
+		return len(s)
+	}
+	if i < 0 {
+		return 0
+	}
+	for i > 0 && !utf8.RuneStart(s[i]) {
+		i--
+	}
+	return i
+}
+
 func nl(b *strings.Builder) {
 	if b.Len() > 0 {
 		b.WriteString("\n")
@@ -370,6 +391,13 @@ type rpc struct {
 
 	mu sync.Mutex
 	n  int
+	// call serialises the calls themselves. The stub keeps one connection
+	// behind a lock, but a script that opens a second one (a thread that
+	// imports the module again, a subprocess) would otherwise reach
+	// runNested from two goroutines at once — and the agent state it
+	// touches, the provenance record and the per-turn mutation counters,
+	// belongs to the serial half of the tool loop.
+	call sync.Mutex
 }
 
 func (r *rpc) count() int {
@@ -426,6 +454,8 @@ func (r *rpc) dispatch(ctx context.Context, name string, input json.RawMessage) 
 	if len(input) == 0 {
 		input = json.RawMessage("{}")
 	}
+	r.call.Lock()
+	defer r.call.Unlock()
 	out, isErr, _ := r.parent.runNested(ctx, fmt.Sprintf("script-%d", n), name, input)
 	if isErr {
 		return "", out
