@@ -284,17 +284,22 @@ func (t *Task) Cancel(id string) error {
 	if t == nil {
 		return fmt.Errorf("no task tool")
 	}
+	// done and cancel are written by the goroutine running the child, so
+	// both are read under the lock that goroutine takes.
 	t.mu.Lock()
 	kid := t.children[id]
-	var cancel context.CancelFunc
+	var (
+		cancel context.CancelFunc
+		done   bool
+	)
 	if kid != nil {
-		cancel = kid.cancel
+		cancel, done = kid.cancel, kid.done
 	}
 	t.mu.Unlock()
 	if kid == nil {
 		return fmt.Errorf("no subagent %q", id)
 	}
-	if kid.done {
+	if done {
 		return fmt.Errorf("subagent %s already finished", id)
 	}
 	if cancel == nil {
@@ -316,11 +321,12 @@ func (t *Task) SteerChild(id, text string) error {
 	}
 	t.mu.Lock()
 	kid := t.children[id]
+	done := kid != nil && kid.done
 	t.mu.Unlock()
 	if kid == nil {
 		return fmt.Errorf("no subagent %q", id)
 	}
-	if kid.done {
+	if done {
 		return fmt.Errorf("subagent %s already finished; use continue", id)
 	}
 	if kid.agent == nil {
@@ -354,8 +360,15 @@ func (t *Task) releaseChild(kid *subagent) {
 	}
 }
 
-// remember registers a continuable subagent, evicting the oldest (and its
-// worktree) once there are too many.
+// remember registers a continuable subagent, evicting the oldest finished
+// one (and its worktree) once there are too many.
+//
+// Only a finished child may be evicted. task is not a mutating tool, so
+// several calls run in parallel goroutines and a background fork outlives
+// the call that started it: evicting by age alone could remove the
+// worktree an editing subagent was still working in, and drop the only
+// handle by which a running fork could be cancelled. When every child is
+// still running the list is left over its bound until one of them ends.
 func (t *Task) remember(id string, c *subagent) {
 	t.mu.Lock()
 	if t.children == nil {
@@ -365,10 +378,15 @@ func (t *Task) remember(id string, c *subagent) {
 	t.order = append(t.order, id)
 	var evicted *subagent
 	if len(t.order) > maxChildren {
-		old := t.order[0]
-		t.order = t.order[1:]
-		evicted = t.children[old]
-		delete(t.children, old)
+		for i, old := range t.order {
+			kid := t.children[old]
+			if kid == nil || kid.done {
+				t.order = append(t.order[:i:i], t.order[i+1:]...)
+				evicted = kid
+				delete(t.children, old)
+				break
+			}
+		}
 	}
 	t.mu.Unlock()
 	if evicted != nil && evicted.wt != nil {
