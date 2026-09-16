@@ -298,21 +298,24 @@ func (t *transcript) renderMarkdown(e *entry, width int, o renderOpts) string {
 	for i, src := range blocks {
 		last := i == len(blocks)-1
 		partial := last && !e.done
-		diagram := ""
-		if !partial {
-			diagram = t.renderDiagram(src, width, expanded, o.noMermaid)
-		}
 		if partial && strings.Count(src, "```")%2 == 1 {
 			// Close an unterminated fence so the partial code block still
 			// gets highlighted instead of swallowing the rest.
 			src += "\n```"
 		}
+		// The cache is consulted before anything is drawn: a diagram laid
+		// out up front was thrown away on every hit, so a message holding
+		// a mermaid block re-parsed and re-laid it out on every frame of
+		// the stream.
 		if i < len(e.chunks) && e.chunks[i].src == src && e.chunks[i].width == width &&
 			e.chunks[i].expanded == expanded && e.chunks[i].partial == partial {
 			sb.WriteString(e.chunks[i].out)
 			continue
 		}
-		out := diagram
+		out := ""
+		if !partial {
+			out = t.renderDiagram(src, width, expanded, o.noMermaid)
+		}
 		if out == "" {
 			var err error
 			out, err = t.renderer.Render(joinListSoftBreaks(src))
