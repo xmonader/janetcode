@@ -1092,3 +1092,67 @@ func TestBuildRequestSeparatesUserTextBlocks(t *testing.T) {
 		t.Fatalf("messages = %s", raw)
 	}
 }
+
+// A server rejects cache_control either because it does not know the
+// field or because it will not take array content at all. The message
+// cannot tell which, so the fallback has to put the request back exactly
+// as it was before the breakpoints went on — markers gone and every
+// text-only message a plain string again, the split system prompt
+// included. Leaving an array behind left a server of the second kind
+// refusing every request for the rest of the session.
+func TestStripCacheControlRestoresThePlainRequest(t *testing.T) {
+	req := llm.Request{
+		Model:  "qwen3.7-plus",
+		System: "you are a coding agent\n\n# Environment\n- Working directory: /tmp/x\n",
+		Messages: []llm.Message{
+			llm.TextMessage(llm.RoleUser, "first"),
+			llm.TextMessage(llm.RoleAssistant, "ok"),
+			llm.TextMessage(llm.RoleUser, "tail"),
+		},
+		Tools: []llm.ToolDef{{Name: "bash", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	}
+	plain, err := buildRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := buildRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyCacheBreakpoints(&w)
+	stripCacheControl(&w)
+	for i := range w.Messages {
+		got, ok := w.Messages[i].Content.(string)
+		if !ok {
+			t.Fatalf("message %d is still %#v, not a string", i, w.Messages[i].Content)
+		}
+		if want := plain.Messages[i].Content.(string); got != want {
+			t.Fatalf("message %d = %q, want %q", i, got, want)
+		}
+	}
+	for i := range w.Tools {
+		if w.Tools[i].CacheControl != nil {
+			t.Fatalf("tool %d still marked", i)
+		}
+	}
+	// A message with an image keeps its parts; only the markers go.
+	img := llm.Message{Role: llm.RoleUser, Blocks: []llm.Block{
+		{Type: llm.BlockText, Text: "look"},
+		{Type: llm.BlockImage, MediaType: "image/png", Data: "AAAA"},
+	}}
+	wi, err := buildRequest(llm.Request{Model: "m", Messages: []llm.Message{img}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyCacheBreakpoints(&wi)
+	stripCacheControl(&wi)
+	parts, ok := wi.Messages[0].Content.([]wirePart)
+	if !ok || len(parts) != 2 {
+		t.Fatalf("an image message must keep its parts: %#v", wi.Messages[0].Content)
+	}
+	for _, p := range parts {
+		if p.CacheControl != nil {
+			t.Fatalf("part still marked: %#v", p)
+		}
+	}
+}
