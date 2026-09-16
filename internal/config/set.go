@@ -2,18 +2,140 @@ package config
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/xmonader/janetcode/internal/llm"
 )
 
-// SettableKeys are the catalogued config.json keys /config can set.
-var SettableKeys = []string{
-	"thinking", "show_thinking", "lean_tools", "intent", "auto_approve",
-	"compact_at", "max_tokens", "max_iterations", "model", "effort",
-	"theme", "hints", "memory", "proof_notes", "route_cheap", "sandbox",
-	"followup", "computer_use", "advisor_model",
+// setter parses one /config value and stores it on cfg, returning what
+// was stored -- the typed value, so a caller can save it to the file and
+// report it without re-parsing.
+type setter func(*Config, string) (any, error)
+
+// setters is the one table of what /config can set: key to how it is
+// parsed and where it lands. It was a hundred-line switch in which nine
+// of the nineteen arms were the same seven lines, and in which a key
+// could be listed as settable and not actually handled.
+//
+// The live half of a change -- telling a running agent about it -- is
+// settingsapply.Apply's, because it is the only part that needs an agent.
+var setters = map[string]setter{
+	// Tri-state booleans: unset in the file means "whatever the default
+	// is", so these are *bool and the setter takes the address of one.
+	"thinking":      boolPtr(func(c *Config) **bool { return &c.Thinking }),
+	"show_thinking": boolPtr(func(c *Config) **bool { return &c.ShowThinking }),
+	"lean_tools":    boolPtr(func(c *Config) **bool { return &c.LeanTools_ }),
+	"intent":        boolPtr(func(c *Config) **bool { return &c.Intent }),
+	"hints":         boolPtr(func(c *Config) **bool { return &c.Hints }),
+	"followup":      boolPtr(func(c *Config) **bool { return &c.Followup }),
+	"computer_use":  boolPtr(func(c *Config) **bool { return &c.ComputerUse }),
+	"memory":        boolPtr(func(c *Config) **bool { return &c.Memory }),
+	"proof_notes":   boolPtr(func(c *Config) **bool { return &c.ProofNotes }),
+
+	// auto_approve has no "unset": off is a decision, not an absence.
+	"auto_approve": func(c *Config, val string) (any, error) {
+		b, err := parseBool(val)
+		if err != nil {
+			return nil, err
+		}
+		c.AutoApprove = b
+		return b, nil
+	},
+
+	"compact_at": intKey("compact_at", false, func(c *Config) *int { return &c.CompactAt }),
+	// A zero or negative cap is not a smaller budget, it is a session
+	// that cannot make a call, so these two refuse it.
+	"max_tokens":     intKey("max_tokens", true, func(c *Config) *int { return &c.MaxTokens }),
+	"max_iterations": intKey("max_iterations", true, func(c *Config) *int { return &c.MaxIterations }),
+
+	"model": func(c *Config, val string) (any, error) {
+		if val == "" {
+			return nil, fmt.Errorf("model is empty")
+		}
+		c.Model = val
+		return val, nil
+	},
+	"effort": func(c *Config, val string) (any, error) {
+		// Refused here as well as at load: a tier that only fails on the
+		// next start would be written to the file and silently ignored
+		// for the rest of the session that set it.
+		if !llm.ValidEffort(val) {
+			return nil, fmt.Errorf("effort wants one of %s (or empty for the provider's own)", llm.EffortList())
+		}
+		c.Effort = val
+		return val, nil
+	},
+	// Empty is a valid value for these three: it is how the experimental
+	// router is turned back off (see RouteCheap), how the advisor
+	// experiment is ended, and how the theme returns to automatic.
+	"route_cheap":   stringKey(func(c *Config) *string { return &c.RouteCheap }),
+	"advisor_model": stringKey(func(c *Config) *string { return &c.AdvisorModel }),
+	"theme":         stringKey(func(c *Config) *string { return &c.Theme }),
+
+	"sandbox": func(c *Config, val string) (any, error) {
+		if val == "" {
+			val = "off"
+		}
+		if err := validateSandbox(val); err != nil {
+			return nil, err
+		}
+		c.Sandbox = val
+		return val, nil
+	},
+}
+
+// SettableKeys are the catalogued config.json keys /config can set. It is
+// derived from the table, so a key cannot be advertised without being
+// implemented or implemented without being advertised.
+var SettableKeys = settableKeys()
+
+func settableKeys() []string {
+	out := make([]string, 0, len(setters))
+	for k := range setters {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// boolPtr builds a setter for a tri-state *bool field.
+func boolPtr(field func(*Config) **bool) setter {
+	return func(c *Config, val string) (any, error) {
+		b, err := parseBool(val)
+		if err != nil {
+			return nil, err
+		}
+		*field(c) = &b
+		return b, nil
+	}
+}
+
+// intKey builds a setter for an int field. positive refuses zero and
+// below for the keys where that is not a value but a broken session.
+func intKey(name string, positive bool, field func(*Config) *int) setter {
+	want := "an integer"
+	if positive {
+		want = "a positive integer"
+	}
+	return func(c *Config, val string) (any, error) {
+		n, err := strconv.Atoi(val)
+		if err != nil || (positive && n <= 0) {
+			return nil, fmt.Errorf("%s wants %s", name, want)
+		}
+		*field(c) = n
+		return n, nil
+	}
+}
+
+// stringKey builds a setter for a string field that takes any value,
+// empty included.
+func stringKey(field func(*Config) *string) setter {
+	return func(c *Config, val string) (any, error) {
+		*field(c) = val
+		return val, nil
+	}
 }
 
 // ApplyKV sets a catalogued config key on cfg and returns the stored value.
@@ -22,137 +144,11 @@ func ApplyKV(cfg *Config, key, val string) (any, error) {
 		return nil, fmt.Errorf("no config")
 	}
 	key = strings.TrimSpace(key)
-	val = strings.TrimSpace(val)
-	switch key {
-	case "thinking":
-		b, err := parseBool(val)
-		if err != nil {
-			return nil, err
-		}
-		cfg.Thinking = &b
-		return b, nil
-	case "show_thinking":
-		b, err := parseBool(val)
-		if err != nil {
-			return nil, err
-		}
-		cfg.ShowThinking = &b
-		return b, nil
-	case "lean_tools":
-		b, err := parseBool(val)
-		if err != nil {
-			return nil, err
-		}
-		cfg.LeanTools_ = &b
-		return b, nil
-	case "intent":
-		b, err := parseBool(val)
-		if err != nil {
-			return nil, err
-		}
-		cfg.Intent = &b
-		return b, nil
-	case "auto_approve":
-		b, err := parseBool(val)
-		if err != nil {
-			return nil, err
-		}
-		cfg.AutoApprove = b
-		return b, nil
-	case "hints":
-		b, err := parseBool(val)
-		if err != nil {
-			return nil, err
-		}
-		cfg.Hints = &b
-		return b, nil
-	case "followup":
-		b, err := parseBool(val)
-		if err != nil {
-			return nil, err
-		}
-		cfg.Followup = &b
-		return b, nil
-	case "computer_use":
-		b, err := parseBool(val)
-		if err != nil {
-			return nil, err
-		}
-		cfg.ComputerUse = &b
-		return b, nil
-	case "memory":
-		b, err := parseBool(val)
-		if err != nil {
-			return nil, err
-		}
-		cfg.Memory = &b
-		return b, nil
-	case "proof_notes":
-		b, err := parseBool(val)
-		if err != nil {
-			return nil, err
-		}
-		cfg.ProofNotes = &b
-		return b, nil
-	case "compact_at":
-		n, err := strconv.Atoi(val)
-		if err != nil {
-			return nil, fmt.Errorf("compact_at wants an integer")
-		}
-		cfg.CompactAt = n
-		return n, nil
-	case "max_tokens":
-		n, err := strconv.Atoi(val)
-		if err != nil || n <= 0 {
-			return nil, fmt.Errorf("max_tokens wants a positive integer")
-		}
-		cfg.MaxTokens = n
-		return n, nil
-	case "max_iterations":
-		n, err := strconv.Atoi(val)
-		if err != nil || n <= 0 {
-			return nil, fmt.Errorf("max_iterations wants a positive integer")
-		}
-		cfg.MaxIterations = n
-		return n, nil
-	case "model":
-		if val == "" {
-			return nil, fmt.Errorf("model is empty")
-		}
-		cfg.Model = val
-		return val, nil
-	case "effort":
-		// Refused here as well as at load: a tier that only fails on the
-		// next start would be written to the file and silently ignored
-		// for the rest of the session that set it.
-		if !llm.ValidEffort(val) {
-			return nil, fmt.Errorf("effort wants one of %s (or empty for the provider's own)", llm.EffortList())
-		}
-		cfg.Effort = val
-		return val, nil
-	case "route_cheap":
-		// Empty is a valid value: it is how the experimental router is
-		// turned back off (see RouteCheap's doc comment).
-		cfg.RouteCheap = val
-		return val, nil
-	case "advisor_model":
-		cfg.AdvisorModel = val
-		return val, nil
-	case "theme":
-		cfg.Theme = val
-		return val, nil
-	case "sandbox":
-		if val == "" {
-			val = "off"
-		}
-		if err := validateSandbox(val); err != nil {
-			return nil, err
-		}
-		cfg.Sandbox = val
-		return val, nil
-	default:
+	set, ok := setters[key]
+	if !ok {
 		return nil, fmt.Errorf("unknown key %q", key)
 	}
+	return set(cfg, strings.TrimSpace(val))
 }
 
 func parseBool(s string) (bool, error) {
