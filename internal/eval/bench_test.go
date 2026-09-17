@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -402,6 +403,19 @@ func TestMultistepSetIsWellFormed(t *testing.T) {
 		}
 		if tsk.Timeout < 360 {
 			t.Fatalf("%s: timeout %ds is under the six-minute budget", tsk.Name, tsk.Timeout)
+		}
+		// The dangerous direction has no other guard: a check that passes
+		// on the untouched tree makes the task permanently 'solved' and
+		// silently inflates every benchmark and ablation number. Run it
+		// for real against the start state and require failure.
+		cctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		passed, err := CheckAtBase(cctx, tsk)
+		cancel()
+		if err != nil {
+			t.Fatalf("%s: check could not run at the start state: %v", tsk.Name, err)
+		}
+		if passed {
+			t.Fatalf("%s: check passes on the untouched tree, so the task can never fail (check: %s)", tsk.Name, tsk.Check)
 		}
 	}
 }
