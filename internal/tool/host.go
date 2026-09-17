@@ -242,17 +242,30 @@ func (Local) Open(_ context.Context, path string) (io.ReadCloser, error) {
 // checkFinalComponent refuses a path whose final component is not a
 // regular file: reading a FIFO blocks until some other process writes
 // (hanging the tool until an outer timeout), and a device or socket is
-// not file content. Symlinks are deliberately left to the confinement
-// check — one that resolves inside the workspace is a legitimate file —
-// and writes via AtomicWrite rename over a symlink rather than following
-// it. An absent or unreadable path returns nil: the open itself reports
-// it, with the error the caller already handles.
+// not file content.
+//
+// A symlink is judged by what it points at, not by being a symlink.
+// Exempting links outright and leaving them to the confinement check was
+// a hole: confinement asks whether the target is inside the workspace,
+// and an in-workspace FIFO is inside the workspace, so link -> pipe
+// passed and the read blocked exactly as a bare FIFO would. A link to a
+// regular file still reads, which is the case the exemption was for.
+//
+// An absent, dangling or unreadable path returns nil: the open itself
+// reports it, with the error the caller already handles.
 func checkFinalComponent(path string) error {
 	st, err := os.Lstat(path)
 	if err != nil {
 		return nil
 	}
-	if st.Mode().IsRegular() || st.Mode()&os.ModeSymlink != 0 {
+	if st.Mode()&os.ModeSymlink != 0 {
+		// Follow it. A dangling link fails the Stat and is left to the
+		// open, which reports it better than this can.
+		if st, err = os.Stat(path); err != nil {
+			return nil
+		}
+	}
+	if st.Mode().IsRegular() {
 		return nil
 	}
 	kind := "file"
@@ -302,12 +315,21 @@ func readFileOf(ctx context.Context, ws *Workspace, path string) ([]byte, error)
 	if ws != nil {
 		return ws.Host().ReadFile(ctx, path)
 	}
+	// Local applies this guard for itself; a nil workspace used to reach
+	// the os with nothing in the way, and subagent worktrees and minimal
+	// mode are both wired that way.
+	if err := checkFinalComponent(path); err != nil {
+		return nil, err
+	}
 	return os.ReadFile(path)
 }
 
 func writeFileOf(ctx context.Context, ws *Workspace, path string, data []byte) error {
 	if ws != nil {
 		return ws.Host().WriteFile(ctx, path, data, 0o644)
+	}
+	if err := checkFinalComponent(path); err != nil {
+		return err
 	}
 	return fsutil.AtomicWrite(path, data)
 }
@@ -329,6 +351,9 @@ func mkdirAllOf(ctx context.Context, ws *Workspace, path string, perm os.FileMod
 func openOf(ctx context.Context, ws *Workspace, path string) (io.ReadCloser, error) {
 	if ws != nil {
 		return ws.Host().Open(ctx, path)
+	}
+	if err := checkFinalComponent(path); err != nil {
+		return nil, err
 	}
 	return os.Open(path)
 }
