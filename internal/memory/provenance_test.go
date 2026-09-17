@@ -125,3 +125,12 @@ func TestApplyDedupesWithinABatch(t *testing.T) {
 		t.Fatalf("changed = %+v %v", changed, err)
 	}
 }
+
+// A model that pretty-prints its JSON gets it read as JSON, not as one
+// garbage fact per line.
+func TestParseExtractedPrettyPrintedJSON(t *testing.T) {
+	xs := ParseExtracted("{\n  \"type\": \"project\",\n  \"name\": \"rule-one\",\n  \"description\": \"First rule\",\n  \"body\": \"body one\"\n}\n{\"type\":\"feedback\",\"name\":\"two\",\"description\":\"Second\",\"body\":\"b2\"}\nNONE\n")
+	if len(xs) != 2 || xs[0].Name != "rule-one" || xs[1].Type != "feedback" {
+		t.Fatalf("xs = %+v", xs)
+	}
+}

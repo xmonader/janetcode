@@ -13,7 +13,7 @@ import (
 
 const extractSystem = `You maintain the long-term memory of a coding agent. It is read at the start of every future session, so it must hold only durable knowledge a future session would need and could not learn in a minute from the code or git history. Record what this conversation ESTABLISHED, never what it did or the state of the task.
 
-Worth keeping: preferences and corrections the user expressed (type "feedback": how they want work done, what not to do), facts about the user (type "user"), decisions and the reasons behind them (type "decision"), facts about this project that are not obvious from the code, such as commands that work or fail and environment quirks (type "project"), and pointers to external resources (type "reference"). Every entry you write is scoped to this project ("scope":"project"): a rule for every project is the user's to make, with /remember -g, never yours. Record a preference only when the user stated it as lasting ("always", "never", "from now on", a correction of how you work); an instruction for the task at hand ("commit this", "use a conventional commit message here") is not a preference. Record a project fact only when the conversation established it, not when you inferred it from one action.
+Worth keeping: preferences and corrections the user expressed (type "feedback": how they want work done, what not to do), facts about the user (type "user"), decisions and the reasons behind them (type "decision"), facts about this project that are not obvious from the code, such as commands that work or fail and environment quirks (type "project"), and pointers to external resources (type "reference"). Every entry you write is scoped to this project ("scope":"project"): a rule for every project is the user's to make, with /remember -g, never yours. Record a preference only when the user stated it as lasting ("always", "never", "from now on", a correction of how you work); an instruction for the task at hand ("commit this", "use a conventional commit message here") is not a preference. Record a project fact only when the conversation established it, not when you inferred it from one action. A check that failed until something specific changed establishes one: the rule the check enforces.
 
 Output one JSON object per line, nothing else:
 {"type":"feedback","scope":"project","name":"short-kebab-slug","description":"one line, under 120 characters","body":"the fact, plus why and how to apply it when useful (a few sentences)","concerns":["paths/or/symbols the entry is about"],"replaces":"name-of-an-existing-entry-this-supersedes-or-empty"}
@@ -123,8 +123,10 @@ func Extract(ctx context.Context, p llm.Provider, model string, msgs []llm.Messa
 }
 
 // ParseExtracted reads the extractor's output leniently: JSON objects one
-// per line (fences and bullets tolerated), or plain lines as project facts.
+// per line (fences and bullets tolerated), pretty-printed objects rejoined
+// first, or plain lines as project facts.
 func ParseExtracted(text string) []Extracted {
+	text = joinPrettyJSON(text)
 	var out []Extracted
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "-* "))
@@ -144,6 +146,37 @@ func ParseExtracted(text string) []Extracted {
 		}
 	}
 	return out
+}
+
+// joinPrettyJSON rejoins a JSON object a model printed across several
+// lines onto one, so the line-oriented parser reads it. Lines that are
+// not part of an object pass through unchanged.
+func joinPrettyJSON(text string) string {
+	var out []string
+	var cur strings.Builder
+	depth := 0
+	for _, line := range strings.Split(text, "\n") {
+		trim := strings.TrimSpace(line)
+		switch {
+		case depth == 0 && strings.HasPrefix(trim, "{") && !json.Valid([]byte(trim)):
+			depth = 1
+			cur.WriteString(trim)
+		case depth > 0:
+			cur.WriteString(trim)
+			depth += strings.Count(trim, "{") - strings.Count(trim, "}")
+			if depth <= 0 {
+				depth = 0
+				out = append(out, cur.String())
+				cur.Reset()
+			}
+		default:
+			out = append(out, line)
+		}
+	}
+	if cur.Len() > 0 {
+		out = append(out, cur.String())
+	}
+	return strings.Join(out, "\n")
 }
 
 // Apply stores extracted candidates, all in project scope whatever scope
