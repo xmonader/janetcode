@@ -96,7 +96,7 @@ activation) absorbs today's strongRecall limbo into a smooth term. Same
 pass: user-sourced entries exempt from the 200-cap trim, and /remember
 refreshes the index immediately instead of waiting for compaction.
 
-### Stage 2 — provenance and validity (data model)
+### Stage 2 — provenance and validity (data model; landed on master_mem)
 
 Two optional frontmatter fields:
 
@@ -111,7 +111,7 @@ stays). Recalled entries render with their validity window, which is
 what Zep's ablations credit for the temporal-reasoning win. Additive:
 old files parse unchanged.
 
-### Stage 3 — sleep consolidation over the ledger (write path)
+### Stage 3 — sleep consolidation over the ledger (write path; landed on master_mem)
 
 A background pass — cron or on goal completion, never in the turn path —
 that reads structured session ledgers (critic warnings with their top-3
@@ -141,6 +141,24 @@ the columns that can resolve are context per solved task and cost; stage
 3 adds the session set (41–43), since cross-session recall is its actual
 claim, plus a purpose-built probe: a two-session task where session 2
 needs a fact only session 1's ledger contains.
+
+The two-session probe ran live on master_mem (dashscope qwen3.7-plus, a
+scratch project whose tests need a build tag): session 1's stated rule
+became an entry with a watermark and concerns; session 2 recalled it and
+ran the right command as its only tool call; a session that changed the
+truth closed the old entry (valid_until, superseded_by) instead of
+overwriting it; a failure-rich session's sleep pass wrote the corrected
+knowledge citing exact record lines, and smooth sessions correctly
+produced nothing. What it also exposed, now fixed: models cite evidence
+as strings as often as numbers, task instructions read as lasting
+preferences, the harness's own interventions recorded as project
+knowledge, and a relearned fact must not overwrite the retired entry's
+file.
+
+As built, two choices differ from the first sketch: `valid.from` is the
+entry's `created` (two fields carry the interval, not three), and the
+sleep trigger is a finished `/goal` in the TUI and the end of any
+mutating headless run — one call per session, off via EVAL_OFF=sleep.
 
 ## Risks
 
