@@ -251,3 +251,39 @@ func TestRunnerSkipsAMutantWhoseLineMoved(t *testing.T) {
 		t.Fatalf("the source tree was touched: %q %v", data, rerr)
 	}
 }
+
+// TestRunBoundsAPipeHeldByALeakedGrandchild is the Supervise fix: a test
+// command that leaves something running (a server a package test starts
+// and forgets) holds the output pipes open after the shell exits, and
+// CombinedOutput's Wait used to block on them for as long as the orphan
+// lived — past the per-mutant timeout and past cancellation. The runner
+// now supervises the command: the group dies on cancel and the pipe wait
+// itself is bounded.
+func TestRunBoundsAPipeHeldByALeakedGrandchild(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("no go toolchain")
+	}
+	root := t.TempDir()
+	write := func(name, body string) {
+		os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755)
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("go.mod", "module example.com/m\n\ngo 1.22\n")
+	write("m.go", "package m\n\nfunc Positive(n int) bool { return n > 0 }\n")
+	write("m_test.go", "package m\n\nimport \"testing\"\n\nfunc TestPositive(t *testing.T) {\n\tif !Positive(3) || Positive(-1) {\n\t\tt.Fatal(\"wrong\")\n\t}\n}\n")
+	run(t, root, "git", "init", "-q")
+	run(t, root, "git", "add", "-A")
+	run(t, root, "git", "commit", "-qm", "base")
+	write("m.go", "package m\n\nfunc Positive(n int) bool { return n >= 0 }\n")
+
+	r := &Runner{Root: root, Command: "go test ./...; sleep 30 &", Timeout: time.Minute, Max: 1}
+	start := time.Now()
+	if _, err := r.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(start); elapsed > 20*time.Second {
+		t.Fatalf("run took %s; the leaked grandchild held the pipes past the command", elapsed)
+	}
+}

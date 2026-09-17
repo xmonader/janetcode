@@ -294,3 +294,20 @@ func TestHeadlessReportsTheVerdict(t *testing.T) {
 		t.Fatalf("the verdict leaked into stdout: %q", out.String())
 	}
 }
+
+// TestCheckBoundsAPipeHeldByALeakedGrandchild is the Supervise fix on the
+// --until/--watch path: a check command that leaves a process running (a
+// watched `npm test` whose suite starts a server and forgets it) held the
+// output pipes open after the shell exited, and CombinedOutput's Wait
+// blocked on them for as long as the orphan lived — past the ten-minute
+// bound and past ctrl+c. The pipe wait is now bounded.
+func TestCheckBoundsAPipeHeldByALeakedGrandchild(t *testing.T) {
+	start := time.Now()
+	out, code := check(context.Background(), t.TempDir(), "echo ok; sleep 30 &")
+	if code != 0 || strings.TrimSpace(out) != "ok" {
+		t.Fatalf("out=%q code=%d", out, code)
+	}
+	if elapsed := time.Since(start); elapsed > 20*time.Second {
+		t.Fatalf("check took %s; the leaked grandchild held the pipes past the command", elapsed)
+	}
+}

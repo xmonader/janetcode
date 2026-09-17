@@ -249,9 +249,18 @@ func check(ctx context.Context, cwd, command string) (string, int) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	cmd := shell.Command(ctx, command)
+	// Supervise makes the ten-minute bound real: without a process group
+	// the context kills only the shell, and a grandchild holding the
+	// output pipes (a watch whose `npm test` leaks a server) blocks Wait
+	// forever — the check, and with it the whole --until/--watch loop,
+	// ignored both the timeout and ctrl+c.
+	shell.Supervise(cmd)
 	cmd.Dir = cwd
 	out, err := cmd.CombinedOutput()
-	if err == nil {
+	// The command itself succeeded (exit 0) but left something running
+	// that held its pipes: the supervise's bounded pipe wait cut the
+	// read early. That is not a failed check.
+	if err == nil || errors.Is(err, exec.ErrWaitDelay) {
 		return string(out), 0
 	}
 	var ee *exec.ExitError

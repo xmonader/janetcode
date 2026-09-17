@@ -194,6 +194,12 @@ func (r *Runner) Run(ctx context.Context) Result {
 		out := &capture{}
 		cmd.Stdout, cmd.Stderr = out, out
 		err := cmd.Run()
+		// A command that exits 0 but leaks a grandchild holding its pipes
+		// surfaces as ErrWaitDelay once the bounded pipe wait cuts the
+		// read — the command itself passed.
+		if errors.Is(err, exec.ErrWaitDelay) {
+			err = nil
+		}
 		timedOut := errors.Is(cctx.Err(), context.DeadlineExceeded)
 		cancel()
 		if err == nil {
