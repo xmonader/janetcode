@@ -206,8 +206,16 @@ func (l Local) Label() string { return l.root }
 func (l Local) Root() string  { return l.root }
 func (Local) Close() error    { return nil }
 
-func (Local) ReadFile(_ context.Context, path string) ([]byte, error) { return os.ReadFile(path) }
+func (Local) ReadFile(_ context.Context, path string) ([]byte, error) {
+	if err := checkFinalComponent(path); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(path)
+}
 func (Local) WriteFile(_ context.Context, path string, data []byte, perm os.FileMode) error {
+	if err := checkFinalComponent(path); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -224,7 +232,42 @@ func (Local) Remove(_ context.Context, path string) error { return os.Remove(pat
 func (Local) Rename(_ context.Context, oldpath, newpath string) error {
 	return os.Rename(oldpath, newpath)
 }
-func (Local) Open(_ context.Context, path string) (io.ReadCloser, error) { return os.Open(path) }
+func (Local) Open(_ context.Context, path string) (io.ReadCloser, error) {
+	if err := checkFinalComponent(path); err != nil {
+		return nil, err
+	}
+	return os.Open(path)
+}
+
+// checkFinalComponent refuses a path whose final component is not a
+// regular file: reading a FIFO blocks until some other process writes
+// (hanging the tool until an outer timeout), and a device or socket is
+// not file content. Symlinks are deliberately left to the confinement
+// check — one that resolves inside the workspace is a legitimate file —
+// and writes via AtomicWrite rename over a symlink rather than following
+// it. An absent or unreadable path returns nil: the open itself reports
+// it, with the error the caller already handles.
+func checkFinalComponent(path string) error {
+	st, err := os.Lstat(path)
+	if err != nil {
+		return nil
+	}
+	if st.Mode().IsRegular() || st.Mode()&os.ModeSymlink != 0 {
+		return nil
+	}
+	kind := "file"
+	switch {
+	case st.Mode()&fs.ModeNamedPipe != 0:
+		kind = "FIFO"
+	case st.Mode()&fs.ModeDevice != 0:
+		kind = "device file"
+	case st.Mode()&fs.ModeSocket != 0:
+		kind = "socket"
+	case st.IsDir():
+		kind = "directory"
+	}
+	return fmt.Errorf("%s is a %s, not a regular file", path, kind)
+}
 func (Local) WalkDir(_ context.Context, root string, fn fs.WalkDirFunc) error {
 	return filepath.WalkDir(root, fn)
 }
