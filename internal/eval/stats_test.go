@@ -158,3 +158,37 @@ func TestPairedBootstrapIsReproducible(t *testing.T) {
 		}
 	}
 }
+
+// TestOneTaskPassRateCannotBeSignificant: the pass-rate delta shared the
+// collapse the ratios had — with one shared task the bootstrap interval
+// is [delta, delta], and any nonzero delta printed as "significant
+// improvement". The guard mirrors ratioCI's minPairs.
+func TestOneTaskPassRateCannotBeSignificant(t *testing.T) {
+	fail := res("a", 1.0)
+	fail.Passed = false
+	pass := res("a", 1.0)
+	one := Compare([]Result{fail}, []Result{pass})
+	if one.Significant() {
+		t.Fatalf("one task cannot be significant: delta %+.1f%% [%+.1f, %+.1f]", 100*one.Delta, 100*one.Lo, 100*one.Hi)
+	}
+	var b strings.Builder
+	WriteComparison(&b, one)
+	if !strings.Contains(b.String(), "too few shared tasks") {
+		t.Fatalf("the report must say why there is no interval:\n%s", b.String())
+	}
+	if strings.Contains(b.String(), "significant improvement") {
+		t.Fatalf("no verdict may be claimed:\n%s", b.String())
+	}
+	// Three shared tasks bootstrap again, and a consistent swing shows.
+	mk := func(name string, passed bool) Result {
+		r := res(name, 1.0)
+		r.Passed = passed
+		return r
+	}
+	three := Compare(
+		[]Result{mk("a", false), mk("b", false), mk("c", false)},
+		[]Result{mk("a", true), mk("b", true), mk("c", true)})
+	if !three.Significant() {
+		t.Fatalf("three tasks flipping should clear: %+.1f%% [%+.1f, %+.1f]", 100*three.Delta, 100*three.Lo, 100*three.Hi)
+	}
+}

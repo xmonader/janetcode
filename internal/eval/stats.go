@@ -456,7 +456,14 @@ func Compare(base, cur []Result) Comparison {
 	c.Shared = len(deltas)
 	if c.Shared > 0 {
 		c.Delta = mean(deltas)
-		c.Lo, c.Hi = bootstrapCI(deltas, 4000, 1)
+		// With one or two shared tasks every resample is the same
+		// handful of values and the interval collapses to the point
+		// estimate, which then reads as certainty — the same overclaim
+		// ratioCI refuses below minPairs. Report the delta, not an
+		// interval that lies.
+		if c.Shared >= 3 {
+			c.Lo, c.Hi = bootstrapCI(deltas, 4000, 1)
+		}
 	}
 	if c.Base.CostKnown && c.Current.CostKnown && c.Base.Passed > 0 && c.Current.Passed > 0 {
 		c.CostKnown = true
@@ -560,12 +567,17 @@ func WriteComparison(w io.Writer, c Comparison) {
 	}
 	verdict := "not significant (the interval includes 0)"
 	switch {
+	case c.Shared < 3:
+		fmt.Fprintf(w, "\npass-rate delta %s over %d shared task(s) · too few shared tasks to bootstrap an interval\n", pct(c.Delta), c.Shared)
 	case c.Lo > 0:
 		verdict = "significant improvement"
+		fmt.Fprintf(w, "\npass-rate delta %s [%s, %s] over %d shared task(s) · %s\n", pct(c.Delta), pct(c.Lo), pct(c.Hi), c.Shared, verdict)
 	case c.Hi < 0:
 		verdict = "significant regression"
+		fmt.Fprintf(w, "\npass-rate delta %s [%s, %s] over %d shared task(s) · %s\n", pct(c.Delta), pct(c.Lo), pct(c.Hi), c.Shared, verdict)
+	default:
+		fmt.Fprintf(w, "\npass-rate delta %s [%s, %s] over %d shared task(s) · %s\n", pct(c.Delta), pct(c.Lo), pct(c.Hi), c.Shared, verdict)
 	}
-	fmt.Fprintf(w, "\npass-rate delta %s [%s, %s] over %d shared task(s) · %s\n", pct(c.Delta), pct(c.Lo), pct(c.Hi), c.Shared, verdict)
 	if c.CostKnown {
 		sign := "+"
 		if c.CostDelta < 0 {
@@ -602,6 +614,26 @@ func WriteComparison(w io.Writer, c Comparison) {
 	}
 	if len(c.OnlyCurrent) > 0 {
 		fmt.Fprintf(w, "only in current: %s\n", strings.Join(c.OnlyCurrent, ", "))
+	}
+	// One comparison file prints up to four verdicts, each at the 5%
+	// level, and never said so: under a null variant four simultaneous
+	// gates flag at least once ~18.5% of the time. Say so.
+	claims := 0
+	if c.Shared >= 3 && (c.Lo > 0 || c.Hi < 0) {
+		claims++
+	}
+	if c.Paired && c.CostRatio > 0 && (c.CostRatioHi < 1 || c.CostRatioLo > 1) {
+		claims++
+	}
+	if c.Paired && (c.ContextRatioHi < 1 || c.ContextRatioLo > 1) {
+		claims++
+	}
+	if c.Paired && c.OutputRatio > 0 && (c.OutputRatioHi < 1 || c.OutputRatioLo > 1) {
+		claims++
+	}
+	if claims > 1 {
+		fmt.Fprintf(w, "%d of these verdicts were each drawn at the 5%% level: under a no-effect variant at least one reads as real ≈%.0f%% of the time. Trust the strongest, not the count.\n",
+			claims, 100*(1-math.Pow(0.95, float64(claims))))
 	}
 }
 
