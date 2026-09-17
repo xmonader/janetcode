@@ -64,6 +64,7 @@ var Commands = withIdle([]Command{
 	{Name: "/readonly", Args: "", Help: "toggle read-only mode (no edits or commands)"},
 	{Name: "/memory", Args: "", Help: "what janetcode remembers about this project"},
 	{Name: "/dream", Args: "", Help: "consolidate overlapping auto-memory entries; does not touch what you /remembered"},
+	{Name: "/sleep", Args: "", Help: "read this session's record and store what it established, with evidence; runs on its own when a goal finishes"},
 	{Name: "/init", Args: "[force]", Help: "write the project's starter instruction file from what this repository shows: languages, declared commands, layout; force overwrites an existing one"},
 	{Name: "/skills", Args: "", Help: "skill files available to the model, what each costs in tokens and which have fired this session"},
 	{Name: "/curator", Args: "[list | pin <name> | archive <name> | restore <name>]", Help: "pin, archive or restore auto-generated skills"},

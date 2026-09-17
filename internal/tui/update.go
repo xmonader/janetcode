@@ -217,6 +217,11 @@ func (m *model) updateTurn(msg tea.Msg) (tea.Cmd, bool) {
 		if msg.err == nil && m.opts.Memory != nil && m.opts.AutoMemory && (m.opts.Agent.LastTurnMutated() || memory.LooksLikeFeedback(m.hist.lastUser)) {
 			cmd = tea.Batch(cmd, m.extractMemory())
 		}
+		if msg.err == nil {
+			if s := m.maybeSleep(); s != nil {
+				cmd = tea.Batch(cmd, s)
+			}
+		}
 		if msg.err == nil && m.opts.AutoTitle && m.opts.Session != nil && m.opts.Session.Meta.Title == "" && len(m.opts.Agent.Messages) >= 2 {
 			cmd = tea.Batch(cmd, m.autoTitle())
 		}

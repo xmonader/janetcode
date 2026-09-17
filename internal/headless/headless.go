@@ -21,6 +21,7 @@ import (
 	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/session"
 	"github.com/xmonader/janetcode/internal/shell"
+	"github.com/xmonader/janetcode/internal/sleepfold"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
 
@@ -197,12 +198,49 @@ func remember(ctx context.Context, opts Options) {
 		fmt.Fprintf(opts.Stderr, "[memory] extraction failed: %v\n", err)
 		return
 	}
+	if s := opts.Session; s != nil {
+		if ev := s.Events(); len(ev) > 0 {
+			xs = memory.StampEvidence(xs, fmt.Sprintf("%s#~%d", s.Meta.ID, ev[len(ev)-1].Seq))
+		}
+	}
 	changed, err := opts.Memory.Apply(xs)
 	if err != nil {
 		fmt.Fprintf(opts.Stderr, "[memory] %v\n", err)
 	}
 	for _, e := range changed {
 		fmt.Fprintf(opts.Stderr, "[memory] remembered %s (%s, %s): %s\n", e.Name, e.Type, e.Scope, e.Description)
+	}
+}
+
+// sleepSession consolidates what the session's record established into
+// memory, each entry citing the record lines it stands on.
+func sleepSession(ctx context.Context, opts Options) {
+	sess := opts.Session
+	if sess == nil {
+		return // no ledger, no record to read
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	in := sleepfold.Fold(sess.Events())
+	in.SessionID = sess.Meta.ID
+	xs, dropped, err := memory.SleepD(ctx, opts.Agent.Provider, opts.Agent.Model, in, opts.Memory.Entries())
+	if err != nil {
+		fmt.Fprintf(opts.Stderr, "[memory] sleep failed: %v\n", err)
+		return
+	}
+	changed, err := opts.Memory.ApplyWith(xs, "sleep")
+	if err != nil {
+		fmt.Fprintf(opts.Stderr, "[memory] %v\n", err)
+	}
+	if len(changed) == 0 {
+		why := "the record held nothing new"
+		if dropped > 0 {
+			why = fmt.Sprintf("%d candidate(s) cited evidence the record does not have", dropped)
+		}
+		fmt.Fprintf(opts.Stderr, "[memory] sleep: nothing kept (%s)\n", why)
+	}
+	for _, e := range changed {
+		fmt.Fprintf(opts.Stderr, "[memory] sleep remembered %s: %s\n", e.Name, e.Description)
 	}
 }
 
@@ -276,6 +314,11 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 	})
 	if err == nil && opts.Memory != nil && opts.AutoMemory && (ag.LastTurnMutated() || memory.LooksLikeFeedback(llm.Message{Blocks: blocks}.Text())) {
 		remember(ctx, opts)
+	}
+	if err == nil && opts.Memory != nil && opts.AutoMemory && !ag.Off["sleep"] && ag.LastTurnMutated() {
+		// A headless run is one session per process, so its end is the
+		// session's end: consolidate what the record established.
+		sleepSession(ctx, opts)
 	}
 	// The turn is already on disk: every message was appended to the log as
 	// it happened. Only the title still needs writing.
