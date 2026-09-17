@@ -106,7 +106,10 @@ func PermanentLimit(msg string) bool {
 func Retryable(err error) bool {
 	var se StatusError
 	if errors.As(err, &se) {
-		if PermanentLimit(se.Error()) {
+		// ClassifyText, not se.Error(): the display copy is cut at 300
+		// runes, and a verbose gateway puts its trace ids first, so the
+		// word that says the account is finished can sit past the cut.
+		if PermanentLimit(ClassifyText(err)) {
 			return false
 		}
 		switch se.HTTPStatus() {

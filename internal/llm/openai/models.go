@@ -28,7 +28,7 @@ func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, llm.MaxErrorBodyRead))
 	if resp.StatusCode/100 != 2 {
 		msg := llm.SafeErrorMessage(resp.StatusCode, strings.TrimSpace(string(raw)))
 		if msg == "" {

@@ -195,7 +195,11 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 	}
 	if !gotChunk {
 		if body := strings.TrimSpace(preamble.String()); body != "" {
-			return nil, llm.Truncate(fmt.Errorf("openai: no stream frames from server: %.300s", body))
+			// BoundErrorMessage, not %.300s: that cut bytes, so it could
+			// split a UTF-8 sequence, and it redacted nothing — a 200
+			// from a proxy that echoed the request headers put the key
+			// straight into the transcript.
+			return nil, llm.Truncate(fmt.Errorf("openai: no stream frames from server: %s", llm.BoundErrorMessage(body)))
 		}
 		return nil, llm.Truncate(errors.New("openai: empty stream from server"))
 	}

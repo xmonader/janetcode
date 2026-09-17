@@ -157,14 +157,18 @@ func keyProblem(err error) (llm.Failure, bool) {
 	if !errors.As(err, &ae) {
 		return 0, false
 	}
-	msg := strings.ToLower(ae.Message)
+	// The uncapped copy: a burnt account whose "insufficient_quota" sits
+	// past the display cap must still read as a quota failure, or its key
+	// gets a 15-second breaker and is tried again forever.
+	full := ae.ErrorDetail()
+	msg := strings.ToLower(full)
 	switch {
 	case ae.Status == 429 || ae.Status == 401 || ae.Status == 403 || ae.Status == 402:
 	case strings.Contains(msg, "quota") || strings.Contains(msg, "rate limit"):
 	default:
 		return 0, false
 	}
-	return llm.ClassifyFailure(ae.Status, ae.Message), true
+	return llm.ClassifyFailure(ae.Status, full), true
 }
 
 // Embed implements llm.Embedder via POST /embeddings.
@@ -189,7 +193,7 @@ func (p *Provider) Embed(ctx context.Context, model string, texts []string) ([][
 		return nil, err
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, llm.MaxErrorBodyRead))
 	if resp.StatusCode/100 != 2 {
 		msg := llm.SafeErrorMessage(resp.StatusCode, strings.TrimSpace(string(raw)))
 		if msg == "" {
@@ -441,7 +445,7 @@ func (p *Provider) do(ctx context.Context, body []byte, key string) (*http.Respo
 		if json.Unmarshal(raw, &env) == nil && env.Error != nil && env.Error.Message != "" {
 			msg = env.Error.Message
 		}
-		detail := msg
+		detail := llm.SafeErrorDetail(resp.StatusCode, msg)
 		msg = llm.SafeErrorMessage(resp.StatusCode, msg)
 		if msg == "" {
 			msg = http.StatusText(resp.StatusCode)

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -164,6 +165,10 @@ func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 type APIError struct {
 	Status  int
 	Message string
+	// Detail is the same server text redacted but uncapped, for the
+	// things that must read past Message's display cap: effort clamping
+	// and classification. It is never rendered.
+	Detail string
 	// RetryAfter is the server's own Retry-After, kept only for the two
 	// statuses that mean "come back later" — 429 and 503. On anything
 	// else the header is advice about a failure that is not going to
@@ -175,7 +180,16 @@ func (e *APIError) Error() string { return fmt.Sprintf("%s (HTTP %d)", e.Message
 
 // HTTPStatus and RetryHint implement llm.StatusError, which is how the
 // shared retry policy judges an error from this provider.
-func (e *APIError) HTTPStatus() int          { return e.Status }
+func (e *APIError) HTTPStatus() int { return e.Status }
+
+// ErrorDetail implements llm.DetailedError.
+func (e *APIError) ErrorDetail() string {
+	if e.Detail != "" {
+		return e.Detail
+	}
+	return e.Message
+}
+
 func (e *APIError) RetryHint() time.Duration { return e.RetryAfter }
 
 func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
@@ -448,7 +462,9 @@ func (p *Provider) clampEffort(err error) bool {
 	if !errors.As(err, &ae) || ae.Status != 400 {
 		return false
 	}
-	msg := strings.ToLower(ae.Message)
+	// The uncapped copy: a verbose 400 can push the parameter name past
+	// the display cap, and then the tier is never clamped.
+	msg := strings.ToLower(ae.ErrorDetail())
 	if !strings.Contains(msg, "effort") && !strings.Contains(msg, "output_config") {
 		return false
 	}
@@ -546,6 +562,12 @@ func mapError(ctx context.Context, err error) error {
 	var ae *sdk.Error
 	if errors.As(err, &ae) {
 		msg := http.StatusText(ae.StatusCode)
+		if msg == "" {
+			// A gateway's own status with no name in the RFCs: say the
+			// number rather than nothing, which read as " (request ...)".
+			msg = "HTTP " + strconv.Itoa(ae.StatusCode)
+		}
+		var detail string
 		var env struct {
 			Error struct {
 				Message string `json:"message"`
@@ -555,11 +577,12 @@ func mapError(ctx context.Context, err error) error {
 			if m := llm.SafeErrorMessage(ae.StatusCode, env.Error.Message); m != "" {
 				msg = m
 			}
+			detail = llm.SafeErrorDetail(ae.StatusCode, env.Error.Message)
 		}
 		if ae.RequestID != "" {
 			msg += " (request " + ae.RequestID + ")"
 		}
-		out := &APIError{Status: ae.StatusCode, Message: msg}
+		out := &APIError{Status: ae.StatusCode, Message: msg, Detail: detail}
 		if ae.Response != nil {
 			out.RetryAfter = llm.RetryAfterFrom(ae.Response.Header, ae.StatusCode)
 		}
