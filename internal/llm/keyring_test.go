@@ -62,6 +62,20 @@ func TestKeyRingBreakers(t *testing.T) {
 	if got := r2.until[0].Sub(now); got != maxRatePenalty {
 		t.Fatalf("penalty = %s", got)
 	}
+	// Past 30 consecutive strikes the unbounded shift overflowed the
+	// duration negative, the cap check passed, and the key read as
+	// healthy: the breaker died in exactly the storm it exists for.
+	r3 := NewKeyRing([]string{"y"})
+	r3.now = func() time.Time { return now }
+	for i := 0; i < 40; i++ {
+		r3.Fail(0, FailRateLimit)
+	}
+	if got := r3.until[0].Sub(now); got != maxRatePenalty {
+		t.Fatalf("penalty after 40 strikes = %s, want the %s cap", got, maxRatePenalty)
+	}
+	if r3.Healthy() != 0 {
+		t.Fatal("a 40-strike key must not read as healthy")
+	}
 	if NewKeyRing(nil).Len() != 1 {
 		t.Fatal("empty ring should hold one blank key")
 	}

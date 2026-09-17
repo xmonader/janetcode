@@ -105,7 +105,13 @@ func (r *KeyRing) Fail(i int, f Failure) bool {
 	case FailQuota:
 		penalty = quotaPenalty
 	default:
-		penalty = rateLimitPenalty << r.strikes[i]
+		// Shift with a bounded exponent. Past 2^5 the growing backoff
+		// exceeds the cap anyway — but shifting by 30 or more overflows
+		// the duration to a negative value, the cap check passes, and
+		// the key reads as healthy again: the breaker silently dies in
+		// exactly the sustained 429 storm it exists for.
+		shift := min(r.strikes[i], 5)
+		penalty = rateLimitPenalty << shift
 		if penalty > maxRatePenalty {
 			penalty = maxRatePenalty
 		}
