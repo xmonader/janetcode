@@ -96,6 +96,17 @@ func (r *Repo) Take(ctx context.Context, label string) (Snap, error) {
 // deleted since are rewritten and files created since are removed. The
 // real index is left alone. It returns a line per file it touched.
 func (r *Repo) Restore(ctx context.Context, s Snap) ([]string, error) {
+	return r.restore(ctx, s, nil)
+}
+
+// RestoreSkip is Restore with a set of paths to leave alone — undo
+// passes the files that changed after the snapshot's turn ended, whose
+// current state is not the turn's work and must survive the restore.
+func (r *Repo) RestoreSkip(ctx context.Context, s Snap, skip map[string]bool) ([]string, error) {
+	return r.restore(ctx, s, skip)
+}
+
+func (r *Repo) restore(ctx context.Context, s Snap, skip map[string]bool) ([]string, error) {
 	head, err := r.head(ctx)
 	if err != nil {
 		return nil, err
@@ -132,6 +143,9 @@ func (r *Repo) Restore(ctx context.Context, s Snap) ([]string, error) {
 	for i := 0; i+1 < len(fields); i += 2 {
 		status, path := fields[i], fields[i+1]
 		if status == "" || path == "" {
+			continue
+		}
+		if skip != nil && skip[filepath.Join(r.Root, path)] {
 			continue
 		}
 		abs := filepath.Join(r.Root, path)

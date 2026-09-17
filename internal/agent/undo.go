@@ -2,10 +2,12 @@ package agent
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,11 +39,26 @@ type Checkpoint struct {
 	When  time.Time      `json:"when"`
 	Files []Snapshot     `json:"files"`
 	Snap  *snapshot.Snap `json:"snap,omitempty"`
+	// Touched is the manifest of every path the turn left different from
+	// the snapshot — path to the sha256 of its content at end of turn
+	// ("" for a path the turn deleted, "!" for one that could not be
+	// hashed). Undo refuses to touch a path whose current content no
+	// longer matches this manifest: that change came from somewhere else
+	// — the user's own hand, usually — and must survive the restore.
+	Touched []TouchedFile `json:"touched,omitempty"`
 	// Turn is the turn the checkpoint belongs to and Messages how many
 	// messages the conversation held when it began, so an undo can take
 	// the turn's messages out of the context along with its file changes.
 	Turn     int `json:"turn,omitempty"`
 	Messages int `json:"messages,omitempty"`
+}
+
+// TouchedFile is one path a turn changed, with the hash of what the turn
+// left there so a later undo can tell the turn's work apart from edits
+// made after it.
+type TouchedFile struct {
+	Path string `json:"path"`
+	Sum  string `json:"sum"`
 }
 
 // maxCheckpoints bounds how many turns can be undone; older ones are
@@ -196,6 +213,9 @@ func (a *Agent) UndoPreview(ctx context.Context) ([]string, error) {
 // the git and file work with the lock dropped, persist afterwards — so no
 // git call is ever made with cp.mu held.
 func (a *Agent) Redo(ctx context.Context) ([]string, error) {
+	if a.running.Load() {
+		return nil, ErrTurnRunning
+	}
 	entry, ok := a.popRedo()
 	if !ok {
 		return nil, ErrNothingToRedo
@@ -224,6 +244,7 @@ func (a *Agent) endTurn(ctx context.Context) {
 	ctx = context.WithoutCancel(ctx)
 	a.cp.mu.Lock()
 	repo := a.snaps()
+	var snap *snapshot.Snap // the open checkpoint's snapshot, to manifest
 	if a.cp.open && repo != nil {
 		cur := &a.cp.all[len(a.cp.all)-1]
 		if cur.Snap != nil && len(cur.Files) == 0 {
@@ -236,6 +257,11 @@ func (a *Agent) endTurn(ctx context.Context) {
 				a.cp.open = false
 			}
 		}
+		if a.cp.open {
+			if cur := &a.cp.all[len(a.cp.all)-1]; cur.Snap != nil && cur.Touched == nil {
+				snap = cur.Snap
+			}
+		}
 	}
 	for len(a.cp.all) > maxCheckpoints {
 		if repo != nil && a.cp.all[0].Snap != nil {
@@ -246,11 +272,69 @@ func (a *Agent) endTurn(ctx context.Context) {
 	}
 	dirty := a.cp.dirty
 	a.cp.mu.Unlock()
+	if snap != nil {
+		// Record what the turn actually left in the tree, so a later
+		// undo can tell the turn's work apart from edits made after it.
+		// This is git work plus file reads, so it runs with the lock
+		// dropped; the result lands only if the checkpoint is still the
+		// open one.
+		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		touched, err := a.touchedManifest(cctx, *snap)
+		cancel()
+		if err == nil {
+			a.cp.mu.Lock()
+			if a.cp.open {
+				if cur := &a.cp.all[len(a.cp.all)-1]; cur.Snap != nil && cur.Snap.Commit == snap.Commit && cur.Touched == nil {
+					cur.Touched = touched
+					a.cp.dirty = true
+					dirty = true
+				}
+			}
+			a.cp.mu.Unlock()
+		}
+	}
 	if dirty {
 		if err := a.SaveUndo(); err != nil {
 			a.debugf("save undo: %v", err)
 		}
 	}
+}
+
+// touchedManifest hashes every path the tree holds differently from the
+// snapshot: the state the turn left behind, recorded so undo can refuse
+// to clobber later edits.
+func (a *Agent) touchedManifest(ctx context.Context, snap snapshot.Snap) ([]TouchedFile, error) {
+	repo := a.snaps()
+	if repo == nil {
+		return nil, errors.New("no repository")
+	}
+	lines, err := repo.Diff(ctx, snap)
+	if err != nil {
+		return nil, err
+	}
+	var out []TouchedFile
+	for _, line := range lines {
+		if len(line) < 3 {
+			continue
+		}
+		path := strings.TrimSpace(line[2:])
+		tf := TouchedFile{Path: path}
+		switch line[0] {
+		case 'D':
+			// The turn deleted it; the manifest records absence.
+		case 'M', 'A':
+			data, err := os.ReadFile(path)
+			if err != nil {
+				tf.Sum = "!"
+			} else {
+				tf.Sum = fmt.Sprintf("%x", sha256.Sum256(data))
+			}
+		default:
+			continue
+		}
+		out = append(out, tf)
+	}
+	return out, nil
 }
 
 func (cp *Checkpoint) has(p string) bool {
@@ -260,6 +344,60 @@ func (cp *Checkpoint) has(p string) bool {
 		}
 	}
 	return false
+}
+
+// foreignChanges compares the tree against the checkpoint's Touched
+// manifest and reports what no longer matches: paths the restore would
+// otherwise clobber whose current state is not the turn's work. The
+// returned set is what the git restore must skip, and the reasons say
+// why, one per skipped path.
+func (a *Agent) foreignChanges(ctx context.Context, repo Snapshotter, cp Checkpoint) (map[string]bool, map[string]string) {
+	skip := map[string]bool{}
+	reasons := map[string]string{}
+	manifest := make(map[string]string, len(cp.Touched))
+	for _, tf := range cp.Touched {
+		manifest[tf.Path] = tf.Sum
+	}
+	lines, err := repo.Diff(ctx, *cp.Snap)
+	if err != nil {
+		return nil, nil
+	}
+	for _, line := range lines {
+		if len(line) < 3 {
+			continue
+		}
+		path := strings.TrimSpace(line[2:])
+		want, ok := manifest[path]
+		if !ok {
+			skip[path] = true
+			reasons[path] = "it changed after the turn ended, not during it"
+			continue
+		}
+		if want == "!" {
+			skip[path] = true
+			reasons[path] = "its state at the end of the turn could not be recorded"
+			continue
+		}
+		_, statErr := os.Stat(path)
+		if want == "" { // the turn left it deleted
+			if statErr == nil {
+				skip[path] = true
+				reasons[path] = "the turn deleted it, but it exists again — something recreated it afterwards"
+			}
+			continue
+		}
+		if statErr != nil {
+			skip[path] = true
+			reasons[path] = "it is gone now"
+			continue
+		}
+		data, err := os.ReadFile(path)
+		if err != nil || fmt.Sprintf("%x", sha256.Sum256(data)) != want {
+			skip[path] = true
+			reasons[path] = "it was modified after the turn, not by it"
+		}
+	}
+	return skip, reasons
 }
 
 // Undo restores the files changed by the most recent turn that touched any
@@ -274,6 +412,9 @@ func (cp *Checkpoint) has(p string) bool {
 // cp.mu, so a front-end reading Checkpoints or Changes while an undo runs
 // is never held up behind git.
 func (a *Agent) Undo(ctx context.Context) ([]string, error) {
+	if a.running.Load() {
+		return nil, ErrTurnRunning
+	}
 	cp, ok := a.popCheckpoint()
 	if !ok {
 		return nil, ErrNothingToUndo
@@ -395,6 +536,13 @@ func (a *Agent) rollbackConversation(cp Checkpoint) {
 // snapshot, else (or as a fallback) from the file copies. cp is a copy, so
 // it takes no lock — and it must not be called with cp.mu held, since it
 // can spend a minute in git.
+//
+// A git restore only touches what the checkpoint can account for. The
+// turn's Touched manifest records the content hash of every path it left
+// changed; a path whose current content no longer matches — edited by the
+// user after the turn, or created by something else entirely — is skipped
+// and reported, not clobbered. Checkpoints saved before the manifest
+// existed restore everything, as they always did.
 func (a *Agent) restore(ctx context.Context, cp Checkpoint) ([]string, error) {
 	var (
 		done []string
@@ -405,11 +553,28 @@ func (a *Agent) restore(ctx context.Context, cp Checkpoint) ([]string, error) {
 		// reverted, not done: what git put back is returned as it is on
 		// the paths below, and on the one path that falls through, git
 		// put nothing back at all.
-		reverted, err := repo.Restore(rctx, *cp.Snap)
+		var (
+			reverted []string
+			err      error
+		)
+		if len(cp.Touched) > 0 {
+			skip, reasons := a.foreignChanges(rctx, repo, cp)
+			reverted, err = repo.RestoreSkip(rctx, *cp.Snap, skip)
+			keys := make([]string, 0, len(reasons))
+			for k := range reasons {
+				keys = append(keys, k)
+			}
+			slices.Sort(keys)
+			for _, path := range keys {
+				done = append(done, "left "+path+" alone: "+reasons[path])
+			}
+		} else {
+			reverted, err = repo.Restore(rctx, *cp.Snap)
+		}
 		cancel()
 		if err == nil || !errors.Is(err, snapshot.ErrHeadMoved) {
 			repo.Drop(context.WithoutCancel(ctx), *cp.Snap)
-			return reverted, err
+			return append(done, reverted...), err
 		}
 		if len(cp.Files) == 0 {
 			return nil, fmt.Errorf("%w: undo only knows how to revert this turn's shell changes through git, and HEAD is no longer where the snapshot was taken", err)

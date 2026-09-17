@@ -415,3 +415,59 @@ func (touchTool) Schema() json.RawMessage                              { return 
 func (touchTool) Mutating() bool                                       { return true }
 func (touchTool) Run(context.Context, json.RawMessage) (string, error) { return "ok", nil }
 func (t touchTool) Touches(json.RawMessage) ([]string, error)          { return t.paths, nil }
+
+// TestUndoLeavesWorkDoneAfterTheTurnAlone is the data-loss fix: an undo
+// used to restore the whole diff against the snapshot — deleting any
+// file created since the turn (the user's own notes included) and
+// overwriting edits the user made after it. The turn's Touched manifest
+// now records what the turn itself left in the tree, and the restore
+// skips and reports anything whose current state is not that.
+func TestUndoLeavesWorkDoneAfterTheTurnAlone(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"echo made > made.txt; echo changed > a.txt"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	os.WriteFile(filepath.Join(root, "a.txt"), []byte("a\n"), 0o644)
+	gitInit(t, root)
+	repo, err := snapshot.Open(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Snapshots = repo
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root})
+	if err := a.Run(context.Background(), "change", nil); err != nil {
+		t.Fatal(err)
+	}
+	cps := a.Checkpoints()
+	if len(cps) != 1 || len(cps[0].Touched) == 0 {
+		t.Fatalf("checkpoint has no Touched manifest: %+v", cps)
+	}
+	// After the turn: the user hand-edits a.txt and writes notes.md.
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("user edit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "notes.md"), []byte("my notes\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	done, err := a.Undo(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(done, "\n")
+	if !strings.Contains(joined, "left ") {
+		t.Fatalf("undo said nothing about the foreign changes: %q", joined)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "user edit\n" {
+		t.Fatalf("the user's edit was clobbered: %q", data)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "notes.md")); string(data) != "my notes\n" {
+		t.Fatal("the user's notes were removed")
+	}
+	// The turn's own change is still reverted.
+	if _, err := os.Stat(filepath.Join(root, "made.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("the turn's own created file should be removed by the undo")
+	}
+}

@@ -29,6 +29,10 @@ func (b *blockingSnaps) Restore(context.Context, snapshot.Snap) ([]string, error
 	return []string{"restored a.go"}, nil
 }
 
+func (b *blockingSnaps) RestoreSkip(_ context.Context, s snapshot.Snap, _ map[string]bool) ([]string, error) {
+	return b.Restore(context.Background(), s)
+}
+
 func (b *blockingSnaps) Drop(context.Context, snapshot.Snap)                   {}
 func (b *blockingSnaps) Changed(context.Context, snapshot.Snap) (bool, error)  { return true, nil }
 func (b *blockingSnaps) Diff(context.Context, snapshot.Snap) ([]string, error) { return nil, nil }
