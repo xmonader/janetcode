@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -339,6 +340,14 @@ func renderPreview(sty *styles, preview string, width, maxLines int, expandable 
 // absolute path truncated to fit loses the one part that matters, the
 // file name.
 func summarizeInput(name, raw string, max int, cwd string) string {
+	// MCP tools are third-party code, and their argument values often
+	// carry credentials the model copied from context — an api_key, a
+	// bearer token. The permission line lands in scrollback and
+	// screenshots, so it names the argument keys only; the values stay
+	// one expand away in the entry's full input view.
+	if strings.HasPrefix(name, "mcp__") {
+		return summarizeKeys(raw, max)
+	}
 	var m map[string]any
 	if json.Unmarshal([]byte(raw), &m) != nil {
 		return truncateLine(raw, max)
@@ -369,6 +378,33 @@ func summarizeInput(name, raw string, max int, cwd string) string {
 		}
 	}
 	return truncateLine(raw, max)
+}
+
+// summarizeKeys renders a tool call's arguments as their key names
+// alone, sorted so the line is stable: {"api_key, repo"}, never the
+// values. A body that is not a JSON object has no keys to name, so it
+// is described by shape instead of quoted.
+func summarizeKeys(raw string, max int) string {
+	var v any
+	if err := json.Unmarshal([]byte(raw), &v); err != nil {
+		return truncateLine("(arguments are not valid JSON)", max)
+	}
+	if obj, ok := v.(map[string]any); ok {
+		keys := make([]string, 0, len(obj))
+		for k := range obj {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return truncateLine("{"+strings.Join(keys, ", ")+"}", max)
+	}
+	switch v.(type) {
+	case []any:
+		return truncateLine("(json array)", max)
+	case string:
+		return truncateLine("(json string)", max)
+	default:
+		return truncateLine("(json value)", max)
+	}
 }
 
 func prettyInput(raw string) string {

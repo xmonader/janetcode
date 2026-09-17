@@ -156,6 +156,30 @@ func TestSummarizeInput(t *testing.T) {
 	}
 }
 
+// An MCP tool's argument values often carry credentials copied from the
+// context; the permission line names the keys only, and never a value.
+func TestSummarizeInputMCPKeysOnly(t *testing.T) {
+	secret := "sk-secret-token-value"
+	got := summarizeInput("mcp__deploy__ship", `{"repo":"a/b","api_key":"`+secret+`","dry_run":true}`, 200, "")
+	if got != "{api_key, dry_run, repo}" {
+		t.Fatalf("got %q", got)
+	}
+	if strings.Contains(got, secret) {
+		t.Fatal("a value reached the permission line")
+	}
+	if got := summarizeInput("mcp__x__y", `["`+secret+`"]`, 200, ""); strings.Contains(got, secret) || got != "(json array)" {
+		t.Fatalf("got %q", got)
+	}
+	if got := summarizeInput("mcp__x__y", "not json at all: "+secret, 200, ""); strings.Contains(got, secret) || got != "(arguments are not valid JSON)" {
+		t.Fatalf("got %q", got)
+	}
+	// Truncation keeps long key lists on one line.
+	many := `{"` + strings.Repeat("k", 60) + `":"v","b":"v","c":"v"}`
+	if got := summarizeInput("mcp__x__y", many, 20, ""); len([]rune(got)) > 20 {
+		t.Fatalf("got %d runes: %q", len([]rune(got)), got)
+	}
+}
+
 func TestThinkingView(t *testing.T) {
 	got := thinkingView("", false, 0, time.Unix(1_700_000_000, 0))
 	if !strings.HasPrefix(got, "· ") || !flavor.Known(strings.TrimPrefix(got, "· ")) {
