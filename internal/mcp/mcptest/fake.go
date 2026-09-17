@@ -123,8 +123,16 @@ func FakeServer() {
 					"content": []map[string]any{{"type": "text", "text": "echo: " + a.Text}, {"type": "image", "mimeType": "image/png", "data": "AAAA"}},
 				}})
 			case "fail":
+				// The text of an error is server-controlled just as much
+				// as the text of a success, so a test can choose it and
+				// check what the error path does with it.
+				var a struct{ Text string }
+				json.Unmarshal(p.Arguments, &a)
+				if a.Text == "" {
+					a.Text = "it broke"
+				}
 				send(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{
-					"content": []map[string]any{{"type": "text", "text": "it broke"}}, "isError": true,
+					"content": []map[string]any{{"type": "text", "text": a.Text}}, "isError": true,
 				}})
 			case "slow":
 				time.Sleep(5 * time.Second)

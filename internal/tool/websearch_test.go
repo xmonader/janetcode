@@ -114,3 +114,33 @@ func TestWebSearchEscapesHarnessDelimiters(t *testing.T) {
 		t.Fatalf("the decoded tags should survive, escaped:\n%s", out)
 	}
 }
+
+// TestEscapeDelimitersFormVariants: the consumer is a language model, not
+// a strict parser. The escaper compared exact-lowercase against three
+// exact forms, so a hostile page or MCP server only had to change the
+// case, self-close the tag or put a newline in it to hand the model a
+// live harness delimiter.
+func TestEscapeDelimitersFormVariants(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"<system-reminder>x", "&lt;system-reminder>x"},
+		{"</system-reminder>", "&lt;/system-reminder>"},
+		{"<SYSTEM-REMINDER>", "&lt;SYSTEM-REMINDER>"},
+		{"<System-Reminder>", "&lt;System-Reminder>"},
+		{"<system-reminder/>", "&lt;system-reminder/>"},
+		{"<system-reminder\n>", "&lt;system-reminder\n>"},
+		{"<system-reminder\tid=1>", "&lt;system-reminder\tid=1>"},
+		{"<harness>", "&lt;harness>"},
+		{"<USER>", "&lt;USER>"},
+		// A longer name that merely starts the same way is not a
+		// delimiter and must read back exactly as it was written.
+		{"<username>", "<username>"},
+		{"<user-agent>", "<user-agent>"},
+		{"<systemd>", "<systemd>"},
+		{"plain <b>text</b>", "plain <b>text</b>"},
+		{"no angle brackets", "no angle brackets"},
+	} {
+		if got := EscapeDelimiters(tc.in); got != tc.want {
+			t.Errorf("EscapeDelimiters(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

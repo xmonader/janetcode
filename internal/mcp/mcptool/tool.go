@@ -202,7 +202,12 @@ func (t *Tool) RunRich(ctx context.Context, input json.RawMessage) (tool.Result,
 		return tool.Result{}, err
 	}
 	if res.IsError {
-		return tool.Result{}, fmt.Errorf("%s", firstNonEmpty(res.Text, "tool reported an error"))
+		// The error text is server output too, and internal/agent/exec.go
+		// renders a tool error to the model as "Error: " + err.Error() —
+		// so the same bound and the same escaping as the success path
+		// below. Skipping them here left one boolean between a hostile
+		// server and a live harness tag in the transcript.
+		return tool.Result{}, fmt.Errorf("%s", tool.EscapeDelimiters(textfmt.Truncate(firstNonEmpty(res.Text, "tool reported an error"))))
 	}
 	// Server output is untrusted content: it can carry harness-shaped
 	// tags (a server written to inject agents), which must not parse as
