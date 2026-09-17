@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strings"
@@ -46,6 +47,14 @@ type Checkpoint struct {
 	// longer matches this manifest: that change came from somewhere else
 	// — the user's own hand, usually — and must survive the restore.
 	Touched []TouchedFile `json:"touched,omitempty"`
+	// Manifested says Touched was recorded for this checkpoint, which is
+	// not the same as Touched being non-empty. A turn that left the tree
+	// exactly as it found it has an empty manifest and an undo must touch
+	// nothing; a checkpoint saved before manifests existed has no
+	// manifest and restores everything, as it always did. Reading the
+	// first as the second is what made an undo clobber work done after
+	// the turn.
+	Manifested bool `json:"manifested,omitempty"`
 	// Turn is the turn the checkpoint belongs to and Messages how many
 	// messages the conversation held when it began, so an undo can take
 	// the turn's messages out of the context along with its file changes.
@@ -59,6 +68,85 @@ type Checkpoint struct {
 type TouchedFile struct {
 	Path string `json:"path"`
 	Sum  string `json:"sum"`
+}
+
+// maxManifestBytes bounds what one manifest entry will hash. The hash is
+// streamed, so a huge file costs time rather than memory, and a turn that
+// wrote one is rare — above this the entry records "!" and the undo
+// leaves the path alone and says why, which is the safe direction.
+const maxManifestBytes = 256 << 20
+
+// hashPath is the manifest hash of a path's current state: the sha256 of
+// a regular file's content, of "symlink:"+target for a symlink, and "!"
+// for anything else — a device, a socket, a path that cannot be read.
+//
+// Lstat, never Stat: following a link would hash the target's content, so
+// a turn that replaced a file with a symlink (git reports that as T) and
+// a tree where it never happened would hash the same.
+func hashPath(path string) string {
+	st, err := os.Lstat(path)
+	switch {
+	case err != nil:
+		return "!"
+	case st.Mode()&os.ModeSymlink != 0:
+		target, err := os.Readlink(path)
+		if err != nil {
+			return "!"
+		}
+		return fmt.Sprintf("%x", sha256.Sum256([]byte("symlink:"+target)))
+	case !st.Mode().IsRegular() || st.Size() > maxManifestBytes:
+		return "!"
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "!"
+	}
+	defer f.Close()
+	h := sha256.New()
+	// Streamed: a turn that wrote an 8 GB file used to be hashed with
+	// os.ReadFile, which held all of it in memory before the turn could
+	// return.
+	if _, err := io.Copy(h, f); err != nil {
+		return "!"
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// withFileCopies adds the end-of-turn state of every path the file tools
+// touched to a manifest, for the paths git did not already account for.
+// Snapshot.Diff builds its list with `git add -A`, which honours
+// .gitignore — so a turn that wrote an ignored file would be missing from
+// the manifest and its own work would read as somebody else's. Outside a
+// git repository this is the whole manifest: the file copies are then the
+// only record of what the turn did.
+func withFileCopies(touched []TouchedFile, files []Snapshot) []TouchedFile {
+	have := make(map[string]bool, len(touched))
+	for _, tf := range touched {
+		have[tf.Path] = true
+	}
+	for _, f := range files {
+		if have[f.Path] {
+			continue
+		}
+		have[f.Path] = true
+		// An empty sum is "the turn left nothing here", which is what a
+		// path the turn deleted must record.
+		sum := ""
+		if _, err := os.Lstat(f.Path); err == nil {
+			sum = hashPath(f.Path)
+		}
+		touched = append(touched, TouchedFile{Path: f.Path, Sum: sum})
+	}
+	return touched
+}
+
+// sameSnap reports whether two snapshot pointers name the same state,
+// counting "neither has one" as the same — a checkpoint outside git.
+func sameSnap(a, b *snapshot.Snap) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Commit == b.Commit
 }
 
 // maxCheckpoints bounds how many turns can be undone; older ones are
@@ -221,14 +309,46 @@ func (a *Agent) Redo(ctx context.Context) ([]string, error) {
 		return nil, ErrNothingToRedo
 	}
 	// The state before redoing becomes undoable again.
-	if before, ok := a.captureState(ctx, entry, "before redo"); ok {
+	before, captured := a.captureState(ctx, entry, "before redo")
+	if captured {
 		a.pushCheckpoint(before)
 	}
-	done, err := a.restore(ctx, entry)
+	done, err := a.restore(ctx, entry, true)
+	if captured {
+		a.manifestCaptured(ctx, before, &a.cp.all)
+	}
 	if serr := a.SaveUndo(); serr != nil {
 		a.debugf("save undo: %v", serr)
 	}
 	return done, err
+}
+
+// manifestCaptured records what the restore just performed changed as the
+// manifest of the state captured before it, in place at the top of the
+// stack it was pushed onto.
+//
+// That captured state is a checkpoint like any other — a redo can restore
+// it — and captureState cannot manifest it, because what it covers is
+// exactly what the restore that follows changes. Left unmanifested, one
+// redo made the next undo restore the whole tree again.
+func (a *Agent) manifestCaptured(ctx context.Context, cp Checkpoint, stack *[]Checkpoint) {
+	var touched []TouchedFile
+	if repo := a.snaps(); repo != nil && cp.Snap != nil {
+		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		t, err := a.touchedManifest(cctx, *cp.Snap)
+		cancel()
+		if err != nil {
+			return // no manifest restores everything, as it always did
+		}
+		touched = t
+	}
+	touched = withFileCopies(touched, cp.Files)
+	a.cp.mu.Lock()
+	defer a.cp.mu.Unlock()
+	if n := len(*stack); n > 0 && !(*stack)[n-1].Manifested && sameSnap((*stack)[n-1].Snap, cp.Snap) {
+		(*stack)[n-1].Touched, (*stack)[n-1].Manifested = touched, true
+		a.cp.dirty = true
+	}
 }
 
 // endTurn drops the turn's checkpoint when its git snapshot shows nothing
@@ -236,7 +356,11 @@ func (a *Agent) Redo(ctx context.Context) ([]string, error) {
 // persists the rest. It runs as the turn ends, cancelled or not, so its git
 // calls do not inherit ctx's cancellation.
 func (a *Agent) endTurn(ctx context.Context) {
-	a.running.Store(false)
+	// The turn is not over until its manifest is recorded. Clearing this
+	// first left a window — up to a minute of git — in which Undo was
+	// accepted against a checkpoint that had no manifest yet, and so
+	// restored the whole tree.
+	defer a.running.Store(false)
 	// The turn's event sink goes with the turn: emitter() promises a sink
 	// that drops events when no turn is running, and without this it kept
 	// handing out the finished turn's one.
@@ -244,10 +368,14 @@ func (a *Agent) endTurn(ctx context.Context) {
 	ctx = context.WithoutCancel(ctx)
 	a.cp.mu.Lock()
 	repo := a.snaps()
-	var snap *snapshot.Snap // the open checkpoint's snapshot, to manifest
-	if a.cp.open && repo != nil {
+	var (
+		snap  *snapshot.Snap // the open checkpoint's snapshot, to manifest
+		files []Snapshot     // and the copies its file tools made
+		want  bool           // it still needs a manifest
+	)
+	if a.cp.open {
 		cur := &a.cp.all[len(a.cp.all)-1]
-		if cur.Snap != nil && len(cur.Files) == 0 {
+		if repo != nil && cur.Snap != nil && len(cur.Files) == 0 {
 			cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			changed, err := repo.Changed(cctx, *cur.Snap)
 			cancel()
@@ -258,8 +386,11 @@ func (a *Agent) endTurn(ctx context.Context) {
 			}
 		}
 		if a.cp.open {
-			if cur := &a.cp.all[len(a.cp.all)-1]; cur.Snap != nil && cur.Touched == nil {
-				snap = cur.Snap
+			if cur := &a.cp.all[len(a.cp.all)-1]; !cur.Manifested {
+				want, files = true, cur.Files
+				if repo != nil {
+					snap = cur.Snap
+				}
 			}
 		}
 	}
@@ -272,20 +403,31 @@ func (a *Agent) endTurn(ctx context.Context) {
 	}
 	dirty := a.cp.dirty
 	a.cp.mu.Unlock()
-	if snap != nil {
+	if want {
 		// Record what the turn actually left in the tree, so a later
 		// undo can tell the turn's work apart from edits made after it.
 		// This is git work plus file reads, so it runs with the lock
 		// dropped; the result lands only if the checkpoint is still the
 		// open one.
-		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		touched, err := a.touchedManifest(cctx, *snap)
-		cancel()
+		var (
+			touched []TouchedFile
+			err     error
+		)
+		if snap != nil {
+			cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			touched, err = a.touchedManifest(cctx, *snap)
+			cancel()
+		}
+		// A manifest git could not produce is left unrecorded: no
+		// manifest restores everything, which is what this checkpoint
+		// did before manifests existed. Recording a partial one would
+		// silently narrow the undo instead.
 		if err == nil {
+			touched = withFileCopies(touched, files)
 			a.cp.mu.Lock()
 			if a.cp.open {
-				if cur := &a.cp.all[len(a.cp.all)-1]; cur.Snap != nil && cur.Snap.Commit == snap.Commit && cur.Touched == nil {
-					cur.Touched = touched
+				if cur := &a.cp.all[len(a.cp.all)-1]; !cur.Manifested && sameSnap(cur.Snap, snap) {
+					cur.Touched, cur.Manifested = touched, true
 					a.cp.dirty = true
 					dirty = true
 				}
@@ -322,15 +464,18 @@ func (a *Agent) touchedManifest(ctx context.Context, snap snapshot.Snap) ([]Touc
 		switch line[0] {
 		case 'D':
 			// The turn deleted it; the manifest records absence.
-		case 'M', 'A':
-			data, err := os.ReadFile(path)
-			if err != nil {
-				tf.Sum = "!"
-			} else {
-				tf.Sum = fmt.Sprintf("%x", sha256.Sum256(data))
-			}
+		case 'M', 'A', 'T':
+			// T is a typechange — a file the turn replaced with a
+			// symlink, or the reverse. Dropping it left the turn's own
+			// work outside the manifest, so the undo skipped it and told
+			// the user it had changed after the turn.
+			tf.Sum = hashPath(path)
 		default:
-			continue
+			// Some other status: record it as unhashable rather than
+			// leaving it out. Out of the manifest reads as "somebody
+			// else changed this", which is a lie about a path the turn
+			// touched; "!" says the truth and still leaves it alone.
+			tf.Sum = "!"
 		}
 		out = append(out, tf)
 	}
@@ -346,12 +491,40 @@ func (cp *Checkpoint) has(p string) bool {
 	return false
 }
 
+// isForeign reports whether the current state of path is something other
+// than what the turn left there — so a restore must leave it alone — and
+// why, for the user. It is the whole manifest check, shared by the git
+// restore and the file-copy fallback so the two cannot disagree.
+func isForeign(manifest map[string]string, path string) (string, bool) {
+	want, ok := manifest[path]
+	if !ok {
+		return "it changed after the turn ended, not during it", true
+	}
+	if want == "!" {
+		return "its state at the end of the turn could not be recorded", true
+	}
+	_, statErr := os.Lstat(path)
+	if want == "" { // the turn left it deleted
+		if statErr == nil {
+			return "the turn deleted it, but it exists again — something recreated it afterwards", true
+		}
+		return "", false
+	}
+	if statErr != nil {
+		return "it is gone now", true
+	}
+	if hashPath(path) != want {
+		return "it was modified after the turn, not by it", true
+	}
+	return "", false
+}
+
 // foreignChanges compares the tree against the checkpoint's Touched
 // manifest and reports what no longer matches: paths the restore would
 // otherwise clobber whose current state is not the turn's work. The
 // returned set is what the git restore must skip, and the reasons say
 // why, one per skipped path.
-func (a *Agent) foreignChanges(ctx context.Context, repo Snapshotter, cp Checkpoint) (map[string]bool, map[string]string) {
+func (a *Agent) foreignChanges(ctx context.Context, repo Snapshotter, cp Checkpoint) (map[string]bool, map[string]string, error) {
 	skip := map[string]bool{}
 	reasons := map[string]string{}
 	manifest := make(map[string]string, len(cp.Touched))
@@ -360,44 +533,22 @@ func (a *Agent) foreignChanges(ctx context.Context, repo Snapshotter, cp Checkpo
 	}
 	lines, err := repo.Diff(ctx, *cp.Snap)
 	if err != nil {
-		return nil, nil
+		// Without this list there is no way to tell the turn's work from
+		// the user's, and an empty skip set means "restore everything".
+		// Returning it as an error refuses the undo instead.
+		return nil, nil, err
 	}
 	for _, line := range lines {
 		if len(line) < 3 {
 			continue
 		}
 		path := strings.TrimSpace(line[2:])
-		want, ok := manifest[path]
-		if !ok {
+		if why, foreign := isForeign(manifest, path); foreign {
 			skip[path] = true
-			reasons[path] = "it changed after the turn ended, not during it"
-			continue
-		}
-		if want == "!" {
-			skip[path] = true
-			reasons[path] = "its state at the end of the turn could not be recorded"
-			continue
-		}
-		_, statErr := os.Stat(path)
-		if want == "" { // the turn left it deleted
-			if statErr == nil {
-				skip[path] = true
-				reasons[path] = "the turn deleted it, but it exists again — something recreated it afterwards"
-			}
-			continue
-		}
-		if statErr != nil {
-			skip[path] = true
-			reasons[path] = "it is gone now"
-			continue
-		}
-		data, err := os.ReadFile(path)
-		if err != nil || fmt.Sprintf("%x", sha256.Sum256(data)) != want {
-			skip[path] = true
-			reasons[path] = "it was modified after the turn, not by it"
+			reasons[path] = why
 		}
 	}
-	return skip, reasons
+	return skip, reasons, nil
 }
 
 // Undo restores the files changed by the most recent turn that touched any
@@ -419,10 +570,14 @@ func (a *Agent) Undo(ctx context.Context) ([]string, error) {
 	if !ok {
 		return nil, ErrNothingToUndo
 	}
-	if now, ok := a.captureState(ctx, cp, "before undo"); ok {
+	now, captured := a.captureState(ctx, cp, "before undo")
+	if captured {
 		a.pushRedo(now)
 	}
-	done, err := a.restore(ctx, cp)
+	done, err := a.restore(ctx, cp, true)
+	if captured {
+		a.manifestCaptured(ctx, now, &a.cp.redo)
+	}
 	if serr := a.SaveUndo(); serr != nil {
 		a.debugf("save undo: %v", serr)
 	}
@@ -537,13 +692,19 @@ func (a *Agent) rollbackConversation(cp Checkpoint) {
 // it takes no lock — and it must not be called with cp.mu held, since it
 // can spend a minute in git.
 //
-// A git restore only touches what the checkpoint can account for. The
-// turn's Touched manifest records the content hash of every path it left
-// changed; a path whose current content no longer matches — edited by the
-// user after the turn, or created by something else entirely — is skipped
-// and reported, not clobbered. Checkpoints saved before the manifest
-// existed restore everything, as they always did.
-func (a *Agent) restore(ctx context.Context, cp Checkpoint) ([]string, error) {
+// scoped is what /undo means: touch only what the checkpoint can account
+// for. /undo turn N means the other thing — put the whole tree back to
+// before that turn, whatever has happened since — and passes false, as
+// its git path has always done by calling Restore directly.
+//
+// When scoped, a restore only touches what the checkpoint can account
+// for, by either route. The turn's Touched manifest records the content hash of every
+// path it left changed; a path whose current content no longer matches —
+// edited by the user after the turn, or created by something else
+// entirely — is skipped and reported, not clobbered. Only a checkpoint
+// saved before manifests existed (Manifested false) restores everything,
+// as it always did.
+func (a *Agent) restore(ctx context.Context, cp Checkpoint, scoped bool) ([]string, error) {
 	var (
 		done []string
 		errs []error
@@ -557,8 +718,12 @@ func (a *Agent) restore(ctx context.Context, cp Checkpoint) ([]string, error) {
 			reverted []string
 			err      error
 		)
-		if len(cp.Touched) > 0 {
-			skip, reasons := a.foreignChanges(rctx, repo, cp)
+		if scoped && cp.Manifested {
+			skip, reasons, ferr := a.foreignChanges(rctx, repo, cp)
+			if ferr != nil {
+				cancel()
+				return nil, fmt.Errorf("undo needs to know which files this turn changed so it does not revert anything else, and git could not say (%w): nothing was reverted", ferr)
+			}
 			reverted, err = repo.RestoreSkip(rctx, *cp.Snap, skip)
 			keys := make([]string, 0, len(reasons))
 			for k := range reasons {
@@ -589,8 +754,21 @@ func (a *Agent) restore(ctx context.Context, cp Checkpoint) ([]string, error) {
 	// algorithm in use.)
 	files := append([]Snapshot(nil), cp.Files...)
 	slices.Reverse(files)
+	// The same manifest guard the git path gets. Without it this branch —
+	// every workspace that is not a git repository, and a git one whose
+	// HEAD moved — wrote the pre-turn bytes back over whatever was there.
+	manifest := make(map[string]string, len(cp.Touched))
+	for _, tf := range cp.Touched {
+		manifest[tf.Path] = tf.Sum
+	}
 	for _, f := range files {
 		var err error
+		if scoped && cp.Manifested {
+			if why, foreign := isForeign(manifest, f.Path); foreign {
+				done = append(done, "left "+f.Path+" alone: "+why)
+				continue
+			}
+		}
 		if f.Failed {
 			errs = append(errs, fmt.Errorf("%s: its state before the turn could not be captured, so it was left as it is", f.Path))
 			continue

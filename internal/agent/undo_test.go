@@ -471,3 +471,287 @@ func TestUndoLeavesWorkDoneAfterTheTurnAlone(t *testing.T) {
 		t.Fatal("the turn's own created file should be removed by the undo")
 	}
 }
+
+// gitAgent is the common setup for the manifest tests: a real repository
+// with a real snapshotter behind it, and auto-approved tools.
+func gitAgent(t *testing.T, f *fake) (*Agent, string) {
+	t.Helper()
+	a, root := newAgent(t, f, nil)
+	gitInit(t, root)
+	repo, err := snapshot.Open(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Snapshots = repo
+	a.AutoApprove = true
+	return a, root
+}
+
+// TestUndoWithAnEmptyGitDiffStillScopesTheRestore: a turn whose net effect
+// on the tree is nothing — the model rewrote a file with the bytes already
+// in it — left an empty manifest, and an empty manifest was
+// indistinguishable from no manifest at all, so the undo fell back to
+// restoring the whole diff against the snapshot and took the user's later
+// work with it.
+func TestUndoWithAnEmptyGitDiffStillScopesTheRestore(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"a.txt","content":"alpha\n"}`),
+		text("done"),
+	}}
+	a, root := gitAgent(t, f)
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	if err := a.Run(context.Background(), "rewrite it the same", nil); err != nil {
+		t.Fatal(err)
+	}
+	cps := a.Checkpoints()
+	if len(cps) != 1 {
+		t.Fatalf("checkpoints = %d, want 1", len(cps))
+	}
+	if !cps[0].Manifested {
+		t.Fatal("the turn left no manifest, so its undo is unscoped")
+	}
+
+	// After the turn: the user edits the file and writes a new one.
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("user edit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "notes.md"), []byte("my notes\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Undo(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "user edit\n" {
+		t.Fatalf("the user's edit was clobbered: %q", data)
+	}
+	if _, err := os.Stat(filepath.Join(root, "notes.md")); err != nil {
+		t.Fatal("the user's notes were removed by an undo that should have touched nothing")
+	}
+}
+
+// TestUndoOutsideGitLeavesWorkDoneAfterTheTurnAlone: the file-copy
+// fallback — every workspace that is not a git repository — consulted no
+// manifest at all and wrote the pre-turn bytes back over whatever was
+// there, which is the same data loss the git path was fixed for.
+func TestUndoOutsideGitLeavesWorkDoneAfterTheTurnAlone(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "write_file", `{"path":"a.txt","content":"from the turn\n"}`),
+		toolCall("t2", "write_file", `{"path":"made.txt","content":"also the turn\n"}`),
+		text("done"),
+	}}
+	a, root := newAgent(t, f, nil)
+	a.AutoApprove = true
+	a.Tools = tool.NewRegistry(tool.WriteFile{Root: root})
+	if err := a.Run(context.Background(), "write", nil); err != nil {
+		t.Fatal(err)
+	}
+	if cps := a.Checkpoints(); len(cps) != 1 || !cps[0].Manifested {
+		t.Fatalf("no manifest outside git: %+v", cps)
+	}
+	// After the turn the user edits one of the turn's files by hand.
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("user edit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	done, err := a.Undo(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(done, "\n"), "left "+filepath.Join(root, "a.txt")+" alone") {
+		t.Fatalf("undo said nothing about the foreign change: %q", done)
+	}
+	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "user edit\n" {
+		t.Fatalf("the user's edit was clobbered: %q", data)
+	}
+	// The turn's untouched file is still reverted.
+	if _, err := os.Stat(filepath.Join(root, "made.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("the turn's own file should be removed by the undo")
+	}
+}
+
+// TestRedoThenUndoLeavesLaterWorkAlone: the state captured before a
+// restore is itself a checkpoint, and captureState recorded no manifest
+// for it — so one /redo put an unscoped checkpoint back on the undo stack
+// and the next /undo restored the whole tree again.
+func TestRedoThenUndoLeavesLaterWorkAlone(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"echo changed > a.txt"}`),
+		text("done"),
+	}}
+	a, root := gitAgent(t, f)
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root})
+	if err := a.Run(context.Background(), "change", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Undo(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Redo(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if cps := a.Checkpoints(); len(cps) != 1 || !cps[0].Manifested {
+		t.Fatalf("the redo left an unmanifested checkpoint: %+v", cps)
+	}
+	// After the redo the user writes a file of their own.
+	if err := os.WriteFile(filepath.Join(root, "notes.md"), []byte("my notes\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Undo(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "notes.md")); err != nil {
+		t.Fatal("the undo after a redo removed the user's file")
+	}
+	// The redone change is undone again, which is the point of the undo.
+	if data, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(data) != "alpha\n" {
+		t.Fatalf("a.txt = %q, want the pre-turn content", data)
+	}
+}
+
+// brokenDiff is a Snapshotter that can take and restore but cannot say
+// what changed — an index.lock, a timeout, a missing object.
+type brokenDiff struct{ restored bool }
+
+func (b *brokenDiff) Take(context.Context, string) (snapshot.Snap, error) {
+	return snapshot.Snap{Commit: "taken"}, nil
+}
+func (b *brokenDiff) Restore(context.Context, snapshot.Snap) ([]string, error) {
+	b.restored = true
+	return []string{"restored a.txt"}, nil
+}
+func (b *brokenDiff) RestoreSkip(_ context.Context, _ snapshot.Snap, _ map[string]bool) ([]string, error) {
+	b.restored = true
+	return []string{"restored a.txt"}, nil
+}
+func (b *brokenDiff) Drop(context.Context, snapshot.Snap)                  {}
+func (b *brokenDiff) Changed(context.Context, snapshot.Snap) (bool, error) { return true, nil }
+func (b *brokenDiff) Diff(context.Context, snapshot.Snap) ([]string, error) {
+	return nil, errors.New("fatal: unable to read index")
+}
+func (b *brokenDiff) Moved(context.Context, snapshot.Snap) (bool, error) { return false, nil }
+
+// TestUndoRefusesWhenGitCannotSayWhatChanged: foreignChanges used to
+// swallow a Diff error and return an empty skip set, which is exactly
+// "restore everything" — so any transient git failure silently turned a
+// scoped undo back into the destructive one.
+func TestUndoRefusesWhenGitCannotSayWhatChanged(t *testing.T) {
+	repo := &brokenDiff{}
+	snap := snapshot.Snap{Commit: "before"}
+	a := &Agent{}
+	a.snapshotter = repo
+	a.cp.all = []Checkpoint{{
+		Turn: 1, Snap: &snap, Manifested: true,
+		Touched: []TouchedFile{{Path: "a.txt", Sum: "deadbeef"}},
+	}}
+	_, err := a.Undo(context.Background())
+	if err == nil {
+		t.Fatal("undo reported success although git could not say what changed")
+	}
+	if !strings.Contains(err.Error(), "nothing was reverted") {
+		t.Fatalf("err = %v, want a refusal that says nothing was reverted", err)
+	}
+	if repo.restored {
+		t.Fatal("the undo restored the tree anyway")
+	}
+}
+
+// TestUndoRevertsATypechange: git reports a file swapped for a symlink as
+// T, and the manifest dropped every status it did not know — so the
+// turn's own typechange was left in the tree and the undo told the user it
+// had been changed after the turn.
+func TestUndoRevertsATypechange(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		toolCall("t1", "bash", `{"command":"rm a.txt && ln -s b.txt a.txt"}`),
+		text("done"),
+	}}
+	a, root := gitAgent(t, f)
+	a.Tools = tool.NewRegistry(tool.Bash{Root: root})
+	if err := a.Run(context.Background(), "swap it", nil); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(root, "a.txt")
+	if st, err := os.Lstat(p); err != nil || st.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("the turn did not leave a symlink: %v %v", st, err)
+	}
+	cps := a.Checkpoints()
+	if len(cps) != 1 || len(cps[0].Touched) != 1 || cps[0].Touched[0].Sum == "" {
+		t.Fatalf("the typechange is not in the manifest: %+v", cps)
+	}
+	done, err := a.Undo(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(done, "\n"), "left ") {
+		t.Fatalf("the undo blamed the user for the turn's own typechange: %q", done)
+	}
+	st, err := os.Lstat(p)
+	if err != nil || !st.Mode().IsRegular() {
+		t.Fatalf("a.txt was not put back as a regular file: %v %v", st, err)
+	}
+	if data, _ := os.ReadFile(p); string(data) != "alpha\n" {
+		t.Fatalf("a.txt = %q", data)
+	}
+}
+
+// recordingSnaps reports one changed path and records which restore the
+// undo asked for.
+type recordingSnaps struct {
+	changed  string
+	skip     map[string]bool
+	unscoped bool
+}
+
+func (r *recordingSnaps) Take(context.Context, string) (snapshot.Snap, error) {
+	return snapshot.Snap{Commit: "taken"}, nil
+}
+func (r *recordingSnaps) Restore(context.Context, snapshot.Snap) ([]string, error) {
+	r.unscoped = true
+	return nil, nil
+}
+func (r *recordingSnaps) RestoreSkip(_ context.Context, _ snapshot.Snap, skip map[string]bool) ([]string, error) {
+	r.skip = skip
+	return nil, nil
+}
+func (r *recordingSnaps) Drop(context.Context, snapshot.Snap)                  {}
+func (r *recordingSnaps) Changed(context.Context, snapshot.Snap) (bool, error) { return true, nil }
+func (r *recordingSnaps) Diff(context.Context, snapshot.Snap) ([]string, error) {
+	return []string{"M " + r.changed}, nil
+}
+func (r *recordingSnaps) Moved(context.Context, snapshot.Snap) (bool, error) { return false, nil }
+
+// TestAnEmptyManifestIsNotAMissingManifest: a turn that left the tree as
+// it found it records an empty manifest, and its undo must touch nothing.
+// A checkpoint from before manifests existed has no manifest, and restores
+// everything as it always did. The two used to be the same value.
+func TestAnEmptyManifestIsNotAMissingManifest(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		manifested bool
+		wantSkip   bool
+	}{
+		{"empty manifest skips the foreign change", true, true},
+		{"no manifest restores everything", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &recordingSnaps{changed: filepath.Join(t.TempDir(), "a.txt")}
+			snap := snapshot.Snap{Commit: "before"}
+			a := &Agent{}
+			a.snapshotter = repo
+			a.cp.all = []Checkpoint{{Turn: 1, Snap: &snap, Manifested: tc.manifested}}
+			if _, err := a.Undo(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if tc.wantSkip {
+				if repo.unscoped {
+					t.Fatal("an empty manifest restored the whole tree")
+				}
+				if !repo.skip[repo.changed] {
+					t.Fatalf("the foreign change was not skipped: %v", repo.skip)
+				}
+				return
+			}
+			if !repo.unscoped {
+				t.Fatalf("a checkpoint with no manifest should restore everything, skip = %v", repo.skip)
+			}
+		})
+	}
+}
