@@ -123,6 +123,13 @@ func (a *Agent) executeAll(ctx context.Context, uses []llm.Block, emit func(Even
 		if filled[i] {
 			continue
 		}
+		// A completed call reports its real result even when the turn
+		// was cancelled right after it, so a stop has to be checked
+		// for here too — otherwise the next mutating call would start
+		// (and could prompt) after the user already cancelled.
+		if err := ctx.Err(); err != nil {
+			return stop(err)
+		}
 		out, imgs, isErr, err := a.execute(ctx, u, emit)
 		if err != nil {
 			return stop(err)
@@ -159,11 +166,17 @@ func (a *Agent) execute(ctx context.Context, u llm.Block, emit func(Event)) (str
 // before anything asks; and only what none of those settled reaches the
 // user.
 func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *ToolCall, emit func(Event)) ([]string, string, error) {
-	hookNotes, hookAllowed, refusal := a.preToolHook(ctx, u, call)
+	hookNotes, hookAllowed, hookMustAsk, refusal := a.preToolHook(ctx, u, call)
 	if refusal != "" {
 		return nil, refusal, nil
 	}
 	mustAsk := a.describeCall(ctx, t, u, call)
+	if hookMustAsk {
+		// describeCall writes call.Warning from the tool's own Warner, so
+		// this goes on afterwards or it would be overwritten.
+		mustAsk = true
+		call.Warning = strings.TrimPrefix(call.Warning+"; a hook from this repository rewrote this call's input", "; ")
+	}
 	// A write to a protected path always asks, under /edits, /auto, an
 	// allow rule and --yolo alike, and the prompt says which path it is
 	// asking about. It rides on the warning line the prompt already has,
@@ -219,22 +232,27 @@ func (a *Agent) authorize(ctx context.Context, t tool.Tool, u *llm.Block, call *
 // preToolHook runs the pre-tool hook, which may refuse the call outright,
 // allow it past the prompt, or rewrite the input everything after this
 // point — the preview, the approval and the call itself — works on.
-func (a *Agent) preToolHook(ctx context.Context, u *llm.Block, call *ToolCall) (notes []string, allowed bool, refusal string) {
+func (a *Agent) preToolHook(ctx context.Context, u *llm.Block, call *ToolCall) (notes []string, allowed, mustAsk bool, refusal string) {
 	hooks := a.HookRunner()
 	if !hooks.Has(hook.PreTool) {
-		return nil, false, ""
+		return nil, false, false, ""
 	}
 	res := hooks.Run(ctx, hook.Input{Event: hook.PreTool, Cwd: hooks.Cwd, Tool: u.Name, Input: u.Input})
 	if res.Denied {
-		return nil, false, "Blocked by a hook: " + res.Reason
+		return nil, false, false, "Blocked by a hook: " + res.Reason
 	}
 	if !bytes.Equal(res.Input, u.Input) {
 		// The rewritten input is what gets previewed, approved and run.
 		u.Input = res.Input
 		call.Input = res.Input
 		notes = append(notes, "a hook rewrote this call's input to: "+string(res.Input))
+		// When the repository's own hook wrote it, the user has to see it.
+		// A rewrite is stronger than the allow decision a project hook is
+		// already refused: it chooses the path a write lands in and the
+		// command bash runs, and under --yolo nothing else would look.
+		mustAsk = res.InputFromProject
 	}
-	return append(notes, res.Notes...), res.Allowed, ""
+	return append(notes, res.Notes...), res.Allowed, mustAsk, ""
 }
 
 // describeCall fills in what the user would be shown about the call — the
@@ -478,9 +496,15 @@ func (a *Agent) executeTool(ctx context.Context, u llm.Block, emit func(Event)) 
 	if err == nil && len(pend) > 0 {
 		a.after(u, intent, pend)
 	}
-	if ctx.Err() != nil {
+	if ctx.Err() != nil && err != nil {
+		// The call was interrupted before it produced a result.
 		return "", nil, true, ctx.Err()
 	}
+	// When the tool completed (or ignored the context) but the turn was
+	// cancelled right after, its effects stand: reporting "cancelled"
+	// here told the model the call never happened — an invitation to run
+	// it again on the next turn. Fall through with the real output; the
+	// loop ends the turn on the cancelled context one step later.
 	isErr := false
 	if err != nil {
 		out = "Error: " + err.Error()

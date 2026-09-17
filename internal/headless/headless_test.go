@@ -294,3 +294,111 @@ func TestHeadlessReportsTheVerdict(t *testing.T) {
 		t.Fatalf("the verdict leaked into stdout: %q", out.String())
 	}
 }
+
+// TestCheckBoundsAPipeHeldByALeakedGrandchild is the Supervise fix on the
+// --until/--watch path: a check command that leaves a process running (a
+// watched `npm test` whose suite starts a server and forgets it) held the
+// output pipes open after the shell exited, and CombinedOutput's Wait
+// blocked on them for as long as the orphan lived — past the ten-minute
+// bound and past ctrl+c. The pipe wait is now bounded.
+func TestCheckBoundsAPipeHeldByALeakedGrandchild(t *testing.T) {
+	start := time.Now()
+	out, code := check(context.Background(), t.TempDir(), "echo ok; sleep 30 &")
+	if code != 0 || strings.TrimSpace(out) != "ok" {
+		t.Fatalf("out=%q code=%d", out, code)
+	}
+	if elapsed := time.Since(start); elapsed > 20*time.Second {
+		t.Fatalf("check took %s; the leaked grandchild held the pipes past the command", elapsed)
+	}
+}
+
+// TestWatchStopsOnBudget is the --watch half of the budget contract:
+// a watched command that keeps failing used to swallow the agent's
+// ErrBudget as "model turn failed" and start another priced fix round —
+// burning a full call per round, forever, never exiting 55.
+func TestWatchStopsOnBudget(t *testing.T) {
+	root := t.TempDir()
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.TextMessage(llm.RoleAssistant, "fixing"), StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 10, CostUSD: 1}},
+	}}
+	ag := &agent.Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", AutoApprove: true}
+	var out, errOut bytes.Buffer
+	err := Run(context.Background(), Options{Agent: ag, Prompt: "x", Stdout: &out, Stderr: &errOut,
+		Watch: "false", WatchRounds: 100, WatchInterval: 50 * time.Millisecond, MaxCostUSD: 0.5, Cwd: root})
+	if !errors.Is(err, ErrBudget) {
+		t.Fatalf("err = %v\n%s", err, errOut.String())
+	}
+}
+
+// Model deltas and tool output reach a headless stdout verbatim, and a
+// hostile file can carry terminal escape sequences: an OSC 52 in a read
+// file would write the caller's clipboard the moment a wrapper printed
+// it on a terminal. The strip keeps SGR colour (build output stays
+// coloured) and drops every state-changing sequence.
+func TestTextModeStripsUnsafeANSI(t *testing.T) {
+	f := &fake{responses: []*llm.Response{
+		{Message: llm.Message{Role: llm.RoleAssistant, Blocks: []llm.Block{
+			{Type: llm.BlockText, Text: "answer\x1b]0;pwned\x07"},
+		}}, StopReason: llm.StopEndTurn, Usage: llm.Usage{InputTokens: 1, OutputTokens: 1}},
+	}}
+	ag := &agent.Agent{Provider: f, Tools: tool.NewRegistry(), Model: "m", AutoApprove: true}
+	var out, errOut bytes.Buffer
+	err := Run(context.Background(), Options{Agent: ag, Prompt: "x", Stdout: &out, Stderr: &errOut, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "answer\n" {
+		t.Fatalf("stdout = %q", out.String())
+	}
+	if strings.ContainsRune(errOut.String(), 0x1b) {
+		t.Fatalf("escape byte on stderr: %q", errOut.String())
+	}
+}
+
+// Every text-mode branch prints something the run did not author. A
+// notice quotes the shell command a job ran, a retry and a compaction
+// quote a provider's error, a tool result is file contents, and an MCP
+// server supplies its own tool names. Only EvText, EvToolResult and the
+// verdict were stripped, so a notice carrying an OSC 52 wrote the
+// caller's clipboard.
+func TestEveryTextBranchStripsUnsafeANSI(t *testing.T) {
+	const osc52 = "\x1b]52;c;cHduZWQ=\x07"
+	const c1CSI = "\u009b2J"
+	for _, tc := range []struct {
+		name string
+		e    agent.Event
+	}{
+		{"text", agent.Event{Kind: agent.EvText, Text: "hi" + osc52}},
+		{"tool name", agent.Event{Kind: agent.EvToolRun, Call: &agent.ToolCall{Name: "mcp__x__" + osc52, Input: []byte(`{}`)}}},
+		{"tool intent", agent.Event{Kind: agent.EvToolRun, Call: &agent.ToolCall{Name: "bash", Intent: "run" + osc52, Input: []byte(`{}`)}}},
+		{"tool input", agent.Event{Kind: agent.EvToolRun, Call: &agent.ToolCall{Name: "bash", Input: []byte(`{"c":"` + c1CSI + `"}`)}}},
+		{"tool result", agent.Event{Kind: agent.EvToolResult, Output: "out" + osc52}},
+		{"compacted", agent.Event{Kind: agent.EvCompacted, Text: "at 80%" + osc52}},
+		{"verdict", agent.Event{Kind: agent.EvVerdict, Text: "passed" + c1CSI}},
+		{"retry", agent.Event{Kind: agent.EvRetry, Text: "429" + osc52}},
+		{"notice", agent.Event{Kind: agent.EvNotice, Text: "job exited: " + osc52}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var out, errOut bytes.Buffer
+			printEvent(Options{Stdout: &out, Stderr: &errOut, Agent: &agent.Agent{}}, tc.e)
+			for _, w := range []struct {
+				where string
+				got   string
+			}{{"stdout", out.String()}, {"stderr", errOut.String()}} {
+				for _, bad := range []rune{0x1b, 0x9b, 0x9d} {
+					if strings.ContainsRune(w.got, bad) {
+						t.Errorf("%s kept %#x: %q", w.where, bad, w.got)
+					}
+				}
+			}
+		})
+	}
+}
+
+// The watched command's output is the same problem by another route: it
+// is a child process's stderr, printed to the caller's terminal.
+func TestWatchedCommandOutputIsStripped(t *testing.T) {
+	if got := safeLine("fail\x1b]52;c;cHduZWQ=\x07", 200); strings.ContainsRune(got, 0x1b) {
+		t.Fatalf("safeLine kept an escape: %q", got)
+	}
+}

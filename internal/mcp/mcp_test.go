@@ -3,8 +3,10 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,6 +30,18 @@ func TestMain(m *testing.M) {
 			}
 		}
 		mcptest.FakeServer()
+		os.Exit(0)
+	}
+	if os.Getenv("MCP_FAKE_SERVER") == "env" {
+		mcptest.EnvServer()
+		os.Exit(0)
+	}
+	if os.Getenv("MCP_FAKE_SERVER") == "sticky" {
+		mcptest.StickyServer()
+		os.Exit(0)
+	}
+	if os.Getenv("MCP_FAKE_SERVER") == "reluctant" {
+		mcptest.ReluctantServer()
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
@@ -67,6 +81,117 @@ func TestCallToolResults(t *testing.T) {
 	_, err := c.CallTool(ctx, "slow", nil)
 	if err == nil || time.Since(start) > 2*time.Second {
 		t.Fatalf("slow call: err=%v after %s", err, time.Since(start))
+	}
+}
+
+// TestStdioServerEnvIsScrubbed is the credential-leak fix: an MCP server
+// is project-supplied, often fetched and run sight unseen, so it must not
+// inherit the agent's API keys through the ambient environment. The probe
+// server reports what it actually sees; the secrets set in this process
+// must not cross the pipe, while an explicitly configured variable must.
+func TestStdioServerEnvIsScrubbed(t *testing.T) {
+	const marker = "sk-ant-envprobe-marker"
+	t.Setenv("ANTHROPIC_API_KEY", marker)
+	t.Setenv("OPENAI_API_KEY", "sk-oai-envprobe-marker")
+	root := t.TempDir()
+	c, err := Start(context.Background(), "env probe", ServerConfig{
+		Command: os.Args[0],
+		Env:     map[string]string{"MCP_FAKE_SERVER": "env", "EXPLICIT_VAR": "explicit-ok"},
+	}, Options{Root: root, Version: "test", HandshakeTimeout: 20 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	probe := func(name string) string {
+		res, err := c.CallTool(context.Background(), "env", json.RawMessage(`{"name":"`+name+`"}`))
+		if err != nil {
+			t.Fatalf("probe %s: %v", name, err)
+		}
+		return res.Text
+	}
+	if got := probe("ANTHROPIC_API_KEY"); strings.Contains(got, marker) {
+		t.Fatalf("server saw the ambient ANTHROPIC_API_KEY: %q", got)
+	}
+	if got := probe("OPENAI_API_KEY"); strings.Contains(got, "sk-oai-envprobe-marker") {
+		t.Fatalf("server saw the ambient OPENAI_API_KEY: %q", got)
+	}
+	if got := probe("EXPLICIT_VAR"); !strings.Contains(got, "explicit-ok") {
+		t.Fatalf("server lost the explicitly configured env var: %q", got)
+	}
+}
+
+// TestCallToolWriteRespectsContext is the wedged-server fix: a server
+// that answered the handshake and then stopped reading fills its 64 KB
+// pipe on the next sizable request, and a pipe write has no deadline —
+// before the send took a context, this blocked the caller past
+// cancellation (and, in the parallel read-only batch, the turn with it).
+func TestCallToolWriteRespectsContext(t *testing.T) {
+	root := t.TempDir()
+	c, err := Start(context.Background(), "sticky", ServerConfig{
+		Command: os.Args[0],
+		Env:     map[string]string{"MCP_FAKE_SERVER": "sticky"},
+	}, Options{Root: root, Version: "test", HandshakeTimeout: 20 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	big := strings.Repeat("x", 256<<10)
+	args, err := json.Marshal(map[string]any{"text": big})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err = c.CallTool(ctx, "echo", args)
+	if err == nil {
+		t.Fatal("call succeeded against a server that never reads")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want the context's deadline", err)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("call took %s to abandon; the write ignored the context", elapsed)
+	}
+}
+
+// TestAbandonedCallIsNotExecutedLater: bounding the write by returning on
+// ctx.Done was not enough. The write stayed parked and completed when the
+// server next drained stdin, so a tools/call the model had already been
+// told had failed was delivered and run — at-most-once broken on the one
+// operation where it matters. The write is now ended, not abandoned: the
+// server either never sees the request or sees part of a frame, which
+// cannot parse, and the connection is reported as unusable.
+func TestAbandonedCallIsNotExecutedLater(t *testing.T) {
+	root := t.TempDir()
+	ran := t.TempDir()
+	c, err := Start(context.Background(), "reluctant", ServerConfig{
+		Command: os.Args[0],
+		Env:     map[string]string{"MCP_FAKE_SERVER": "reluctant", "MCP_RAN_DIR": ran},
+	}, Options{Root: root, Version: "test", HandshakeTimeout: 20 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	args, err := json.Marshal(map[string]any{"text": strings.Repeat("x", 256<<10)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if _, err := c.CallTool(ctx, "ship", args); err == nil {
+		t.Fatal("the call reported success against a server that was not reading")
+	}
+	// Long enough for the server to resume and drain everything the pipe
+	// still holds.
+	time.Sleep(3 * time.Second)
+	if _, err := os.Stat(filepath.Join(ran, "ran")); err == nil {
+		t.Fatal("the cancelled call ran on the server after the caller was told it had failed")
+	}
+	// And the connection says it is finished rather than accepting a
+	// request that would be read as the tail of the abandoned frame.
+	if _, err := c.CallTool(context.Background(), "ship", []byte(`{"text":"small"}`)); err == nil {
+		t.Fatal("a later call succeeded over a desynced connection")
 	}
 }
 

@@ -163,6 +163,8 @@ func forward(e llm.Event, emit func(Event)) {
 		if e.Retry != nil {
 			emit(Event{Kind: EvRetry, Text: retryLine(*e.Retry), Retry: e.Retry})
 		}
+	case llm.EventStreamDiscard:
+		emit(Event{Kind: EvDiscard})
 	}
 }
 

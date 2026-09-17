@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/pipewrite"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -214,8 +215,33 @@ func (t *Terms) Send(ctx context.Context, id int, line string, wait time.Duratio
 	// length taken now is not an index into anything later.
 	before := term.out.Len()
 	payload := strings.TrimRight(line, "\n") + "\n" + sentinelLine() + "\n"
-	if _, err := io.WriteString(stdin, payload); err != nil {
-		return "", fmt.Errorf("write terminal: %w", err)
+	// The write is bounded by ctx: a pipe write has no deadline, and a
+	// shell that stopped reading would otherwise park the turn past
+	// cancellation.
+	//
+	// An abandoned write must not arrive later, and here that matters
+	// more than anywhere else: the payload is a command plus a sentinel,
+	// the sentinel is a constant, and this is a live interactive shell.
+	// A parked write that completed after the fact splices the tail of
+	// one command onto the head of the next — the shell runs something
+	// neither the model nor the user asked for — and its late sentinel
+	// lands inside the next Send's window, so that call returns early and
+	// reports the previous command's output as its own.
+	_, werr := pipewrite.Write(ctx, stdin, []byte(payload))
+	var partial *pipewrite.PartialError
+	switch {
+	case errors.As(werr, &partial):
+		// Part of a command line is in the shell. Nothing can make that
+		// safe, so the terminal is finished: closing it is the only
+		// answer that cannot run a spliced command.
+		_ = t.Close(id)
+		return stripSentinel(term.out.Since(before)), fmt.Errorf("terminal %d was closed: %w", id, partial)
+	case errors.Is(werr, pipewrite.ErrAbandoned):
+		// Nothing reached the shell, so the command did not run and the
+		// terminal is still good.
+		return stripSentinel(term.out.Since(before)), ctx.Err()
+	case werr != nil:
+		return "", fmt.Errorf("write terminal: %w", werr)
 	}
 	deadline := time.Now().Add(wait)
 	for time.Now().Before(deadline) {

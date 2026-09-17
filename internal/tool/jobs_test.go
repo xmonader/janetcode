@@ -3,10 +3,13 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xmonader/janetcode/internal/pipewrite"
 )
 
 func TestJobsStartWaitOutputAndFinished(t *testing.T) {
@@ -48,13 +51,40 @@ func TestJobsStartWaitOutputAndFinished(t *testing.T) {
 	}
 }
 
+// TestJobsWriteRespectsContext is the wedged-job fix: a job that never
+// reads its stdin fills the 64 KB pipe, and a pipe write has no deadline,
+// so without the context bound a large stdin write from the job tool (a
+// read-only tool in the parallel batch) hung the turn past cancellation.
+func TestJobsWriteRespectsContext(t *testing.T) {
+	jobs := &Jobs{Dir: t.TempDir()}
+	job, err := jobs.Start(t.TempDir(), `sh -c 'sleep 30'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	err = jobs.Write(ctx, job.ID, strings.Repeat("x", 256<<10))
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want the context's deadline", err)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("write took %s to abandon; it ignored the context", elapsed)
+	}
+	// The wedged job is still killable, which also errors out the parked
+	// writer.
+	if err := jobs.Kill(job.ID); err != nil {
+		t.Fatalf("kill: %v", err)
+	}
+}
+
 func TestJobsWriteStdinAfterStart(t *testing.T) {
 	jobs := &Jobs{Dir: t.TempDir()}
 	job, err := jobs.Start(t.TempDir(), `sh -c 'read line; printf "got %s\n" "$line"'`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := jobs.Write(job.ID, "hello"); err != nil {
+	if err := jobs.Write(context.Background(), job.ID, "hello"); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -159,5 +189,36 @@ func TestJobsOutputReadsOnlyTheTail(t *testing.T) {
 	}
 	if !strings.HasSuffix(all, "the last line") {
 		t.Fatal("the end of the log was not what came back")
+	}
+}
+
+// TestAnAbandonedJobWriteEndsStdin: the context bound stopped the caller
+// waiting, but the write stayed parked and completed when the job next
+// drained its stdin. So the caller was told the write had failed, retried,
+// and the job received both payloads — interleaved, because two writers
+// were queued on one pipe. An abandoned write now ends, and if part of it
+// reached the pipe the job's stdin is closed rather than spliced.
+func TestAnAbandonedJobWriteEndsStdin(t *testing.T) {
+	jobs := &Jobs{Dir: t.TempDir()}
+	job, err := jobs.Start(t.TempDir(), `sh -c 'sleep 30'`) // never reads stdin
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = jobs.Kill(job.ID) })
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	err = jobs.Write(ctx, job.ID, strings.Repeat("a", 256<<10))
+	if !errors.Is(err, pipewrite.ErrAbandoned) {
+		t.Fatalf("err = %v, want an abandoned write", err)
+	}
+	var partial *pipewrite.PartialError
+	if !errors.As(err, &partial) {
+		t.Fatalf("err = %v, want it reported as partial: the pipe took some of it", err)
+	}
+	// The retry the caller would now make must be refused, not queued
+	// behind the dead writer.
+	err = jobs.Write(context.Background(), job.ID, "b\n")
+	if err == nil || !strings.Contains(err.Error(), "no longer accepts stdin") {
+		t.Fatalf("second write: err = %v, want a refusal", err)
 	}
 }

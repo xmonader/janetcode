@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/pipewrite"
 	"github.com/xmonader/janetcode/internal/procgroup"
 )
 
@@ -38,6 +39,10 @@ type client struct {
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	writeM sync.Mutex
+	// broken is set once a frame reached the server in part. Nothing can
+	// be written after that: the server is waiting inside a header it
+	// will never be given the rest of.
+	broken error
 	log    func(string)
 	nextID int64
 	pendM  sync.Mutex
@@ -139,7 +144,7 @@ func start(ctx context.Context, root string, command []string, log func(string))
 		c.close()
 		return nil, fmt.Errorf("initialize: %w", err)
 	}
-	if err := c.notify("initialized", map[string]any{}); err != nil {
+	if err := c.notifyCtx(ictx, "initialized", map[string]any{}); err != nil {
 		c.close()
 		return nil, err
 	}
@@ -168,10 +173,10 @@ func (c *client) diagnose(ctx context.Context, abs, text string, timeout time.Du
 	c.docM.Unlock()
 	var err error
 	if !open {
-		err = c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		err = c.notifyCtx(ctx, "textDocument/didOpen", map[string]any{"textDocument": map[string]any{
 			"uri": uri, "languageId": languageID(abs), "version": version, "text": text}})
 	} else {
-		err = c.notify("textDocument/didChange", map[string]any{
+		err = c.notifyCtx(ctx, "textDocument/didChange", map[string]any{
 			"textDocument":   map[string]any{"uri": uri, "version": version},
 			"contentChanges": []map[string]any{{"text": text}},
 		})
@@ -180,7 +185,7 @@ func (c *client) diagnose(ctx context.Context, abs, text string, timeout time.Du
 		return nil, false, err
 	}
 	// Servers that support didSave often run their heavier checks then.
-	_ = c.notify("textDocument/didSave", map[string]any{"textDocument": map[string]any{"uri": uri}})
+	_ = c.notifyCtx(ctx, "textDocument/didSave", map[string]any{"textDocument": map[string]any{"uri": uri}})
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
 	for {
@@ -256,12 +261,15 @@ func (c *client) fail(err error) {
 }
 
 // close asks the server to shut down, then stops its whole process group
-// so nothing it forked outlives the session.
+// so nothing it forked outlives the session. Every step is bounded: a
+// wedged server must not hold the process open — close runs at exit.
 func (c *client) close() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_, _ = c.call(ctx, "shutdown", nil)
-	_ = c.notify("exit", nil)
+	// Best-effort: if the server stopped reading, the notification's
+	// write abandons on the context instead of blocking the supervise.
+	_ = c.notifyCtx(ctx, "exit", nil)
 	procgroup.Stop(c.cmd, c.reaped, 2*time.Second)
 }
 
@@ -276,7 +284,7 @@ func (c *client) call(ctx context.Context, method string, params any) (json.RawM
 	ch := make(chan rpcResponse, 1)
 	c.pend[id] = ch
 	c.pendM.Unlock()
-	if err := c.send(map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params}); err != nil {
+	if err := c.sendCtx(ctx, map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params}); err != nil {
 		c.pendM.Lock()
 		delete(c.pend, id)
 		c.pendM.Unlock()
@@ -308,30 +316,71 @@ func (c *client) call(ctx context.Context, method string, params any) (json.RawM
 	}
 }
 
-func (c *client) notify(method string, params any) error {
+func (c *client) notifyCtx(ctx context.Context, method string, params any) error {
 	msg := map[string]any{"jsonrpc": "2.0", "method": method}
 	if params != nil {
 		msg["params"] = params
 	}
-	return c.send(msg)
+	return c.sendCtx(ctx, msg)
 }
 
 func (c *client) reply(id json.RawMessage, result any) {
 	_ = c.send(map[string]any{"jsonrpc": "2.0", "id": id, "result": result})
 }
 
+// replyTimeout bounds a write made from the read loop. The loop is the
+// only thing draining the server's stdout, so a reply that blocks on a
+// full stdin pipe deadlocks the pair: the server has stopped reading
+// because it is blocked writing to a stdout nobody is draining, and we
+// have stopped draining because we are blocked writing to its stdin.
+// Both sides then wait forever, and close()'s shutdown never reaches the
+// supervisor that would kill the process.
+const replyTimeout = 10 * time.Second
+
+// send writes a message the caller has no context for — a reply to a
+// server-initiated request, from the read loop. It is bounded anyway.
 func (c *client) send(msg any) error {
+	ctx, cancel := context.WithTimeout(context.Background(), replyTimeout)
+	defer cancel()
+	return c.sendCtx(ctx, msg)
+}
+
+// sendCtx writes one LSP frame, bounded by ctx.
+//
+// The write used to run on a goroutine so the caller could give up on it.
+// Giving up did not stop it: a pipe write has no deadline, so the write
+// stayed parked with the lock held and completed later, when the server
+// next drained its stdin — delivering a message whose sender had already
+// been told it failed, behind whatever was written next. pipewrite pushes
+// the pipe's write deadline into the past instead, so the write really
+// ends and the byte count is the truth about what the server received.
+//
+// A frame that went out in part cannot be followed by another: the server
+// is mid-header, and the next frame's bytes would be read as the rest of
+// the one before. There is no recovery from that, so the stream is marked
+// broken and stdin closed, which is what makes the server exit and the
+// reaper report it.
+func (c *client) sendCtx(ctx context.Context, msg any) error {
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
+	frame := append([]byte(fmt.Sprintf("Content-Length: %d\r\n\r\n", len(body))), body...)
 	c.writeM.Lock()
 	defer c.writeM.Unlock()
-	if _, err := fmt.Fprintf(c.stdin, "Content-Length: %d\r\n\r\n", len(body)); err != nil {
+	if c.broken != nil {
+		return c.broken
+	}
+	if _, err := pipewrite.Write(ctx, c.stdin, frame); err != nil {
+		var pe *pipewrite.PartialError
+		if errors.As(err, &pe) {
+			c.broken = fmt.Errorf("lsp stdin is out of frame and cannot be reused: %w", err)
+			c.stdin.Close()
+			return c.broken
+		}
 		return err
 	}
-	_, err = c.stdin.Write(body)
-	return err
+	return nil
 }
 
 // read dispatches server messages until stdout closes.

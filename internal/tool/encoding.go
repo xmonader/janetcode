@@ -81,6 +81,22 @@ func decodeText(data []byte) (string, form) {
 
 // encodeText is decodeText's inverse: the model's UTF-8 LF text written
 // back the way the file was.
+// encodeChecked encodes s in the file's shape and refuses the result when
+// the bytes that would land on disk exceed the write ceiling.
+//
+// The ceiling was measured against the text, which is UTF-8, while the
+// write is in the file's own charset. A UTF-16 file spends two bytes on
+// nearly every character, so content that passed the 8 MiB check wrote
+// 16 MiB — the one cap that is supposed to stand between a runaway model
+// and the disk, overshot by the factor the file's encoding happens to be.
+func encodeChecked(s string, f form, what, hint string) ([]byte, error) {
+	data := encodeText(s, f)
+	if err := checkWriteSize(what, len(data), hint); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 func encodeText(s string, f form) []byte {
 	if f.CRLF {
 		// Any \r\n the text already has must not become \r\r\n.

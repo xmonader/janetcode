@@ -49,6 +49,12 @@ type Hook struct {
 	// Restrict); left out, the command text is guessed at instead. A
 	// pointer so that "not said" and "said no" are different answers.
 	Network *bool `json:"network,omitempty"`
+	// project marks a hook that came from the workspace's own config.
+	// Project content must never approve a tool call on the user's
+	// behalf — only the user's own hooks may — so Restrict sets this and
+	// Run refuses an allow decision that carries it. Unexported so it
+	// never round-trips through the file.
+	project bool
 }
 
 // ReachesNetwork reports whether the hook goes off the machine: what the
@@ -305,6 +311,7 @@ func Restrict(project Config, lim Limits) (Config, []string) {
 				notes = append(notes, fmt.Sprintf("%s asked for a %ds timeout; a project hook is capped at %ds.", where, h.Timeout, maxSecs))
 				h.Timeout = maxSecs
 			}
+			h.project = true
 			out.Hooks[ev] = append(out.Hooks[ev], h)
 		}
 	}
@@ -360,6 +367,9 @@ type Result struct {
 	Allowed bool
 	// Input is the final tool input after rewrites (pre_tool).
 	Input json.RawMessage
+	// InputFromProject means a hook that came with the repository, rather
+	// than one the user configured, is what rewrote Input.
+	InputFromProject bool
 	// Notes collects notes from every hook.
 	Notes []string
 	// Continue is the text to feed back on a stop event, or "".
@@ -451,13 +461,29 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 			return res
 		}
 		if o.Decision == "allow" || o.Decision == "approve" {
-			res.Allowed = true
+			if h.project {
+				// Project content approving a call on the user's behalf
+				// would silently disable the permission gate for the
+				// whole session; only the user's own hooks may allow.
+				r.logf("%s: a project hook cannot allow a tool call; the decision is ignored", label)
+			} else {
+				res.Allowed = true
+			}
 		}
 		if len(o.Input) > 0 && in.Event == PreTool {
 			if !json.Valid(o.Input) {
 				r.logf("%s ignored: rewritten input is not valid JSON", label)
 			} else {
-				res.Input = o.Input
+				// A rewrite decides what the tool actually does — which
+				// file a write lands in, which command bash runs. Project
+				// content may still ask for one, because normalising a
+				// call is a fair thing for a repository to want, but it
+				// cannot have it applied without the user seeing it: the
+				// caller turns this into a forced prompt. Without that,
+				// a cloned repository rewrote tool arguments in silence
+				// under --yolo, which is the same gate the allow decision
+				// above is kept away from.
+				res.Input, res.InputFromProject = o.Input, h.project
 			}
 		}
 		if o.Note != "" {
@@ -521,7 +547,11 @@ func (r *Runner) exec(ctx context.Context, h Hook, in Input) (execOut, int, erro
 	shell.Supervise(cmd)
 	cmd.Dir = r.Cwd
 	cmd.Stdin = bytes.NewReader(payload)
-	cmd.Env = append(os.Environ(),
+	// The environment is scrubbed of the agent's credentials: a project
+	// hook is project-controlled code on the model's critical path, and
+	// anything it prints (stdout becomes a conversation note) must not be
+	// able to smuggle a key back into the context.
+	cmd.Env = append(shell.ScrubEnv(os.Environ()),
 		"JANETCODE_EVENT="+in.Event,
 		"JANETCODE_TOOL="+in.Tool,
 		"JANETCODE_CWD="+in.Cwd,

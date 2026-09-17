@@ -513,7 +513,9 @@ func runCheck(ctx context.Context, t Task, dir, outPath string) (string, error) 
 	defer ccancel()
 	cmd := shell.Command(cctx, t.Check)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir)
+	// Scrubbed of the agent's credentials: a task's check is project
+	// content, run and read back with its output.
+	cmd.Env = append(shell.ScrubEnv(os.Environ()), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir)
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }
@@ -618,6 +620,12 @@ func (r *Runner) one(ctx context.Context, t Task, label string) (res Result) {
 			switch e.Kind {
 			case agent.EvText:
 				out.WriteString(e.Text)
+			case agent.EvDiscard:
+				// A stream that died without a terminal frame is retried
+				// from scratch, and its deltas are void. Keeping them
+				// scored "half an answerfull answer" as the model's
+				// output — a silently wrong eval result.
+				out.Reset()
 			case agent.EvToolRun:
 				res.ToolCalls++
 				calls.Add(1)

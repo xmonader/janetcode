@@ -186,12 +186,20 @@ func (r *Runner) Run(ctx context.Context) Result {
 		// holds them. Supervise kills the group and bounds that wait.
 		shell.Supervise(cmd)
 		cmd.Dir = r.Cwd
-		cmd.Env = append(os.Environ(), "JANETCODE_VERIFY=1")
+		// Scrubbed of the agent's credentials: verify commands come from
+		// the project, and their output goes back to the model.
+		cmd.Env = append(shell.ScrubEnv(os.Environ()), "JANETCODE_VERIFY=1")
 		// Bounded rather than CombinedOutput: a verbose suite can print
 		// for as long as it runs, and only the ends are ever read.
 		out := &capture{}
 		cmd.Stdout, cmd.Stderr = out, out
 		err := cmd.Run()
+		// A command that exits 0 but leaks a grandchild holding its pipes
+		// surfaces as ErrWaitDelay once the bounded pipe wait cuts the
+		// read — the command itself passed.
+		if errors.Is(err, exec.ErrWaitDelay) {
+			err = nil
+		}
 		timedOut := errors.Is(cctx.Err(), context.DeadlineExceeded)
 		cancel()
 		if err == nil {

@@ -21,6 +21,7 @@ import (
 type Snapshotter interface {
 	Take(ctx context.Context, label string) (snapshot.Snap, error)
 	Restore(ctx context.Context, s snapshot.Snap) ([]string, error)
+	RestoreSkip(ctx context.Context, s snapshot.Snap, skip map[string]bool) ([]string, error)
 	Drop(ctx context.Context, s snapshot.Snap)
 	Changed(ctx context.Context, s snapshot.Snap) (bool, error)
 	Diff(ctx context.Context, s snapshot.Snap) ([]string, error)

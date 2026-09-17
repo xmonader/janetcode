@@ -233,7 +233,7 @@ func TestUnchangedDocumentIsNotResent(t *testing.T) {
 	w := &countingWriter{}
 	c := &client{docs: map[string]int{}, diags: map[string]diagState{}, waits: map[string]chan struct{}{},
 		done: make(chan struct{}), stdin: w}
-	if err := c.sync("/p/a.go", "package a\n"); err != nil {
+	if err := c.sync(context.Background(), "/p/a.go", "package a\n"); err != nil {
 		t.Fatal(err)
 	}
 	first := w.writes
@@ -242,7 +242,7 @@ func TestUnchangedDocumentIsNotResent(t *testing.T) {
 	}
 	// Same content: nothing goes over the wire.
 	for i := 0; i < 5; i++ {
-		if err := c.sync("/p/a.go", "package a\n"); err != nil {
+		if err := c.sync(context.Background(), "/p/a.go", "package a\n"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -250,7 +250,7 @@ func TestUnchangedDocumentIsNotResent(t *testing.T) {
 		t.Fatalf("%d writes for five identical syncs, want %d", w.writes, first)
 	}
 	// Changed content is sent.
-	if err := c.sync("/p/a.go", "package a\n\nfunc F() {}\n"); err != nil {
+	if err := c.sync(context.Background(), "/p/a.go", "package a\n\nfunc F() {}\n"); err != nil {
 		t.Fatal(err)
 	}
 	if w.writes == first {
@@ -258,7 +258,7 @@ func TestUnchangedDocumentIsNotResent(t *testing.T) {
 	}
 	// A different file is its own document.
 	before := w.writes
-	if err := c.sync("/p/b.go", "package a\n"); err != nil {
+	if err := c.sync(context.Background(), "/p/b.go", "package a\n"); err != nil {
 		t.Fatal(err)
 	}
 	if w.writes == before {

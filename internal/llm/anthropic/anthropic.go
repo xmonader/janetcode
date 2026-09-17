@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -101,7 +102,9 @@ func New(cfg Config) (*Provider, error) {
 			opts = append(opts, option.WithBaseURL(cfg.BaseURL))
 		}
 		if cfg.HTTPClient != nil {
-			opts = append(opts, option.WithHTTPClient(cfg.HTTPClient))
+			opts = append(opts, option.WithHTTPClient(newRedirectSafeClient(cfg.HTTPClient)))
+		} else {
+			opts = append(opts, option.WithHTTPClient(newRedirectSafeClient(nil)))
 		}
 		p.clients = append(p.clients, sdk.NewClient(opts...))
 	}
@@ -162,6 +165,10 @@ func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 type APIError struct {
 	Status  int
 	Message string
+	// Detail is the same server text redacted but uncapped, for the
+	// things that must read past Message's display cap: effort clamping
+	// and classification. It is never rendered.
+	Detail string
 	// RetryAfter is the server's own Retry-After, kept only for the two
 	// statuses that mean "come back later" — 429 and 503. On anything
 	// else the header is advice about a failure that is not going to
@@ -173,7 +180,16 @@ func (e *APIError) Error() string { return fmt.Sprintf("%s (HTTP %d)", e.Message
 
 // HTTPStatus and RetryHint implement llm.StatusError, which is how the
 // shared retry policy judges an error from this provider.
-func (e *APIError) HTTPStatus() int          { return e.Status }
+func (e *APIError) HTTPStatus() int { return e.Status }
+
+// ErrorDetail implements llm.DetailedError.
+func (e *APIError) ErrorDetail() string {
+	if e.Detail != "" {
+		return e.Detail
+	}
+	return e.Message
+}
+
 func (e *APIError) RetryHint() time.Duration { return e.RetryAfter }
 
 func buildParams(req llm.Request, cfg Config) (sdk.MessageNewParams, error) {
@@ -327,26 +343,36 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if emit == nil {
 		emit = func(llm.Event) {}
 	}
-	// A stream that stops producing without failing would otherwise hang
-	// the turn for as long as the process lives.
-	ctx, wd := llm.Watch(ctx, p.cfg.Limits)
-	defer wd.Stop()
+	// The caller's context is the user's will: a cancellation there ends
+	// the call for good. Each attempt gets a watchdog of its own, so a
+	// stream the harness killed for silence can be retried under a fresh
+	// one — a stream that died without a terminal frame never answered.
+	parent := ctx
+	var wd *llm.Watchdog
 	// The same retry policy every provider follows: the SDK's own is
 	// turned off (see New), so the backoff, the countdown and the summary
 	// all happen where the watchdog and the UI can see them.
-	rt := llm.NewRetrier(p.cfg.MaxRetries, emit, wd)
+	rt := llm.NewRetrier(p.cfg.MaxRetries, emit, nil)
 	rotations := 0
+	// One lifetime budget for the whole call, not one per attempt: the
+	// cap exists to end a stream that never stops dribbling, and a
+	// per-attempt one multiplied it by the retry count.
+	callStart := time.Now()
 	for {
+		ctx, wd = llm.WatchSince(parent, p.cfg.Limits, callStart)
+		rt.ResetWatchdog(wd)
 		cfg := p.config()
 		// The tier is read per request, not per provider: /effort changes
 		// the agent's live setting and the very next call carries it.
 		cfg.Effort = p.effortFor(req.Effort)
 		params, err := buildParams(req, cfg)
 		if err != nil {
+			wd.Stop()
 			return nil, err
 		}
 		client, idx := p.current()
 		resp, produced, err := p.stream(ctx, client, params, wd, emit)
+		wd.Stop()
 		if err == nil {
 			p.ring.OK(idx)
 			rt.Landed()
@@ -355,11 +381,31 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		// p.stream never returns a response alongside an error; say so
 		// rather than handing the caller a half-response to guess about.
 		resp = nil
-		if produced {
-			// The failure came after the model had already said
-			// something. Sending the request again would replay that
-			// text into the turn, so the call fails and the user resends.
+		stalled := wd.Err() != nil
+		if stalled {
+			err = wd.Wrap(err) // the watchdog's reason, not bare ctx cancel
+		}
+		if parent.Err() != nil {
 			return nil, wd.Wrap(err)
+		}
+		// The lifetime cap is the bound on this call. It has not died —
+		// it is out of time, and every retry spends the same exhausted
+		// budget, so it ends here.
+		if llm.LifetimeStalled(wd.Err()) {
+			return nil, wd.Wrap(err)
+		}
+		if produced && !llm.Truncated(err) && !stalled {
+			// The failure came after the model had already said
+			// something, and the stream reached no truncation — sending
+			// the request again would replay that text into the turn, so
+			// the call fails and the user resends.
+			return nil, wd.Wrap(err)
+		}
+		if produced {
+			// Every path below resends the request: whatever the dead
+			// attempt streamed is void, and consumers must drop the half
+			// answer it left behind before the retry's deltas arrive.
+			emit(llm.Event{Type: llm.EventStreamDiscard})
 		}
 		if p.clampEffort(err) {
 			// The model does not go that high; the next tier down is
@@ -373,7 +419,7 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 			rotations++
 			continue
 		}
-		if werr := rt.Wait(ctx, err); werr != nil {
+		if werr := rt.Wait(parent, err); werr != nil {
 			return nil, wd.Wrap(werr)
 		}
 	}
@@ -416,7 +462,9 @@ func (p *Provider) clampEffort(err error) bool {
 	if !errors.As(err, &ae) || ae.Status != 400 {
 		return false
 	}
-	msg := strings.ToLower(ae.Message)
+	// The uncapped copy: a verbose 400 can push the parameter name past
+	// the display cap, and then the tier is never clamped.
+	msg := strings.ToLower(ae.ErrorDetail())
 	if !strings.Contains(msg, "effort") && !strings.Contains(msg, "output_config") {
 		return false
 	}
@@ -444,21 +492,26 @@ func (p *Provider) clampEffort(err error) bool {
 }
 
 // stream runs one attempt. produced says whether the model had begun
-// answering before any error: past that point the attempt cannot be
-// retried without replaying what was already emitted.
+// answering before any error; a failure past that point cannot be
+// retried without replaying what was already emitted — unless the stream
+// died without a terminal frame (llm.Truncated), where nothing was ever
+// answered and a fresh attempt is legitimate.
 func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.MessageNewParams, wd *llm.Watchdog, emit func(llm.Event)) (resp *llm.Response, produced bool, err error) {
 	stream := client.Messages.NewStreaming(ctx, params)
 	msg := sdk.Message{}
 	// Track open tool_use blocks by index so we can emit start/end events.
 	openTools := map[int64]*llm.Block{}
+	sawStop := false
 	for stream.Next() {
 		wd.Tick()
 		produced = true
 		ev := stream.Current()
 		if err := msg.Accumulate(ev); err != nil {
-			return nil, produced, fmt.Errorf("anthropic: accumulate: %w", err)
+			return nil, produced, llm.Truncate(fmt.Errorf("anthropic: accumulate: %w", err))
 		}
 		switch v := ev.AsAny().(type) {
+		case sdk.MessageStopEvent:
+			sawStop = true
 		case sdk.ContentBlockStartEvent:
 			if v.ContentBlock.Type == "tool_use" {
 				b := &llm.Block{Type: llm.BlockToolUse, ID: v.ContentBlock.ID, Name: v.ContentBlock.Name}
@@ -485,7 +538,18 @@ func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.Me
 		}
 	}
 	if err := stream.Err(); err != nil {
-		return nil, produced, mapError(ctx, err)
+		merr := mapError(ctx, err)
+		if sawStop {
+			// The terminal frame arrived; whatever this is, the message
+			// was answered.
+			return nil, produced, merr
+		}
+		var se llm.StatusError
+		if errors.As(merr, &se) {
+			// The server spoke a status: a refusal, not a truncation.
+			return nil, produced, merr
+		}
+		return nil, produced, llm.Truncate(merr)
 	}
 	out, err := toResponse(msg)
 	return out, produced, err
@@ -498,18 +562,27 @@ func mapError(ctx context.Context, err error) error {
 	var ae *sdk.Error
 	if errors.As(err, &ae) {
 		msg := http.StatusText(ae.StatusCode)
+		if msg == "" {
+			// A gateway's own status with no name in the RFCs: say the
+			// number rather than nothing, which read as " (request ...)".
+			msg = "HTTP " + strconv.Itoa(ae.StatusCode)
+		}
+		var detail string
 		var env struct {
 			Error struct {
 				Message string `json:"message"`
 			} `json:"error"`
 		}
 		if json.Unmarshal([]byte(ae.RawJSON()), &env) == nil && env.Error.Message != "" {
-			msg = env.Error.Message
+			if m := llm.SafeErrorMessage(ae.StatusCode, env.Error.Message); m != "" {
+				msg = m
+			}
+			detail = llm.SafeErrorDetail(ae.StatusCode, env.Error.Message)
 		}
 		if ae.RequestID != "" {
 			msg += " (request " + ae.RequestID + ")"
 		}
-		out := &APIError{Status: ae.StatusCode, Message: msg}
+		out := &APIError{Status: ae.StatusCode, Message: msg, Detail: detail}
 		if ae.Response != nil {
 			out.RetryAfter = llm.RetryAfterFrom(ae.Response.Header, ae.StatusCode)
 		}

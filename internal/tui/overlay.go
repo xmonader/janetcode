@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -602,7 +603,9 @@ func (m *model) jobsCommand(args []string) {
 			return
 		}
 		text := strings.Join(args[2:], " ")
-		if err := m.opts.Jobs.Write(n, text); err != nil {
+		// Background: the UI types short lines (they fit the pipe buffer),
+		// and /jobs kill rescues a wedged write by closing the pipe.
+		if err := m.opts.Jobs.Write(context.Background(), n, text); err != nil {
 			m.transcript.errorf("%v", err)
 			return
 		}

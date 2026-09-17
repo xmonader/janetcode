@@ -182,13 +182,21 @@ type Usage struct {
 	CostUSD float64 `json:"cost_usd,omitempty"`
 }
 
-// Add accumulates u2 into u.
+// Add accumulates u2 into u. The fields come from a provider response —
+// user-hosted input, for the OpenAI-compatible dialects this client
+// deliberately supports — and a broken or hostile endpoint can send
+// negative or NaN numbers. Accumulated they corrupt the totals, /stats,
+// and the budget check alike: a negative running cost never reaches the
+// ceiling, so --max-cost would go unenforced. Anything that is not a
+// finite non-negative number is dropped.
 func (u *Usage) Add(u2 Usage) {
-	u.InputTokens += u2.InputTokens
-	u.OutputTokens += u2.OutputTokens
-	u.CacheReadTokens += u2.CacheReadTokens
-	u.CacheWriteTokens += u2.CacheWriteTokens
-	u.CostUSD += u2.CostUSD
+	u.InputTokens += max(u2.InputTokens, 0)
+	u.OutputTokens += max(u2.OutputTokens, 0)
+	u.CacheReadTokens += max(u2.CacheReadTokens, 0)
+	u.CacheWriteTokens += max(u2.CacheWriteTokens, 0)
+	if u2.CostUSD >= 0 && !math.IsNaN(u2.CostUSD) && !math.IsInf(u2.CostUSD, 0) {
+		u.CostUSD += u2.CostUSD
+	}
 }
 
 // Price is what a model costs per million tokens, in USD.
@@ -342,6 +350,11 @@ const (
 	// seconds of waiting. Retry carries the count, the reason and the
 	// wait, so a run can be read afterwards and say so.
 	EventRetried EventType = "retried"
+	// EventStreamDiscard says the deltas streamed so far in this call are
+	// void: the attempt died without a terminal frame and the request is
+	// being retried fresh, so consumers must throw the partial text away
+	// rather than let the retried answer follow it on screen.
+	EventStreamDiscard EventType = "stream_discard"
 )
 
 // Retry describes what one model call had to survive before it answered.

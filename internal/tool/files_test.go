@@ -3,6 +3,8 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/xmonader/janetcode/internal/textfmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -520,5 +522,146 @@ func TestWriteThroughSymlinkedDirRejected(t *testing.T) {
 	// An ordinary new file inside the root is still allowed.
 	if _, err := w.Run(context.Background(), raw(`{"path":"sub/ok.txt","content":"x"}`)); err != nil {
 		t.Fatalf("ordinary new file: %v", err)
+	}
+}
+
+// A runaway model can emit a write far larger than any file in the
+// workspace before a token or cost budget notices — the write executes
+// first — so the size itself is the tripwire.
+func TestWriteAndEditRefuseOverTheCeiling(t *testing.T) {
+	root := t.TempDir()
+	ctx := context.Background()
+
+	w := WriteFile{Root: root}
+	in := `{"path":"big.txt","content":` + mustJSON(strings.Repeat("x", MaxWriteBytes+1)) + `}`
+	_, err := w.Run(ctx, raw(in))
+	if err == nil || !strings.Contains(err.Error(), "8 MiB") {
+		t.Fatalf("write over the ceiling: err = %v", err)
+	}
+	if _, serr := os.Stat(filepath.Join(root, "big.txt")); serr == nil {
+		t.Fatal("the oversized write landed anyway")
+	}
+
+	e := EditFile{Root: root}
+	// A new_string over the cap is refused before anything is read.
+	in = `{"path":"f.txt","old_string":"a","new_string":` + mustJSON(strings.Repeat("y", MaxWriteBytes+1)) + `}`
+	if _, err := e.Run(ctx, raw(in)); err == nil || !strings.Contains(err.Error(), "8 MiB") {
+		t.Fatalf("edit over the ceiling: err = %v", err)
+	}
+	// A replacement under the cap multiplied by replace_all past it is
+	// refused too, and the file is left exactly as it was.
+	os.WriteFile(filepath.Join(root, "f.txt"), []byte("x\nx\nx\n"), 0o644)
+	mid := strings.Repeat("y", MaxWriteBytes/2+1) // under the cap alone
+	in = `{"path":"f.txt","old_string":"x","new_string":` + mustJSON(mid) + `,"replace_all":true}`
+	_, err = e.Run(ctx, raw(in))
+	if err == nil || !strings.Contains(err.Error(), "8 MiB") {
+		t.Fatalf("multiplied edit over the ceiling: err = %v", err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "f.txt")); string(got) != "x\nx\nx\n" {
+		t.Fatalf("refused edit changed the file: %q", got)
+	}
+}
+
+// A huge directory is read, sorted and joined in full only for the
+// output to be clipped: past the cap the listing says so instead, and
+// the read itself stops at the cap.
+func TestListDirCapsEntries(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"m.txt", "z.txt", "a.txt"} {
+		os.WriteFile(filepath.Join(root, name), nil, 0o644)
+	}
+	for i := 0; i < maxDirEntries-2; i++ {
+		os.WriteFile(filepath.Join(root, fmt.Sprintf("f%04d.txt", i)), nil, 0o644)
+	}
+	l := ListDir{Root: root}
+	out, err := l.Run(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(out, "\n")
+	if len(lines) != maxDirEntries+1 {
+		t.Fatalf("%d lines: first=%q tail=%q", len(lines), lines[0], lines[len(lines)-3:])
+	}
+	if lines[0] != "a.txt" || lines[1] != "f0000.txt" {
+		t.Fatalf("prefix not sorted: %q, %q", lines[0], lines[1])
+	}
+	if last := lines[len(lines)-1]; !strings.Contains(last, "capped at 2000") {
+		t.Fatalf("missing cap note: %q", last)
+	}
+	// An exactly-full directory does not claim there is more.
+	for i := 0; i < 3; i++ {
+		os.Remove(filepath.Join(root, fmt.Sprintf("f%04d.txt", i)))
+	}
+	out, err = l.Run(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "capped") {
+		t.Fatalf("spurious cap note: %q", strings.Split(out, "\n")[0])
+	}
+}
+
+// The write ceiling is what stands between a runaway model and the disk,
+// and it was measured on the text rather than on the bytes. A UTF-16
+// file keeps its charset through a write, so content that passed the
+// 8 MiB check landed as 16 MiB.
+func TestWriteCeilingMeasuresTheEncodedBytes(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	p := filepath.Join(root, "u16.txt")
+	// A UTF-16LE file with a BOM: the shape a write has to preserve.
+	orig := append([]byte{0xff, 0xfe}, encodeUTF16("hello\n", false)...)
+	if err := os.WriteFile(p, orig, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Under the ceiling as UTF-8, over it once every rune costs two bytes.
+	body := strings.Repeat("a", MaxWriteBytes/2+1)
+
+	w := WriteFile{Root: root}
+	if _, err := w.Run(ctx, raw(`{"path":"u16.txt","content":`+mustJSON(body)+`}`)); err == nil || !strings.Contains(err.Error(), "8 MiB") {
+		t.Fatalf("write over the encoded ceiling: err = %v", err)
+	}
+	if got, _ := os.ReadFile(p); string(got) != string(orig) {
+		t.Fatalf("the refused write changed the file: %d bytes", len(got))
+	}
+
+	e := EditFile{Root: root}
+	in := `{"path":"u16.txt","old_string":"hello","new_string":` + mustJSON(body) + `}`
+	if _, err := e.Run(ctx, raw(in)); err == nil || !strings.Contains(err.Error(), "8 MiB") {
+		t.Fatalf("edit over the encoded ceiling: err = %v", err)
+	}
+	if got, _ := os.ReadFile(p); string(got) != string(orig) {
+		t.Fatalf("the refused edit changed the file: %d bytes", len(got))
+	}
+}
+
+// A listing is capped at an entry count, which says nothing about bytes:
+// 2000 names at the length a filesystem allows is half a megabyte, twice
+// what a tool result may be. And the cap used to cut before the sort, so
+// which names survived came from the directory stream's order — the same
+// call on the same unchanged directory could answer differently.
+func TestListDirCapIsBoundedAndOrdered(t *testing.T) {
+	root := t.TempDir()
+	long := strings.Repeat("n", 200)
+	for i := 0; i < maxDirEntries+50; i++ {
+		if err := os.WriteFile(filepath.Join(root, fmt.Sprintf("%s%04d.txt", long, i)), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	l := ListDir{Root: root}
+	out, err := l.Run(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) > textfmt.MaxOutput {
+		t.Errorf("listing is %d bytes, over the %d-byte tool output cap", len(out), textfmt.MaxOutput)
+	}
+	first := strings.SplitN(out, "\n", 2)[0]
+	if want := long + "0000.txt"; first != want {
+		t.Errorf("first line = %q, want %q — the cap cut before the sort", first, want)
+	}
+	again, err := l.Run(context.Background(), nil)
+	if err != nil || again != out {
+		t.Errorf("two listings of an unchanged directory differ")
 	}
 }

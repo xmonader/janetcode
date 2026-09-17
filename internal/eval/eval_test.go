@@ -179,10 +179,8 @@ func TestCompareIsPairedByTask(t *testing.T) {
 		t.Fatalf("clear improvement not significant: %+v", c)
 	}
 	// Deterministic intervals.
-	if lo1, hi1 := bootstrapCI([]float64{0, 1, -0.5, 0.5}, 500, 1); true {
-		if lo2, hi2 := bootstrapCI([]float64{0, 1, -0.5, 0.5}, 500, 1); lo1 != lo2 || hi1 != hi2 {
-			t.Fatal("bootstrap not reproducible")
-		}
+	if bootstrapCI([]float64{0, 1, -0.5, 0.5}, 500, 1) != bootstrapCI([]float64{0, 1, -0.5, 0.5}, 500, 1) {
+		t.Fatal("bootstrap not reproducible")
 	}
 	var buf bytes.Buffer
 	WriteComparison(&buf, c)

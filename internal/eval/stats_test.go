@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -38,11 +39,19 @@ func TestRatioIntervalCatchesNoise(t *testing.T) {
 		t.Fatalf("the report must say so:\n%s", b.String())
 	}
 
-	// A saving that is present on every task is a saving.
-	half := []Result{res("a", 0.5), res("b", 0.5), res("c", 0.5), res("d", 2.0)}
-	c2 := Compare(base, half)
+	// A saving present on every task is a saving — once there are enough
+	// tasks for "every one of them" to mean something. Four all moving
+	// the same way is p=0.125 by the sign test, before the correction for
+	// testing four gates at once; eight is p≈0.008, which clears it.
+	var wide, halved []Result
+	for i := range 8 {
+		name := string(rune('a' + i))
+		wide = append(wide, res(name, 1.0))
+		halved = append(halved, res(name, 0.5))
+	}
+	c2 := Compare(wide, halved)
 	if !c2.CostSignificant() {
-		t.Fatalf("a consistent halving should survive: ×%.2f [%.2f, %.2f]", c2.CostRatio, c2.CostRatioLo, c2.CostRatioHi)
+		t.Fatalf("a consistent halving over eight tasks should survive: ×%.2f [%.2f, %.2f] p=%.4g", c2.CostRatio, c2.CostRatioLo, c2.CostRatioHi, c2.CostP)
 	}
 	var b2 strings.Builder
 	WriteComparison(&b2, c2)
@@ -78,12 +87,23 @@ func TestOneTaskCannotBeSignificant(t *testing.T) {
 	if strings.Contains(b.String(), "real increase") || strings.Contains(b.String(), "real saving") {
 		t.Fatalf("no verdict may be claimed:\n%s", b.String())
 	}
-	// Three tasks is enough to bootstrap, and a consistent effect shows.
+	// Three tasks is enough to run a bootstrap, but not enough to claim
+	// anything from one. Three identical halvings resample to ×0.50
+	// [0.50, 0.50] — a point printed as an interval, which reads as
+	// certainty about a result a sign test puts at p=0.25. The n>=3 gate
+	// did not prevent that; it only moved the task count at which it
+	// happened.
 	three := Compare(
 		[]Result{res("a", 1.0), res("b", 1.0), res("c", 1.0)},
 		[]Result{res("a", 0.5), res("b", 0.5), res("c", 0.5)})
-	if !three.CostSignificant() {
-		t.Fatalf("three tasks halving should clear: ×%.2f [%.2f, %.2f]", three.CostRatio, three.CostRatioLo, three.CostRatioHi)
+	if three.CostSignificant() {
+		t.Fatalf("three identical halvings are p=0.25, not a verdict: ×%.2f p=%.4g", three.CostRatio, three.CostP)
+	}
+	if three.CostInterval {
+		t.Fatalf("a collapsed bootstrap must not be reported as an interval: [%.2f, %.2f]", three.CostRatioLo, three.CostRatioHi)
+	}
+	if three.CostRatio == 0 {
+		t.Fatal("the ratio itself is still worth reporting")
 	}
 }
 
@@ -155,6 +175,128 @@ func TestPairedBootstrapIsReproducible(t *testing.T) {
 		}
 		if got.OutputRatioLo != want.OutputRatioLo || got.OutputRatioHi != want.OutputRatioHi {
 			t.Fatal("output interval moved between identical comparisons")
+		}
+	}
+}
+
+// TestOneTaskPassRateCannotBeSignificant: the pass-rate delta shared the
+// collapse the ratios had — with one shared task the bootstrap interval
+// is [delta, delta], and any nonzero delta printed as "significant
+// improvement". The guard mirrors ratioCI's minPairs.
+func TestOneTaskPassRateCannotBeSignificant(t *testing.T) {
+	fail := res("a", 1.0)
+	fail.Passed = false
+	pass := res("a", 1.0)
+	one := Compare([]Result{fail}, []Result{pass})
+	if one.Significant() {
+		t.Fatalf("one task cannot be significant: delta %+.1f%% [%+.1f, %+.1f]", 100*one.Delta, 100*one.Lo, 100*one.Hi)
+	}
+	var b strings.Builder
+	WriteComparison(&b, one)
+	if !strings.Contains(b.String(), "too few shared tasks") {
+		t.Fatalf("the report must say why there is no interval:\n%s", b.String())
+	}
+	if strings.Contains(b.String(), "significant improvement") {
+		t.Fatalf("no verdict may be claimed:\n%s", b.String())
+	}
+	mk := func(name string, passed bool) Result {
+		r := res(name, 1.0)
+		r.Passed = passed
+		return r
+	}
+	// Three shared tasks bootstrap again — to [+100%, +100%], a point
+	// that reads as certainty about something a sign test puts at
+	// p=0.25. Reporting that as a "significant improvement" was the
+	// overclaim this file exists to prevent.
+	three := Compare(
+		[]Result{mk("a", false), mk("b", false), mk("c", false)},
+		[]Result{mk("a", true), mk("b", true), mk("c", true)})
+	if three.Significant() {
+		t.Fatalf("three tasks flipping is p=0.25, not a verdict: %+.1f%% p=%.4g", 100*three.Delta, three.DeltaP)
+	}
+	if three.DeltaInterval {
+		t.Fatalf("a collapsed bootstrap must not be reported as an interval: [%+.1f, %+.1f]", 100*three.Lo, 100*three.Hi)
+	}
+	// Enough tasks all moving the same way is evidence, and the sign test
+	// is what says how much: eight is p≈0.008.
+	var before, after []Result
+	for i := range 8 {
+		name := string(rune('a' + i))
+		before = append(before, mk(name, false))
+		after = append(after, mk(name, true))
+	}
+	eight := Compare(before, after)
+	if !eight.Significant() {
+		t.Fatalf("eight tasks flipping should clear: %+.1f%% p=%.4g", 100*eight.Delta, eight.DeltaP)
+	}
+}
+
+// TestMultipleComparisonsAreCorrectedNotJustDisclosed: one comparison
+// tests four gates at once — pass rate, cost, context, output — and the
+// report only said so, in a sentence counting the verdicts that *fired*.
+// The quiet gates were tested too, so counting the loud ones corrects
+// nothing, and the common single-verdict report printed no disclosure at
+// all while carrying the same familywise risk.
+func TestMultipleComparisonsAreCorrectedNotJustDisclosed(t *testing.T) {
+	var base, cur []Result
+	for i := range 6 {
+		name := string(rune('a' + i))
+		base = append(base, res(name, 1.0))
+		cur = append(cur, res(name, 0.9))
+	}
+	c := Compare(base, cur)
+	if got := c.Gates(); got != 4 {
+		t.Fatalf("Gates() = %d, want the four gates that were tested", got)
+	}
+	if c.level() >= alpha {
+		t.Fatalf("level() = %g, want it tightened below %g", c.level(), alpha)
+	}
+	var b strings.Builder
+	WriteComparison(&b, c)
+	out := b.String()
+	if !strings.Contains(out, "gates were tested together") || !strings.Contains(out, "had to clear") {
+		t.Fatalf("the report must state the correction it applied:\n%s", out)
+	}
+}
+
+// TestNoPhantomVerdictCount: with too few shared tasks to bootstrap, the
+// disclosure counted ratios whose bounds were still zero — "0 < 1" — so a
+// report that drew no verdict at all announced that three had been drawn.
+func TestNoPhantomVerdictCount(t *testing.T) {
+	two := Compare(
+		[]Result{res("a", 1.0), res("b", 1.0)},
+		[]Result{res("a", 0.5), res("b", 0.5)})
+	if two.CostSignificant() || two.ContextSignificant() || two.OutputSignificant() {
+		t.Fatal("two shared tasks cannot draw a verdict")
+	}
+	var b strings.Builder
+	WriteComparison(&b, two)
+	out := b.String()
+	if !strings.Contains(out, "too few tasks to bootstrap an interval") {
+		t.Fatalf("the report must say there is no interval:\n%s", out)
+	}
+	if strings.Contains(out, "gates were tested together") {
+		t.Fatalf("a report that drew nothing must not announce a correction:\n%s", out)
+	}
+}
+
+// TestSignTestP is the exact two-sided binomial the collapsed bootstrap
+// falls back to: it is the whole difference between "three tasks agreed"
+// and "twenty tasks agreed", which the bootstrap cannot see.
+func TestSignTestP(t *testing.T) {
+	for _, tc := range []struct {
+		vals []float64
+		want float64
+	}{
+		{[]float64{1, 1, 1}, 0.25},
+		{[]float64{1, 1, 1, 1}, 0.125},
+		{[]float64{1, 1, 1, 1, 1, 1}, 0.03125},
+		{[]float64{-1, -1, -1, -1, -1, -1}, 0.03125},
+		{[]float64{1, -1}, 1},
+		{[]float64{0, 0, 0}, 1}, // all ties
+	} {
+		if got := signTestP(tc.vals, 0); math.Abs(got-tc.want) > 1e-9 {
+			t.Errorf("signTestP(%v) = %g, want %g", tc.vals, got, tc.want)
 		}
 	}
 }

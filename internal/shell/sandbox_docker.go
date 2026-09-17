@@ -94,6 +94,11 @@ func (s *Sandbox) docker(ctx context.Context, p Profile, root string, extra []st
 	}
 	args = append(args, s.Image(), "sh", "-c", command)
 	cmd := exec.CommandContext(ctx, bin, args...)
+	// The container process must not inherit the agent's credentials: a
+	// model command inside the sandbox could echo $ANTHROPIC_API_KEY into
+	// the writable workspace mount (the landlock and seatbelt backends
+	// already scrub; docker did not).
+	cmd.Env = ScrubEnv(os.Environ())
 	SetProcessGroup(cmd)
 	return cmd, nil
 }

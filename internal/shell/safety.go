@@ -95,6 +95,17 @@ func Classify(command, root string) (Risk, string) {
 // `eval eval eval …` unwrap for as long as the model cares to nest, which
 // is the bound existing to be worked around.
 func classify(command, root string, depth int) (Risk, string) {
+	return classifyAt(command, root, root, root != "", depth)
+}
+
+// classifyAt is classify with the effective working directory carried in.
+// `cd` segments change where the later segments' relative paths land, so
+// each segment is graded against the directory the shell would actually
+// be standing in — `cd ~ && rm -rf wspace` deletes ~/wspace, not
+// <root>/wspace. A `cd` to something unresolvable (a variable, a glob,
+// `cd -`) makes the directory unknown, and mutators after it can no
+// longer be judged: they are treated as needing the user's say-so.
+func classifyAt(command, root, cwd string, cwdKnown bool, depth int) (Risk, string) {
 	if depth > MaxWrapperDepth {
 		return RiskUnknown, tooDeep
 	}
@@ -106,7 +117,12 @@ func classify(command, root string, depth int) (Risk, string) {
 	}
 	worst, reason := RiskOrdinary, ""
 	for _, seg := range Segments(command) {
-		r, why := classifyOne(seg, root, depth)
+		toks := Words(seg)
+		if dir, known, isCd := cdTokens(toks, cwd, cwdKnown); isCd {
+			cwd, cwdKnown = dir, known
+			continue
+		}
+		r, why := classifyOne(seg, toks, root, cwd, cwdKnown, depth)
 		if r > worst {
 			worst, reason = r, why
 		}
@@ -114,20 +130,60 @@ func classify(command, root string, depth int) (Risk, string) {
 	return worst, reason
 }
 
-func classifyOne(seg, root string, depth int) (Risk, string) {
+// cdTokens parses a segment that is nothing but `cd <dir>` (Segments has
+// already split at &&/; so no other command can share the segment) and
+// resolves the new working directory. isCd is false for anything else.
+// A target that cannot be resolved leaves the directory known=false; a
+// target is also unresolvable when the current directory is already
+// unknown and the target is relative.
+func cdTokens(toks []string, cwd string, cwdKnown bool) (dir string, known, isCd bool) {
+	if len(toks) == 0 || toks[0] != "cd" {
+		return "", false, false
+	}
+	if len(toks) > 2 {
+		// A cd this parser does not understand is still a cd: `cd -- /`,
+		// `cd -P /`, `cd / 2>/dev/null`. Reporting isCd=false handed the
+		// segment to classifyOne, which shrugs at an unknown command, and
+		// the tracked directory stayed at the workspace root — so
+		// `cd -- / && rm -rf home` was judged as deleting ./home and
+		// graded ordinary. Not knowing where the shell stands is the
+		// honest answer, and it makes the rest of the line unjudgeable.
+		return "", false, true
+	}
+	if len(toks) == 1 {
+		if home, err := os.UserHomeDir(); err == nil {
+			return home, true, true
+		}
+		return "", false, true
+	}
+	tk := toks[1]
+	if tk == "-" {
+		return "", false, true
+	}
+	if !cwdKnown && !filepath.IsAbs(tk) && !strings.HasPrefix(tk, "~") && !strings.HasPrefix(tk, "$HOME") {
+		return "", false, true
+	}
+	abs, ok := resolvePathArg(tk, cwd)
+	if !ok {
+		return "", false, true
+	}
+	return abs, true, true
+}
+
+func classifyOne(seg string, toks []string, root string, cwd string, cwdKnown bool, depth int) (Risk, string) {
 	seg = strings.TrimSpace(seg)
-	if seg == "" {
+	if seg == "" || len(toks) == 0 {
 		return RiskOrdinary, ""
 	}
 	if depth > MaxWrapperDepth {
 		return RiskUnknown, tooDeep
 	}
-	return classifyWords(Words(seg), seg, root, depth)
+	return classifyWords(toks, seg, root, cwd, cwdKnown, depth)
 }
 
 // classifyWords peels wrappers so `sudo sh -c "rm -rf /"` is judged by what
 // it runs. seg is the raw text, for redirection checks.
-func classifyWords(toks []string, seg, root string, depth int) (Risk, string) {
+func classifyWords(toks []string, seg, root string, cwd string, cwdKnown bool, depth int) (Risk, string) {
 	if len(toks) == 0 {
 		return RiskOrdinary, ""
 	}
@@ -142,27 +198,29 @@ func classifyWords(toks []string, seg, root string, depth int) (Risk, string) {
 	}
 	switch toks[0] {
 	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer":
-		return classifyWords(toks[skipOpts(1):], seg, root, depth+1)
+		return classifyWords(toks[skipOpts(1):], seg, root, cwd, cwdKnown, depth+1)
 	case "env":
 		i := 1
 		for i < len(toks) && (strings.HasPrefix(toks[i], "-") || strings.Contains(toks[i], "=")) {
 			i++
 		}
-		return classifyWords(toks[i:], seg, root, depth+1)
+		return classifyWords(toks[i:], seg, root, cwd, cwdKnown, depth+1)
 	case "timeout":
 		i := skipOpts(1)
 		if i < len(toks) {
 			i++ // the duration
 		}
-		return classifyWords(toks[i:], seg, root, depth+1)
+		return classifyWords(toks[i:], seg, root, cwd, cwdKnown, depth+1)
 	case "sh", "bash", "zsh", "dash", "ksh":
 		for i := 1; i < len(toks)-1; i++ {
 			if strings.HasPrefix(toks[i], "-") && strings.Contains(toks[i], "c") {
-				return classify(toks[i+1], root, depth+1)
+				// The wrapped command line starts in the same directory
+				// the wrapper segment runs in.
+				return classifyAt(toks[i+1], root, cwd, cwdKnown, depth+1)
 			}
 		}
 	case "eval":
-		return classify(strings.Join(toks[1:], " "), root, depth+1)
+		return classifyAt(strings.Join(toks[1:], " "), root, cwd, cwdKnown, depth+1)
 	}
 	line := strings.Join(toks, " ")
 	for _, c := range catastrophic {
@@ -175,31 +233,68 @@ func classifyWords(toks []string, seg, root string, depth int) (Risk, string) {
 			if strings.HasPrefix(tk, "-") {
 				continue
 			}
-			if p, out := escapes(tk, root); out {
+			if root != "" && !cwdKnown && !isAbsoluteWord(tk) {
+				// The directory is unknown after a cd the classifier
+				// could not resolve; a relative word resolves
+				// somewhere in it, which cannot be judged.
+				return RiskUnknown, "the working directory is unclear after cd, so " + toks[0] + " " + tk + " cannot be judged"
+			}
+			abs, ok := resolvePathArg(tk, cwd)
+			if !ok {
+				if r, why := fuzzyTarget(toks[0], tk, cwd, cwdKnown, root); r != RiskOrdinary {
+					return r, why
+				}
+				continue
+			}
+			if catastrophicTarget(abs) {
+				return RiskCatastrophic, toks[0] + " targets " + abs
+			}
+			if p, out := escapesResolved(abs, tk, root); out {
 				return RiskEscapes, toks[0] + " touches " + p + ", outside the workspace"
 			}
 		}
 	}
 	// Redirections write wherever they point.
 	for _, m := range redirect.FindAllStringSubmatch(seg, -1) {
-		if p, out := escapes(strings.Trim(m[1], `"'`), root); out {
+		tk := strings.Trim(m[1], `"'`)
+		if root != "" && !cwdKnown && !isAbsoluteWord(tk) {
+			return RiskUnknown, "the working directory is unclear after cd, so writing " + tk + " cannot be judged"
+		}
+		abs, ok := resolvePathArg(tk, cwd)
+		if !ok {
+			if r, why := fuzzyTarget("write", tk, cwd, cwdKnown, root); r != RiskOrdinary {
+				return r, why
+			}
+			continue
+		}
+		if catastrophicTarget(abs) {
+			return RiskCatastrophic, "writes to " + abs
+		}
+		if p, out := escapesResolved(abs, tk, root); out {
 			return RiskEscapes, "writes to " + p + ", outside the workspace"
 		}
 	}
 	return RiskOrdinary, ""
 }
 
+// isAbsoluteWord reports whether a path token names a fixed location
+// whatever the working directory is: an absolute path, one anchored at
+// ~, or one whose variables expand to an absolute prefix ($HOME/x, ${TMPDIR}).
+func isAbsoluteWord(tk string) bool {
+	if filepath.IsAbs(tk) || strings.HasPrefix(tk, "~") {
+		return true
+	}
+	return filepath.IsAbs(shellVarRe.ReplaceAllString(tk, "/"))
+}
+
 var redirect = regexp.MustCompile(`(?:^|[^<>&|0-9])>{1,2}\s*("[^"]+"|'[^']+'|[^\s;&|]+)`)
 
-// escapes reports whether a path argument resolves outside root. Callers
-// only pass it a mutator's non-flag arguments or a redirect target, so a
-// glob or variable is the only kind of token it declines to judge.
-func escapes(tk, root string) (string, bool) {
+// escapesResolved reports whether a resolved absolute path lands outside
+// root. tk is the token it came from, kept so the temp-dir exemption can
+// require an explicit path: a token that reaches temp only through `..`
+// (from a workspace that lives under it) is judged, not exempted.
+func escapesResolved(abs, tk, root string) (string, bool) {
 	if root == "" {
-		return "", false
-	}
-	abs, ok := resolvePathArg(tk, root)
-	if !ok {
 		return "", false
 	}
 	rootClean := filepath.Clean(root)
@@ -209,41 +304,124 @@ func escapes(tk, root string) (string, bool) {
 	if abs == "/dev/null" || strings.HasPrefix(abs, "/dev/std") {
 		return "", false
 	}
-	// Scratch files named explicitly under the temp dir are fine; reaching
-	// it through .. from a workspace that lives there is not.
-	if strings.HasPrefix(tk, "/tmp/") || strings.HasPrefix(tk, os.TempDir()+string(filepath.Separator)) {
+	// Scratch files under the temp dir are fine; the resolved path must
+	// actually land there — /tmp/../home/... cleans outside and is judged.
+	if underTemp(abs) && directPath(tk) {
 		return "", false
 	}
 	return abs, true
 }
 
-// resolvePathArg resolves a shell word against root: ~ and $HOME expand
-// first, then a relative word joins root the way the shell would resolve
-// it from the working directory. A glob or variable is left alone since
-// nothing here can judge what it expands to. Shared by escapes (which
-// only cares whether the result lands outside root — true for every
-// bare relative word, since joining root can only stay under it or go
-// above it through a leading "..") and WriteTargets (which wants the
-// resolved path whichever side of root it lands on, bare relative words
-// included: "foo_test.go" is exactly the shape a locked file's own name
-// takes in a command run from the workspace).
-func resolvePathArg(tk, root string) (string, bool) {
+// underTemp reports whether abs is the process temp dir or inside it.
+func underTemp(abs string) bool {
+	tmp := filepath.Clean(os.TempDir())
+	return abs == tmp || strings.HasPrefix(abs, tmp+string(filepath.Separator))
+}
+
+// directPath reports whether the token reaches its cleaned path without
+// a .. element: explicit paths only.
+func directPath(tk string) bool {
+	if filepath.IsAbs(tk) {
+		return true
+	}
+	for _, el := range strings.Split(filepath.ToSlash(tk), "/") {
+		if el == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+// systemDirs are the top-level directories the ^rm catastrophic patterns
+// guard; catastrophicTarget matches them on resolved paths so that
+// `cd / && rm -rf home` is graded like `rm -rf /home`.
+var systemDirs = []string{"/home", "/etc", "/usr", "/var", "/boot", "/bin", "/sbin", "/lib", "/lib64", "/opt", "/root", "/dev", "/proc", "/sys"}
+
+func catastrophicTarget(abs string) bool {
+	if abs == "/" {
+		return true
+	}
+	if home, err := os.UserHomeDir(); err == nil && abs == home {
+		return true
+	}
+	for _, d := range systemDirs {
+		if abs == d {
+			return true
+		}
+	}
+	return false
+}
+
+// fuzzyTarget grades a path token resolvePathArg declined — a glob or an
+// unexpanded variable — from the directory the command would run in. From
+// inside the workspace it stays ordinary (the prompt sees the raw
+// command); from outside, whatever it names lands there too, so it
+// escapes; with the directory unknown it cannot be judged at all.
+func fuzzyTarget(verb, tk, cwd string, cwdKnown bool, root string) (Risk, string) {
+	if root == "" {
+		return RiskOrdinary, ""
+	}
+	if cwdKnown && !outsideWorkspace(cwd, root) {
+		return RiskOrdinary, ""
+	}
+	if !cwdKnown {
+		return RiskUnknown, "the working directory is unclear after cd, so " + verb + " " + tk + " cannot be judged"
+	}
+	return RiskEscapes, verb + " " + tk + " runs against " + cwd + ", outside the workspace"
+}
+
+// outsideWorkspace reports whether dir is neither the workspace nor a
+// scratch directory under the temp dir.
+func outsideWorkspace(dir, root string) bool {
+	if dir == "" || root == "" {
+		return false
+	}
+	rc := filepath.Clean(root)
+	dc := filepath.Clean(dir)
+	if dc == rc || strings.HasPrefix(dc, rc+string(filepath.Separator)) {
+		return false
+	}
+	return !underTemp(dc)
+}
+
+// shellVarRe expands the variables resolvePathArg can judge: the home
+// directory and the temp dir, in $VAR and ${VAR} forms. Anything else
+// ($BUILD_DIR, $(cmd), globs) stays unexpanded and the token is declined.
+var shellVarRe = regexp.MustCompile(`\$(?:HOME\b|\{HOME\}|TMPDIR\b|\{TMPDIR\})`)
+
+// resolvePathArg resolves a shell word against cwd (the directory the
+// command would run in): ~, $HOME/${HOME}, $TMPDIR/${TMPDIR} expand
+// first, then a relative word joins cwd the way the shell would resolve
+// it from the working directory. A glob or unexpanded variable is left
+// alone since nothing here can judge what it expands to. Shared by
+// escapesResolved (which only cares whether the result lands outside
+// root) and WriteTargets (which wants the resolved path whichever side
+// of root it lands on, bare relative words included: "foo_test.go" is
+// exactly the shape a locked file's own name takes in a command run from
+// the workspace).
+func resolvePathArg(tk, cwd string) (string, bool) {
 	if strings.HasPrefix(tk, "~") {
 		if home, err := os.UserHomeDir(); err == nil {
 			tk = home + tk[1:]
 		}
 	}
-	if strings.HasPrefix(tk, "$HOME") {
-		if home, err := os.UserHomeDir(); err == nil {
-			tk = home + strings.TrimPrefix(tk, "$HOME")
-		}
+	if strings.Contains(tk, "$") {
+		tk = shellVarRe.ReplaceAllStringFunc(tk, func(m string) string {
+			if strings.Contains(m, "TMPDIR") {
+				return os.TempDir()
+			}
+			if home, err := os.UserHomeDir(); err == nil {
+				return home
+			}
+			return m
+		})
 	}
 	if strings.ContainsAny(tk, "$*?") {
 		return "", false // a glob or variable: cannot judge, leave it to the prompt
 	}
 	abs := tk
 	if !filepath.IsAbs(tk) {
-		abs = filepath.Join(root, tk)
+		abs = filepath.Join(cwd, tk)
 	}
 	return filepath.Clean(abs), true
 }
@@ -266,19 +444,21 @@ func WriteTargets(command, root string) []string {
 		seen[p] = true
 		out = append(out, p)
 	}
+	cwd, cwdKnown := root, root != ""
 	for _, seg := range Segments(command) {
-		collectWriteTargets(seg, root, 0, add)
+		toks := Words(seg)
+		if dir, known, isCd := cdTokens(toks, cwd, cwdKnown); isCd {
+			cwd, cwdKnown = dir, known
+			continue
+		}
+		collectWriteTargets(seg, toks, root, cwd, cwdKnown, 0, add)
 	}
 	return out
 }
 
-func collectWriteTargets(seg, root string, depth int, add func(string)) {
+func collectWriteTargets(seg string, toks []string, root string, cwd string, cwdKnown bool, depth int, add func(string)) {
 	seg = strings.TrimSpace(seg)
-	if seg == "" || depth > MaxWrapperDepth {
-		return
-	}
-	toks := Words(seg)
-	if len(toks) == 0 {
+	if seg == "" || depth > MaxWrapperDepth || len(toks) == 0 {
 		return
 	}
 	skipOpts := func(i int) int {
@@ -289,27 +469,27 @@ func collectWriteTargets(seg, root string, depth int, add func(string)) {
 	}
 	switch toks[0] {
 	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer":
-		collectWriteTargets(strings.Join(toks[skipOpts(1):], " "), root, depth+1, add)
+		collectWriteTargets(strings.Join(toks[skipOpts(1):], " "), toks[skipOpts(1):], root, cwd, cwdKnown, depth+1, add)
 		return
 	case "env":
 		i := 1
 		for i < len(toks) && (strings.HasPrefix(toks[i], "-") || strings.Contains(toks[i], "=")) {
 			i++
 		}
-		collectWriteTargets(strings.Join(toks[i:], " "), root, depth+1, add)
+		collectWriteTargets(strings.Join(toks[i:], " "), toks[i:], root, cwd, cwdKnown, depth+1, add)
 		return
 	case "timeout":
 		i := skipOpts(1)
 		if i < len(toks) {
 			i++ // the duration
 		}
-		collectWriteTargets(strings.Join(toks[i:], " "), root, depth+1, add)
+		collectWriteTargets(strings.Join(toks[i:], " "), toks[i:], root, cwd, cwdKnown, depth+1, add)
 		return
 	case "sh", "bash", "zsh", "dash", "ksh":
 		for i := 1; i < len(toks)-1; i++ {
 			if strings.HasPrefix(toks[i], "-") && strings.Contains(toks[i], "c") {
 				for _, s := range Segments(toks[i+1]) {
-					collectWriteTargets(s, root, depth+1, add)
+					collectWriteTargets(s, Words(s), root, cwd, cwdKnown, depth+1, add)
 				}
 				return
 			}
@@ -317,7 +497,7 @@ func collectWriteTargets(seg, root string, depth int, add func(string)) {
 		return
 	case "eval":
 		for _, s := range Segments(strings.Join(toks[1:], " ")) {
-			collectWriteTargets(s, root, depth+1, add)
+			collectWriteTargets(s, Words(s), root, cwd, cwdKnown, depth+1, add)
 		}
 		return
 	}
@@ -326,13 +506,13 @@ func collectWriteTargets(seg, root string, depth int, add func(string)) {
 			if strings.HasPrefix(tk, "-") {
 				continue
 			}
-			if abs, ok := resolvePathArg(tk, root); ok {
+			if abs, ok := resolvePathArg(tk, cwd); ok {
 				add(abs)
 			}
 		}
 	}
 	for _, m := range redirect.FindAllStringSubmatch(seg, -1) {
-		if abs, ok := resolvePathArg(strings.Trim(m[1], `"'`), root); ok {
+		if abs, ok := resolvePathArg(strings.Trim(m[1], `"'`), cwd); ok {
 			add(abs)
 		}
 	}

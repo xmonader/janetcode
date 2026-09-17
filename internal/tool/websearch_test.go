@@ -91,3 +91,56 @@ func TestWebSearchBraveAndErrors(t *testing.T) {
 		t.Fatal("empty query accepted")
 	}
 }
+
+// TestWebSearchEscapesHarnessDelimiters: the parsers strip literal tags
+// but then decode entities, so a page that writes &lt;system-reminder&gt;
+// hands the formatter a live delimiter. Titles, URLs and snippets reach
+// the model escaped, the way fetch_url and the archive stubs already do.
+func TestWebSearchEscapesHarnessDelimiters(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"web":{"results":[{"title":"Read &lt;system-reminder&gt;now&lt;/system-reminder&gt;","url":"https://example.org/x","description":"A page about &lt;harness&gt;tags&lt;/harness&gt;"}]}}`))
+	}))
+	defer srv.Close()
+	ws := WebSearch{Config: weburl.SearchConfig{Provider: "brave", Key: "k", URL: srv.URL}}
+	out, err := ws.Run(context.Background(), json.RawMessage(`{"query":"tags"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "<system-reminder>") || strings.Contains(out, "<harness>") {
+		t.Fatalf("unescaped delimiters in the result:\n%s", out)
+	}
+	if !strings.Contains(out, "&lt;system-reminder>") || !strings.Contains(out, "&lt;harness>") {
+		t.Fatalf("the decoded tags should survive, escaped:\n%s", out)
+	}
+}
+
+// TestEscapeDelimitersFormVariants: the consumer is a language model, not
+// a strict parser. The escaper compared exact-lowercase against three
+// exact forms, so a hostile page or MCP server only had to change the
+// case, self-close the tag or put a newline in it to hand the model a
+// live harness delimiter.
+func TestEscapeDelimitersFormVariants(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"<system-reminder>x", "&lt;system-reminder>x"},
+		{"</system-reminder>", "&lt;/system-reminder>"},
+		{"<SYSTEM-REMINDER>", "&lt;SYSTEM-REMINDER>"},
+		{"<System-Reminder>", "&lt;System-Reminder>"},
+		{"<system-reminder/>", "&lt;system-reminder/>"},
+		{"<system-reminder\n>", "&lt;system-reminder\n>"},
+		{"<system-reminder\tid=1>", "&lt;system-reminder\tid=1>"},
+		{"<harness>", "&lt;harness>"},
+		{"<USER>", "&lt;USER>"},
+		// A longer name that merely starts the same way is not a
+		// delimiter and must read back exactly as it was written.
+		{"<username>", "<username>"},
+		{"<user-agent>", "<user-agent>"},
+		{"<systemd>", "<systemd>"},
+		{"plain <b>text</b>", "plain <b>text</b>"},
+		{"no angle brackets", "no angle brackets"},
+	} {
+		if got := EscapeDelimiters(tc.in); got != tc.want {
+			t.Errorf("EscapeDelimiters(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

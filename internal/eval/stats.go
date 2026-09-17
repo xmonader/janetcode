@@ -334,12 +334,43 @@ type Comparison struct {
 	// Paired reports whether there were enough shared tasks with usable
 	// numbers to bootstrap the ratios at all.
 	Paired bool
+
+	// Each gate's two-sided bootstrap p-value, and whether a usable
+	// (non-degenerate) interval was produced for it at all. A verdict
+	// needs both: an interval that collapsed to a point is an artifact of
+	// resampling identical values, not evidence.
+	DeltaInterval, CostInterval, ContextInterval, OutputInterval bool
+	DeltaTested, CostTested, ContextTested, OutputTested         bool
+	DeltaP, CostP, ContextP, OutputP                             float64
 }
+
+// alpha is the level one verdict is drawn at, before correction.
+const alpha = 0.05
+
+// Gates is how many of the four verdicts this comparison could draw — not
+// how many it did. One comparison prints a pass-rate verdict and three
+// ratio verdicts, each at the 5% level, so under a no-effect variant the
+// chance that at least one reads as real is far above 5%. Correcting by
+// the number of gates *tested* is the familywise control; counting the
+// ones that happened to fire corrects nothing, because the gates that
+// stayed quiet were tested too.
+func (c Comparison) Gates() int {
+	n := 0
+	for _, tested := range []bool{c.DeltaTested, c.CostTested, c.ContextTested, c.OutputTested} {
+		if tested {
+			n++
+		}
+	}
+	return max(n, 1)
+}
+
+// level is the corrected threshold each verdict must clear.
+func (c Comparison) level() float64 { return alpha / float64(c.Gates()) }
 
 // CostSignificant reports whether the cost ratio's interval excludes 1,
 // i.e. whether the difference survived the noise.
 func (c Comparison) CostSignificant() bool {
-	return c.Paired && hasInterval(c.CostRatioLo, c.CostRatioHi) && (c.CostRatioLo > 1 || c.CostRatioHi < 1)
+	return c.CostTested && c.CostP <= c.level() && (!c.CostInterval || c.CostRatioLo > 1 || c.CostRatioHi < 1)
 }
 
 // hasInterval reports whether a bootstrap actually produced bounds. Too
@@ -349,7 +380,15 @@ func hasInterval(lo, hi float64) bool { return lo > 0 && hi > 0 }
 // ContextSignificant reports whether the context ratio's interval
 // excludes 1.
 func (c Comparison) ContextSignificant() bool {
-	return c.Paired && hasInterval(c.ContextRatioLo, c.ContextRatioHi) && (c.ContextRatioLo > 1 || c.ContextRatioHi < 1)
+	return c.ContextTested && c.ContextP <= c.level() && (!c.ContextInterval || c.ContextRatioLo > 1 || c.ContextRatioHi < 1)
+}
+
+// OutputSignificant reports whether the output-token ratio's interval
+// excludes 1. It is a gate like the other three and is corrected with
+// them; it had no accessor of its own, which is part of why the
+// disclosure counted verdicts rather than gates.
+func (c Comparison) OutputSignificant() bool {
+	return c.OutputTested && c.OutputP <= c.level() && (!c.OutputInterval || c.OutputRatioLo > 1 || c.OutputRatioHi < 1)
 }
 
 // pair is one task's mean cost and context in each set, for the paired
@@ -371,7 +410,7 @@ type pair struct {
 // ratioCI bootstraps the ratio of summed current to summed base over the
 // shared tasks. Resampling whole tasks, not runs, is what makes it paired:
 // a task that is expensive in both sets cannot move the ratio on its own.
-func ratioCI(pairs []pair, pick func(pair) (float64, float64)) (ratio, lo, hi float64, ok bool) {
+func ratioCI(pairs []pair, pick func(pair) (float64, float64)) (ratio float64, g gate) {
 	// A bootstrap resamples tasks, so with one or two of them every
 	// resample is the same handful of values and the interval collapses to
 	// a point — which then reads as certainty. That is precisely the
@@ -379,7 +418,7 @@ func ratioCI(pairs []pair, pick func(pair) (float64, float64)) (ratio, lo, hi fl
 	// is reported without an interval and never called significant.
 	const minPairs = 3
 	if len(pairs) == 0 {
-		return 0, 0, 0, false
+		return 0, gate{p: 1}
 	}
 	sum := func(idx []int) (b, c float64) {
 		for _, i := range idx {
@@ -394,11 +433,14 @@ func ratioCI(pairs []pair, pick func(pair) (float64, float64)) (ratio, lo, hi fl
 	}
 	b, cu := sum(all)
 	if b <= 0 {
-		return 0, 0, 0, false
+		return 0, gate{p: 1}
 	}
 	ratio = cu / b
 	if len(pairs) < minPairs {
-		return ratio, 0, 0, false
+		// Not tested: with fewer than minPairs there is no question the
+		// bootstrap can be asked, so this gate is not one of the ones the
+		// correction has to account for.
+		return ratio, gate{p: 1}
 	}
 	rng := rand.New(rand.NewSource(1))
 	const resamples = 4000
@@ -414,10 +456,24 @@ func ratioCI(pairs []pair, pick func(pair) (float64, float64)) (ratio, lo, hi fl
 		}
 	}
 	if len(ratios) < resamples/2 {
-		return ratio, 0, 0, false
+		return ratio, gate{p: 1}
 	}
 	sort.Float64s(ratios)
-	return ratio, ratios[int(0.025*float64(len(ratios)))], ratios[int(0.975*float64(len(ratios)))-1], true
+	lo, hi := ratios[int(0.025*float64(len(ratios)))], ratios[int(0.975*float64(len(ratios)))-1]
+	if lo == hi {
+		// No spread to show, for the same reason bootstrapCI has none —
+		// so the same fallback: how many tasks moved the same way, tested
+		// exactly. Per task, not pooled: the pooled ratio is one number
+		// and one number has no sign test.
+		perTask := make([]float64, 0, len(pairs))
+		for _, pr := range pairs {
+			if pb, pc := pick(pr); pb > 0 {
+				perTask = append(perTask, pc/pb)
+			}
+		}
+		return ratio, gate{lo: lo, hi: hi, p: signTestP(perTask, 1), tested: true}
+	}
+	return ratio, gate{lo: lo, hi: hi, p: bootstrapP(ratios, 1), hasInterval: true, tested: true}
 }
 
 // Compare pairs the two sets by task name. Tasks present in only one set
@@ -456,7 +512,15 @@ func Compare(base, cur []Result) Comparison {
 	c.Shared = len(deltas)
 	if c.Shared > 0 {
 		c.Delta = mean(deltas)
-		c.Lo, c.Hi = bootstrapCI(deltas, 4000, 1)
+		// With one or two shared tasks every resample is the same
+		// handful of values and the interval collapses to the point
+		// estimate, which then reads as certainty — the same overclaim
+		// ratioCI refuses below minPairs. Report the delta, not an
+		// interval that lies.
+		if c.Shared >= 3 {
+			g := bootstrapCI(deltas, 4000, 1)
+			c.Lo, c.Hi, c.DeltaP, c.DeltaInterval, c.DeltaTested = g.lo, g.hi, g.p, g.hasInterval, g.tested
+		}
 	}
 	if c.Base.CostKnown && c.Current.CostKnown && c.Base.Passed > 0 && c.Current.Passed > 0 {
 		c.CostKnown = true
@@ -489,11 +553,15 @@ func (c *Comparison) pairCosts(base, cur []Result) {
 	// bootstrap below resamples the same tasks every time (see pair).
 	sort.Slice(pairs, func(i, j int) bool { return pairs[i].name < pairs[j].name })
 	c.Paired = true
+	var g gate
 	if bknown && cknown {
-		c.CostRatio, c.CostRatioLo, c.CostRatioHi, _ = ratioCI(pairs, func(p pair) (float64, float64) { return p.base, p.cur })
+		c.CostRatio, g = ratioCI(pairs, func(p pair) (float64, float64) { return p.base, p.cur })
+		c.CostRatioLo, c.CostRatioHi, c.CostP, c.CostInterval, c.CostTested = g.lo, g.hi, g.p, g.hasInterval, g.tested
 	}
-	c.ContextRatio, c.ContextRatioLo, c.ContextRatioHi, _ = ratioCI(pairs, func(p pair) (float64, float64) { return p.baseCtx, p.curCtx })
-	c.OutputRatio, c.OutputRatioLo, c.OutputRatioHi, _ = ratioCI(pairs, func(p pair) (float64, float64) { return p.baseOut, p.curOut })
+	c.ContextRatio, g = ratioCI(pairs, func(p pair) (float64, float64) { return p.baseCtx, p.curCtx })
+	c.ContextRatioLo, c.ContextRatioHi, c.ContextP, c.ContextInterval, c.ContextTested = g.lo, g.hi, g.p, g.hasInterval, g.tested
+	c.OutputRatio, g = ratioCI(pairs, func(p pair) (float64, float64) { return p.baseOut, p.curOut })
+	c.OutputRatioLo, c.OutputRatioHi, c.OutputP, c.OutputInterval, c.OutputTested = g.lo, g.hi, g.p, g.hasInterval, g.tested
 }
 
 // perTask is each task's mean cost and mean context tokens across its runs.
@@ -517,7 +585,11 @@ func perTask(rs []Result) (cost, ctx, out map[string]float64, costKnown bool) {
 }
 
 // Significant reports whether the interval excludes zero.
-func (c Comparison) Significant() bool { return c.Shared > 0 && (c.Lo > 0 || c.Hi < 0) }
+// Significant reports whether the pass-rate delta survived both the
+// run-to-run spread and the correction for testing four gates at once.
+func (c Comparison) Significant() bool {
+	return c.DeltaTested && c.DeltaP <= c.level() && (!c.DeltaInterval || c.Lo > 0 || c.Hi < 0)
+}
 
 func mean(xs []float64) float64 {
 	if len(xs) == 0 {
@@ -533,9 +605,20 @@ func mean(xs []float64) float64 {
 // bootstrapCI resamples the per-task deltas with replacement and returns
 // the 2.5th and 97.5th percentiles of the resampled means. The seed makes
 // reports reproducible.
-func bootstrapCI(deltas []float64, resamples int, seed int64) (lo, hi float64) {
+// gate is one bootstrapped comparison: the interval when the resamples
+// had any spread, the p-value a verdict is drawn from, and whether the
+// gate was evaluated at all. Tested is not the same as hasInterval — a
+// collapsed bootstrap is still a test, answered by the sign test — and it
+// is what the multiple-comparisons correction counts.
+type gate struct {
+	lo, hi, p   float64
+	hasInterval bool
+	tested      bool
+}
+
+func bootstrapCI(deltas []float64, resamples int, seed int64) gate {
 	if len(deltas) == 0 {
-		return 0, 0
+		return gate{p: 1}
 	}
 	rng := rand.New(rand.NewSource(seed))
 	means := make([]float64, resamples)
@@ -547,7 +630,64 @@ func bootstrapCI(deltas []float64, resamples int, seed int64) (lo, hi float64) {
 		means[i] = s / float64(len(deltas))
 	}
 	sort.Float64s(means)
-	return means[int(0.025*float64(resamples))], means[int(0.975*float64(resamples))-1]
+	lo, hi := means[int(0.025*float64(resamples))], means[int(0.975*float64(resamples))-1]
+	if lo == hi {
+		// Every resample came out the same, so there is no interval to
+		// show: a point printed as one reads as certainty. That happens
+		// whenever the per-task deltas are all equal, and a minimum task
+		// count does not prevent it — it only moves the number of tasks
+		// at which it happens.
+		//
+		// But a uniform effect is still evidence, and how much depends
+		// entirely on how many tasks agree: three tasks that all flipped
+		// fail to pass is p=0.25, twenty is p≈2e-6. The bootstrap cannot
+		// tell those apart, so the sign test does.
+		return gate{lo: lo, hi: hi, p: signTestP(deltas, 0), tested: true}
+	}
+	return gate{lo: lo, hi: hi, p: bootstrapP(means, 0), hasInterval: true, tested: true}
+}
+
+// signTestP is the exact two-sided binomial p-value for how many of the
+// values fall either side of null, ignoring ties. It is what is left to
+// say when every task moved by the same amount and the bootstrap has no
+// spread to work with.
+func signTestP(values []float64, null float64) float64 {
+	above, below := 0, 0
+	for _, v := range values {
+		switch {
+		case v > null:
+			above++
+		case v < null:
+			below++
+		}
+	}
+	m := above + below
+	if m == 0 {
+		return 1
+	}
+	k := min(above, below)
+	// 2 * P(X <= k) for X ~ Binomial(m, 1/2).
+	tail := 0.0
+	c := 1.0 // C(m, 0)
+	for i := 0; i <= k; i++ {
+		if i > 0 {
+			c = c * float64(m-i+1) / float64(i)
+		}
+		tail += c
+	}
+	return math.Min(1, 2*tail/math.Pow(2, float64(m)))
+}
+
+// bootstrapP is the two-sided bootstrap p-value against a null of null:
+// twice the share of resamples on the far side of it, which is the
+// interval test read as a number so several of them can be corrected
+// against each other.
+func bootstrapP(sorted []float64, null float64) float64 {
+	below := sort.SearchFloat64s(sorted, null)
+	above := len(sorted) - sort.SearchFloat64s(sorted, math.Nextafter(null, math.Inf(1)))
+	tail := min(below, above)
+	p := 2 * float64(tail) / float64(len(sorted))
+	return math.Min(1, p)
 }
 
 // WriteComparison prints the paired comparison.
@@ -558,32 +698,37 @@ func WriteComparison(w io.Writer, c Comparison) {
 		fmt.Fprintln(w, "no shared tasks to compare")
 		return
 	}
-	verdict := "not significant (the interval includes 0)"
 	switch {
-	case c.Lo > 0:
-		verdict = "significant improvement"
-	case c.Hi < 0:
-		verdict = "significant regression"
+	case c.Shared < 3:
+		fmt.Fprintf(w, "\npass-rate delta %s over %d shared task(s) · too few shared tasks to bootstrap an interval\n", pct(c.Delta), c.Shared)
+	case !c.DeltaInterval:
+		// The bootstrap collapsed to a point because every shared task
+		// moved by the same amount. Printing [x, x] read as certainty, so
+		// the line says what actually happened and what the exact test
+		// makes of it.
+		fmt.Fprintf(w, "\npass-rate delta %s over %d shared task(s) · every shared task moved the same way, so there is no interval; sign test p=%.3g · %s\n",
+			pct(c.Delta), c.Shared, c.DeltaP, deltaVerdict(c))
+	default:
+		fmt.Fprintf(w, "\npass-rate delta %s [%s, %s] over %d shared task(s) · %s\n", pct(c.Delta), pct(c.Lo), pct(c.Hi), c.Shared, deltaVerdict(c))
 	}
-	fmt.Fprintf(w, "\npass-rate delta %s [%s, %s] over %d shared task(s) · %s\n", pct(c.Delta), pct(c.Lo), pct(c.Hi), c.Shared, verdict)
 	if c.CostKnown {
 		sign := "+"
 		if c.CostDelta < 0 {
 			sign = "-"
 		}
 		fmt.Fprintf(w, "cost per solved task %s → %s (%s%s)%s\n", llm.FormatUSDPrecise(c.Base.CostPerSolved), llm.FormatUSDPrecise(c.Current.CostPerSolved), sign, llm.FormatUSDPrecise(math.Abs(c.CostDelta)),
-			ratioNote(c.CostRatio, c.CostRatioLo, c.CostRatioHi, c.Paired && c.CostRatio > 0))
+			ratioNote(ratioLine{c.CostRatio, c.CostRatioLo, c.CostRatioHi, c.CostP, c.CostInterval, c.CostSignificant(), c.Paired && c.CostRatio > 0}))
 	}
 	if c.Base.Passed > 0 && c.Current.Passed > 0 {
 		ratio := float64(c.Current.ContextPerSolved) / math.Max(float64(c.Base.ContextPerSolved), 1)
 		fmt.Fprintf(w, "context per solved task %s → %s (×%.2f) · compactions %d → %d%s\n",
 			textfmt.Tokens(c.Base.ContextPerSolved), textfmt.Tokens(c.Current.ContextPerSolved), ratio, c.Base.Compactions, c.Current.Compactions,
-			ratioNote(c.ContextRatio, c.ContextRatioLo, c.ContextRatioHi, c.Paired))
+			ratioNote(ratioLine{c.ContextRatio, c.ContextRatioLo, c.ContextRatioHi, c.ContextP, c.ContextInterval, c.ContextSignificant(), c.Paired}))
 	}
 	if c.Paired && c.OutputRatio > 0 {
 		fmt.Fprintf(w, "output tokens %s → %s · generation is most of a turn's latency%s\n",
 			textfmt.Tokens(c.Base.Usage.OutputTokens), textfmt.Tokens(c.Current.Usage.OutputTokens),
-			ratioNote(c.OutputRatio, c.OutputRatioLo, c.OutputRatioHi, true))
+			ratioNote(ratioLine{c.OutputRatio, c.OutputRatioLo, c.OutputRatioHi, c.OutputP, c.OutputInterval, c.OutputSignificant(), true}))
 	}
 	if c.Paired && !c.CostSignificant() && !c.ContextSignificant() {
 		fmt.Fprintf(w, "neither cost nor context moved beyond the run-to-run spread: this is not evidence of a saving.\n")
@@ -603,27 +748,64 @@ func WriteComparison(w io.Writer, c Comparison) {
 	if len(c.OnlyCurrent) > 0 {
 		fmt.Fprintf(w, "only in current: %s\n", strings.Join(c.OnlyCurrent, ", "))
 	}
+	// One comparison tests up to four gates at once — pass rate, cost,
+	// context, output tokens — and four gates each drawn at 5% flag at
+	// least once ~18.5% of the time under a no-effect variant. Disclosing
+	// that was not enough: the gates are corrected against each other, and
+	// the report says what the corrected threshold was. It counts the
+	// gates *tested*, not the verdicts that fired — the quiet ones were
+	// tested too, and counting only the loud ones corrects nothing.
+	if gates := c.Gates(); gates > 1 && (c.DeltaTested || c.CostTested || c.ContextTested || c.OutputTested) {
+		fmt.Fprintf(w, "%d gates were tested together (pass rate, cost, context, output), so each verdict above had to clear %.3g rather than 0.05; without that correction at least one reads as real ≈%.0f%% of the time under a no-effect variant.\n",
+			gates, c.level(), 100*(1-math.Pow(1-alpha, float64(gates))))
+	}
+}
+
+// deltaVerdict states what the pass-rate gate concluded, at the corrected
+// threshold rather than from the raw bounds.
+func deltaVerdict(c Comparison) string {
+	if !c.Significant() {
+		return fmt.Sprintf("not significant at the corrected %.3g", c.level())
+	}
+	if c.Delta > 0 {
+		return "significant improvement"
+	}
+	return "significant regression"
+}
+
+// ratioLine is one ratio gate as the report needs it: the number, its
+// interval when there is one, and the verdict already decided at the
+// corrected threshold. The verdict is passed in rather than read off lo
+// and hi, because a bootstrap that collapsed to a point has bounds that
+// exclude 1 while meaning nothing.
+type ratioLine struct {
+	ratio, lo, hi, p         float64
+	hasInterval, significant bool
+	ok                       bool
 }
 
 // ratioNote is the paired-bootstrap interval for a ratio, and the plain
 // statement of what it means. A ratio without its interval is the thing
 // that produced a withdrawn "12% better" on this task set, so the interval
 // is printed on the same line as the number, not somewhere below it.
-func ratioNote(r, lo, hi float64, ok bool) string {
-	if !ok || r == 0 {
+func ratioNote(l ratioLine) string {
+	if !l.ok || l.ratio == 0 {
 		return ""
-	}
-	if lo == 0 && hi == 0 {
-		return fmt.Sprintf("\n  paired ×%.2f over shared tasks · too few tasks to bootstrap an interval", r)
 	}
 	verdict := "inside the noise"
 	switch {
-	case hi < 1:
+	case l.significant && l.ratio < 1:
 		verdict = "real saving"
-	case lo > 1:
+	case l.significant:
 		verdict = "real increase"
 	}
-	return fmt.Sprintf("\n  paired ×%.2f [%.2f, %.2f] over shared tasks · %s", r, lo, hi, verdict)
+	if !l.hasInterval {
+		if l.lo == 0 && l.hi == 0 {
+			return fmt.Sprintf("\n  paired ×%.2f over shared tasks · too few tasks to bootstrap an interval", l.ratio)
+		}
+		return fmt.Sprintf("\n  paired ×%.2f over shared tasks · every shared task moved the same way, so there is no interval; sign test p=%.3g · %s", l.ratio, l.p, verdict)
+	}
+	return fmt.Sprintf("\n  paired ×%.2f [%.2f, %.2f] over shared tasks · %s", l.ratio, l.lo, l.hi, verdict)
 }
 
 func summaryLine(s Summary) string {

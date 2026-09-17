@@ -73,7 +73,7 @@ func (m *Manager) open(ctx context.Context, path string) (*client, string, []str
 	if err != nil {
 		return nil, "", nil, err
 	}
-	if err := c.sync(abs, string(data)); err != nil {
+	if err := c.sync(ctx, abs, string(data)); err != nil {
 		return nil, "", nil, err
 	}
 	return c, abs, strings.Split(string(data), "\n"), nil
@@ -87,7 +87,7 @@ func (m *Manager) open(ctx context.Context, path string) (*client, string, []str
 // used to re-send the whole file, so answering six questions about one
 // file made the server re-parse it six times — wasted work on every
 // query, and enough of it to make clangd stop answering.
-func (c *client) sync(abs, text string) error {
+func (c *client) sync(ctx context.Context, abs, text string) error {
 	uri := toURI(abs)
 	sum := sha256.Sum256([]byte(text))
 	c.docM.Lock()
@@ -104,10 +104,10 @@ func (c *client) sync(abs, text string) error {
 	c.synced[uri] = sum
 	c.docM.Unlock()
 	if !open {
-		return c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		return c.notifyCtx(ctx, "textDocument/didOpen", map[string]any{"textDocument": map[string]any{
 			"uri": uri, "languageId": languageID(abs), "version": version, "text": text}})
 	}
-	return c.notify("textDocument/didChange", map[string]any{
+	return c.notifyCtx(ctx, "textDocument/didChange", map[string]any{
 		"textDocument":   map[string]any{"uri": uri, "version": version},
 		"contentChanges": []map[string]any{{"text": text}},
 	})
@@ -284,7 +284,7 @@ func (m *Manager) warm(ctx context.Context, path string) {
 		if err != nil {
 			return nil
 		}
-		if err := c.sync(p, string(data)); err == nil {
+		if err := c.sync(ctx, p, string(data)); err == nil {
 			opened++
 		}
 		return nil

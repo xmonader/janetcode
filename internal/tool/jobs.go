@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmonader/janetcode/internal/pipewrite"
 	"github.com/xmonader/janetcode/internal/shell"
 	"github.com/xmonader/janetcode/internal/textfmt"
 )
@@ -37,6 +38,11 @@ type Job struct {
 	// Background jobs get one so a later Write can drive them; a
 	// one-shot bash call still uses EOF (cmd.Stdin = nil).
 	stdin io.WriteCloser
+	// stdinErr is why stdin was taken away, when it was taken away for a
+	// reason the caller needs to hear: an abandoned write left part of a
+	// line in the pipe, so this job can never be written to again
+	// without splicing one command onto another.
+	stdinErr error
 }
 
 // Jobs runs commands detached from the tool call that started them and
@@ -277,8 +283,13 @@ func (j *Jobs) Kill(id int) error {
 
 // Write sends a line to a running job's stdin. A missing trailing newline
 // is added so a typed line is a line. One-shot bash calls still get EOF
-// on stdin; only background jobs have a pipe.
-func (j *Jobs) Write(id int, data string) error {
+// on stdin; only background jobs have a pipe. The write is bounded by
+// ctx: a pipe write has no deadline, and a job that stopped reading
+// (its 64 KB buffer full) would otherwise park the caller forever — the
+// job tool runs in the parallel read-only batch, so that was a hung
+// turn. A write abandoned this way stays parked until the job reads or
+// is killed (Kill closes the pipe, which errors it out).
+func (j *Jobs) Write(ctx context.Context, id int, data string) error {
 	if strings.TrimSpace(data) == "" {
 		return fmt.Errorf("nothing to write")
 	}
@@ -290,15 +301,37 @@ func (j *Jobs) Write(id int, data string) error {
 		return fmt.Errorf("no job %d", id)
 	}
 	j.mu.Lock()
-	w, done := job.stdin, job.Done || processDone(job.cmd)
+	w, done, stdinErr := job.stdin, job.Done || processDone(job.cmd), job.stdinErr
 	j.mu.Unlock()
 	if done {
 		return fmt.Errorf("job %d already finished", id)
 	}
+	if stdinErr != nil {
+		return stdinErr
+	}
 	if w == nil {
 		return fmt.Errorf("job %d does not accept stdin", id)
 	}
-	_, err := io.WriteString(w, data)
+	// Bounded by ctx, and an abandoned write must not arrive later: it
+	// used to complete when the job next drained stdin, so the caller was
+	// told the write had failed, retried, and the job received both
+	// payloads interleaved on one pipe.
+	_, err := pipewrite.Write(ctx, w, []byte(data))
+	var partial *pipewrite.PartialError
+	if errors.As(err, &partial) {
+		// The job holds the front of a line and would read the next
+		// write as its tail. Close its stdin: it sees EOF, which is a
+		// truthful end to its input, rather than a spliced command.
+		j.mu.Lock()
+		job.stdinErr = fmt.Errorf("job %d no longer accepts stdin: %w", id, partial)
+		if job.stdin != nil {
+			_ = job.stdin.Close()
+			job.stdin = nil
+		}
+		err := job.stdinErr
+		j.mu.Unlock()
+		return err
+	}
 	return err
 }
 
@@ -475,7 +508,7 @@ func (t JobTool) Run(ctx context.Context, input json.RawMessage) (string, error)
 		}
 		return fmt.Sprintf("job %d killed", in.ID), nil
 	case "stdin":
-		if err := t.Jobs.Write(in.ID, in.Text); err != nil {
+		if err := t.Jobs.Write(ctx, in.ID, in.Text); err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("wrote to job %d stdin", in.ID), nil

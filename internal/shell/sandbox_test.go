@@ -279,3 +279,31 @@ func TestStrictRefusedOnOldLandlock(t *testing.T) {
 		t.Errorf("notes %q do not admit that Landlock cannot enforce deny globs", notes)
 	}
 }
+
+// TestDockerCommandEnvIsScrubbed: the container process used to inherit
+// the parent's full environment, so a model command inside the sandbox
+// could read $ANTHROPIC_API_KEY and write it into the writable workspace
+// mount. The landlock and seatbelt backends scrub; docker now matches.
+func TestDockerCommandEnvIsScrubbed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no sandbox on windows")
+	}
+	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-docker-marker")
+	root := t.TempDir()
+	s := stubSandbox(t, BackendDocker, 0)
+	if _, err := SetSandbox(s, "workspace"); err != nil {
+		t.Fatal(err)
+	}
+	cmd, err := s.CommandIn(context.Background(), root, nil, "echo hi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cmd.Env) == 0 {
+		t.Fatal("container env is empty; the command needs a real environment")
+	}
+	for _, kv := range cmd.Env {
+		if strings.Contains(kv, "sk-ant-docker-marker") {
+			t.Fatalf("container env carries the agent's key: %q", kv)
+		}
+	}
+}

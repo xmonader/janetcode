@@ -65,6 +65,23 @@ session shows any tier above the default on its status line.
 Adaptive thinking is on for Claude 4.6+ models and off for Haiku; set
 `"thinking": false` to override.
 
+`lean_tools` (default on) defers the search tools behind `tool_search` —
+19% less context on fan-out work, one extra call when the model needs a
+search. `"lean_tools": false` exposes them all in every request.
+(The measurement is the other way round: exposing the five extra tools
+costs x1.23 [1.10, 1.44] context, which is a 19% saving from deferring
+them, not 23%. See `docs/benchmarks/toolsurface/REPORT.md`.)
+
+`show_thinking` (default on) renders the model's reasoning in the
+terminal. Turning it off asks for reasoning without showing it, so the
+first visible token arrives sooner; turn it off when you do not read
+the reasoning.
+
+`intent` (default off) asks the model for a one-line reason on every
+tool call — a readable narrative at roughly a fifth more context per
+call. Unlike `thinking` there is no per-request budget to weigh it
+against; the reasons are read or they are not.
+
 ### The sandbox key
 
 `sandbox` names the sandbox profile a session in this project starts

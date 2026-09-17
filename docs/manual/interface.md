@@ -274,6 +274,7 @@ ctrl+v           attach the image in the clipboard (wl-paste or xclip on Linux, 
 /open path[:line] (view a file inline)   /diff [path | revert path:n] (hunk review)
 /context   (what fills the window)   /pin <note or @file>   /unpin <n>
 /export [file.md] (write the conversation as a Markdown transcript)
+/rules  (path-scoped project rules: what brings each in, and which have been sent this session; see Configuration)
 ```
 
 `ctrl+c` cancels a running turn, or clears typed text; when idle it asks
@@ -1749,8 +1750,10 @@ a turn finish wedges more work than it saves. `inspect verdicts` shows the
 history with each claim beside its evidence, and `--eval-off verdict`
 turns it off.
 
-Calibrated by replaying 97 real turns: see
-`docs/benchmarks/compaction/FACTS.md` and the commit history for what the
+Calibrated by replaying 97 real turns (commit `3ee2021`, "fix(verdict):
+calibrate it against real sessions"): the first version called nothing
+verified and raised 13 false accusations; measured again it recognises
+42% of turns as verified, with none. The commit history has what the
 first version got wrong and how it was fixed.
 
 ### Plan mode and read-only mode

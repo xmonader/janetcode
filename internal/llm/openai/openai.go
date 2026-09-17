@@ -112,6 +112,11 @@ func New(cfg Config) (*Provider, error) {
 			Transport: &http.Transport{ResponseHeaderTimeout: 2 * time.Minute, Proxy: http.ProxyFromEnvironment},
 		}
 	}
+	// Both request paths — the stream and ListModels — share this client,
+	// and both send the key. Without a policy Go forwards Authorization
+	// to any subdomain of the endpoint's host, never checks the scheme,
+	// and copies extraHeaders anywhere at all.
+	hc = llm.SafeRedirectClient(hc)
 	return &Provider{cfg: cfg, ring: ring, http: hc, pace: &llm.Pacer{}, dialect: &dialect{}}, nil
 }
 
@@ -152,14 +157,18 @@ func keyProblem(err error) (llm.Failure, bool) {
 	if !errors.As(err, &ae) {
 		return 0, false
 	}
-	msg := strings.ToLower(ae.Message)
+	// The uncapped copy: a burnt account whose "insufficient_quota" sits
+	// past the display cap must still read as a quota failure, or its key
+	// gets a 15-second breaker and is tried again forever.
+	full := ae.ErrorDetail()
+	msg := strings.ToLower(full)
 	switch {
 	case ae.Status == 429 || ae.Status == 401 || ae.Status == 403 || ae.Status == 402:
 	case strings.Contains(msg, "quota") || strings.Contains(msg, "rate limit"):
 	default:
 		return 0, false
 	}
-	return llm.ClassifyFailure(ae.Status, ae.Message), true
+	return llm.ClassifyFailure(ae.Status, full), true
 }
 
 // Embed implements llm.Embedder via POST /embeddings.
@@ -184,14 +193,19 @@ func (p *Provider) Embed(ctx context.Context, model string, texts []string) ([][
 		return nil, err
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, llm.MaxErrorBodyRead))
 	if resp.StatusCode/100 != 2 {
-		msg := strings.TrimSpace(string(raw))
+		msg := llm.SafeErrorMessage(resp.StatusCode, strings.TrimSpace(string(raw)))
+		if msg == "" {
+			msg = http.StatusText(resp.StatusCode)
+		}
 		var env struct {
 			Error *wireError `json:"error"`
 		}
 		if json.Unmarshal(raw, &env) == nil && env.Error != nil && env.Error.Message != "" {
-			msg = env.Error.Message
+			if m := llm.SafeErrorMessage(resp.StatusCode, env.Error.Message); m != "" {
+				msg = m
+			}
 		}
 		return nil, &APIError{Status: resp.StatusCode, Message: msg}
 	}
@@ -225,28 +239,16 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if emit == nil {
 		emit = func(llm.Event) {}
 	}
-	// A stream that stops producing without failing would otherwise hang
-	// the turn for as long as the process lives.
-	ctx, wd := llm.Watch(ctx, p.cfg.Limits)
-	defer wd.Stop()
+	// The caller's context is the user's will: a cancellation there ends
+	// the call for good. Each attempt gets a watchdog of its own, so a
+	// stream the harness killed for silence can be retried under a fresh
+	// one — a stream that died without a terminal frame never answered.
+	parent := ctx
+	var wd *llm.Watchdog
 	// Spacing imposed by earlier rate limits, if any. Costs nothing on a
 	// session the provider has never refused.
-	wd.Expect(p.pace.Gap())
-	if err := p.pace.Wait(ctx); err != nil {
-		// A bound that fired while the call was waiting its turn is the
-		// reason it was cancelled; without this the user sees a bare
-		// "context canceled".
-		return nil, wd.Wrap(err)
-	}
+	pendingGap := p.pace.Gap()
 
-	w, err := buildRequest(req)
-	if err != nil {
-		return nil, err
-	}
-	w.PromptCacheKey = p.cfg.CacheKey
-	if cacheableURL(p.cfg.BaseURL) {
-		applyCacheBreakpoints(&w)
-	}
 	var resp *http.Response
 	rotations := 0
 	// One retry policy, shared with every other provider (llm.Retrier):
@@ -254,48 +256,109 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	// the server's own Retry-After, keeps the watchdog informed, and
 	// reports both the countdown and, once the call lands, what it had to
 	// survive.
-	rt := llm.NewRetrier(p.cfg.MaxRetries, emit, wd)
+	rt := llm.NewRetrier(p.cfg.MaxRetries, emit, nil)
+	// One lifetime budget for the whole call, not one per attempt: the
+	// cap exists to end a stream that never stops dribbling, and a
+	// per-attempt one multiplied it by the retry count.
+	callStart := time.Now()
 	for {
-		body, err := json.Marshal(p.applyDialect(w))
+		ctx, wd = llm.WatchSince(parent, p.cfg.Limits, callStart)
+		rt.ResetWatchdog(wd)
+		wd.Expect(pendingGap)
+		if err := p.pace.Wait(ctx); err != nil {
+			// A bound that fired while the call was waiting its turn is the
+			// reason it was cancelled; without this the user sees a bare
+			// "context canceled".
+			wd.Stop()
+			return nil, wd.Wrap(err)
+		}
+
+		w, err := buildRequest(req)
 		if err != nil {
+			wd.Stop()
 			return nil, err
 		}
-		key, idx := p.ring.Current()
-		resp, err = p.do(ctx, body, key)
-		if err == nil {
-			p.ring.OK(idx)
-			rt.Landed()
-			break
+		w.PromptCacheKey = p.cfg.CacheKey
+		if cacheableURL(p.cfg.BaseURL) {
+			applyCacheBreakpoints(&w)
 		}
-		if p.learnDialect(err) {
-			// A parameter the server rejects was dropped or renamed;
-			// resend immediately. Working out the dialect must not spend
-			// the budget meant for transient failures, and it does not:
-			// only a failure the Retrier is asked about counts.
-			continue
-		}
-		if f, ok := keyProblem(err); ok {
-			// Remember the bad key; another may have quota left, so try it
-			// right away without counting a retry.
-			if p.ring.Fail(idx, f) && rotations < p.ring.Len()-1 {
-				rotations++
+		for {
+			body, err := json.Marshal(p.applyDialect(w))
+			if err != nil {
+				wd.Stop()
+				return nil, err
+			}
+			key, idx := p.ring.Current()
+			resp, err = p.do(ctx, body, key)
+			if err == nil {
+				p.ring.OK(idx)
+				rt.Landed()
+				break
+			}
+			if p.learnDialect(err) {
+				// A parameter the server rejects was dropped or renamed;
+				// resend immediately. Working out the dialect must not spend
+				// the budget meant for transient failures, and it does not:
+				// only a failure the Retrier is asked about counts.
 				continue
 			}
+			if f, ok := keyProblem(err); ok {
+				// Remember the bad key; another may have quota left, so try it
+				// right away without counting a retry.
+				if p.ring.Fail(idx, f) && rotations < p.ring.Len()-1 {
+					rotations++
+					continue
+				}
+			}
+			// A rate limit widens the gap for later requests, so a long run
+			// stops walking into the same wall; retrying only rescues this one.
+			var rl *APIError
+			if errors.As(err, &rl) && (rl.Status == 429 || rl.Status == 529) && !llm.PermanentLimit(rl.Error()) {
+				p.pace.Refused()
+				pendingGap = p.pace.Gap()
+			}
+			if werr := rt.Wait(parent, err); werr != nil {
+				wd.Stop()
+				return nil, wd.Wrap(werr)
+			}
 		}
-		// A rate limit widens the gap for later requests, so a long run
-		// stops walking into the same wall; retrying only rescues this one.
-		var rl *APIError
-		if errors.As(err, &rl) && (rl.Status == 429 || rl.Status == 529) && !llm.PermanentLimit(rl.Error()) {
-			p.pace.Refused()
+		p.pace.Served()
+		out, err := readStream(resp.Body, wd, emit)
+		resp.Body.Close()
+		if err == nil {
+			wd.Stop()
+			return out, nil
 		}
-		if werr := rt.Wait(ctx, err); werr != nil {
-			return nil, wd.Wrap(werr)
+		// A stream that ended without a terminal frame — connection
+		// dropped, body ended early, chunk malformed, or the watchdog
+		// killed the silence — never produced an answer, so the whole
+		// request is retried as one fresh attempt over the intact
+		// history. The partial deltas were only ever events; the retried
+		// response replaces them. Anything else keeps the old rule: a
+		// failure past real output is final, and the user resends.
+		stalled := wd.Err() != nil
+		if stalled {
+			err = wd.Wrap(err) // the watchdog's reason, not bare ctx cancel
 		}
+		wd.Stop()
+		if parent.Err() != nil {
+			return nil, wd.Wrap(err)
+		}
+		// The lifetime cap is the bound on this call. It has not died —
+		// it is out of time, and every retry spends the same exhausted
+		// budget, so it ends here.
+		if llm.LifetimeStalled(wd.Err()) {
+			return nil, wd.Wrap(err)
+		}
+		if llm.Truncated(err) || stalled {
+			emit(llm.Event{Type: llm.EventStreamDiscard})
+			if werr := rt.Wait(parent, err); werr != nil {
+				return nil, wd.Wrap(werr)
+			}
+			continue
+		}
+		return nil, wd.Wrap(err)
 	}
-	defer resp.Body.Close()
-	p.pace.Served()
-	out, err := readStream(resp.Body, wd, emit)
-	return out, wd.Wrap(err)
 }
 
 // applyDialect adjusts the request for quirks learned so far.
@@ -330,6 +393,9 @@ func (p *Provider) learnDialect(err error) bool {
 		return false
 	}
 	msg := strings.ToLower(ae.Message)
+	if ae.Detail != "" {
+		msg += " " + strings.ToLower(ae.Detail)
+	}
 	p.dialect.mu.Lock()
 	defer p.dialect.mu.Unlock()
 	switch {
@@ -379,12 +445,15 @@ func (p *Provider) do(ctx context.Context, body []byte, key string) (*http.Respo
 		if json.Unmarshal(raw, &env) == nil && env.Error != nil && env.Error.Message != "" {
 			msg = env.Error.Message
 		}
+		detail := llm.SafeErrorDetail(resp.StatusCode, msg)
+		msg = llm.SafeErrorMessage(resp.StatusCode, msg)
 		if msg == "" {
 			msg = http.StatusText(resp.StatusCode)
 		}
 		return nil, &APIError{
 			Status:     resp.StatusCode,
 			Message:    msg,
+			Detail:     detail,
 			RetryAfter: llm.RetryAfterFrom(resp.Header, resp.StatusCode),
 		}
 	}

@@ -274,6 +274,11 @@ func (r *recorder) event(e agent.Event) {
 		if e.Retry != nil {
 			r.emit(streamEvent{Type: "retry", Text: e.Retry.Reason, Attempts: e.Retry.Attempts, WaitMS: e.Retry.Wait.Milliseconds()})
 		}
+	case agent.EvDiscard:
+		// The dead attempt's deltas are void — the retried call replaces
+		// them. Without this the answer would read "half anfull answer".
+		r.turnText.Reset()
+		r.started = map[string]bool{}
 	case agent.EvNotice:
 		r.emit(streamEvent{Type: "notice", Text: e.Text})
 	case agent.EvCompacted:

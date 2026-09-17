@@ -167,13 +167,31 @@ func TestStreamMapsRequestAndResponse(t *testing.T) {
 
 func TestStreamAPIError(t *testing.T) {
 	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Request-Id", "req-1")
 		w.WriteHeader(401)
-		io.WriteString(w, `{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}`)
+		io.WriteString(w, `{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key sk-ant-echoed"}}`)
 	})
 	_, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
 	ae, ok := err.(*APIError)
-	if !ok || ae.Status != 401 || !strings.Contains(ae.Message, "invalid x-api-key") {
+	// A proxy can echo the request's API key into a 401 body, so the body
+	// is dropped and only the status speaks; the request id still survives.
+	if !ok || ae.Status != 401 || ae.Message != "Unauthorized (request req-1)" || strings.Contains(err.Error(), "sk-ant-echoed") {
 		t.Fatalf("err = %v", err)
+	}
+
+	// A structured message on a non-auth status is kept but capped, so a
+	// debug-page flood cannot reach the transcript.
+	p = newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		io.WriteString(w, `{"type":"error","error":{"type":"api_error","message":"`+strings.Repeat("boom ", 200)+`"}}`)
+	})
+	_, err = p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	ae, ok = err.(*APIError)
+	if !ok || ae.Status != 500 {
+		t.Fatalf("err = %v", err)
+	}
+	if runes := len([]rune(ae.Message)); runes > 301 {
+		t.Fatalf("message not capped: %d runes", runes)
 	}
 }
 

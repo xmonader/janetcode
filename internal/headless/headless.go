@@ -124,9 +124,9 @@ func run(ctx context.Context, opts Options, rec *recorder) error {
 			fmt.Fprintf(opts.Stderr, "[until] passed: %s\n", opts.Until)
 			return nil
 		}
-		fmt.Fprintf(opts.Stderr, "[until] round %d/%d failed (exit %d): %s\n", round, rounds, exit, textfmt.Clip(textfmt.OneLine(out), 200))
+		fmt.Fprintf(opts.Stderr, "[until] round %d/%d failed (exit %d): %s\n", round, rounds, exit, safeLine(out, 200))
 		if round >= rounds {
-			return fmt.Errorf("%w after %d rounds: %s", ErrUntilFailed, rounds, textfmt.Clip(textfmt.OneLine(out), 300))
+			return fmt.Errorf("%w after %d rounds: %s", ErrUntilFailed, rounds, safeLine(out, 300))
 		}
 		blocks = []llm.Block{{Type: llm.BlockText, Synthetic: true, Text: fmt.Sprintf("The check command has not passed yet.\n\nCommand: %s\nExit code: %d\nOutput:\n```\n%s\n```\n\nKeep working until this command exits 0, then stop.", opts.Until, exit, textfmt.TruncateTo(strings.TrimSpace(out), 4000))}}
 	}
@@ -166,7 +166,7 @@ func watch(ctx context.Context, opts Options, rec *recorder) error {
 			fixes = 0
 			continue
 		}
-		fmt.Fprintf(opts.Stderr, "[watch] ✗ exit %d: %s\n", exit, textfmt.Clip(textfmt.OneLine(out), 200))
+		fmt.Fprintf(opts.Stderr, "[watch] ✗ exit %d: %s\n", exit, safeLine(out, 200))
 		if fixes >= rounds {
 			fmt.Fprintf(opts.Stderr, "[watch] %d fixes did not make it pass; waiting for your change\n", fixes)
 			continue
@@ -182,7 +182,19 @@ func watch(ctx context.Context, opts Options, rec *recorder) error {
 			if ctx.Err() != nil {
 				return nil
 			}
+			if errors.Is(err, ErrBudget) {
+				// Reaching the ceiling is not a fix-round failure to
+				// retry: every new round burns a full priced call
+				// before the in-turn stop, so the loop would never
+				// end — the run must exit on the budget instead.
+				return err
+			}
 			fmt.Fprintf(opts.Stderr, "[watch] model turn failed: %v\n", err)
+		}
+		if opts.MaxCostUSD > 0 {
+			if spent, ok := rec.spentUSD(); ok && spent >= opts.MaxCostUSD {
+				return fmt.Errorf("%w: spent %s of %s", ErrBudget, llm.FormatUSDPrecise(spent), llm.FormatUSDPrecise(opts.MaxCostUSD))
+			}
 		}
 		last = "" // re-check right away: the fix changed the tree
 	}
@@ -249,9 +261,18 @@ func check(ctx context.Context, cwd, command string) (string, int) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	cmd := shell.Command(ctx, command)
+	// Supervise makes the ten-minute bound real: without a process group
+	// the context kills only the shell, and a grandchild holding the
+	// output pipes (a watch whose `npm test` leaks a server) blocks Wait
+	// forever — the check, and with it the whole --until/--watch loop,
+	// ignored both the timeout and ctrl+c.
+	shell.Supervise(cmd)
 	cmd.Dir = cwd
 	out, err := cmd.CombinedOutput()
-	if err == nil {
+	// The command itself succeeded (exit 0) but left something running
+	// that held its pipes: the supervise's bounded pipe wait cut the
+	// read early. That is not a failed check.
+	if err == nil || errors.Is(err, exec.ErrWaitDelay) {
 		return string(out), 0
 	}
 	var ee *exec.ExitError
@@ -275,42 +296,7 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 			// already written this event as a line of its own.
 			return
 		}
-		switch e.Kind {
-		case agent.EvText:
-			fmt.Fprint(opts.Stdout, e.Text)
-		case agent.EvToolRun:
-			// The model's own reason for the call, when it gave one, reads
-			// better than its arguments.
-			if e.Call.Intent != "" {
-				fmt.Fprintf(opts.Stderr, "\n[tool] %s — %s\n       %s\n", e.Call.Name, e.Call.Intent, textfmt.Clip(textfmt.OneLine(string(e.Call.Input)), 160))
-			} else {
-				fmt.Fprintf(opts.Stderr, "\n[tool] %s %s\n", e.Call.Name, textfmt.Clip(textfmt.OneLine(string(e.Call.Input)), 200))
-			}
-		case agent.EvToolResult:
-			tag := "ok"
-			if e.IsError {
-				tag = "error"
-			}
-			fmt.Fprintf(opts.Stderr, "[tool %s] %s\n", tag, textfmt.Clip(textfmt.OneLine(e.Output), 300))
-		case agent.EvCompacted:
-			fmt.Fprintf(opts.Stderr, "[compacted] %s\n", e.Text)
-		case agent.EvVerdict:
-			// What the turn demonstrated. It is the point of watching a
-			// run at all, so it goes to stderr beside the tool activity
-			// rather than being dropped as the TUI-only line it was.
-			fmt.Fprintf(opts.Stderr, "\n[verdict] %s\n", e.Text)
-		case agent.EvRetry:
-			fmt.Fprintf(opts.Stderr, "[retry] %s\n", e.Text)
-		case agent.EvNotice:
-			fmt.Fprintf(opts.Stderr, "[notice] %s\n", e.Text)
-		case agent.EvTurnDone:
-			fmt.Fprintln(opts.Stdout)
-			fmt.Fprintf(opts.Stderr, "[usage] in=%d out=%d cache_read=%d stop=%s", e.Usage.InputTokens, e.Usage.OutputTokens, e.Usage.CacheReadTokens, e.StopReason)
-			if usd, ok := e.Usage.Cost(opts.Agent.Price); ok {
-				fmt.Fprintf(opts.Stderr, " cost=%s", llm.FormatUSD(usd))
-			}
-			fmt.Fprintln(opts.Stderr)
-		}
+		printEvent(opts, e)
 	})
 	if err == nil && opts.Memory != nil && opts.AutoMemory && (ag.LastTurnMutated() || memory.LooksLikeFeedback(llm.Message{Blocks: blocks}.Text())) {
 		remember(ctx, opts)
@@ -477,4 +463,66 @@ func isTerminal(f *os.File) bool {
 // question stdinApprover answers for itself on each call.
 func StdinInteractive(f *os.File) bool {
 	return f != nil && isTerminal(f)
+}
+
+// safe is what text bound for a terminal goes through. Model prose, tool
+// output, an MCP server's tool name, and a watched command's stderr all
+// reach these prints, and any of them can carry an escape sequence that
+// repaints the caller's terminal or reads its clipboard back. Naming it
+// once is the point: the escapes that got through were the call sites
+// that spelled the stripping out and the ones that forgot to.
+func safe(s string) string { return textfmt.StripUnsafeANSI(s) }
+
+// safeLine is safe, flattened to one line and clipped to n columns.
+func safeLine(s string, n int) string { return textfmt.Clip(textfmt.OneLine(safe(s)), n) }
+
+// printEvent writes one event in text mode. It is a named function so
+// the stripping every branch owes its output can be tested per branch:
+// the branches that carried an escape through were the ones no test
+// reached.
+func printEvent(opts Options, e agent.Event) {
+	switch e.Kind {
+	case agent.EvText:
+		fmt.Fprint(opts.Stdout, safe(e.Text))
+	case agent.EvToolRun:
+		// The model's own reason for the call, when it gave one, reads
+		// better than its arguments.
+		if e.Call.Intent != "" {
+			fmt.Fprintf(opts.Stderr, "\n[tool] %s — %s\n       %s\n", safe(e.Call.Name), safe(e.Call.Intent), safeLine(string(e.Call.Input), 160))
+		} else {
+			fmt.Fprintf(opts.Stderr, "\n[tool] %s %s\n", safe(e.Call.Name), safeLine(string(e.Call.Input), 200))
+		}
+	case agent.EvToolResult:
+		tag := "ok"
+		if e.IsError {
+			tag = "error"
+		}
+		fmt.Fprintf(opts.Stderr, "[tool %s] %s\n", tag, safeLine(e.Output, 300))
+	case agent.EvCompacted:
+		fmt.Fprintf(opts.Stderr, "[compacted] %s\n", safe(e.Text))
+	case agent.EvVerdict:
+		// What the turn demonstrated. It is the point of watching a
+		// run at all, so it goes to stderr beside the tool activity
+		// rather than being dropped as the TUI-only line it was.
+		fmt.Fprintf(opts.Stderr, "\n[verdict] %s\n", safe(e.Text))
+	case agent.EvRetry:
+		fmt.Fprintf(opts.Stderr, "[retry] %s\n", safe(e.Text))
+	case agent.EvDiscard:
+		// The dead attempt's stdout text is void, and bytes already
+		// written to a pipe cannot be recalled: the newline keeps the
+		// retried answer from running into it and the notice says
+		// which half to read. The accumulated answer the json modes
+		// report is reset properly, in recorder.event.
+		fmt.Fprintln(opts.Stdout)
+		fmt.Fprintln(opts.Stderr, "[discarded] the answer so far was cut off mid-stream and is being resent; the text above it is void")
+	case agent.EvNotice:
+		fmt.Fprintf(opts.Stderr, "[notice] %s\n", safe(e.Text))
+	case agent.EvTurnDone:
+		fmt.Fprintln(opts.Stdout)
+		fmt.Fprintf(opts.Stderr, "[usage] in=%d out=%d cache_read=%d stop=%s", e.Usage.InputTokens, e.Usage.OutputTokens, e.Usage.CacheReadTokens, e.StopReason)
+		if usd, ok := e.Usage.Cost(opts.Agent.Price); ok {
+			fmt.Fprintf(opts.Stderr, " cost=%s", llm.FormatUSD(usd))
+		}
+		fmt.Fprintln(opts.Stderr)
+	}
 }

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -449,9 +450,23 @@ func (r *Runner) runMutants(ctx context.Context, mutants []Mutant) (Report, erro
 		o := Outcome{Mutant: m}
 		cctx, cancel := context.WithTimeout(ctx, timeout)
 		cmd := shell.Command(cctx, r.Command)
+		// Supervise is what makes the timeout real: without a process
+		// group the context kills only the shell, and Wait then blocks on
+		// the output pipes for as long as a leaked grandchild holds them
+		// (a test binary that starts a server and forgets it) — the run
+		// hung forever, past its own timeout and past ctrl+c.
+		shell.Supervise(cmd)
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(), "JANETCODE_VERIFY=1", "JANETCODE_MUTANT="+m.String())
 		out, runErr := cmd.CombinedOutput()
+		// A test command that exits 0 but leaks a grandchild holding its
+		// pipes (a server a package test starts and forgets) surfaces as
+		// ErrWaitDelay once the bounded pipe wait cuts the read — the
+		// command itself passed, which must not count as killing the
+		// mutant.
+		if errors.Is(runErr, exec.ErrWaitDelay) {
+			runErr = nil
+		}
 		o.TimedOut = errors.Is(cctx.Err(), context.DeadlineExceeded)
 		cancel()
 		// Every later mutant is applied to this same file. If the

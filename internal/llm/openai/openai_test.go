@@ -182,12 +182,36 @@ func TestHTTPErrorAndRetry(t *testing.T) {
 
 	p = newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(401)
-		io.WriteString(w, `{"error":{"message":"bad key"}}`)
+		io.WriteString(w, `{"error":{"message":"bad key sk-live-echoed"}}`)
 	})
 	_, err = p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
 	ae, ok := err.(*APIError)
-	if !ok || ae.Status != 401 || ae.Message != "bad key" {
+	// A proxy can echo the request's API key into a 401 body, so the body
+	// is dropped and only the status speaks.
+	if !ok || ae.Status != 401 || ae.Message != "Unauthorized" || strings.Contains(err.Error(), "sk-live-echoed") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// A verbose 400 keeps its parameter complaint reachable for dialect
+// learning even though the display message is capped, and an oversized
+// body cannot flood the transcript.
+func TestErrorBodyBoundedButLearnable(t *testing.T) {
+	pad := strings.Repeat("word ", 120) // 600 runes of padding
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(400)
+		io.WriteString(w, `{"error":{"message":"`+pad+` Please switch to max_completion_tokens instead of max_tokens."}}`)
+	})
+	_, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	ae, ok := err.(*APIError)
+	if !ok || ae.Status != 400 {
+		t.Fatalf("err = %v", err)
+	}
+	if runes := len([]rune(ae.Message)); runes > 301 {
+		t.Fatalf("message not capped: %d runes", runes)
+	}
+	if !p.dialect.useMaxCompletion {
+		t.Fatal("dialect hint past the display cap was lost")
 	}
 }
 
@@ -420,9 +444,10 @@ func TestKeyRotationAndListModels(t *testing.T) {
 	if err != nil || len(models) != 2 || models[0].ID != "alpha" || models[0].Name != "Alpha" || models[1].ID != "zeta" {
 		t.Fatalf("models = %+v err = %v", models, err)
 	}
-	// A single key never loops: the 401 comes straight back.
+	// A single key never loops: the 401 comes straight back (its body is
+	// dropped, so only the status text speaks).
 	single, _ := New(Config{BaseURL: srv.URL + "/v1", APIKey: "k9", MaxRetries: 1})
-	if _, err := single.Stream(context.Background(), req, nil); err == nil || !strings.Contains(err.Error(), "bad key") {
+	if _, err := single.Stream(context.Background(), req, nil); err == nil || !strings.Contains(err.Error(), "Unauthorized") {
 		t.Fatalf("single key err = %v", err)
 	}
 }
@@ -1155,5 +1180,61 @@ func TestStripCacheControlRestoresThePlainRequest(t *testing.T) {
 		if p.CacheControl != nil {
 			t.Fatalf("part still marked: %#v", p)
 		}
+	}
+}
+
+// TestParsePricingRejectsUnusableNumbers: a hand-rolled endpoint can
+// serve prices the JSON admits but math cannot use. NaN or ±Inf in the
+// rate table would turn every cost estimate for the model into NaN, and
+// a negative price would read as cheaper-than-free.
+func TestParsePricingRejectsUnusableNumbers(t *testing.T) {
+	for _, pricing := range []string{
+		`{"prompt":"NaN","completion":"1"}`,
+		`{"prompt":"+Inf","completion":"1"}`,
+		`{"prompt":"-1","completion":"1"}`,
+	} {
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(pricing), &m); err != nil {
+			t.Fatal(err)
+		}
+		if p, ok := parsePricing(m); ok {
+			t.Fatalf("pricing %s accepted: %+v", pricing, p)
+		}
+	}
+	if p, ok := parsePricing(map[string]json.RawMessage{
+		"prompt":     json.RawMessage(`"1.5"`),
+		"completion": json.RawMessage(`2`),
+	}); !ok || p.Input != 1.5e6 || p.Output != 2e6 {
+		t.Fatalf("sane pricing rejected or mangled: %+v ok=%v", p, ok)
+	}
+}
+
+// TestProviderRefusesACrossOriginRedirect: the redirect policy was added
+// to the Anthropic client only, and this one uses Go's default — which
+// forwards Authorization to any subdomain of the endpoint's host, never
+// looks at the scheme, and copies extraHeaders to anywhere at all. Both
+// request paths share this client, so both leaked.
+func TestProviderRefusesACrossOriginRedirect(t *testing.T) {
+	var gotAuth string
+	dst := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(200)
+	}))
+	defer dst.Close()
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, dst.URL+"/steal", http.StatusTemporaryRedirect)
+	})
+	_, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, nil)
+	if err == nil {
+		t.Fatal("the call followed a redirect off the endpoint's origin")
+	}
+	if gotAuth != "" {
+		t.Fatalf("the key reached the redirect target: %q", gotAuth)
+	}
+	if _, err := p.ListModels(context.Background()); err == nil {
+		t.Fatal("ListModels followed the redirect")
+	}
+	if gotAuth != "" {
+		t.Fatalf("ListModels leaked the key: %q", gotAuth)
 	}
 }

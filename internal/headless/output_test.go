@@ -1,6 +1,7 @@
 package headless
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -276,5 +277,19 @@ func TestEnvelopeReportsUsageOfAnUnfinishedTurn(t *testing.T) {
 	}
 	if res.ExitCode != ExitBudget {
 		t.Fatalf("exit = %d", res.ExitCode)
+	}
+}
+
+// A retried call replaces the partial deltas the dead attempt streamed:
+// the recorder must drop them, or the answer reads "half anfull answer".
+func TestDiscardResetsTheTurnText(t *testing.T) {
+	var out bytes.Buffer
+	r := newRecorder(Options{Stdout: &out}, FormatStreamJSON)
+	r.event(agent.Event{Kind: agent.EvText, Text: "half an "})
+	r.event(agent.Event{Kind: agent.EvDiscard})
+	r.event(agent.Event{Kind: agent.EvText, Text: "whole answer"})
+	r.event(agent.Event{Kind: agent.EvTurnDone, Usage: llm.Usage{InputTokens: 1, OutputTokens: 1}})
+	if r.answer != "whole answer" {
+		t.Fatalf("answer = %q", r.answer)
 	}
 }

@@ -81,7 +81,9 @@ func (a *Agent) revertLastTurnFiles(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	done, err := a.restore(ctx, cp)
+	// Scoped: this reverts the turn's own edits, not anything a hook or
+	// a check command wrote alongside them.
+	done, err := a.restore(ctx, cp, true)
 	if serr := a.SaveUndo(); serr != nil {
 		a.debugf("save undo: %v", serr)
 	}

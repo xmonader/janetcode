@@ -211,7 +211,9 @@ func (a *Agent) applyTurnRestore(ctx context.Context, tr TurnRestore, cp Checkpo
 			return UndoReport{}, fmt.Errorf("%w: the repository moved since turn %d was snapshotted, so its work tree cannot be put back", err, tr.Turn)
 		}
 	} else {
-		done, err = a.restore(ctx, cp)
+		// Unscoped, like the git branch above: this command restores the
+		// whole tree to before the turn, not just what the turn changed.
+		done, err = a.restore(ctx, cp, false)
 	}
 	if err != nil {
 		return UndoReport{}, err

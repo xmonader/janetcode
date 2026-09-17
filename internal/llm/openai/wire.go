@@ -148,6 +148,11 @@ type wireError struct {
 type APIError struct {
 	Status  int
 	Message string
+	// Detail carries the same server text redacted but uncapped, so
+	// dialect learning and classification can read past Message's display
+	// cap. It is never rendered: Error() and every caller print Message
+	// only.
+	Detail string
 	// RetryAfter is the server's own Retry-After, kept only for the two
 	// statuses that mean "come back later" — 429 and 503. On anything
 	// else the header is advice about a failure that is not going to
@@ -157,6 +162,15 @@ type APIError struct {
 
 func (e *APIError) Error() string {
 	return fmt.Sprintf("%s (HTTP %d)", e.Message, e.Status)
+}
+
+// ErrorDetail implements llm.DetailedError: the whole server text, for
+// the decisions that must read past Message's display cap.
+func (e *APIError) ErrorDetail() string {
+	if e.Detail != "" {
+		return e.Detail
+	}
+	return e.Message
 }
 
 // HTTPStatus and RetryHint implement llm.StatusError, which is how the
