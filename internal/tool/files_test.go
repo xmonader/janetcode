@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -557,5 +558,44 @@ func TestWriteAndEditRefuseOverTheCeiling(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(filepath.Join(root, "f.txt")); string(got) != "x\nx\nx\n" {
 		t.Fatalf("refused edit changed the file: %q", got)
+	}
+}
+
+// A huge directory is read, sorted and joined in full only for the
+// output to be clipped: past the cap the listing says so instead, and
+// the read itself stops at the cap.
+func TestListDirCapsEntries(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"m.txt", "z.txt", "a.txt"} {
+		os.WriteFile(filepath.Join(root, name), nil, 0o644)
+	}
+	for i := 0; i < maxDirEntries-2; i++ {
+		os.WriteFile(filepath.Join(root, fmt.Sprintf("f%04d.txt", i)), nil, 0o644)
+	}
+	l := ListDir{Root: root}
+	out, err := l.Run(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(out, "\n")
+	if len(lines) != maxDirEntries+1 {
+		t.Fatalf("%d lines: first=%q tail=%q", len(lines), lines[0], lines[len(lines)-3:])
+	}
+	if lines[0] != "a.txt" || lines[1] != "f0000.txt" {
+		t.Fatalf("prefix not sorted: %q, %q", lines[0], lines[1])
+	}
+	if last := lines[len(lines)-1]; !strings.Contains(last, "capped at 2000") {
+		t.Fatalf("missing cap note: %q", last)
+	}
+	// An exactly-full directory does not claim there is more.
+	for i := 0; i < 3; i++ {
+		os.Remove(filepath.Join(root, fmt.Sprintf("f%04d.txt", i)))
+	}
+	out, err = l.Run(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "capped") {
+		t.Fatalf("spurious cap note: %q", strings.Split(out, "\n")[0])
 	}
 }

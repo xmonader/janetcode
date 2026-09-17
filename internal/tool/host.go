@@ -319,13 +319,6 @@ func statOf(ctx context.Context, ws *Workspace, path string) (os.FileInfo, error
 	return os.Stat(path)
 }
 
-func readDirOf(ctx context.Context, ws *Workspace, path string) ([]os.DirEntry, error) {
-	if ws != nil {
-		return ws.Host().ReadDir(ctx, path)
-	}
-	return os.ReadDir(path)
-}
-
 func mkdirAllOf(ctx context.Context, ws *Workspace, path string, perm os.FileMode) error {
 	if ws != nil {
 		return ws.Host().MkdirAll(ctx, path, perm)
