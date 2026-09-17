@@ -184,7 +184,7 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 			return nil, fmt.Errorf("openai: bad stream chunk: %w", err)
 		}
 		if ch.Error != nil {
-			return nil, &APIError{Status: 200, Message: ch.Error.Message}
+			return nil, &APIError{Status: 200, Message: llm.BoundErrorMessage(ch.Error.Message)}
 		}
 		gotChunk = true
 		st.add(ch)

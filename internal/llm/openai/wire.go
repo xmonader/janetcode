@@ -148,6 +148,11 @@ type wireError struct {
 type APIError struct {
 	Status  int
 	Message string
+	// Detail carries the same server text uncapped (still bounded by the
+	// 64 KiB body read) so dialect learning can find a parameter
+	// complaint past Message's display cap. It is never rendered: Error()
+	// and every caller print Message only.
+	Detail string
 	// RetryAfter is the server's own Retry-After, kept only for the two
 	// statuses that mean "come back later" — 429 and 503. On anything
 	// else the header is advice about a failure that is not going to

@@ -186,12 +186,17 @@ func (p *Provider) Embed(ctx context.Context, model string, texts []string) ([][
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if resp.StatusCode/100 != 2 {
-		msg := strings.TrimSpace(string(raw))
+		msg := llm.SafeErrorMessage(resp.StatusCode, strings.TrimSpace(string(raw)))
+		if msg == "" {
+			msg = http.StatusText(resp.StatusCode)
+		}
 		var env struct {
 			Error *wireError `json:"error"`
 		}
 		if json.Unmarshal(raw, &env) == nil && env.Error != nil && env.Error.Message != "" {
-			msg = env.Error.Message
+			if m := llm.SafeErrorMessage(resp.StatusCode, env.Error.Message); m != "" {
+				msg = m
+			}
 		}
 		return nil, &APIError{Status: resp.StatusCode, Message: msg}
 	}
@@ -330,6 +335,9 @@ func (p *Provider) learnDialect(err error) bool {
 		return false
 	}
 	msg := strings.ToLower(ae.Message)
+	if ae.Detail != "" {
+		msg += " " + strings.ToLower(ae.Detail)
+	}
 	p.dialect.mu.Lock()
 	defer p.dialect.mu.Unlock()
 	switch {
@@ -379,12 +387,15 @@ func (p *Provider) do(ctx context.Context, body []byte, key string) (*http.Respo
 		if json.Unmarshal(raw, &env) == nil && env.Error != nil && env.Error.Message != "" {
 			msg = env.Error.Message
 		}
+		detail := msg
+		msg = llm.SafeErrorMessage(resp.StatusCode, msg)
 		if msg == "" {
 			msg = http.StatusText(resp.StatusCode)
 		}
 		return nil, &APIError{
 			Status:     resp.StatusCode,
 			Message:    msg,
+			Detail:     detail,
 			RetryAfter: llm.RetryAfterFrom(resp.Header, resp.StatusCode),
 		}
 	}

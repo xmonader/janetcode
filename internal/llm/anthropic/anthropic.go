@@ -504,7 +504,9 @@ func mapError(ctx context.Context, err error) error {
 			} `json:"error"`
 		}
 		if json.Unmarshal([]byte(ae.RawJSON()), &env) == nil && env.Error.Message != "" {
-			msg = env.Error.Message
+			if m := llm.SafeErrorMessage(ae.StatusCode, env.Error.Message); m != "" {
+				msg = m
+			}
 		}
 		if ae.RequestID != "" {
 			msg += " (request " + ae.RequestID + ")"
