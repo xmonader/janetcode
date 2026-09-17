@@ -230,28 +230,16 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if emit == nil {
 		emit = func(llm.Event) {}
 	}
-	// A stream that stops producing without failing would otherwise hang
-	// the turn for as long as the process lives.
-	ctx, wd := llm.Watch(ctx, p.cfg.Limits)
-	defer wd.Stop()
+	// The caller's context is the user's will: a cancellation there ends
+	// the call for good. Each attempt gets a watchdog of its own, so a
+	// stream the harness killed for silence can be retried under a fresh
+	// one — a stream that died without a terminal frame never answered.
+	parent := ctx
+	var wd *llm.Watchdog
 	// Spacing imposed by earlier rate limits, if any. Costs nothing on a
 	// session the provider has never refused.
-	wd.Expect(p.pace.Gap())
-	if err := p.pace.Wait(ctx); err != nil {
-		// A bound that fired while the call was waiting its turn is the
-		// reason it was cancelled; without this the user sees a bare
-		// "context canceled".
-		return nil, wd.Wrap(err)
-	}
+	pendingGap := p.pace.Gap()
 
-	w, err := buildRequest(req)
-	if err != nil {
-		return nil, err
-	}
-	w.PromptCacheKey = p.cfg.CacheKey
-	if cacheableURL(p.cfg.BaseURL) {
-		applyCacheBreakpoints(&w)
-	}
 	var resp *http.Response
 	rotations := 0
 	// One retry policy, shared with every other provider (llm.Retrier):
@@ -259,48 +247,99 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	// the server's own Retry-After, keeps the watchdog informed, and
 	// reports both the countdown and, once the call lands, what it had to
 	// survive.
-	rt := llm.NewRetrier(p.cfg.MaxRetries, emit, wd)
+	rt := llm.NewRetrier(p.cfg.MaxRetries, emit, nil)
 	for {
-		body, err := json.Marshal(p.applyDialect(w))
+		ctx, wd = llm.Watch(parent, p.cfg.Limits)
+		rt.ResetWatchdog(wd)
+		wd.Expect(pendingGap)
+		if err := p.pace.Wait(ctx); err != nil {
+			// A bound that fired while the call was waiting its turn is the
+			// reason it was cancelled; without this the user sees a bare
+			// "context canceled".
+			wd.Stop()
+			return nil, wd.Wrap(err)
+		}
+
+		w, err := buildRequest(req)
 		if err != nil {
+			wd.Stop()
 			return nil, err
 		}
-		key, idx := p.ring.Current()
-		resp, err = p.do(ctx, body, key)
-		if err == nil {
-			p.ring.OK(idx)
-			rt.Landed()
-			break
+		w.PromptCacheKey = p.cfg.CacheKey
+		if cacheableURL(p.cfg.BaseURL) {
+			applyCacheBreakpoints(&w)
 		}
-		if p.learnDialect(err) {
-			// A parameter the server rejects was dropped or renamed;
-			// resend immediately. Working out the dialect must not spend
-			// the budget meant for transient failures, and it does not:
-			// only a failure the Retrier is asked about counts.
-			continue
-		}
-		if f, ok := keyProblem(err); ok {
-			// Remember the bad key; another may have quota left, so try it
-			// right away without counting a retry.
-			if p.ring.Fail(idx, f) && rotations < p.ring.Len()-1 {
-				rotations++
+		for {
+			body, err := json.Marshal(p.applyDialect(w))
+			if err != nil {
+				wd.Stop()
+				return nil, err
+			}
+			key, idx := p.ring.Current()
+			resp, err = p.do(ctx, body, key)
+			if err == nil {
+				p.ring.OK(idx)
+				rt.Landed()
+				break
+			}
+			if p.learnDialect(err) {
+				// A parameter the server rejects was dropped or renamed;
+				// resend immediately. Working out the dialect must not spend
+				// the budget meant for transient failures, and it does not:
+				// only a failure the Retrier is asked about counts.
 				continue
 			}
+			if f, ok := keyProblem(err); ok {
+				// Remember the bad key; another may have quota left, so try it
+				// right away without counting a retry.
+				if p.ring.Fail(idx, f) && rotations < p.ring.Len()-1 {
+					rotations++
+					continue
+				}
+			}
+			// A rate limit widens the gap for later requests, so a long run
+			// stops walking into the same wall; retrying only rescues this one.
+			var rl *APIError
+			if errors.As(err, &rl) && (rl.Status == 429 || rl.Status == 529) && !llm.PermanentLimit(rl.Error()) {
+				p.pace.Refused()
+				pendingGap = p.pace.Gap()
+			}
+			if werr := rt.Wait(parent, err); werr != nil {
+				wd.Stop()
+				return nil, wd.Wrap(werr)
+			}
 		}
-		// A rate limit widens the gap for later requests, so a long run
-		// stops walking into the same wall; retrying only rescues this one.
-		var rl *APIError
-		if errors.As(err, &rl) && (rl.Status == 429 || rl.Status == 529) && !llm.PermanentLimit(rl.Error()) {
-			p.pace.Refused()
+		p.pace.Served()
+		out, err := readStream(resp.Body, wd, emit)
+		resp.Body.Close()
+		if err == nil {
+			wd.Stop()
+			return out, nil
 		}
-		if werr := rt.Wait(ctx, err); werr != nil {
-			return nil, wd.Wrap(werr)
+		// A stream that ended without a terminal frame — connection
+		// dropped, body ended early, chunk malformed, or the watchdog
+		// killed the silence — never produced an answer, so the whole
+		// request is retried as one fresh attempt over the intact
+		// history. The partial deltas were only ever events; the retried
+		// response replaces them. Anything else keeps the old rule: a
+		// failure past real output is final, and the user resends.
+		stalled := wd.Err() != nil
+		if stalled {
+			err = wd.Wrap(err) // the watchdog's reason, not bare ctx cancel
 		}
+		wd.Stop()
+		if parent.Err() != nil {
+			return nil, wd.Wrap(err)
+		}
+		if llm.Truncated(err) || stalled {
+			emit(llm.Event{Type: llm.EventStreamDiscard})
+			if werr := rt.Wait(parent, err); werr != nil {
+				return nil, wd.Wrap(werr)
+			}
+			continue
+		}
+		return nil, wd.Wrap(err)
 	}
-	defer resp.Body.Close()
-	p.pace.Served()
-	out, err := readStream(resp.Body, wd, emit)
-	return out, wd.Wrap(err)
 }
 
 // applyDialect adjusts the request for quirks learned so far.

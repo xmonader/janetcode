@@ -350,6 +350,11 @@ const (
 	// seconds of waiting. Retry carries the count, the reason and the
 	// wait, so a run can be read afterwards and say so.
 	EventRetried EventType = "retried"
+	// EventStreamDiscard says the deltas streamed so far in this call are
+	// void: the attempt died without a terminal frame and the request is
+	// being retried fresh, so consumers must throw the partial text away
+	// rather than let the retried answer follow it on screen.
+	EventStreamDiscard EventType = "stream_discard"
 )
 
 // Retry describes what one model call had to survive before it answered.

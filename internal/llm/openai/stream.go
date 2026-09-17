@@ -181,25 +181,26 @@ func readStream(r io.Reader, wd *llm.Watchdog, emit func(llm.Event)) (*llm.Respo
 		}
 		var ch wireChunk
 		if err := json.Unmarshal([]byte(data), &ch); err != nil {
-			return nil, fmt.Errorf("openai: bad stream chunk: %w", err)
+			return nil, llm.Truncate(fmt.Errorf("openai: bad stream chunk: %w", err))
 		}
 		if ch.Error != nil {
+			// The server spoke: a structured refusal is not a truncation.
 			return nil, &APIError{Status: 200, Message: llm.BoundErrorMessage(ch.Error.Message)}
 		}
 		gotChunk = true
 		st.add(ch)
 	}
 	if err := sc.Err(); err != nil {
-		return nil, fmt.Errorf("openai: stream read: %w", err)
+		return nil, llm.Truncate(fmt.Errorf("openai: stream read: %w", err))
 	}
 	if !gotChunk {
 		if body := strings.TrimSpace(preamble.String()); body != "" {
-			return nil, fmt.Errorf("openai: no stream frames from server: %.300s", body)
+			return nil, llm.Truncate(fmt.Errorf("openai: no stream frames from server: %.300s", body))
 		}
-		return nil, errors.New("openai: empty stream from server")
+		return nil, llm.Truncate(errors.New("openai: empty stream from server"))
 	}
 	if !gotDone && st.finish == "" {
-		return nil, errors.New("openai: stream ended without finish_reason")
+		return nil, llm.Truncate(errors.New("openai: stream ended without finish_reason"))
 	}
 	return st.response()
 }

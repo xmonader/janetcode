@@ -322,6 +322,10 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 			fmt.Fprintf(opts.Stderr, "\n[verdict] %s\n", textfmt.StripUnsafeANSI(e.Text))
 		case agent.EvRetry:
 			fmt.Fprintf(opts.Stderr, "[retry] %s\n", e.Text)
+		case agent.EvDiscard:
+			// The dead attempt's stdout text is void; the newline keeps
+			// the retried answer from running into it.
+			fmt.Fprintln(opts.Stdout)
 		case agent.EvNotice:
 			fmt.Fprintf(opts.Stderr, "[notice] %s\n", e.Text)
 		case agent.EvTurnDone:

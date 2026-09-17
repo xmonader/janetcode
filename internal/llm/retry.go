@@ -115,6 +115,13 @@ func Retryable(err error) bool {
 		}
 		return false
 	}
+	// A stall-kill reads as a context cancellation from the transport,
+	// but it is the harness giving up on a silent server — the user is
+	// still there and the request never answered, so a fresh attempt is
+	// exactly what they would ask for.
+	if errors.Is(err, ErrStreamWatchdog) {
+		return true
+	}
 	// Connection-level failures.
 	return !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)
 }
@@ -133,8 +140,38 @@ func RetryReason(err error) string {
 			return fmt.Sprintf("http %d", s)
 		}
 	}
+	if errors.Is(err, ErrStreamWatchdog) {
+		return "stream stalled"
+	}
+	if Truncated(err) {
+		return "stream cut off"
+	}
 	return "connection failed"
 }
+
+// Truncated reports whether err is a stream that ended before any
+// terminal frame: the connection dropped, the body ended clean but
+// early, a chunk arrived malformed. The request never produced an
+// answer, so the harness may resend it as one fresh request over the
+// intact history — never by splicing the partial output back.
+func Truncated(err error) bool {
+	var t *truncatedStream
+	return errors.As(err, &t)
+}
+
+// Truncate marks err as a stream that died without a terminal frame.
+type truncatedStream struct{ err error }
+
+func (e *truncatedStream) Error() string { return e.err.Error() }
+func (e *truncatedStream) Unwrap() error { return e.err }
+
+// Truncate marks err as a stream that died without a terminal frame.
+func Truncate(err error) error { return &truncatedStream{err} }
+
+// ResetWatchdog points the retrier at the watchdog of a fresh attempt:
+// a stream that died and is being retried runs under a new one, and the
+// backoff waits inside it must be expected there.
+func (r *Retrier) ResetWatchdog(wd *Watchdog) { r.wd = wd }
 
 // RetryBase is the first backoff; it doubles with every attempt.
 const RetryBase = 500 * time.Millisecond

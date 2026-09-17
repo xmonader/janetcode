@@ -329,26 +329,32 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 	if emit == nil {
 		emit = func(llm.Event) {}
 	}
-	// A stream that stops producing without failing would otherwise hang
-	// the turn for as long as the process lives.
-	ctx, wd := llm.Watch(ctx, p.cfg.Limits)
-	defer wd.Stop()
+	// The caller's context is the user's will: a cancellation there ends
+	// the call for good. Each attempt gets a watchdog of its own, so a
+	// stream the harness killed for silence can be retried under a fresh
+	// one — a stream that died without a terminal frame never answered.
+	parent := ctx
+	var wd *llm.Watchdog
 	// The same retry policy every provider follows: the SDK's own is
 	// turned off (see New), so the backoff, the countdown and the summary
 	// all happen where the watchdog and the UI can see them.
-	rt := llm.NewRetrier(p.cfg.MaxRetries, emit, wd)
+	rt := llm.NewRetrier(p.cfg.MaxRetries, emit, nil)
 	rotations := 0
 	for {
+		ctx, wd = llm.Watch(parent, p.cfg.Limits)
+		rt.ResetWatchdog(wd)
 		cfg := p.config()
 		// The tier is read per request, not per provider: /effort changes
 		// the agent's live setting and the very next call carries it.
 		cfg.Effort = p.effortFor(req.Effort)
 		params, err := buildParams(req, cfg)
 		if err != nil {
+			wd.Stop()
 			return nil, err
 		}
 		client, idx := p.current()
 		resp, produced, err := p.stream(ctx, client, params, wd, emit)
+		wd.Stop()
 		if err == nil {
 			p.ring.OK(idx)
 			rt.Landed()
@@ -357,11 +363,25 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 		// p.stream never returns a response alongside an error; say so
 		// rather than handing the caller a half-response to guess about.
 		resp = nil
-		if produced {
-			// The failure came after the model had already said
-			// something. Sending the request again would replay that
-			// text into the turn, so the call fails and the user resends.
+		stalled := wd.Err() != nil
+		if stalled {
+			err = wd.Wrap(err) // the watchdog's reason, not bare ctx cancel
+		}
+		if parent.Err() != nil {
 			return nil, wd.Wrap(err)
+		}
+		if produced && !llm.Truncated(err) && !stalled {
+			// The failure came after the model had already said
+			// something, and the stream reached no truncation — sending
+			// the request again would replay that text into the turn, so
+			// the call fails and the user resends.
+			return nil, wd.Wrap(err)
+		}
+		if produced {
+			// Every path below resends the request: whatever the dead
+			// attempt streamed is void, and consumers must drop the half
+			// answer it left behind before the retry's deltas arrive.
+			emit(llm.Event{Type: llm.EventStreamDiscard})
 		}
 		if p.clampEffort(err) {
 			// The model does not go that high; the next tier down is
@@ -375,7 +395,7 @@ func (p *Provider) Stream(ctx context.Context, req llm.Request, emit func(llm.Ev
 			rotations++
 			continue
 		}
-		if werr := rt.Wait(ctx, err); werr != nil {
+		if werr := rt.Wait(parent, err); werr != nil {
 			return nil, wd.Wrap(werr)
 		}
 	}
@@ -446,21 +466,26 @@ func (p *Provider) clampEffort(err error) bool {
 }
 
 // stream runs one attempt. produced says whether the model had begun
-// answering before any error: past that point the attempt cannot be
-// retried without replaying what was already emitted.
+// answering before any error; a failure past that point cannot be
+// retried without replaying what was already emitted — unless the stream
+// died without a terminal frame (llm.Truncated), where nothing was ever
+// answered and a fresh attempt is legitimate.
 func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.MessageNewParams, wd *llm.Watchdog, emit func(llm.Event)) (resp *llm.Response, produced bool, err error) {
 	stream := client.Messages.NewStreaming(ctx, params)
 	msg := sdk.Message{}
 	// Track open tool_use blocks by index so we can emit start/end events.
 	openTools := map[int64]*llm.Block{}
+	sawStop := false
 	for stream.Next() {
 		wd.Tick()
 		produced = true
 		ev := stream.Current()
 		if err := msg.Accumulate(ev); err != nil {
-			return nil, produced, fmt.Errorf("anthropic: accumulate: %w", err)
+			return nil, produced, llm.Truncate(fmt.Errorf("anthropic: accumulate: %w", err))
 		}
 		switch v := ev.AsAny().(type) {
+		case sdk.MessageStopEvent:
+			sawStop = true
 		case sdk.ContentBlockStartEvent:
 			if v.ContentBlock.Type == "tool_use" {
 				b := &llm.Block{Type: llm.BlockToolUse, ID: v.ContentBlock.ID, Name: v.ContentBlock.Name}
@@ -487,7 +512,18 @@ func (p *Provider) stream(ctx context.Context, client *sdk.Client, params sdk.Me
 		}
 	}
 	if err := stream.Err(); err != nil {
-		return nil, produced, mapError(ctx, err)
+		merr := mapError(ctx, err)
+		if sawStop {
+			// The terminal frame arrived; whatever this is, the message
+			// was answered.
+			return nil, produced, merr
+		}
+		var se llm.StatusError
+		if errors.As(merr, &se) {
+			// The server spoke a status: a refusal, not a truncation.
+			return nil, produced, merr
+		}
+		return nil, produced, llm.Truncate(merr)
 	}
 	out, err := toResponse(msg)
 	return out, produced, err
