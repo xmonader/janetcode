@@ -942,3 +942,34 @@ func TestFlashSchedulesOneTimer(t *testing.T) {
 		t.Fatal("a reader who has scrolled away must not be made to pay for a redraw")
 	}
 }
+
+// The one-line summary named the keys only. The prompt body two lines
+// below it printed the whole argument JSON, so what the summary was
+// careful about was on screen anyway — and the comment on the summary
+// said the values were "one expand away", which they were not.
+func TestPendingMCPArgumentsHideTheirValues(t *testing.T) {
+	secret := "sk-secret-token-value"
+	raw := `{"repo":"a/b","api_key":"` + secret + `","dry_run":true,"retries":3}`
+
+	got := prettyInputFor("mcp__deploy__ship", raw, false)
+	if strings.Contains(got, secret) {
+		t.Fatalf("a value reached the prompt body: %q", got)
+	}
+	for _, want := range []string{"api_key", "repo", "dry_run", "true", "retries", "3", "ctrl+o"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the prompt body lost %q: %q", want, got)
+		}
+	}
+	// Expanding is the deliberate act that shows them.
+	if full := prettyInputFor("mcp__deploy__ship", raw, true); !strings.Contains(full, secret) {
+		t.Errorf("expanding did not show the values: %q", full)
+	}
+	// A built-in tool is the harness's own code and is unchanged.
+	if full := prettyInputFor("write_file", `{"path":"a","content":"`+secret+`"}`, false); !strings.Contains(full, secret) {
+		t.Errorf("a built-in tool's input was hidden: %q", full)
+	}
+	// Arguments that are not an object leak nothing either.
+	if got := prettyInputFor("mcp__x__y", `["`+secret+`"]`, false); strings.Contains(got, secret) {
+		t.Errorf("a non-object argument leaked: %q", got)
+	}
+}

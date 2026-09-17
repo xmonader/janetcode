@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -856,6 +857,20 @@ func summarizeInput(name, raw string, max int, cwd string) string {
 	var m map[string]any
 	if json.Unmarshal([]byte(raw), &m) != nil {
 		return textfmt.Clip(raw, max)
+	}
+	// MCP tools are third-party code, and their argument values often
+	// carry a credential the model copied out of context — an api_key, a
+	// bearer token. None of the keys below are theirs, so this line fell
+	// through to printing the whole raw JSON: the summary of an MCP call
+	// was its arguments, verbatim, in the browser and in the event stream
+	// behind it. Name the keys instead, as the terminal front-end does.
+	if strings.HasPrefix(name, "mcp__") {
+		keys := make([]string, 0, len(m))
+		for k := range m {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return textfmt.Clip("{"+strings.Join(keys, ", ")+"}", max)
 	}
 	for _, k := range []string{"command", "pattern", "path", "url", "description"} {
 		if v, ok := m[k].(string); ok {

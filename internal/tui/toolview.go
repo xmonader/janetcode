@@ -129,7 +129,7 @@ func (t *transcript) renderTool(e *entry, width int, o renderOpts) string {
 		}
 		if o.pending.call.Preview != "" {
 			sb.WriteString("\n" + renderPreview(t.styles, o.pending.call.Preview, width, previewMax, !o.expand(e)))
-		} else if full := prettyInput(e.inputJSON()); full != "" && e.call.Name != "bash" {
+		} else if full := prettyInputFor(e.call.Name, e.inputJSON(), o.expand(e)); full != "" && e.call.Name != "bash" {
 			sb.WriteString("\n" + t.styles.dim.Render(indent(clipTool(full, inputMax, !o.expand(e)), "  ")))
 		}
 		return t.finishTool(e, sb.String(), o)
@@ -405,6 +405,65 @@ func summarizeKeys(raw string, max int) string {
 	default:
 		return truncateLine("(json value)", max)
 	}
+}
+
+// prettyInputFor is prettyInput with a third-party tool's argument values
+// held back until the entry is expanded.
+//
+// summarizeInput already names the keys and not the values for an MCP
+// tool, because those values often carry a credential the model copied
+// out of context and the permission line lands in scrollback and in
+// screenshots. The prompt body underneath it printed the whole JSON —
+// so the thing the one-line summary was careful about was on screen two
+// lines below it, and the comment saying the values were "one expand
+// away" was describing something that was not true.
+func prettyInputFor(name, raw string, expanded bool) string {
+	if expanded || !strings.HasPrefix(name, "mcp__") {
+		return prettyInput(raw)
+	}
+	return elidedInput(raw)
+}
+
+// elidedInput renders an argument object's keys with each value replaced
+// by its type and size. The shape is what tells the user whether to
+// approve the call; the contents are what must not be shown for them.
+// Numbers, booleans and null are printed as they are — a credential is
+// not one of those, and a page number or a flag is worth seeing.
+func elidedInput(raw string) string {
+	var obj map[string]json.RawMessage
+	if json.Unmarshal([]byte(raw), &obj) != nil {
+		return "(arguments hidden — ctrl+o to show)"
+	}
+	keys := make([]string, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	b.WriteString("{\n")
+	for _, k := range keys {
+		fmt.Fprintf(&b, "  %q: %s\n", k, elidedValue(obj[k]))
+	}
+	b.WriteString("}\nvalues hidden — ctrl+o to show")
+	return b.String()
+}
+
+func elidedValue(v json.RawMessage) string {
+	var x any
+	if json.Unmarshal(v, &x) != nil {
+		return "…"
+	}
+	switch t := x.(type) {
+	case string:
+		return fmt.Sprintf("<string, %d chars>", len([]rune(t)))
+	case []any:
+		return fmt.Sprintf("<array, %d items>", len(t))
+	case map[string]any:
+		return fmt.Sprintf("<object, %d keys>", len(t))
+	case bool, float64, nil:
+		return string(v)
+	}
+	return "…"
 }
 
 func prettyInput(raw string) string {
