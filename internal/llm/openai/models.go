@@ -79,36 +79,51 @@ func (p *Provider) ListModels(ctx context.Context) ([]llm.ModelInfo, error) {
 // parsePricing reads OpenRouter's per-token USD strings into a per-million
 // Price. It reports false when no prompt or completion price is present.
 func parsePricing(pricing map[string]json.RawMessage) (llm.Price, bool) {
-	get := func(k string) (float64, bool) {
-		r, ok := pricing[k]
-		if !ok {
-			return 0, false
+	// get reports a price as present-and-usable, absent, or
+	// present-but-unusable — a distinction the caller needs: a missing
+	// side is priced at zero (older listings omit one), but a side whose
+	// value math cannot use (NaN, ±Inf from a hand-rolled endpoint,
+	// negative) must poison the whole entry, or it would silently read
+	// as free tokens.
+	get := func(k string) (v float64, ok, bad bool) {
+		r, present := pricing[k]
+		if !present {
+			return 0, false, false
 		}
 		var s string
 		var f float64
 		switch {
 		case json.Unmarshal(r, &s) == nil:
-			v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+			parsed, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
 			if err != nil {
-				return 0, false
+				return 0, false, true
 			}
-			f = v
+			f = parsed
 		case json.Unmarshal(r, &f) == nil:
 		default:
-			return 0, false
+			return 0, false, true
 		}
-		if f < 0 {
-			return 0, false
+		if f < 0 || math.IsNaN(f) || math.IsInf(f, 0) {
+			return 0, false, true
 		}
-		return math.Round(f*1e6*1e6) / 1e6, true // per million, 6 decimals
+		return math.Round(f*1e6*1e6) / 1e6, true, false // per million, 6 decimals
 	}
-	in, okIn := get("prompt")
-	out, okOut := get("completion")
+	in, okIn, badIn := get("prompt")
+	out, okOut, badOut := get("completion")
+	if badIn || badOut {
+		return llm.Price{}, false
+	}
 	if !okIn && !okOut {
 		return llm.Price{}, false
 	}
 	p := llm.Price{Input: in, Output: out}
-	p.CacheRead, _ = get("input_cache_read")
-	p.CacheWrite, _ = get("input_cache_write")
+	// Cache prices are optional; an unusable one prices that cache side
+	// at zero rather than poisoning the entry, matching a missing key.
+	if v, ok, bad := get("input_cache_read"); ok || bad {
+		p.CacheRead = v
+	}
+	if v, ok, bad := get("input_cache_write"); ok || bad {
+		p.CacheWrite = v
+	}
 	return p, true
 }

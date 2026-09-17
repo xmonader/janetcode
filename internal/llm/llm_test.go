@@ -2,6 +2,7 @@ package llm
 
 import (
 	"encoding/json"
+	"math"
 	"strings"
 	"testing"
 )
@@ -48,6 +49,16 @@ func TestUsageAdd(t *testing.T) {
 	u.Add(Usage{InputTokens: 1, OutputTokens: 2, CacheReadTokens: 3, CacheWriteTokens: 4})
 	if u != (Usage{InputTokens: 2, OutputTokens: 4, CacheReadTokens: 6, CacheWriteTokens: 8}) {
 		t.Fatalf("usage = %+v", u)
+	}
+	// Provider numbers are user-hosted input; a broken or hostile
+	// endpoint can send negative or NaN fields. Accumulated they would
+	// corrupt /stats and let a negative running cost sail under the
+	// --max-cost ceiling unenforced.
+	u.Add(Usage{InputTokens: -50, OutputTokens: -1, CostUSD: -2})
+	u.Add(Usage{CostUSD: math.NaN()})
+	u.Add(Usage{CostUSD: math.Inf(1)})
+	if u != (Usage{InputTokens: 2, OutputTokens: 4, CacheReadTokens: 6, CacheWriteTokens: 8}) {
+		t.Fatalf("usage after garbage = %+v", u)
 	}
 }
 

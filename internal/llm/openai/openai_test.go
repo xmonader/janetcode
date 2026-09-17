@@ -1157,3 +1157,29 @@ func TestStripCacheControlRestoresThePlainRequest(t *testing.T) {
 		}
 	}
 }
+
+// TestParsePricingRejectsUnusableNumbers: a hand-rolled endpoint can
+// serve prices the JSON admits but math cannot use. NaN or ±Inf in the
+// rate table would turn every cost estimate for the model into NaN, and
+// a negative price would read as cheaper-than-free.
+func TestParsePricingRejectsUnusableNumbers(t *testing.T) {
+	for _, pricing := range []string{
+		`{"prompt":"NaN","completion":"1"}`,
+		`{"prompt":"+Inf","completion":"1"}`,
+		`{"prompt":"-1","completion":"1"}`,
+	} {
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(pricing), &m); err != nil {
+			t.Fatal(err)
+		}
+		if p, ok := parsePricing(m); ok {
+			t.Fatalf("pricing %s accepted: %+v", pricing, p)
+		}
+	}
+	if p, ok := parsePricing(map[string]json.RawMessage{
+		"prompt":     json.RawMessage(`"1.5"`),
+		"completion": json.RawMessage(`2`),
+	}); !ok || p.Input != 1.5e6 || p.Output != 2e6 {
+		t.Fatalf("sane pricing rejected or mangled: %+v ok=%v", p, ok)
+	}
+}
