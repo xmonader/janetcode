@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -29,6 +30,10 @@ type fake struct {
 	responses []*llm.Response
 	errs      []error
 	requests  []llm.Request
+	// pre is emitted before the first response's own events, so a test
+	// can drive a provider-level event the fake does not produce on its
+	// own — a stream discard, for one.
+	pre []llm.Event
 }
 
 func (f *fake) Name() string {
@@ -50,6 +55,11 @@ func (f *fake) Stream(ctx context.Context, req llm.Request, emit func(llm.Event)
 		return nil, errors.New("fake: no more scripted responses")
 	}
 	r := f.responses[i]
+	if i == 0 {
+		for _, e := range f.pre {
+			emit(e)
+		}
+	}
 	for _, b := range r.Message.Blocks {
 		switch b.Type {
 		case llm.BlockText:
@@ -1056,5 +1066,38 @@ func TestCompletedToolReportsItsResultAfterCancellation(t *testing.T) {
 	}
 	if got := results[0].Text; got != "real output" {
 		t.Fatalf("the model would read %q and re-run the call", got)
+	}
+}
+
+// TestStreamDiscardReachesTheConsumer: a provider that retries a stream
+// which died without a terminal frame emits llm.EventStreamDiscard, and
+// every consumer of the agent's events has to drop the half answer it
+// accumulated. Nothing asserted that the event crosses the boundary at
+// all, so a consumer that ignored it — the ACP session, the eval scorer —
+// looked correct.
+func TestStreamDiscardReachesTheConsumer(t *testing.T) {
+	f := &fake{
+		pre:       []llm.Event{{Type: llm.EventTextDelta, Text: "half an"}, {Type: llm.EventStreamDiscard}},
+		responses: []*llm.Response{text("full answer")},
+	}
+	a, _ := newAgent(t, f, nil)
+	var kinds []EventKind
+	var got string
+	if err := a.Run(context.Background(), "hi", func(e Event) {
+		kinds = append(kinds, e.Kind)
+		switch e.Kind {
+		case EvText:
+			got += e.Text
+		case EvDiscard:
+			got = ""
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(kinds, EvDiscard) {
+		t.Fatalf("no EvDiscard in %v", kinds)
+	}
+	if got != "full answer" {
+		t.Fatalf("a consumer that honours the discard read %q", got)
 	}
 }

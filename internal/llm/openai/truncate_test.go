@@ -179,3 +179,39 @@ func TestLifetimeBudgetSpansRetries(t *testing.T) {
 		t.Fatalf("calls = %d: each attempt got a fresh lifetime budget", calls)
 	}
 }
+
+// TestTruncatedRetryEmitsTheDiscard: the retry is only safe because
+// consumers are told the partial deltas are void. Nothing asserted the
+// event was emitted at all, so a consumer that ignored it looked correct.
+func TestTruncatedRetryEmitsTheDiscard(t *testing.T) {
+	var calls int32
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		n := atomicAdd(&calls)
+		w.Header().Set("Content-Type", "text/event-stream")
+		if n == 1 {
+			io.WriteString(w, "data: "+`{"choices":[{"delta":{"content":"half an"}}]}`+"\n\n")
+			w.(http.Flusher).Flush()
+			panic(http.ErrAbortHandler)
+		}
+		io.WriteString(w, sse(`{"choices":[{"delta":{"content":"full answer"},"finish_reason":"stop"}]}`))
+	})
+	var text string
+	var discards int
+	if _, err := p.Stream(context.Background(), llm.Request{Model: "m", Messages: []llm.Message{llm.TextMessage(llm.RoleUser, "hi")}}, func(e llm.Event) {
+		switch e.Type {
+		case llm.EventTextDelta:
+			text += e.Text
+		case llm.EventStreamDiscard:
+			discards++
+			text = ""
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if discards != 1 {
+		t.Fatalf("discards = %d, want 1", discards)
+	}
+	if text != "full answer" {
+		t.Fatalf("a consumer that honours the discard read %q", text)
+	}
+}

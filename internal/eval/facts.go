@@ -383,6 +383,10 @@ func ProbeFacts(ctx context.Context, ag *agent.Agent, probes []Probe, blind bool
 			switch e.Kind {
 			case agent.EvText:
 				out.WriteString(e.Text)
+			case agent.EvDiscard:
+				// The retried attempt replaces these deltas; scoring
+				// both would judge the model on text it never sent.
+				out.Reset()
 			case agent.EvToolRun:
 				fetched = true
 			case agent.EvToolResult:

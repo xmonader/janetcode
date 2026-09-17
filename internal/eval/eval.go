@@ -620,6 +620,12 @@ func (r *Runner) one(ctx context.Context, t Task, label string) (res Result) {
 			switch e.Kind {
 			case agent.EvText:
 				out.WriteString(e.Text)
+			case agent.EvDiscard:
+				// A stream that died without a terminal frame is retried
+				// from scratch, and its deltas are void. Keeping them
+				// scored "half an answerfull answer" as the model's
+				// output — a silently wrong eval result.
+				out.Reset()
 			case agent.EvToolRun:
 				res.ToolCalls++
 				calls.Add(1)

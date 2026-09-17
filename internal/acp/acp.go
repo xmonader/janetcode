@@ -366,6 +366,14 @@ func (s *Server) emitter(as *acpSession) func(agent.Event) {
 				kind = "agent_thought_chunk"
 			}
 			s.update(as.id, msgUpdate{SessionUpdate: kind, MessageID: msgID, Content: &contentBlock{Type: "text", Text: e.Text}})
+		case agent.EvDiscard:
+			// The dead attempt's deltas are void and the retry resends
+			// the whole answer. Already-sent chunks cannot be recalled
+			// over ACP, so the retried text starts a message of its own
+			// rather than continuing the half one, and the client is
+			// told which of the two to read.
+			msgID = ""
+			s.update(as.id, msgUpdate{SessionUpdate: "agent_message_chunk", Content: &contentBlock{Type: "text", Text: "\n_(the answer above was cut off mid-stream and is being resent; read what follows)_\n"}})
 		case agent.EvTextBlockDone:
 			msgID = ""
 		case agent.EvToolStart:

@@ -323,9 +323,13 @@ func turn(ctx context.Context, opts Options, rec *recorder, blocks []llm.Block) 
 		case agent.EvRetry:
 			fmt.Fprintf(opts.Stderr, "[retry] %s\n", e.Text)
 		case agent.EvDiscard:
-			// The dead attempt's stdout text is void; the newline keeps
-			// the retried answer from running into it.
+			// The dead attempt's stdout text is void, and bytes already
+			// written to a pipe cannot be recalled: the newline keeps the
+			// retried answer from running into it and the notice says
+			// which half to read. The accumulated answer the json modes
+			// report is reset properly, in recorder.event.
 			fmt.Fprintln(opts.Stdout)
+			fmt.Fprintln(opts.Stderr, "[discarded] the answer so far was cut off mid-stream and is being resent; the text above it is void")
 		case agent.EvNotice:
 			fmt.Fprintf(opts.Stderr, "[notice] %s\n", e.Text)
 		case agent.EvTurnDone:
