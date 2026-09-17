@@ -137,8 +137,18 @@ func classifyAt(command, root, cwd string, cwdKnown bool, depth int) (Risk, stri
 // target is also unresolvable when the current directory is already
 // unknown and the target is relative.
 func cdTokens(toks []string, cwd string, cwdKnown bool) (dir string, known, isCd bool) {
-	if len(toks) == 0 || toks[0] != "cd" || len(toks) > 2 {
+	if len(toks) == 0 || toks[0] != "cd" {
 		return "", false, false
+	}
+	if len(toks) > 2 {
+		// A cd this parser does not understand is still a cd: `cd -- /`,
+		// `cd -P /`, `cd / 2>/dev/null`. Reporting isCd=false handed the
+		// segment to classifyOne, which shrugs at an unknown command, and
+		// the tracked directory stayed at the workspace root — so
+		// `cd -- / && rm -rf home` was judged as deleting ./home and
+		// graded ordinary. Not knowing where the shell stands is the
+		// honest answer, and it makes the rest of the line unjudgeable.
+		return "", false, true
 	}
 	if len(toks) == 1 {
 		if home, err := os.UserHomeDir(); err == nil {

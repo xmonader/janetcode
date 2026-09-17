@@ -91,6 +91,14 @@ func TestClassifyCdTracking(t *testing.T) {
 		{"cd - && rm -rf y", RiskUnknown, "unclear"},
 		{"cd $BUILD_DIR/x && rm -rf /etc/y", RiskEscapes, "outside"},
 		{"cd", RiskOrdinary, ""},
+		// A cd whose form this parser does not read is still a cd. It used
+		// to fall through as an unrecognised command, leaving the tracked
+		// directory at the root, so the rm was measured against the wrong
+		// place and came out ordinary.
+		{"cd -- / && rm -rf home", RiskUnknown, "unclear"},
+		{"cd -P / && rm -rf home", RiskUnknown, "unclear"},
+		{"cd / 2>/dev/null && rm -rf home", RiskUnknown, "unclear"},
+		{"cd -L .. && rm -rf sibling", RiskUnknown, "unclear"},
 		{"cd " + root + " && rm -rf build", RiskOrdinary, ""},
 	}
 	for _, c := range cases {
