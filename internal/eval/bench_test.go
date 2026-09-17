@@ -464,3 +464,35 @@ func numberWord(n int) string {
 	}
 	return strconv.Itoa(n)
 }
+
+// TestEveryShippedCheckFailsAtBase applies the multistep set's guard to
+// every shipped task with a check, in every set directory: a check that
+// passes on the untouched tree makes its task permanently 'solved' and
+// silently inflates every benchmark and ablation number that includes it.
+func TestEveryShippedCheckFailsAtBase(t *testing.T) {
+	root := filepath.Join("..", "..", "evals")
+	var tasks []Task
+	for _, dir := range []string{root, filepath.Join(root, "fanout"), filepath.Join(root, "explore"), filepath.Join(root, "large"), filepath.Join(root, "session")} {
+		loaded, err := Load(dir)
+		if err != nil {
+			t.Fatalf("%s: %v", dir, err)
+		}
+		tasks = append(tasks, loaded...)
+	}
+	for _, tsk := range tasks {
+		if strings.TrimSpace(tsk.Check) == "" {
+			t.Errorf("%s: no check", tsk.Name)
+			continue
+		}
+		cctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		passed, err := CheckAtBase(cctx, tsk)
+		cancel()
+		if err != nil {
+			t.Errorf("%s: check could not run at the start state: %v", tsk.Name, err)
+			continue
+		}
+		if passed {
+			t.Errorf("%s: check passes on the untouched tree, so the task can never fail (check: %s)", tsk.Name, tsk.Check)
+		}
+	}
+}
