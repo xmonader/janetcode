@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,5 +34,30 @@ func TestAQueryFailsAtOnceWhenTheServersStreamBreaks(t *testing.T) {
 	}
 	if elapsed > 5*time.Second {
 		t.Fatalf("waited %s for a server that could not answer", elapsed)
+	}
+}
+
+// TestSendCtxAbandonsAWedgedWrite is the shutdown-path half of the
+// wedged-server fix: a pipe write has no deadline, so a server that
+// stopped reading stdin used to park send forever — including close()'s
+// shutdown, which then never reached procgroup.Stop and kept the whole
+// process alive. The context now bounds the wait.
+func TestSendCtxAbandonsAWedgedWrite(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	defer w.Close()
+	c := &client{stdin: w}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	err = c.sendCtx(ctx, map[string]any{"jsonrpc": "2.0", "id": 1, "method": "x", "params": strings.Repeat("p", 256<<10)})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want the context's deadline", err)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("send took %s to abandon; it ignored the context", elapsed)
 	}
 }

@@ -277,8 +277,13 @@ func (j *Jobs) Kill(id int) error {
 
 // Write sends a line to a running job's stdin. A missing trailing newline
 // is added so a typed line is a line. One-shot bash calls still get EOF
-// on stdin; only background jobs have a pipe.
-func (j *Jobs) Write(id int, data string) error {
+// on stdin; only background jobs have a pipe. The write is bounded by
+// ctx: a pipe write has no deadline, and a job that stopped reading
+// (its 64 KB buffer full) would otherwise park the caller forever — the
+// job tool runs in the parallel read-only batch, so that was a hung
+// turn. A write abandoned this way stays parked until the job reads or
+// is killed (Kill closes the pipe, which errors it out).
+func (j *Jobs) Write(ctx context.Context, id int, data string) error {
 	if strings.TrimSpace(data) == "" {
 		return fmt.Errorf("nothing to write")
 	}
@@ -298,8 +303,17 @@ func (j *Jobs) Write(id int, data string) error {
 	if w == nil {
 		return fmt.Errorf("job %d does not accept stdin", id)
 	}
-	_, err := io.WriteString(w, data)
-	return err
+	writeDone := make(chan error, 1)
+	go func() {
+		_, err := io.WriteString(w, data)
+		writeDone <- err
+	}()
+	select {
+	case err := <-writeDone:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // KillAll stops every running job, for shutdown.
@@ -475,7 +489,7 @@ func (t JobTool) Run(ctx context.Context, input json.RawMessage) (string, error)
 		}
 		return fmt.Sprintf("job %d killed", in.ID), nil
 	case "stdin":
-		if err := t.Jobs.Write(in.ID, in.Text); err != nil {
+		if err := t.Jobs.Write(ctx, in.ID, in.Text); err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("wrote to job %d stdin", in.ID), nil

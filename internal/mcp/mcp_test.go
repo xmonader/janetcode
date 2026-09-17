@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"strconv"
@@ -32,6 +33,10 @@ func TestMain(m *testing.M) {
 	}
 	if os.Getenv("MCP_FAKE_SERVER") == "env" {
 		mcptest.EnvServer()
+		os.Exit(0)
+	}
+	if os.Getenv("MCP_FAKE_SERVER") == "sticky" {
+		mcptest.StickyServer()
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
@@ -107,6 +112,41 @@ func TestStdioServerEnvIsScrubbed(t *testing.T) {
 	}
 	if got := probe("EXPLICIT_VAR"); !strings.Contains(got, "explicit-ok") {
 		t.Fatalf("server lost the explicitly configured env var: %q", got)
+	}
+}
+
+// TestCallToolWriteRespectsContext is the wedged-server fix: a server
+// that answered the handshake and then stopped reading fills its 64 KB
+// pipe on the next sizable request, and a pipe write has no deadline —
+// before the send took a context, this blocked the caller past
+// cancellation (and, in the parallel read-only batch, the turn with it).
+func TestCallToolWriteRespectsContext(t *testing.T) {
+	root := t.TempDir()
+	c, err := Start(context.Background(), "sticky", ServerConfig{
+		Command: os.Args[0],
+		Env:     map[string]string{"MCP_FAKE_SERVER": "sticky"},
+	}, Options{Root: root, Version: "test", HandshakeTimeout: 20 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	big := strings.Repeat("x", 256<<10)
+	args, err := json.Marshal(map[string]any{"text": big})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err = c.CallTool(ctx, "echo", args)
+	if err == nil {
+		t.Fatal("call succeeded against a server that never reads")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want the context's deadline", err)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("call took %s to abandon; the write ignored the context", elapsed)
 	}
 }
 

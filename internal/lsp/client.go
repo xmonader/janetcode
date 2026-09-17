@@ -139,7 +139,7 @@ func start(ctx context.Context, root string, command []string, log func(string))
 		c.close()
 		return nil, fmt.Errorf("initialize: %w", err)
 	}
-	if err := c.notify("initialized", map[string]any{}); err != nil {
+	if err := c.notifyCtx(ictx, "initialized", map[string]any{}); err != nil {
 		c.close()
 		return nil, err
 	}
@@ -168,10 +168,10 @@ func (c *client) diagnose(ctx context.Context, abs, text string, timeout time.Du
 	c.docM.Unlock()
 	var err error
 	if !open {
-		err = c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		err = c.notifyCtx(ctx, "textDocument/didOpen", map[string]any{"textDocument": map[string]any{
 			"uri": uri, "languageId": languageID(abs), "version": version, "text": text}})
 	} else {
-		err = c.notify("textDocument/didChange", map[string]any{
+		err = c.notifyCtx(ctx, "textDocument/didChange", map[string]any{
 			"textDocument":   map[string]any{"uri": uri, "version": version},
 			"contentChanges": []map[string]any{{"text": text}},
 		})
@@ -180,7 +180,7 @@ func (c *client) diagnose(ctx context.Context, abs, text string, timeout time.Du
 		return nil, false, err
 	}
 	// Servers that support didSave often run their heavier checks then.
-	_ = c.notify("textDocument/didSave", map[string]any{"textDocument": map[string]any{"uri": uri}})
+	_ = c.notifyCtx(ctx, "textDocument/didSave", map[string]any{"textDocument": map[string]any{"uri": uri}})
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
 	for {
@@ -256,12 +256,15 @@ func (c *client) fail(err error) {
 }
 
 // close asks the server to shut down, then stops its whole process group
-// so nothing it forked outlives the session.
+// so nothing it forked outlives the session. Every step is bounded: a
+// wedged server must not hold the process open — close runs at exit.
 func (c *client) close() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_, _ = c.call(ctx, "shutdown", nil)
-	_ = c.notify("exit", nil)
+	// Best-effort: if the server stopped reading, the notification's
+	// write abandons on the context instead of blocking the supervise.
+	_ = c.notifyCtx(ctx, "exit", nil)
 	procgroup.Stop(c.cmd, c.reaped, 2*time.Second)
 }
 
@@ -276,7 +279,7 @@ func (c *client) call(ctx context.Context, method string, params any) (json.RawM
 	ch := make(chan rpcResponse, 1)
 	c.pend[id] = ch
 	c.pendM.Unlock()
-	if err := c.send(map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params}); err != nil {
+	if err := c.sendCtx(ctx, map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params}); err != nil {
 		c.pendM.Lock()
 		delete(c.pend, id)
 		c.pendM.Unlock()
@@ -308,12 +311,12 @@ func (c *client) call(ctx context.Context, method string, params any) (json.RawM
 	}
 }
 
-func (c *client) notify(method string, params any) error {
+func (c *client) notifyCtx(ctx context.Context, method string, params any) error {
 	msg := map[string]any{"jsonrpc": "2.0", "method": method}
 	if params != nil {
 		msg["params"] = params
 	}
-	return c.send(msg)
+	return c.sendCtx(ctx, msg)
 }
 
 func (c *client) reply(id json.RawMessage, result any) {
@@ -332,6 +335,36 @@ func (c *client) send(msg any) error {
 	}
 	_, err = c.stdin.Write(body)
 	return err
+}
+
+// sendCtx is send with the write bounded by ctx. A pipe write has no
+// deadline, so the write runs in a goroutine and a caller that abandons
+// the context leaves it parked; it finishes — with an error — when the
+// server next drains its stdin or dies. Without the bound, a wedged
+// server hangs the caller past cancellation, and close()'s shutdown would
+// never reach the supervise that actually kills the process.
+func (c *client) sendCtx(ctx context.Context, msg any) error {
+	body, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	done := make(chan error, 1)
+	go func() {
+		c.writeM.Lock()
+		defer c.writeM.Unlock()
+		if _, err := fmt.Fprintf(c.stdin, "Content-Length: %d\r\n\r\n", len(body)); err != nil {
+			done <- err
+			return
+		}
+		_, err := c.stdin.Write(body)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // read dispatches server messages until stdout closes.

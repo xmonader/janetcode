@@ -63,15 +63,31 @@ func newStdioTransport(c *Client, cfg ServerConfig, root string) (*stdioTranspor
 	return t, nil
 }
 
-func (t *stdioTransport) send(_ context.Context, msg rpcMessage) error {
+// send writes one frame, bounded by ctx. A pipe write has no deadline,
+// so the write runs in a goroutine and a caller that abandons the context
+// leaves it parked — it finishes, with an error, when the server next
+// drains stdin or dies. Without the bound, one server that stopped
+// reading (a full 64 KB pipe) hangs every caller past cancellation, and
+// because such a call rides the parallel read-only batch, the whole turn
+// with it.
+func (t *stdioTransport) send(ctx context.Context, msg rpcMessage) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	t.writeMu.Lock()
-	defer t.writeMu.Unlock()
-	_, err = t.stdin.Write(append(data, '\n'))
-	return err
+	done := make(chan error, 1)
+	go func() {
+		t.writeMu.Lock()
+		defer t.writeMu.Unlock()
+		_, err := t.stdin.Write(append(data, '\n'))
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // readLoop reads frames until the stream ends. A scanner error — a read

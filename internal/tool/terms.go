@@ -214,8 +214,22 @@ func (t *Terms) Send(ctx context.Context, id int, line string, wait time.Duratio
 	// length taken now is not an index into anything later.
 	before := term.out.Len()
 	payload := strings.TrimRight(line, "\n") + "\n" + sentinelLine() + "\n"
-	if _, err := io.WriteString(stdin, payload); err != nil {
-		return "", fmt.Errorf("write terminal: %w", err)
+	// The write is bounded by ctx: a pipe write has no deadline, and a
+	// shell that stopped reading would otherwise park the turn past
+	// cancellation. An abandoned write stays parked until the shell reads
+	// or dies.
+	writeDone := make(chan error, 1)
+	go func() {
+		_, err := io.WriteString(stdin, payload)
+		writeDone <- err
+	}()
+	select {
+	case err := <-writeDone:
+		if err != nil {
+			return "", fmt.Errorf("write terminal: %w", err)
+		}
+	case <-ctx.Done():
+		return stripSentinel(term.out.Since(before)), ctx.Err()
 	}
 	deadline := time.Now().Add(wait)
 	for time.Now().Before(deadline) {

@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -48,13 +49,40 @@ func TestJobsStartWaitOutputAndFinished(t *testing.T) {
 	}
 }
 
+// TestJobsWriteRespectsContext is the wedged-job fix: a job that never
+// reads its stdin fills the 64 KB pipe, and a pipe write has no deadline,
+// so without the context bound a large stdin write from the job tool (a
+// read-only tool in the parallel batch) hung the turn past cancellation.
+func TestJobsWriteRespectsContext(t *testing.T) {
+	jobs := &Jobs{Dir: t.TempDir()}
+	job, err := jobs.Start(t.TempDir(), `sh -c 'sleep 30'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	err = jobs.Write(ctx, job.ID, strings.Repeat("x", 256<<10))
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want the context's deadline", err)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("write took %s to abandon; it ignored the context", elapsed)
+	}
+	// The wedged job is still killable, which also errors out the parked
+	// writer.
+	if err := jobs.Kill(job.ID); err != nil {
+		t.Fatalf("kill: %v", err)
+	}
+}
+
 func TestJobsWriteStdinAfterStart(t *testing.T) {
 	jobs := &Jobs{Dir: t.TempDir()}
 	job, err := jobs.Start(t.TempDir(), `sh -c 'read line; printf "got %s\n" "$line"'`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := jobs.Write(job.ID, "hello"); err != nil {
+	if err := jobs.Write(context.Background(), job.ID, "hello"); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
