@@ -354,3 +354,51 @@ func TestTextModeStripsUnsafeANSI(t *testing.T) {
 		t.Fatalf("escape byte on stderr: %q", errOut.String())
 	}
 }
+
+// Every text-mode branch prints something the run did not author. A
+// notice quotes the shell command a job ran, a retry and a compaction
+// quote a provider's error, a tool result is file contents, and an MCP
+// server supplies its own tool names. Only EvText, EvToolResult and the
+// verdict were stripped, so a notice carrying an OSC 52 wrote the
+// caller's clipboard.
+func TestEveryTextBranchStripsUnsafeANSI(t *testing.T) {
+	const osc52 = "\x1b]52;c;cHduZWQ=\x07"
+	const c1CSI = "\u009b2J"
+	for _, tc := range []struct {
+		name string
+		e    agent.Event
+	}{
+		{"text", agent.Event{Kind: agent.EvText, Text: "hi" + osc52}},
+		{"tool name", agent.Event{Kind: agent.EvToolRun, Call: &agent.ToolCall{Name: "mcp__x__" + osc52, Input: []byte(`{}`)}}},
+		{"tool intent", agent.Event{Kind: agent.EvToolRun, Call: &agent.ToolCall{Name: "bash", Intent: "run" + osc52, Input: []byte(`{}`)}}},
+		{"tool input", agent.Event{Kind: agent.EvToolRun, Call: &agent.ToolCall{Name: "bash", Input: []byte(`{"c":"` + c1CSI + `"}`)}}},
+		{"tool result", agent.Event{Kind: agent.EvToolResult, Output: "out" + osc52}},
+		{"compacted", agent.Event{Kind: agent.EvCompacted, Text: "at 80%" + osc52}},
+		{"verdict", agent.Event{Kind: agent.EvVerdict, Text: "passed" + c1CSI}},
+		{"retry", agent.Event{Kind: agent.EvRetry, Text: "429" + osc52}},
+		{"notice", agent.Event{Kind: agent.EvNotice, Text: "job exited: " + osc52}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var out, errOut bytes.Buffer
+			printEvent(Options{Stdout: &out, Stderr: &errOut, Agent: &agent.Agent{}}, tc.e)
+			for _, w := range []struct {
+				where string
+				got   string
+			}{{"stdout", out.String()}, {"stderr", errOut.String()}} {
+				for _, bad := range []rune{0x1b, 0x9b, 0x9d} {
+					if strings.ContainsRune(w.got, bad) {
+						t.Errorf("%s kept %#x: %q", w.where, bad, w.got)
+					}
+				}
+			}
+		})
+	}
+}
+
+// The watched command's output is the same problem by another route: it
+// is a child process's stderr, printed to the caller's terminal.
+func TestWatchedCommandOutputIsStripped(t *testing.T) {
+	if got := safeLine("fail\x1b]52;c;cHduZWQ=\x07", 200); strings.ContainsRune(got, 0x1b) {
+		t.Fatalf("safeLine kept an escape: %q", got)
+	}
+}
