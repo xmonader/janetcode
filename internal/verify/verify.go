@@ -186,7 +186,9 @@ func (r *Runner) Run(ctx context.Context) Result {
 		// holds them. Supervise kills the group and bounds that wait.
 		shell.Supervise(cmd)
 		cmd.Dir = r.Cwd
-		cmd.Env = append(os.Environ(), "JANETCODE_VERIFY=1")
+		// Scrubbed of the agent's credentials: verify commands come from
+		// the project, and their output goes back to the model.
+		cmd.Env = append(shell.ScrubEnv(os.Environ()), "JANETCODE_VERIFY=1")
 		// Bounded rather than CombinedOutput: a verbose suite can print
 		// for as long as it runs, and only the ends are ever read.
 		out := &capture{}

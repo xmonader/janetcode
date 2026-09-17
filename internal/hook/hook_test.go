@@ -214,6 +214,28 @@ func TestHookTimeoutKillsTheWholeTree(t *testing.T) {
 
 // A hook whose match pattern cannot compile is reported, not silently
 // skipped for the rest of the session.
+// TestHookEnvIsScrubbed is the credential-leak fix: hooks are
+// project-controlled commands whose stdout becomes conversation notes, so
+// they must not see the agent's API keys in their environment — a hook
+// could print one straight back into the context.
+func TestHookEnvIsScrubbed(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-hook-marker")
+	t.Setenv("OPENAI_API_KEY", "sk-oai-hook-marker")
+	r := &Runner{Cwd: t.TempDir(), Config: Config{Hooks: Hooks{
+		PostTool: {{Command: `echo "ANTHROPIC_API_KEY=[$ANTHROPIC_API_KEY] OPENAI_API_KEY=[$OPENAI_API_KEY]"`}},
+	}}}
+	res := r.Run(context.Background(), Input{Event: PostTool, Tool: "bash", Input: json.RawMessage(`{}`)})
+	if len(res.Notes) != 1 {
+		t.Fatalf("notes = %q", res.Notes)
+	}
+	if strings.Contains(res.Notes[0], "sk-ant-hook-marker") || strings.Contains(res.Notes[0], "sk-oai-hook-marker") {
+		t.Fatalf("hook saw the agent's credentials: %q", res.Notes[0])
+	}
+	if !strings.Contains(res.Notes[0], "ANTHROPIC_API_KEY=[]") {
+		t.Fatalf("hook did not run with a clean env: %q", res.Notes[0])
+	}
+}
+
 func TestBadMatchIsReported(t *testing.T) {
 	var logs []string
 	r := &Runner{Cwd: t.TempDir(), Log: func(s string) { logs = append(logs, s) },

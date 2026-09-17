@@ -521,7 +521,11 @@ func (r *Runner) exec(ctx context.Context, h Hook, in Input) (execOut, int, erro
 	shell.Supervise(cmd)
 	cmd.Dir = r.Cwd
 	cmd.Stdin = bytes.NewReader(payload)
-	cmd.Env = append(os.Environ(),
+	// The environment is scrubbed of the agent's credentials: a project
+	// hook is project-controlled code on the model's critical path, and
+	// anything it prints (stdout becomes a conversation note) must not be
+	// able to smuggle a key back into the context.
+	cmd.Env = append(shell.ScrubEnv(os.Environ()),
 		"JANETCODE_EVENT="+in.Event,
 		"JANETCODE_TOOL="+in.Tool,
 		"JANETCODE_CWD="+in.Cwd,

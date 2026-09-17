@@ -513,7 +513,9 @@ func runCheck(ctx context.Context, t Task, dir, outPath string) (string, error) 
 	defer ccancel()
 	cmd := shell.Command(cctx, t.Check)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir)
+	// Scrubbed of the agent's credentials: a task's check is project
+	// content, run and read back with its output.
+	cmd.Env = append(shell.ScrubEnv(os.Environ()), "EVAL_OUTPUT="+outPath, "EVAL_DIR="+dir)
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }

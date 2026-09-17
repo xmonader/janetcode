@@ -30,6 +30,10 @@ func TestMain(m *testing.M) {
 		mcptest.FakeServer()
 		os.Exit(0)
 	}
+	if os.Getenv("MCP_FAKE_SERVER") == "env" {
+		mcptest.EnvServer()
+		os.Exit(0)
+	}
 	os.Exit(m.Run())
 }
 
@@ -67,6 +71,42 @@ func TestCallToolResults(t *testing.T) {
 	_, err := c.CallTool(ctx, "slow", nil)
 	if err == nil || time.Since(start) > 2*time.Second {
 		t.Fatalf("slow call: err=%v after %s", err, time.Since(start))
+	}
+}
+
+// TestStdioServerEnvIsScrubbed is the credential-leak fix: an MCP server
+// is project-supplied, often fetched and run sight unseen, so it must not
+// inherit the agent's API keys through the ambient environment. The probe
+// server reports what it actually sees; the secrets set in this process
+// must not cross the pipe, while an explicitly configured variable must.
+func TestStdioServerEnvIsScrubbed(t *testing.T) {
+	const marker = "sk-ant-envprobe-marker"
+	t.Setenv("ANTHROPIC_API_KEY", marker)
+	t.Setenv("OPENAI_API_KEY", "sk-oai-envprobe-marker")
+	root := t.TempDir()
+	c, err := Start(context.Background(), "env probe", ServerConfig{
+		Command: os.Args[0],
+		Env:     map[string]string{"MCP_FAKE_SERVER": "env", "EXPLICIT_VAR": "explicit-ok"},
+	}, Options{Root: root, Version: "test", HandshakeTimeout: 20 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	probe := func(name string) string {
+		res, err := c.CallTool(context.Background(), "env", json.RawMessage(`{"name":"`+name+`"}`))
+		if err != nil {
+			t.Fatalf("probe %s: %v", name, err)
+		}
+		return res.Text
+	}
+	if got := probe("ANTHROPIC_API_KEY"); strings.Contains(got, marker) {
+		t.Fatalf("server saw the ambient ANTHROPIC_API_KEY: %q", got)
+	}
+	if got := probe("OPENAI_API_KEY"); strings.Contains(got, "sk-oai-envprobe-marker") {
+		t.Fatalf("server saw the ambient OPENAI_API_KEY: %q", got)
+	}
+	if got := probe("EXPLICIT_VAR"); !strings.Contains(got, "explicit-ok") {
+		t.Fatalf("server lost the explicitly configured env var: %q", got)
 	}
 }
 

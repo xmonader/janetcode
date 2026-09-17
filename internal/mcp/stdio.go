@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xmonader/janetcode/internal/procgroup"
+	"github.com/xmonader/janetcode/internal/shell"
 )
 
 // stdioTransport runs the server as a child process and exchanges
@@ -32,7 +33,7 @@ func newStdioTransport(c *Client, cfg ServerConfig, root string) (*stdioTranspor
 	if cmd.Dir == "" {
 		cmd.Dir = root
 	}
-	cmd.Env = os.Environ()
+	cmd.Env = shell.ScrubEnv(os.Environ())
 	for k, v := range cfg.Env {
 		cmd.Env = append(cmd.Env, k+"="+os.ExpandEnv(v))
 	}
