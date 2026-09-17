@@ -31,3 +31,37 @@ func TestScrubEnvLocale(t *testing.T) {
 		t.Errorf("a real LC_ALL must survive, got %q %v", v, ok)
 	}
 }
+
+// The scrub named three variables: the two the config reads from the
+// environment and one alias. The same config ships presets for sixteen
+// other backends, whose keys a user exports the same way — and those
+// went to every command the model ran.
+func TestScrubEnvDropsEveryProviderKey(t *testing.T) {
+	gone := []string{
+		"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY",
+		"OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "GROQ_API_KEY",
+		"MOONSHOT_API_KEY", "DASHSCOPE_API_KEY", "GEMINI_API_KEY",
+		"XAI_API_KEY", "MISTRAL_API_KEY", "TOGETHER_API_KEY",
+		"FIREWORKS_API_KEY", "CEREBRAS_API_KEY", "ZHIPU_API_KEY",
+		"MINIMAX_API_KEY", "AWS_SECRET_ACCESS_KEY",
+	}
+	// Scrubbing by shape must not take what a command the model is
+	// legitimately running needs: gh, npm publish and cargo all read one.
+	kept := []string{"GITHUB_TOKEN", "NPM_TOKEN", "CARGO_REGISTRY_TOKEN", "AWS_ACCESS_KEY_ID", "PATH", "HOME"}
+
+	var env []string
+	for _, n := range append(append([]string{}, gone...), kept...) {
+		env = append(env, n+"=v")
+	}
+	out := strings.Join(ScrubEnv(env), "\n")
+	for _, n := range gone {
+		if strings.Contains(out, n+"=") {
+			t.Errorf("%s reached the command", n)
+		}
+	}
+	for _, n := range kept {
+		if !strings.Contains(out, n+"=") {
+			t.Errorf("%s was taken from the command", n)
+		}
+	}
+}

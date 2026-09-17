@@ -10,6 +10,38 @@ var secretEnv = map[string]bool{
 	"OPENAI_API_KEY":       true,
 }
 
+// secretSuffix is the shape the rest of them are spelled in.
+//
+// The list above named three variables, which are the two the config
+// reads from the environment plus one alias. The config also ships
+// presets for sixteen other backends, and a user who picked one of those
+// exports its key the same way — so OPENROUTER_API_KEY, DEEPSEEK_API_KEY,
+// GROQ_API_KEY and the rest went to every command the model ran, and a
+// single `env` or a curl to somewhere else was enough.
+//
+// Matching by suffix rather than by a longer list is what makes it hold
+// for the next backend nobody has added yet. It is deliberately narrower
+// than "anything that looks like a credential": GITHUB_TOKEN, NPM_TOKEN
+// and CARGO_REGISTRY_TOKEN are what `gh`, `npm publish` and `cargo` need
+// from a command the model is legitimately running, and they do not match.
+// An MCP server that needs one of these is unaffected — its configured
+// env is expanded from the real environment and appended after the scrub.
+var secretSuffix = []string{"_API_KEY", "_AUTH_TOKEN", "_API_TOKEN", "_SECRET_KEY", "_ACCESS_KEY"}
+
+// isSecretName reports whether a variable holds a credential this process
+// must not hand to a model-run command.
+func isSecretName(name string) bool {
+	if secretEnv[name] {
+		return true
+	}
+	for _, suf := range secretSuffix {
+		if strings.HasSuffix(name, suf) {
+			return true
+		}
+	}
+	return false
+}
+
 // nonInteractiveEnv stops common tools from waiting on a human: no pagers,
 // no editors, no credential prompts. Commands get EOF on stdin regardless.
 var nonInteractiveEnv = []string{
@@ -50,7 +82,7 @@ func ScrubEnv(env []string) []string {
 	}
 	for _, kv := range env {
 		name, _, _ := strings.Cut(kv, "=")
-		if secretEnv[name] || forced[name] {
+		if isSecretName(name) || forced[name] {
 			continue
 		}
 		if dropLCAll && (name == "LC_ALL" || name == "LC_CTYPE") {
