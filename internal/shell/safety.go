@@ -117,11 +117,12 @@ func classifyAt(command, root, cwd string, cwdKnown bool, depth int) (Risk, stri
 	}
 	worst, reason := RiskOrdinary, ""
 	for _, seg := range Segments(command) {
-		if dir, known, isCd := cdSegment(seg, cwd, cwdKnown); isCd {
+		toks := Words(seg)
+		if dir, known, isCd := cdTokens(toks, cwd, cwdKnown); isCd {
 			cwd, cwdKnown = dir, known
 			continue
 		}
-		r, why := classifyOne(seg, root, cwd, cwdKnown, depth)
+		r, why := classifyOne(seg, toks, root, cwd, cwdKnown, depth)
 		if r > worst {
 			worst, reason = r, why
 		}
@@ -129,14 +130,13 @@ func classifyAt(command, root, cwd string, cwdKnown bool, depth int) (Risk, stri
 	return worst, reason
 }
 
-// cdSegment parses a segment that is nothing but `cd <dir>` (Segments has
+// cdTokens parses a segment that is nothing but `cd <dir>` (Segments has
 // already split at &&/; so no other command can share the segment) and
 // resolves the new working directory. isCd is false for anything else.
 // A target that cannot be resolved leaves the directory known=false; a
 // target is also unresolvable when the current directory is already
 // unknown and the target is relative.
-func cdSegment(seg, cwd string, cwdKnown bool) (dir string, known, isCd bool) {
-	toks := Words(seg)
+func cdTokens(toks []string, cwd string, cwdKnown bool) (dir string, known, isCd bool) {
 	if len(toks) == 0 || toks[0] != "cd" || len(toks) > 2 {
 		return "", false, false
 	}
@@ -160,15 +160,15 @@ func cdSegment(seg, cwd string, cwdKnown bool) (dir string, known, isCd bool) {
 	return abs, true, true
 }
 
-func classifyOne(seg, root string, cwd string, cwdKnown bool, depth int) (Risk, string) {
+func classifyOne(seg string, toks []string, root string, cwd string, cwdKnown bool, depth int) (Risk, string) {
 	seg = strings.TrimSpace(seg)
-	if seg == "" {
+	if seg == "" || len(toks) == 0 {
 		return RiskOrdinary, ""
 	}
 	if depth > MaxWrapperDepth {
 		return RiskUnknown, tooDeep
 	}
-	return classifyWords(Words(seg), seg, root, cwd, cwdKnown, depth)
+	return classifyWords(toks, seg, root, cwd, cwdKnown, depth)
 }
 
 // classifyWords peels wrappers so `sudo sh -c "rm -rf /"` is judged by what
@@ -436,22 +436,19 @@ func WriteTargets(command, root string) []string {
 	}
 	cwd, cwdKnown := root, root != ""
 	for _, seg := range Segments(command) {
-		if dir, known, isCd := cdSegment(seg, cwd, cwdKnown); isCd {
+		toks := Words(seg)
+		if dir, known, isCd := cdTokens(toks, cwd, cwdKnown); isCd {
 			cwd, cwdKnown = dir, known
 			continue
 		}
-		collectWriteTargets(seg, root, cwd, cwdKnown, 0, add)
+		collectWriteTargets(seg, toks, root, cwd, cwdKnown, 0, add)
 	}
 	return out
 }
 
-func collectWriteTargets(seg, root string, cwd string, cwdKnown bool, depth int, add func(string)) {
+func collectWriteTargets(seg string, toks []string, root string, cwd string, cwdKnown bool, depth int, add func(string)) {
 	seg = strings.TrimSpace(seg)
-	if seg == "" || depth > MaxWrapperDepth {
-		return
-	}
-	toks := Words(seg)
-	if len(toks) == 0 {
+	if seg == "" || depth > MaxWrapperDepth || len(toks) == 0 {
 		return
 	}
 	skipOpts := func(i int) int {
@@ -462,27 +459,27 @@ func collectWriteTargets(seg, root string, cwd string, cwdKnown bool, depth int,
 	}
 	switch toks[0] {
 	case "sudo", "doas", "nice", "nohup", "time", "command", "exec", "builtin", "stdbuf", "unbuffer":
-		collectWriteTargets(strings.Join(toks[skipOpts(1):], " "), root, cwd, cwdKnown, depth+1, add)
+		collectWriteTargets(strings.Join(toks[skipOpts(1):], " "), toks[skipOpts(1):], root, cwd, cwdKnown, depth+1, add)
 		return
 	case "env":
 		i := 1
 		for i < len(toks) && (strings.HasPrefix(toks[i], "-") || strings.Contains(toks[i], "=")) {
 			i++
 		}
-		collectWriteTargets(strings.Join(toks[i:], " "), root, cwd, cwdKnown, depth+1, add)
+		collectWriteTargets(strings.Join(toks[i:], " "), toks[i:], root, cwd, cwdKnown, depth+1, add)
 		return
 	case "timeout":
 		i := skipOpts(1)
 		if i < len(toks) {
 			i++ // the duration
 		}
-		collectWriteTargets(strings.Join(toks[i:], " "), root, cwd, cwdKnown, depth+1, add)
+		collectWriteTargets(strings.Join(toks[i:], " "), toks[i:], root, cwd, cwdKnown, depth+1, add)
 		return
 	case "sh", "bash", "zsh", "dash", "ksh":
 		for i := 1; i < len(toks)-1; i++ {
 			if strings.HasPrefix(toks[i], "-") && strings.Contains(toks[i], "c") {
 				for _, s := range Segments(toks[i+1]) {
-					collectWriteTargets(s, root, cwd, cwdKnown, depth+1, add)
+					collectWriteTargets(s, Words(s), root, cwd, cwdKnown, depth+1, add)
 				}
 				return
 			}
@@ -490,7 +487,7 @@ func collectWriteTargets(seg, root string, cwd string, cwdKnown bool, depth int,
 		return
 	case "eval":
 		for _, s := range Segments(strings.Join(toks[1:], " ")) {
-			collectWriteTargets(s, root, cwd, cwdKnown, depth+1, add)
+			collectWriteTargets(s, Words(s), root, cwd, cwdKnown, depth+1, add)
 		}
 		return
 	}
