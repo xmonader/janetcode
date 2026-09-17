@@ -3,6 +3,7 @@ package memory
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // A correction closes the entry it supersedes: the new knowledge lands
@@ -89,5 +90,38 @@ func TestConcernsRecallThroughTheWork(t *testing.T) {
 	// One passing word that is not a concern does not admit it.
 	if got := s.Recall("compact the output please", 4); len(got) != 0 {
 		t.Fatalf("weak concern signal recalled %+v", got)
+	}
+}
+
+// A new entry named after a retired one must not overwrite the retired
+// file: it takes a fresh name and history stays on disk.
+func TestCreateAfterCloseKeepsTheHistoryFile(t *testing.T) {
+	s := Open(t.TempDir(), t.TempDir())
+	s.Put(Entry{Name: "fact", Description: "The old truth", Body: "old body", Source: "auto"})
+	if _, err := s.Close("fact", "fact-2", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	e, status, err := s.Put(Entry{Name: "fact", Description: "The old truth, relearned", Body: "new body", Source: "sleep"})
+	if err != nil || status != Created {
+		t.Fatalf("put = %v %v %v", e.Name, status, err)
+	}
+	if e.Name != "fact-2" {
+		t.Fatalf("new entry took %q, want a fresh name", e.Name)
+	}
+	old, ok := s.Get("fact")
+	if !ok || !old.Closed() || old.Body != "old body" {
+		t.Fatalf("history file overwritten: %+v", old)
+	}
+}
+
+// One batch listing the same entry twice reports it once.
+func TestApplyDedupesWithinABatch(t *testing.T) {
+	s := Open(t.TempDir(), t.TempDir())
+	changed, err := s.ApplyWith([]Extracted{
+		{Type: "project", Name: "dup", Description: "A fact", Body: "first"},
+		{Type: "project", Name: "dup", Description: "A fact", Body: "restated"},
+	}, "sleep")
+	if err != nil || len(changed) != 1 {
+		t.Fatalf("changed = %+v %v", changed, err)
 	}
 }

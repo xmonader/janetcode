@@ -32,19 +32,26 @@ type SleepInput struct {
 
 const sleepSystem = `You consolidate what a coding agent learned from one session, for the sessions that come after it. Your input is the session's machine-written record: its goal and outcome, the harness's interventions (a verify gate that failed, a critic warning, a refused tool call, a compaction), the user's requests, and the files the session changed. It is a record, not a conversation: never invent beyond it.
 
-Record what a future session of this project must know and cannot learn in a minute from the code or git history: an approach that failed and why (so it is not retried blind), a decision and its reason, a command or environment quirk the session established, a lasting preference the user stated. Never record task progress, file states, or anything the record does not show.
+Record what a future session of this project must know and cannot learn in a minute from the code or git history: an approach that failed and why (so it is not retried blind), a decision and its reason, a command or environment quirk the session established, a lasting preference the user stated. Never record task progress, file states, or anything the record does not show. Two traps to refuse: an instruction for this session's task ("document X in NOTES.md", "fix the parser") is not a lasting preference — record one only when the user stated it as lasting ("always", "never", "from now on"); and the record is made of the harness's interventions — record what an intervention teaches about the project, never the fact that the harness intervened, which is true of every session.
 
 Output one JSON object per line, nothing else:
 {"type":"project","name":"short-kebab-slug","description":"one line, under 120 characters","body":"the knowledge, with why and how to apply it","concerns":["files it is about, from the changed-files list"],"evidence":[seq numbers of the record lines it stands on],"replaces":"existing-entry-this-corrects-or-empty"}
-Every entry must cite at least one record line in "evidence"; an entry without evidence is discarded. concerns come from the changed-files list when the knowledge is about particular files. Output exactly NONE when the record holds nothing durable.`
+Every entry must cite at least one record line in "evidence"; an entry without evidence is discarded. concerns come from the changed-files list when the knowledge is about particular files. One entry per piece of knowledge: if two of your lines say the same thing, keep the better one. Output exactly NONE when the record holds nothing durable.`
 
 // Sleep reads one session's record and asks the model what of it a future
 // session needs. The candidates come back with their evidence validated
 // against the record: an entry that cites a line the record does not have
 // is the extraction-day hallucination class, and is rejected here.
 func Sleep(ctx context.Context, p llm.Provider, model string, in SleepInput, existing []Entry) ([]Extracted, error) {
+	xs, _, err := SleepD(ctx, p, model, in, existing)
+	return xs, err
+}
+
+// SleepD is Sleep plus the diagnostics a caller needs to tell "the model
+// found nothing" apart from "nothing survived evidence validation".
+func SleepD(ctx context.Context, p llm.Provider, model string, in SleepInput, existing []Entry) (xs []Extracted, dropped int, err error) {
 	if len(in.Facts) == 0 {
-		return nil, nil
+		return nil, 0, nil
 	}
 	var rec strings.Builder
 	fmt.Fprintf(&rec, "Session %s.\n", in.SessionID)
@@ -74,9 +81,11 @@ func Sleep(ctx context.Context, p llm.Provider, model string, in SleepInput, exi
 		Messages: []llm.Message{llm.TextMessage(llm.RoleUser, rec.String())},
 	}, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return ValidateSleep(ParseExtracted(resp.Message.Text()), in), nil
+	raw := ParseExtracted(resp.Message.Text())
+	valid := ValidateSleep(raw, in)
+	return valid, len(raw) - len(valid), nil
 }
 
 func orEmpty(s string) string {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/xmonader/janetcode/internal/agent"
 	"github.com/xmonader/janetcode/internal/memory"
+	"github.com/xmonader/janetcode/internal/sleepfold"
 )
 
 // extractMemory runs memory extraction in the background.
@@ -76,7 +77,7 @@ func (m *model) sleepMemory(loud bool) tea.Cmd {
 		m.transcript.errorf("memory is not available in this session")
 		return nil
 	}
-	in := agent.FoldSleep(sess.Events())
+	in := sleepfold.Fold(sess.Events())
 	in.SessionID = sess.Meta.ID
 	if loud {
 		m.note("reading the session's record…")

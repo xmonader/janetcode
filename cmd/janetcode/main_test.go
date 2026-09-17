@@ -27,12 +27,14 @@ func TestHeadlessEndToEnd(t *testing.T) {
 	home := t.TempDir()
 
 	var calls int
-	var lastReq, memReq map[string]any
+	var lastReq, memReq, sleepReq map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		raw, _ := io.ReadAll(r.Body)
 		if calls == 4 {
 			json.Unmarshal(raw, &memReq) // memory extraction after the mutating turn
+		} else if calls == 5 {
+			json.Unmarshal(raw, &sleepReq) // sleep consolidation at the run's end
 		} else {
 			json.Unmarshal(raw, &lastReq)
 		}
@@ -83,7 +85,7 @@ func TestHeadlessEndToEnd(t *testing.T) {
 	if err != nil || string(got) != "HELLO WORLD" {
 		t.Fatalf("out.txt = %q err=%v", got, err)
 	}
-	if calls != 4 { // read, write, answer, memory extraction
+	if calls != 5 { // read, write, answer, memory extraction, sleep consolidation
 		t.Fatalf("model calls = %d", calls)
 	}
 	if !strings.Contains(errOut, "[memory] remembered out.txt-generated-hello.txt (project, project): out.txt is generated from hello.txt.") {
@@ -91,6 +93,15 @@ func TestHeadlessEndToEnd(t *testing.T) {
 	}
 	if sys := memReq["messages"].([]any)[0].(map[string]any); !strings.Contains(sys["content"].(string), "long-term memory") {
 		t.Fatalf("extraction system prompt = %v", sys)
+	}
+	// The sleep pass follows extraction at the end of a mutating run and
+	// reads the session's record, not prose.
+	sleepSys := sleepReq["messages"].([]any)[0].(map[string]any)["content"].(string)
+	if !strings.Contains(sleepSys, "consolidate") {
+		t.Fatalf("sleep system prompt = %q", sleepSys)
+	}
+	if !strings.Contains(errOut, "[memory] sleep: nothing kept") {
+		t.Fatalf("stderr = %q", errOut)
 	}
 	memFiles, _ := filepath.Glob(filepath.Join(home, ".local", "share", "janetcode", "memory", "*", "*.md"))
 	if len(memFiles) != 1 || filepath.Base(memFiles[0]) != "out.txt-generated-hello.txt.md" {

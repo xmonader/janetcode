@@ -1,4 +1,4 @@
-package agent
+package sleepfold
 
 import (
 	"strings"
@@ -12,7 +12,7 @@ import (
 // the consolidation pass reads: goal and outcome, the harness's
 // interventions, what was refused, the user's asks, and the files the
 // session changed — every line carrying the seq it came from.
-func TestFoldSleep(t *testing.T) {
+func TestFold(t *testing.T) {
 	events := []session.Event{
 		{Seq: 1, Type: session.TypeGoalCreate, Name: "g1", Output: "fix the parser"},
 		{Seq: 2, Type: session.TypeUserMessage, Message: &llm.Message{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockText, Text: "fix the parser, please"}}}},
@@ -20,13 +20,14 @@ func TestFoldSleep(t *testing.T) {
 		{Seq: 4, Type: session.TypeToolCall, Name: "edit_file", Arguments: `{"path":"parser.go","old":"a","new":"b"}`},
 		{Seq: 5, Type: session.TypeToolCall, Name: "edit_file", Arguments: `{"path":"lexer.go","old":"a","new":"b"}`},
 		{Seq: 6, Type: session.TypeToolResult, Name: "bash", Denied: true, Output: "Denied by permission rule\nrest"},
+		{Seq: 11, Type: session.TypeToolResult, Name: "bash", IsError: true, Output: "exit 1: undefined: devMode\nmore detail"},
 		{Seq: 7, Type: session.TypeCritic, Output: "trajectory looks stuck: 3 failed edits"},
 		{Seq: 8, Type: session.TypeVerdict, Name: "pass", Output: "green"},
-		{Seq: 9, Type: session.TypeGoalPhase, Name: "g1", Reason: GoalComplete, Output: "parser fixed"},
+		{Seq: 9, Type: session.TypeGoalPhase, Name: "g1", Reason: goalComplete, Output: "parser fixed"},
 		{Seq: 10, Type: session.TypeUserMessage, Message: &llm.Message{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockText, Text: "<harness>\nsynthetic\n</harness>", Synthetic: true}}}},
 	}
-	in := FoldSleep(events)
-	if in.Goal != "fix the parser" || in.GoalOutcome != GoalComplete {
+	in := Fold(events)
+	if in.Goal != "fix the parser" || in.GoalOutcome != goalComplete {
 		t.Fatalf("goal = %+v", in)
 	}
 	if strings.Join(in.Touched, ",") != "parser.go,lexer.go" {
@@ -52,14 +53,14 @@ func TestFoldSleep(t *testing.T) {
 			t.Fatalf("fact without its seq: %+v", f)
 		}
 	}
-	if kinds["critic"] != 1 || kinds["verdict"] != 1 || kinds["goal"] != 1 || userLines != 1 || refusedLines != 1 {
+	if kinds["critic"] != 1 || kinds["verdict"] != 1 || kinds["goal"] != 1 || kinds["failure"] != 1 || userLines != 1 || refusedLines != 1 {
 		t.Fatalf("kinds = %v", kinds)
 	}
 }
 
 // A session with nothing in it folds to a record sleep will skip.
-func TestFoldSleepEmpty(t *testing.T) {
-	in := FoldSleep(nil)
+func TestFoldEmpty(t *testing.T) {
+	in := Fold(nil)
 	if in.Goal != "" || len(in.Facts) != 0 || len(in.Touched) != 0 {
 		t.Fatalf("in = %+v", in)
 	}

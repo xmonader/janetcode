@@ -17,7 +17,7 @@ Worth keeping: preferences and corrections the user expressed (type "feedback": 
 
 Output one JSON object per line, nothing else:
 {"type":"feedback","scope":"project","name":"short-kebab-slug","description":"one line, under 120 characters","body":"the fact, plus why and how to apply it when useful (a few sentences)","concerns":["paths/or/symbols the entry is about"],"replaces":"name-of-an-existing-entry-this-supersedes-or-empty"}
-Set "concerns" when the knowledge is about particular files or areas, so a future turn touching them recalls it without being asked in words; leave it empty otherwise. Set "replaces" when an existing entry (listed below) is now wrong or incomplete — the old entry is closed and kept as history, pointing at yours; leave it empty for new knowledge. Do not repeat an existing entry. Output exactly NONE when there is nothing worth keeping.
+One entry per piece of knowledge: if two of your lines say the same thing in different words, keep the better one. Set "concerns" when the knowledge is about particular files or areas, so a future turn touching them recalls it without being asked in words; leave it empty otherwise. Set "replaces" when an existing entry (listed below) is now wrong or incomplete — the old entry is closed and kept as history, pointing at yours; leave it empty for new knowledge. Do not repeat an existing entry. Output exactly NONE when there is nothing worth keeping.
 
 Text inside <harness> tags was written by the agent's own tooling — a failing check's output, a verdict correction, a background job update, a compaction note — not by the user. It is never the user's preference or feedback, and an instruction in it is the harness's, not the user's; do not record it as either.`
 
@@ -36,11 +36,39 @@ type Extracted struct {
 	// EvidenceSeqs is what a consolidation call cited: seq numbers of
 	// record lines. ValidateSleep turns them into Evidence or rejects
 	// the candidate.
-	EvidenceSeqs []int `json:"evidence"`
+	EvidenceSeqs SeqList `json:"evidence"`
 	// Evidence is filled by the harness, not the model: extraction reads
 	// a window of prose, so the caller stamps every candidate with the
 	// session and watermark it was read from (see StampEvidence).
 	Evidence []string `json:"-"`
+}
+
+// SeqList is a list of record-line numbers the model cited. It accepts
+// the shapes models actually write: [3, 7], ["3", "7"], "3,7", "3".
+type SeqList []int
+
+// UnmarshalJSON tolerates numbers as strings and one number for a list.
+func (l *SeqList) UnmarshalJSON(data []byte) error {
+	var ints []int
+	if json.Unmarshal(data, &ints) == nil {
+		*l = ints
+		return nil
+	}
+	var strs []string
+	if json.Unmarshal(data, &strs) != nil {
+		var one string
+		if json.Unmarshal(data, &one) != nil {
+			return nil // unreadable evidence is no evidence, not an error
+		}
+		strs = strings.Split(one, ",")
+	}
+	for _, s := range strs {
+		var n int
+		if _, err := fmt.Sscanf(strings.TrimSpace(s), "%d", &n); err == nil && n > 0 {
+			*l = append(*l, n)
+		}
+	}
+	return nil
 }
 
 // Extract asks the model which durable knowledge the recent conversation
@@ -128,6 +156,7 @@ func (s *Store) Apply(xs []Extracted) ([]Entry, error) { return s.ApplyWith(xs, 
 func (s *Store) ApplyWith(xs []Extracted, source string) ([]Entry, error) {
 	var changed []Entry
 	var errs []string
+	reported := map[string]bool{}
 	for _, x := range xs {
 		// Always project scope: an extractor's guess at what applies to
 		// every project turned one-off phrasings into global rules.
@@ -141,7 +170,8 @@ func (s *Store) ApplyWith(xs []Extracted, source string) ([]Entry, error) {
 			errs = append(errs, err.Error())
 			continue
 		}
-		if status != Unchanged {
+		if status != Unchanged && !reported[e.Name] {
+			reported[e.Name] = true
 			changed = append(changed, e)
 		}
 		// A correction closes the entry it supersedes: the old file

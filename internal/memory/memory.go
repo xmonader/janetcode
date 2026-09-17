@@ -409,6 +409,19 @@ func (s *Store) Put(e Entry) (Entry, Status, error) {
 	}
 	e.Created, e.Updated = now, now
 	e.Path = filepath.Join(s.dir(e.Scope), e.Name+".md")
+	if _, exists := readEntry(e.Path, e.Scope); exists {
+		// The name is taken by a retired entry, which stays on disk as
+		// history; the new knowledge gets a fresh name rather than
+		// overwriting it.
+		for i := 2; ; i++ {
+			name := fmt.Sprintf("%s-%d", e.Name, i)
+			p := filepath.Join(s.dir(e.Scope), name+".md")
+			if _, exists := readEntry(p, e.Scope); !exists {
+				e.Name, e.Path = name, p
+				break
+			}
+		}
+	}
 	if err := s.write(e); err != nil {
 		return e, Unchanged, err
 	}
