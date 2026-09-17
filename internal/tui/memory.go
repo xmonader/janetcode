@@ -205,6 +205,23 @@ func (m *model) memoryCommand(cmd, arg string) {
 				return
 			}
 			fmt.Fprintf(&sb, "%s\n%s\nsource %s · used %d× · %s\n", memoryLine(e), e.Body, e.Source, e.Uses, shortPath(e.Path))
+		case arg == "current" || strings.HasPrefix(arg, "about ") || strings.HasPrefix(arg, "history "):
+			var hits []memory.Entry
+			switch {
+			case arg == "current":
+				hits = store.Current()
+			case strings.HasPrefix(arg, "about "):
+				hits = store.About(strings.Fields(strings.TrimPrefix(arg, "about ")))
+			default:
+				hits = store.History(strings.TrimSpace(strings.TrimPrefix(arg, "history ")))
+			}
+			if len(hits) == 0 {
+				m.transcript.info("nothing for /memory " + arg)
+				return
+			}
+			for _, e := range hits {
+				fmt.Fprintf(&sb, "%s\n", memoryLine(e))
+			}
 		case arg != "":
 			hits := store.SearchCtx(m.life, arg, 8)
 			if len(hits) == 0 {
@@ -219,7 +236,7 @@ func (m *model) memoryCommand(cmd, arg string) {
 			for i, e := range entries {
 				fmt.Fprintf(&sb, "%3d. %s\n", i+1, memoryLine(e))
 			}
-			sb.WriteString("/memory <words> recalls, /memory show <name> prints one, /forget <name|number> removes")
+			sb.WriteString("/memory <words> recalls, show <name> prints one, about <path> lists entries on a file, history <name> follows replacements, current lists what is in force; /forget <name|number> removes")
 		}
 		m.transcript.info(strings.TrimRight(sb.String(), "\n"))
 	}

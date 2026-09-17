@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/xmonader/janetcode/internal/llm"
+	"github.com/xmonader/janetcode/internal/memory"
 	"github.com/xmonader/janetcode/internal/session"
 )
 
@@ -25,6 +26,8 @@ func TestFold(t *testing.T) {
 		{Seq: 8, Type: session.TypeVerdict, Name: "pass", Output: "green"},
 		{Seq: 9, Type: session.TypeGoalPhase, Name: "g1", Reason: goalComplete, Output: "parser fixed"},
 		{Seq: 10, Type: session.TypeUserMessage, Message: &llm.Message{Role: llm.RoleUser, Blocks: []llm.Block{{Type: llm.BlockText, Text: "<harness>\nsynthetic\n</harness>", Synthetic: true}}}},
+		{Seq: 12, Type: session.TypeGate, Name: "make test", IsError: true, Output: "VERSION and version.go must match"},
+		{Seq: 13, Type: session.TypeGate, Name: "make test"},
 	}
 	in := Fold(events)
 	if in.Goal != "fix the parser" || in.GoalOutcome != goalComplete {
@@ -55,6 +58,24 @@ func TestFold(t *testing.T) {
 	}
 	if kinds["critic"] != 1 || kinds["verdict"] != 1 || kinds["goal"] != 1 || kinds["failure"] != 1 || userLines != 1 || refusedLines != 1 {
 		t.Fatalf("kinds = %v", kinds)
+	}
+	if kinds["verify"] != 1 || kinds["verify-pass"] != 1 {
+		t.Fatalf("gate pair missing: kinds = %v", kinds)
+	}
+	var fail, pass memory.SleepFact
+	for _, f := range in.Facts {
+		switch f.Kind {
+		case "verify":
+			fail = f
+		case "verify-pass":
+			pass = f
+		}
+	}
+	if fail.Name != "make test" || fail.Text != "VERSION and version.go must match" || fail.Seq != 12 {
+		t.Fatalf("verify fail = %+v", fail)
+	}
+	if pass.Name != "make test" || pass.Text != "make test" || pass.Seq != 13 {
+		t.Fatalf("verify pass = %+v", pass)
 	}
 }
 

@@ -553,8 +553,13 @@ everywhere. Types: `user`, `feedback`, `project`, `decision`, `reference`.
   any entry citing a line the record does not have). `concerns:` names
   the files or symbols an entry is about, and a turn that names them
   recalls the entry without any word of its text overlapping.
+- `/sleep` records a gate that failed and later passed as one line of the
+  record, and lists existing entries about the files the session changed
+  under their own heading, so a correction says what it replaces.
 - `/memory` lists entries, `/memory <words>` recalls, `/memory show <name>`
-  prints one, `/remember [-g] <fact>` adds (`-g` global), `/forget
+  prints one, `/memory about <path>` lists the entries whose concerns
+  name that file, `/memory history <name>` follows what replaced what,
+  `/memory current` lists what is still in force, `/remember [-g] <fact>` adds (`-g` global), `/forget
   <name|number>` removes. Files are plain markdown you can edit by hand.
 
 Recall matches words by default. With `"embedding_model": "text-embedding-3-small"`

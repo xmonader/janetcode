@@ -12,7 +12,8 @@ import (
 // harness itself observed, with the event's seq in the session log.
 type SleepFact struct {
 	Seq  int
-	Kind string // goal, critic, verdict, refused, notice, compaction, user
+	Kind string // goal, critic, verdict, verify, verify-pass, refused, failure, compaction, user
+	Name string // the command on a verify / verify-pass line
 	Text string
 }
 
@@ -62,17 +63,39 @@ func SleepD(ctx context.Context, p llm.Provider, model string, in SleepInput, ex
 		fmt.Fprintf(&rec, "Changed files: %s\n", strings.Join(in.Touched, ", "))
 	}
 	rec.WriteString("Record:\n")
+	// A gate that failed and later passed is one fact, not two lines the
+	// model has to pair itself: the pass names the failure it cleared.
+	failed := map[string]int{}
 	for _, f := range in.Facts {
-		fmt.Fprintf(&rec, "[%d] (%s) %s\n", f.Seq, f.Kind, f.Text)
+		switch f.Kind {
+		case "verify":
+			if f.Name == "" {
+				fmt.Fprintf(&rec, "[%d] (verify) %s\n", f.Seq, f.Text)
+				continue
+			}
+			failed[f.Name] = f.Seq
+			fmt.Fprintf(&rec, "[%d] (verify %s) %s\n", f.Seq, f.Name, f.Text)
+		case "verify-pass":
+			if at, ok := failed[f.Name]; ok {
+				fmt.Fprintf(&rec, "[%d] (check %s) passed after failing at [%d]; the rule it enforces held once the changed files were right\n", f.Seq, f.Name, at)
+				delete(failed, f.Name)
+			}
+		default:
+			fmt.Fprintf(&rec, "[%d] (%s) %s\n", f.Seq, f.Kind, f.Text)
+		}
 	}
-	rec.WriteString("\nExisting memory entries (name (type): description):\n")
-	if len(existing) == 0 {
+	about, other := splitByConcern(existing, in.Touched)
+	if len(about) > 0 {
+		rec.WriteString("\nExisting entries about the files this session changed (name (type): description). If the session established that one is wrong or incomplete, set replaces to its name:\n")
+		for _, e := range about {
+			fmt.Fprintf(&rec, "- %s (%s): %s\n", e.Name, e.Type, e.Description)
+		}
+	}
+	rec.WriteString("\nOther existing entries (name (type): description):\n")
+	if len(other) == 0 {
 		rec.WriteString("(none)\n")
 	}
-	for _, e := range existing {
-		if e.Closed() {
-			continue
-		}
+	for _, e := range other {
 		fmt.Fprintf(&rec, "- %s (%s): %s\n", e.Name, e.Type, e.Description)
 	}
 	rec.WriteString("\nWrite the JSON lines for new or corrected knowledge now, or NONE.")
@@ -86,6 +109,34 @@ func SleepD(ctx context.Context, p llm.Provider, model string, in SleepInput, ex
 	raw := ParseExtracted(resp.Message.Text())
 	valid := ValidateSleep(raw, in)
 	return valid, len(raw) - len(valid), nil
+}
+
+// splitByConcern partitions the open entries into those whose concerns
+// name a file the session changed and the rest. Exact paths only: the
+// question is which entries this session's edits could have corrected.
+func splitByConcern(existing []Entry, touched []string) (about, other []Entry) {
+	have := map[string]bool{}
+	for _, t := range touched {
+		have[strings.TrimSpace(t)] = true
+	}
+	for _, e := range existing {
+		if e.Closed() {
+			continue
+		}
+		hit := false
+		for _, c := range e.Concerns {
+			if have[strings.TrimSpace(c)] {
+				hit = true
+				break
+			}
+		}
+		if hit {
+			about = append(about, e)
+		} else {
+			other = append(other, e)
+		}
+	}
+	return about, other
 }
 
 func orEmpty(s string) string {

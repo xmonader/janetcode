@@ -62,7 +62,7 @@ var Commands = withIdle([]Command{
 	{Name: "/ssh", Args: "[user@host[:/path]|off]", Help: "run file tools and bash on a remote host over ssh; off returns here"},
 	{Name: "/docker", Args: "[container[:/path]|off]", Help: "run file tools and bash in a docker container; off returns here"},
 	{Name: "/readonly", Args: "", Help: "toggle read-only mode (no edits or commands)"},
-	{Name: "/memory", Args: "", Help: "what janetcode remembers about this project"},
+	{Name: "/memory", Args: "[words | show <name> | about <path> | history <name> | current]", Help: "what janetcode remembers about this project"},
 	{Name: "/dream", Args: "", Help: "consolidate overlapping auto-memory entries; does not touch what you /remembered"},
 	{Name: "/sleep", Args: "", Help: "read this session's record and store what it established, with evidence; runs on its own when a goal finishes"},
 	{Name: "/init", Args: "[force]", Help: "write the project's starter instruction file from what this repository shows: languages, declared commands, layout; force overwrites an existing one"},

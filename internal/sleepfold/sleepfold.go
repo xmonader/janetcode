@@ -49,19 +49,28 @@ func Fold(events []session.Event) memory.SleepInput {
 		case session.TypeVerdict:
 			in.Facts = append(in.Facts, memory.SleepFact{Seq: e.Seq, Kind: "verdict", Text: textfmt.Clip(strings.TrimSpace(e.Name+" "+e.Output), 300)})
 		case session.TypeGate:
+			// Both halves of the pair InferRules harvests: a failure and
+			// the later pass of the same command. Name is the command.
+			kind := "verify-pass"
+			text := e.Name
 			if e.IsError {
-				in.Facts = append(in.Facts, memory.SleepFact{Seq: e.Seq, Kind: "verify", Text: textfmt.Clip(e.Output, 300)})
+				kind = "verify"
+				text = textfmt.Clip(e.Output, 300)
+				if text == "" {
+					text = e.Name
+				}
 			}
+			in.Facts = append(in.Facts, memory.SleepFact{Seq: e.Seq, Kind: kind, Name: e.Name, Text: text})
 		case session.TypeCompactSummary:
 			in.Facts = append(in.Facts, memory.SleepFact{Seq: e.Seq, Kind: "compaction", Text: fmt.Sprintf("context compacted from about %d tokens", e.Tokens)})
 		case session.TypeToolResult:
 			switch {
 			case e.Denied:
-				in.Facts = append(in.Facts, memory.SleepFact{Seq: e.Seq, Kind: "refused", Text: textfmt.Clip(strings.TrimSpace(e.Name+": "+firstLines(e.Output, 1)), 300)})
+				in.Facts = append(in.Facts, memory.SleepFact{Seq: e.Seq, Kind: "refused", Name: e.Name, Text: textfmt.Clip(strings.TrimSpace(e.Name+": "+firstLines(e.Output, 1)), 300)})
 			case e.IsError || failedCommand(e):
 				// A command or tool that failed is what the session
 				// learned from most directly.
-				in.Facts = append(in.Facts, memory.SleepFact{Seq: e.Seq, Kind: "failure", Text: textfmt.Clip(strings.TrimSpace(e.Name+": "+firstLines(e.Output, 4)), 300)})
+				in.Facts = append(in.Facts, memory.SleepFact{Seq: e.Seq, Kind: "failure", Name: e.Name, Text: textfmt.Clip(strings.TrimSpace(e.Name+": "+firstLines(e.Output, 4)), 300)})
 			}
 		case session.TypeUserMessage:
 			if e.Message == nil {
@@ -113,7 +122,7 @@ func capSleepFacts(facts []memory.SleepFact) []memory.SleepFact {
 	var kept, rest []memory.SleepFact
 	for _, f := range facts {
 		switch f.Kind {
-		case "goal", "verdict", "critic", "refused", "verify", "failure", "compaction":
+		case "goal", "verdict", "critic", "refused", "verify", "verify-pass", "failure", "compaction":
 			kept = append(kept, f)
 		default:
 			rest = append(rest, f)
