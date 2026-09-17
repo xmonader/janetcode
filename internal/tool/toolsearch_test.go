@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -106,5 +107,14 @@ func TestBatchRevealIsBoundedAndHappensOnce(t *testing.T) {
 	}
 	if len(r.Deferred()) != 1 {
 		t.Fatalf("deferred = %d, want 1", len(r.Deferred()))
+	}
+	// Identity, not just count: the reveal must be the tool the query
+	// named, or the model would call a schema it was never shown.
+	names := make([]string, 0, len(r.Deferred()))
+	for _, d := range r.Deferred() {
+		names = append(names, d.Name)
+	}
+	if slices.Contains(names, "mcp__b__two") || !slices.Contains(names, "mcp__c__three") {
+		t.Fatalf("the wrong tool was revealed, deferred = %v", names)
 	}
 }
