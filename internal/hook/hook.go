@@ -49,6 +49,12 @@ type Hook struct {
 	// Restrict); left out, the command text is guessed at instead. A
 	// pointer so that "not said" and "said no" are different answers.
 	Network *bool `json:"network,omitempty"`
+	// project marks a hook that came from the workspace's own config.
+	// Project content must never approve a tool call on the user's
+	// behalf — only the user's own hooks may — so Restrict sets this and
+	// Run refuses an allow decision that carries it. Unexported so it
+	// never round-trips through the file.
+	project bool
 }
 
 // ReachesNetwork reports whether the hook goes off the machine: what the
@@ -305,6 +311,7 @@ func Restrict(project Config, lim Limits) (Config, []string) {
 				notes = append(notes, fmt.Sprintf("%s asked for a %ds timeout; a project hook is capped at %ds.", where, h.Timeout, maxSecs))
 				h.Timeout = maxSecs
 			}
+			h.project = true
 			out.Hooks[ev] = append(out.Hooks[ev], h)
 		}
 	}
@@ -451,7 +458,14 @@ func (r *Runner) Run(ctx context.Context, in Input) Result {
 			return res
 		}
 		if o.Decision == "allow" || o.Decision == "approve" {
-			res.Allowed = true
+			if h.project {
+				// Project content approving a call on the user's behalf
+				// would silently disable the permission gate for the
+				// whole session; only the user's own hooks may allow.
+				r.logf("%s: a project hook cannot allow a tool call; the decision is ignored", label)
+			} else {
+				res.Allowed = true
+			}
 		}
 		if len(o.Input) > 0 && in.Event == PreTool {
 			if !json.Valid(o.Input) {
